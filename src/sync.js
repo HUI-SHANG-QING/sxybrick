@@ -50,13 +50,13 @@ export async function downloadBackup() {
 }
 
 // 局域网一键同步：把本地数据包 PUT 给电脑端中枢（hub），hub 合并后返回全量数据，再本地导入
-export async function syncWithHub(hubUrl) {
+export async function syncWithHub(hubUrl, token) {
   const hub = String(hubUrl || '').replace(/\/+$/, '');
   if (!hub) throw new Error('请先填写电脑端同步中枢地址');
   const backup = await buildBackup();
   const res = await fetch(`${hub}/backup`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'x-sync-token': String(token || '') },
     body: JSON.stringify(backup),
   });
   if (!res.ok) throw new Error(`同步失败（${res.status}），请确认电脑端中枢已启动`);

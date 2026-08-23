@@ -6,6 +6,7 @@ import { downloadBackup, importBackup, syncWithHub, countData } from '../sync.js
 
 const counts = ref({ cards: 0, reviews: 0, images: 0 });
 const hubUrl = ref(localStorage.getItem('sxy_hub') || location.origin);
+const hubToken = ref(localStorage.getItem('sxy_hub_token') || '');
 const fileInput = ref(null);
 const syncing = ref(false);
 const importing = ref(false);
@@ -57,14 +58,15 @@ async function onFile(e) {
 
 function saveHub() {
   localStorage.setItem('sxy_hub', hubUrl.value);
-  toast('已保存电脑端地址', 'success');
+  localStorage.setItem('sxy_hub_token', hubToken.value);
+  toast('已保存电脑端地址和密码', 'success');
 }
 
 async function doSync() {
   if (syncing.value) return;
   syncing.value = true;
   try {
-    const stats = await syncWithHub(hubUrl.value);
+    const stats = await syncWithHub(hubUrl.value, hubToken.value);
     await loadCounts();
     toast(`与电脑同步完成：${fmtStats(stats)}`, 'success');
   } catch (e) {
@@ -115,6 +117,11 @@ onMounted(() => { loadCounts(); loadLastBackup(); });
       <div class="row">
         <input v-model="hubUrl" class="input" placeholder="例如 http://192.168.1.5:4780" />
         <button class="btn small" @click="saveHub">保存</button>
+      </div>
+
+      <div class="field-label">同步密码</div>
+      <div class="row">
+        <input v-model="hubToken" class="input" placeholder="电脑启动中枢时显示的密码" />
       </div>
 
       <button class="btn primary" style="width:100%" :disabled="syncing" @click="doSync">

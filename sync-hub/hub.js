@@ -8,11 +8,22 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize } from 'node:path';
 import { networkInterfaces } from 'node:os';
+import { randomBytes } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST = join(__dirname, '..', 'dist');
 const DATA_FILE = join(__dirname, 'hub-data.json');
+const TOKEN_FILE = join(__dirname, 'hub-token.txt');
 const PORT = Number(process.env.PORT || process.argv[2] || 4780);
+
+// 同步密码：首次启动自动生成并保存，之后每次启动复用；打印给用户填到手机端
+function loadToken() {
+  if (existsSync(TOKEN_FILE)) return readFileSync(TOKEN_FILE, 'utf8').trim();
+  const t = randomBytes(16).toString('hex');
+  writeFileSync(TOKEN_FILE, t);
+  return t;
+}
+const TOKEN = loadToken();
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -99,6 +110,9 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/backup') {
+    if (req.headers['x-sync-token'] !== TOKEN) {
+      return json(res, 401, { error: '同步密码错误，请在 App「同步」页填写正确密码' });
+    }
     if (req.method === 'GET') {
       return json(res, 200, { version: 1, app: 'sxybrick', exportedAt: Date.now(), ...loadData() });
     }
@@ -129,6 +143,7 @@ server.listen(PORT, '0.0.0.0', () => {
       }
     }
   }
-  console.log('\n   在 App「同步」页里，把「电脑端地址」也填成上面的地址。');
+  console.log(`   同步密码：${TOKEN}`);
+  console.log('   在 App「同步」页里，把「电脑端地址」和上面这个「同步密码」都填上，即可安全同步。');
   if (!existsSync(DIST)) console.log('\n⚠ 尚未找到 dist/，请先运行 npm run build 再访问网页。');
 });

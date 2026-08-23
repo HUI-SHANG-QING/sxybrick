@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router';
 import VirtualList from '../components/VirtualList.vue';
 import CardModal from '../components/CardModal.vue';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion } from '../repo.js';
 
 const router = useRouter();
 
@@ -23,6 +23,7 @@ const loading = ref(false);
 const modalOpen = ref(false);
 const editing = ref(null);
 const weakMode = ref(false);
+const suggestion = ref(null);
 
 watch(viewMode, v => localStorage.setItem('sxy_view', v));
 
@@ -96,9 +97,12 @@ async function remove(card) {
   } catch (e) { toast(e.message, 'error'); }
 }
 
+async function loadSuggestion() { suggestion.value = await getReviewSuggestion(); }
+
 async function onSaved() {
   await loadCards();
   await loadMeta();
+  await loadSuggestion();
 }
 
 let searchTimer = null;
@@ -108,7 +112,7 @@ watch(searchInput, v => {
   searchTimer = setTimeout(() => { filters.q = v.trim(); }, 300);
 });
 
-onMounted(() => { loadMeta(); loadCards(); });
+onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); });
 </script>
 
 <template>
@@ -120,6 +124,17 @@ onMounted(() => { loadMeta(); loadCards(); });
       <button v-if="dueCount > 0" class="btn primary" @click="router.push('/review')">专注背诵（{{ dueCount }}）→</button>
       <button class="chip" :class="{ on: weakMode }" @click="toggleWeak">错题集</button>
       <button class="btn primary" @click="openCreate">＋ 新建卡</button>
+    </div>
+
+    <div v-if="suggestion && suggestion.dueCount > 0" class="suggest-bar">
+      <div class="hint" style="font-weight:600;color:var(--ink)">今日复习提醒</div>
+      <div class="hint">待背 {{ suggestion.dueCount }} 张<span v-if="suggestion.markedCount"> · 错题 {{ suggestion.markedCount }} 张</span></div>
+      <div v-if="suggestion.dueBySubject.length" class="hint">
+        到期最多：<span v-for="(s, i) in suggestion.dueBySubject" :key="s.name">{{ i ? '、' : '' }}{{ s.name }}({{ s.count }})</span>
+      </div>
+      <div v-if="suggestion.staleSubjects.length" class="hint" style="color:var(--amber)">
+        很久没复习：<span v-for="(s, i) in suggestion.staleSubjects" :key="s.name">{{ i ? '、' : '' }}{{ s.name }}({{ s.days }}天)</span>
+      </div>
     </div>
 
     <div class="filter-bar">
@@ -204,4 +219,5 @@ onMounted(() => { loadMeta(); loadCards(); });
 .filter-bar .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .filter-bar .row:last-child { margin-bottom: 0; }
 .front-preview { color: var(--ink); }
+.suggest-bar { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--blue); border-radius: var(--radius); padding: 12px 16px; margin: 12px 0; display: flex; flex-direction: column; gap: 2px; }
 </style>

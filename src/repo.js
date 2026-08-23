@@ -189,6 +189,44 @@ export async function weakCards(limit = 100, minFail = 2) {
     .slice(0, limit);
 }
 
+// ---------- 复习提醒建议 ----------
+export async function getReviewSuggestion() {
+  const cards = await allCards();
+  const reviews = await db.reviews.toArray();
+  const nowTs = now();
+  const due = cards.filter(c => c.dueAt <= nowTs);
+
+  // 今天待背按科目分组
+  const bySubject = new Map();
+  for (const c of due) { const k = c.subject || '未分类'; bySubject.set(k, (bySubject.get(k) || 0) + 1); }
+
+  // 每张卡最近一次复习时间（无记录用创建时间）
+  const lastReview = new Map();
+  for (const r of reviews) {
+    const cur = lastReview.get(r.cardId);
+    if (cur === undefined || r.reviewedAt > cur) lastReview.set(r.cardId, r.reviewedAt);
+  }
+  // 每科最久未复习（取该科内最久未复习的那张卡）
+  const subjOldest = new Map();
+  for (const c of cards) {
+    const k = c.subject || '未分类';
+    const t = lastReview.get(c.id) ?? c.createdAt ?? nowTs;
+    const cur = subjOldest.get(k);
+    if (cur === undefined || t < cur) subjOldest.set(k, t);
+  }
+  const staleSubjects = [...subjOldest.entries()]
+    .map(([name, ts]) => ({ name, days: Math.max(0, Math.floor((nowTs - ts) / 86400000)) }))
+    .sort((a, b) => b.days - a.days)
+    .slice(0, 5);
+
+  return {
+    dueCount: due.length,
+    dueBySubject: [...bySubject.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 6),
+    markedCount: cards.filter(c => c.marked).length,
+    staleSubjects,
+  };
+}
+
 // ---------- 统计 ----------
 export async function getStats() {
   const cards = await allCards();
