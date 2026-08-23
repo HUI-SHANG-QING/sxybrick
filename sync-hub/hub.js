@@ -71,12 +71,19 @@ function merge(base, incoming) {
     const cur = aiChats.get(c.id);
     if (!cur || (c.updatedAt || 0) >= (cur.updatedAt || 0)) aiChats.set(c.id, c);
   }
+  // Agent 记忆：按 updatedAt 谁新听谁
+  const aiMemories = new Map((base.aiMemories || []).map(m => [m.id, m]));
+  for (const m of incoming.aiMemories || []) {
+    const cur = aiMemories.get(m.id);
+    if (!cur || (m.updatedAt || 0) >= (cur.updatedAt || 0)) aiMemories.set(m.id, m);
+  }
   return {
     cards: [...cards.values()],
     tombstones: [...tombstones.values()],
     reviews: [...byId(base.reviews, incoming.reviews).values()],
     images: [...byId(base.images, incoming.images).values()],
     aiChats: [...aiChats.values()],
+    aiMemories: [...aiMemories.values()],
   };
 }
 

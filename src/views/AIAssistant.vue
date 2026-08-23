@@ -2,7 +2,7 @@
 // AI 智能助手：对话历史（存 IndexedDB 并可同步）+ 快捷指令 + 智能组卡 + 数轴定位
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
-import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat } from '../ai.js';
+import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
 import { createCard } from '../repo.js';
 
 const chats = ref([]);
@@ -62,12 +62,14 @@ async function send() {
   loading.value = true;
   scroll();
   try {
-    const ctx = await buildContext();
+    const [ctx, mem] = await Promise.all([buildContext(), buildMemoryText()]);
     const reply = await chatAI([
-      { role: 'system', content: SYSTEM_PROMPT + '\n\n' + ctx },
+      { role: 'system', content: SYSTEM_PROMPT + '\n\n' + (mem ? mem + '\n\n' : '') + ctx },
       ...currentChat.value.messages,
     ]);
     currentChat.value.messages.push({ role: 'assistant', content: reply });
+    const n = await extractMemories(text, reply);
+    if (n > 0) toast(`已自动记下 ${n} 条记忆`, 'success');
   } catch (e) {
     toast(e.message, 'error');
     currentChat.value.messages.push({ role: 'assistant', content: '（出错：' + e.message + '）' });
@@ -134,6 +136,20 @@ async function importCards() {
   genOpen.value = false; genCards.value = []; genText.value = '';
 }
 
+// ---- 记忆库 ----
+const memOpen = ref(false);
+const memories = ref([]);
+const newMemContent = ref('');
+const newMemCat = ref('fact');
+async function openMem() { memories.value = await listMemories(); memOpen.value = true; }
+async function addMem() {
+  await addMemory({ content: newMemContent.value, category: newMemCat.value });
+  newMemContent.value = '';
+  memories.value = await listMemories();
+}
+async function removeMem(id) { await deleteMemory(id); memories.value = await listMemories(); }
+function catName(c) { return c === 'core' ? '核心' : c === 'preference' ? '偏好' : '事实'; }
+
 onMounted(loadChatList);
 </script>
 
@@ -143,6 +159,7 @@ onMounted(loadChatList);
       <h2 style="margin:0">AI 学习助手</h2>
       <button class="btn primary small" @click="createNew">＋ 新建对话</button>
       <span style="flex:1"></span>
+      <button class="btn small" @click="openMem">记忆</button>
       <button class="btn small" @click="cfg = getAIConfig(); showSettings = true">AI 设置</button>
     </div>
 
@@ -238,6 +255,36 @@ onMounted(loadChatList);
         </div>
       </div>
     </teleport>
+
+    <!-- 记忆库弹窗 -->
+    <teleport to="body">
+      <div v-if="memOpen" class="modal-mask" @click.self="memOpen = false">
+        <div class="modal">
+          <h3>Agent 记忆库</h3>
+          <p class="hint" style="margin-top:0">Agent 会跨对话记住这些信息，并自动按分层注入。</p>
+          <div class="mem-add">
+            <select v-model="newMemCat" class="input" style="width:auto">
+              <option value="core">核心</option>
+              <option value="preference">偏好</option>
+              <option value="fact">事实</option>
+            </select>
+            <input v-model="newMemContent" class="input" placeholder="记住什么？如：我在备考考研计算机408" @keydown.enter="addMem" />
+            <button class="btn primary" @click="addMem">添加</button>
+          </div>
+          <div class="mem-list">
+            <div v-if="!memories.length" class="hint" style="text-align:center;padding:20px">暂无记忆，对话中 Agent 会自动提取，也可手动添加。</div>
+            <div v-for="m in memories" :key="m.id" class="mem-item">
+              <span class="mem-cat" :class="'cat-' + m.category">{{ catName(m.category) }}</span>
+              <span class="mem-content">{{ m.content }}</span>
+              <a style="color:var(--red);cursor:pointer" @click="removeMem(m.id)">删</a>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:12px">
+            <button class="btn" @click="memOpen = false">关闭</button>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -268,6 +315,15 @@ onMounted(loadChatList);
 .gen-item:last-child { border-bottom: none; }
 .gen-q { font-weight: 600; }
 .gen-a { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.mem-add { display: flex; gap: 8px; margin-bottom: 12px; }
+.mem-add .input[type="text"], .mem-add .input:not(select) { flex: 1; }
+.mem-list { max-height: 320px; overflow-y: auto; }
+.mem-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.mem-cat { font-size: 11px; border-radius: 4px; padding: 1px 6px; flex: none; }
+.mem-content { flex: 1; font-size: 13px; word-break: break-word; }
+.cat-core { background: #fee2e2; color: #dc2626; }
+.cat-preference { background: #eef2ff; color: #4338ca; }
+.cat-fact { background: #dcfce7; color: #16a34a; }
 
 @media (max-width: 720px) {
   .ai-body { grid-template-columns: 1fr; }

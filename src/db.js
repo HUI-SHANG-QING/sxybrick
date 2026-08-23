@@ -17,6 +17,11 @@ db.version(2).stores({
   aiChats: 'id, updatedAt',
 });
 
+// v3：新增 Agent 记忆库表（分层记忆：core核心/preference偏好/fact事实）
+db.version(3).stores({
+  aiMemories: 'id, updatedAt, category',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }
