@@ -1,6 +1,7 @@
 // 数据访问层：把原版 Express 后端的业务逻辑，改写成对本地 IndexedDB 的读写
 import { db, uid } from './db.js';
 import { computeNext } from './srs.js';
+import { extractImageIds } from './images.js';
 
 export const DEFAULT_SUBJECTS = ['计算机网络', '操作系统', '数据结构', '计算机组成原理', '高等数学', '线性代数', '概率论'];
 const MAX_CHARS = 8000;
@@ -13,11 +14,12 @@ export function validateCard(body) {
   const subject = String(body.subject ?? '').trim().slice(0, 30);
   const tags = (Array.isArray(body.tags) ? body.tags : [])
     .map(t => String(t).trim().slice(0, 20)).filter(Boolean).slice(0, 16);
+  const source = String(body.source ?? '').trim().slice(0, 60);
   if (!front) return { error: '正面内容不能为空' };
   if (!back) return { error: '背面内容不能为空' };
   if ([...front].length > MAX_CHARS) return { error: `正面内容不能超过 ${MAX_CHARS} 字` };
   if ([...back].length > MAX_CHARS) return { error: `背面内容不能超过 ${MAX_CHARS} 字` };
-  return { value: { front, back, subject, tags } };
+  return { value: { front, back, subject, tags, source } };
 }
 
 async function allCards() {
@@ -74,7 +76,7 @@ export async function createCard(payload) {
   if (r.error) throw new Error(r.error);
   const t = now();
   const card = {
-    id: uid(), front: r.value.front, back: r.value.back, subject: r.value.subject,
+    id: uid(), front: r.value.front, back: r.value.back, subject: r.value.subject, source: r.value.source,
     tags: r.value.tags, frontChars: [...r.value.front].length, backChars: [...r.value.back].length,
     ease: 2.5, level: 0, intervalDays: 0, dueAt: t, createdAt: t, updatedAt: t,
   };
@@ -89,6 +91,7 @@ export async function updateCard(id, payload) {
   if (r.error) throw new Error(r.error);
   const card = {
     ...old, front: r.value.front, back: r.value.back, subject: r.value.subject, tags: r.value.tags,
+    source: r.value.source,
     frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
   };
   await db.cards.put(card);
@@ -98,9 +101,20 @@ export async function updateCard(id, payload) {
 export async function deleteCard(id) {
   const old = await db.cards.get(id);
   if (!old) return;
+  const imgIds = [...extractImageIds((old.front || '') + '\n' + (old.back || ''))];
   await db.cards.delete(id);
   await db.tombstones.put({ id, deletedAt: now() });
   await db.reviews.where('cardId').equals(id).delete();
+  await cleanupOrphanImages(imgIds);
+}
+
+// 删除卡片后，清理不再被任何卡片引用的图片
+async function cleanupOrphanImages(ids) {
+  if (!ids.length) return;
+  const cards = await allCards();
+  const used = new Set();
+  for (const c of cards) for (const i of extractImageIds((c.front || '') + '\n' + (c.back || ''))) used.add(i);
+  for (const id of new Set(ids)) if (!used.has(id)) await db.images.delete(id);
 }
 
 // ---------- 复习 ----------
@@ -143,6 +157,19 @@ export async function reviewHistory(limit = 200) {
       subject: card?.subject || '', tags: card?.tags || [],
     };
   });
+}
+
+// ---------- 错题集 / 薄弱卡片 ----------
+export async function weakCards(limit = 100, minFail = 2) {
+  const cards = await allCards();
+  const reviews = await db.reviews.toArray();
+  const fail = new Map();
+  for (const r of reviews) if (r.rating === 0) fail.set(r.cardId, (fail.get(r.cardId) || 0) + 1);
+  return cards
+    .filter(c => (fail.get(c.id) || 0) >= minFail)
+    .map(c => ({ ...c, failCount: fail.get(c.id) }))
+    .sort((a, b) => (b.failCount - a.failCount) || (b.updatedAt - a.updatedAt))
+    .slice(0, limit);
 }
 
 // ---------- 统计 ----------

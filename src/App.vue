@@ -1,6 +1,24 @@
 <script setup>
+import { ref, onMounted, watch } from 'vue';
 import { toasts } from './utils/toast.js';
 import { degraded } from './utils/perf.js';
+
+const theme = ref(localStorage.getItem('sxy_theme') || 'light');
+
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', theme.value);
+}
+
+function toggleTheme() {
+  theme.value = theme.value === 'dark' ? 'light' : 'dark';
+}
+
+watch(theme, (v) => {
+  localStorage.setItem('sxy_theme', v);
+  applyTheme();
+});
+
+onMounted(applyTheme);
 </script>
 
 <template>
@@ -12,6 +30,9 @@ import { degraded } from './utils/perf.js';
       <router-link to="/stats">数据</router-link>
       <router-link to="/export">导出打印</router-link>
       <router-link to="/sync">同步</router-link>
+      <button class="btn small" style="margin-left:auto" @click="toggleTheme">
+        {{ theme === 'dark' ? '亮色' : '暗色' }}
+      </button>
     </nav>
     <main class="app-main">
       <router-view />

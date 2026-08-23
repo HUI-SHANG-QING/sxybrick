@@ -23,6 +23,7 @@ const subjects = ref([]);
 const allTags = ref([]);
 const tags = ref([]);
 const tagInput = ref('');
+const source = ref('');
 const showTagSuggest = ref(false);
 const front = ref('');
 const back = ref('');
@@ -42,12 +43,13 @@ watch(() => props.modelValue, async (open) => {
     front.value = props.card.front;
     back.value = props.card.back;
     tags.value = [...(props.card.tags || [])];
+    source.value = props.card.source || '';
     const known = subjects.value.some(s => s.name === props.card.subject);
     useCustomSubject.value = !!props.card.subject && !known;
     subject.value = known ? props.card.subject : '';
     customSubject.value = known ? '' : props.card.subject;
   } else {
-    front.value = ''; back.value = ''; tags.value = [];
+    front.value = ''; back.value = ''; tags.value = []; source.value = '';
     subject.value = ''; customSubject.value = ''; useCustomSubject.value = false;
     tagInput.value = '';
   }
@@ -123,6 +125,7 @@ async function save() {
       back: back.value.trim(),
       subject: useCustomSubject.value ? customSubject.value.trim() : subject.value,
       tags: tags.value,
+      source: source.value,
     };
     if (props.card) await updateCard(props.card.id, payload);
     else await createCard(payload);
@@ -155,6 +158,9 @@ function close() { emit('update:modelValue', false); }
                  placeholder="输入自定义科目" maxlength="30" />
         </div>
         <div v-if="errors.subject" class="hint error">{{ errors.subject }}</div>
+
+        <div class="field-label">来源（可选）</div>
+        <input v-model="source" class="input" placeholder="如：计算机网络 第3章 / 某教材 P123" maxlength="60" />
 
         <div class="field-label">标签（最多 {{ MAX_TAGS }} 个，回车添加）</div>
         <div class="tag-box input" style="position:relative">
@@ -222,12 +228,12 @@ function close() { emit('update:modelValue', false); }
 <style scoped>
 .tag-box { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .suggest {
-  position: absolute; top: 100%; left: 0; right: 0; background: #fff; z-index: 10;
+  position: absolute; top: 100%; left: 0; right: 0; background: var(--panel); z-index: 10;
   border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12);
   max-height: 200px; overflow-y: auto;
 }
 .suggest-item { padding: 8px 12px; cursor: pointer; }
-.suggest-item:hover { background: #f1f5f9; }
+.suggest-item:hover { background: var(--code-inline); }
 .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .preview-pane { border: 1px dashed var(--line); border-radius: 8px; padding: 10px; max-height: 260px; overflow-y: auto; }
 @media (max-width: 720px) { .preview-grid { grid-template-columns: 1fr; } }

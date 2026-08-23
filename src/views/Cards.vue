@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router';
 import VirtualList from '../components/VirtualList.vue';
 import CardModal from '../components/CardModal.vue';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards } from '../repo.js';
 
 const router = useRouter();
 
@@ -21,6 +21,7 @@ const loading = ref(false);
 
 const modalOpen = ref(false);
 const editing = ref(null);
+const weakMode = ref(false);
 
 watch(viewMode, v => localStorage.setItem('sxy_view', v));
 
@@ -42,6 +43,12 @@ async function loadMeta() {
 async function loadCards() {
   loading.value = true;
   try {
+    if (weakMode.value) {
+      items.value = await weakCards(100);
+      total.value = items.value.length;
+      dueCount.value = 0;
+      return;
+    }
     const data = await listCards({
       q: filters.q, subject: filters.subject,
       tags: filters.tags, logic: filters.logic,
@@ -65,6 +72,7 @@ function toggleTag(name) {
 
 function openCreate() { editing.value = null; modalOpen.value = true; }
 function openEdit(card) { editing.value = card; modalOpen.value = true; }
+function toggleWeak() { weakMode.value = !weakMode.value; loadCards(); }
 
 async function remove(card) {
   if (!confirm(`确定删除这张卡片？\n${plain(card.front).slice(0, 40)}`)) return;
@@ -98,6 +106,7 @@ onMounted(() => { loadMeta(); loadCards(); });
       <span class="hint">共 {{ total }} 张 · 今日待背 {{ dueCount }}</span>
       <span style="flex:1"></span>
       <button v-if="dueCount > 0" class="btn primary" @click="router.push('/review')">专注背诵（{{ dueCount }}）→</button>
+      <button class="chip" :class="{ on: weakMode }" @click="toggleWeak">错题集</button>
       <button class="btn primary" @click="openCreate">＋ 新建卡</button>
     </div>
 
@@ -136,7 +145,9 @@ onMounted(() => { loadMeta(); loadCards(); });
           <div class="tags">
             <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
             <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
+            <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">遗忘{{ item.failCount }}次</span>
           </div>
+          <div v-if="item.source" class="hint" style="margin-bottom:4px">来源：{{ item.source }}</div>
           <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
             <button class="btn small" @click="openEdit(item)">编辑</button>
@@ -151,7 +162,9 @@ onMounted(() => { loadMeta(); loadCards(); });
         <div class="tags">
           <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
           <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
+          <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">遗忘{{ item.failCount }}次</span>
         </div>
+        <div v-if="item.source" class="hint" style="margin-bottom:4px">来源：{{ item.source }}</div>
         <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
           <button class="btn small" @click="openEdit(item)">编辑</button>

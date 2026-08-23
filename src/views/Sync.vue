@@ -9,6 +9,7 @@ const hubUrl = ref(localStorage.getItem('sxy_hub') || location.origin);
 const fileInput = ref(null);
 const syncing = ref(false);
 const importing = ref(false);
+const lastBackup = ref(null);
 
 async function loadCounts() {
   counts.value = await countData();
@@ -23,6 +24,8 @@ function fmt(ts) {
 async function doExport() {
   try {
     await downloadBackup();
+    lastBackup.value = { at: Date.now() };
+    localStorage.setItem('sxy_last_backup', JSON.stringify(lastBackup.value));
     toast('数据包已导出，请把文件发到另一台设备导入', 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -61,7 +64,11 @@ async function doSync() {
   } finally { syncing.value = false; }
 }
 
-onMounted(loadCounts);
+function loadLastBackup() {
+  try { lastBackup.value = JSON.parse(localStorage.getItem('sxy_last_backup') || 'null'); } catch {}
+}
+
+onMounted(() => { loadCounts(); loadLastBackup(); });
 </script>
 
 <template>
@@ -77,6 +84,8 @@ onMounted(loadCounts);
       <p class="hint" style="margin-top:0">
         导出一份包含卡片、复习进度、图片的数据包文件，通过微信/QQ/网盘发到另一台设备导入即可。适合出门在外、不同 WiFi 时使用。
       </p>
+      <div v-if="lastBackup" class="hint" style="margin-bottom:8px">上次备份：{{ fmt(lastBackup.at) }}</div>
+      <div v-else class="hint" style="margin-bottom:8px;color:var(--amber)">⚠ 尚未备份过，建议定期导出数据包，防止数据丢失</div>
       <div class="row">
         <button class="btn primary" @click="doExport">导出数据包</button>
         <button class="btn" :disabled="importing" @click="pickFile">
@@ -122,8 +131,8 @@ onMounted(loadCounts);
 .panel-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .field-label { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 12px 0 6px; }
-.hub-steps { margin-top: 16px; background: #f6f8fa; border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
+.hub-steps { margin-top: 16px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
 .step-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .hub-steps ol { margin: 0; padding-left: 20px; font-size: 13px; color: var(--ink-2); }
-.hub-steps code { background: #eef2f6; border-radius: 4px; padding: 1px 5px; }
+.hub-steps code { background: var(--code-inline); border-radius: 4px; padding: 1px 5px; }
 </style>

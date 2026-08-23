@@ -10,6 +10,29 @@
   --amber: #d97706;
   --green: #16a34a;
   --radius: 10px;
+  --toast-bg: #16202c;
+  --code-bg: #f6f8fa;
+  --code-inline: #eef2f6;
+  --tag-bg: #eef2ff;
+  --tag-ink: #4338ca;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --ink: #e6edf3;
+  --ink-2: #8b98a5;
+  --line: #30363d;
+  --accent: #1f6feb;
+  --blue: #3b82f6;
+  --red: #f87171;
+  --amber: #f59e0b;
+  --green: #34d399;
+  --toast-bg: #30363d;
+  --code-bg: #0d1117;
+  --code-inline: #252c3a;
+  --tag-bg: #1c2740;
+  --tag-ink: #93b4f8;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
@@ -32,7 +55,7 @@ input, select, textarea { font: inherit; color: inherit; }
 .app-nav a {
   color: var(--ink-2); text-decoration: none; padding: 6px 14px; border-radius: 8px; white-space: nowrap;
 }
-.app-nav a.router-link-active { color: var(--ink); background: #eef2f6; font-weight: 600; }
+.app-nav a.router-link-active { color: var(--ink); background: var(--code-inline); font-weight: 600; }
 .app-main { flex: 1; width: 100%; max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
 
 /* 通用控件 */
@@ -40,7 +63,7 @@ input, select, textarea { font: inherit; color: inherit; }
   border: 1px solid var(--line); background: var(--panel); color: var(--ink);
   border-radius: 999px; padding: 8px 18px; transition: all .15s;
 }
-.btn:hover { border-color: #c8d2dc; }
+.btn:hover { border-color: var(--line); }
 .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn.danger { color: var(--red); }
 .btn.small { padding: 4px 12px; font-size: 13px; }
@@ -52,7 +75,7 @@ input, select, textarea { font: inherit; color: inherit; }
 .chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .chip .n { opacity: .7; margin-left: 4px; }
 .input, select.input, textarea.input {
-  border: 1px solid var(--line); border-radius: 8px; background: #fff;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
   padding: 8px 12px; outline: none; width: 100%;
 }
 .input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
@@ -79,8 +102,8 @@ input, select, textarea { font: inherit; color: inherit; }
   padding: 16px 20px; margin-bottom: 12px;
 }
 .card-item .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
-.tag-pill { background: #eef2ff; color: #4338ca; font-size: 12px; border-radius: 6px; padding: 2px 8px; }
-.tag-pill.subj { background: #f1f5f9; color: var(--ink-2); }
+.tag-pill { background: var(--tag-bg); color: var(--tag-ink); font-size: 12px; border-radius: 6px; padding: 2px 8px; }
+.tag-pill.subj { background: var(--code-inline); color: var(--ink-2); }
 
 /* 翻转卡 */
 .flip-scene { perspective: 1200px; }
@@ -96,9 +119,9 @@ input, select, textarea { font: inherit; color: inherit; }
 /* Markdown 内容 */
 .md-body { word-break: break-word; }
 .md-body h1, .md-body h2, .md-body h3 { line-height: 1.3; }
-.md-body pre { background: #f6f8fa; border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; }
+.md-body pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; }
 .md-body code { font-family: Consolas, "JetBrains Mono", monospace; font-size: 13px; }
-.md-body :not(pre) > code { background: #eef2f6; border-radius: 4px; padding: 1px 5px; }
+.md-body :not(pre) > code { background: var(--code-inline); border-radius: 4px; padding: 1px 5px; }
 .md-body table { border-collapse: collapse; }
 .md-body th, .md-body td { border: 1px solid var(--line); padding: 6px 10px; }
 .md-body img { max-width: 100%; border-radius: 8px; }
@@ -107,7 +130,7 @@ input, select, textarea { font: inherit; color: inherit; }
 /* Toast */
 .toast-wrap { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 300; display: flex; flex-direction: column; gap: 8px; }
 .toast {
-  background: var(--ink); color: #fff; border-radius: 8px; padding: 10px 18px;
+  background: var(--toast-bg); color: #fff; border-radius: 8px; padding: 10px 18px;
   font-size: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.25); animation: drop .2s ease;
 }
 .toast.error { background: var(--red); }
