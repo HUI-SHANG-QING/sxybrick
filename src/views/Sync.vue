@@ -12,7 +12,6 @@ const fileInput = ref(null);
 const syncing = ref(false);
 const importing = ref(false);
 const lastBackup = ref(null);
-const packPassword = ref('');
 
 async function loadCounts() {
   counts.value = await countData();
@@ -34,7 +33,7 @@ function fmtStats(stats) {
 
 async function doExport() {
   try {
-    await downloadBackup(packPassword.value || '');
+    await downloadBackup();
     lastBackup.value = { at: Date.now() };
     localStorage.setItem('sxy_last_backup', JSON.stringify(lastBackup.value));
     toast('数据包已导出，请把文件发到另一台设备导入', 'success');
@@ -50,7 +49,7 @@ async function onFile(e) {
   importing.value = true;
   try {
     const backup = JSON.parse(await f.text());
-    const stats = await importBackup(backup, packPassword.value || '');
+    const stats = await importBackup(backup);
     await loadCounts();
     toast(`导入完成：${fmtStats(stats)}`, 'success');
   } catch (err) {
@@ -85,7 +84,7 @@ const shareSubject = ref('');
 async function loadSubjects() { subjects.value = await getSubjects(); }
 async function doShare() {
   try {
-    await downloadSubjectBackup(shareSubject.value, packPassword.value || '');
+    await downloadSubjectBackup(shareSubject.value);
     toast('卡组已导出，发给同学导入即可', 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -108,11 +107,6 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
       </p>
       <div v-if="lastBackup" class="hint" style="margin-bottom:8px">上次备份：{{ fmt(lastBackup.at) }}</div>
       <div v-else class="hint" style="margin-bottom:8px;color:var(--amber)">⚠ 尚未备份过，建议定期导出数据包，防止数据丢失</div>
-      <div class="field-label" style="margin-top:0">数据包密码（可选）</div>
-      <div class="row">
-        <input v-model="packPassword" class="input" placeholder="留空不加密；填写后导出的文件将被加密" />
-      </div>
-
       <div class="row">
         <button class="btn primary" @click="doExport">导出数据包</button>
         <button class="btn" :disabled="importing" @click="pickFile">

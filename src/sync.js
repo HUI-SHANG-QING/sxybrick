@@ -3,7 +3,6 @@
 // 导入：按「最后修改时间谁新听谁」合并，删除用墓碑传播，图片按 id 幂等写入
 import { db } from './db.js';
 import { base64ToBlob, blobToBase64, extractImageIds } from './images.js';
-import { encryptBackup, decryptBackup } from './crypto.js';
 
 export const BACKUP_VERSION = 1;
 
@@ -34,16 +33,15 @@ export async function buildBackup(subject) {
   return { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), cards, reviews, tombstones, images };
 }
 
-export async function downloadBackup(password) {
+export async function downloadBackup() {
   const backup = await buildBackup();
-  const payload = password ? await encryptBackup(backup, password) : backup;
-  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const d = new Date();
   const p = n => String(n).padStart(2, '0');
   a.href = url;
-  a.download = `sxybrick-备份-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${password ? '-加密' : ''}.json`;
+  a.download = `sxybrick-备份-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -51,11 +49,10 @@ export async function downloadBackup(password) {
 }
 
 // 按科目导出一个卡组（分享给同学）
-export async function downloadSubjectBackup(subject, password) {
+export async function downloadSubjectBackup(subject) {
   if (!subject) throw new Error('请先选择要分享的科目');
   const backup = await buildBackup(subject);
-  const payload = password ? await encryptBackup(backup, password) : backup;
-  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const d = new Date();
@@ -103,12 +100,7 @@ export async function syncWithHub(hubUrl, token) {
   return importBackup(merged);
 }
 
-export async function importBackup(backup, password) {
-  if (backup && backup.app === 'sxybrick-enc') {
-    if (!password) throw new Error('这是加密数据包，请输入密码再导入');
-    try { backup = await decryptBackup(backup, password); }
-    catch { throw new Error('密码错误，无法解密数据包'); }
-  }
+export async function importBackup(backup) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
   const stats = { cards: 0, reviews: 0, images: 0, overridden: 0, deleted: 0 };
 
