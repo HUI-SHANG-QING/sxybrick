@@ -34,10 +34,27 @@ async function send() {
 }
 
 function toggle() { open.value = !open.value; }
+
+// 拖拽（pointer 事件统一鼠标/触摸）
+const rootEl = ref(null);
+const pos = ref(null);
+let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
+function onPointerDown(e) {
+  dragging = true; moved = false; sx = e.clientX; sy = e.clientY;
+  const r = rootEl.value.getBoundingClientRect();
+  ox = r.left; oy = r.top;
+}
+function onPointerMove(e) {
+  if (!dragging) return;
+  const dx = e.clientX - sx, dy = e.clientY - sy;
+  if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+  if (moved) pos.value = { left: ox + dx, top: oy + dy };
+}
+function onPointerUp() { dragging = false; if (!moved) toggle(); }
 </script>
 
 <template>
-  <div class="fa-root">
+  <div class="fa-root" ref="rootEl" :style="pos ? { left: pos.left + 'px', top: pos.top + 'px', right: 'auto', bottom: 'auto' } : {}">
     <transition name="fa">
       <div v-if="open" class="fa-panel">
         <div class="fa-head">
@@ -54,7 +71,7 @@ function toggle() { open.value = !open.value; }
         </div>
       </div>
     </transition>
-    <button class="fa-ball" :class="{ on: open }" @click="toggle">{{ open ? '×' : 'AI' }}</button>
+    <button class="fa-ball" :class="{ on: open }" @pointerdown="onPointerDown" @pointermove="onPointerMove" @pointerup="onPointerUp">{{ open ? '×' : 'AI' }}</button>
   </div>
 </template>
 

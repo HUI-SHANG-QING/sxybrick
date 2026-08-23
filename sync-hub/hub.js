@@ -65,11 +65,18 @@ function merge(base, incoming) {
     for (const x of incArr || []) if (!m.has(x.id)) m.set(x.id, x);
     return m;
   };
+  // AI 对话：按 updatedAt 谁新听谁
+  const aiChats = new Map((base.aiChats || []).map(c => [c.id, c]));
+  for (const c of incoming.aiChats || []) {
+    const cur = aiChats.get(c.id);
+    if (!cur || (c.updatedAt || 0) >= (cur.updatedAt || 0)) aiChats.set(c.id, c);
+  }
   return {
     cards: [...cards.values()],
     tombstones: [...tombstones.values()],
     reviews: [...byId(base.reviews, incoming.reviews).values()],
     images: [...byId(base.images, incoming.images).values()],
+    aiChats: [...aiChats.values()],
   };
 }
 

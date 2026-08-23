@@ -1,11 +1,12 @@
 <script setup>
-// AI 智能助手：结合用户真实学习数据做自然语言问答
-import { ref, onMounted, nextTick } from 'vue';
+// AI 智能助手：对话历史（存 IndexedDB 并可同步）+ 快捷指令 + 智能组卡 + 数轴定位
+import { ref, computed, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
-import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey } from '../ai.js';
+import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat } from '../ai.js';
 import { createCard } from '../repo.js';
 
-const messages = ref([]);
+const chats = ref([]);
+const currentChat = ref(newChat());
 const input = ref('');
 const loading = ref(false);
 const box = ref(null);
@@ -13,38 +14,74 @@ const box = ref(null);
 const showSettings = ref(false);
 const cfg = ref(getAIConfig());
 
+const genOpen = ref(false);
+const genText = ref('');
+const genCards = ref([]);
+const genLoading = ref(false);
+
 const SYSTEM_PROMPT = '你是「SxyBrick 记忆卡片」的智能学习助手。你会拿到用户的真实学习数据（卡片、复习记录、错题、标签、掌握度）。请用中文、简洁、友好地回答。当用户问学习情况、薄弱点、错因、复习建议时，务必结合下面提供的数据给出针对性建议，不要泛泛而谈。';
+
+const userNodes = computed(() => {
+  const nodes = [];
+  (currentChat.value.messages || []).forEach((m, i) => { if (m.role === 'user') nodes.push({ index: i, text: m.content }); });
+  return nodes;
+});
+
+async function loadChatList() { chats.value = await listChats(); }
+
+async function selectChat(id) {
+  currentChat.value = (await getChat(id)) || newChat();
+  await loadChatList();
+  scroll();
+}
+
+async function createNew() {
+  currentChat.value = newChat();
+  await loadChatList();
+}
+
+async function removeChat(id) {
+  if (!confirm('删除这个对话？')) return;
+  await deleteChat(id);
+  if (currentChat.value.id === id) currentChat.value = newChat();
+  await loadChatList();
+}
+
+async function persist() {
+  await saveChat(currentChat.value);
+  await loadChatList();
+}
 
 async function send() {
   const text = input.value.trim();
   if (!text || loading.value) return;
   if (!hasAIKey()) { showSettings.value = true; toast('请先配置 AI 密钥', 'error'); return; }
   input.value = '';
-  messages.value.push({ role: 'user', content: text });
+  currentChat.value.messages.push({ role: 'user', content: text });
+  if (currentChat.value.messages.filter(m => m.role === 'user').length === 1) currentChat.value.title = text.slice(0, 18);
   loading.value = true;
   scroll();
   try {
     const ctx = await buildContext();
     const reply = await chatAI([
       { role: 'system', content: SYSTEM_PROMPT + '\n\n' + ctx },
-      ...messages.value,
+      ...currentChat.value.messages,
     ]);
-    messages.value.push({ role: 'assistant', content: reply });
+    currentChat.value.messages.push({ role: 'assistant', content: reply });
   } catch (e) {
     toast(e.message, 'error');
-    messages.value.push({ role: 'assistant', content: '（出错了：' + e.message + '）' });
+    currentChat.value.messages.push({ role: 'assistant', content: '（出错：' + e.message + '）' });
   } finally {
     loading.value = false;
+    await persist();
     scroll();
   }
 }
 
-function saveSettings() {
-  setAIConfig(cfg.value);
-  showSettings.value = false;
-  toast('AI 配置已保存', 'success');
-}
+function scroll() { nextTick(() => { box.value?.scrollTo({ top: box.value.scrollHeight }); }); }
+function scrollToUser(i) { document.getElementById('msg-' + i)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
+// ---- 设置 / 测试 ----
 const testing = ref(false);
 async function testConnection() {
   setAIConfig(cfg.value);
@@ -56,22 +93,17 @@ async function testConnection() {
     toast('连接失败：' + e.message, 'error');
   } finally { testing.value = false; }
 }
+function saveSettings() { setAIConfig(cfg.value); showSettings.value = false; toast('AI 配置已保存', 'success'); }
 
-function scroll() { nextTick(() => { box.value?.scrollTo({ top: box.value.scrollHeight }); }); }
-
+// ---- 快捷指令 ----
 const quickActions = [
   { label: '智能出题', prompt: '请根据我的数据，出 3 道选择题考我（给出 A-D 选项，先别公布答案，等我回答后再判对错）' },
   { label: '学习周报', prompt: '请根据我的数据，生成一份本周学习周报：学了什么、哪里薄弱、下周复习建议' },
   { label: '知识关联', prompt: '请分析我的卡片涉及的知识点之间的关联，帮我把它们串成一个知识网络' },
 ];
-
 function clickQuick(q) { input.value = q.prompt; send(); }
 
-const genOpen = ref(false);
-const genText = ref('');
-const genCards = ref([]);
-const genLoading = ref(false);
-
+// ---- 智能组卡 ----
 async function generateCards() {
   const t = genText.value.trim();
   if (!t) return toast('请先粘贴内容', 'error');
@@ -86,7 +118,6 @@ async function generateCards() {
   } catch (e) { toast(e.message, 'error'); }
   finally { genLoading.value = false; }
 }
-
 function parseCards(text) {
   try {
     const m = String(text).match(/\[[\s\S]*\]/);
@@ -94,7 +125,6 @@ function parseCards(text) {
     return Array.isArray(arr) ? arr.filter(c => c && c.front && c.back) : [];
   } catch { return []; }
 }
-
 async function importCards() {
   if (!genCards.value.length) return;
   for (const c of genCards.value) {
@@ -104,16 +134,14 @@ async function importCards() {
   genOpen.value = false; genCards.value = []; genText.value = '';
 }
 
-onMounted(() => {
-  messages.value.push({ role: 'assistant', content: '你好，我是你的学习助手。我能看到你的卡片、复习记录、错题、标签和掌握度。你可以问「我最近哪些科目薄弱？」「错得最多的是什么错因？」「给我一个针对性复习计划」等等。' });
-});
+onMounted(loadChatList);
 </script>
 
 <template>
   <div class="ai-wrap">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <h2 style="margin:0">AI 学习助手</h2>
-      <span class="hint">基于你的真实复习数据回答</span>
+      <button class="btn primary small" @click="createNew">＋ 新建对话</button>
       <span style="flex:1"></span>
       <button class="btn small" @click="cfg = getAIConfig(); showSettings = true">AI 设置</button>
     </div>
@@ -123,11 +151,39 @@ onMounted(() => {
       <button class="chip" style="border-color:var(--blue);color:var(--blue)" @click="genOpen = true">智能组卡</button>
     </div>
 
-    <div ref="box" class="chat-box">
-      <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
-        <div class="bubble">{{ m.content }}</div>
+    <div class="ai-body">
+      <!-- 左栏：历史对话 -->
+      <div class="chat-side">
+        <div class="side-title">历史对话</div>
+        <div v-if="!chats.length" class="hint" style="padding:8px">暂无历史对话</div>
+        <div v-for="c in chats" :key="c.id" class="chat-item" :class="{ active: c.id === currentChat.id }" @click="selectChat(c.id)">
+          <div class="chat-item-title">{{ c.title || '新对话' }}</div>
+          <div class="chat-item-meta">{{ c.messages?.length || 0 }} 条
+            <a style="float:right;color:var(--red);cursor:pointer" @click.stop="removeChat(c.id)">删</a>
+          </div>
+        </div>
       </div>
-      <div v-if="loading" class="msg assistant"><div class="bubble">思考中…</div></div>
+
+      <!-- 中间：消息流 -->
+      <div ref="box" class="chat-box">
+        <div v-if="!currentChat.messages.length" class="hint" style="text-align:center;padding:40px">
+          你好，我是你的学习助手。问问我吧，例如「我最近哪些科目薄弱？」
+        </div>
+        <div v-for="(m, i) in currentChat.messages" :key="i" :id="'msg-' + i" class="msg" :class="m.role">
+          <div class="bubble">{{ m.content }}</div>
+        </div>
+        <div v-if="loading" class="msg assistant"><div class="bubble">思考中…</div></div>
+      </div>
+
+      <!-- 右栏：数轴节点 -->
+      <div class="timeline">
+        <div class="side-title">提问节点</div>
+        <div v-if="!userNodes.length" class="hint" style="padding:8px">暂无提问</div>
+        <div v-for="n in userNodes" :key="n.index" class="tl-node" :title="n.text" @click="scrollToUser(n.index)">
+          <span class="tl-dot"></span>
+          <span class="tl-text">{{ n.text.slice(0, 12) }}</span>
+        </div>
+      </div>
     </div>
 
     <div class="input-row">
@@ -135,7 +191,7 @@ onMounted(() => {
       <button class="btn primary" :disabled="loading" @click="send">发送</button>
     </div>
 
-    <!-- 设置弹窗 -->
+    <!-- AI 设置弹窗 -->
     <teleport to="body">
       <div v-if="showSettings" class="modal-mask" @click.self="showSettings = false">
         <div class="modal">
@@ -145,8 +201,8 @@ onMounted(() => {
           <div class="field-label">API 密钥</div>
           <input v-model="cfg.apiKey" class="input" type="password" placeholder="sk-..." />
           <div class="field-label">模型名</div>
-          <input v-model="cfg.model" class="input" placeholder="deepseek-chat" />
-          <div class="hint" style="margin-top:8px">DeepSeek 默认地址 https://api.deepseek.com，模型 deepseek-chat。密钥只存在你的浏览器本地。</div>
+          <input v-model="cfg.model" class="input" placeholder="deepseek-v4-flash" />
+          <div class="hint" style="margin-top:8px">推荐 deepseek-v4-flash（快、便宜、够用）；需要更强推理可换 deepseek-v4-pro。密钥只存你本地。</div>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
             <button class="btn" :disabled="testing" @click="testConnection">{{ testing ? '测试中…' : '测试连接' }}</button>
             <button class="btn" @click="showSettings = false">取消</button>
@@ -155,7 +211,8 @@ onMounted(() => {
         </div>
       </div>
     </teleport>
-  <!-- 智能组卡弹窗 -->
+
+    <!-- 智能组卡弹窗 -->
     <teleport to="body">
       <div v-if="genOpen" class="modal-mask" @click.self="genOpen = false">
         <div class="modal">
@@ -185,19 +242,35 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.ai-wrap { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; height: calc(100vh - 140px); }
-.chat-box { flex: 1; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; margin: 16px 0; }
+.ai-wrap { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; height: calc(100vh - 140px); }
+.quick-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.ai-body { flex: 1; display: grid; grid-template-columns: 180px 1fr 120px; gap: 12px; min-height: 0; }
+.chat-side, .timeline { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 10px; overflow-y: auto; }
+.side-title { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
+.chat-item { padding: 8px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; }
+.chat-item:hover { background: var(--code-inline); }
+.chat-item.active { background: var(--code-bg); }
+.chat-item-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-item-meta { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
+.chat-box { overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; }
 .msg { display: flex; margin-bottom: 12px; }
 .msg.user { justify-content: flex-end; }
 .bubble { max-width: 78%; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.6; }
 .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
 .msg.assistant .bubble { background: var(--code-bg); color: var(--ink); border-bottom-left-radius: 4px; }
-.input-row { display: flex; gap: 8px; }
+.tl-node { display: flex; align-items: center; gap: 6px; padding: 5px 0; cursor: pointer; border-bottom: 1px dashed var(--line); }
+.tl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+.tl-text { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.input-row { display: flex; gap: 8px; margin-top: 12px; }
 .input-row .input { flex: 1; }
-.quick-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
 .gen-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
 .gen-item { padding: 8px 0; border-bottom: 1px dashed var(--line); }
 .gen-item:last-child { border-bottom: none; }
 .gen-q { font-weight: 600; }
 .gen-a { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+
+@media (max-width: 720px) {
+  .ai-body { grid-template-columns: 1fr; }
+  .chat-side, .timeline { max-height: 120px; }
+}
 </style>

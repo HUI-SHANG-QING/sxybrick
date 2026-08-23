@@ -12,6 +12,11 @@ db.version(1).stores({
   meta: 'key',                 // 键值：deviceId 等
 });
 
+// v2：新增 AI 对话历史表（随数据包一起同步）
+db.version(2).stores({
+  aiChats: 'id, updatedAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

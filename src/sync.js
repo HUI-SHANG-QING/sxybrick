@@ -20,6 +20,7 @@ export async function buildBackup(subject) {
   let reviews = await db.reviews.toArray();
   if (subject) reviews = reviews.filter(r => cardIds.has(r.cardId));
   const tombstones = await db.tombstones.toArray();
+  const aiChats = subject ? [] : await db.aiChats.toArray();
 
   // 收集被打包卡片引用的图片
   const ids = new Set();
@@ -30,7 +31,7 @@ export async function buildBackup(subject) {
     if (row?.blob) images.push({ id, mime: row.mime || 'image/png', data: await blobToBase64(row.blob) });
   }
 
-  return { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), cards, reviews, tombstones, images };
+  return { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), cards, reviews, tombstones, images, aiChats };
 }
 
 export async function downloadBackup() {
@@ -102,7 +103,7 @@ export async function syncWithHub(hubUrl, token) {
 
 export async function importBackup(backup) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
-  const stats = { cards: 0, reviews: 0, images: 0, overridden: 0, deleted: 0 };
+  const stats = { cards: 0, reviews: 0, images: 0, overridden: 0, deleted: 0, aiChats: 0 };
 
   // 1) 卡片：按 updatedAt 最后写入胜出
   const localCards = new Map((await db.cards.toArray()).map(c => [c.id, c]));
@@ -144,6 +145,15 @@ export async function importBackup(backup) {
     if (!(await db.images.get(img.id)) && img.data) {
       await db.images.put({ id: img.id, blob: base64ToBlob(img.data, img.mime), mime: img.mime || 'image/png', createdAt: Date.now() });
       stats.images++;
+    }
+  }
+
+  // 6) AI 对话：按 id 幂等 + updatedAt 胜出
+  for (const chat of backup.aiChats || []) {
+    const local = await db.aiChats.get(chat.id);
+    if (!local || (chat.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
+      await db.aiChats.put(chat);
+      stats.aiChats++;
     }
   }
 

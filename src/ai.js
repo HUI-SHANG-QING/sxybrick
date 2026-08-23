@@ -1,15 +1,16 @@
 // AI 服务层：OpenAI 兼容格式（DeepSeek 等均可）
 // 密钥存本地 localStorage，前端直连，无需自建服务器
 import { getStats, weakCards, getReviewSuggestion, getTags } from './repo.js';
+import { db, uid } from './db.js';
 
 const CFG_KEY = 'sxy_ai_config';
 
 export function getAIConfig() {
   try {
     const c = JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
-    return { baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-chat', ...(c || {}) };
+    return { baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-v4-flash', ...(c || {}) };
   } catch {
-    return { baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-chat' };
+    return { baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-v4-flash' };
   }
 }
 
@@ -30,7 +31,7 @@ export async function chatAI(messages, opts = {}) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` },
     body: JSON.stringify({
-      model: cfg.model || 'deepseek-chat',
+      model: cfg.model || 'deepseek-v4-flash',
       messages,
       temperature: opts.temperature ?? 0.7,
       max_tokens: opts.maxTokens ?? 2000,
@@ -68,4 +69,21 @@ export async function buildContext() {
 function tagCountsStr(tags) {
   if (!tags.length) return '';
   return tags.slice(0, 20).map(t => `${t.name}(${t.count}张)`).join('，');
+}
+
+// ---------- 对话历史（存 IndexedDB，随数据包同步） ----------
+export async function listChats() {
+  return db.aiChats.orderBy('updatedAt').reverse().toArray();
+}
+export async function getChat(id) {
+  return (await db.aiChats.get(id)) || null;
+}
+export async function saveChat(chat) {
+  await db.aiChats.put({ ...chat, updatedAt: Date.now() });
+}
+export async function deleteChat(id) {
+  await db.aiChats.delete(id);
+}
+export function newChat() {
+  return { id: uid(), title: '新对话', createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
 }
