@@ -17,11 +17,13 @@ export function validateCard(body) {
   const source = String(body.source ?? '').trim().slice(0, 60);
   const type = ['basic', 'cloze', 'choice'].includes(body.type) ? body.type : 'basic';
   const marked = !!body.marked;
+  const mnemonic = String(body.mnemonic ?? '').trim().slice(0, 200);
+  const wrongReason = String(body.wrongReason ?? '').trim().slice(0, 20);
   if (!front) return { error: '正面内容不能为空' };
   if (type !== 'cloze' && !back) return { error: '背面内容不能为空' };
   if ([...front].length > MAX_CHARS) return { error: `正面内容不能超过 ${MAX_CHARS} 字` };
   if ([...back].length > MAX_CHARS) return { error: `背面内容不能超过 ${MAX_CHARS} 字` };
-  return { value: { front, back, subject, tags, source, type, marked } };
+  return { value: { front, back, subject, tags, source, type, marked, mnemonic, wrongReason } };
 }
 
 async function allCards() {
@@ -72,6 +74,15 @@ export async function listCards({ q = '', subject = '', tags = [], logic = 'AND'
   return { items: cards, total: cards.length, dueCount };
 }
 
+export function gradeCard(card) {
+  const level = card.level || 0;
+  if (card.marked) return { label: '错题', cls: 'g-weak' };
+  if (level >= 4) return { label: '已掌握', cls: 'g-master' };
+  if (level >= 2) return { label: '巩固中', cls: 'g-good' };
+  if (level >= 1) return { label: '学习中', cls: 'g-learning' };
+  return { label: '未开始', cls: 'g-new' };
+}
+
 export async function getCard(id) {
   return (await db.cards.get(id)) || null;
 }
@@ -84,6 +95,8 @@ export async function createCard(payload) {
     id: uid(), front: r.value.front, back: r.value.back, subject: r.value.subject, source: r.value.source,
     type: r.value.type,
     marked: r.value.marked,
+    mnemonic: r.value.mnemonic,
+    wrongReason: r.value.wrongReason,
     tags: r.value.tags, frontChars: [...r.value.front].length, backChars: [...r.value.back].length,
     ease: 2.5, level: 0, intervalDays: 0, dueAt: t, createdAt: t, updatedAt: t,
   };
@@ -101,6 +114,8 @@ export async function updateCard(id, payload) {
     source: r.value.source,
     type: r.value.type,
     marked: r.value.marked,
+    mnemonic: r.value.mnemonic,
+    wrongReason: r.value.wrongReason,
     frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
   };
   await db.cards.put(card);
@@ -160,12 +175,12 @@ export async function reviewQueue(limit = 100, interleave = false) {
   return cards.slice(0, limit);
 }
 
-export async function review(cardId, rating, intensity = 1) {
+export async function review(cardId, rating, intensity = 1, guessed = false) {
   const card = await db.cards.get(cardId);
   if (!card) throw new Error('卡片不存在');
-  const next = computeNext(card, rating, intensity);
+  const next = computeNext(card, rating, intensity, guessed);
   await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, updatedAt: now() });
-  await db.reviews.put({ id: uid(), cardId, reviewedAt: now(), rating, levelAfter: next.level });
+  await db.reviews.put({ id: uid(), cardId, reviewedAt: now(), rating, levelAfter: next.level, guessed: !!guessed });
   return { ...next, dueText: formatDue(next.dueAt) };
 }
 
@@ -312,5 +327,32 @@ export async function getStats() {
   const ratingDist = { 0: 0, 1: 0, 2: 0 };
   for (const r of reviews) if (ratingDist[r.rating] !== undefined) ratingDist[r.rating]++;
 
-  return { totalCards, totalReviews, todayReviews, dueToday, avgMastery, heatmap: heat, mastery, trend, subjectCards, ratingDist };
+  // 24 小时复习时间分布
+  const hourly = new Array(24).fill(0);
+  for (const r of reviews) hourly[new Date(r.reviewedAt).getHours()]++;
+
+  // 近 30 天遗忘率（没记住占比 %）
+  const forgotTrend = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
+    const s = d.getTime(), e = s + 86400000;
+    const dayRs = reviews.filter(r => r.reviewedAt >= s && r.reviewedAt < e);
+    const forgot = dayRs.filter(r => r.rating === 0).length;
+    forgotTrend.push({ date: `${d.getMonth() + 1}-${d.getDate()}`, rate: dayRs.length ? Math.round(forgot / dayRs.length * 100) : 0 });
+  }
+
+  // 能力四维（掌握度/正确率/稳定度/覆盖率）
+  const total = totalReviews || 1;
+  const correct = Math.round((reviews.filter(r => r.rating === 2).length / total) * 100);
+  const stable = Math.round((1 - reviews.filter(r => r.rating === 0).length / total) * 100);
+  const reviewedCount = new Set(reviews.map(r => r.cardId)).size;
+  const coverage = totalCards ? Math.round((reviewedCount / totalCards) * 100) : 0;
+  const ability = { mastery: avgMastery, correct, stable, coverage };
+
+  // 标签 Top 10
+  const tagMap = new Map();
+  for (const c of cards) for (const t of (c.tags || [])) tagMap.set(t, (tagMap.get(t) || 0) + 1);
+  const tagCounts = [...tagMap.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10);
+
+  return { totalCards, totalReviews, todayReviews, dueToday, avgMastery, heatmap: heat, mastery, trend, subjectCards, ratingDist, hourly, forgotTrend, ability, tagCounts };
 }

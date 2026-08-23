@@ -6,7 +6,7 @@ import VirtualList from '../components/VirtualList.vue';
 import CardModal from '../components/CardModal.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 
 const router = useRouter();
@@ -202,7 +202,7 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
       <template #default="{ item }">
         <div class="card-item">
           <div class="tags">
-            <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
+            <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
             <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
             <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">遗忘{{ item.failCount }}次</span>
           </div>
@@ -219,7 +219,7 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
     <template v-else>
       <div v-for="item in items" :key="item.id" class="card-item">
         <div class="tags">
-          <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
+          <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
           <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
           <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">遗忘{{ item.failCount }}次</span>
         </div>
@@ -284,4 +284,10 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
 .rt-0 { color: var(--red); }
 .rt-1 { color: var(--amber); }
 .rt-2 { color: var(--green); }
+.grade-pill { font-size: 11px; border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+.g-new { background: #f1f5f9; color: #64748b; }
+.g-learning { background: #eef2ff; color: #4338ca; }
+.g-good { background: #dcfce7; color: #16a34a; }
+.g-master { background: #dbeafe; color: #2563eb; }
+.g-weak { background: #fee2e2; color: #dc2626; }
 </style>

@@ -12,6 +12,10 @@ const radarEl = ref(null);
 const trendEl = ref(null);
 const pieEl = ref(null);
 const ratingEl = ref(null);
+const abilityEl = ref(null);
+const hourlyEl = ref(null);
+const forgotEl = ref(null);
+const tagEl = ref(null);
 let charts = [];
 
 function getChartTheme() {
@@ -124,6 +128,67 @@ function buildCharts() {
     });
     charts.push(rating);
   }
+
+  // 能力四维雷达
+  if (abilityEl.value && stats.value.ability) {
+    const ab = stats.value.ability;
+    const ability = echarts.init(abilityEl.value);
+    ability.setOption({
+      tooltip: {},
+      radar: {
+        indicator: [
+          { name: '掌握度', max: 100 }, { name: '正确率', max: 100 },
+          { name: '稳定度', max: 100 }, { name: '覆盖率', max: 100 },
+        ],
+        radius: '62%',
+        axisName: { color: theme.text },
+        splitLine: { lineStyle: { color: theme.grid } },
+        axisLine: { lineStyle: { color: theme.grid } },
+      },
+      series: [{ type: 'radar', data: [{ value: [ab.mastery, ab.correct, ab.stable, ab.coverage], name: '能力', areaStyle: { opacity: .25 } }] }],
+    });
+    charts.push(ability);
+  }
+
+  // 24 小时复习时间分布
+  if (hourlyEl.value) {
+    const hourly = echarts.init(hourlyEl.value);
+    hourly.setOption({
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => i + '时'), axisLabel: { color: theme.axis } },
+      yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
+      series: [{ type: 'bar', data: stats.value.hourly, itemStyle: { color: theme.bar, borderRadius: [3, 3, 0, 0] } }],
+      grid: { left: 32, right: 8, top: 20, bottom: 24 },
+    });
+    charts.push(hourly);
+  }
+
+  // 遗忘率曲线（近 30 天，越低越好）
+  if (forgotEl.value) {
+    const forgot = echarts.init(forgotEl.value);
+    forgot.setOption({
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: stats.value.forgotTrend.map(t => t.date), axisLabel: { color: theme.axis } },
+      yAxis: { type: 'value', max: 100, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
+      series: [{ type: 'line', data: stats.value.forgotTrend.map(t => t.rate), smooth: true, itemStyle: { color: '#ef4444' }, areaStyle: { opacity: .1 } }],
+      grid: { left: 32, right: 12, top: 20, bottom: 24 },
+    });
+    charts.push(forgot);
+  }
+
+  // 标签 Top 10
+  if (tagEl.value && stats.value.tagCounts && stats.value.tagCounts.length) {
+    const tag = echarts.init(tagEl.value);
+    const data = stats.value.tagCounts.slice().reverse();
+    tag.setOption({
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'value', axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
+      yAxis: { type: 'category', data: data.map(t => t.name), axisLabel: { color: theme.axis } },
+      series: [{ type: 'bar', data: data.map(t => t.count), itemStyle: { color: '#8b5cf6', borderRadius: [0, 4, 4, 0] } }],
+      grid: { left: 60, right: 16, top: 10, bottom: 20 },
+    });
+    charts.push(tag);
+  }
 }
 
 async function load() {
@@ -182,6 +247,28 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
       <div class="panel">
         <div class="hint" style="margin-bottom:8px">自评分布（全部复习）</div>
         <div ref="ratingEl" style="height:280px"></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="hint" style="margin-bottom:8px">能力四维雷达</div>
+        <div ref="abilityEl" style="height:260px"></div>
+      </div>
+      <div class="panel">
+        <div class="hint" style="margin-bottom:8px">复习时间分布（24 小时）</div>
+        <div ref="hourlyEl" style="height:260px"></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="hint" style="margin-bottom:8px">遗忘率趋势（近 30 天，越低越好）</div>
+        <div ref="forgotEl" style="height:260px"></div>
+      </div>
+      <div class="panel">
+        <div class="hint" style="margin-bottom:8px">标签 Top 10</div>
+        <div ref="tagEl" style="height:260px"></div>
       </div>
     </div>
   </div>

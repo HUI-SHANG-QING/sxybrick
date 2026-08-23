@@ -113,9 +113,12 @@ function pick(key) { if (picked.value) return; picked.value = key; flipped.value
           <MarkdownRenderer :content="card.back" />
         </template>
 
+        <div v-if="card.mnemonic" class="mnemonic">助记：{{ card.mnemonic }}</div>
+
         <div class="rate-row" @click.stop>
           <button class="btn rate bad" @click="emit('rate', card, 0)">没记住</button>
           <button class="btn rate mid" @click="emit('rate', card, 1)">还模糊</button>
+          <button class="btn rate guess" @click="emit('rate', card, 2, true)">蒙对</button>
           <button class="btn rate good" @click="emit('rate', card, 2)">记住了</button>
         </div>
       </div>
@@ -140,6 +143,8 @@ function pick(key) { if (picked.value) return; picked.value = key; flipped.value
 .rate.bad { color: var(--red); border-color: #fca5a5; }
 .rate.mid { color: var(--amber); border-color: #fcd34d; }
 .rate.good { color: var(--green); border-color: #86efac; }
+.rate.guess { color: var(--blue); border-color: #93c5fd; }
+.mnemonic { margin-top: 12px; padding: 8px 12px; background: var(--code-bg); border-radius: 8px; font-size: 13px; color: var(--ink-2); }
 .flip-inner .flip-back { pointer-events: none; }
 .flip-inner.flipped .flip-front { position: absolute; inset: 0; pointer-events: none; }
 .flip-inner.flipped .flip-back { position: relative; pointer-events: auto; }

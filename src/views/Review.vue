@@ -34,9 +34,9 @@ async function loadQueue() {
   finally { loading.value = false; }
 }
 
-async function rate(card, rating) {
+async function rate(card, rating, guessed = false) {
   try {
-    const res = await review(card.id, rating, intensity.value);
+    const res = await review(card.id, rating, intensity.value, guessed);
     doneCount.value += 1;
     recordReview();
     toast(`下次复习：${res.dueText}`, 'success');
