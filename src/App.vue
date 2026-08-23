@@ -46,7 +46,11 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
       <button v-if="installEvt" class="btn small primary" @click="install">装到桌面</button>
     </nav>
     <main class="app-main">
-      <router-view />
+      <router-view v-slot="{ Component }">
+        <transition name="page" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </router-view>
     </main>
     <div class="toast-wrap">
       <div v-for="t in toasts" :key="t.id" class="toast" :class="t.type">{{ t.message }}</div>

@@ -23,10 +23,27 @@ function buildCharts() {
     const end = new Date();
     const start = new Date(end.getTime() - 364 * 86400000);
     const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const maxV = Math.max(1, ...data.map(d => d[1]));
     heat.setOption({
       tooltip: { formatter: p => `${p.value[0]}：复习 ${p.value[1]} 次` },
-      visualMap: { min: 0, max: Math.max(5, ...data.map(d => d[1])), show: false, inRange: { color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'] } },
-      calendar: { range: [fmt(start), fmt(end)], cellSize: [12, 12], itemStyle: { borderColor: '#fff', borderWidth: 2 }, yearLabel: { show: false }, dayLabel: { firstDay: 1 } },
+      visualMap: {
+        min: 0, max: maxV,
+        left: 'center', bottom: 0,
+        show: data.length > 0,
+        itemWidth: 12, itemHeight: 12,
+        textStyle: { color: '#9aa5b1', fontSize: 11 },
+        inRange: { color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'] },
+      },
+      calendar: {
+        top: 12, left: 26, right: 10, bottom: 26,
+        range: [fmt(start), fmt(end)],
+        cellSize: ['auto', 13],
+        splitLine: { show: false },
+        itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 3 },
+        yearLabel: { show: false },
+        dayLabel: { firstDay: 1, margin: 8, nameMap: ['日', '一', '二', '三', '四', '五', '六'] },
+        monthLabel: { margin: 8, nameMap: 'cn' },
+      },
       series: [{ type: 'heatmap', coordinateSystem: 'calendar', data }],
     });
     charts.push(heat);
@@ -89,7 +106,7 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
 
     <div class="panel">
       <div class="hint" style="margin-bottom:8px">复习热力图（近一年）</div>
-      <div ref="heatEl" style="height:150px"></div>
+      <div ref="heatEl" style="height:180px"></div>
     </div>
 
     <div class="grid2">

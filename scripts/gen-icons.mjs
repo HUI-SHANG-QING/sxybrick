@@ -1,5 +1,5 @@
 // 生成 App 图标 PNG（192/512/maskable），纯 Node 内置 zlib，零依赖。
-// 复刻 public/icon.svg 的设计：深色圆角底 + 白色卡片 + 蓝色条。
+// 设计：靛蓝圆角底 + 叠卡立体感 + 白卡片 + 圆点/蓝条/紫按钮
 // 用法：node scripts/gen-icons.mjs
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -45,7 +45,14 @@ function inRoundRect(x, y, x0, y0, x1, y1, r) {
   return dx * dx + dy * dy <= r * r;
 }
 
-const COL = { bg: [22, 32, 44], white: [255, 255, 255], blue: [37, 99, 235], gray1: [203, 213, 225], gray2: [226, 232, 240] };
+const COL = {
+  indigo: [99, 102, 241],
+  deep: [91, 75, 232],
+  white: [255, 255, 255],
+  gray1: [199, 203, 214],
+  gray2: [229, 231, 235],
+  purple: [139, 92, 246],
+};
 
 function build(size) {
   const s = size / 512;
@@ -56,13 +63,15 @@ function build(size) {
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++)
       if (inRoundRect(x, y, E(x0), E(y0), E(x1), E(y1), E(r))) set(x, y, c);
   };
-  // 元素坐标采用 512 坐标系统
-  fill(0, 0, 512, 512, 96, COL.bg);        // 背景
-  fill(96, 120, 416, 320, 28, COL.white);  // 白卡
-  fill(128, 152, 384, 184, 12, COL.blue);  // 蓝条
-  fill(128, 208, 384, 224, 8, COL.gray1);  // 灰线1
-  fill(128, 240, 308, 252, 6, COL.gray2);  // 灰线2
-  fill(96, 352, 416, 392, 20, COL.blue);   // 蓝按钮
+  fill(0, 0, 512, 512, 112, COL.indigo);   // 背景
+  fill(126, 110, 414, 318, 28, COL.deep);  // 叠卡（立体）
+  fill(112, 96, 400, 304, 28, COL.white);  // 主卡片
+  fill(140, 124, 164, 148, 12, COL.indigo); // 圆点
+  fill(176, 130, 288, 142, 6, COL.indigo);  // 蓝条
+  fill(140, 170, 380, 184, 7, COL.gray1);   // 灰线1
+  fill(140, 198, 340, 212, 7, COL.gray2);   // 灰线2
+  fill(140, 226, 300, 240, 7, COL.gray2);   // 灰线3
+  fill(140, 258, 230, 288, 15, COL.purple); // 紫按钮
   return px;
 }
 
