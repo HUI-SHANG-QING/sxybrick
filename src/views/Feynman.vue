@@ -3,7 +3,7 @@
 import { ref, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
 import { db } from '../db.js';
-import { getSubjects, getTags } from '../repo.js';
+import { getSubjects, getTags, getStats, weakCards } from '../repo.js';
 import { chatAI, hasAIKey } from '../ai.js';
 
 const subjects = ref([]);
@@ -19,7 +19,7 @@ const loading = ref(false);
 const box = ref(null);
 const started = ref(false);
 
-const FEYN_PROMPT = '你是「费曼学习法」教练。用中文。基于下面提供的卡片范围，每次出一道题考用户，让用户用自己的话解释某个知识点或公式（以教代学）。用户回答后，你点评对错、指出遗漏，再追问或出下一题。每次只做一步，语气鼓励。';
+const FEYN_PROMPT = '你是「费曼学习法」教练，用中文自然交互。用"以教代学"帮用户巩固复习：1) 优先针对下面数据里"没记住/薄弱/错题"的知识点提问，帮用户突破盲区；2) 每次只出一道题，让用户用自己的话解释、推导或举例子，而不是简单背答案；3) 用户回答后，先点评对错、指出遗漏，再自然追问深入一层，或过渡到下一个知识点；4) 语气像耐心的老师，多鼓励；一次只解决一个点，不要一次抛一大堆。';
 
 async function loadMeta() {
   subjects.value = await getSubjects();
@@ -53,6 +53,23 @@ function cardsToText(cards) {
   return sample.map((c, i) => `${i + 1}. [${c.subject || '未分类'}] 问题：${String(c.front).replace(/\s+/g, ' ').slice(0, 120)} → 答案：${String(c.back).replace(/\s+/g, ' ').slice(0, 160)}${c.mnemonic ? '（助记：' + c.mnemonic + '）' : ''}`).join('\n');
 }
 
+// 基于复习数据构建费曼上下文：优先把范围内薄弱/错题放在最前
+async function buildFeynmanContext(cards) {
+  const [stats, weak] = await Promise.all([getStats(), weakCards(40, 1)]);
+  const rangeIds = new Set(cards.map(c => c.id));
+  const weakInRange = weak.filter(c => rangeIds.has(c.id));
+  const L = [];
+  L.push(`【用户复习数据】卡片 ${stats.totalCards} 张，总复习 ${stats.totalReviews} 次，平均掌握度 ${stats.avgMastery}%；自评分布：没记住 ${stats.ratingDist[0]} 次 / 还模糊 ${stats.ratingDist[1]} 次 / 记住了 ${stats.ratingDist[2]} 次。`);
+  if (weakInRange.length) {
+    L.push(`【本范围内薄弱/错题卡片（务必优先针对这些提问）】`);
+    L.push(cardsToText(weakInRange));
+  } else {
+    L.push(`【本范围内卡片】`);
+    L.push(cardsToText(cards));
+  }
+  return L.join('\n');
+}
+
 async function start() {
   if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
   const cards = filterCards(await db.cards.toArray());
@@ -61,9 +78,10 @@ async function start() {
   messages.value = [];
   loading.value = true;
   try {
+    const ctx = await buildFeynmanContext(cards);
     const reply = await chatAI([
-      { role: 'system', content: FEYN_PROMPT + '\n\n【本范围卡片数据】\n' + cardsToText(cards) },
-      { role: 'user', content: '开始吧，请出第一道题。' },
+      { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
+      { role: 'user', content: '开始吧，先看看我最薄弱的点，出第一道题。' },
     ]);
     messages.value.push({ role: 'assistant', content: reply });
   } catch (e) { toast(e.message, 'error'); }
@@ -79,8 +97,9 @@ async function send() {
   scroll();
   try {
     const cards = filterCards(await db.cards.toArray());
+    const ctx = await buildFeynmanContext(cards);
     const reply = await chatAI([
-      { role: 'system', content: FEYN_PROMPT + '\n\n【本范围卡片数据】\n' + cardsToText(cards) },
+      { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
       ...messages.value,
     ]);
     messages.value.push({ role: 'assistant', content: reply });
