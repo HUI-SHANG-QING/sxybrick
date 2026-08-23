@@ -44,6 +44,18 @@ function saveSettings() {
   toast('AI 配置已保存', 'success');
 }
 
+const testing = ref(false);
+async function testConnection() {
+  setAIConfig(cfg.value);
+  testing.value = true;
+  try {
+    const r = await chatAI([{ role: 'user', content: '请只回复「连接成功」四个字' }]);
+    toast(r ? '连接成功：' + r.trim().slice(0, 30) : '连接成功', 'success');
+  } catch (e) {
+    toast('连接失败：' + e.message, 'error');
+  } finally { testing.value = false; }
+}
+
 function scroll() { nextTick(() => { box.value?.scrollTo({ top: box.value.scrollHeight }); }); }
 
 onMounted(() => {
@@ -85,6 +97,7 @@ onMounted(() => {
           <input v-model="cfg.model" class="input" placeholder="deepseek-chat" />
           <div class="hint" style="margin-top:8px">DeepSeek 默认地址 https://api.deepseek.com，模型 deepseek-chat。密钥只存在你的浏览器本地。</div>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+            <button class="btn" :disabled="testing" @click="testConnection">{{ testing ? '测试中…' : '测试连接' }}</button>
             <button class="btn" @click="showSettings = false">取消</button>
             <button class="btn primary" @click="saveSettings">保存</button>
           </div>
