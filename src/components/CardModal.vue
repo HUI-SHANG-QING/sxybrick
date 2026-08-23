@@ -67,7 +67,10 @@ function addTag(name) {
   if (!tags.value.includes(n)) tags.value.push(n);
   tagInput.value = '';
 }
-function blurSuggest() { setTimeout(() => { showTagSuggest.value = false; }, 150); }
+function onTagBlur() {
+  if (tagInput.value.trim()) addTag(tagInput.value);
+  setTimeout(() => { showTagSuggest.value = false; }, 150);
+}
 
 function onTagKeydown(e) {
   if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(tagInput.value); }
@@ -111,6 +114,7 @@ function validate() {
 }
 
 async function save() {
+  if (tagInput.value.trim()) addTag(tagInput.value);
   if (!validate()) return;
   saving.value = true;
   try {
@@ -159,7 +163,7 @@ function close() { emit('update:modelValue', false); }
           </span>
           <input v-model="tagInput" style="border:none;outline:none;flex:1;min-width:120px"
                  placeholder="输入标签，回车添加" @keydown="onTagKeydown"
-                 @focus="showTagSuggest = true" @blur="blurSuggest" />
+                 @focus="showTagSuggest = true" @blur="onTagBlur" />
           <div v-if="showTagSuggest && tagSuggestions.length" class="suggest">
             <div v-for="s in tagSuggestions" :key="s.name" class="suggest-item" @mousedown.prevent="addTag(s.name)">
               {{ s.name }} <span class="hint">{{ s.count }}</span>

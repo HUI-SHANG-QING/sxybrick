@@ -33,10 +33,13 @@ export async function getSubjects() {
   return names.map(name => ({ name, count: map.get(name) || 0 }));
 }
 
-export async function getTags() {
+export async function getTags(subject = '') {
   const cards = await allCards();
   const map = new Map();
-  for (const c of cards) for (const t of (c.tags || [])) map.set(t, (map.get(t) || 0) + 1);
+  for (const c of cards) {
+    if (subject && c.subject !== subject) continue;
+    for (const t of (c.tags || [])) map.set(t, (map.get(t) || 0) + 1);
+  }
   return [...map.entries()]
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
@@ -124,6 +127,22 @@ export function formatDue(ts) {
   const d = new Date(ts);
   const pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// ---------- 已背记录 ----------
+export async function reviewHistory(limit = 200) {
+  const reviews = await db.reviews.orderBy('reviewedAt').reverse().limit(limit).toArray();
+  const cardMap = new Map((await allCards()).map(c => [c.id, c]));
+  const label = ['没记住', '还模糊', '记住了'];
+  return reviews.map(r => {
+    const card = cardMap.get(r.cardId);
+    return {
+      id: r.id, cardId: r.cardId, reviewedAt: r.reviewedAt, rating: r.rating,
+      ratingText: label[r.rating] ?? '已复习',
+      front: card?.front || '(卡片已删除)', back: card?.back || '',
+      subject: card?.subject || '', tags: card?.tags || [],
+    };
+  });
 }
 
 // ---------- 统计 ----------

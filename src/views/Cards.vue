@@ -36,7 +36,7 @@ function plain(md) {
 
 async function loadMeta() {
   subjects.value = await getSubjects();
-  allTags.value = await getTags();
+  allTags.value = await getTags(filters.subject);
 }
 
 async function loadCards() {
@@ -55,6 +55,7 @@ async function loadCards() {
 
 watch(() => [filters.q, filters.subject, filters.logic], loadCards);
 watch(() => filters.tags, loadCards, { deep: true });
+watch(() => filters.subject, loadMeta);
 
 function toggleTag(name) {
   const i = filters.tags.indexOf(name);

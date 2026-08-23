@@ -1,10 +1,10 @@
 <script setup>
-// 背诵页：到期队列 + 翻转卡 + 三档自评 + 下次复习时间 + 强度系数（本地）
+// 背诵页：到期队列 + 翻转卡 + 三档自评 + 强度系数 + 已背记录（本地）
 import { ref, onMounted } from 'vue';
 import FlipCard from '../components/FlipCard.vue';
 import CardModal from '../components/CardModal.vue';
 import { toast } from '../utils/toast.js';
-import { reviewQueue, review } from '../repo.js';
+import { reviewQueue, review, reviewHistory } from '../repo.js';
 
 const queue = ref([]);
 const idx = ref(0);
@@ -13,6 +13,10 @@ const intensity = ref(1);
 const editOpen = ref(false);
 const editing = ref(null);
 const doneCount = ref(0);
+
+const tab = ref('due'); // due | history
+const history = ref([]);
+const historyLoading = ref(false);
 
 const current = () => queue.value[idx.value] || null;
 
@@ -36,9 +40,34 @@ async function rate(card, rating) {
 }
 
 function openEdit(card) { editing.value = card; editOpen.value = true; }
-function onSaved() {
-  // 编辑后刷新当前卡内容
-  loadQueue();
+function onSaved() { loadQueue(); }
+
+async function loadHistory() {
+  historyLoading.value = true;
+  try { history.value = await reviewHistory(200); }
+  catch (e) { toast(e.message, 'error'); }
+  finally { historyLoading.value = false; }
+}
+
+function switchTab(t) {
+  tab.value = t;
+  if (t === 'history' && !history.value.length) loadHistory();
+}
+
+function plain(md) {
+  return String(md || '')
+    .replace(/```[\s\S]*?```/g, ' [代码] ')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' [图片] ')
+    .replace(/\$\$?([^$\n]+)\$\$?/g, ' $1 ')
+    .replace(/[*_#>`~|-]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function fmtTime(ts) {
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 onMounted(loadQueue);
@@ -50,27 +79,57 @@ onMounted(loadQueue);
       <h2 style="margin:0">专注背诵</h2>
       <span class="hint">待背 {{ Math.max(0, queue.length - idx) }} 张 · 已完成 {{ doneCount }}</span>
       <span style="flex:1"></span>
-      <label class="hint">复习强度</label>
-      <select v-model.number="intensity" class="input" style="width:auto">
-        <option :value="1">正常</option>
-        <option :value="1.5">考试临近（更频繁）</option>
-        <option :value="2">考前冲刺（最高频）</option>
-      </select>
+      <button class="chip" :class="{ on: tab === 'due' }" @click="switchTab('due')">待背</button>
+      <button class="chip" :class="{ on: tab === 'history' }" @click="switchTab('history')">已背记录</button>
     </div>
 
-    <div v-if="loading" class="hint" style="text-align:center;padding:60px">加载中…</div>
+    <template v-if="tab === 'due'">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px">
+        <label class="hint">复习强度</label>
+        <select v-model.number="intensity" class="input" style="width:auto">
+          <option :value="1">正常</option>
+          <option :value="1.5">考试临近（更频繁）</option>
+          <option :value="2">考前冲刺（最高频）</option>
+        </select>
+      </div>
 
-    <template v-else-if="current()">
-      <FlipCard :card="current()" @rate="rate" @edit="openEdit" />
-      <div class="hint" style="text-align:center;margin-top:12px">
-        第 {{ idx + 1 }} / {{ queue.length }} 张 · 翻到背面后选择自评结果
+      <div v-if="loading" class="hint" style="text-align:center;padding:60px">加载中…</div>
+
+      <template v-else-if="current()">
+        <FlipCard :card="current()" @rate="rate" @edit="openEdit" />
+        <div class="hint" style="text-align:center;margin-top:12px">
+          第 {{ idx + 1 }} / {{ queue.length }} 张 · 翻到背面后选择自评结果
+        </div>
+      </template>
+
+      <div v-else class="empty">
+        <h3>当前没有到期的卡片</h3>
+        <p class="hint">所有卡片都已安排到未来复习，去「我的卡片」新建或编辑卡片吧。</p>
       </div>
     </template>
 
-    <div v-else class="empty">
-      <h3>当前没有到期的卡片</h3>
-      <p class="hint">所有卡片都已安排到未来复习，去「我的卡片」新建或编辑卡片吧。</p>
-    </div>
+    <template v-else>
+      <div v-if="historyLoading" class="hint" style="text-align:center;padding:40px">加载中…</div>
+
+      <div v-else-if="history.length" class="history-list">
+        <div v-for="h in history" :key="h.id" class="card-item">
+          <div class="tags">
+            <span v-if="h.subject" class="tag-pill subj">{{ h.subject }}</span>
+            <span v-for="t in h.tags" :key="t" class="tag-pill">{{ t }}</span>
+          </div>
+          <div class="front-preview">{{ plain(h.front).slice(0, 120) || '（空）' }}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+            <span class="hint">{{ fmtTime(h.reviewedAt) }}</span>
+            <span class="rating-pill" :class="'r' + h.rating">{{ h.ratingText }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="empty">
+        <h3>还没有背诵记录</h3>
+        <p class="hint">完成第一张卡的背诵后，这里会显示你的历史记录。</p>
+      </div>
+    </template>
 
     <CardModal v-model="editOpen" :card="editing" @saved="onSaved" />
   </div>
@@ -78,4 +137,10 @@ onMounted(loadQueue);
 
 <style scoped>
 .empty { text-align: center; padding: 80px 0; }
+.history-list { margin-top: 16px; }
+.front-preview { color: var(--ink); }
+.rating-pill { font-size: 12px; border-radius: 6px; padding: 2px 10px; font-weight: 600; }
+.rating-pill.r0 { background: #fee2e2; color: var(--red); }
+.rating-pill.r1 { background: #fef3c7; color: var(--amber); }
+.rating-pill.r2 { background: #dcfce7; color: var(--green); }
 </style>
