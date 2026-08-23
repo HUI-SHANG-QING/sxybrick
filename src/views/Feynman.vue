@@ -6,6 +6,7 @@ import { db } from '../db.js';
 import { getSubjects, getTags, getStats, weakCards } from '../repo.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import VoiceInput from '../components/VoiceInput.vue';
+import { speak } from '../utils/tts.js';
 
 const subjects = ref([]);
 const allTags = ref([]);
@@ -84,7 +85,7 @@ async function start() {
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
       { role: 'user', content: '开始吧，先看看我最薄弱的点，出第一道题。' },
     ]);
-    messages.value.push({ role: 'assistant', content: reply });
+    messages.value.push({ role: 'assistant', content: reply }); if (voiceOn.value) speak(reply);
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; scroll(); }
 }
@@ -103,7 +104,7 @@ async function send() {
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
       ...messages.value,
     ]);
-    messages.value.push({ role: 'assistant', content: reply });
+    messages.value.push({ role: 'assistant', content: reply }); if (voiceOn.value) speak(reply);
   } catch (e) {
     toast(e.message, 'error');
     messages.value.push({ role: 'assistant', content: '（出错了：' + e.message + '）' });
@@ -112,12 +113,22 @@ async function send() {
 
 function scroll() { nextTick(() => { box.value?.scrollTo({ top: box.value.scrollHeight }); }); }
 
+const voiceOn = ref(localStorage.getItem('sxy_voice') !== '0');
+function toggleVoice() {
+  voiceOn.value = !voiceOn.value;
+  localStorage.setItem('sxy_voice', voiceOn.value ? '1' : '0');
+  if (!voiceOn.value && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+}
+
 onMounted(loadMeta);
 </script>
 
 <template>
   <div class="feynman-wrap">
-    <h2 style="margin:0">费曼学习法</h2>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <h2 style="margin:0">费曼学习法</h2>
+      <button class="chip" :class="{ on: voiceOn }" @click="toggleVoice">语音播报</button>
+    </div>
     <p class="hint" style="margin:4px 0 12px">以教代学：AI 出题考你，你用自己的话讲出来，讲不出的就是薄弱点。</p>
 
     <div class="panel">

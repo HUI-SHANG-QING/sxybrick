@@ -5,6 +5,7 @@ import { toast } from '../utils/toast.js';
 import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
 import { createCard } from '../repo.js';
 import VoiceInput from '../components/VoiceInput.vue';
+import { speak } from '../utils/tts.js';
 
 const chats = ref([]);
 const currentChat = ref(newChat());
@@ -69,6 +70,7 @@ async function send() {
       ...currentChat.value.messages,
     ]);
     currentChat.value.messages.push({ role: 'assistant', content: reply });
+    if (voiceOn.value) speak(reply);
     const n = await extractMemories(text, reply);
     if (n > 0) toast(`已自动记下 ${n} 条记忆`, 'success');
   } catch (e) {
@@ -151,6 +153,13 @@ async function addMem() {
 async function removeMem(id) { await deleteMemory(id); memories.value = await listMemories(); }
 function catName(c) { return c === 'core' ? '核心' : c === 'preference' ? '偏好' : '事实'; }
 
+const voiceOn = ref(localStorage.getItem('sxy_voice') !== '0');
+function toggleVoice() {
+  voiceOn.value = !voiceOn.value;
+  localStorage.setItem('sxy_voice', voiceOn.value ? '1' : '0');
+  if (!voiceOn.value && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+}
+
 onMounted(loadChatList);
 </script>
 
@@ -160,6 +169,7 @@ onMounted(loadChatList);
       <h2 style="margin:0">AI 学习助手</h2>
       <button class="btn primary small" @click="createNew">＋ 新建对话</button>
       <span style="flex:1"></span>
+      <button class="chip" :class="{ on: voiceOn }" @click="toggleVoice">语音播报</button>
       <button class="btn small" @click="openMem">记忆</button>
       <button class="btn small" @click="cfg = getAIConfig(); showSettings = true">AI 设置</button>
     </div>
