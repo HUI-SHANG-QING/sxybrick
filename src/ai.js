@@ -1,0 +1,71 @@
+// AI 服务层：OpenAI 兼容格式（DeepSeek 等均可）
+// 密钥存本地 localStorage，前端直连，无需自建服务器
+import { getStats, weakCards, getReviewSuggestion, getTags } from './repo.js';
+
+const CFG_KEY = 'sxy_ai_config';
+
+export function getAIConfig() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
+    return { baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-chat', ...(c || {}) };
+  } catch {
+    return { baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-chat' };
+  }
+}
+
+export function setAIConfig(cfg) {
+  localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+}
+
+export function hasAIKey() {
+  return !!getAIConfig().apiKey;
+}
+
+// 调 OpenAI 兼容的 chat/completions 接口
+export async function chatAI(messages, opts = {}) {
+  const cfg = getAIConfig();
+  if (!cfg.apiKey) throw new Error('请先在「AI 设置」里填入 API 密钥');
+  const base = String(cfg.baseUrl || 'https://api.deepseek.com').replace(/\/+$/, '');
+  const res = await fetch(`${base}/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${cfg.apiKey}` },
+    body: JSON.stringify({
+      model: cfg.model || 'deepseek-chat',
+      messages,
+      temperature: opts.temperature ?? 0.7,
+      max_tokens: opts.maxTokens ?? 2000,
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`AI 请求失败(${res.status})：${t.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+// 收集用户全部数据，拼成给 AI 的上下文（让 Agent 知道你的复习真实情况）
+export async function buildContext() {
+  const [stats, weak, suggestion, tags] = await Promise.all([
+    getStats(), weakCards(40, 1), getReviewSuggestion(), getTags(),
+  ]);
+
+  const L = [];
+  L.push(`【用户记忆卡片系统数据概览】`);
+  L.push(`- 卡片总数 ${stats.totalCards} 张；总复习 ${stats.totalReviews} 次；今日已复习 ${stats.todayReviews} 次；今日待背 ${stats.dueToday} 张；平均掌握度 ${stats.avgMastery}%`);
+  L.push(`- 各科卡片占比：${Object.entries(stats.subjectCards).map(([k, v]) => `${k} ${v}张`).join('，') || '无'}`);
+  L.push(`- 自评分布：没记住 ${stats.ratingDist[0]} 次 / 还模糊 ${stats.ratingDist[1]} 次 / 记住了 ${stats.ratingDist[2]} 次`);
+  L.push(`- 能力四维：掌握度${stats.ability.mastery}% 正确率${stats.ability.correct}% 稳定度${stats.ability.stable}% 覆盖率${stats.ability.coverage}%`);
+  if (suggestion.staleSubjects.length) L.push(`- 很久没复习的科目：${suggestion.staleSubjects.map(s => `${s.name}(${s.days}天)`).join('，')}`);
+  if (tagCountsStr(tags)) L.push(`- 标签分布：${tagCountsStr(tags)}`);
+  if (weak.length) {
+    const top = weak.slice(0, 20).map((c, i) => `${i + 1}.[${c.subject || '未分类'}${c.marked ? '·错题' : ''}${c.wrongReason ? '·' + c.wrongReason : ''}] ${String(c.front).replace(/\s+/g, ' ').slice(0, 30)}（遗忘${c.failCount}次）`).join('；');
+    L.push(`- 薄弱/错题卡片（按遗忘次数排序）：${top}`);
+  }
+  return L.join('\n');
+}
+
+function tagCountsStr(tags) {
+  if (!tags.length) return '';
+  return tags.slice(0, 20).map(t => `${t.name}(${t.count}张)`).join('，');
+}

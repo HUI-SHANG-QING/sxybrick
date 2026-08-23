@@ -13,6 +13,7 @@
   "dependencies": {
     "dexie": "^4.0.8",
     "echarts": "^5.5.1",
+    "echarts-wordcloud": "^2.1.0",
     "highlight.js": "^11.10.0",
     "katex": "^0.16.11",
     "marked": "^4.3.0",

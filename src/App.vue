@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { toasts, toast } from './utils/toast.js';
 import { degraded } from './utils/perf.js';
+import FloatAssistant from './components/FloatAssistant.vue';
 
 const THEMES = ['light', 'dark', 'eye'];
 const theme = ref(localStorage.getItem('sxy_theme') || 'light');
@@ -42,6 +43,9 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
       <router-link to="/stats">数据</router-link>
       <router-link to="/export">导出打印</router-link>
       <router-link to="/sync">同步</router-link>
+      <router-link to="/ai">AI助手</router-link>
+      <router-link to="/feynman">费曼</router-link>
+      <router-link to="/memo">备忘</router-link>
       <button class="btn small" style="margin-left:auto" @click="toggleTheme">{{ themeLabel }}</button>
       <button v-if="installEvt" class="btn small primary" @click="install">装到桌面</button>
     </nav>
@@ -58,5 +62,6 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
     <div v-if="degraded" class="hint" style="position:fixed;bottom:8px;right:12px;z-index:200">
       已启用性能优化模式
     </div>
+    <FloatAssistant />
   </div>
 </template>

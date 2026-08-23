@@ -2,6 +2,7 @@
 // 数据可视化：复习热力图 + 各科掌握度雷达图 + 14 天趋势 + 统计指标（本地）
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import * as echarts from 'echarts';
+import 'echarts-wordcloud';
 import { toast } from '../utils/toast.js';
 import { getStats } from '../repo.js';
 import { degraded } from '../utils/perf.js';
@@ -16,6 +17,7 @@ const abilityEl = ref(null);
 const hourlyEl = ref(null);
 const forgotEl = ref(null);
 const tagEl = ref(null);
+const wordEl = ref(null);
 let charts = [];
 
 function getChartTheme() {
@@ -189,6 +191,26 @@ function buildCharts() {
     });
     charts.push(tag);
   }
+
+  // 标签词云
+  if (wordEl.value && stats.value.tagCounts && stats.value.tagCounts.length) {
+    const wc = echarts.init(wordEl.value);
+    const colors = ['#6366F1', '#8B5CF6', '#EC4899', '#F59E0B', '#22C55E', '#3B82F6', '#EF4444'];
+    wc.setOption({
+      tooltip: { formatter: p => `${p.name}：${p.value} 张` },
+      series: [{
+        type: 'wordCloud',
+        shape: 'circle',
+        sizeRange: [14, 58],
+        rotationRange: [0, 0],
+        gridSize: 8,
+        textStyle: { color: p => colors[p.dataIndex % colors.length] },
+        emphasis: { textStyle: { fontWeight: 'bold' } },
+        data: stats.value.tagCounts.map(t => ({ name: t.name, value: t.count })),
+      }],
+    });
+    charts.push(wc);
+  }
 }
 
 async function load() {
@@ -270,6 +292,11 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
         <div class="hint" style="margin-bottom:8px">标签 Top 10</div>
         <div ref="tagEl" style="height:260px"></div>
       </div>
+    </div>
+
+    <div class="panel">
+      <div class="hint" style="margin-bottom:8px">标签词云</div>
+      <div ref="wordEl" style="height:300px"></div>
     </div>
   </div>
 </template>
