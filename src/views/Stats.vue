@@ -10,6 +10,8 @@ const stats = ref(null);
 const heatEl = ref(null);
 const radarEl = ref(null);
 const trendEl = ref(null);
+const pieEl = ref(null);
+const ratingEl = ref(null);
 let charts = [];
 
 function getChartTheme() {
@@ -43,14 +45,14 @@ function buildCharts() {
         inRange: { color: [theme.empty, '#9be9a8', '#40c463', '#30a14e', '#216e39'] },
       },
       calendar: {
-        top: 12, left: 26, right: 10, bottom: 26,
+        top: 34, left: 26, right: 10, bottom: 30,
         range: [fmt(start), fmt(end)],
         cellSize: ['auto', 13],
         splitLine: { show: false },
         itemStyle: { borderColor: theme.border, borderWidth: 2, borderRadius: 3 },
         yearLabel: { show: false },
         dayLabel: { firstDay: 1, margin: 8, nameMap: ['日', '一', '二', '三', '四', '五', '六'] },
-        monthLabel: { margin: 8, nameMap: 'cn' },
+        monthLabel: { margin: 10, nameMap: 'cn' },
       },
       series: [{ type: 'heatmap', coordinateSystem: 'calendar', data }],
     });
@@ -87,6 +89,41 @@ function buildCharts() {
     });
     charts.push(trend);
   }
+
+  // 各科卡片占比环形图
+  if (pieEl.value) {
+    const pie = echarts.init(pieEl.value);
+    const pdata = Object.entries(stats.value.subjectCards || {}).map(([name, value]) => ({ name, value }));
+    pie.setOption({
+      tooltip: { trigger: 'item', formatter: '{b}: {c} 张 ({d}%)' },
+      legend: { bottom: 0, textStyle: { color: theme.text } },
+      series: [{
+        type: 'pie', radius: ['38%', '62%'], center: ['50%', '44%'],
+        label: { color: theme.text, formatter: '{b}\n{d}%' },
+        data: pdata,
+        itemStyle: { borderRadius: 6, borderColor: theme.border, borderWidth: 2 },
+      }],
+    });
+    charts.push(pie);
+  }
+
+  // 自评分布
+  if (ratingEl.value) {
+    const rating = echarts.init(ratingEl.value);
+    const d = stats.value.ratingDist || { 0: 0, 1: 0, 2: 0 };
+    rating.setOption({
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'category', data: ['没记住', '还模糊', '记住了'], axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } } },
+      yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
+      series: [{ type: 'bar', data: [
+        { value: d[0], itemStyle: { color: '#ef4444' } },
+        { value: d[1], itemStyle: { color: '#f59e0b' } },
+        { value: d[2], itemStyle: { color: '#22c55e' } },
+      ], borderRadius: [6, 6, 0, 0] }],
+      grid: { left: 40, right: 12, top: 20, bottom: 28 },
+    });
+    charts.push(rating);
+  }
 }
 
 async function load() {
@@ -122,7 +159,7 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
 
     <div class="panel">
       <div class="hint" style="margin-bottom:8px">复习热力图（近一年）</div>
-      <div ref="heatEl" style="height:180px"></div>
+      <div ref="heatEl" style="height:210px"></div>
     </div>
 
     <div class="grid2">
@@ -134,6 +171,17 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
       <div class="panel">
         <div class="hint" style="margin-bottom:8px">近 14 天复习趋势</div>
         <div ref="trendEl" style="height:300px"></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="hint" style="margin-bottom:8px">各科卡片占比</div>
+        <div ref="pieEl" style="height:280px"></div>
+      </div>
+      <div class="panel">
+        <div class="hint" style="margin-bottom:8px">自评分布（全部复习）</div>
+        <div ref="ratingEl" style="height:280px"></div>
       </div>
     </div>
   </div>

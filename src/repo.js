@@ -306,5 +306,11 @@ export async function getStats() {
     trend.push({ date: `${d.getMonth() + 1}-${d.getDate()}`, count: n });
   }
 
-  return { totalCards, totalReviews, todayReviews, dueToday, avgMastery, heatmap: heat, mastery, trend };
+  // 各科卡片数 + 自评分布
+  const subjectCards = {};
+  for (const c of cards) { const k = c.subject || '未分类'; subjectCards[k] = (subjectCards[k] || 0) + 1; }
+  const ratingDist = { 0: 0, 1: 0, 2: 0 };
+  for (const r of reviews) if (ratingDist[r.rating] !== undefined) ratingDist[r.rating]++;
+
+  return { totalCards, totalReviews, todayReviews, dueToday, avgMastery, heatmap: heat, mastery, trend, subjectCards, ratingDist };
 }

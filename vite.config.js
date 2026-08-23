@@ -19,9 +19,10 @@ export default defineConfig({
         start_url: '/sxybrick/',
         scope: '/sxybrick/',
         icons: [
+          { src: 'icon-hero.jpg', sizes: '512x512', type: 'image/jpeg', purpose: 'any' },
+          { src: 'icon-hero.jpg', sizes: '512x512', type: 'image/jpeg', purpose: 'maskable' },
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
