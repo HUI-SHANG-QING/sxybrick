@@ -24,6 +24,7 @@ const allTags = ref([]);
 const tags = ref([]);
 const tagInput = ref('');
 const source = ref('');
+const type = ref('basic');
 const showTagSuggest = ref(false);
 const front = ref('');
 const back = ref('');
@@ -44,12 +45,13 @@ watch(() => props.modelValue, async (open) => {
     back.value = props.card.back;
     tags.value = [...(props.card.tags || [])];
     source.value = props.card.source || '';
+    type.value = props.card.type || 'basic';
     const known = subjects.value.some(s => s.name === props.card.subject);
     useCustomSubject.value = !!props.card.subject && !known;
     subject.value = known ? props.card.subject : '';
     customSubject.value = known ? '' : props.card.subject;
   } else {
-    front.value = ''; back.value = ''; tags.value = []; source.value = '';
+    front.value = ''; back.value = ''; tags.value = []; source.value = ''; type.value = 'basic';
     subject.value = ''; customSubject.value = ''; useCustomSubject.value = false;
     tagInput.value = '';
   }
@@ -101,6 +103,11 @@ function onPaste(side, e) {
   if (item) { e.preventDefault(); insertImage(side, item.getAsFile()); }
 }
 
+const frontLabel = computed(() => type.value === 'cloze' ? '句子（用 {{答案}} 挖空）' : type.value === 'choice' ? '题干（问题）' : '正面（提示 / 问题）');
+const backLabel = computed(() => type.value === 'choice' ? '选项 + 答案' : type.value === 'cloze' ? '解释 / 提示（可选）' : '背面（结论 / 答案）');
+const frontPh = computed(() => type.value === 'cloze' ? '把要挖空的位置用 {{答案}} 包起来，例如：CPU 的中文是 {{中央处理器}}' : type.value === 'choice' ? '输入题干，例如：以下哪个不是操作系统？' : '背诵时先看到的提示，支持 Markdown / 公式 / 代码块');
+const backPh = computed(() => type.value === 'choice' ? '每行一个选项（A~D），最后一行写答案。例如：\nA. Linux\nB. Windows\nC. Chrome\nD. macOS\n答案：C' : type.value === 'cloze' ? '可选：补充解释或助记，帮助理解' : '翻开要记住的内容，支持 Markdown');
+
 function validate() {
   const errs = {};
   const finalSubject = useCustomSubject.value ? customSubject.value.trim() : subject.value;
@@ -126,6 +133,7 @@ async function save() {
       subject: useCustomSubject.value ? customSubject.value.trim() : subject.value,
       tags: tags.value,
       source: source.value,
+      type: type.value,
     };
     if (props.card) await updateCard(props.card.id, payload);
     else await createCard(payload);
@@ -145,6 +153,13 @@ function close() { emit('update:modelValue', false); }
     <div v-if="modelValue" class="modal-mask" @click.self="close">
       <div class="modal">
         <h3>{{ card ? '编辑卡片' : '新建卡片' }}</h3>
+
+        <div class="field-label" style="margin-top:4px">题型</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="chip" :class="{ on: type === 'basic' }" @click="type = 'basic'">正反面</button>
+          <button class="chip" :class="{ on: type === 'cloze' }" @click="type = 'cloze'">填空</button>
+          <button class="chip" :class="{ on: type === 'choice' }" @click="type = 'choice'">选择</button>
+        </div>
 
         <div class="field-label">科目</div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -182,12 +197,12 @@ function close() { emit('update:modelValue', false); }
         <div v-if="errors.tags" class="hint error">{{ errors.tags }}</div>
 
         <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
-          <span>正面（提示 / 问题）</span>
+          <span>{{ frontLabel }}</span>
           <label class="btn small">插入图片<input type="file" accept="image/*" hidden
             @change="insertImage('front', $event.target.files[0]); $event.target.value = ''" /></label>
         </div>
         <textarea v-model="front" class="input" :class="{ invalid: errors.front }" rows="5"
-                  placeholder="背诵时先看到的提示，支持 Markdown / 公式 / 代码块；可直接粘贴截图"
+                  :placeholder="frontPh"
                   @input="front = limitField(front)" @paste="onPaste('front', $event)"></textarea>
         <div class="hint" :class="{ warn: frontLen >= WARN, error: frontLen >= MAX }">
           {{ frontLen }} / {{ MAX }} 字<span v-if="frontLen >= WARN && frontLen < MAX"> · 接近上限，请注意精简</span>
@@ -195,12 +210,12 @@ function close() { emit('update:modelValue', false); }
         <div v-if="errors.front" class="hint error">{{ errors.front }}</div>
 
         <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
-          <span>背面（结论 / 答案）</span>
+          <span>{{ backLabel }}</span>
           <label class="btn small">插入图片<input type="file" accept="image/*" hidden
             @change="insertImage('back', $event.target.files[0]); $event.target.value = ''" /></label>
         </div>
         <textarea v-model="back" class="input" :class="{ invalid: errors.back }" rows="7"
-                  placeholder="翻开要记住的内容，支持 Markdown；书上的图可以直接截图粘贴进来"
+                  :placeholder="backPh"
                   @input="back = limitField(back)" @paste="onPaste('back', $event)"></textarea>
         <div class="hint" :class="{ warn: backLen >= WARN, error: backLen >= MAX }">
           {{ backLen }} / {{ MAX }} 字<span v-if="backLen >= WARN && backLen < MAX"> · 接近上限，请注意精简</span>

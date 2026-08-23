@@ -36,6 +36,8 @@ function plain(md) {
     .trim();
 }
 
+function typeName(t) { return t === 'cloze' ? '填空' : t === 'choice' ? '选择' : ''; }
+
 async function loadMeta() {
   subjects.value = await getSubjects();
   allTags.value = await getTags(filters.subject);
@@ -152,7 +154,7 @@ onMounted(() => { loadMeta(); loadCards(); });
       <template #default="{ item }">
         <div class="card-item">
           <div class="tags">
-            <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
+            <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
             <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
             <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">遗忘{{ item.failCount }}次</span>
           </div>
@@ -169,7 +171,7 @@ onMounted(() => { loadMeta(); loadCards(); });
     <template v-else>
       <div v-for="item in items" :key="item.id" class="card-item">
         <div class="tags">
-          <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
+          <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
           <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
           <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">遗忘{{ item.failCount }}次</span>
         </div>

@@ -15,11 +15,12 @@ export function validateCard(body) {
   const tags = (Array.isArray(body.tags) ? body.tags : [])
     .map(t => String(t).trim().slice(0, 20)).filter(Boolean).slice(0, 16);
   const source = String(body.source ?? '').trim().slice(0, 60);
+  const type = ['basic', 'cloze', 'choice'].includes(body.type) ? body.type : 'basic';
   if (!front) return { error: '正面内容不能为空' };
-  if (!back) return { error: '背面内容不能为空' };
+  if (type !== 'cloze' && !back) return { error: '背面内容不能为空' };
   if ([...front].length > MAX_CHARS) return { error: `正面内容不能超过 ${MAX_CHARS} 字` };
   if ([...back].length > MAX_CHARS) return { error: `背面内容不能超过 ${MAX_CHARS} 字` };
-  return { value: { front, back, subject, tags, source } };
+  return { value: { front, back, subject, tags, source, type } };
 }
 
 async function allCards() {
@@ -80,6 +81,7 @@ export async function createCard(payload) {
   const t = now();
   const card = {
     id: uid(), front: r.value.front, back: r.value.back, subject: r.value.subject, source: r.value.source,
+    type: r.value.type,
     tags: r.value.tags, frontChars: [...r.value.front].length, backChars: [...r.value.back].length,
     ease: 2.5, level: 0, intervalDays: 0, dueAt: t, createdAt: t, updatedAt: t,
   };
@@ -95,6 +97,7 @@ export async function updateCard(id, payload) {
   const card = {
     ...old, front: r.value.front, back: r.value.back, subject: r.value.subject, tags: r.value.tags,
     source: r.value.source,
+    type: r.value.type,
     frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
   };
   await db.cards.put(card);
