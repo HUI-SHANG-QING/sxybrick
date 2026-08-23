@@ -8,6 +8,7 @@ import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
+import { chatAI } from '../ai.js';
 
 const router = useRouter();
 
@@ -119,6 +120,22 @@ function fmtTime(ts) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+const diagOpen = ref(false);
+const diagCard = ref(null);
+const diagText = ref('');
+const diagLoading = ref(false);
+async function openDiagnose(card) {
+  diagCard.value = card; diagOpen.value = true; diagText.value = ''; diagLoading.value = true;
+  try {
+    const r = await chatAI([
+      { role: 'system', content: '你是记忆卡质量诊断专家。点评这张卡：内容是否清晰、正面是否容易触发回忆、答案是否精炼、能否拆成更小知识点、怎么改更好记。用中文简洁回答。' },
+      { role: 'user', content: `正面：${card.front}\n背面：${card.back}\n科目：${card.subject || '无'}\n题型：${card.type || 'basic'}` },
+    ]);
+    diagText.value = r;
+  } catch (e) { toast(e.message, 'error'); diagText.value = '（诊断失败：' + e.message + '）'; }
+  finally { diagLoading.value = false; }
+}
+
 async function onSaved() {
   await loadCards();
   await loadMeta();
@@ -210,7 +227,7 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
           <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
             <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
-            <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
+            <button class="btn small" @click="openDiagnose(item)">诊断</button> <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
           </div>
         </div>
       </template>
@@ -227,7 +244,7 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
         <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
           <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
-          <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
+          <button class="btn small" @click="openDiagnose(item)">诊断</button> <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
         </div>
       </div>
     </template>
@@ -262,6 +279,18 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
         </div>
       </div>
     </teleport>
+  <teleport to="body">
+      <div v-if="diagOpen" class="modal-mask" @click.self="diagOpen = false">
+        <div class="modal">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 style="margin:0">AI 卡片诊断</h3>
+            <button class="btn small" @click="diagOpen = false">关闭</button>
+          </div>
+          <div v-if="diagLoading" class="hint" style="text-align:center;padding:30px">AI 分析中…</div>
+          <div v-else class="diag-text">{{ diagText }}</div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -290,4 +319,5 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
 .g-good { background: #dcfce7; color: #16a34a; }
 .g-master { background: #dbeafe; color: #2563eb; }
 .g-weak { background: #fee2e2; color: #dc2626; }
+.diag-text { white-space: pre-wrap; line-height: 1.7; color: var(--ink); }
 </style>
