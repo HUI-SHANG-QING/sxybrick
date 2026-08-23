@@ -5,7 +5,8 @@ import { useRouter } from 'vue-router';
 import VirtualList from '../components/VirtualList.vue';
 import CardModal from '../components/CardModal.vue';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory } from '../repo.js';
+import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 
 const router = useRouter();
 
@@ -24,6 +25,12 @@ const modalOpen = ref(false);
 const editing = ref(null);
 const weakMode = ref(false);
 const suggestion = ref(null);
+const goal = ref(getGoal());
+const todayCount = ref(0);
+const streak = ref(0);
+
+function loadStreak() { goal.value = getGoal(); todayCount.value = getTodayCount(); streak.value = getStreak(); }
+function onGoalChange() { setGoal(goal.value); loadStreak(); }
 
 watch(viewMode, v => localStorage.setItem('sxy_view', v));
 
@@ -99,6 +106,18 @@ async function remove(card) {
 
 async function loadSuggestion() { suggestion.value = await getReviewSuggestion(); }
 
+const historyOpen = ref(false);
+const historyData = ref(null);
+async function openHistory(card) {
+  try { historyData.value = await getCardHistory(card.id); historyOpen.value = true; }
+  catch (e) { toast(e.message, 'error'); }
+}
+function fmtTime(ts) {
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 async function onSaved() {
   await loadCards();
   await loadMeta();
@@ -112,7 +131,7 @@ watch(searchInput, v => {
   searchTimer = setTimeout(() => { filters.q = v.trim(); }, 300);
 });
 
-onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); });
+onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
 </script>
 
 <template>
@@ -124,6 +143,12 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); });
       <button v-if="dueCount > 0" class="btn primary" @click="router.push('/review')">专注背诵（{{ dueCount }}）→</button>
       <button class="chip" :class="{ on: weakMode }" @click="toggleWeak">错题集</button>
       <button class="btn primary" @click="openCreate">＋ 新建卡</button>
+    </div>
+
+    <div class="streak-bar">
+      <span class="hint">今日复习 <b>{{ todayCount }}</b> / <b>{{ goal }}</b> 次</span>
+      <input type="number" v-model.number="goal" class="input" style="width:80px" min="1" @change="onGoalChange" title="每日目标" />
+      <span class="hint">连续打卡 <b>{{ streak }}</b> 天</span>
     </div>
 
     <div v-if="suggestion && suggestion.dueCount > 0" class="suggest-bar">
@@ -184,7 +209,7 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); });
           <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
             <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
-            <button class="btn small danger" @click="remove(item)">删除</button>
+            <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
           </div>
         </div>
       </template>
@@ -201,7 +226,7 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); });
         <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
           <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
-          <button class="btn small danger" @click="remove(item)">删除</button>
+          <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
         </div>
       </div>
     </template>
@@ -211,6 +236,31 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); });
     </div>
 
     <CardModal v-model="modalOpen" :card="editing" @saved="onSaved" />
+
+    <teleport to="body">
+      <div v-if="historyOpen" class="modal-mask" @click.self="historyOpen = false">
+        <div class="modal">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h3 style="margin:0">该卡复习历史</h3>
+            <button class="btn small" @click="historyOpen = false">关闭</button>
+          </div>
+          <div v-if="historyData && historyData.card" class="card-item" style="margin:8px 0">
+            <div class="tags">
+              <span v-if="historyData.card.subject" class="tag-pill subj">{{ historyData.card.subject }}</span>
+              <span v-for="t in historyData.card.tags" :key="t" class="tag-pill">{{ t }}</span>
+            </div>
+            <div class="front-preview">{{ plain(historyData.card.front).slice(0, 80) || '（空）' }}</div>
+          </div>
+          <div v-if="historyData && !historyData.history.length" class="hint" style="text-align:center;padding:20px">还没有复习记录</div>
+          <div v-else>
+            <div v-for="(h, i) in historyData.history" :key="i" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line)">
+              <span class="hint">{{ fmtTime(h.reviewedAt) }}</span>
+              <span class="hint" :class="'rt-' + h.rating">{{ h.ratingText }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -220,4 +270,8 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); });
 .filter-bar .row:last-child { margin-bottom: 0; }
 .front-preview { color: var(--ink); }
 .suggest-bar { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--blue); border-radius: var(--radius); padding: 12px 16px; margin: 12px 0; display: flex; flex-direction: column; gap: 2px; }
+.streak-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.rt-0 { color: var(--red); }
+.rt-1 { color: var(--amber); }
+.rt-2 { color: var(--green); }
 </style>

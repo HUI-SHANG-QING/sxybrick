@@ -6,6 +6,7 @@ import CardModal from '../components/CardModal.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import { reviewQueue, review, reviewHistory } from '../repo.js';
+import { recordReview } from '../utils/streak.js';
 
 const queue = ref([]);
 const idx = ref(0);
@@ -35,6 +36,7 @@ async function rate(card, rating) {
   try {
     const res = await review(card.id, rating, intensity.value);
     doneCount.value += 1;
+    recordReview();
     toast(`下次复习：${res.dueText}`, 'success');
     if (rating === 0) queue.value.push({ ...card, ...res });
     idx.value += 1;

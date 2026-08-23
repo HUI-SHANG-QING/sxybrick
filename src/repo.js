@@ -176,6 +176,20 @@ export async function reviewHistory(limit = 200) {
   });
 }
 
+// ---------- 单卡复习历史 ----------
+export async function getCardHistory(id) {
+  const card = await db.cards.get(id);
+  const reviews = await db.reviews.where('cardId').equals(id).reverse().sortBy('reviewedAt');
+  const label = ['没记住', '还模糊', '记住了'];
+  return {
+    card: card || null,
+    history: reviews.map(r => ({
+      reviewedAt: r.reviewedAt, rating: r.rating,
+      ratingText: label[r.rating] ?? '已复习', levelAfter: r.levelAfter,
+    })),
+  };
+}
+
 // ---------- 错题集 / 薄弱卡片 ----------
 export async function weakCards(limit = 100, minFail = 2) {
   const cards = await allCards();

@@ -2,7 +2,8 @@
 // 数据同步：手动导出/导入（数据包文件）+ 局域网一键同步（电脑端中枢）
 import { ref, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
-import { downloadBackup, importBackup, syncWithHub, countData } from '../sync.js';
+import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup } from '../sync.js';
+import { getSubjects } from '../repo.js';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0 });
 const hubUrl = ref(localStorage.getItem('sxy_hub') || location.origin);
@@ -11,6 +12,7 @@ const fileInput = ref(null);
 const syncing = ref(false);
 const importing = ref(false);
 const lastBackup = ref(null);
+const packPassword = ref('');
 
 async function loadCounts() {
   counts.value = await countData();
@@ -32,7 +34,7 @@ function fmtStats(stats) {
 
 async function doExport() {
   try {
-    await downloadBackup();
+    await downloadBackup(packPassword.value || '');
     lastBackup.value = { at: Date.now() };
     localStorage.setItem('sxy_last_backup', JSON.stringify(lastBackup.value));
     toast('数据包已导出，请把文件发到另一台设备导入', 'success');
@@ -48,7 +50,7 @@ async function onFile(e) {
   importing.value = true;
   try {
     const backup = JSON.parse(await f.text());
-    const stats = await importBackup(backup);
+    const stats = await importBackup(backup, packPassword.value || '');
     await loadCounts();
     toast(`导入完成：${fmtStats(stats)}`, 'success');
   } catch (err) {
@@ -78,7 +80,17 @@ function loadLastBackup() {
   try { lastBackup.value = JSON.parse(localStorage.getItem('sxy_last_backup') || 'null'); } catch {}
 }
 
-onMounted(() => { loadCounts(); loadLastBackup(); });
+const subjects = ref([]);
+const shareSubject = ref('');
+async function loadSubjects() { subjects.value = await getSubjects(); }
+async function doShare() {
+  try {
+    await downloadSubjectBackup(shareSubject.value, packPassword.value || '');
+    toast('卡组已导出，发给同学导入即可', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
 </script>
 
 <template>
@@ -96,6 +108,11 @@ onMounted(() => { loadCounts(); loadLastBackup(); });
       </p>
       <div v-if="lastBackup" class="hint" style="margin-bottom:8px">上次备份：{{ fmt(lastBackup.at) }}</div>
       <div v-else class="hint" style="margin-bottom:8px;color:var(--amber)">⚠ 尚未备份过，建议定期导出数据包，防止数据丢失</div>
+      <div class="field-label" style="margin-top:0">数据包密码（可选）</div>
+      <div class="row">
+        <input v-model="packPassword" class="input" placeholder="留空不加密；填写后导出的文件将被加密" />
+      </div>
+
       <div class="row">
         <button class="btn primary" @click="doExport">导出数据包</button>
         <button class="btn" :disabled="importing" @click="pickFile">
@@ -104,6 +121,19 @@ onMounted(() => { loadCounts(); loadLastBackup(); });
         <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onFile" />
       </div>
       <div class="hint">合并规则：同 id 的卡片按「最后修改时间」谁新听谁；删除会在设备间同步；图片按 id 自动去重。</div>
+    </div>
+
+    <!-- 分享卡组 -->
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-title">分享卡组（导出某个科目）</div>
+      <p class="hint" style="margin-top:0">把某个科目的卡片单独打包成文件，发给同学导入。</p>
+      <div class="row">
+        <select v-model="shareSubject" class="input" style="max-width:240px">
+          <option value="">选择科目</option>
+          <option v-for="s in subjects" :key="s.name" :value="s.name">{{ s.name }}（{{ s.count }}）</option>
+        </select>
+        <button class="btn" @click="doShare">导出该科目</button>
+      </div>
     </div>
 
     <!-- 局域网自动同步 -->

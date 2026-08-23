@@ -5,6 +5,7 @@ import { ref, computed, onMounted, nextTick } from 'vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import { getSubjects, getTags, listCards } from '../repo.js';
+import { downloadCsv } from '../sync.js';
 
 const subjects = ref([]);
 const allTags = ref([]);
@@ -91,6 +92,11 @@ function doPrint() {
   window.print();
 }
 
+async function doCsv() {
+  try { await downloadCsv(); toast('已导出 CSV/TSV 文件，可用 Excel 或 Anki 导入', 'success'); }
+  catch (e) { toast(e.message, 'error'); }
+}
+
 async function onAfterPrint() {
   if (!previewOpen.value) return;
   lastExport.value = { exportedAt: Date.now(), count: printCards.value.length, scope: scopeDesc.value };
@@ -138,8 +144,9 @@ onMounted(() => {
       </div>
       <div v-else class="hint">尚未导出过，首次将导出全部符合条件的卡片。</div>
 
-      <div style="margin-top:16px">
+      <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn primary" @click="generate">生成 PDF 预览</button>
+        <button class="btn" @click="doCsv">导出 CSV（Anki/Excel 可导入）</button>
       </div>
     </div>
 

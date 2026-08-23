@@ -5,16 +5,19 @@
 //   choice 选择：正面点选项作答，翻转后判对错
 import { ref, computed, watch } from 'vue';
 import MarkdownRenderer from './MarkdownRenderer.vue';
+import { speak, mdToSpeech } from '../utils/tts.js';
 
 const props = defineProps({ card: { type: Object, required: true } });
 const emit = defineEmits(['rate', 'edit']);
 
 const flipped = ref(false);
 const picked = ref(null);
-watch(() => props.card.id, () => { flipped.value = false; picked.value = null; });
+const hintReveal = ref(false);
+watch(() => props.card.id, () => { flipped.value = false; picked.value = null; hintReveal.value = false; });
 
 const type = computed(() => props.card.type || 'basic');
 const typeText = computed(() => type.value === 'cloze' ? '填空' : type.value === 'choice' ? '选择' : '正反面');
+const hintText = computed(() => mdToSpeech(props.card.back).slice(0, 40) || '（无提示）');
 
 // 填空：{{答案}} → 挖空下划线
 const maskedFront = computed(() =>
@@ -65,12 +68,18 @@ function pick(key) { if (picked.value) return; picked.value = key; flipped.value
               <b>{{ o.key }}.</b> <span>{{ o.text }}</span>
             </button>
           </div>
+          <button class="btn small" @click.stop="speak(card.front)" style="margin-top:10px">朗读题干</button>
           <div class="hint" style="margin-top:10px">点击一个选项作答</div>
         </template>
 
         <template v-else>
           <MarkdownRenderer :content="maskedFront" />
-          <div class="hint" style="margin-top:10px">点击卡片任意区域翻看答案</div>
+          <div style="display:flex;gap:8px;margin-top:12px;align-items:center" @click.stop>
+            <button class="btn small" @click="speak(maskedFront)">朗读</button>
+            <button class="btn small" @click="hintReveal = !hintReveal">{{ hintReveal ? '收起提示' : '看提示' }}</button>
+          </div>
+          <div v-if="hintReveal" class="hint" style="margin-top:8px">提示：{{ hintText }}</div>
+          <div v-else class="hint" style="margin-top:10px">点击卡片任意区域翻看答案</div>
         </template>
       </div>
 
@@ -78,6 +87,7 @@ function pick(key) { if (picked.value) return; picked.value = key; flipped.value
       <div class="flip-face flip-back card-item">
         <div class="back-top">
           <button class="btn small" @click="showFront">看回问题</button>
+          <button class="btn small" @click="speak(card.back)">朗读答案</button>
           <button class="btn small" @click.stop="emit('edit', card)">编辑这张卡</button>
         </div>
 
