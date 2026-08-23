@@ -5,6 +5,7 @@ import { toast } from '../utils/toast.js';
 import { db } from '../db.js';
 import { getSubjects, getTags, getStats, weakCards } from '../repo.js';
 import { chatAI, hasAIKey } from '../ai.js';
+import VoiceInput from '../components/VoiceInput.vue';
 
 const subjects = ref([]);
 const allTags = ref([]);
@@ -152,6 +153,7 @@ onMounted(loadMeta);
     </div>
 
     <div v-if="started" class="input-row">
+      <VoiceInput @result="(t) => input = input ? input + t : t" />
       <input v-model="input" class="input" placeholder="用你自己的话回答…" @keydown.enter="send" />
       <button class="btn primary" :disabled="loading" @click="send">回答</button>
     </div>

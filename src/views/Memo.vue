@@ -2,6 +2,7 @@
 // 备忘录：职场/学习随手记（速记灵感、待办、复习重点）
 import { ref, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
+import VoiceInput from '../components/VoiceInput.vue';
 
 const MEMO_KEY = 'sxy_memos';
 const memos = ref([]);
@@ -39,6 +40,7 @@ onMounted(load);
 
     <div class="panel">
       <div class="input-row">
+        <VoiceInput @result="(t) => input = input ? input + t : t" />
         <input v-model="input" class="input" placeholder="记点什么…" @keydown.enter="add" />
         <button class="btn primary" @click="add">记下</button>
       </div>

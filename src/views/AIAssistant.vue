@@ -4,6 +4,7 @@ import { ref, computed, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
 import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
 import { createCard } from '../repo.js';
+import VoiceInput from '../components/VoiceInput.vue';
 
 const chats = ref([]);
 const currentChat = ref(newChat());
@@ -204,6 +205,7 @@ onMounted(loadChatList);
     </div>
 
     <div class="input-row">
+      <VoiceInput @result="(t) => input = input ? input + t : t" />
       <input v-model="input" class="input" placeholder="问我任何关于你学习的问题…" @keydown.enter="send" />
       <button class="btn primary" :disabled="loading" @click="send">发送</button>
     </div>

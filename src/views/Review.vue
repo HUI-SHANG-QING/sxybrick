@@ -1,6 +1,6 @@
 <script setup>
 // 背诵页：到期队列 + 翻转卡 + 三档自评 + 强度系数 + 已背记录（本地）
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import FlipCard from '../components/FlipCard.vue';
 import CardModal from '../components/CardModal.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
@@ -83,7 +83,18 @@ function fmtTime(ts) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-onMounted(loadQueue);
+const focusSeconds = ref(0);
+let focusTimer = null;
+function fmtFocus(s) {
+  const m = Math.floor(s / 60), sec = s % 60;
+  return m > 0 ? `${m} 分 ${sec} 秒` : `${sec} 秒`;
+}
+
+onMounted(() => {
+  loadQueue();
+  focusTimer = setInterval(() => { focusSeconds.value++; }, 1000);
+});
+onBeforeUnmount(() => { clearInterval(focusTimer); });
 </script>
 
 <template>
@@ -91,6 +102,7 @@ onMounted(loadQueue);
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <h2 style="margin:0">专注背诵</h2>
       <span class="hint">待背 {{ Math.max(0, queue.length - idx) }} 张 · 已完成 {{ doneCount }}</span>
+      <span class="hint" style="color:var(--green)">已专注 {{ fmtFocus(focusSeconds) }}</span>
       <span style="flex:1"></span>
       <button class="chip" :class="{ on: tab === 'due' }" @click="switchTab('due')">待背</button>
       <button class="chip" :class="{ on: tab === 'history' }" @click="switchTab('history')">已背记录</button>
