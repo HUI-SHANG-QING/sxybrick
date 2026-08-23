@@ -67,17 +67,14 @@ export async function syncWithHub(hubUrl) {
 
 export async function importBackup(backup) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
-  const stats = { cards: 0, reviews: 0, images: 0 };
+  const stats = { cards: 0, reviews: 0, images: 0, overridden: 0, deleted: 0 };
 
   // 1) 卡片：按 updatedAt 最后写入胜出
   const localCards = new Map((await db.cards.toArray()).map(c => [c.id, c]));
   for (const c of backup.cards || []) {
     const local = localCards.get(c.id);
-    if (!local || (c.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
-      await db.cards.put(c);
-      localCards.set(c.id, c);
-      stats.cards++;
-    }
+    if (!local) { await db.cards.put(c); localCards.set(c.id, c); stats.cards++; }
+    else if ((c.updatedAt ?? 0) > (local.updatedAt ?? 0)) { await db.cards.put(c); localCards.set(c.id, c); stats.overridden++; }
   }
 
   // 2) 删除墓碑：晚删除的生效
@@ -90,6 +87,7 @@ export async function importBackup(backup) {
       await db.cards.delete(t.id);
       await db.reviews.where('cardId').equals(t.id).delete();
       localCards.delete(t.id);
+      stats.deleted++;
     }
     await db.tombstones.put(t);
     localTombs.set(t.id, t);

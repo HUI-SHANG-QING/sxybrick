@@ -150,12 +150,17 @@ input, select, textarea { font: inherit; color: inherit; }
   .no-print { display: none !important; }
 }
 
-/* 移动端适配（手机 / 平板） */
+/* 移动端适配（手机 / 平板）：导航改为底部 Tab */
 @media (max-width: 720px) {
-  .app-nav { padding: 0 12px; gap: 4px; overflow-x: auto; }
-  .app-nav .brand { margin-right: 6px; }
-  .app-nav a { padding: 6px 10px; }
-  .app-main { padding: 16px 12px 80px; }
+  .app-nav {
+    position: fixed; top: auto; bottom: 0; left: 0; right: 0;
+    height: 60px; padding: 0 4px; justify-content: space-around;
+    border-top: 1px solid var(--line); border-bottom: none; border-radius: 0;
+  }
+  .app-nav .brand { display: none; }
+  .app-nav a { flex: 1; text-align: center; padding: 8px 2px; font-size: 12px; white-space: nowrap; }
+  .app-nav > .btn { margin-left: 0; font-size: 12px; padding: 4px 8px; white-space: nowrap; }
+  .app-main { padding: 16px 12px 96px; }
   .modal { padding: 18px 16px; }
   .modal-mask { padding: 16px 10px; }
 }

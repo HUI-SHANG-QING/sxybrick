@@ -10,6 +10,7 @@ import { listCards, getSubjects, getTags, deleteCard, weakCards } from '../repo.
 const router = useRouter();
 
 const viewMode = ref(localStorage.getItem('sxy_view') || 'scroll');
+const sortBy = ref('updated');
 const filters = reactive({ q: '', subject: '', tags: [], logic: 'AND' });
 
 const subjects = ref([]);
@@ -52,6 +53,7 @@ async function loadCards() {
     const data = await listCards({
       q: filters.q, subject: filters.subject,
       tags: filters.tags, logic: filters.logic,
+      sortBy: sortBy.value,
     });
     items.value = data.items;
     total.value = data.total;
@@ -63,6 +65,7 @@ async function loadCards() {
 watch(() => [filters.q, filters.subject, filters.logic], loadCards);
 watch(() => filters.tags, loadCards, { deep: true });
 watch(() => filters.subject, loadMeta);
+watch(sortBy, loadCards);
 
 function toggleTag(name) {
   const i = filters.tags.indexOf(name);
@@ -115,6 +118,12 @@ onMounted(() => { loadMeta(); loadCards(); });
         <span class="hint" style="width:56px">视图</span>
         <button class="chip" :class="{ on: viewMode === 'scroll' }" @click="viewMode = 'scroll'">滚轮模式</button>
         <button class="chip" :class="{ on: viewMode === 'page' }" @click="viewMode = 'page'">分页模式</button>
+        <select v-model="sortBy" class="input" style="width:auto">
+          <option value="updated">按更新时间</option>
+          <option value="created">按创建时间</option>
+          <option value="due">按到期时间</option>
+          <option value="subject">按科目</option>
+        </select>
         <span style="flex:1"></span>
         <input v-model="searchInput" class="input" style="max-width:280px" placeholder="搜正面 / 背面内容…" />
       </div>

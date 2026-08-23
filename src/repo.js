@@ -56,13 +56,16 @@ function tagFilter(cards, tags, logic) {
 }
 
 // ---------- 卡片列表 ----------
-export async function listCards({ q = '', subject = '', tags = [], logic = 'AND', mode = 'all' } = {}) {
+export async function listCards({ q = '', subject = '', tags = [], logic = 'AND', mode = 'all', sortBy = 'updated' } = {}) {
   let cards = await allCards();
   if (subject) cards = cards.filter(c => c.subject === subject);
   if (q) cards = cards.filter(c => c.front.includes(q) || c.back.includes(q));
   cards = tagFilter(cards, tags, logic);
   if (mode === 'due') cards = cards.filter(c => c.dueAt <= now());
-  cards.sort((a, b) => (b.updatedAt - a.updatedAt) || (b.id > a.id ? 1 : -1));
+  if (sortBy === 'created') cards.sort((a, b) => (b.createdAt - a.createdAt) || (b.id > a.id ? 1 : -1));
+  else if (sortBy === 'due') cards.sort((a, b) => (a.dueAt - b.dueAt) || (a.id < b.id ? -1 : 1));
+  else if (sortBy === 'subject') cards.sort((a, b) => String(a.subject || '').localeCompare(String(b.subject || '')) || (b.updatedAt - a.updatedAt));
+  else cards.sort((a, b) => (b.updatedAt - a.updatedAt) || (b.id > a.id ? 1 : -1));
   const dueCount = (await allCards()).filter(c => c.dueAt <= now()).length;
   return { items: cards, total: cards.length, dueCount };
 }

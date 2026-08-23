@@ -21,6 +21,14 @@ function fmt(ts) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+function fmtStats(stats) {
+  const parts = [`新增卡片 ${stats.cards}`];
+  if (stats.overridden) parts.push(`更新 ${stats.overridden}`);
+  if (stats.deleted) parts.push(`删除 ${stats.deleted}`);
+  parts.push(`复习 +${stats.reviews}`, `图片 +${stats.images}`);
+  return parts.join('，');
+}
+
 async function doExport() {
   try {
     await downloadBackup();
@@ -41,7 +49,7 @@ async function onFile(e) {
     const backup = JSON.parse(await f.text());
     const stats = await importBackup(backup);
     await loadCounts();
-    toast(`导入完成：卡片 +${stats.cards}，复习 +${stats.reviews}，图片 +${stats.images}`, 'success');
+    toast(`导入完成：${fmtStats(stats)}`, 'success');
   } catch (err) {
     toast(err.message || '导入失败，请检查文件格式', 'error');
   } finally { importing.value = false; }
@@ -58,7 +66,7 @@ async function doSync() {
   try {
     const stats = await syncWithHub(hubUrl.value);
     await loadCounts();
-    toast(`与电脑同步完成：卡片 +${stats.cards}，复习 +${stats.reviews}，图片 +${stats.images}`, 'success');
+    toast(`与电脑同步完成：${fmtStats(stats)}`, 'success');
   } catch (e) {
     toast(e.message, 'error');
   } finally { syncing.value = false; }
