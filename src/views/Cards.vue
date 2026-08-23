@@ -4,6 +4,7 @@ import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import VirtualList from '../components/VirtualList.vue';
 import CardModal from '../components/CardModal.vue';
+import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
@@ -148,7 +149,7 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
     <div class="streak-bar">
       <span class="hint">今日复习 <b>{{ todayCount }}</b> / <b>{{ goal }}</b> 次</span>
       <input type="number" v-model.number="goal" class="input" style="width:80px" min="1" @change="onGoalChange" title="每日目标" />
-      <span class="hint">连续打卡 <b>{{ streak }}</b> 天</span>
+      <span class="streak-badge" :class="{ lit: streak >= 3, hot: streak >= 7 }">连续打卡 {{ streak }} 天</span>
     </div>
 
     <div v-if="suggestion && suggestion.dueCount > 0" class="suggest-bar">
@@ -231,9 +232,9 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
       </div>
     </template>
 
-    <div v-if="!loading && !items.length" class="hint" style="text-align:center;padding:40px">
-      暂无卡片，点击「＋ 新建卡」创建第一张记忆卡片
-    </div>
+    <EmptyState v-if="!loading && !items.length" title="还没有卡片" message="创建第一张记忆卡片，开始高效复习">
+      <button class="btn primary" @click="openCreate">＋ 新建第一张卡</button>
+    </EmptyState>
 
     <CardModal v-model="modalOpen" :card="editing" @saved="onSaved" />
 
@@ -271,6 +272,15 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
 .front-preview { color: var(--ink); }
 .suggest-bar { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--blue); border-radius: var(--radius); padding: 12px 16px; margin: 12px 0; display: flex; flex-direction: column; gap: 2px; }
 .streak-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.streak-badge {
+  display: inline-flex; align-items: center;
+  background: var(--code-inline); color: var(--ink-2);
+  border-radius: 999px; padding: 2px 12px; font-size: 12px; font-weight: 600;
+  transition: all .2s ease;
+}
+.streak-badge.lit { background: #dcfce7; color: var(--green); }
+.streak-badge.hot { background: #fef3c7; color: var(--amber); animation: pulse 1.6s ease infinite; }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 .rt-0 { color: var(--red); }
 .rt-1 { color: var(--amber); }
 .rt-2 { color: var(--green); }

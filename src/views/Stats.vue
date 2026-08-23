@@ -12,8 +12,16 @@ const radarEl = ref(null);
 const trendEl = ref(null);
 let charts = [];
 
+function getChartTheme() {
+  const t = document.documentElement.getAttribute('data-theme') || 'light';
+  if (t === 'dark') return { text: '#8b98a5', border: '#161b22', empty: '#21262d', grid: '#30363d', axis: '#8b98a5', bar: '#3b82f6' };
+  if (t === 'eye') return { text: '#5c6b5c', border: '#e6f2e6', empty: '#dceadc', grid: '#b8cfb9', axis: '#5c6b5c', bar: '#4c8352' };
+  return { text: '#9aa5b1', border: '#ffffff', empty: '#ebedf0', grid: '#e3e8ee', axis: '#9aa5b1', bar: '#16202c' };
+}
+
 function buildCharts() {
   if (!stats.value) return;
+  const theme = getChartTheme();
   charts.forEach(c => c.dispose());
   charts = [];
 
@@ -31,15 +39,15 @@ function buildCharts() {
         left: 'center', bottom: 0,
         show: data.length > 0,
         itemWidth: 12, itemHeight: 12,
-        textStyle: { color: '#9aa5b1', fontSize: 11 },
-        inRange: { color: ['#ebedf0', '#9be9a8', '#40c463', '#30a14e', '#216e39'] },
+        textStyle: { color: theme.text, fontSize: 11 },
+        inRange: { color: [theme.empty, '#9be9a8', '#40c463', '#30a14e', '#216e39'] },
       },
       calendar: {
         top: 12, left: 26, right: 10, bottom: 26,
         range: [fmt(start), fmt(end)],
         cellSize: ['auto', 13],
         splitLine: { show: false },
-        itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 3 },
+        itemStyle: { borderColor: theme.border, borderWidth: 2, borderRadius: 3 },
         yearLabel: { show: false },
         dayLabel: { firstDay: 1, margin: 8, nameMap: ['日', '一', '二', '三', '四', '五', '六'] },
         monthLabel: { margin: 8, nameMap: 'cn' },
@@ -56,6 +64,9 @@ function buildCharts() {
       radar: {
         indicator: stats.value.mastery.map(m => ({ name: m.subject, max: 100 })),
         radius: '65%',
+        axisName: { color: theme.text },
+        splitLine: { lineStyle: { color: theme.grid } },
+        axisLine: { lineStyle: { color: theme.grid } },
       },
       series: [{
         type: 'radar',
@@ -69,9 +80,9 @@ function buildCharts() {
     const trend = echarts.init(trendEl.value);
     trend.setOption({
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: stats.value.trend.map(t => t.date) },
-      yAxis: { type: 'value', minInterval: 1 },
-      series: [{ type: 'bar', data: stats.value.trend.map(t => t.count), itemStyle: { color: '#16202c', borderRadius: [4, 4, 0, 0] } }],
+      xAxis: { type: 'category', data: stats.value.trend.map(t => t.date), axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } } },
+      yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
+      series: [{ type: 'bar', data: stats.value.trend.map(t => t.count), itemStyle: { color: theme.bar, borderRadius: [4, 4, 0, 0] } }],
       grid: { left: 36, right: 12, top: 20, bottom: 28 },
     });
     charts.push(trend);
@@ -88,8 +99,13 @@ async function load() {
 
 function onResize() { charts.forEach(c => c.resize()); }
 
-onMounted(() => { load(); window.addEventListener('resize', onResize); });
-onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventListener('resize', onResize); });
+let themeObserver = null;
+onMounted(() => {
+  load(); window.addEventListener('resize', onResize);
+  themeObserver = new MutationObserver(() => { if (stats.value) buildCharts(); });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+});
+onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventListener('resize', onResize); themeObserver?.disconnect(); });
 </script>
 
 <template>

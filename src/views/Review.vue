@@ -4,6 +4,7 @@ import { ref, onMounted } from 'vue';
 import FlipCard from '../components/FlipCard.vue';
 import CardModal from '../components/CardModal.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { reviewQueue, review, reviewHistory } from '../repo.js';
 import { recordReview } from '../utils/streak.js';
@@ -12,6 +13,7 @@ const queue = ref([]);
 const idx = ref(0);
 const loading = ref(false);
 const intensity = ref(1);
+const interleave = ref(localStorage.getItem('sxy_interleave') !== '0'); // 默认开交错混科
 const editOpen = ref(false);
 const editing = ref(null);
 const doneCount = ref(0);
@@ -26,7 +28,7 @@ const current = () => queue.value[idx.value] || null;
 async function loadQueue() {
   loading.value = true;
   try {
-    queue.value = await reviewQueue(100);
+    queue.value = await reviewQueue(100, interleave.value);
     idx.value = 0;
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; }
@@ -41,6 +43,12 @@ async function rate(card, rating) {
     if (rating === 0) queue.value.push({ ...card, ...res });
     idx.value += 1;
   } catch (e) { toast(e.message, 'error'); }
+}
+
+function toggleInterleave() {
+  interleave.value = !interleave.value;
+  localStorage.setItem('sxy_interleave', interleave.value ? '1' : '0');
+  loadQueue();
 }
 
 function openEdit(card) { editing.value = card; editOpen.value = true; }
@@ -96,6 +104,7 @@ onMounted(loadQueue);
           <option :value="1.5">考试临近（更频繁）</option>
           <option :value="2">考前冲刺（最高频）</option>
         </select>
+        <button class="chip" :class="{ on: interleave }" @click="toggleInterleave">交错混科</button>
       </div>
 
       <div v-if="loading" class="hint" style="text-align:center;padding:60px">加载中…</div>
@@ -108,8 +117,16 @@ onMounted(loadQueue);
       </template>
 
       <div v-else class="empty">
-        <h3>当前没有到期的卡片</h3>
-        <p class="hint">所有卡片都已安排到未来复习，去「我的卡片」新建或编辑卡片吧。</p>
+        <div v-if="doneCount > 0" class="celebrate">
+          <div class="celebrate-ring">{{ doneCount }}</div>
+          <h3>本轮复习完成</h3>
+          <p class="hint">共完成 {{ doneCount }} 张，继续保持！</p>
+          <button class="btn primary" @click="loadQueue()">继续复习</button>
+        </div>
+        <template v-else>
+          <h3>当前没有到期的卡片</h3>
+          <p class="hint">所有卡片都已安排到未来复习，去「我的卡片」新建或编辑卡片吧。</p>
+        </template>
       </div>
     </template>
 
@@ -140,8 +157,7 @@ onMounted(loadQueue);
       </div>
 
       <div v-else class="empty">
-        <h3>还没有背诵记录</h3>
-        <p class="hint">完成第一张卡的背诵后，这里会显示你的历史记录。</p>
+        <EmptyState title="还没有背诵记录" message="完成第一张卡的背诵后，这里会显示你的历史记录" />
       </div>
     </template>
 
@@ -150,7 +166,20 @@ onMounted(loadQueue);
 </template>
 
 <style scoped>
-.empty { text-align: center; padding: 80px 0; }
+.empty { text-align: center; padding: 60px 0; }
+.celebrate-ring {
+  width: 84px; height: 84px; border-radius: 50%;
+  background: var(--green); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; font-weight: 700;
+  margin: 0 auto 14px;
+  animation: pop .45s ease;
+}
+@keyframes pop {
+  0% { transform: scale(.4); opacity: 0; }
+  70% { transform: scale(1.12); }
+  100% { transform: scale(1); opacity: 1; }
+}
 .history-list { margin-top: 16px; }
 .front-preview { color: var(--ink); }
 .rating-pill { font-size: 12px; border-radius: 6px; padding: 2px 10px; font-weight: 600; }

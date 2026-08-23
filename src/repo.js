@@ -135,10 +135,28 @@ export async function setMarked(id, marked) {
 }
 
 // ---------- 复习 ----------
-export async function reviewQueue(limit = 100) {
-  const cards = (await allCards())
+export async function reviewQueue(limit = 100, interleave = false) {
+  let cards = (await allCards())
     .filter(c => c.dueAt <= now())
     .sort((a, b) => a.dueAt - b.dueAt || (a.id < b.id ? -1 : 1));
+  // 交错混科：把到期卡片按科目轮流取出，避免同一科目连串出现
+  if (interleave && cards.length > 1) {
+    const groups = new Map();
+    for (const c of cards) {
+      const k = c.subject || '未分类';
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(c);
+    }
+    const result = [];
+    let added = true;
+    while (added) {
+      added = false;
+      for (const arr of groups.values()) {
+        if (arr.length) { result.push(arr.shift()); added = true; }
+      }
+    }
+    cards = result;
+  }
   return cards.slice(0, limit);
 }
 
