@@ -3,6 +3,7 @@
 import { ref, onMounted } from 'vue';
 import FlipCard from '../components/FlipCard.vue';
 import CardModal from '../components/CardModal.vue';
+import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import { reviewQueue, review, reviewHistory } from '../repo.js';
 
@@ -17,6 +18,7 @@ const doneCount = ref(0);
 const tab = ref('due'); // due | history
 const history = ref([]);
 const historyLoading = ref(false);
+const expandId = ref(null);
 
 const current = () => queue.value[idx.value] || null;
 
@@ -53,6 +55,7 @@ function switchTab(t) {
   tab.value = t;
   if (t === 'history' && !history.value.length) loadHistory();
 }
+function toggleExpand(id) { expandId.value = expandId.value === id ? null : id; }
 
 function plain(md) {
   return String(md || '')
@@ -118,9 +121,18 @@ onMounted(loadQueue);
             <span v-for="t in h.tags" :key="t" class="tag-pill">{{ t }}</span>
           </div>
           <div class="front-preview">{{ plain(h.front).slice(0, 120) || '（空）' }}</div>
+          <div v-if="expandId === h.id" class="history-detail">
+            <div class="hint" style="margin:6px 0 2px">正面</div>
+            <MarkdownRenderer :content="h.front" />
+            <div class="hint" style="margin:10px 0 2px">背面 / 答案</div>
+            <MarkdownRenderer :content="h.back" />
+          </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
             <span class="hint">{{ fmtTime(h.reviewedAt) }}</span>
-            <span class="rating-pill" :class="'r' + h.rating">{{ h.ratingText }}</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn small" @click="toggleExpand(h.id)">{{ expandId === h.id ? '收起' : '查看完整' }}</button>
+              <span class="rating-pill" :class="'r' + h.rating">{{ h.ratingText }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -143,4 +155,5 @@ onMounted(loadQueue);
 .rating-pill.r0 { background: #fee2e2; color: var(--red); }
 .rating-pill.r1 { background: #fef3c7; color: var(--amber); }
 .rating-pill.r2 { background: #dcfce7; color: var(--green); }
+.history-detail { border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 4px; }
 </style>

@@ -25,6 +25,7 @@ const tags = ref([]);
 const tagInput = ref('');
 const source = ref('');
 const type = ref('basic');
+const marked = ref(false);
 const showTagSuggest = ref(false);
 const front = ref('');
 const back = ref('');
@@ -46,12 +47,13 @@ watch(() => props.modelValue, async (open) => {
     tags.value = [...(props.card.tags || [])];
     source.value = props.card.source || '';
     type.value = props.card.type || 'basic';
+    marked.value = !!props.card.marked;
     const known = subjects.value.some(s => s.name === props.card.subject);
     useCustomSubject.value = !!props.card.subject && !known;
     subject.value = known ? props.card.subject : '';
     customSubject.value = known ? '' : props.card.subject;
   } else {
-    front.value = ''; back.value = ''; tags.value = []; source.value = ''; type.value = 'basic';
+    front.value = ''; back.value = ''; tags.value = []; source.value = ''; type.value = 'basic'; marked.value = false;
     subject.value = ''; customSubject.value = ''; useCustomSubject.value = false;
     tagInput.value = '';
   }
@@ -134,6 +136,7 @@ async function save() {
       tags: tags.value,
       source: source.value,
       type: type.value,
+      marked: marked.value,
     };
     if (props.card) await updateCard(props.card.id, payload);
     else await createCard(payload);
@@ -176,6 +179,11 @@ function close() { emit('update:modelValue', false); }
 
         <div class="field-label">来源（可选）</div>
         <input v-model="source" class="input" placeholder="如：计算机网络 第3章 / 某教材 P123" maxlength="60" />
+
+        <div class="field-label" style="display:flex;align-items:center;gap:8px;margin-top:12px">
+          <input type="checkbox" v-model="marked" id="mk" />
+          <label for="mk" style="margin:0;font-size:14px;color:var(--ink)">加入错题集（手动标记薄弱卡）</label>
+        </div>
 
         <div class="field-label">标签（最多 {{ MAX_TAGS }} 个，回车添加）</div>
         <div class="tag-box input" style="position:relative">

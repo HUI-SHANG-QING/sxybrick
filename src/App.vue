@@ -1,24 +1,36 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue';
-import { toasts } from './utils/toast.js';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
+import { toasts, toast } from './utils/toast.js';
 import { degraded } from './utils/perf.js';
 
+const THEMES = ['light', 'dark', 'eye'];
 const theme = ref(localStorage.getItem('sxy_theme') || 'light');
 
 function applyTheme() {
   document.documentElement.setAttribute('data-theme', theme.value);
 }
-
 function toggleTheme() {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark';
+  const i = THEMES.indexOf(theme.value);
+  theme.value = THEMES[(i + 1) % THEMES.length];
+}
+const themeLabel = computed(() => theme.value === 'light' ? '亮色' : theme.value === 'dark' ? '暗色' : '护眼');
+
+const installEvt = ref(null);
+function onBeforeInstall(e) {
+  e.preventDefault();
+  installEvt.value = e;
+}
+async function install() {
+  const e = installEvt.value;
+  if (!e) { toast('请在浏览器菜单里点「安装应用 / 添加到主屏幕」', 'info'); return; }
+  e.prompt();
+  const r = await e.userChoice;
+  if (r.outcome === 'accepted') installEvt.value = null;
 }
 
-watch(theme, (v) => {
-  localStorage.setItem('sxy_theme', v);
-  applyTheme();
-});
-
-onMounted(applyTheme);
+watch(theme, (v) => { localStorage.setItem('sxy_theme', v); applyTheme(); });
+onMounted(() => { applyTheme(); window.addEventListener('beforeinstallprompt', onBeforeInstall); });
+onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBeforeInstall));
 </script>
 
 <template>
@@ -30,9 +42,8 @@ onMounted(applyTheme);
       <router-link to="/stats">数据</router-link>
       <router-link to="/export">导出打印</router-link>
       <router-link to="/sync">同步</router-link>
-      <button class="btn small" style="margin-left:auto" @click="toggleTheme">
-        {{ theme === 'dark' ? '亮色' : '暗色' }}
-      </button>
+      <button class="btn small" style="margin-left:auto" @click="toggleTheme">{{ themeLabel }}</button>
+      <button v-if="installEvt" class="btn small primary" @click="install">装到桌面</button>
     </nav>
     <main class="app-main">
       <router-view />

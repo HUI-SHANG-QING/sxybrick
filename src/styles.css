@@ -34,6 +34,24 @@
   --tag-bg: #1c2740;
   --tag-ink: #93b4f8;
 }
+
+:root[data-theme='eye'] {
+  --bg: #cfe4d0;
+  --panel: #e6f2e6;
+  --ink: #2f3b2f;
+  --ink-2: #5c6b5c;
+  --line: #b8cfb9;
+  --accent: #4c8352;
+  --blue: #3a70b0;
+  --red: #c0392b;
+  --amber: #b07800;
+  --green: #2e7d32;
+  --toast-bg: #2f3b2f;
+  --code-bg: #dceadc;
+  --code-inline: #c9dcc9;
+  --tag-bg: #d3e6d3;
+  --tag-ink: #2e7d32;
+}
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {

@@ -5,7 +5,7 @@ import { useRouter } from 'vue-router';
 import VirtualList from '../components/VirtualList.vue';
 import CardModal from '../components/CardModal.vue';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked } from '../repo.js';
 
 const router = useRouter();
 
@@ -78,6 +78,13 @@ function toggleTag(name) {
 function openCreate() { editing.value = null; modalOpen.value = true; }
 function openEdit(card) { editing.value = card; modalOpen.value = true; }
 function toggleWeak() { weakMode.value = !weakMode.value; loadCards(); }
+async function toggleMarked(card) {
+  try {
+    await setMarked(card.id, !card.marked);
+    await loadCards();
+    toast(card.marked ? '已移出错题集' : '已加入错题集', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
 
 async function remove(card) {
   if (!confirm(`确定删除这张卡片？\n${plain(card.front).slice(0, 40)}`)) return;
@@ -161,7 +168,7 @@ onMounted(() => { loadMeta(); loadCards(); });
           <div v-if="item.source" class="hint" style="margin-bottom:4px">来源：{{ item.source }}</div>
           <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
-            <button class="btn small" @click="openEdit(item)">编辑</button>
+            <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
             <button class="btn small danger" @click="remove(item)">删除</button>
           </div>
         </div>
@@ -178,7 +185,7 @@ onMounted(() => { loadMeta(); loadCards(); });
         <div v-if="item.source" class="hint" style="margin-bottom:4px">来源：{{ item.source }}</div>
         <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
-          <button class="btn small" @click="openEdit(item)">编辑</button>
+          <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
           <button class="btn small danger" @click="remove(item)">删除</button>
         </div>
       </div>

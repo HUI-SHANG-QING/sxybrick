@@ -16,11 +16,12 @@ export function validateCard(body) {
     .map(t => String(t).trim().slice(0, 20)).filter(Boolean).slice(0, 16);
   const source = String(body.source ?? '').trim().slice(0, 60);
   const type = ['basic', 'cloze', 'choice'].includes(body.type) ? body.type : 'basic';
+  const marked = !!body.marked;
   if (!front) return { error: '正面内容不能为空' };
   if (type !== 'cloze' && !back) return { error: '背面内容不能为空' };
   if ([...front].length > MAX_CHARS) return { error: `正面内容不能超过 ${MAX_CHARS} 字` };
   if ([...back].length > MAX_CHARS) return { error: `背面内容不能超过 ${MAX_CHARS} 字` };
-  return { value: { front, back, subject, tags, source, type } };
+  return { value: { front, back, subject, tags, source, type, marked } };
 }
 
 async function allCards() {
@@ -82,6 +83,7 @@ export async function createCard(payload) {
   const card = {
     id: uid(), front: r.value.front, back: r.value.back, subject: r.value.subject, source: r.value.source,
     type: r.value.type,
+    marked: r.value.marked,
     tags: r.value.tags, frontChars: [...r.value.front].length, backChars: [...r.value.back].length,
     ease: 2.5, level: 0, intervalDays: 0, dueAt: t, createdAt: t, updatedAt: t,
   };
@@ -98,6 +100,7 @@ export async function updateCard(id, payload) {
     ...old, front: r.value.front, back: r.value.back, subject: r.value.subject, tags: r.value.tags,
     source: r.value.source,
     type: r.value.type,
+    marked: r.value.marked,
     frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
   };
   await db.cards.put(card);
@@ -121,6 +124,14 @@ async function cleanupOrphanImages(ids) {
   const used = new Set();
   for (const c of cards) for (const i of extractImageIds((c.front || '') + '\n' + (c.back || ''))) used.add(i);
   for (const id of new Set(ids)) if (!used.has(id)) await db.images.delete(id);
+}
+
+// 手动标记 / 取消标记错题
+export async function setMarked(id, marked) {
+  const card = await db.cards.get(id);
+  if (!card) throw new Error('卡片不存在');
+  await db.cards.put({ ...card, marked: !!marked, updatedAt: now() });
+  return card;
 }
 
 // ---------- 复习 ----------
@@ -172,8 +183,8 @@ export async function weakCards(limit = 100, minFail = 2) {
   const fail = new Map();
   for (const r of reviews) if (r.rating === 0) fail.set(r.cardId, (fail.get(r.cardId) || 0) + 1);
   return cards
-    .filter(c => (fail.get(c.id) || 0) >= minFail)
-    .map(c => ({ ...c, failCount: fail.get(c.id) }))
+    .filter(c => (fail.get(c.id) || 0) >= minFail || c.marked)
+    .map(c => ({ ...c, failCount: fail.get(c.id) || 0 }))
     .sort((a, b) => (b.failCount - a.failCount) || (b.updatedAt - a.updatedAt))
     .slice(0, limit);
 }
