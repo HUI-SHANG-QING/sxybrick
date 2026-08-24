@@ -8,6 +8,9 @@ import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { reviewQueue, review, reviewHistory } from '../repo.js';
 import { recordReview } from '../utils/streak.js';
+import { startSpeech, isSpeechSupported } from '../utils/speech.js';
+import { mdToSpeech } from '../utils/tts.js';
+import { getConfusablePairs } from '../agent/analytics.js';
 
 const queue = ref([]);
 const idx = ref(0);
@@ -22,6 +25,11 @@ const tab = ref('due'); // due | history
 const history = ref([]);
 const historyLoading = ref(false);
 const expandId = ref(null);
+const confusablePairs = ref([]);
+const confusableHint = ref('');
+const voiceListening = ref(false);
+const focusMode = ref(false);
+const speechSupported = isSpeechSupported();
 
 const current = () => queue.value[idx.value] || null;
 
@@ -30,19 +38,49 @@ async function loadQueue() {
   try {
     queue.value = await reviewQueue(100, interleave.value);
     idx.value = 0;
+    confusablePairs.value = await getConfusablePairs(40);
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; }
 }
 
-async function rate(card, rating, guessed = false) {
+async function rate(card, rating, guessed = false, meta = {}) {
   try {
-    const res = await review(card.id, rating, intensity.value, guessed);
+    const res = await review(card.id, rating, intensity.value, guessed, meta);
     doneCount.value += 1;
     recordReview();
-    toast(`下次复习：${res.dueText}`, 'success');
+    let msg = `下次复习：${res.dueText}`;
+    if (rating === 0) {
+      const pair = confusablePairs.value.find(p => p.a.id === card.id || p.b.id === card.id);
+      if (pair) {
+        const other = pair.a.id === card.id ? pair.b : pair.a;
+        confusableHint.value = `⚠ 易混提醒：这张卡常与「${other.front}」一起出错，建议紧接着复习对比。`;
+        msg += '；已标记易混对';
+      } else confusableHint.value = '';
+    } else confusableHint.value = '';
+    toast(msg, 'success');
     if (rating === 0) queue.value.push({ ...card, ...res });
     idx.value += 1;
   } catch (e) { toast(e.message, 'error'); }
+}
+
+function voiceEval() {
+  const card = current();
+  if (!card) return;
+  voiceListening.value = true;
+  const rec = startSpeech((text) => {
+    voiceListening.value = false;
+    const backText = mdToSpeech(card.back);
+    const keywords = backText.split(/[\s，。、；：,.;:!?！？]+/).filter(w => w.length >= 2);
+    const hit = keywords.filter(k => text.includes(k)).length;
+    const cov = keywords.length ? Math.round((hit / keywords.length) * 100) : 0;
+    toast(`语音作答覆盖 ${cov}%（命中 ${hit}/${keywords.length} 个要点）`, cov >= 60 ? 'success' : 'info');
+  }, () => { voiceListening.value = false; });
+  if (!rec) { voiceListening.value = false; toast('当前浏览器不支持语音识别', 'error'); }
+}
+
+function toggleFocus() {
+  focusMode.value = !focusMode.value;
+  document.body.classList.toggle('review-focus', focusMode.value);
 }
 
 function toggleInterleave() {
@@ -94,7 +132,7 @@ onMounted(() => {
   loadQueue();
   focusTimer = setInterval(() => { focusSeconds.value++; }, 1000);
 });
-onBeforeUnmount(() => { clearInterval(focusTimer); });
+onBeforeUnmount(() => { clearInterval(focusTimer); document.body.classList.remove('review-focus'); });
 </script>
 
 <template>
@@ -117,12 +155,15 @@ onBeforeUnmount(() => { clearInterval(focusTimer); });
           <option :value="2">考前冲刺（最高频）</option>
         </select>
         <button class="chip" :class="{ on: interleave }" @click="toggleInterleave">交错混科</button>
+        <button v-if="speechSupported" class="chip" :class="{ on: voiceListening }" @click="voiceEval">{{ voiceListening ? '聆听中…' : '语音作答' }}</button>
+        <button class="chip" :class="{ on: focusMode }" @click="toggleFocus">专注模式</button>
       </div>
 
       <div v-if="loading" class="hint" style="text-align:center;padding:60px">加载中…</div>
 
       <template v-else-if="current()">
         <FlipCard :card="current()" @rate="rate" @edit="openEdit" />
+        <div v-if="confusableHint" class="confusable-hint">{{ confusableHint }}</div>
         <div class="hint" style="text-align:center;margin-top:12px">
           第 {{ idx + 1 }} / {{ queue.length }} 张 · 翻到背面后选择自评结果
         </div>
@@ -199,4 +240,5 @@ onBeforeUnmount(() => { clearInterval(focusTimer); });
 .rating-pill.r1 { background: #fef3c7; color: var(--amber); }
 .rating-pill.r2 { background: #dcfce7; color: var(--green); }
 .history-detail { border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 4px; }
+.confusable-hint { margin-top: 12px; padding: 10px 14px; border: 1px solid #fcd34d; background: #fef3c7; color: #92400e; border-radius: 8px; font-size: 13px; }
 </style>

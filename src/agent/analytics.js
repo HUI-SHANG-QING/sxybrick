@@ -108,3 +108,75 @@ export async function getModuleSummary() {
   }
   return L.join('\n');
 }
+
+// ---------- 学习画像：跨模块统一打分（0~100） ----------
+export async function getLearningProfile() {
+  const stats = await getStats();
+  const reviews = await db.reviews.toArray();
+  const mastery = stats.avgMastery || 0;
+  const correct = stats.ability?.correct || 0;
+  const stable = stats.ability?.stable || 0;
+  const coverage = stats.ability?.coverage || 0;
+
+  // 活跃度：近 7 天有复习的天数占比
+  const since7 = now() - 7 * DAY;
+  const actDays = new Set();
+  for (const r of reviews) if (r.reviewedAt >= since7) actDays.add(new Date(r.reviewedAt).toDateString());
+  const activity = Math.round((actDays.size / 7) * 100);
+
+  // 纠正力：曾答错的卡片中，之后有答对记录的比例
+  const wrongCardIds = new Set();
+  for (const r of reviews) if (r.rating === 0) wrongCardIds.add(r.cardId);
+  let corrected = 0;
+  for (const id of wrongCardIds) {
+    if (reviews.some(r => r.cardId === id && r.rating === 2)) corrected++;
+  }
+  const correction = wrongCardIds.size ? Math.round((corrected / wrongCardIds.size) * 100) : 0;
+
+  const score = Math.round(mastery * 0.25 + correct * 0.2 + stable * 0.15 + coverage * 0.15 + activity * 0.15 + correction * 0.1);
+  return {
+    score,
+    level: score >= 85 ? '优秀' : score >= 70 ? '良好' : score >= 55 ? '中等' : '待提升',
+    dimensions: { mastery, correct, stable, coverage, activity, correction },
+    summary: `掌握度${mastery}% · 正确率${correct}% · 稳定度${stable}% · 覆盖率${coverage}% · 活跃度${activity}% · 纠正力${correction}%`,
+  };
+}
+
+// ---------- 易混卡片自动配对（同科目、双方都有答错记录） ----------
+export async function getConfusablePairs(limit = 10) {
+  const cards = await db.cards.toArray();
+  const reviews = await db.reviews.toArray();
+  const wrongCount = new Map();
+  for (const r of reviews) if (r.rating === 0) wrongCount.set(r.cardId, (wrongCount.get(r.cardId) || 0) + 1);
+
+  const candidates = cards.filter(c => (wrongCount.get(c.id) || 0) >= 1);
+  const pairs = [];
+  const seen = new Set();
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i + 1; j < candidates.length; j++) {
+      const a = candidates[i], b = candidates[j];
+      if (!a.subject || a.subject !== b.subject) continue;
+      const shareTag = (a.tags || []).some(t => (b.tags || []).includes(t));
+      if (!shareTag) continue; // 同科目且至少一个共同标签才视为易混
+      const key = [a.id, b.id].sort().join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      pairs.push({
+        a: { id: a.id, subject: a.subject, front: String(a.front).slice(0, 40), tags: a.tags || [] },
+        b: { id: b.id, subject: b.subject, front: String(b.front).slice(0, 40), tags: b.tags || [] },
+        confusable: (wrongCount.get(a.id) || 0) + (wrongCount.get(b.id) || 0),
+      });
+    }
+  }
+  pairs.sort((x, y) => y.confusable - x.confusable);
+  return pairs.slice(0, limit);
+}
+
+// ---------- 费曼→错题→卡片 闭环：找出高频错题（可据此生成巩固/变式卡） ----------
+export async function getGapCards(limit = 15) {
+  const weak = await weakCards(limit, 1);
+  return weak.map(c => ({
+    id: c.id, subject: c.subject, front: String(c.front).slice(0, 60), back: String(c.back).slice(0, 80),
+    failCount: c.failCount, tags: c.tags || [],
+  }));
+}

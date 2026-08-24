@@ -13,7 +13,13 @@ const emit = defineEmits(['rate', 'edit']);
 const flipped = ref(false);
 const picked = ref(null);
 const hintReveal = ref(false);
-watch(() => props.card.id, () => { flipped.value = false; picked.value = null; hintReveal.value = false; });
+const difficulty = ref(props.card.difficulty ?? 1); // 0易 1中 2难
+const wrongReason = ref(props.card.wrongReason || '');
+watch(() => props.card.id, () => {
+  flipped.value = false; picked.value = null; hintReveal.value = false;
+  difficulty.value = props.card.difficulty ?? 1;
+  wrongReason.value = props.card.wrongReason || '';
+});
 
 const type = computed(() => props.card.type || 'basic');
 const typeText = computed(() => type.value === 'cloze' ? '填空' : type.value === 'choice' ? '选择' : '正反面');
@@ -48,6 +54,11 @@ const isCorrect = computed(() => !!picked.value && picked.value === choiceData.v
 function showBack() { if (!flipped.value) flipped.value = true; }
 function showFront() { flipped.value = false; }
 function pick(key) { if (picked.value) return; picked.value = key; flipped.value = true; }
+function doRate(rating, guessed = false) {
+  emit('rate', props.card, rating, guessed, { difficulty: difficulty.value, wrongReason: wrongReason.value });
+}
+function setDifficulty(d) { difficulty.value = d; }
+function setWrongReason(r) { wrongReason.value = wrongReason.value === r ? '' : r; }
 </script>
 
 <template>
@@ -115,11 +126,22 @@ function pick(key) { if (picked.value) return; picked.value = key; flipped.value
 
         <div v-if="card.mnemonic" class="mnemonic">助记：{{ card.mnemonic }}</div>
 
+        <div class="meta-row" @click.stop>
+          <div class="meta-group">
+            <span class="meta-label">难度</span>
+            <button v-for="d in [{v:0,t:'易'},{v:1,t:'中'},{v:2,t:'难'}]" :key="d.v" class="chip mini" :class="{ on: difficulty === d.v }" @click="setDifficulty(d.v)">{{ d.t }}</button>
+          </div>
+          <div class="meta-group">
+            <span class="meta-label">错因</span>
+            <button v-for="r in ['概念混淆','记忆不牢','粗心']" :key="r" class="chip mini" :class="{ on: wrongReason === r }" @click="setWrongReason(r)">{{ r }}</button>
+          </div>
+        </div>
+
         <div class="rate-row" @click.stop>
-          <button class="btn rate bad" @click="emit('rate', card, 0)">没记住</button>
-          <button class="btn rate mid" @click="emit('rate', card, 1)">还模糊</button>
-          <button class="btn rate guess" @click="emit('rate', card, 2, true)">蒙对</button>
-          <button class="btn rate good" @click="emit('rate', card, 2)">记住了</button>
+          <button class="btn rate bad" @click="doRate(0)">没记住</button>
+          <button class="btn rate mid" @click="doRate(1)">还模糊</button>
+          <button class="btn rate guess" @click="doRate(2, true)">蒙对</button>
+          <button class="btn rate good" @click="doRate(2)">记住了</button>
         </div>
       </div>
     </div>
@@ -145,7 +167,14 @@ function pick(key) { if (picked.value) return; picked.value = key; flipped.value
 .rate.good { color: var(--green); border-color: #86efac; }
 .rate.guess { color: var(--blue); border-color: #93c5fd; }
 .mnemonic { margin-top: 12px; padding: 8px 12px; background: var(--code-bg); border-radius: 8px; font-size: 13px; color: var(--ink-2); }
-.flip-inner .flip-back { pointer-events: none; }
-.flip-inner.flipped .flip-front { position: absolute; inset: 0; pointer-events: none; }
-.flip-inner.flipped .flip-back { position: relative; pointer-events: auto; }
+/* 3D 翻转动效 */
+.flip-scene { perspective: 1400px; }
+.flip-inner { position: relative; transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2, .7, .3, 1); }
+.flip-inner.flipped { transform: rotateY(180deg); }
+.flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.flip-back { position: absolute; inset: 0; transform: rotateY(180deg); }
+.meta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.meta-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.meta-label { font-size: 12px; color: var(--ink-2); }
+.chip.mini { font-size: 12px; padding: 2px 10px; }
 </style>

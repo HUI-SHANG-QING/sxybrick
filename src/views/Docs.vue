@@ -1,7 +1,8 @@
 <script setup>
 // AI 文档：保存 AI 生成的总结/讲义/计划等长文，可增删改，数据落 IndexedDB 并随数据包同步
 import { ref, onMounted } from 'vue';
-import { listDocs, createDoc, updateDoc, deleteDoc } from '../repo.js';
+import { listDocs, createDoc, updateDoc, deleteDoc, createCard } from '../repo.js';
+import { chatAI, hasAIKey } from '../ai.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 
@@ -13,6 +14,11 @@ const content = ref('');
 const type = ref('note');
 const tags = ref('');
 const activeId = ref('');
+
+const genOpen = ref(false);
+const genLoading = ref(false);
+const genCards = ref([]);
+const genFrom = ref(null);
 
 const typeMeta = { summary: '总结', note: '笔记', plan: '计划', other: '其他' };
 
@@ -37,6 +43,30 @@ async function save() {
   showForm.value = false; await load();
 }
 async function remove(d) { if (!confirm('删除这个文档？')) return; await deleteDoc(d.id); if (activeId.value === d.id) activeId.value = ''; await load(); }
+
+// 一键转卡片：把文档内容拆成记忆卡片（AI）
+async function toCards(d) {
+  if (!hasAIKey()) { toast('请先配置 AI 密钥', 'error'); return; }
+  if (!d.content || !d.content.trim()) { toast('文档内容为空', 'error'); return; }
+  genFrom.value = d; genCards.value = []; genOpen.value = true; genLoading.value = true;
+  try {
+    const sys = '你是学习内容拆解助手。把下面内容拆成记忆卡片，输出严格 JSON 数组，每项 {"front":"问题/提示","back":"答案","subject":"科目","tags":["标签"]}。只输出 JSON 数组。';
+    const r = await chatAI([{ role: 'system', content: sys }, { role: 'user', content: d.content }]);
+    const m = String(r).match(/\[[\s\S]*\]/);
+    const arr = JSON.parse(m ? m[0] : r);
+    genCards.value = Array.isArray(arr) ? arr.filter(c => c && c.front && c.back) : [];
+    if (!genCards.value.length) toast('没解析出卡片', 'error');
+  } catch (e) { toast('转换失败：' + e.message, 'error'); }
+  finally { genLoading.value = false; }
+}
+async function importCards() {
+  if (!genCards.value.length) return;
+  for (const c of genCards.value) {
+    await createCard({ front: String(c.front), back: String(c.back), subject: c.subject || (genFrom.value?.tags?.[0] || ''), tags: c.tags || [], type: 'basic' });
+  }
+  toast(`已导入 ${genCards.value.length} 张卡片`, 'success');
+  genOpen.value = false; genCards.value = [];
+}
 
 onMounted(load);
 </script>
@@ -68,6 +98,7 @@ onMounted(load);
             <div class="detail-head">
               <h3 style="margin:0">{{ d.title }}</h3>
               <div style="display:flex;gap:8px">
+                <button class="btn small primary" @click="toCards(d)">转卡片</button>
                 <button class="btn small" @click="openEdit(d)">编辑</button>
                 <button class="btn small" style="color:var(--red)" @click="remove(d)">删除</button>
               </div>
@@ -105,6 +136,26 @@ onMounted(load);
         </div>
       </div>
     </teleport>
+    <!-- 转卡片预览弹窗 -->
+    <teleport to="body">
+      <div v-if="genOpen" class="modal-mask" @click.self="genOpen = false">
+        <div class="modal">
+          <h3 style="margin-top:0">文档转卡片</h3>
+          <p class="hint" style="margin-top:0">AI 已把「{{ genFrom?.title }}」拆成 {{ genCards.length }} 张卡片，确认后导入。</p>
+          <div v-if="genLoading" class="hint" style="text-align:center;padding:24px">生成中…</div>
+          <div v-else class="gen-list">
+            <div v-for="(c, i) in genCards" :key="i" class="gen-item">
+              <div class="gen-q">{{ c.front }}</div>
+              <div class="gen-a">{{ c.back }}</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+            <button class="btn" @click="genOpen = false">取消</button>
+            <button class="btn primary" :disabled="!genCards.length" @click="importCards">导入这 {{ genCards.length }} 张</button>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -122,5 +173,10 @@ onMounted(load);
 .docs-detail { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 20px; overflow-y: auto; }
 .detail-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .tag { font-size: 11px; background: var(--code-inline); border-radius: 4px; padding: 1px 6px; margin-right: 4px; color: var(--ink-2); }
+.gen-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.gen-item { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.gen-item:last-child { border-bottom: none; }
+.gen-q { font-weight: 600; }
+.gen-a { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
 @media (max-width: 720px) { .docs-body { grid-template-columns: 1fr; } }
 </style>

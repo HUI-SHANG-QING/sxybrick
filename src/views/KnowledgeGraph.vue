@@ -69,18 +69,29 @@ async function loadSaved() {
   savedNodes.value = [...new Set(list.flatMap(e => [e.from, e.to]))].map((label, i) => ({ id: `n${i}`, label, subject: '' }));
   const idOf = {};
   savedNodes.value.forEach((n) => { idOf[n.label] = n.id; });
-  savedEdges.value = list.map(e => ({ id: e.id, from: idOf[e.from] ?? ensure(e.from), to: idOf[e.to] ?? ensure(e.to), label: e.label }));
+  savedEdges.value = list.map(e => ({ id: e.id, from: idOf[e.from] ?? ensure(e.from), to: idOf[e.to] ?? ensure(e.to), label: e.label, subject: e.subject || '' }));
   layout(savedNodes.value);
   if (list.length) mode.value = 'saved';
 }
 
+// 自动聚类章节：按科目把已保存的关联分组
+const clusters = computed(() => {
+  const m = new Map();
+  for (const e of savedEdges.value) {
+    const k = e.subject || '未分类';
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(e);
+  }
+  return [...m.entries()].map(([subject, edges]) => ({ subject, edges }));
+});
+
 async function saveGenerated() {
   let n = 0;
   for (const e of generatedEdges.value) {
-    const from = generatedNodes.value.find(x => x.id === e.from)?.label;
-    const to = generatedNodes.value.find(x => x.id === e.to)?.label;
-    if (!from || !to) continue;
-    await createGraphEdge({ from, to, label: e.label });
+    const fn = generatedNodes.value.find(x => x.id === e.from);
+    const tn = generatedNodes.value.find(x => x.id === e.to);
+    if (!fn || !tn) continue;
+    await createGraphEdge({ from: fn.label, to: tn.label, label: e.label, subject: fn.subject || tn.subject || '' });
     n++;
   }
   toast(`已保存 ${n} 条关联到知识库（可跨设备同步）`, 'success');
@@ -142,12 +153,15 @@ onMounted(loadSaved);
     </div>
 
     <div v-if="mode === 'saved' && savedEdges.length" class="saved-box">
-      <div class="saved-title">已保存的关联（{{ savedEdges.length }} 条，可跨设备同步）</div>
-      <div v-for="e in savedEdges" :key="e.id" class="saved-edge">
-        <span>{{ nodeById(e.from)?.label || e.from }}</span>
-        <span class="saved-rel">{{ e.label }}</span>
-        <span>{{ nodeById(e.to)?.label || e.to }}</span>
-        <a style="color:var(--red);cursor:pointer;margin-left:8px" @click="removeEdge(e.id)">删</a>
+      <div class="saved-title">已保存的知识图谱（{{ savedEdges.length }} 条关联 · {{ clusters.length }} 个章节，可跨设备同步）</div>
+      <div v-for="c in clusters" :key="c.subject" class="cluster">
+        <div class="cluster-title">{{ c.subject }}<span class="cluster-count">{{ c.edges.length }} 条</span></div>
+        <div v-for="e in c.edges" :key="e.id" class="saved-edge">
+          <span>{{ nodeById(e.from)?.label || e.from }}</span>
+          <span class="saved-rel">{{ e.label }}</span>
+          <span>{{ nodeById(e.to)?.label || e.to }}</span>
+          <a style="color:var(--red);cursor:pointer;margin-left:8px" @click="removeEdge(e.id)">删</a>
+        </div>
       </div>
     </div>
 
@@ -167,4 +181,7 @@ onMounted(loadSaved);
 .saved-edge { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
 .saved-edge:last-child { border-bottom: none; }
 .saved-rel { color: var(--accent); font-size: 12px; }
+.cluster { margin-bottom: 10px; padding: 8px 12px; background: var(--code-bg); border-radius: 8px; }
+.cluster-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.cluster-count { font-size: 11px; color: var(--ink-2); margin-left: 6px; font-weight: 400; }
 </style>

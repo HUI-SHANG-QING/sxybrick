@@ -193,7 +193,6 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* ===================== 界面风格系统（结构差异大） ===================== */
-
 /* 1) 罗盘：暖色古铜 + 环形径向导航 */
 :root[data-style='compass'] {
   --bg: #f6efe4; --panel: #fffaf0; --ink: #3a2a1a; --ink-2: #8a7a60;
@@ -292,3 +291,8 @@ input, select, textarea { font: inherit; color: inherit; }
     backdrop-filter: blur(10px);
   }
 }
+
+/* 复习专注模式：隐藏导航与浮动助手，沉浸式背题 */
+body.review-focus .app-nav { display: none; }
+body.review-focus .fa-root { display: none !important; }
+body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }

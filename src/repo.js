@@ -175,12 +175,14 @@ export async function reviewQueue(limit = 100, interleave = false) {
   return cards.slice(0, limit);
 }
 
-export async function review(cardId, rating, intensity = 1, guessed = false) {
+export async function review(cardId, rating, intensity = 1, guessed = false, opts = {}) {
   const card = await db.cards.get(cardId);
   if (!card) throw new Error('卡片不存在');
-  const next = computeNext(card, rating, intensity, guessed);
-  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, updatedAt: now() });
-  await db.reviews.put({ id: uid(), cardId, reviewedAt: now(), rating, levelAfter: next.level, guessed: !!guessed });
+  const difficulty = Number(opts.difficulty ?? card.difficulty ?? 1);
+  const wrongReason = opts.wrongReason || card.wrongReason || '';
+  const next = computeNext(card, rating, intensity, guessed, { difficulty, wrongReason });
+  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, difficulty, wrongReason, updatedAt: now() });
+  await db.reviews.put({ id: uid(), cardId, reviewedAt: now(), rating, levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason });
   return { ...next, dueText: formatDue(next.dueAt) };
 }
 

@@ -5,15 +5,18 @@ import * as echarts from 'echarts';
 import 'echarts-wordcloud';
 import { toast } from '../utils/toast.js';
 import { getStats } from '../repo.js';
+import { getLearningProfile } from '../agent/analytics.js';
 import { degraded } from '../utils/perf.js';
 
 const stats = ref(null);
+const profile = ref(null);
 const heatEl = ref(null);
 const radarEl = ref(null);
 const trendEl = ref(null);
 const pieEl = ref(null);
 const ratingEl = ref(null);
 const abilityEl = ref(null);
+const profileEl = ref(null);
 const hourlyEl = ref(null);
 const forgotEl = ref(null);
 const tagEl = ref(null);
@@ -152,6 +155,27 @@ function buildCharts() {
     charts.push(ability);
   }
 
+  // 学习画像（跨模块统一打分，六维）
+  if (profileEl.value && profile.value) {
+    const p = profile.value;
+    const pr = echarts.init(profileEl.value);
+    pr.setOption({
+      tooltip: {},
+      radar: {
+        indicator: [
+          { name: '掌握度', max: 100 }, { name: '正确率', max: 100 }, { name: '稳定度', max: 100 },
+          { name: '覆盖率', max: 100 }, { name: '活跃度', max: 100 }, { name: '纠正力', max: 100 },
+        ],
+        radius: '65%',
+        axisName: { color: theme.text },
+        splitLine: { lineStyle: { color: theme.grid } },
+        axisLine: { lineStyle: { color: theme.grid } },
+      },
+      series: [{ type: 'radar', data: [{ value: [p.dimensions.mastery, p.dimensions.correct, p.dimensions.stable, p.dimensions.coverage, p.dimensions.activity, p.dimensions.correction], name: '学习画像', areaStyle: { opacity: .25 } }] }],
+    });
+    charts.push(pr);
+  }
+
   // 24 小时复习时间分布
   if (hourlyEl.value) {
     const hourly = echarts.init(hourlyEl.value);
@@ -215,7 +239,8 @@ function buildCharts() {
 
 async function load() {
   try {
-    stats.value = await getStats();
+    const [s, p] = await Promise.all([getStats(), getLearningProfile()]);
+    stats.value = s; profile.value = p;
     if (degraded.value) setTimeout(buildCharts, 300);
     else buildCharts();
   } catch (e) { toast(e.message, 'error'); }
@@ -227,7 +252,7 @@ let themeObserver = null;
 onMounted(() => {
   load(); window.addEventListener('resize', onResize);
   themeObserver = new MutationObserver(() => { if (stats.value) buildCharts(); });
-  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-style'] });
 });
 onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventListener('resize', onResize); themeObserver?.disconnect(); });
 </script>
@@ -242,6 +267,16 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
       <div class="stat"><div class="num">{{ stats?.todayReviews ?? '-' }}</div><div class="hint">今日复习</div></div>
       <div class="stat"><div class="num">{{ stats?.avgMastery ?? '-' }}%</div><div class="hint">平均掌握度</div></div>
       <div class="stat"><div class="num">{{ stats?.dueToday ?? '-' }}</div><div class="hint">待复习</div></div>
+    </div>
+
+    <div v-if="profile" class="panel profile-panel">
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div class="profile-score">
+          <div class="ps-num">{{ profile.score }}</div>
+          <div class="hint">学习画像 · {{ profile.level }}</div>
+        </div>
+        <div class="hint" style="flex:1;min-width:220px;font-size:13px">{{ profile.summary }}</div>
+      </div>
     </div>
 
     <div class="panel">
@@ -274,8 +309,8 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
 
     <div class="grid2">
       <div class="panel">
-        <div class="hint" style="margin-bottom:8px">能力四维雷达</div>
-        <div ref="abilityEl" style="height:260px"></div>
+        <div class="hint" style="margin-bottom:8px">学习画像雷达（六维）</div>
+        <div ref="profileEl" style="height:260px"></div>
       </div>
       <div class="panel">
         <div class="hint" style="margin-bottom:8px">复习时间分布（24 小时）</div>
@@ -307,5 +342,8 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
 .stat .num { font-size: 24px; font-weight: 700; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.profile-panel { background: linear-gradient(135deg, var(--panel), var(--code-bg)); }
+.profile-score { text-align: center; min-width: 120px; }
+.ps-num { font-size: 42px; font-weight: 700; color: var(--accent); line-height: 1; }
 @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
 </style>

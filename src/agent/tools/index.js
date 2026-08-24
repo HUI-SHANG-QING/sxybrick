@@ -27,7 +27,7 @@ import {
   updateDoc,
   deleteDoc,
 } from '../../repo.js';
-import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight } from '../analytics.js';
+import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards } from '../analytics.js';
 
 // ---------- 1. 数据感知类（只读） ----------
 
@@ -486,6 +486,61 @@ toolRegistry.register({
         suggestion: `建议优先复习最近答错的 ${insight.recentMistakeCount} 题与 ${weak.length} 张薄弱卡，兼顾 ${insight.dueToday} 张到期卡。`,
       },
     };
+  },
+});
+
+toolRegistry.register({
+  name: 'get_learning_profile',
+  description: '获取跨模块统一学习画像：综合分(0-100) + 六维（掌握度/正确率/稳定度/覆盖率/活跃度/纠正力）。',
+  parameters: {},
+  readsData: true,
+  async execute() {
+    const p = await getLearningProfile();
+    return { ok: true, data: p };
+  },
+});
+
+toolRegistry.register({
+  name: 'get_confusable_pairs',
+  description: '自动找出易混淆的卡片对（同科目且共享标签、双方都有答错记录），用于配对巩固复习。',
+  parameters: { limit: 'number: 返回对数，默认 10' },
+  readsData: true,
+  async execute(args) {
+    const limit = Number(args?.limit) || 10;
+    const pairs = await getConfusablePairs(limit);
+    return { ok: true, data: { count: pairs.length, items: pairs } };
+  },
+});
+
+toolRegistry.register({
+  name: 'get_gap_cards',
+  description: '获取高频错题（知识缺口），是「费曼→错题→补卡」闭环的起点。',
+  parameters: { limit: 'number: 数量，默认 15' },
+  readsData: true,
+  async execute(args) {
+    const limit = Number(args?.limit) || 15;
+    const cards = await getGapCards(limit);
+    return { ok: true, data: { count: cards.length, items: cards } };
+  },
+});
+
+toolRegistry.register({
+  name: 'generate_variant_card',
+  description: '基于一张易错卡，生成 1~2 道「变式题」巩固理解（换角度/换数字/换场景），返回候选卡，可再入库。',
+  parameters: { front: 'string: 原卡正面', back: 'string: 原卡背面' },
+  writesData: false,
+  async execute(args, ctx) {
+    const front = String(args?.front || '').trim();
+    const back = String(args?.back || '').trim();
+    if (!front || !back) return { ok: false, error: '需要原卡正反面' };
+    const sys = '你是出题老师。基于下面的知识点生成 2 道变式题（换角度/换数字/换场景考察理解，而非原题）。输出严格 JSON 数组，每项 {"front":"变式问题","back":"答案","subject":"科目"}。只输出 JSON。';
+    const out = await ctx.chat([
+      { role: 'system', content: sys },
+      { role: 'user', content: `原卡正面：${front}\n原卡背面：${back}` },
+    ]);
+    const arr = extractJSON(out);
+    const cards = Array.isArray(arr) ? arr.filter(c => c && c.front && c.back) : [];
+    return { ok: true, data: { count: cards.length, cards } };
   },
 });
 

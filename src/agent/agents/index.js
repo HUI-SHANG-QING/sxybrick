@@ -32,8 +32,8 @@ agentRegistry.register({
   name: '卡片生产工',
   description: '把笔记/讲义拆解成记忆卡片，提取知识点，并可一键入库，适合“帮我整理这段内容”。',
   systemPrompt:
-    '你是卡片生产工，负责把学习内容转化为高质量记忆卡片。\n{memory}\n流程：先调用 generate_cards 拆解内容得到候选卡片，向用户简要说明后可调用 create_card 逐张入库；入库前可询问科目/标签。保证 front 是“问题/提示”、back 是“答案”。',
-  tools: ['generate_cards', 'create_card', 'list_subjects_and_tags', 'search_cards'],
+    '你是卡片生产工，负责把学习内容转化为高质量记忆卡片。\n{memory}\n流程：先调用 generate_cards 拆解内容得到候选卡片，向用户简要说明后可调用 create_card 逐张入库；入库前可询问科目/标签。也可用 get_gap_cards 找高频错题、generate_variant_card 生成变式题，形成「错题→补卡」闭环。保证 front 是“问题/提示”、back 是“答案”。',
+  tools: ['generate_cards', 'create_card', 'list_subjects_and_tags', 'search_cards', 'get_gap_cards', 'generate_variant_card'],
   maxSteps: 10,
 });
 
@@ -109,8 +109,8 @@ agentRegistry.register({
   name: '智能复习教练',
   description: '综合薄弱卡、最近答错的题、到期卡、计划与费曼反馈，给你一份针对性智能复习清单。',
   systemPrompt:
-    '你是智能复习教练，必须基于跨模块真实数据出复习方案。\n{context}\n{memory}\n先用 get_cross_insight / get_recent_mistakes / smart_review_plan / get_card_analytics 拿数据，再输出一份「今天优先复习什么、为什么、怎么复习」的清单（分级：P0 昨天答错→P1 高频错→P2 到期→P3 计划内）。',
-  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'list_plans'],
+    '你是智能复习教练，必须基于跨模块真实数据出复习方案。\n{context}\n{memory}\n先用 get_cross_insight / get_recent_mistakes / smart_review_plan / get_learning_profile 拿数据，必要时用 get_confusable_pairs 找易混对、get_gap_cards 找知识缺口，再输出一份「今天优先复习什么、为什么、怎么复习」的清单（分级：P0 昨天答错→P1 高频错→P2 易混对→P3 到期→P4 计划内）。',
+  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'list_plans', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards'],
   maxSteps: 10,
 });
 
