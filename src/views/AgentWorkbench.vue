@@ -2,11 +2,12 @@
 // Agent 工作台：集中展示“专业 AI Agent 应用”的四大特征——
 // 模块化 Agent（可切换/自动路由）、可扩展工具接口（实时列出）、任务编排轨迹（思考→工具→观察）、以及可注册的扩展能力。
 import { ref, computed, onMounted, nextTick } from 'vue';
-import { runAgentTurn, hasAIKey } from '../ai.js';
+import { runAgentTurn, hasAIKey, saveChat, listChats, deleteChat } from '../ai.js';
 import { agentSystem } from '../ai.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import { TraceKind } from '../agent/types.js';
+import { uid } from '../db.js';
 
 const agents = ref(agentSystem.listAgents());
 const tools = ref(agentSystem.listTools());
@@ -17,6 +18,8 @@ const messages = ref([]); // 当前会话消息 {role, content}
 const traceNodes = ref([]); // 编排轨迹
 const showTools = ref(false);
 const streamBox = ref(null);
+const sessions = ref([]); // Agent 会话历史（持久化到 aiChats，随数据包同步）
+const currentId = ref('');
 
 const traceMeta = {
   [TraceKind.ROUTE]: { label: '路由', cls: 't-route', icon: '➤' },
@@ -32,6 +35,7 @@ async function send() {
   const text = input.value.trim();
   if (!text || loading.value) return;
   if (!hasAIKey()) { toast('请先在「AI 设置」里填入 API 密钥', 'error'); return; }
+  if (!currentId.value) currentId.value = uid();
   input.value = '';
   messages.value.push({ role: 'user', content: text });
   const bubble = { role: 'assistant', content: '', loading: true };
@@ -55,13 +59,46 @@ async function send() {
   } finally {
     loading.value = false;
     scroll();
+    await persist();
   }
+}
+
+// ---- 会话持久化（存 aiChats type=agent，随数据包同步） ----
+async function loadSessions() {
+  const all = await listChats();
+  sessions.value = all.filter(c => c.type === 'agent');
+}
+function newSession() {
+  currentId.value = uid();
+  messages.value = [];
+  traceNodes.value = [];
+}
+function selectSession(id) {
+  const s = sessions.value.find(x => x.id === id);
+  if (!s) { newSession(); return; }
+  currentId.value = id;
+  messages.value = (s.messages || []).map(m => ({ role: m.role, content: m.content }));
+  traceNodes.value = [];
+}
+async function persist() {
+  if (!currentId.value) return;
+  const clean = messages.value.filter(m => m.role && !m.loading).map(m => ({ role: m.role, content: m.content }));
+  const firstUser = messages.value.find(m => m.role === 'user');
+  const title = firstUser?.content?.slice(0, 18) || 'Agent 会话';
+  await saveChat({ id: currentId.value, type: 'agent', title, messages: clean, createdAt: Date.now() });
+  await loadSessions();
+}
+async function removeSession(id) {
+  if (!confirm('删除这个 Agent 会话？')) return;
+  await deleteChat(id);
+  if (currentId.value === id) newSession();
+  await loadSessions();
 }
 
 function scroll() { nextTick(() => { streamBox.value?.scrollTo({ top: streamBox.value.scrollHeight }); }); }
 
 function clearTrace() { traceNodes.value = []; }
-function clearChat() { messages.value = []; traceNodes.value = []; }
+function clearChat() { newSession(); }
 
 // 演示“可扩展接口”：运行时注册一个新工具/Agent（点击后生效，体现开闭原则）
 function demoExtend() {
@@ -80,6 +117,10 @@ const counts = computed(() => {
   for (const n of traceNodes.value) c[n.kind] = (c[n.kind] || 0) + 1;
   return c;
 });
+
+onMounted(async () => {
+  await loadSessions();
+});
 </script>
 
 <template>
@@ -92,6 +133,10 @@ const counts = computed(() => {
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select v-model="currentId" class="input" style="width:auto" @change="selectSession(currentId)">
+          <option value="">＋ 新会话</option>
+          <option v-for="s in sessions" :key="s.id" :value="s.id">{{ s.title }}</option>
+        </select>
         <select v-model="selectedAgent" class="input" style="width:auto">
           <option value="">自动路由</option>
           <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>

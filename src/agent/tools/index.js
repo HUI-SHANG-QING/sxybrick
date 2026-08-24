@@ -22,7 +22,12 @@ import {
   updatePlan,
   createGraphEdge,
   listGraphEdges,
+  listDocs,
+  createDoc,
+  updateDoc,
+  deleteDoc,
 } from '../../repo.js';
+import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight } from '../analytics.js';
 
 // ---------- 1. 数据感知类（只读） ----------
 
@@ -394,6 +399,93 @@ toolRegistry.register({
     const sys = `你是学习答疑导师。讲解「${concept}」时，如用户已有相关卡片请结合说明（已有卡片：\n${related || '无'}），其余用通俗中文+举例+公式（$...$）讲透。`;
     const out = await ctx.chat([{ role: 'system', content: sys }, { role: 'user', content: `请讲解：${concept}` }]);
     return { ok: true, data: { explanation: out, relatedCount: r.total } };
+  },
+});
+
+// ---------- 8. 跨模块协同（AI文档 / 单卡画像 / 错题 / 全局洞察） ----------
+
+toolRegistry.register({
+  name: 'get_card_analytics',
+  description: '获取一张卡片的复习画像：复习次数、答错次数、正确率、频率、标签、是否高频/错频、最近7天次数、到期时间。',
+  parameters: { cardId: 'string: 卡片 id' },
+  readsData: true,
+  async execute(args) {
+    const a = await getCardAnalytics(String(args?.cardId || ''));
+    if (!a) return { ok: false, error: '卡片不存在' };
+    return { ok: true, data: a };
+  },
+});
+
+toolRegistry.register({
+  name: 'get_recent_mistakes',
+  description: '获取最近 N 天（默认昨天=1）答错的题，按错误次数排序，用于针对性复习。',
+  parameters: { days: 'number: 最近几天，默认 1' },
+  readsData: true,
+  async execute(args) {
+    const days = Number(args?.days) || 1;
+    const list = await getRecentMistakes(days);
+    return { ok: true, data: { count: list.length, items: list.slice(0, 30) } };
+  },
+});
+
+toolRegistry.register({
+  name: 'list_docs',
+  description: '列出全部 AI 文档（标题/类型/更新时间）。',
+  parameters: {},
+  readsData: true,
+  async execute() {
+    const docs = await listDocs();
+    return { ok: true, data: { count: docs.length, items: docs.map(d => ({ id: d.id, title: d.title, type: d.type, updatedAt: d.updatedAt })) } };
+  },
+});
+
+toolRegistry.register({
+  name: 'create_doc',
+  description: '新建一篇 AI 文档并持久化（会随数据包同步）。type: summary/note/plan/other。',
+  parameters: {
+    title: 'string: 标题',
+    content: 'string: 正文内容',
+    type: 'string: 类型 summary|note|plan|other',
+    tags: 'string: 逗号分隔标签（可选）',
+  },
+  writesData: true,
+  async execute(args) {
+    const tags = args?.tags ? String(args.tags).split(',').map(t => t.trim()).filter(Boolean) : [];
+    const d = await createDoc({ title: args?.title, content: args?.content, type: args?.type, tags });
+    return { ok: true, data: { id: d.id, title: d.title, type: d.type } };
+  },
+});
+
+toolRegistry.register({
+  name: 'get_cross_insight',
+  description: '获取跨模块全局洞察：卡片/复习/薄弱/最近错题/计划/文档/图谱/备忘/费曼/番茄 等全部模块汇总。',
+  parameters: {},
+  readsData: true,
+  async execute() {
+    const insight = await getCrossModuleInsight();
+    return { ok: true, data: insight };
+  },
+});
+
+toolRegistry.register({
+  name: 'smart_review_plan',
+  description: '基于跨模块数据（薄弱卡+最近错题+到期卡+计划+费曼反馈）生成一份针对性智能复习清单。',
+  parameters: { limit: 'number: 建议复习数量，默认 20' },
+  writesData: false,
+  async execute(args) {
+    const limit = Number(args?.limit) || 20;
+    const insight = await getCrossModuleInsight();
+    const weak = await weakCards(limit, 1);
+    return {
+      ok: true,
+      data: {
+        recentMistakes: insight.recentMistakes.slice(0, limit),
+        weakCards: weak.slice(0, limit).map(c => ({ id: c.id, subject: c.subject, front: String(c.front).slice(0, 50), failCount: c.failCount })),
+        dueCount: insight.dueToday,
+        activePlans: insight.plans.active,
+        suggestion: `建议优先复习最近答错的 ${insight.recentMistakeCount} 题与 ${weak.length} 张薄弱卡，兼顾 ${insight.dueToday} 张到期卡。`,
+      },
+    };
   },
 });
 

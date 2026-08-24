@@ -5,6 +5,7 @@ import { toast } from '../utils/toast.js';
 import { db, uid } from '../db.js';
 import { getSubjects, getTags, getStats, weakCards } from '../repo.js';
 import { chatAI, hasAIKey, saveChat, listChats, deleteChat } from '../ai.js';
+import { getCardAnalytics } from '../agent/analytics.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import { speak } from '../utils/tts.js';
 
@@ -55,7 +56,29 @@ function cardsToText(cards) {
   return sample.map((c, i) => `${i + 1}. [${c.subject || '未分类'}] 问题：${String(c.front).replace(/\s+/g, ' ').slice(0, 120)} → 答案：${String(c.back).replace(/\s+/g, ' ').slice(0, 160)}${c.mnemonic ? '（助记：' + c.mnemonic + '）' : ''}`).join('\n');
 }
 
-// 基于复习数据构建费曼上下文：优先把范围内薄弱/错题放在最前
+// 为卡片补上复习画像（复习次数/错次数/频率/标签/是否高频错频），实现跨模块协同
+async function enrichCards(cards, limit = 15) {
+  const out = [];
+  for (const c of cards.slice(0, limit)) {
+    try {
+      const a = await getCardAnalytics(c.id);
+      out.push({ ...c, stats: a });
+    } catch { out.push(c); }
+  }
+  return out;
+}
+function enrichedToText(items) {
+  return items.map((c, i) => {
+    const s = c.stats;
+    const flags = [s?.isHighFreq ? '高频' : '', s?.isWrongFreq ? '错频' : ''].filter(Boolean).join('/');
+    const statStr = s
+      ? `（复习${s.total}次·错${s.wrong}次·正确率${s.correctRate ?? '—'}%${flags ? '·' + flags : ''}·标签[${(c.tags || []).join(',') || '无'}]）`
+      : '';
+    return `${i + 1}. [${c.subject || '未分类'}] 问题：${String(c.front).replace(/\s+/g, ' ').slice(0, 100)} → 答案：${String(c.back).replace(/\s+/g, ' ').slice(0, 140)}${c.mnemonic ? '（助记：' + c.mnemonic + '）' : ''}${statStr}`;
+  }).join('\n');
+}
+
+// 基于复习数据构建费曼上下文：优先把范围内薄弱/错题放在最前，并附复习画像
 async function buildFeynmanContext(cards) {
   const [stats, weak] = await Promise.all([getStats(), weakCards(40, 1)]);
   const rangeIds = new Set(cards.map(c => c.id));
@@ -63,11 +86,13 @@ async function buildFeynmanContext(cards) {
   const L = [];
   L.push(`【用户复习数据】卡片 ${stats.totalCards} 张，总复习 ${stats.totalReviews} 次，平均掌握度 ${stats.avgMastery}%；自评分布：没记住 ${stats.ratingDist[0]} 次 / 还模糊 ${stats.ratingDist[1]} 次 / 记住了 ${stats.ratingDist[2]} 次。`);
   if (weakInRange.length) {
-    L.push(`【本范围内薄弱/错题卡片（务必优先针对这些提问）】`);
-    L.push(cardsToText(weakInRange));
+    const enriched = await enrichCards(weakInRange, 15);
+    L.push(`【本范围内薄弱/错题卡片（务必优先针对这些提问；每张卡已附复习次数/错次数/正确率/频率/标签）】`);
+    L.push(enrichedToText(enriched));
   } else {
-    L.push(`【本范围内卡片】`);
-    L.push(cardsToText(cards));
+    const enriched = await enrichCards(cards, 10);
+    L.push(`【本范围内卡片（含复习统计）】`);
+    L.push(enrichedToText(enriched));
   }
   return L.join('\n');
 }

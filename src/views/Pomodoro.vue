@@ -3,6 +3,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { toast } from '../utils/toast.js';
 import { speak } from '../utils/tts.js';
+import { addPomoSession, countPomoToday } from '../repo.js';
 
 const MODES = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
 const STATE_KEY = 'sxy_pomo_state';
@@ -40,6 +41,7 @@ function tick() {
 function finish() {
   if (mode.value === 'focus') {
     doneToday.value++; localStorage.setItem('sxy_pomo', doneToday.value);
+    addPomoSession({ duration: 25 }).catch(() => {}); // 入库，随数据包同步
     focusStreak.value++;
     toast('专注完成，休息一下！', 'success'); speak('专注完成，休息一下吧');
     switchMode(focusStreak.value % 4 === 0 ? 'long' : 'short');
@@ -64,7 +66,10 @@ function restore() {
   } catch {}
 }
 
-onMounted(restore);
+onMounted(async () => {
+  restore();
+  try { const n = await countPomoToday(); if (n > 0) { doneToday.value = n; localStorage.setItem('sxy_pomo', String(n)); } } catch {}
+});
 onBeforeUnmount(() => { clearInterval(timer); });
 </script>
 

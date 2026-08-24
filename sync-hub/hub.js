@@ -83,6 +83,19 @@ function merge(base, incoming) {
     const cur = memos.get(m.id);
     if (!cur || (m.updatedAt || 0) >= (cur.updatedAt || 0)) memos.set(m.id, m);
   }
+  // 通用「按 id 幂等 + updatedAt 谁新听谁」合并器（学习计划/图谱边/AI文档/番茄专注）
+  const mergeUpdated = (baseArr, incArr) => {
+    const m = new Map((baseArr || []).map(x => [x.id, x]));
+    for (const x of incArr || []) {
+      const cur = m.get(x.id);
+      if (!cur || (x.updatedAt ?? x.createdAt ?? 0) >= (cur.updatedAt ?? cur.createdAt ?? 0)) m.set(x.id, x);
+    }
+    return [...m.values()];
+  };
+  const plans = mergeUpdated(base.plans, incoming.plans);
+  const graphEdges = mergeUpdated(base.graphEdges, incoming.graphEdges);
+  const docs = mergeUpdated(base.docs, incoming.docs);
+  const pomoSessions = mergeUpdated(base.pomoSessions, incoming.pomoSessions);
   return {
     cards: [...cards.values()],
     tombstones: [...tombstones.values()],
@@ -91,6 +104,10 @@ function merge(base, incoming) {
     aiChats: [...aiChats.values()],
     aiMemories: [...aiMemories.values()],
     memos: [...memos.values()],
+    plans,
+    graphEdges,
+    docs,
+    pomoSessions,
   };
 }
 

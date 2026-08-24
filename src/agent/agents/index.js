@@ -103,6 +103,17 @@ agentRegistry.register({
   maxSteps: 12,
 });
 
+// 10) 智能复习教练：基于跨模块数据做针对性复习
+agentRegistry.register({
+  id: 'smart-reviewer',
+  name: '智能复习教练',
+  description: '综合薄弱卡、最近答错的题、到期卡、计划与费曼反馈，给你一份针对性智能复习清单。',
+  systemPrompt:
+    '你是智能复习教练，必须基于跨模块真实数据出复习方案。\n{context}\n{memory}\n先用 get_cross_insight / get_recent_mistakes / smart_review_plan / get_card_analytics 拿数据，再输出一份「今天优先复习什么、为什么、怎么复习」的清单（分级：P0 昨天答错→P1 高频错→P2 到期→P3 计划内）。',
+  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'list_plans'],
+  maxSteps: 10,
+});
+
 /** 注册内置 Agent（幂等） */
 export function registerDefaultAgents() {
   return agentRegistry.list().length;

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SxyBrick · Agent 工作台演示</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --panel: #ffffff; --line: #e4e7ec; --ink: #16202c; --ink2: #7a8290;
+    --accent: #2563eb; --accent2: #1e40af; --green: #16a34a; --amber: #d97706;
+    --code: #f0f4ff; --navy: #16202c; --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #eef1f5; color: var(--ink); }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 24px 16px 40px; }
+  h1 { font-size: 22px; margin: 0 0 4px; font-weight: 600; }
+  .sub { color: var(--ink2); font-size: 13px; margin-bottom: 18px; }
+  .frame { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 40px rgba(22,32,44,.08); overflow: hidden; }
+  .nav { display: flex; gap: 4px; align-items: center; background: var(--navy); color: #fff; padding: 10px 14px; font-size: 12px; flex-wrap: wrap; }
+  .nav .brand { font-weight: 600; margin-right: 10px; }
+  .nav span { padding: 4px 8px; border-radius: 6px; opacity: .75; }
+  .nav .on { background: var(--accent); opacity: 1; }
+  .body { display: grid; grid-template-columns: 220px 1fr 260px; min-height: 460px; }
+  .col { border-right: 1px solid var(--line); padding: 14px; }
+  .col:last-child { border-right: none; }
+  .col-title { font-size: 12px; font-weight: 600; color: var(--ink2); margin-bottom: 10px; }
+  .agent { padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; margin-bottom: 7px; font-size: 12.5px; transition: all .3s; }
+  .agent .d { font-size: 11px; color: var(--ink2); margin-top: 2px; }
+  .agent.active { border-color: var(--accent); background: #eef4ff; box-shadow: 0 0 0 2px rgba(37,99,235,.12); }
+  .agent.active .d { color: var(--accent2); }
+  .chat { display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 85%; padding: 10px 13px; border-radius: 12px; font-size: 13.5px; line-height: 1.55; opacity: 0; transform: translateY(6px); transition: all .4s; }
+  .msg.show { opacity: 1; transform: none; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.bot { align-self: flex-start; background: var(--code); border-bottom-left-radius: 4px; white-space: pre-wrap; }
+  .trace { display: flex; flex-direction: column; gap: 8px; }
+  .tnode { border-left: 3px solid var(--line); background: #fafbfc; border-radius: 0 8px 8px 0; padding: 7px 10px; font-size: 12px; opacity: 0; transform: translateX(8px); transition: all .35s; }
+  .tnode.show { opacity: 1; transform: none; }
+  .tnode .k { font-weight: 600; font-size: 11px; margin-bottom: 2px; }
+  .tnode .t { color: var(--ink2); line-height: 1.45; word-break: break-all; }
+  .tnode.route { border-left-color: #6366f1; } .tnode.thought { border-left-color: #f59e0b; }
+  .tnode.tool { border-left-color: #0ea5e9; } .tnode.result { border-left-color: #10b981; } .tnode.final { border-left-color: #22c55e; }
+  .tnode .k.route { color: #6366f1; } .tnode .k.thought { color: #f59e0b; } .tnode .k.tool { color: #0ea5e9; }
+  .tnode .k.result { color: #10b981; } .tnode .k.final { color: #22c55e; }
+  pre { margin: 6px 0 0; padding: 6px 8px; background: #f1f5f9; border-radius: 6px; font-size: 10.5px; color: #334155; overflow-x: auto; white-space: pre-wrap; }
+  .ctrl { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--line); background: #fafbfc; }
+  button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 7px 16px; font-size: 13px; cursor: pointer; color: var(--ink); }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .bar { flex: 1; height: 6px; background: #e9edf2; border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+  .status { font-size: 12px; color: var(--ink2); }
+  @media (max-width: 860px) { .body { grid-template-columns: 1fr; } .col { border-right: none; border-bottom: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>SxyBrick · Agent 工作台演示</h1>
+  <div class="sub">自播放动画 · 展示「模块化 Agent → 自动路由 → 多步工具编排 → 轨迹可视化」的完整流程（可录屏用于课程设计）。</div>
+
+  <div class="frame">
+    <div class="nav">
+      <span class="brand">SxyBrick 记忆卡片</span>
+      <span>我的卡片</span><span>背诵</span><span>数据</span><span>同步</span><span>AI助手</span><span class="on">Agent工作台</span>
+    </div>
+
+    <div class="body">
+      <div class="col">
+        <div class="col-title">可用 Agent（10）</div>
+        <div id="agents"></div>
+      </div>
+
+      <div class="col">
+        <div class="col-title">对话</div>
+        <div class="chat" id="chat"></div>
+      </div>
+
+      <div class="col">
+        <div class="col-title">编排轨迹</div>
+        <div class="trace" id="trace"></div>
+      </div>
+    </div>
+
+    <div class="ctrl">
+      <button id="btnReplay" class="primary">▶ 重新播放</button>
+      <button id="btnPause">⏸ 暂停</button>
+      <div class="bar"><i id="barFill"></i></div>
+      <span class="status" id="status">准备中…</span>
+    </div>
+  </div>
+</div>
+
+<script>
+const AGENTS = [
+  ['tutor','学习答疑导师','概念讲解 · 结合卡片库'],
+  ['analyst','学习数据分析师','薄弱点 · 周报 · 建议'],
+  ['cardsmith','卡片生产工','笔记拆卡 · 入库'],
+  ['quizmaster','测评出题官','出题 · 判分解析'],
+  ['planner','复习计划编排师','目标拆解 · 计划'],
+  ['memorykeeper','记忆管家','长期记忆 · 个性化'],
+  ['mnemonist','记忆口诀师','口诀 · 联想记忆'],
+  ['mistake-analyst','错题分析师','错因归纳 · 补救'],
+  ['graph-builder','知识图谱构建师','关联 · 持久化图谱'],
+  ['smart-reviewer','智能复习教练','跨模块 · 针对性复习'],
+];
+
+const SCRIPT = [
+  { t: 300,  agent: 'analyst', msg: ['user','分析我本周的薄弱科目'], trace: null },
+  { t: 1200, trace: { kind:'route', key:'route', title:'路由', text:'意图识别 → 路由到「学习数据分析师」' } },
+  { t: 2200, trace: { kind:'thought', key:'thought', title:'思考', text:'先看看整体统计数据与能力四维…' } },
+  { t: 3200, trace: { kind:'tool', key:'tool', title:'调用工具 get_stats', text:'' } },
+  { t: 4200, trace: { kind:'result', key:'result', title:'工具返回', text:'{\n  totalCards: 320, todayReviews: 41,\n  avgMastery: 68%, ability: {coverage: 82%}\n}' } },
+  { t: 5300, trace: { kind:'tool', key:'tool', title:'调用工具 get_weak_cards', text:'' } },
+  { t: 6300, trace: { kind:'result', key:'result', title:'工具返回', text:'计组[定点数] 遗忘5次 · 线代[基础解系] 遗忘4次 …' } },
+  { t: 7400, msg: ['bot','📊 本周薄弱分析：\n\n1. 计算机组成原理（掌握度 55%）——重点攻克「定点数运算」「cache 映射」；\n2. 线性代数（62%）——「基础解系/非齐次通解」反复出错；\n3. 建议：今天优先复习这 2 科共 23 张到期卡，明早用费曼法复述「cache 三种映射」。'], trace: null },
+  { t: 8600, trace: { kind:'final', key:'final', title:'结论', text:'分析完成 · 共调用 2 个工具 · 2 步推理' } },
+];
+
+let agentsBox, chatBox, traceBox, barFill, statusEl;
+let paused = false, timer = null, steps = [];
+let activeAgent = null;
+
+function el(id){ return document.getElementById(id); }
+
+function renderAgents() {
+  agentsBox = el('agents');
+  agentsBox.innerHTML = '';
+  AGENTS.forEach(([id, name, d]) => {
+    const div = document.createElement('div');
+    div.className = 'agent';
+    div.dataset.id = id;
+    div.innerHTML = `<b>${name}</b><div class="d">${d}</div>`;
+    agentsBox.appendChild(div);
+  });
+}
+function setActiveAgent(id) {
+  if (activeAgent === id) return;
+  activeAgent = id;
+  agentsBox.querySelectorAll('.agent').forEach(a => a.classList.toggle('active', a.dataset.id === id));
+}
+function addMsg(kind, text) {
+  const div = document.createElement('div');
+  div.className = 'msg ' + (kind === 'user' ? 'user' : 'bot');
+  div.textContent = text;
+  chatBox.appendChild(div);
+  requestAnimationFrame(() => div.classList.add('show'));
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+function addTrace(t) {
+  const div = document.createElement('div');
+  div.className = 'tnode ' + t.kind;
+  const body = t.text.includes('{') ? `<pre>${t.text.replace(/</g,'&lt;')}</pre>` : `<div class="t">${t.text}</div>`;
+  div.innerHTML = `<div class="k ${t.kind}">${t.title}</div>${body}`;
+  traceBox.appendChild(div);
+  requestAnimationFrame(() => div.classList.add('show'));
+  traceBox.scrollTop = traceBox.scrollHeight;
+}
+
+function reset() {
+  if (timer) clearInterval(timer);
+  chatBox.innerHTML = ''; traceBox.innerHTML = ''; activeAgent = null;
+  setActiveAgent(null); agentsBox.querySelectorAll('.agent').forEach(a => a.classList.remove('active'));
+  steps = SCRIPT.map(s => ({ ...s, done: false }));
+  el('status').textContent = '准备中…';
+  barFill.style.width = '0';
+}
+function play() {
+  if (timer) clearInterval(timer);
+  timer = setInterval(() => {
+    if (paused) return;
+    const next = steps.find(s => !s.done);
+    if (!next) { clearInterval(timer); el('status').textContent = '演示完成 ✓'; return; }
+    next.done = true;
+    if (next.agent) setActiveAgent(next.agent);
+    if (next.msg) addMsg(next.msg[0], next.msg[1]);
+    if (next.trace) addTrace(next.trace);
+    const done = steps.filter(s => s.done).length;
+    barFill.style.width = (done / steps.length * 100) + '%';
+    el('status').textContent = `步骤 ${done}/${steps.length}`;
+  }, 300);
+}
+
+el('btnReplay').onclick = () => { paused = false; el('btnPause').textContent = '⏸ 暂停'; reset(); play(); };
+el('btnPause').onclick = () => {
+  paused = !paused;
+  el('btnPause').textContent = paused ? '▶ 继续' : '⏸ 暂停';
+};
+
+renderAgents(); reset(); play();
+</script>
+</body>
+</html>

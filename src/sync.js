@@ -4,15 +4,15 @@
 import { db } from './db.js';
 import { base64ToBlob, blobToBase64, extractImageIds } from './images.js';
 
-export const BACKUP_VERSION = 2;
+export const BACKUP_VERSION = 3;
 
 export async function countData() {
-  const [cards, reviews, images, aiChats, aiMemories, memos, plans, graphEdges] = await Promise.all([
+  const [cards, reviews, images, aiChats, aiMemories, memos, plans, graphEdges, docs, pomoSessions] = await Promise.all([
     db.cards.count(), db.reviews.count(), db.images.count(),
     db.aiChats.count(), db.aiMemories.count(), db.memos.count(),
-    db.plans.count(), db.graphEdges.count(),
+    db.plans.count(), db.graphEdges.count(), db.docs.count(), db.pomoSessions.count(),
   ]);
-  return { cards, reviews, images, aiChats, aiMemories, memos, plans, graphEdges };
+  return { cards, reviews, images, aiChats, aiMemories, memos, plans, graphEdges, docs, pomoSessions };
 }
 
 export async function buildBackup(subject) {
@@ -27,6 +27,8 @@ export async function buildBackup(subject) {
   const memos = subject ? [] : await db.memos.toArray();
   const plans = subject ? [] : await db.plans.toArray();
   const graphEdges = subject ? [] : await db.graphEdges.toArray();
+  const docs = subject ? [] : await db.docs.toArray();
+  const pomoSessions = subject ? [] : await db.pomoSessions.toArray();
 
   // 收集被打包卡片引用的图片
   const ids = new Set();
@@ -37,7 +39,7 @@ export async function buildBackup(subject) {
     if (row?.blob) images.push({ id, mime: row.mime || 'image/png', data: await blobToBase64(row.blob) });
   }
 
-  return { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), cards, reviews, tombstones, images, aiChats, aiMemories, memos, plans, graphEdges };
+  return { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), cards, reviews, tombstones, images, aiChats, aiMemories, memos, plans, graphEdges, docs, pomoSessions };
 }
 
 export async function downloadBackup() {
@@ -109,7 +111,7 @@ export async function syncWithHub(hubUrl, token) {
 
 export async function importBackup(backup) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
-  const stats = { cards: 0, reviews: 0, images: 0, overridden: 0, deleted: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0 };
+  const stats = { cards: 0, reviews: 0, images: 0, overridden: 0, deleted: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0 };
 
   // 1) 卡片：按 updatedAt 最后写入胜出
   const localCards = new Map((await db.cards.toArray()).map(c => [c.id, c]));
@@ -199,6 +201,23 @@ export async function importBackup(backup) {
     if (!local || (e.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
       await db.graphEdges.put(e);
       stats.graphEdges++;
+    }
+  }
+
+  // 11) AI 文档：按 id 幂等 + updatedAt 胜出
+  for (const d of backup.docs || []) {
+    const local = await db.docs.get(d.id);
+    if (!local || (d.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
+      await db.docs.put(d);
+      stats.docs++;
+    }
+  }
+
+  // 12) 番茄专注记录：按 id 幂等合并
+  for (const s of backup.pomoSessions || []) {
+    if (!(await db.pomoSessions.get(s.id))) {
+      await db.pomoSessions.put(s);
+      stats.pomoSessions++;
     }
   }
 

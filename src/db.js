@@ -33,6 +33,12 @@ db.version(5).stores({
   graphEdges: 'id, from, to, updatedAt',
 });
 
+// v6：新增 AI 文档表 + 番茄专注记录表（均随数据包同步）
+db.version(6).stores({
+  docs: 'id, type, updatedAt',
+  pomoSessions: 'id, startedAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

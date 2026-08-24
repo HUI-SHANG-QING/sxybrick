@@ -13,6 +13,8 @@ const routes = [
   { path: '/wrong', component: () => import('./views/WrongBook.vue') },
   { path: '/pomodoro', component: () => import('./views/Pomodoro.vue') },
   { path: '/graph', component: () => import('./views/KnowledgeGraph.vue') },
+  { path: '/plans', component: () => import('./views/Plans.vue') },
+  { path: '/docs', component: () => import('./views/Docs.vue') },
 ];
 
 export const router = createRouter({

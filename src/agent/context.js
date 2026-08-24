@@ -4,6 +4,7 @@
 // 这是“数据感知型 Agent”的核心：所有分析/建议类 Agent 都依赖它。
 
 import { getStats, weakCards, getReviewSuggestion, getTags } from '../repo.js';
+import { getModuleSummary } from './analytics.js';
 
 function tagCountsStr(tags) {
   if (!tags || !tags.length) return '';
@@ -15,11 +16,12 @@ function tagCountsStr(tags) {
  * @returns {Promise<string>}
  */
 export async function buildStudyContext() {
-  const [stats, weak, suggestion, tags] = await Promise.all([
+  const [stats, weak, suggestion, tags, moduleSummary] = await Promise.all([
     getStats(),
     weakCards(40, 1),
     getReviewSuggestion(),
     getTags(),
+    getModuleSummary().catch(() => ''),
   ]);
 
   const L = [];
@@ -50,6 +52,7 @@ export async function buildStudyContext() {
       .join('；');
     L.push(`- 薄弱/错题卡片（按遗忘次数排序）：${top}`);
   }
+  if (moduleSummary) L.push(moduleSummary);
   return L.join('\n');
 }
 

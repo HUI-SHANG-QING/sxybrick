@@ -414,3 +414,54 @@ export async function createGraphEdge(payload) {
   return e;
 }
 export async function deleteGraphEdge(id) { await db.graphEdges.delete(id); }
+
+// ---------- AI 文档（可持久化、随数据包同步） ----------
+export async function listDocs() {
+  return db.docs.orderBy('updatedAt').reverse().toArray();
+}
+export async function getDoc(id) {
+  return (await db.docs.get(id)) || null;
+}
+export async function createDoc(payload) {
+  const title = String(payload?.title || '').trim() || '未命名文档';
+  const content = String(payload?.content || '').trim();
+  const t = now();
+  const d = {
+    id: uid(), title, content,
+    type: ['summary', 'note', 'plan', 'other'].includes(payload?.type) ? payload.type : 'note',
+    tags: (Array.isArray(payload?.tags) ? payload.tags : []).map(x => String(x).trim().slice(0, 20)).filter(Boolean).slice(0, 16),
+    source: String(payload?.source || '').trim().slice(0, 60),
+    createdAt: t, updatedAt: t,
+  };
+  await db.docs.put(d);
+  return d;
+}
+export async function updateDoc(id, patch) {
+  const old = await db.docs.get(id);
+  if (!old) throw new Error('文档不存在');
+  const d = { ...old, ...(patch || {}), updatedAt: now() };
+  await db.docs.put(d);
+  return d;
+}
+export async function deleteDoc(id) { await db.docs.delete(id); }
+
+// ---------- 番茄专注记录（可持久化、随数据包同步） ----------
+export async function addPomoSession(payload) {
+  const t = now();
+  const s = {
+    id: uid(),
+    startedAt: payload?.startedAt || t,
+    duration: Number(payload?.duration) || 0, // 分钟
+    tag: String(payload?.tag || '').trim().slice(0, 30),
+    createdAt: t,
+  };
+  await db.pomoSessions.put(s);
+  return s;
+}
+export async function listPomoSessions(limit = 200) {
+  return db.pomoSessions.orderBy('startedAt').reverse().limit(limit).toArray();
+}
+export async function countPomoToday() {
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  return db.pomoSessions.where('startedAt').aboveOrEqual(dayStart.getTime()).count();
+}
