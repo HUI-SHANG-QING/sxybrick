@@ -5,7 +5,7 @@ import { toast } from '../utils/toast.js';
 import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup } from '../sync.js';
 import { getSubjects } from '../repo.js';
 
-const counts = ref({ cards: 0, reviews: 0, images: 0 });
+const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0 });
 const hubUrl = ref(localStorage.getItem('sxy_hub') || location.origin);
 const hubToken = ref(localStorage.getItem('sxy_hub_token') || '');
 const fileInput = ref(null);
@@ -24,10 +24,15 @@ function fmt(ts) {
 }
 
 function fmtStats(stats) {
-  const parts = [`新增卡片 ${stats.cards}`];
+  const parts = [`卡片 +${stats.cards || 0}`];
   if (stats.overridden) parts.push(`更新 ${stats.overridden}`);
   if (stats.deleted) parts.push(`删除 ${stats.deleted}`);
-  parts.push(`复习 +${stats.reviews}`, `图片 +${stats.images}`);
+  parts.push(`复习 +${stats.reviews || 0}`, `图片 +${stats.images || 0}`);
+  const extra = [
+    ['aiChats', 'AI对话'], ['aiMemories', '记忆'], ['memos', '备忘'], ['plans', '计划'],
+    ['graphEdges', '图谱'], ['docs', '文档'], ['pomoSessions', '专注'],
+  ];
+  for (const [k, label] of extra) if (stats[k]) parts.push(`${label} +${stats[k]}`);
   return parts.join('，');
 }
 
@@ -96,14 +101,14 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
   <div style="max-width:720px;margin:0 auto">
     <h2 style="margin:0 0 4px">数据同步</h2>
     <div class="hint" style="margin-bottom:16px">
-      本机：{{ counts.cards }} 张卡片 · {{ counts.reviews }} 条复习 · {{ counts.images }} 张图片
+      本机数据：{{ counts.cards }} 卡片 · {{ counts.reviews }} 复习 · {{ counts.images }} 图片 · {{ counts.aiChats }} 对话 · {{ counts.aiMemories }} 记忆 · {{ counts.memos }} 备忘 · {{ counts.plans }} 计划 · {{ counts.graphEdges }} 图谱边 · {{ counts.docs }} 文档 · {{ counts.pomoSessions }} 专注
     </div>
 
     <!-- 手动同步 -->
     <div class="panel">
       <div class="panel-title">手动同步（数据包文件）</div>
       <p class="hint" style="margin-top:0">
-        导出一份包含卡片、复习进度、图片的数据包文件，通过微信/QQ/网盘发到另一台设备导入即可。适合出门在外、不同 WiFi 时使用。
+        导出一份数据包文件，包含<b>全部模块数据</b>：卡片、复习记录、图片、AI 对话（AI 问答 + 费曼 + Agent 工作台）、Agent 记忆、备忘录、学习计划、知识图谱、AI 文档、番茄专注记录。通过微信/QQ/网盘发到另一台设备导入即可。
       </p>
       <div v-if="lastBackup" class="hint" style="margin-bottom:8px">上次备份：{{ fmt(lastBackup.at) }}</div>
       <div v-else class="hint" style="margin-bottom:8px;color:var(--amber)">⚠ 尚未备份过，建议定期导出数据包，防止数据丢失</div>
@@ -114,7 +119,7 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
         </button>
         <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onFile" />
       </div>
-      <div class="hint">合并规则：同 id 的卡片按「最后修改时间」谁新听谁；删除会在设备间同步；图片按 id 自动去重。</div>
+      <div class="hint">合并规则：同 id 的记录按「最后修改时间」谁新听谁；删除会跨设备同步；图片按 id 自动去重；各模块（对话/记忆/计划/图谱/文档/专注）按 id 幂等合并。</div>
     </div>
 
     <!-- 分享卡组 -->

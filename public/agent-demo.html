@@ -122,6 +122,13 @@ let activeAgent = null;
 
 function el(id){ return document.getElementById(id); }
 
+// 初始化 DOM 引用（脚本位于 body 末尾，元素已存在）
+agentsBox = el('agents');
+chatBox = el('chat');
+traceBox = el('trace');
+barFill = el('barFill');
+statusEl = el('status');
+
 function renderAgents() {
   agentsBox = el('agents');
   agentsBox.innerHTML = '';
