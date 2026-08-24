@@ -7,6 +7,7 @@ const routes = [
   { path: '/export', component: () => import('./views/Export.vue') },
   { path: '/sync', component: () => import('./views/Sync.vue') },
   { path: '/ai', component: () => import('./views/AIAssistant.vue') },
+  { path: '/agent', component: () => import('./views/AgentWorkbench.vue') },
   { path: '/feynman', component: () => import('./views/Feynman.vue') },
   { path: '/memo', component: () => import('./views/Memo.vue') },
   { path: '/wrong', component: () => import('./views/WrongBook.vue') },

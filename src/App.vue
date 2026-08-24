@@ -58,6 +58,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
       <router-link to="/export">导出打印</router-link>
       <router-link to="/sync">同步</router-link>
       <router-link to="/ai">AI助手</router-link>
+      <router-link to="/agent">Agent工作台</router-link>
       <router-link to="/feynman">费曼</router-link>
       <router-link to="/memo">备忘</router-link>
       <router-link to="/wrong">错题集</router-link>
