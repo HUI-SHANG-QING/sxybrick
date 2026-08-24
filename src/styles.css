@@ -64,17 +64,12 @@ input, select, textarea { font: inherit; color: inherit; }
 
 /* 布局 */
 .app-shell { min-height: 100vh; display: flex; flex-direction: column; }
-.app-nav {
-  position: sticky; top: 0; z-index: 50;
-  background: var(--panel); border-bottom: 1px solid var(--line);
-  display: flex; align-items: center; gap: 8px; padding: 0 24px; height: 56px;
-}
-.app-nav .brand { font-weight: 700; font-size: 17px; margin-right: 16px; white-space: nowrap; }
-.app-nav a {
-  color: var(--ink-2); text-decoration: none; padding: 6px 14px; border-radius: 8px; white-space: nowrap;
-}
-.app-nav a.router-link-active { color: var(--ink); background: var(--code-inline); font-weight: 600; }
+/* 导航由 NavBar 组件按风格渲染 */
 .app-main { flex: 1; width: 100%; max-width: 1080px; margin: 0 auto; padding: 24px 20px 80px; }
+/* 科幻风格：左侧轨道留白（桌面端） */
+@media (min-width: 721px) {
+  .app-shell.rail-style .app-main { margin-left: 88px; max-width: 1000px; }
+}
 
 /* 通用控件 */
 .btn {
@@ -176,121 +171,19 @@ input, select, textarea { font: inherit; color: inherit; }
   .no-print { display: none !important; }
 }
 
-/* 移动端适配（手机 / 平板）：导航改为底部横向滚动 Tab */
+/* 移动端适配：内容留白 + 弹窗（导航由 NavBar 回退到底部 Tab） */
 @media (max-width: 720px) {
-  .app-nav {
-    position: fixed; top: auto; bottom: 0; left: 0; right: 0;
-    height: 56px; padding: 0 8px; justify-content: flex-start; gap: 2px;
-    overflow-x: auto;
-    border-top: 1px solid var(--line); border-bottom: none; border-radius: 0;
-  }
-  .app-nav .brand { display: none; }
-  .app-nav a { flex: none; text-align: center; padding: 6px 10px; font-size: 12px; white-space: nowrap; }
-  .app-nav > .btn { margin-left: 0; flex: none; font-size: 12px; padding: 4px 8px; white-space: nowrap; }
   .app-main { padding: 16px 12px 80px; }
   .modal { padding: 18px 16px; }
   .modal-mask { padding: 16px 10px; }
 }
 
-/* ===================== 界面风格系统（结构差异大） ===================== */
-/* 1) 罗盘：暖色古铜 + 环形径向导航 */
-:root[data-style='compass'] {
-  --bg: #f6efe4; --panel: #fffaf0; --ink: #3a2a1a; --ink-2: #8a7a60;
-  --line: #e5d8c0; --accent: #8a5a2b; --blue: #2b6cb0; --red: #b5482f;
-  --amber: #b07800; --green: #4c8352; --radius: 14px;
-  --code-bg: #f3e9d8; --code-inline: #eee1c9; --tag-bg: #efe6d2; --tag-ink: #8a5a2b;
-  --ring-d: 316px;
-}
-
-/* 2) 星盘：深空 + 星空背景 + 环形星座导航 */
-:root[data-style='astro'] {
-  --bg: #0b1020; --panel: #141a2e; --ink: #e8ecff; --ink-2: #8a94b8;
-  --line: #26304f; --accent: #7c8cff; --blue: #5b8cff; --red: #ff6b81;
-  --amber: #ffc96b; --green: #5be3a6; --radius: 14px;
-  --code-bg: #0e1428; --code-inline: #1a2340; --tag-bg: #1c2650; --tag-ink: #9fb0ff;
-  --ring-d: 344px;
-}
-[data-style='astro'] .app-shell {
-  background-image:
-    radial-gradient(1.5px 1.5px at 20% 28%, rgba(255,255,255,.55), transparent),
-    radial-gradient(1px 1px at 72% 18%, rgba(255,255,255,.4), transparent),
-    radial-gradient(2px 2px at 42% 68%, rgba(255,255,255,.35), transparent),
-    radial-gradient(1px 1px at 84% 58%, rgba(255,255,255,.5), transparent),
-    radial-gradient(1.5px 1.5px at 12% 82%, rgba(255,255,255,.3), transparent);
-}
-[data-style='astro'] .app-nav a { animation: astro-twinkle 3s ease-in-out infinite; }
-@keyframes astro-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
-
-/* 3) 科幻：深色霓虹 + 玻璃拟态 + 左侧垂直轨道 */
-:root[data-style='scifi'] {
-  --bg: #05070d; --panel: rgba(20, 28, 44, .72); --ink: #e6f7ff; --ink-2: #8fb0c9;
-  --line: #16324a; --accent: #00e5ff; --blue: #00b8ff; --red: #ff4d6d;
-  --amber: #ffc400; --green: #2effb0; --radius: 16px;
-  --code-bg: rgba(8, 14, 26, .8); --code-inline: rgba(0, 229, 255, .08); --tag-bg: rgba(0, 229, 255, .12); --tag-ink: #7ff3ff;
-}
-[data-style='scifi'] .app-shell { background: linear-gradient(160deg, #05070d, #0a0f1e 60%, #06131c); }
-
-/* ---- 桌面端结构：环形导航（罗盘 / 星盘） ---- */
-@media (min-width: 721px) {
-  [data-style='compass'] .app-nav,
-  [data-style='astro'] .app-nav {
-    position: relative; justify-content: center; height: 400px;
-    background: transparent; border-bottom: none; padding: 0;
-  }
-  [data-style='compass'] .app-nav::before,
-  [data-style='astro'] .app-nav::before {
-    content: ''; position: absolute; left: 50%; top: 50%;
-    width: var(--ring-d); height: var(--ring-d); transform: translate(-50%, -50%);
-    border-radius: 50%; border: 1px dashed var(--line); pointer-events: none;
-  }
-  [data-style='compass'] .app-nav .brand,
-  [data-style='astro'] .app-nav .brand {
-    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-    width: 74px; height: 74px; border-radius: 50%; margin: 0; z-index: 2;
-    display: flex; align-items: center; justify-content: center;
-    background: var(--accent); color: #fff; font-size: 12px; font-weight: 700;
-    box-shadow: 0 4px 18px rgba(0,0,0,.25);
-  }
-  [data-style='compass'] .app-nav a,
-  [data-style='astro'] .app-nav a {
-    position: absolute; left: 50%; top: 50%;
-    transform: translate(calc(-50% + var(--x, 0px)), calc(-50% + var(--y, 0px)));
-    border-radius: 999px; padding: 5px 12px;
-  }
-  [data-style='compass'] .app-nav a.router-link-active,
-  [data-style='astro'] .app-nav a.router-link-active {
-    background: var(--accent); color: #fff; font-weight: 600;
-  }
-  [data-style='compass'] .app-nav .nav-tools,
-  [data-style='astro'] .app-nav .nav-tools {
-    position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); margin: 0;
-  }
-
-  /* ---- 桌面端：左侧垂直轨道（科幻） ---- */
-  [data-style='scifi'] .app-nav {
-    position: fixed; left: 0; top: 0; bottom: 0; width: 84px; height: 100%;
-    flex-direction: column; justify-content: flex-start; align-items: center;
-    padding: 16px 0; gap: 8px; border-right: 1px solid var(--line); border-bottom: none;
-    background: rgba(8, 13, 24, .78); backdrop-filter: blur(14px); z-index: 60;
-  }
-  [data-style='scifi'] .app-nav .brand { margin: 0 0 10px; font-size: 12px; writing-mode: vertical-rl; }
-  [data-style='scifi'] .app-nav a { padding: 6px 8px; font-size: 12px; border-radius: 10px; text-align: center; }
-  [data-style='scifi'] .app-nav a.router-link-active { background: var(--code-inline); color: var(--accent); font-weight: 600; }
-  [data-style='scifi'] .app-nav .nav-tools { margin: auto 0 0; flex-direction: column; gap: 8px; }
-  [data-style='scifi'] .app-nav .nav-tools .btn { font-size: 11px; padding: 4px 6px; max-width: 76px; overflow: hidden; text-overflow: ellipsis; }
-  [data-style='scifi'] .app-main { margin-left: 84px; max-width: 1000px; }
-  [data-style='scifi'] .panel,
-  [data-style='scifi'] .modal,
-  [data-style='scifi'] .chat-box,
-  [data-style='scifi'] .wb-side,
-  [data-style='scifi'] .wb-trace,
-  [data-style='scifi'] .plans-list,
-  [data-style='scifi'] .plans-detail,
-  [data-style='scifi'] .docs-list,
-  [data-style='scifi'] .docs-detail {
-    backdrop-filter: blur(10px);
-  }
-}
+/* ===================== 界面风格（强调色身份；配色由 data-theme 全局控制） ===================== */
+:root[data-style='compass'] { --accent: #8a5a2b; --radius: 14px; }
+:root[data-style='revolver'] { --accent: #b91c1c; --radius: 12px; }
+:root[data-style='cartoon'] { --accent: #ec4899; --radius: 18px; }
+:root[data-style='puzzle'] { --accent: #7c3aed; --radius: 10px; }
+:root[data-style='scifi'] { --accent: #0891b2; --radius: 16px; }
 
 /* 复习专注模式：隐藏导航与浮动助手，沉浸式背题 */
 body.review-focus .app-nav { display: none; }
