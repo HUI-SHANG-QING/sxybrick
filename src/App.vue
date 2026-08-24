@@ -7,14 +7,13 @@ import NavBar from './components/NavBar.vue';
 import Intro from './components/Intro.vue';
 import Guide from './components/Guide.vue';
 
-// ---------- 风格（布局/交互/质感，结构差异大） ----------
+// ---------- 风格（游戏级，布局/交互/场景差异大） ----------
 const STYLES = [
   { id: 'classic', name: '经典', desc: '顶部导航 · 简洁扁平', icon: '☰' },
-  { id: 'compass', name: '罗盘', desc: '环形罗盘 · 径向导航', icon: '◎' },
-  { id: 'revolver', name: '左轮', desc: '转轮手枪 · 6 孔位射击', icon: '➳' },
-  { id: 'cartoon', name: '萌系', desc: '卡通角色 · 点击互动+音效', icon: '♡' },
-  { id: 'puzzle', name: '解密', desc: '解密游戏 · 线索卡菜单', icon: '✧' },
-  { id: 'scifi', name: '科幻', desc: '霓虹玻璃 · 左侧轨道', icon: '◈' },
+  { id: 'card', name: '卡牌', desc: '炉石传说 · 卡牌桌游', icon: '🎴' },
+  { id: 'moba', name: '王者', desc: '王者荣耀 · MOBA 大厅', icon: '⚔️' },
+  { id: 'space', name: '星际', desc: '星际战争 · 太空 HUD', icon: '🛸' },
+  { id: 'adventure', name: '冒险', desc: '黑神话 · 冒险场景', icon: '🐒' },
 ];
 // ---------- 配色模式（全局通用，适用于每一种风格） ----------
 const MODES = [
@@ -23,8 +22,10 @@ const MODES = [
   { id: 'eye', name: '护眼' },
 ];
 
-const style = ref(localStorage.getItem('sxy_style') || 'classic');
-const mode = ref(localStorage.getItem('sxy_mode') || 'light');
+const VALID_STYLES = STYLES.map(s => s.id);
+const VALID_MODES = MODES.map(m => m.id);
+const style = ref(VALID_STYLES.includes(localStorage.getItem('sxy_style')) ? localStorage.getItem('sxy_style') : 'classic');
+const mode = ref(VALID_MODES.includes(localStorage.getItem('sxy_mode')) ? localStorage.getItem('sxy_mode') : 'light');
 const showSettings = ref(false);
 
 function apply() {
@@ -70,6 +71,23 @@ function onIntroEnd() { showIntro.value = false; showGuide.value = true; }
 function onGuideEnd() { showGuide.value = false; localStorage.setItem('sxy_onboarding_done', '1'); }
 function replayOnboarding() { showSettings.value = false; beginOnboarding(); }
 
+// 设置按钮拖拽（pointer 事件，统一鼠标/触摸，与 AI 助手一致）
+const fabEl = ref(null);
+const fabPos = ref(null);
+let fDrag = false, fMoved = false, fSx = 0, fSy = 0, fOx = 0, fOy = 0;
+function fabDown(e) {
+  fDrag = true; fMoved = false; fSx = e.clientX; fSy = e.clientY;
+  const r = fabEl.value.getBoundingClientRect(); fOx = r.left; fOy = r.top;
+  e.currentTarget.setPointerCapture?.(e.pointerId);
+}
+function fabMove(e) {
+  if (!fDrag) return;
+  const dx = e.clientX - fSx, dy = e.clientY - fSy;
+  if (Math.abs(dx) + Math.abs(dy) > 4) fMoved = true;
+  if (fMoved) fabPos.value = { left: fOx + dx, top: fOy + dy };
+}
+function fabUp() { fDrag = false; if (!fMoved) showSettings.value = !showSettings.value; }
+
 onMounted(() => {
   apply();
   window.addEventListener('beforeinstallprompt', onBeforeInstall);
@@ -79,7 +97,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'no-anim': degraded, 'rail-style': style === 'scifi' }">
+  <div class="app-shell" :class="{ 'no-anim': degraded }">
     <NavBar :variant="style" :navItems="navItems" />
 
     <main class="app-main">
@@ -90,8 +108,9 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
       </router-view>
     </main>
 
-    <!-- 全局设置入口（所有风格下都在右上角） -->
-    <button class="settings-fab no-print" @click="showSettings = !showSettings">🎨</button>
+    <!-- 全局设置入口（可拖动） -->
+    <button ref="fabEl" class="settings-fab no-print" :style="fabPos ? { left: fabPos.left + 'px', top: fabPos.top + 'px', right: 'auto' } : {}"
+      @pointerdown="fabDown" @pointermove="fabMove" @pointerup="fabUp" @pointercancel="fabUp">🎨</button>
 
     <div class="toast-wrap">
       <div v-for="t in toasts" :key="t.id" class="toast" :class="t.type">{{ t.message }}</div>
