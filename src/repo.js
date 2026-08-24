@@ -369,3 +369,48 @@ export async function addMemo(payload) {
   return m;
 }
 export async function deleteMemo(id) { await db.memos.delete(id); }
+
+// ---------- 学习计划（可持久化、随数据包同步） ----------
+export async function listPlans() {
+  return db.plans.orderBy('updatedAt').reverse().toArray();
+}
+export async function createPlan(payload) {
+  const title = String(payload?.title || '').trim() || '未命名计划';
+  const content = String(payload?.content || '').trim();
+  const t = now();
+  const p = {
+    id: uid(), title, content,
+    status: ['active', 'done', 'archived'].includes(payload?.status) ? payload.status : 'active',
+    createdAt: t, updatedAt: t,
+  };
+  await db.plans.put(p);
+  return p;
+}
+export async function updatePlan(id, patch) {
+  const old = await db.plans.get(id);
+  if (!old) throw new Error('计划不存在');
+  const p = { ...old, ...(patch || {}), updatedAt: now() };
+  await db.plans.put(p);
+  return p;
+}
+export async function deletePlan(id) { await db.plans.delete(id); }
+
+// ---------- 知识图谱关系（可持久化、随数据包同步） ----------
+export async function listGraphEdges() {
+  return db.graphEdges.toArray();
+}
+export async function createGraphEdge(payload) {
+  const from = String(payload?.from || '').trim();
+  const to = String(payload?.to || '').trim();
+  if (!from || !to) throw new Error('关系的两端不能为空');
+  const t = now();
+  const e = {
+    id: uid(), from, to,
+    label: String(payload?.label || '相关').trim(),
+    subject: String(payload?.subject || '').trim(),
+    createdAt: t, updatedAt: t,
+  };
+  await db.graphEdges.put(e);
+  return e;
+}
+export async function deleteGraphEdge(id) { await db.graphEdges.delete(id); }

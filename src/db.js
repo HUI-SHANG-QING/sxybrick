@@ -27,6 +27,12 @@ db.version(4).stores({
   memos: 'id, at, updatedAt',
 });
 
+// v5：新增学习计划表 + 知识图谱关系表（均随数据包同步）
+db.version(5).stores({
+  plans: 'id, status, updatedAt',
+  graphEdges: 'id, from, to, updatedAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

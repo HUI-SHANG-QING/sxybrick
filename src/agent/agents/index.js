@@ -10,8 +10,8 @@ agentRegistry.register({
   name: '学习答疑导师',
   description: '回答各科知识点疑问，结合你的卡片库做针对性讲解，适合“这个概念怎么理解”类问题。',
   systemPrompt:
-    '你是「SxyBrick 记忆卡片」的学习答疑导师，擅长把复杂概念讲得通俗易懂。\n{context}\n{memory}\n请用中文、分点、举例说明；必要时调用搜索工具核对用户已有卡片，避免凭空编造。若涉及公式，用 $...$ 行内或 $$...$$ 块级表达。',
-  tools: ['search_cards', 'list_subjects_and_tags'],
+    '你是「SxyBrick 记忆卡片」的学习答疑导师，擅长把复杂概念讲得通俗易懂。\n{context}\n{memory}\n请用中文、分点、举例说明；必要时调用搜索/讲解工具核对用户已有卡片，避免凭空编造。若涉及公式，用 $...$ 行内或 $$...$$ 块级表达。',
+  tools: ['search_cards', 'list_subjects_and_tags', 'explain_concept', 'get_card_detail'],
   maxSteps: 6,
 });
 
@@ -54,8 +54,8 @@ agentRegistry.register({
   name: '复习计划编排师',
   description: '结合你的掌握度与到期情况，编排一份可执行的阶段复习计划（含优先级与节奏）。',
   systemPrompt:
-    '你是复习计划编排师，擅长把“目标”拆成“可执行的步骤序列”。\n{context}\n{memory}\n先调用数据工具了解现状，再输出一份分阶段的复习计划（阶段目标→每日任务→优先级→里程碑）。用 <final> 输出最终计划。',
-  tools: ['get_stats', 'get_review_suggestion', 'get_weak_cards'],
+    '你是复习计划编排师，擅长把“目标”拆成“可执行的步骤序列”。\n{context}\n{memory}\n先调用数据工具了解现状，再输出一份分阶段的复习计划（阶段目标→每日任务→优先级→里程碑）。若用户认可，可调用 create_plan 把计划持久化（会随数据包同步）。用 <final> 输出最终计划。',
+  tools: ['get_stats', 'get_review_suggestion', 'get_weak_cards', 'create_plan', 'list_plans'],
   maxSteps: 8,
 });
 
@@ -68,6 +68,39 @@ agentRegistry.register({
     '你是记忆管家。\n{memory}\n帮用户梳理“值得长期记住”的信息：身份/目标/专业/偏好/重要事实。请输出 3-5 条建议记忆条目，并标注类别（core/preference/fact）。用户确认后由系统写入记忆库。',
   tools: [],
   maxSteps: 3,
+});
+
+// 7) 记忆口诀师：为难点/易错点生成记忆口诀与联想
+agentRegistry.register({
+  id: 'mnemonist',
+  name: '记忆口诀师',
+  description: '为知识点/易错点设计朗朗上口的中文记忆口诀与联想，附带记忆原理和踩坑提示。',
+  systemPrompt:
+    '你是记忆口诀师，专攻把抽象、易混的知识点变成好记的口诀/联想。\n{memory}\n调用 suggest_mnemonic 生成口诀；如需更准确的上下文，先用 get_card_detail 或 search_cards 查看卡片原文。输出 1~3 条口诀 + 记忆原理 + 易错坑。',
+  tools: ['suggest_mnemonic', 'get_card_detail', 'search_cards'],
+  maxSteps: 8,
+});
+
+// 8) 错题分析师：从错题/复习记录里归纳错因模式，给出针对性补救
+agentRegistry.register({
+  id: 'mistake-analyst',
+  name: '错题分析师',
+  description: '分析错题与复习记录，归纳共性错因（概念混淆/记忆不牢/粗心），给出针对性补救建议。',
+  systemPrompt:
+    '你是错题分析师，必须基于真实错题与复习记录归纳规律。\n{context}\n{memory}\n调用 get_weak_cards、get_review_history、get_card_detail 拿到错题证据，再归纳 2~4 类共性错因，每条给出“症状→根因→补救动作”。',
+  tools: ['get_weak_cards', 'get_review_history', 'get_card_detail', 'get_stats'],
+  maxSteps: 10,
+});
+
+// 9) 知识图谱构建师：从卡片中提取知识点并建立持久化关联
+agentRegistry.register({
+  id: 'graph-builder',
+  name: '知识图谱构建师',
+  description: '从卡片中提炼知识点并建立关联（依赖/前置/对比），边可持久化并随数据包同步。',
+  systemPrompt:
+    '你是知识图谱构建师。\n{memory}\n用 search_cards / list_subjects_and_tags 了解卡片，提取知识点，用 link_cards 建立关联（关系用 依赖/前置/对比/属于 等）；可用 list_graph_edges 查看已有边。边会持久化并同步，请谨慎去重。',
+  tools: ['search_cards', 'list_subjects_and_tags', 'link_cards', 'list_graph_edges'],
+  maxSteps: 12,
 });
 
 /** 注册内置 Agent（幂等） */
