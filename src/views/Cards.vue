@@ -27,12 +27,16 @@ const modalOpen = ref(false);
 const editing = ref(null);
 const weakMode = ref(false);
 const suggestion = ref(null);
-const goal = ref(getGoal());
+const goal = ref(20);
 const todayCount = ref(0);
 const streak = ref(0);
 
-function loadStreak() { goal.value = getGoal(); todayCount.value = getTodayCount(); streak.value = getStreak(); }
-function onGoalChange() { setGoal(goal.value); loadStreak(); }
+async function loadStreak() {
+  goal.value = await getGoal();
+  todayCount.value = await getTodayCount();
+  streak.value = await getStreak();
+}
+async function onGoalChange() { await setGoal(goal.value); await loadStreak(); }
 
 watch(viewMode, v => localStorage.setItem('sxy_view', v));
 

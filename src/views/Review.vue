@@ -8,7 +8,7 @@ import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS } from '../repo.js';
-import { getGoal, getTodayCount, recordReview } from '../utils/streak.js';
+import { getGoal, getTodayCount } from '../utils/streak.js';
 import { startSpeech, isSpeechSupported } from '../utils/speech.js';
 import { mdToSpeech } from '../utils/tts.js';
 import { getConfusablePairs } from '../agent/analytics.js';
@@ -23,9 +23,9 @@ const interleave = ref(localStorage.getItem('sxy_interleave') !== '0');
 const editOpen = ref(false);
 const editing = ref(null);
 
-// 每日目标（去重卡片数，跨会话持久化）
-const goal = ref(getGoal());
-const todayCount = ref(getTodayCount());
+// 每日目标（去重卡片数，存 db.meta 随同步跨设备）
+const goal = ref(20);
+const todayCount = ref(0);
 
 // 自由组合筛选
 const filterOpen = ref(false);
@@ -87,8 +87,7 @@ async function loadQueue() {
 async function rate(card, rating, guessed = false, meta = {}) {
   try {
     const res = await review(card.id, rating, intensity.value, guessed, meta);
-    recordReview(card.id);            // 记录今日去重卡片
-    todayCount.value = getTodayCount(); // 跨会话同步
+    todayCount.value = await getTodayCount(); // 从 db.reviews 推导（跨会话/跨设备同步）
     let msg = `下次复习：${res.dueText}`;
     if (rating === 0) {
       const pair = confusablePairs.value.find(p => p.a.id === card.id || p.b.id === card.id);
@@ -234,7 +233,9 @@ function fmtFocus(s) {
   return m > 0 ? `${m} 分 ${sec} 秒` : `${sec} 秒`;
 }
 
-onMounted(() => {
+onMounted(async () => {
+  goal.value = await getGoal();
+  todayCount.value = await getTodayCount();
   loadQueue();
   loadMeta();
   focusTimer = setInterval(() => { focusSeconds.value++; }, 1000);

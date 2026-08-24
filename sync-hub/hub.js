@@ -96,6 +96,11 @@ function merge(base, incoming) {
   const graphEdges = mergeUpdated(base.graphEdges, incoming.graphEdges);
   const docs = mergeUpdated(base.docs, incoming.docs);
   const pomoSessions = mergeUpdated(base.pomoSessions, incoming.pomoSessions);
+  // 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
+  let streakMeta = base.streakMeta || null;
+  if (incoming.streakMeta && (!streakMeta || (incoming.streakMeta.updatedAt || 0) >= (streakMeta.updatedAt || 0))) {
+    streakMeta = incoming.streakMeta;
+  }
   return {
     cards: [...cards.values()],
     tombstones: [...tombstones.values()],
@@ -108,6 +113,7 @@ function merge(base, incoming) {
     graphEdges,
     docs,
     pomoSessions,
+    streakMeta,
   };
 }
 

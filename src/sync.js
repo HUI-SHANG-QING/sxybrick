@@ -30,6 +30,10 @@ export async function buildBackup(subject) {
   const docs = subject ? [] : await db.docs.toArray();
   const pomoSessions = subject ? [] : await db.pomoSessions.toArray();
 
+  // 打卡元数据：每日目标 goal（存 db.meta，随同步走；打卡天数/今日复习由 reviews 推导）
+  const goalMeta = subject ? null : await db.meta.get('goal');
+  const streakMeta = goalMeta ? { goal: goalMeta.value, updatedAt: goalMeta.updatedAt || 0 } : null;
+
   // 收集被打包卡片引用的图片
   const ids = new Set();
   for (const c of cards) for (const id of extractImageIds(c.front + '\n' + c.back)) ids.add(id);
@@ -39,7 +43,7 @@ export async function buildBackup(subject) {
     if (row?.blob) images.push({ id, mime: row.mime || 'image/png', data: await blobToBase64(row.blob) });
   }
 
-  return { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), cards, reviews, tombstones, images, aiChats, aiMemories, memos, plans, graphEdges, docs, pomoSessions };
+  return { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), cards, reviews, tombstones, images, aiChats, aiMemories, memos, plans, graphEdges, docs, pomoSessions, streakMeta };
 }
 
 export async function downloadBackup() {
@@ -218,6 +222,14 @@ export async function importBackup(backup) {
     if (!(await db.pomoSessions.get(s.id))) {
       await db.pomoSessions.put(s);
       stats.pomoSessions++;
+    }
+  }
+
+  // 13) 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
+  if (backup.streakMeta && typeof backup.streakMeta.goal === 'number') {
+    const local = await db.meta.get('goal');
+    if (!local || (backup.streakMeta.updatedAt || 0) >= (local.updatedAt || 0)) {
+      await db.meta.put({ key: 'goal', value: backup.streakMeta.goal, updatedAt: backup.streakMeta.updatedAt || Date.now() });
     }
   }
 
