@@ -149,11 +149,27 @@ export async function setMarked(id, marked) {
   return card;
 }
 
+// ---------- 错因 ----------
+// 统一错因选项（新建卡片 + 背诵页共用）；「自定义」由 UI 层追加
+export const WRONG_REASONS = ['概念混淆', '记忆不牢', '审题偏差', '记忆模糊', '计算失误', '粗心', '其他'];
+
 // ---------- 复习 ----------
-export async function reviewQueue(limit = 100, interleave = false) {
-  let cards = (await allCards())
-    .filter(c => c.dueAt <= now())
-    .sort((a, b) => a.dueAt - b.dueAt || (a.id < b.id ? -1 : 1));
+// filter: { subjects:[], tags:[], logic:'AND'|'OR'|'NOT', wrongReasons:[], includeDueOnly:true }
+// 自由组合背诵：按科目/标签/错因并集·交集·差集筛选到期队列（默认全量到期，遵循复习曲线）
+export async function reviewQueue(limit = 100, interleave = false, filter = {}) {
+  let cards = (await allCards());
+  const f = filter || {};
+  if (f.subjects?.length) cards = cards.filter(c => f.subjects.includes(c.subject || '未分类'));
+  if (f.tags?.length) {
+    const ts = f.tags, logic = f.logic || 'OR';
+    if (logic === 'AND') cards = cards.filter(c => ts.every(t => (c.tags || []).includes(t)));
+    else if (logic === 'NOT') cards = cards.filter(c => !ts.some(t => (c.tags || []).includes(t)));
+    else cards = cards.filter(c => ts.some(t => (c.tags || []).includes(t)));
+  }
+  if (f.wrongReasons?.length) cards = cards.filter(c => f.wrongReasons.includes(c.wrongReason || ''));
+  // 默认只背到期卡（遵循复习曲线）；includeDueOnly=false 时可背全部（重复复习场景）
+  if (f.includeDueOnly !== false) cards = cards.filter(c => c.dueAt <= now());
+  cards.sort((a, b) => a.dueAt - b.dueAt || (a.id < b.id ? -1 : 1));
   // 交错混科：把到期卡片按科目轮流取出，避免同一科目连串出现
   if (interleave && cards.length > 1) {
     const groups = new Map();
@@ -284,7 +300,10 @@ export async function getStats() {
   const totalReviews = reviews.length;
 
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  const todayReviews = reviews.filter(r => r.reviewedAt >= dayStart.getTime()).length;
+  // 今日复习 = 去重卡片数（同一张卡今天复习多次只算 1 张）
+  const todaySet = new Set();
+  for (const r of reviews) if (r.reviewedAt >= dayStart.getTime()) todaySet.add(r.cardId);
+  const todayReviews = todaySet.size;
   const dueToday = cards.filter(c => c.dueAt <= now()).length;
 
   // 热力图：近 365 天

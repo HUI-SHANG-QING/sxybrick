@@ -6,6 +6,7 @@
 import { ref, computed, watch } from 'vue';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { speak, mdToSpeech } from '../utils/tts.js';
+import { WRONG_REASONS } from '../repo.js';
 
 const props = defineProps({ card: { type: Object, required: true } });
 const emit = defineEmits(['rate', 'edit']);
@@ -15,10 +16,14 @@ const picked = ref(null);
 const hintReveal = ref(false);
 const difficulty = ref(props.card.difficulty ?? 1); // 0易 1中 2难
 const wrongReason = ref(props.card.wrongReason || '');
+const customWrong = ref('');
+const showCustomWrong = ref(false);
 watch(() => props.card.id, () => {
   flipped.value = false; picked.value = null; hintReveal.value = false;
   difficulty.value = props.card.difficulty ?? 1;
   wrongReason.value = props.card.wrongReason || '';
+  customWrong.value = '';
+  showCustomWrong.value = false;
 });
 
 const type = computed(() => props.card.type || 'basic');
@@ -58,7 +63,16 @@ function doRate(rating, guessed = false) {
   emit('rate', props.card, rating, guessed, { difficulty: difficulty.value, wrongReason: wrongReason.value });
 }
 function setDifficulty(d) { difficulty.value = d; }
-function setWrongReason(r) { wrongReason.value = wrongReason.value === r ? '' : r; }
+function setWrongReason(r) {
+  if (r === '__custom__') { showCustomWrong.value = !showCustomWrong.value; return; }
+  wrongReason.value = wrongReason.value === r ? '' : r;
+}
+function applyCustomWrong() {
+  const v = customWrong.value.trim();
+  if (v) wrongReason.value = v;
+  customWrong.value = '';
+  showCustomWrong.value = false;
+}
 </script>
 
 <template>
@@ -133,7 +147,12 @@ function setWrongReason(r) { wrongReason.value = wrongReason.value === r ? '' : 
           </div>
           <div class="meta-group">
             <span class="meta-label">错因</span>
-            <button v-for="r in ['概念混淆','记忆不牢','粗心']" :key="r" class="chip mini" :class="{ on: wrongReason === r }" @click="setWrongReason(r)">{{ r }}</button>
+            <button v-for="r in WRONG_REASONS" :key="r" class="chip mini" :class="{ on: wrongReason === r }" @click="setWrongReason(r)">{{ r }}</button>
+            <button class="chip mini" :class="{ on: showCustomWrong }" @click="setWrongReason('__custom__')">自定义</button>
+            <template v-if="showCustomWrong">
+              <input v-model="customWrong" class="input" style="width:130px" placeholder="自定义错因（20字内）" maxlength="20" @keydown.enter="applyCustomWrong" />
+              <button class="chip mini" @click="applyCustomWrong">确定</button>
+            </template>
           </div>
         </div>
 
@@ -167,14 +186,24 @@ function setWrongReason(r) { wrongReason.value = wrongReason.value === r ? '' : 
 .rate.good { color: var(--green); border-color: #86efac; }
 .rate.guess { color: var(--blue); border-color: #93c5fd; }
 .mnemonic { margin-top: 12px; padding: 8px 12px; background: var(--code-bg); border-radius: 8px; font-size: 13px; color: var(--ink-2); }
-/* 3D 翻转动效 */
+/* 3D 翻转动效：正反面 grid 叠放，容器高度 = max(正面, 背面)，背面内容长时不溢出/不遮挡 */
 .flip-scene { perspective: 1400px; }
-.flip-inner { position: relative; transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2, .7, .3, 1); }
+.flip-inner { position: relative; transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2, .7, .3, 1); display: grid; }
 .flip-inner.flipped { transform: rotateY(180deg); }
-.flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-.flip-back { position: absolute; inset: 0; transform: rotateY(180deg); }
+.flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; grid-area: 1 / 1; min-width: 0; }
+.flip-back { grid-area: 1 / 1; transform: rotateY(180deg); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .meta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
 .meta-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .meta-label { font-size: 12px; color: var(--ink-2); }
 .chip.mini { font-size: 12px; padding: 2px 10px; }
+
+/* 移动端/平板：收紧卡片内边距、图片限高，防止长图+标签+自评按钮底部被遮挡 */
+@media (max-width: 720px) {
+  .flip-face.card-item { padding: 14px 14px; }
+  .flip-face :deep(img), .flip-face img { max-height: 40vh; width: auto; }
+  .rate-row { flex-wrap: wrap; justify-content: stretch; gap: 8px; }
+  .rate-row .btn { flex: 1 1 44%; }
+  .meta-row { gap: 8px; }
+  .back-top { flex-wrap: wrap; }
+}
 </style>

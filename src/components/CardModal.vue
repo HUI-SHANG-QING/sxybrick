@@ -4,7 +4,7 @@
 import { ref, computed, watch } from 'vue';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
-import { getSubjects, getTags, createCard, updateCard } from '../repo.js';
+import { getSubjects, getTags, createCard, updateCard, WRONG_REASONS } from '../repo.js';
 import { putImage } from '../images.js';
 import { uid } from '../db.js';
 
@@ -28,6 +28,7 @@ const type = ref('basic');
 const marked = ref(false);
 const mnemonic = ref('');
 const wrongReason = ref('');
+const customWrong = ref('');
 const showTagSuggest = ref(false);
 const front = ref('');
 const back = ref('');
@@ -51,13 +52,15 @@ watch(() => props.modelValue, async (open) => {
     type.value = props.card.type || 'basic';
     marked.value = !!props.card.marked;
     mnemonic.value = props.card.mnemonic || '';
-    wrongReason.value = props.card.wrongReason || '';
+    const wr = props.card.wrongReason || '';
+    if (wr && !WRONG_REASONS.includes(wr)) { wrongReason.value = '__custom__'; customWrong.value = wr; }
+    else { wrongReason.value = wr; customWrong.value = ''; }
     const known = subjects.value.some(s => s.name === props.card.subject);
     useCustomSubject.value = !!props.card.subject && !known;
     subject.value = known ? props.card.subject : '';
     customSubject.value = known ? '' : props.card.subject;
   } else {
-    front.value = ''; back.value = ''; tags.value = []; source.value = ''; type.value = 'basic'; marked.value = false; mnemonic.value = ''; wrongReason.value = '';
+    front.value = ''; back.value = ''; tags.value = []; source.value = ''; type.value = 'basic'; marked.value = false; mnemonic.value = ''; wrongReason.value = ''; customWrong.value = '';
     subject.value = ''; customSubject.value = ''; useCustomSubject.value = false;
     tagInput.value = '';
   }
@@ -142,7 +145,9 @@ async function save() {
       type: type.value,
       marked: marked.value,
       mnemonic: mnemonic.value,
-      wrongReason: marked.value ? wrongReason.value : '',
+      wrongReason: marked.value
+        ? (wrongReason.value === '__custom__' ? customWrong.value.trim() : wrongReason.value)
+        : '',
     };
     if (props.card) await updateCard(props.card.id, payload);
     else await createCard(payload);
@@ -194,12 +199,11 @@ function close() { emit('update:modelValue', false); }
           <div class="field-label">错因</div>
           <select v-model="wrongReason" class="input" style="max-width:240px">
             <option value="">选择错因（可选）</option>
-            <option value="概念混淆">概念混淆</option>
-            <option value="审题偏差">审题偏差</option>
-            <option value="记忆模糊">记忆模糊</option>
-            <option value="计算失误">计算失误</option>
-            <option value="其他">其他</option>
+            <option v-for="r in WRONG_REASONS" :key="r" :value="r">{{ r }}</option>
+            <option value="__custom__">自定义…</option>
           </select>
+          <input v-if="wrongReason === '__custom__'" v-model="customWrong" class="input"
+                 style="max-width:240px;margin-top:8px" placeholder="输入自定义错因（20字内）" maxlength="20" />
         </div>
 
         <div class="field-label">标签（最多 {{ MAX_TAGS }} 个，回车添加）</div>

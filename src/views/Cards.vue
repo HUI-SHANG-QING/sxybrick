@@ -164,8 +164,8 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
     </div>
 
     <div class="streak-bar">
-      <span class="hint">今日复习 <b>{{ todayCount }}</b> / <b>{{ goal }}</b> 次</span>
-      <input type="number" v-model.number="goal" class="input" style="width:80px" min="1" @change="onGoalChange" title="每日目标" />
+      <span class="hint">今日复习 <b>{{ todayCount }}</b> / <b>{{ goal }}</b> 张</span>
+      <input type="number" v-model.number="goal" class="input" style="width:80px" min="1" @change="onGoalChange" title="每日目标（复习卡片数）" />
       <span class="streak-badge" :class="{ lit: streak >= 3, hot: streak >= 7 }">连续打卡 {{ streak }} 天</span>
     </div>
 

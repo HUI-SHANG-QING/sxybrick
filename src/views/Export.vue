@@ -1,11 +1,12 @@
 <script setup>
-// 导出打印：自由组合筛选（多科目 × 多标签 × 搜索 × 逻辑）+ 批量勾选单卡
+// 导出打印：自由组合筛选（多科目 × 多标签 × 搜索 × 逻辑）+ 批量勾选单卡 + 排序 + 缩略图 + 隐藏答案 + Markdown 导出
 // 预览采用 CodeBrick 式排版：导出头 + 按科目分组 + 编号卡片（Q/A 分区、虚线分隔）
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import { getSubjects, getTags, listCards } from '../repo.js';
 import { downloadCsv } from '../sync.js';
+import { imgUrl, ensureImages, extractImageIds } from '../images.js';
 
 const subjects = ref([]);
 const allTags = ref([]);
@@ -14,8 +15,19 @@ const tagNames = ref([]);     // 已选标签（多选）
 const logic = ref('AND');     // 标签间逻辑 AND/OR/NOT
 const q = ref('');
 const mode = ref('all');      // all | incremental
+const sortBy = ref('updated');
+const hideAnswer = ref(false);
 const checkedIds = ref([]);   // 批量勾选的卡片 id
 const allCache = ref([]);     // 全量卡片缓存
+const thumbMap = ref({});     // cardId -> objectURL（响应式缩略图）
+
+const SORT_OPTIONS = [
+  { id: 'updated', label: '最近更新' },
+  { id: 'created', label: '创建时间' },
+  { id: 'subject', label: '科目' },
+  { id: 'level', label: '复习进度' },
+  { id: 'due', label: '到期时间' },
+];
 
 const previewOpen = ref(false);
 const printCards = ref([]);
@@ -28,7 +40,7 @@ const exportDate = computed(() => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 });
 
-// 筛选后的候选卡片（科目并集 → 标签逻辑 → 搜索）
+// 筛选后的候选卡片（科目并集 → 标签逻辑 → 搜索 → 排序）
 const candidates = computed(() => {
   let cards = allCache.value;
   const k = q.value.trim();
@@ -42,14 +54,31 @@ const candidates = computed(() => {
     else if (logic.value === 'OR') cards = cards.filter(c => ts.some(t => (c.tags || []).includes(t)));
     else cards = cards.filter(c => !ts.some(t => (c.tags || []).includes(t)));
   }
-  return cards;
+  const s = sortBy.value;
+  const arr = [...cards];
+  if (s === 'created') arr.sort((a, b) => (b.createdAt - a.createdAt) || (b.id > a.id ? 1 : -1));
+  else if (s === 'subject') arr.sort((a, b) => String(a.subject || '').localeCompare(String(b.subject || '')) || (b.updatedAt - a.updatedAt));
+  else if (s === 'level') arr.sort((a, b) => (b.level - a.level) || (b.updatedAt - a.updatedAt));
+  else if (s === 'due') arr.sort((a, b) => (a.dueAt - b.dueAt) || (b.updatedAt - a.updatedAt));
+  else arr.sort((a, b) => (b.updatedAt - a.updatedAt) || (b.id > a.id ? 1 : -1));
+  return arr;
 });
 
-// 当候选变化时，清掉已不在候选里的勾选
-watch(candidates, (list) => {
+// 当候选变化时：清掉已不存在的勾选 + 批量加载缩略图
+watch(candidates, async (list) => {
   const ids = new Set(list.map(c => c.id));
   checkedIds.value = checkedIds.value.filter(id => ids.has(id));
-});
+  const imgIds = [];
+  const byCard = [];
+  for (const c of list) {
+    const eid = extractImageIds(c.front)[0];
+    if (eid) { imgIds.push(eid); byCard.push([c.id, eid]); }
+  }
+  await ensureImages(imgIds);
+  const map = {};
+  for (const [cid, iid] of byCard) map[cid] = imgUrl(iid);
+  thumbMap.value = map;
+}, { immediate: true });
 
 // 按科目分组（未分类排最后）—— 导出排版用
 const grouped = computed(() => {
@@ -69,9 +98,6 @@ const grouped = computed(() => {
 });
 
 const checkedCount = computed(() => checkedIds.value.length);
-const allChecked = computed(() =>
-  candidates.value.length > 0 && checkedIds.value.length === candidates.value.length,
-);
 
 function plain(text) {
   return String(text || '')
@@ -86,7 +112,6 @@ async function loadMeta() {
   subjects.value = await getSubjects();
   allTags.value = await getTags();
   allCache.value = (await listCards({})).items;
-  // 若存在未分类卡片，补充「未分类」科目项
   if (allCache.value.some(c => !c.subject)) {
     const cnt = allCache.value.filter(c => !c.subject).length;
     subjects.value = [...subjects.value.filter(s => s.name !== '未分类'), { name: '未分类', count: cnt }];
@@ -132,22 +157,22 @@ function buildDesc() {
   return parts.join('；') + (mode.value === 'incremental' ? '（仅新增）' : '');
 }
 
+// 最终选定的卡片（勾选优先，否则全部筛选结果）
+function selectedCards() {
+  return checkedIds.value.length
+    ? candidates.value.filter(c => checkedIds.value.includes(c.id))
+    : candidates.value;
+}
+
 async function generate() {
   try {
-    // 有勾选 → 只导出勾选；无勾选 → 导出全部筛选结果
-    const base = checkedIds.value.length
-      ? candidates.value.filter(c => checkedIds.value.includes(c.id))
-      : candidates.value;
-
-    let cards = base;
+    let cards = selectedCards();
     if (mode.value === 'incremental' && lastExport.value?.exportedAt) {
       cards = cards.filter(c => (c.updatedAt || 0) > (lastExport.value.exportedAt || 0));
     }
-
     if (!cards.length) {
       return toast(mode.value === 'incremental' ? '上次导出后没有新增或修改' : '没有符合条件的卡片', 'error');
     }
-
     printCards.value = cards;
     scopeDesc.value = buildDesc();
     previewOpen.value = true;
@@ -162,6 +187,49 @@ function doPrint() {
 async function doCsv() {
   try { await downloadCsv(); toast('已导出 CSV/TSV 文件，可用 Excel 或 Anki 导入', 'success'); }
   catch (e) { toast(e.message, 'error'); }
+}
+
+// 导出 Markdown 文件（按科目分组 Q/A，配合知识库使用）
+function doMarkdown() {
+  const cards = selectedCards();
+  if (!cards.length) { toast('没有可导出的卡片', 'error'); return; }
+  const L = [];
+  L.push('# SxyBrick 记忆卡片');
+  L.push('');
+  L.push(`> 导出日期：${exportDate.value} · 共 ${cards.length} 张 · ${scopeDesc.value}`);
+  L.push('');
+  const map = new Map();
+  for (const c of cards) {
+    const k = c.subject || '未分类';
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(c);
+  }
+  let no = 0;
+  for (const [subject, list] of map) {
+    L.push(`## ${subject}`);
+    L.push('');
+    for (const c of list) {
+      no++;
+      const tags = (c.tags || []).map(t => `\`${t}\``).join(' ');
+      L.push(`### ${no}. ${plain(c.front).slice(0, 48)}`);
+      L.push('');
+      if (tags) { L.push(tags); L.push(''); }
+      L.push(`**Q** ${c.front}`);
+      L.push('');
+      L.push(hideAnswer.value ? `**A** _（答案已隐藏）_` : `**A** ${c.back}`);
+      L.push('');
+      L.push('---');
+      L.push('');
+    }
+  }
+  const text = L.join('\n');
+  const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `sxybrick-卡片-${exportDate.value}.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast(`已导出 ${cards.length} 张卡片为 Markdown 文件`, 'success');
 }
 
 async function onAfterPrint() {
@@ -206,7 +274,10 @@ onMounted(() => {
       </div>
 
       <div class="row" style="margin-bottom:0">
-        <input v-model="q" class="input" style="max-width:300px" placeholder="搜索内容定位卡片（可选）" />
+        <input v-model="q" class="input" style="max-width:240px" placeholder="搜索定位（可选）" />
+        <select v-model="sortBy" class="input" style="width:auto">
+          <option v-for="o in SORT_OPTIONS" :key="o.id" :value="o.id">排序：{{ o.label }}</option>
+        </select>
         <button class="chip" :class="{ on: mode === 'all' }" @click="mode = 'all'">全部导出</button>
         <button class="chip" :class="{ on: mode === 'incremental' }" @click="mode = 'incremental'"
                 :disabled="!lastExport">仅新增卡片</button>
@@ -233,6 +304,10 @@ onMounted(() => {
         <label v-for="(c, i) in candidates" :key="c.id" class="pick-item"
                :class="{ on: checkedIds.includes(c.id) }">
           <input type="checkbox" :checked="checkedIds.includes(c.id)" @change="toggleOne(c.id)" />
+          <span class="pick-thumb">
+            <img v-if="thumbMap[c.id]" :src="thumbMap[c.id]" alt="" />
+            <span v-else class="thumb-ph">{{ (c.subject || '未分类').slice(0, 1) }}</span>
+          </span>
           <span class="pick-no">#{{ i + 1 }}</span>
           <span class="pick-main">
             <span class="pick-head">
@@ -246,11 +321,15 @@ onMounted(() => {
     </div>
 
     <!-- 操作 -->
-    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap" class="no-print">
+    <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center" class="no-print">
       <button class="btn primary" @click="generate">
         生成 PDF 预览{{ checkedCount ? `（已选 ${checkedCount} 张）` : `（全部 ${candidates.length} 张）` }}
       </button>
-      <button class="btn" @click="doCsv">导出 CSV（Anki/Excel 可导入）</button>
+      <button class="btn" @click="doCsv">导出 CSV</button>
+      <button class="btn" @click="doMarkdown">导出 Markdown</button>
+      <button class="chip" :class="{ on: hideAnswer }" @click="hideAnswer = !hideAnswer">
+        {{ hideAnswer ? '已隐藏答案（自测）' : '隐藏答案（自测模式）' }}
+      </button>
     </div>
 
     <!-- 打印预览（格式保持优美版式不变） -->
@@ -294,7 +373,11 @@ onMounted(() => {
                 </div>
                 <div class="qa q-side"><span class="qa-mark">Q</span><MarkdownRenderer :content="c.front" /></div>
                 <div class="qa-divider"></div>
-                <div class="qa a-side"><span class="qa-mark a">A</span><MarkdownRenderer :content="c.back" /></div>
+                <div class="qa a-side">
+                  <span class="qa-mark a">A</span>
+                  <div v-if="hideAnswer" class="answer-hidden">（答案已隐藏 · 自测模式）</div>
+                  <MarkdownRenderer v-else :content="c.back" />
+                </div>
               </div>
             </div>
 
@@ -313,16 +396,23 @@ onMounted(() => {
 /* 勾选清单 */
 .pick-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .pick-actions { display: flex; gap: 6px; }
-.pick-list { max-height: 360px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
+.pick-list { max-height: 400px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px; }
 .pick-item {
-  display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; border-radius: 6px;
+  display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 6px;
   cursor: pointer; transition: background .12s;
 }
 .pick-item:hover { background: var(--code-inline); }
 .pick-item.on { background: var(--tag-bg); }
-.pick-item input { margin-top: 3px; flex: none; }
-.pick-no { flex: none; font-size: 12px; color: var(--ink-2); font-weight: 600; min-width: 34px; }
-.pick-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pick-item input { margin-top: 14px; flex: none; }
+.pick-thumb {
+  flex: none; width: 44px; height: 44px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--line); background: var(--code-inline);
+  display: flex; align-items: center; justify-content: center;
+}
+.pick-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb-ph { font-size: 18px; font-weight: 700; color: var(--ink-2); }
+.pick-no { flex: none; font-size: 12px; color: var(--ink-2); font-weight: 600; min-width: 34px; margin-top: 14px; }
+.pick-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding-top: 2px; }
 .pick-head { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
 .pick-subj { font-size: 12px; font-weight: 700; color: var(--accent); }
 .pick-front { font-size: 13px; color: var(--ink); word-break: break-all; }
@@ -361,6 +451,7 @@ onMounted(() => {
 .q-side { font-weight: 600; }
 .qa-divider { border-top: 1px dashed #d1d5db; margin: 12px 0 12px 32px; }
 .a-side { color: #2b3440; }
+.answer-hidden { font-size: 13px; color: #9aa5b1; font-style: italic; padding: 4px 0; }
 
 .export-foot { text-align: center; font-size: 12px; color: #9aa5b1; margin-top: 20px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
 
@@ -374,5 +465,7 @@ onMounted(() => {
   .export-sheet { padding: 18px 14px; }
   .export-head { flex-direction: column; align-items: flex-start; gap: 8px; }
   .export-head-meta { text-align: left; }
+  .pick-item input { margin-top: 12px; }
+  .pick-no { margin-top: 12px; }
 }
 </style>
