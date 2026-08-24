@@ -9,6 +9,9 @@ const routes = [
   { path: '/ai', component: () => import('./views/AIAssistant.vue') },
   { path: '/feynman', component: () => import('./views/Feynman.vue') },
   { path: '/memo', component: () => import('./views/Memo.vue') },
+  { path: '/wrong', component: () => import('./views/WrongBook.vue') },
+  { path: '/pomodoro', component: () => import('./views/Pomodoro.vue') },
+  { path: '/graph', component: () => import('./views/KnowledgeGraph.vue') },
 ];
 
 export const router = createRouter({

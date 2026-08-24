@@ -2,9 +2,9 @@
 // 费曼学习法：Agent 基于选中的卡片范围，出题考用户，让用户"以教代学"
 import { ref, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
-import { db } from '../db.js';
+import { db, uid } from '../db.js';
 import { getSubjects, getTags, getStats, weakCards } from '../repo.js';
-import { chatAI, hasAIKey } from '../ai.js';
+import { chatAI, hasAIKey, saveChat, listChats, deleteChat } from '../ai.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import { speak } from '../utils/tts.js';
 
@@ -76,6 +76,7 @@ async function start() {
   if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
   const cards = filterCards(await db.cards.toArray());
   if (!cards.length) { toast('该范围内没有卡片', 'error'); return; }
+  if (!currentId.value) currentId.value = uid();
   started.value = true;
   messages.value = [];
   loading.value = true;
@@ -87,7 +88,7 @@ async function start() {
     ]);
     messages.value.push({ role: 'assistant', content: reply }); if (voiceOn.value) speak(reply);
   } catch (e) { toast(e.message, 'error'); }
-  finally { loading.value = false; scroll(); }
+  finally { loading.value = false; scroll(); await persistSession(); }
 }
 
 async function send() {
@@ -108,7 +109,7 @@ async function send() {
   } catch (e) {
     toast(e.message, 'error');
     messages.value.push({ role: 'assistant', content: '（出错了：' + e.message + '）' });
-  } finally { loading.value = false; scroll(); }
+  } finally { loading.value = false; scroll(); await persistSession(); }
 }
 
 function scroll() { nextTick(() => { box.value?.scrollTo({ top: box.value.scrollHeight }); }); }
@@ -120,7 +121,37 @@ function toggleVoice() {
   if (!voiceOn.value && 'speechSynthesis' in window) window.speechSynthesis.cancel();
 }
 
-onMounted(loadMeta);
+const sessions = ref([]);
+const currentId = ref('');
+async function loadSessions() {
+  const all = await listChats();
+  sessions.value = all.filter(c => c.type === 'feynman');
+}
+function newSession() {
+  currentId.value = uid();
+  messages.value = [];
+  started.value = false;
+}
+function selectSession(id) {
+  const s = sessions.value.find(x => x.id === id);
+  if (!s) return;
+  currentId.value = id;
+  messages.value = s.messages || [];
+  started.value = messages.value.length > 0;
+}
+async function persistSession() {
+  if (!currentId.value) return;
+  await saveChat({ id: currentId.value, type: 'feynman', title: '费曼练习', messages: messages.value, createdAt: Date.now() });
+  await loadSessions();
+}
+async function removeSession(id) {
+  if (!confirm('删除这个费曼会话？')) return;
+  await deleteChat(id);
+  if (currentId.value === id) newSession();
+  await loadSessions();
+}
+
+onMounted(() => { loadMeta(); loadSessions(); });
 </script>
 
 <template>
@@ -130,6 +161,15 @@ onMounted(loadMeta);
       <button class="chip" :class="{ on: voiceOn }" @click="toggleVoice">语音播报</button>
     </div>
     <p class="hint" style="margin:4px 0 12px">以教代学：AI 出题考你，你用自己的话讲出来，讲不出的就是薄弱点。</p>
+
+    <div v-if="sessions.length" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="hint">历史：</span>
+      <button class="btn small primary" @click="newSession">＋ 新练习</button>
+      <button v-for="s in sessions" :key="s.id" class="chip" :class="{ on: s.id === currentId }" @click="selectSession(s.id)">
+        {{ (s.messages?.length || 0) }} 轮
+        <a style="color:var(--red);cursor:pointer;margin-left:4px" @click.stop="removeSession(s.id)">删</a>
+      </button>
+    </div>
 
     <div class="panel">
       <div class="row">

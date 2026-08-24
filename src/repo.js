@@ -356,3 +356,16 @@ export async function getStats() {
 
   return { totalCards, totalReviews, todayReviews, dueToday, avgMastery, heatmap: heat, mastery, trend, subjectCards, ratingDist, hourly, forgotTrend, ability, tagCounts };
 }
+
+// ---------- 备忘录（四象限：重要/紧急） ----------
+export async function listMemos() {
+  return db.memos.orderBy('at').reverse().toArray();
+}
+export async function addMemo(payload) {
+  const text = String(payload?.text || '').trim();
+  if (!text) return null;
+  const m = { id: uid(), text, important: !!payload.important, urgent: !!payload.urgent, at: Date.now(), createdAt: Date.now() };
+  await db.memos.put(m);
+  return m;
+}
+export async function deleteMemo(id) { await db.memos.delete(id); }

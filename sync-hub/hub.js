@@ -77,6 +77,12 @@ function merge(base, incoming) {
     const cur = aiMemories.get(m.id);
     if (!cur || (m.updatedAt || 0) >= (cur.updatedAt || 0)) aiMemories.set(m.id, m);
   }
+  // 备忘录：按 id 谁新听谁
+  const memos = new Map((base.memos || []).map(m => [m.id, m]));
+  for (const m of incoming.memos || []) {
+    const cur = memos.get(m.id);
+    if (!cur || (m.updatedAt || 0) >= (cur.updatedAt || 0)) memos.set(m.id, m);
+  }
   return {
     cards: [...cards.values()],
     tombstones: [...tombstones.values()],
@@ -84,6 +90,7 @@ function merge(base, incoming) {
     images: [...byId(base.images, incoming.images).values()],
     aiChats: [...aiChats.values()],
     aiMemories: [...aiMemories.values()],
+    memos: [...memos.values()],
   };
 }
 

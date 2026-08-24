@@ -46,6 +46,9 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
       <router-link to="/ai">AI助手</router-link>
       <router-link to="/feynman">费曼</router-link>
       <router-link to="/memo">备忘</router-link>
+      <router-link to="/wrong">错题集</router-link>
+      <router-link to="/pomodoro">番茄钟</router-link>
+      <router-link to="/graph">图谱</router-link>
       <button class="btn small" style="margin-left:auto" @click="toggleTheme">{{ themeLabel }}</button>
       <button v-if="installEvt" class="btn small primary" @click="install">装到桌面</button>
     </nav>

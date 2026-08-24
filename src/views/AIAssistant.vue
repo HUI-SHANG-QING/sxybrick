@@ -21,6 +21,10 @@ const genText = ref('');
 const genCards = ref([]);
 const genLoading = ref(false);
 
+const extractOpen = ref(false);
+const extractCards = ref([]);
+const extractLoading = ref(false);
+
 const SYSTEM_PROMPT = '你是「SxyBrick 记忆卡片」的智能学习助手。你会拿到用户的真实学习数据（卡片、复习记录、错题、标签、掌握度）。请用中文、简洁、友好地回答。当用户问学习情况、薄弱点、错因、复习建议时，务必结合下面提供的数据给出针对性建议，不要泛泛而谈。';
 
 const userNodes = computed(() => {
@@ -177,6 +181,7 @@ onMounted(loadChatList);
     <div class="quick-bar">
       <button v-for="q in quickActions" :key="q.label" class="chip" @click="clickQuick(q)">{{ q.label }}</button>
       <button class="chip" style="border-color:var(--blue);color:var(--blue)" @click="genOpen = true">智能组卡</button>
+      <button class="chip" style="border-color:var(--green);color:var(--green)" @click="extractKnowledge">提取知识点</button>
     </div>
 
     <div class="ai-body">
@@ -336,6 +341,10 @@ onMounted(loadChatList);
 .cat-core { background: #fee2e2; color: #dc2626; }
 .cat-preference { background: #eef2ff; color: #4338ca; }
 .cat-fact { background: #dcfce7; color: #16a34a; }
+.ext-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--line); cursor: pointer; }
+.ext-item:last-child { border-bottom: none; }
+.ext-item input { margin-top: 3px; }
+.ext-body { flex: 1; font-size: 13px; line-height: 1.5; }
 
 @media (max-width: 720px) {
   .ai-body { grid-template-columns: 1fr; }

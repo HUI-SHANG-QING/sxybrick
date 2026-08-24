@@ -22,6 +22,11 @@ db.version(3).stores({
   aiMemories: 'id, updatedAt, category',
 });
 
+// v4：新增备忘录表（四象限：重要/紧急）
+db.version(4).stores({
+  memos: 'id, at, updatedAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }
