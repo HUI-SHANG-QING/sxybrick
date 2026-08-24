@@ -37,12 +37,14 @@ async function loadChatList() { chats.value = await listChats(); }
 
 async function selectChat(id) {
   currentChat.value = (await getChat(id)) || newChat();
+  localStorage.setItem('sxy_last_chat', currentChat.value.id);
   await loadChatList();
   scroll();
 }
 
 async function createNew() {
   currentChat.value = newChat();
+  localStorage.setItem('sxy_last_chat', currentChat.value.id);
   await loadChatList();
 }
 
@@ -164,7 +166,11 @@ function toggleVoice() {
   if (!voiceOn.value && 'speechSynthesis' in window) window.speechSynthesis.cancel();
 }
 
-onMounted(loadChatList);
+onMounted(async () => {
+  await loadChatList();
+  const last = localStorage.getItem('sxy_last_chat');
+  if (last && chats.value.some(c => c.id === last)) await selectChat(last);
+});
 </script>
 
 <template>

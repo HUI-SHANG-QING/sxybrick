@@ -3,6 +3,8 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { toasts, toast } from './utils/toast.js';
 import { degraded } from './utils/perf.js';
 import FloatAssistant from './components/FloatAssistant.vue';
+import Intro from './components/Intro.vue';
+import Guide from './components/Guide.vue';
 
 const THEMES = ['light', 'dark', 'eye'];
 const theme = ref(localStorage.getItem('sxy_theme') || 'light');
@@ -30,7 +32,19 @@ async function install() {
 }
 
 watch(theme, (v) => { localStorage.setItem('sxy_theme', v); applyTheme(); });
-onMounted(() => { applyTheme(); window.addEventListener('beforeinstallprompt', onBeforeInstall); });
+
+const showIntro = ref(false);
+const showGuide = ref(false);
+function beginOnboarding() { showGuide.value = false; showIntro.value = true; }
+function onIntroEnd() { showIntro.value = false; showGuide.value = true; }
+function onGuideEnd() { showGuide.value = false; localStorage.setItem('sxy_onboarding_done', '1'); }
+function replayOnboarding() { beginOnboarding(); }
+
+onMounted(() => {
+  applyTheme();
+  window.addEventListener('beforeinstallprompt', onBeforeInstall);
+  if (!localStorage.getItem('sxy_onboarding_done')) beginOnboarding();
+});
 onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBeforeInstall));
 </script>
 
@@ -50,6 +64,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
       <router-link to="/pomodoro">番茄钟</router-link>
       <router-link to="/graph">图谱</router-link>
       <button class="btn small" style="margin-left:auto" @click="toggleTheme">{{ themeLabel }}</button>
+      <button class="btn small" @click="replayOnboarding">引导</button>
       <button v-if="installEvt" class="btn small primary" @click="install">装到桌面</button>
     </nav>
     <main class="app-main">
@@ -66,5 +81,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
       已启用性能优化模式
     </div>
     <FloatAssistant />
+    <Intro v-if="showIntro" @done="onIntroEnd" />
+    <Guide v-if="showGuide" @done="onGuideEnd" />
   </div>
 </template>

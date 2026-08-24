@@ -1,10 +1,11 @@
 <script setup>
-// 番茄钟法：专注/短休/长休 循环，25-5 节奏，完成后语音提醒，记录今日完成数
-import { ref, computed, onBeforeUnmount } from 'vue';
+// 番茄钟法：专注/短休/长休 循环；计时状态持久化，切页面或重开后继续走
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { toast } from '../utils/toast.js';
 import { speak } from '../utils/tts.js';
 
 const MODES = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
+const STATE_KEY = 'sxy_pomo_state';
 const mode = ref('focus');
 const left = ref(MODES.focus);
 const running = ref(false);
@@ -20,31 +21,51 @@ const ringColor = computed(() => mode.value === 'focus' ? 'var(--accent)' : 'var
 const modeLabel = computed(() => mode.value === 'focus' ? '专注' : mode.value === 'short' ? '短休息' : '长休息');
 
 function fmt(s) { const m = Math.floor(s / 60), sec = s % 60; return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`; }
-function stop() { clearInterval(timer); running.value = false; }
-function switchMode(m) { stop(); mode.value = m; left.value = MODES[m]; }
-function start() { if (running.value) return; running.value = true; timer = setInterval(tick, 1000); }
-function resetCur() { stop(); left.value = MODES[mode.value]; }
+function saveState() {
+  localStorage.setItem(STATE_KEY, JSON.stringify({
+    mode: mode.value, left: left.value, running: running.value,
+    endTs: running.value ? Date.now() + left.value * 1000 : 0,
+  }));
+}
+function stop() { clearInterval(timer); running.value = false; saveState(); }
+function switchMode(m) { stop(); mode.value = m; left.value = MODES[m]; saveState(); }
+function start() { if (running.value) return; running.value = true; saveState(); timer = setInterval(tick, 1000); }
+function resetCur() { stop(); left.value = MODES[mode.value]; saveState(); }
 
 function tick() {
   left.value--;
-  if (left.value <= 0) {
-    stop();
-    if (mode.value === 'focus') {
-      doneToday.value++;
-      localStorage.setItem('sxy_pomo', doneToday.value);
-      focusStreak.value++;
-      toast('专注完成，休息一下！', 'success');
-      speak('专注完成，休息一下吧');
-      switchMode(focusStreak.value % 4 === 0 ? 'long' : 'short');
-    } else {
-      toast('休息结束，继续加油！', 'success');
-      speak('休息结束，继续加油');
-      switchMode('focus');
-    }
+  if (left.value <= 0) { stop(); finish(); } else saveState();
+}
+
+function finish() {
+  if (mode.value === 'focus') {
+    doneToday.value++; localStorage.setItem('sxy_pomo', doneToday.value);
+    focusStreak.value++;
+    toast('专注完成，休息一下！', 'success'); speak('专注完成，休息一下吧');
+    switchMode(focusStreak.value % 4 === 0 ? 'long' : 'short');
+  } else {
+    toast('休息结束，继续加油！', 'success'); speak('休息结束，继续加油');
+    switchMode('focus');
   }
 }
 
-onBeforeUnmount(stop);
+function restore() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STATE_KEY) || 'null');
+    if (!s) return;
+    mode.value = s.mode || 'focus';
+    if (s.running && s.endTs) {
+      const remain = Math.floor((s.endTs - Date.now()) / 1000);
+      if (remain > 0) { left.value = remain; running.value = false; start(); }
+      else { left.value = 0; finish(); }
+    } else {
+      left.value = (typeof s.left === 'number' ? s.left : MODES[mode.value]);
+    }
+  } catch {}
+}
+
+onMounted(restore);
+onBeforeUnmount(() => { clearInterval(timer); });
 </script>
 
 <template>

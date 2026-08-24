@@ -131,6 +131,7 @@ function newSession() {
   currentId.value = uid();
   messages.value = [];
   started.value = false;
+  localStorage.setItem('sxy_last_feynman', currentId.value);
 }
 function selectSession(id) {
   const s = sessions.value.find(x => x.id === id);
@@ -138,10 +139,12 @@ function selectSession(id) {
   currentId.value = id;
   messages.value = s.messages || [];
   started.value = messages.value.length > 0;
+  localStorage.setItem('sxy_last_feynman', id);
 }
 async function persistSession() {
   if (!currentId.value) return;
   await saveChat({ id: currentId.value, type: 'feynman', title: '费曼练习', messages: messages.value, createdAt: Date.now() });
+  localStorage.setItem('sxy_last_feynman', currentId.value);
   await loadSessions();
 }
 async function removeSession(id) {
@@ -151,7 +154,11 @@ async function removeSession(id) {
   await loadSessions();
 }
 
-onMounted(() => { loadMeta(); loadSessions(); });
+onMounted(async () => {
+  loadMeta(); await loadSessions();
+  const last = localStorage.getItem('sxy_last_feynman');
+  if (last && sessions.value.some(s => s.id === last)) selectSession(last);
+});
 </script>
 
 <template>
