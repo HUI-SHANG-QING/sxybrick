@@ -3,7 +3,8 @@
 // 关键词覆盖判分，成绩自动存档（exams 表，随数据包同步），错题可一键加入错题本
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../db.js';
-import { getSubjects, listExams, saveExam, deleteExam, setMarked } from '../repo.js';
+import { getSubjects, listExams, saveExam, deleteExam, setMarked, updateExam } from '../repo.js';
+import { chatAI, hasAIKey } from '../ai.js';
 import { mdToSpeech } from '../utils/tts.js';
 import { toast } from '../utils/toast.js';
 
@@ -61,7 +62,7 @@ async function submit() {
     if (!confirm('还有题目未作答，确定交卷？')) return;
   }
   const g = graded.value;
-  await saveExam({
+  const saved = await saveExam({
     title: examTitle.value,
     subject: selSubjects.value.join('+'),
     questions: questions.value.map((q, i) => ({
@@ -71,9 +72,41 @@ async function submit() {
     score: score.value,
     total: g.length,
   });
+  savedExam.value = saved;
   phase.value = 'result';
   await loadHistory();
   toast(`交卷：${score.value}/${g.length} 分（已存档，可跨设备同步）`, score.value === g.length ? 'success' : 'info');
+}
+
+// ---- D1 模考讲解：AI 逐题讲解错题（错因 + 关联知识点），讲解写回成绩存档 ----
+const savedExam = ref(null);
+const explains = ref([]);
+const explainBusy = ref(false);
+async function aiExplain() {
+  if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
+  const wrongIdx = graded.value.map((g, i) => (g.correct ? -1 : i)).filter(i => i >= 0);
+  if (!wrongIdx.length) { toast('没有错题需要讲解，满分！', 'success'); return; }
+  explainBusy.value = true;
+  try {
+    for (const i of wrongIdx) {
+      const q = questions.value[i];
+      const my = answers.value[i] || '（未作答）';
+      const r = await chatAI([
+        { role: 'system', content: '你是答疑老师。针对学生这道错题，讲清楚：1) 正确答案为什么对（≤60字）；2) 学生的答案错在哪（≤40字）；3) 关联知识点（短语列表）。输出纯文本，用「讲解：/错因：/关联：」三行格式。' },
+        { role: 'user', content: `题目：${q.front}\n标准答案：${q.back}\n学生答案：${my}` },
+      ]);
+      explains.value[i] = String(r || '').trim().slice(0, 300);
+    }
+    if (savedExam.value) {
+      await updateExam(savedExam.value.id, {
+        questions: savedExam.value.questions.map((q, i) => ({ ...q, explain: explains.value[i] || '' })),
+      });
+      savedExam.value.questions = savedExam.value.questions.map((q, i) => ({ ...q, explain: explains.value[i] || '' }));
+    }
+    await loadHistory();
+    toast('错题讲解已生成并存入成绩记录', 'success');
+  } catch (e) { toast('讲解生成失败：' + e.message, 'error'); }
+  finally { explainBusy.value = false; }
 }
 
 async function markWrong() {
@@ -138,6 +171,7 @@ onMounted(async () => { subjects.value = await getSubjects(); await loadHistory(
         <span class="result-score">{{ score }} / {{ graded.length }}</span>
         <span class="hint" style="margin-left:10px">正确率 {{ Math.round((score / graded.length) * 100) }}%</span>
         <span style="flex:1"></span>
+        <button class="btn small" :disabled="explainBusy || !wrongList.length" @click="aiExplain">{{ explainBusy ? '讲解中…' : `AI 逐题讲解错题（${wrongList.length}）` }}</button>
         <button class="btn small" :disabled="!wrongList.length" @click="markWrong">错题加入错题本（{{ wrongList.length }}）</button>
         <button class="btn small" @click="backToSetup">再来一场</button>
       </div>
@@ -146,6 +180,7 @@ onMounted(async () => { subjects.value = await getSubjects(); await loadHistory(
         <div class="exam-front">{{ g.front }}</div>
         <div class="hint">你的答案：{{ answers[i] || '（未作答）' }}</div>
         <div class="exam-std">参考答案：{{ g.back }}</div>
+        <div v-if="explains[i]" class="exam-explain">{{ explains[i] }}</div>
       </div>
     </div>
 
@@ -172,6 +207,7 @@ onMounted(async () => { subjects.value = await getSubjects(); await loadHistory(
             <div class="exam-front">{{ q.front }}</div>
             <div class="hint">你的答案：{{ q.user || '（未作答）' }}</div>
             <div class="exam-std">参考答案：{{ q.back }}</div>
+            <div v-if="q.explain" class="exam-explain">{{ q.explain }}</div>
           </div>
           <div style="display:flex;justify-content:flex-end;margin-top:14px">
             <button class="btn" @click="closeView">关闭</button>
@@ -191,6 +227,7 @@ onMounted(async () => { subjects.value = await getSubjects(); await loadHistory(
 .exam-num { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
 .exam-front { font-weight: 600; margin-bottom: 8px; line-height: 1.6; }
 .exam-std { color: var(--green); margin-top: 6px; line-height: 1.6; font-size: 14px; }
+.exam-explain { background: var(--code-inline); border-left: 3px solid var(--blue); border-radius: 6px; padding: 8px 12px; margin-top: 8px; font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
 .result-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .result-score { font-size: 28px; font-weight: 800; color: var(--accent); }
 .exam-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px dashed var(--line); }

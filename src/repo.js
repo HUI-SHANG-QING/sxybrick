@@ -621,3 +621,10 @@ export async function deleteExam(id) {
   await db.exams.delete(id);
   await db.tombstones.put({ id, kind: 'exam', deletedAt: now() }); // 墓碑：跨设备同步删除
 }
+export async function updateExam(id, patch) {
+  const old = await db.exams.get(id);
+  if (!old) throw new Error('成绩不存在');
+  const e = { ...old, ...(patch || {}), updatedAt: now() };
+  await db.exams.put(e);
+  return e;
+}

@@ -5,7 +5,7 @@ import * as echarts from 'echarts';
 import 'echarts-wordcloud';
 import { toast } from '../utils/toast.js';
 import { getStats } from '../repo.js';
-import { getLearningProfile } from '../agent/analytics.js';
+import { getLearningProfile, getSubjectDiagnosis } from '../agent/analytics.js';
 import { degraded } from '../utils/perf.js';
 
 const stats = ref(null);
@@ -251,12 +251,13 @@ function buildCharts() {
 
 async function load() {
   try {
-    const [s, p] = await Promise.all([getStats(), getLearningProfile()]);
-    stats.value = s; profile.value = p;
+    const [s, p, diag] = await Promise.all([getStats(), getLearningProfile(), getSubjectDiagnosis()]);
+    stats.value = s; profile.value = p; diagnosis.value = diag;
     if (degraded.value) setTimeout(buildCharts, 300);
     else buildCharts();
   } catch (e) { toast(e.message, 'error'); }
 }
+const diagnosis = ref([]); // D1 单科诊断
 
 function onResize() { charts.forEach(c => c.resize()); }
 
@@ -345,11 +346,23 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
       <div class="hint" style="margin-bottom:8px">标签词云</div>
       <div ref="wordEl" style="height:300px"></div>
     </div>
+
+    <!-- D1 单科诊断：每科体检 + 处方 -->
+    <div class="panel">
+      <div class="hint" style="margin-bottom:10px;font-weight:600">单科诊断（掌握度 · 待背 · 错题 · 易混 → 处置建议）</div>
+      <div v-if="!diagnosis.length" class="hint">暂无卡片数据。</div>
+      <div v-for="d in diagnosis" :key="d.subject" class="diag-row">
+        <span class="diag-subj">{{ d.subject }}</span>
+        <span class="hint">卡片 {{ d.cards }} · 待背 {{ d.due }} · 错题 {{ d.marked }} · 易混 {{ d.pairN }} 组 · 掌握度 {{ d.mastery }}%</span>
+        <span style="flex:1"></span>
+        <span class="diag-advice">{{ d.advice }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.stat-cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.stat-cards { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; } 
 .stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 22px; text-align: center; }
 .stat .num { font-size: 24px; font-weight: 700; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
@@ -358,4 +371,8 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
 .profile-score { text-align: center; min-width: 120px; }
 .ps-num { font-size: 42px; font-weight: 700; color: var(--accent); line-height: 1; }
 @media (max-width: 800px) { .grid2 { grid-template-columns: 1fr; } }
+.diag-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.diag-row:last-child { border-bottom: none; }
+.diag-subj { font-weight: 700; min-width: 110px; }
+.diag-advice { color: var(--amber); font-size: 13px; max-width: 420px; }
 </style>

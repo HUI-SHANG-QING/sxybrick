@@ -320,7 +320,16 @@ function pickDuel(card) {
   const correct = card.id === duelTarget.value.id;
   duelPicked.value = card.id;
   toast(correct ? '✅ 辨析正确！' : `❌ 这张答案其实属于「${duelTarget.value.front.slice(0, 18)}」`, correct ? 'success' : 'error');
+  if (!correct) recordDuelWrong(card.id, duelTarget.value.id); // 错选回流：自动加权这对易混卡
   setTimeout(() => { duelIdx.value++; nextDuel(); }, 1200);
+}
+// 易混对决错选记录（D1）：存入 db.meta，analytics 读取后加权该易混对
+async function recordDuelWrong(idA, idB) {
+  const key = [idA, idB].sort().join('|');
+  const row = await db.meta.get('duelWrongs');
+  const list = (Array.isArray(row?.value) ? row.value : []).filter(k => k !== key);
+  list.push(key);
+  await db.meta.put({ key: 'duelWrongs', value: list.slice(-200), updatedAt: Date.now() });
 }
 </script>
 

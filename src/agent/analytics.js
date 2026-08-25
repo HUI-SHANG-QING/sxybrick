@@ -149,6 +149,10 @@ export async function getConfusablePairs(limit = 10) {
   const wrongCount = new Map();
   for (const r of reviews) if (r.rating === 0) wrongCount.set(r.cardId, (wrongCount.get(r.cardId) || 0) + 1);
 
+  // 易混对决的错选记录（D1：对决数据回流，自动扩容/加权易混对）
+  const dwRow = await db.meta.get('duelWrongs');
+  const duelWrongKeys = new Set(Array.isArray(dwRow?.value) ? dwRow.value : []);
+
   const candidates = cards.filter(c => (wrongCount.get(c.id) || 0) >= 1);
   const pairs = [];
   const seen = new Set();
@@ -164,7 +168,7 @@ export async function getConfusablePairs(limit = 10) {
       pairs.push({
         a: { id: a.id, subject: a.subject, front: String(a.front).slice(0, 40), tags: a.tags || [] },
         b: { id: b.id, subject: b.subject, front: String(b.front).slice(0, 40), tags: b.tags || [] },
-        confusable: (wrongCount.get(a.id) || 0) + (wrongCount.get(b.id) || 0),
+        confusable: (wrongCount.get(a.id) || 0) + (wrongCount.get(b.id) || 0) + (duelWrongKeys.has(key) ? 5 : 0),
       });
     }
   }
@@ -179,4 +183,61 @@ export async function getGapCards(limit = 15) {
     id: c.id, subject: c.subject, front: String(c.front).slice(0, 60), back: String(c.back).slice(0, 80),
     failCount: c.failCount, tags: c.tags || [],
   }));
+}
+
+// ---------- D1 遗忘预警：3 天内到期且历史表现不稳的卡（趁没忘先救） ----------
+export async function getForgetRisk(limit = 5) {
+  const cards = await db.cards.toArray();
+  const reviews = await db.reviews.toArray();
+  const nowTs = now();
+  const fail = new Map(); const total = new Map();
+  for (const r of reviews) {
+    total.set(r.cardId, (total.get(r.cardId) || 0) + 1);
+    if (r.rating === 0) fail.set(r.cardId, (fail.get(r.cardId) || 0) + 1);
+  }
+  const out = [];
+  for (const c of cards) {
+    const t = total.get(c.id) || 0;
+    if (t < 2) continue; // 样本太少不预测
+    const failRate = (fail.get(c.id) || 0) / t;
+    const dueIn = (c.dueAt ?? 0) - nowTs;
+    if (dueIn < 0 || dueIn > 3 * DAY) continue; // 只预警"3 天内将到期"
+    // 风险 = 临近程度 60% + 历史错误率 40%；>=0.35 才预警
+    const risk = (1 - dueIn / (3 * DAY)) * 0.6 + Math.min(1, failRate * 2.5) * 0.4;
+    if (risk < 0.35) continue;
+    out.push({
+      id: c.id, subject: c.subject || '未分类',
+      front: String(c.front).slice(0, 50),
+      risk: Math.round(risk * 100),
+      failRate: Math.round(failRate * 100),
+      reviews: t,
+      dueAt: c.dueAt,
+    });
+  }
+  return out.sort((a, b) => b.risk - a.risk).slice(0, limit);
+}
+
+// ---------- D1 单科诊断：每科的掌握度/到期/错题/易混画像 + 规则化建议 ----------
+export async function getSubjectDiagnosis() {
+  const [stats, pairs] = await Promise.all([getStats(), getConfusablePairs(300)]);
+  const cards = await db.cards.toArray();
+  const nowTs = now();
+  const masteryMap = new Map((stats.mastery || []).map(m => [m.subject, m.mastery]));
+  const subjects = [...new Set(cards.map(c => c.subject || '未分类'))];
+  const diag = [];
+  for (const subject of subjects) {
+    const subjCards = cards.filter(c => (c.subject || '未分类') === subject);
+    const due = subjCards.filter(c => c.dueAt <= nowTs).length;
+    const marked = subjCards.filter(c => c.marked).length;
+    const pairN = pairs.filter(p => p.a.subject === subject || p.b.subject === subject).length;
+    const m = masteryMap.get(subject) || 0;
+    const advices = [];
+    if (m < 50) advices.push('掌握度偏低，先回看基础概念、放慢加卡速度');
+    if (marked >= 3) advices.push(`${marked} 张手动错题，优先清理错题本`);
+    if (pairN >= 3) advices.push(`有 ${pairN} 组易混点，多做「易混对决」`);
+    if (due >= 10) advices.push(`今日待背 ${due} 张，先集中清到期卡`);
+    if (!advices.length) advices.push('状态良好，保持节奏即可');
+    diag.push({ subject, cards: subjCards.length, due, marked, mastery: m, pairN, advice: advices.join('；') });
+  }
+  return diag.sort((a, b) => b.cards - a.cards);
 }

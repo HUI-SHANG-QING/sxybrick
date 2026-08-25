@@ -10,6 +10,7 @@ import { toast } from '../utils/toast.js';
 import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI } from '../ai.js';
+import { getForgetRisk } from '../agent/analytics.js';
 
 const router = useRouter();
 
@@ -154,7 +155,7 @@ watch(searchInput, v => {
   searchTimer = setTimeout(() => { filters.q = v.trim(); }, 300);
 });
 
-onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); loadSmart(); });
+onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); loadSmart(); loadRisk(); });
 
 // ---- 批量建卡（P0 效率包）：粘贴文本按行拆成卡片 ----
 const batchOpen = ref(false);
@@ -221,6 +222,30 @@ async function removeSmart(f) {
   smartFilters.value = smartFilters.value.filter(x => x.id !== f.id);
   await persistSmart();
 }
+
+// ---- D1 遗忘预警：3 天内将到期且历史不稳的卡，可一键提前巩固 ----
+const riskCards = ref([]);
+async function loadRisk() { riskCards.value = await getForgetRisk(5); }
+async function rescueCard(r) {
+  const card = await db.cards.get(r.id);
+  if (!card) return;
+  await db.cards.put({ ...card, dueAt: Date.now() }); // 提前到今天（内容未变，不动 updatedAt）
+  toast(`已把「${r.front.slice(0, 16)}…」加入今日复习`, 'success');
+  await loadRisk();
+  loadCards();
+}
+async function rescueAll() {
+  let n = 0;
+  for (const r of riskCards.value) {
+    const card = await db.cards.get(r.id);
+    if (!card) continue;
+    await db.cards.put({ ...card, dueAt: Date.now() });
+    n++;
+  }
+  toast(`已把 ${n} 张高危卡加入今日复习，去「背诵」页巩固`, 'success');
+  await loadRisk();
+  loadCards();
+}
 </script>
 
 <template>
@@ -239,6 +264,15 @@ async function removeSmart(f) {
       <span class="hint">今日复习 <b>{{ todayCount }}</b> / <b>{{ goal }}</b> 张</span>
       <input type="number" v-model.number="goal" class="input" style="width:80px" min="1" @change="onGoalChange" title="每日目标（复习卡片数）" />
       <span class="streak-badge" :class="{ lit: streak >= 3, hot: streak >= 7 }">连续打卡 {{ streak }} 天</span>
+    </div>
+
+    <div v-if="riskCards.length" class="suggest-bar" style="border-color:var(--amber)">
+      <div class="hint" style="font-weight:600;color:var(--amber)">⚠ 遗忘预警：这几张 3 天内将到期且历史表现不稳，趁没忘先巩固</div>
+      <div v-for="r in riskCards" :key="r.id" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="hint" style="flex:1">[{{ r.subject }}] {{ r.front }}（错误率 {{ r.failRate }}% · 风险 {{ r.risk }}%）</span>
+        <button class="btn small" @click="rescueCard(r)">加入今日复习</button>
+      </div>
+      <div><button class="btn small primary" @click="rescueAll">全部加入今日复习</button></div>
     </div>
 
     <div v-if="suggestion && suggestion.dueCount > 0" class="suggest-bar">
