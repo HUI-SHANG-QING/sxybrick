@@ -7,6 +7,10 @@ export const STYLES = [
   { id: 'moba', name: '王者', desc: '王者荣耀 · MOBA 大厅', icon: '⚔️' },
   { id: 'space', name: '星际', desc: '星际战争 · 太空 HUD', icon: '🛸' },
   { id: 'adventure', name: '冒险', desc: '黑神话 · 冒险场景', icon: '🐒' },
+  // —— 2026-08-25 依据「教育类 UI 设计系统」方法论新增（原有 5 风格保持不变）——
+  { id: 'focus', name: '专注', desc: '专业现代 · 深蓝聚焦 · WCAG AA', icon: '🎯' },
+  { id: 'flat', name: '活力', desc: '高饱和平铺 · 多彩大按钮', icon: '🌈' },
+  { id: 'paper', name: '纸墨', desc: '静学纸墨 · 朱印 · 反焦虑', icon: '📜' },
 ];
 
 // 配色模式（全局通用，适用于每一种风格）

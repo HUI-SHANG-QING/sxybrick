@@ -33,6 +33,11 @@ function tapAdventure(item, i) {
   setTimeout(() => playBlip(200, 0.12, 'square', 0.25), 80);
   setTimeout(() => { acting.value = false; go(item.path); }, 350);
 }
+
+// 新增三风格（2026-08-25）：专注/活力/纸墨 —— 轻量音效反馈
+function tapFocus(item) { playBlip(520, 0.04, 'sine', 0.18); }
+function tapFlat(item) { playBlip(760, 0.06, 'triangle', 0.2); setTimeout(() => playBlip(1020, 0.06, 'triangle', 0.16), 60); go(item.path); }
+function tapPaper(item) { playBlip(180, 0.08, 'sine', 0.14); }
 </script>
 
 <template>
@@ -100,6 +105,28 @@ function tapAdventure(item, i) {
         </button>
       </div>
     </div>
+  </nav>
+
+  <!-- 专注：专业现代顶栏（新主题 · 教育设计系统） -->
+  <nav v-else-if="props.variant === 'focus'" class="app-nav nav-focus">
+    <span class="brand">🎯 SxyBrick</span>
+    <router-link v-for="item in navItems" :key="item.path" :to="item.path" @click="tapFocus(item)">{{ item.label }}</router-link>
+  </nav>
+
+  <!-- 活力：高饱和度胶囊 Dock（新主题 · 平铺多彩） -->
+  <nav v-else-if="props.variant === 'flat'" class="app-nav nav-flat">
+    <div class="flat-dock">
+      <button v-for="(item, i) in navItems" :key="item.path" class="flat-pill" :style="{ '--i': i }" @click="tapFlat(item)">
+        <span class="fp-dot">{{ item.icon }}</span><span class="fp-name">{{ item.label }}</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- 纸墨：静学顶栏 + 朱印（新主题 · 反焦虑纸墨风） -->
+  <nav v-else-if="props.variant === 'paper'" class="app-nav nav-paper">
+    <span class="paper-seal">SxyBrick</span>
+    <router-link v-for="item in navItems" :key="item.path" :to="item.path" @click="tapPaper(item)"><em>{{ item.label }}</em></router-link>
+    <span class="paper-quote">日拱一卒</span>
   </nav>
 
   <!-- 兜底：未知/旧风格值回退到经典顶栏 -->
@@ -172,4 +199,30 @@ function tapAdventure(item, i) {
 .adv-sigil span { font-size: 18px; }
 .adv-sigil em { font-style: normal; font-size: 11px; }
 .adv-sigil:hover { background: hsl(var(--hue), 50%, 45%); box-shadow: 0 0 16px hsl(var(--hue), 60%, 55%); }
+
+/* ===== 新增三风格导航（2026-08-25，不影响原 5 风格）===== */
+/* 专注：专业现代顶栏 */
+.nav-focus { display: flex; align-items: center; gap: 2px; padding: 0 20px; height: 58px; position: sticky; top: 0; z-index: 60; background: var(--panel); border-bottom: 1px solid var(--line); box-shadow: 0 1px 2px rgba(16, 24, 40, .04); }
+.nav-focus .brand { font-weight: 700; font-size: 16px; margin-right: 16px; letter-spacing: .3px; }
+.nav-focus a { color: var(--ink-2); text-decoration: none; padding: 7px 12px; border-radius: 8px; font-size: 14px; }
+.nav-focus a:hover { color: var(--ink); background: var(--code-inline); }
+.nav-focus a.router-link-active { color: #fff; background: var(--accent); font-weight: 600; }
+
+/* 活力：高饱和胶囊 Dock */
+.nav-flat { position: sticky; top: 14px; z-index: 60; display: flex; justify-content: center; padding: 0 16px; pointer-events: none; }
+.flat-dock { pointer-events: auto; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; padding: 10px 12px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.08); max-width: 100%; }
+.flat-pill { display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 999px; border: none; background: var(--code-inline); color: var(--ink); cursor: pointer; transition: transform .15s; }
+.fp-dot { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: hsl(calc(var(--i) * 38deg) 82% 56%); color: #fff; font-size: 15px; box-shadow: 0 2px 4px rgba(0,0,0,.15); }
+.fp-name { font-size: 13px; font-weight: 600; }
+.flat-pill:hover { transform: translateY(-3px) scale(1.04); background: #fff3cd55; }
+
+/* 纸墨：静学顶栏 + 朱印 */
+.nav-paper { display: flex; align-items: center; gap: 18px; padding: 0 24px; height: 60px; position: sticky; top: 0; z-index: 60; background: var(--panel); border-bottom: 1px solid var(--line); }
+.paper-seal { font-family: 'KaiTi', 'STKaiti', '楷体', serif; font-size: 20px; font-weight: 700; color: #fff; background: var(--accent); padding: 4px 12px 6px; border-radius: 5px; box-shadow: 0 2px 6px rgba(139, 33, 33, .35); letter-spacing: 2px; }
+.nav-paper a { color: var(--ink-2); text-decoration: none; font-size: 14px; padding: 6px 4px; border-bottom: 2px solid transparent; }
+.nav-paper a em { font-style: normal; }
+.nav-paper a:hover { color: var(--ink); }
+.nav-paper a.router-link-active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.paper-quote { margin-left: auto; font-family: 'KaiTi', 'STKaiti', '楷体', serif; color: var(--ink-2); font-size: 13px; letter-spacing: 3px; }
+@media (max-width: 900px) { .paper-quote { display: none; } .nav-paper { gap: 12px; } }
 </style>

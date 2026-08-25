@@ -24,8 +24,11 @@ const navItems = [
   { path: '/wrong', label: '错题', icon: '❌' },
   { path: '/pomodoro', label: '番茄', icon: '🍅' },
   { path: '/graph', label: '图谱', icon: '🕸️' },
+  { path: '/mindmap', label: '导图', icon: '🗺️' },
   { path: '/plans', label: '计划', icon: '🎯' },
   { path: '/docs', label: '文档', icon: '📄' },
+  { path: '/weekly', label: '周报', icon: '📈' },
+  { path: '/achievements', label: '成就', icon: '🏆' },
 ];
 
 const installEvt = ref(null);

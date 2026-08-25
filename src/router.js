@@ -15,6 +15,9 @@ const routes = [
   { path: '/graph', component: () => import('./views/KnowledgeGraph.vue') },
   { path: '/plans', component: () => import('./views/Plans.vue') },
   { path: '/docs', component: () => import('./views/Docs.vue') },
+  { path: '/mindmap', component: () => import('./views/Mindmap.vue') },
+  { path: '/achievements', component: () => import('./views/Achievements.vue') },
+  { path: '/weekly', component: () => import('./views/WeeklyReport.vue') },
 ];
 
 export const router = createRouter({

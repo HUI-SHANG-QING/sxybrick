@@ -505,3 +505,76 @@ export async function countPomoToday() {
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
   return db.pomoSessions.where('startedAt').aboveOrEqual(dayStart.getTime()).count();
 }
+
+// ---------- 思维导图（可持久化、随数据包同步；借鉴 Progress AI 的本地化实现） ----------
+// 树结构：{ id, label, children: [...] }，根节点在 root 字段
+export async function listMindmaps() {
+  return db.mindmaps.orderBy('updatedAt').reverse().toArray();
+}
+export async function getMindmap(id) {
+  return (await db.mindmaps.get(id)) || null;
+}
+export async function createMindmap(payload) {
+  const title = String(payload?.title || '').trim() || '未命名导图';
+  const root = payload?.root && payload.root.label
+    ? payload.root
+    : { id: uid(), label: String(payload?.rootLabel || '中心主题').trim() || '中心主题', children: [] };
+  const t = now();
+  const m = { id: uid(), title, root, createdAt: t, updatedAt: t };
+  await db.mindmaps.put(m);
+  return m;
+}
+export async function updateMindmap(id, patch) {
+  const old = await db.mindmaps.get(id);
+  if (!old) throw new Error('导图不存在');
+  const m = { ...old, ...(patch || {}), updatedAt: now() };
+  await db.mindmaps.put(m);
+  return m;
+}
+export async function deleteMindmap(id) {
+  await db.mindmaps.delete(id);
+  await db.tombstones.put({ id, kind: 'mindmap', deletedAt: now() }); // 墓碑：跨设备同步删除
+}
+
+// ---------- 每周学习报告（可持久化、随数据包同步；借鉴 Progress AI 的本地化实现） ----------
+export async function listWeeklyReports() {
+  return db.weeklyReports.orderBy('weekStart').reverse().toArray();
+}
+export async function getWeeklyReport(id) {
+  return (await db.weeklyReports.get(id)) || null;
+}
+export async function getWeeklyReportByWeek(weekStart) {
+  return db.weeklyReports.where('weekStart').equals(weekStart).first() || null;
+}
+export async function saveWeeklyReport(payload) {
+  const weekStart = Number(payload?.weekStart) || 0;
+  const t = now();
+  const old = weekStart ? await getWeeklyReportByWeek(weekStart) : null;
+  const row = {
+    id: old?.id || uid(),
+    weekStart,
+    title: String(payload?.title || '学习周报').trim(),
+    data: payload?.data || {},
+    summary: String(payload?.summary || '').trim(),
+    createdAt: old?.createdAt || t,
+    updatedAt: t,
+  };
+  await db.weeklyReports.put(row);
+  return row;
+}
+export async function deleteWeeklyReport(id) {
+  await db.weeklyReports.delete(id);
+  await db.tombstones.put({ id, kind: 'weeklyReport', deletedAt: now() }); // 墓碑：跨设备同步删除
+}
+
+// ---------- 成就（可持久化、随数据包同步；id 为确定性 ack-<key>，各设备幂等） ----------
+export async function listAchievements() {
+  return db.achievements.orderBy('unlockedAt').reverse().toArray();
+}
+export async function unlockAchievement(key) {
+  const id = 'ach-' + key;
+  if (await db.achievements.get(id)) return null; // 已解锁（解锁不可逆）
+  const row = { id, key, unlockedAt: now() };
+  await db.achievements.put(row);
+  return row;
+}

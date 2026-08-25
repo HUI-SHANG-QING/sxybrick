@@ -39,6 +39,13 @@ db.version(6).stores({
   pomoSessions: 'id, startedAt',
 });
 
+// v7：新增思维导图 / 每周学习报告 / 成就解锁表（借鉴 Progress AI，均随数据包同步）
+db.version(7).stores({
+  mindmaps: 'id, updatedAt',
+  weeklyReports: 'id, weekStart, updatedAt',
+  achievements: 'id, unlockedAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

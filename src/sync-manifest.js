@@ -20,6 +20,9 @@ export const SYNC_TABLES = [
   { table: 'graphEdges', kind: 'graphEdge', merge: 'updatedAt' },
   { table: 'docs', kind: 'doc', merge: 'updatedAt' },
   { table: 'pomoSessions', kind: 'pomo', merge: 'idOnly' },
+  { table: 'mindmaps', kind: 'mindmap', merge: 'updatedAt' },
+  { table: 'weeklyReports', kind: 'weeklyReport', merge: 'updatedAt' },
+  { table: 'achievements', kind: 'achievement', merge: 'idOnly' }, // 解锁不可逆：id 幂等
 ];
 
 // 卡片字段级合并分组：
