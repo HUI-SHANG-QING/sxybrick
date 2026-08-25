@@ -290,25 +290,39 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
 }
 :root[data-style='paper'] .app-main h2 { letter-spacing: 2px; }
 
-/* ---------- 新主题无障碍基线（仅作用三新主题，原 5 风格不变） ---------- */
+/* ---------- ④ custom 个人主题（E3 主题生成器）：强调色族由 hue 变量注入 ---------- */
+:root[data-style='custom'] {
+  --accent: var(--cust-accent, #2563eb);
+  --blue: var(--cust-accent, #2563eb);
+  --code-inline: var(--cust-soft, #eef2f6);
+  --tag-bg: var(--cust-tag-bg, #eef2ff);
+  --tag-ink: var(--cust-accent, #4338ca);
+}
+:root[data-style='custom'] body { font-size: 16px; }
+:root[data-style='custom'] .btn { border-radius: 12px; min-height: 38px; }
+:root[data-style='custom'] .chip { min-height: 32px; }
+
+/* ---------- 新主题无障碍基线（仅作用三新主题+个人主题，原 5 风格不变） ---------- */
 :root[data-style='focus'] :focus-visible,
 :root[data-style='flat'] :focus-visible,
-:root[data-style='paper'] :focus-visible {
+:root[data-style='paper'] :focus-visible,
+:root[data-style='custom'] :focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
   border-radius: 4px;
 }
 :root[data-style='focus'] .btn:focus-visible,
 :root[data-style='flat'] .btn:focus-visible,
-:root[data-style='paper'] .btn:focus-visible { outline-offset: 3px; }
+:root[data-style='paper'] .btn:focus-visible,
+:root[data-style='custom'] .btn:focus-visible { outline-offset: 3px; }
 
 @media (max-width: 720px) {
-  :root[data-style='focus'] .btn, :root[data-style='flat'] .btn, :root[data-style='paper'] .btn { min-height: 44px; }
-  :root[data-style='focus'] .chip, :root[data-style='flat'] .chip, :root[data-style='paper'] .chip { min-height: 40px; }
+  :root[data-style='focus'] .btn, :root[data-style='flat'] .btn, :root[data-style='paper'] .btn, :root[data-style='custom'] .btn { min-height: 44px; }
+  :root[data-style='focus'] .chip, :root[data-style='flat'] .chip, :root[data-style='paper'] .chip, :root[data-style='custom'] .chip { min-height: 40px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root[data-style='focus'] *, :root[data-style='flat'] *, :root[data-style='paper'] * {
+  :root[data-style='focus'] *, :root[data-style='flat'] *, :root[data-style='paper'] *, :root[data-style='custom'] * {
     animation: none !important;
     transition: none !important;
   }

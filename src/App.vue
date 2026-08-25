@@ -31,6 +31,9 @@ const navItems = [
   { path: '/docs', label: '文档', icon: '📄' },
   { path: '/weekly', label: '周报', icon: '📈' },
   { path: '/exam', label: '模考', icon: '🧪' },
+  { path: '/search', label: '搜索', icon: '🔍' },
+  { path: '/health', label: '体检', icon: '🩺' },
+  { path: '/library', label: '书房', icon: '📚' },
   { path: '/achievements', label: '成就', icon: '🏆' },
 ];
 
@@ -117,7 +120,7 @@ async function enableReminder() {
 
 <template>
   <div class="app-shell" :class="{ 'no-anim': degraded }">
-    <NavBar :variant="theme.style" :navItems="navItems" />
+    <NavBar :variant="theme.style === 'custom' ? 'focus' : theme.style" :navItems="navItems" />
 
     <main class="app-main">
       <router-view v-slot="{ Component }">
@@ -153,6 +156,20 @@ async function enableReminder() {
               <div class="style-name">{{ s.name }}</div>
               <div class="style-desc">{{ s.desc }}</div>
             </div>
+            <div class="style-card" :class="{ on: theme.style === 'custom' }" @click="theme.setStyle('custom')">
+              <div class="style-icon">🎨</div>
+              <div class="style-name">自定义</div>
+              <div class="style-desc">选个专属色，生成我的主题</div>
+            </div>
+          </div>
+
+          <div v-if="theme.style === 'custom'" class="field-label" style="margin-top:12px">
+            专属色相（{{ theme.customHue }}°）· 三个配色模式都可用
+          </div>
+          <div v-if="theme.style === 'custom'" style="display:flex;align-items:center;gap:10px">
+            <input type="range" min="0" max="360" :value="theme.customHue" class="hue-slider"
+              @input="theme.setCustomHue($event.target.value)" />
+            <span class="hue-dot" :style="{ background: `hsl(${theme.customHue} 72% 45%)` }"></span>
           </div>
 
           <div class="field-label">复习提醒（应用打开时生效，当日只提醒一次）</div>
@@ -183,5 +200,7 @@ async function enableReminder() {
 .style-icon { font-size: 26px; }
 .style-name { font-weight: 600; font-size: 14px; margin-top: 6px; }
 .style-desc { font-size: 11px; color: var(--ink-2); margin-top: 2px; line-height: 1.4; }
+.hue-slider { flex: 1; max-width: 240px; accent-color: var(--accent); }
+.hue-dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); flex: none; }
 @media (max-width: 720px) { .style-grid { grid-template-columns: repeat(2, 1fr); } }
 </style>

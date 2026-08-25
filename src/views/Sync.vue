@@ -2,8 +2,8 @@
 // 数据同步：手动导出/导入（数据包文件）+ 局域网一键同步（电脑端中枢）
 import { ref, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
-import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup } from '../sync.js';
-import { getSubjects } from '../repo.js';
+import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines } from '../sync.js';
+import { getSubjects, createCard } from '../repo.js';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 const hubUrl = ref(localStorage.getItem('sxy_hub') || location.origin);
@@ -12,6 +12,12 @@ const fileInput = ref(null);
 const syncing = ref(false);
 const importing = ref(false);
 const lastBackup = ref(null);
+const lastReport = ref(JSON.parse(localStorage.getItem('sxy_last_sync_report') || 'null'));
+
+function saveReport(mode, stats) {
+  lastReport.value = { at: Date.now(), mode, stats };
+  localStorage.setItem('sxy_last_sync_report', JSON.stringify(lastReport.value));
+}
 
 async function loadCounts() {
   counts.value = await countData();
@@ -27,6 +33,7 @@ function fmtStats(stats) {
   const parts = [`卡片 +${stats.cards || 0}`];
   if (stats.overridden) parts.push(`更新 ${stats.overridden}`);
   if (stats.deleted) parts.push(`删除 ${stats.deleted}`);
+  if (stats.duplicated) parts.push(`去重跳过 ${stats.duplicated}`);
   parts.push(`复习 +${stats.reviews || 0}`, `图片 +${stats.images || 0}`);
   const extra = [
     ['aiChats', 'AI对话'], ['aiMemories', '记忆'], ['memos', '备忘'], ['plans', '计划'],
@@ -57,7 +64,10 @@ async function onFile(e) {
     const backup = JSON.parse(await f.text());
     const stats = await importBackup(backup);
     await loadCounts();
-    toast(`导入完成：${fmtStats(stats)}`, 'success');
+    saveReport('导入数据包', stats);
+    const meta = backup.deckMeta;
+    const metaText = meta?.author ? `（卡组作者：${meta.author}${meta.description ? ' · ' + meta.description.slice(0, 40) : ''}）` : '';
+    toast(`导入完成：${fmtStats(stats)}${metaText}`, 'success');
   } catch (err) {
     toast(err.message || '导入失败，请检查文件格式', 'error');
   } finally { importing.value = false; }
@@ -75,6 +85,7 @@ async function doSync() {
   try {
     const stats = await syncWithHub(hubUrl.value, hubToken.value);
     await loadCounts();
+    saveReport('局域网一键同步', stats);
     toast(`与电脑同步完成：${fmtStats(stats)}`, 'success');
   } catch (e) {
     toast(e.message, 'error');
@@ -87,12 +98,38 @@ function loadLastBackup() {
 
 const subjects = ref([]);
 const shareSubject = ref('');
+const shareAuthor = ref('');
+const shareDesc = ref('');
 async function loadSubjects() { subjects.value = await getSubjects(); }
 async function doShare() {
   try {
-    await downloadSubjectBackup(shareSubject.value);
-    toast('卡组已导出，发给同学导入即可', 'success');
+    await downloadSubjectBackup(shareSubject.value, { author: shareAuthor.value, description: shareDesc.value });
+    toast('卡组已导出（含署名信息），发给同学导入即可', 'success');
   } catch (e) { toast(e.message, 'error'); }
+}
+
+// ---- Anki 互通（E2）：导出 Anki 文本 / 导入 Anki 文本建卡 ----
+const ankiInput = ref(null);
+const ankiBusy = ref(false);
+async function doAnkiExport() {
+  try { await downloadAnkiText(); toast('已导出 Anki 文本（可在 Anki 桌面版「导入 → 文本文件」使用）', 'success'); }
+  catch (e) { toast(e.message, 'error'); }
+}
+function pickAnki() { ankiInput.value?.click(); }
+async function onAnkiFile(e) {
+  const f = e.target.files?.[0];
+  e.target.value = '';
+  if (!f) return;
+  ankiBusy.value = true;
+  try {
+    const pairs = parseAnkiLines(await f.text());
+    if (!pairs.length) { toast('未解析出卡片行', 'error'); return; }
+    let n = 0;
+    for (const p of pairs) { await createCard({ front: p.front, back: p.back, subject: '', tags: [], type: 'basic', source: 'Anki 导入' }); n++; }
+    await loadCounts();
+    toast(`已从 Anki 文本导入 ${n} 张卡片`, 'success');
+  } catch (err) { toast('导入失败：' + (err.message || '文件格式不正确'), 'error'); }
+  finally { ankiBusy.value = false; }
 }
 
 onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
@@ -123,16 +160,57 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
       <div class="hint">合并规则：同 id 的记录按「最后修改时间」谁新听谁；删除会跨设备同步；图片按 id 自动去重；各模块（对话/记忆/计划/图谱/文档/专注）按 id 幂等合并。</div>
     </div>
 
+    <!-- 最近一次同步/导入明细（E1 数字资产对账） -->
+    <div v-if="lastReport" class="panel" style="margin-top:16px">
+      <div class="panel-title">最近一次{{ lastReport.mode }}明细（{{ fmt(lastReport.at) }}）</div>
+      <div class="sync-detail">
+        <span class="sd-item">卡片新增 <b>{{ lastReport.stats.cards || 0 }}</b></span>
+        <span class="sd-item">内容更新 <b>{{ lastReport.stats.overridden || 0 }}</b></span>
+        <span class="sd-item">跨端删除 <b>{{ lastReport.stats.deleted || 0 }}</b></span>
+        <span class="sd-item">重复跳过 <b>{{ lastReport.stats.duplicated || 0 }}</b></span>
+        <span class="sd-item">复习记录 <b>{{ lastReport.stats.reviews || 0 }}</b></span>
+        <span class="sd-item">图片 <b>{{ lastReport.stats.images || 0 }}</b></span>
+        <span class="sd-item">对话 <b>{{ lastReport.stats.aiChats || 0 }}</b></span>
+        <span class="sd-item">记忆 <b>{{ lastReport.stats.aiMemories || 0 }}</b></span>
+        <span class="sd-item">备忘 <b>{{ lastReport.stats.memos || 0 }}</b></span>
+        <span class="sd-item">计划 <b>{{ lastReport.stats.plans || 0 }}</b></span>
+        <span class="sd-item">图谱 <b>{{ lastReport.stats.graphEdges || 0 }}</b></span>
+        <span class="sd-item">文档 <b>{{ lastReport.stats.docs || 0 }}</b></span>
+        <span class="sd-item">专注 <b>{{ lastReport.stats.pomoSessions || 0 }}</b></span>
+        <span class="sd-item">导图 <b>{{ lastReport.stats.mindmaps || 0 }}</b></span>
+        <span class="sd-item">周报 <b>{{ lastReport.stats.weeklyReports || 0 }}</b></span>
+        <span class="sd-item">成就 <b>{{ lastReport.stats.achievements || 0 }}</b></span>
+        <span class="sd-item">模考 <b>{{ lastReport.stats.exams || 0 }}</b></span>
+      </div>
+    </div>
+
     <!-- 分享卡组 -->
     <div class="panel" style="margin-top:16px">
       <div class="panel-title">分享卡组（导出某个科目）</div>
-      <p class="hint" style="margin-top:0">把某个科目的卡片单独打包成文件，发给同学导入。</p>
+      <p class="hint" style="margin-top:0">把某个科目的卡片单独打包成文件，发给同学导入；可附署名与说明（数字资产的"作品署名"）。</p>
       <div class="row">
         <select v-model="shareSubject" class="input" style="max-width:240px">
           <option value="">选择科目</option>
           <option v-for="s in subjects" :key="s.name" :value="s.name">{{ s.name }}（{{ s.count }}）</option>
         </select>
         <button class="btn" @click="doShare">导出该科目</button>
+      </div>
+      <div class="row" style="margin-bottom:0">
+        <input v-model="shareAuthor" class="input" style="max-width:180px" placeholder="作者署名（选填）" />
+        <input v-model="shareDesc" class="input" style="flex:1;max-width:340px" placeholder="卡组说明（选填，如：408 计算机网络高频考点）" />
+      </div>
+    </div>
+
+    <!-- Anki 互通（E2 数字资产流转） -->
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-title">Anki 互通（数字资产流转）</div>
+      <p class="hint" style="margin-top:0">
+        导出 `.txt` 可在 Anki 桌面版「导入 → 文本文件」直接使用；也支持导入 Anki 导出的文本（每行一张，Tab / | / → 分隔正反面）。
+      </p>
+      <div class="row" style="margin-bottom:0">
+        <button class="btn" @click="doAnkiExport">导出 Anki 文本</button>
+        <button class="btn" :disabled="ankiBusy" @click="pickAnki">{{ ankiBusy ? '导入中…' : '导入 Anki 文本' }}</button>
+        <input ref="ankiInput" type="file" accept=".txt,.tsv,.csv,text/plain" style="display:none" @change="onAnkiFile" />
       </div>
     </div>
 
@@ -180,4 +258,7 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
 .step-title { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .hub-steps ol { margin: 0; padding-left: 20px; font-size: 13px; color: var(--ink-2); }
 .hub-steps code { background: var(--code-inline); border-radius: 4px; padding: 1px 5px; }
+.sync-detail { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
+.sd-item { font-size: 12px; color: var(--ink-2); }
+.sd-item b { color: var(--ink); }
 </style>

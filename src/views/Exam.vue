@@ -129,6 +129,35 @@ function backToSetup() {
   questions.value = [];
 }
 
+// ---- E3 模考纵向对比：同科多次模考正确率走势（原生 SVG 折线，零依赖） ----
+const trendPoints = computed(() => {
+  // 按科目分组，取最近 10 场（按创建时间升序）
+  const groups = new Map();
+  for (const ex of [...history.value].reverse()) {
+    const key = ex.subject || '综合';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(ex);
+  }
+  const arr = [];
+  for (const [subject, list] of groups) {
+    const pts = list.slice(-10).map(ex => ({
+      score: ex.score, total: ex.total,
+      rate: ex.total ? Math.round((ex.score / ex.total) * 100) : 0,
+      date: new Date(ex.createdAt).toLocaleDateString(),
+    }));
+    arr.push({ subject, pts });
+  }
+  return arr;
+});
+const svgW = 560, svgH = 180, padX = 40, padY = 24;
+function linePath(pts) {
+  if (!pts.length) return '';
+  const maxX = Math.max(1, pts.length - 1);
+  const x = i => padX + (i / maxX) * (svgW - padX * 2);
+  const y = v => svgH - padY - (v / 100) * (svgH - padY * 2);
+  return pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.rate).toFixed(1)}`).join(' ');
+}
+
 onMounted(async () => { subjects.value = await getSubjects(); await loadHistory(); });
 </script>
 
@@ -188,6 +217,24 @@ onMounted(async () => { subjects.value = await getSubjects(); await loadHistory(
     <div class="panel" style="margin-top:16px">
       <div class="field-label" style="margin-top:0">历史成绩（{{ history.length }} 场）</div>
       <div v-if="!history.length" class="hint">还没有模考记录。</div>
+
+      <!-- 纵向对比走势图 -->
+      <div v-if="trendPoints.length" style="margin-bottom:14px">
+        <div class="hint" style="font-weight:600;margin-bottom:8px">同科正确率走势（最近 10 场）</div>
+        <div v-for="t in trendPoints" :key="t.subject" class="trend-line">
+          <span class="hint" style="width:90px;flex:none">{{ t.subject }}</span>
+          <svg :viewBox="`0 0 ${svgW} ${svgH}`" width="100%" style="max-width:420px">
+            <line :x1="padX" :y1="svgH - padY" :x2="svgW - padX" :y2="svgH - padY" :stroke="'var(--line)'" stroke-width="1" />
+            <line :x1="padX" :y1="padY" :x2="padX" :y2="svgH - padY" :stroke="'var(--line)'" stroke-width="1" />
+            <polyline :points="linePath(t.pts).replace(/[ML]/g, '').split(' ').map(p => p).join(' ')" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+            <circle v-for="(p, i) in t.pts" :key="i" :cx="padX + (t.pts.length === 1 ? 0 : (i / (t.pts.length - 1)) * (svgW - padX * 2))" :cy="svgH - padY - (p.rate / 100) * (svgH - padY * 2)" r="3.5" fill="var(--accent)">
+              <title>{{ p.date }}：{{ p.rate }}%（{{ p.score }}/{{ p.total }}）</title>
+            </circle>
+          </svg>
+          <span class="hint" style="flex:1">{{ t.pts.map(p => `${p.rate}%`).join(' → ') }}</span>
+        </div>
+      </div>
+
       <div v-for="ex in history" :key="ex.id" class="exam-row">
         <span class="chip" style="cursor:pointer" @click="viewExam(ex)">{{ ex.title }}</span>
         <span class="hint">{{ ex.score }}/{{ ex.total }} · {{ new Date(ex.createdAt).toLocaleDateString() }}</span>
@@ -232,4 +279,5 @@ onMounted(async () => { subjects.value = await getSubjects(); await loadHistory(
 .result-score { font-size: 28px; font-weight: 800; color: var(--accent); }
 .exam-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px dashed var(--line); }
 .exam-row:last-child { border-bottom: none; }
+.trend-line { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 </style>

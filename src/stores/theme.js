@@ -20,24 +20,44 @@ export const MODES = [
   { id: 'eye', name: '护眼' },
 ];
 
-const VALID_STYLES = STYLES.map(s => s.id);
+const VALID_STYLES = [...STYLES.map(s => s.id), 'custom']; // custom = 个人主题生成器（色相自定义）
 const VALID_MODES = MODES.map(m => m.id);
 
 export const useThemeStore = defineStore('theme', {
   state: () => ({
     style: VALID_STYLES.includes(localStorage.getItem('sxy_style')) ? localStorage.getItem('sxy_style') : 'classic',
     mode: VALID_MODES.includes(localStorage.getItem('sxy_mode')) ? localStorage.getItem('sxy_mode') : 'light',
+    customHue: Number(localStorage.getItem('sxy_custom_hue')) || 220,
   }),
   getters: {
-    styleLabel: (s) => STYLES.find(x => x.id === s.style)?.name || '经典',
+    styleLabel: (s) => STYLES.find(x => x.id === s.style)?.name || (s.style === 'custom' ? '自定义' : '经典'),
     modeLabel: (s) => MODES.find(m => m.id === s.mode)?.name || '白天',
   },
   actions: {
     setStyle(v) { if (!VALID_STYLES.includes(v)) return; this.style = v; localStorage.setItem('sxy_style', v); this.apply(); },
     setMode(v) { if (!VALID_MODES.includes(v)) return; this.mode = v; localStorage.setItem('sxy_mode', v); this.apply(); },
+    setCustomHue(h) {
+      this.customHue = Math.max(0, Math.min(360, Math.round(Number(h) || 220)));
+      localStorage.setItem('sxy_custom_hue', String(this.customHue));
+      this.apply();
+    },
     apply() {
-      document.documentElement.setAttribute('data-style', this.style);
-      document.documentElement.setAttribute('data-theme', this.mode);
+      const root = document.documentElement;
+      root.setAttribute('data-style', this.style);
+      root.setAttribute('data-theme', this.mode);
+      // 个人主题：由色相生成强调色族（随配色模式微调亮度/饱和度），写入 CSS 变量供 [data-style='custom'] 消费
+      if (this.style === 'custom') {
+        const h = this.customHue;
+        const dark = this.mode === 'dark';
+        const eye = this.mode === 'eye';
+        root.style.setProperty('--cust-accent', dark ? `hsl(${h} 78% 62%)` : eye ? `hsl(${h} 42% 38%)` : `hsl(${h} 72% 45%)`);
+        root.style.setProperty('--cust-soft', dark ? `hsl(${h} 55% 20%)` : eye ? `hsl(${h} 40% 90%)` : `hsl(${h} 80% 95%)`);
+        root.style.setProperty('--cust-tag-bg', dark ? `hsl(${h} 50% 24%)` : eye ? `hsl(${h} 38% 88%)` : `hsl(${h} 85% 93%)`);
+      } else {
+        root.style.removeProperty('--cust-accent');
+        root.style.removeProperty('--cust-soft');
+        root.style.removeProperty('--cust-tag-bg');
+      }
     },
   },
 });

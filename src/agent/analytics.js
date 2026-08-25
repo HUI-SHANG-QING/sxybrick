@@ -241,3 +241,50 @@ export async function getSubjectDiagnosis() {
   }
   return diag.sort((a, b) => b.cards - a.cards);
 }
+
+// ---------- E1 资产健康度：重复卡 / 僵尸卡 / 孤儿图片 / 无标签卡 ----------
+export async function getAssetHealth() {
+  const [cards, reviews, images] = await Promise.all([
+    db.cards.toArray(), db.reviews.toArray(), db.images.toArray(),
+  ]);
+  const nowTs = now();
+  const norm = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+  // 重复卡：front+back+subject 完全相同（忽略大小写与首尾空格）
+  const byKey = new Map();
+  for (const c of cards) {
+    const k = `${norm(c.front)}||${norm(c.back)}||${c.subject || ''}`;
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(c);
+  }
+  const duplicates = [...byKey.values()].filter(g => g.length > 1)
+    .map(g => ({ key: g[0].front.slice(0, 30), front: g[0].front, back: g[0].back, subject: g[0].subject || '', cards: g, n: g.length }));
+
+  // 僵尸卡：创建超过 90 天、从未复习、且已到期迟迟未处理
+  const reviewedIds = new Set(reviews.map(r => r.cardId));
+  const zombies = cards
+    .filter(c => !reviewedIds.has(c.id) && nowTs - (c.createdAt || nowTs) > 90 * DAY && (c.dueAt || 0) <= nowTs)
+    .map(c => ({ id: c.id, front: String(c.front).slice(0, 50), subject: c.subject || '', createdAt: c.createdAt, dueAt: c.dueAt }));
+
+  // 孤儿图片：不被任何卡片引用
+  const used = new Set();
+  const re = /sxy-img:\/\/([0-9a-fA-F-]+)/g;
+  for (const c of cards) {
+    const text = `${c.front || ''}\n${c.back || ''}`;
+    let m;
+    while ((m = re.exec(text))) used.add(m[1]);
+  }
+  const orphanImages = images.filter(i => !used.has(i.id)).map(i => ({ id: i.id, createdAt: i.createdAt }));
+
+  const untaggedCount = cards.filter(c => !(c.tags || []).length).length;
+
+  return {
+    totalCards: cards.length,
+    duplicates,
+    zombieCount: zombies.length,
+    zombies,
+    orphanImageCount: orphanImages.length,
+    orphanImages,
+    untaggedCount,
+  };
+}

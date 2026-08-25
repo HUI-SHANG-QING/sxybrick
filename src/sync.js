@@ -71,10 +71,16 @@ export async function downloadBackup() {
   URL.revokeObjectURL(url);
 }
 
-// 按科目导出一个卡组（分享给同学）
-export async function downloadSubjectBackup(subject) {
+// 按科目导出一个卡组（分享给同学），可附带作者/版本/说明（E2 卡组署名）
+export async function downloadSubjectBackup(subject, meta = {}) {
   if (!subject) throw new Error('请先选择要分享的科目');
   const backup = await buildBackup(subject);
+  if (meta.author || meta.description) {
+    backup.deckMeta = {
+      author: String(meta.author || '').trim().slice(0, 30),
+      description: String(meta.description || '').trim().slice(0, 200),
+    };
+  }
   const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -107,6 +113,44 @@ export async function downloadCsv() {
   URL.revokeObjectURL(url);
 }
 
+// Anki 互通导出（E2）：制表符分隔纯文本，Anki 桌面版「导入 → 文本文件」直接可用
+// 说明：标准 .apkg 为二进制压缩包，需专用解析库；此处提供 Anki 原生支持的纯文本通道，实现零依赖互操作
+export async function downloadAnkiText() {
+  const cards = await db.cards.toArray();
+  const lines = ['#separator:tab', '#html:false'];
+  for (const c of cards) {
+    const front = String(c.front || '').replace(/[\r\n\t]+/g, ' ').trim();
+    const back = String(c.back || '').replace(/[\r\n\t]+/g, ' ').trim();
+    if (front) lines.push(`${front}\t${back}`);
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  a.href = url;
+  a.download = `sxybrick-anki-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Anki 文本解析导入（E2）：Anki 导出的 txt / 分隔行文本 → 卡片
+export function parseAnkiLines(text) {
+  return String(text || '').split(/\r?\n/)
+    .map(line => {
+      const l = line.trim();
+      if (!l || l.startsWith('#')) return null;
+      let front = l, back = '';
+      const m = l.match(/^(.+?)\s*(?:\t|\||→|->)\s*(.+)$/);
+      if (m && m[2]) { front = m[1].trim(); back = m[2].trim(); }
+      return { front, back };
+    })
+    .filter(Boolean)
+    .slice(0, 300);
+}
+
 // 局域网一键同步：把本地数据包 PUT 给电脑端中枢（hub），hub 合并后返回全量数据，再本地导入
 export async function syncWithHub(hubUrl, token) {
   const hub = String(hubUrl || '').replace(/\/+$/, '');
@@ -126,7 +170,7 @@ export async function syncWithHub(hubUrl, token) {
 // 各表合并 + 墓碑应用（与中枢 hub.js 的 merge 使用同一套 sync-manifest 纯函数，保证两端一致）
 export async function importBackup(backup) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
-  const stats = { cards: 0, reviews: 0, overridden: 0, deleted: 0 };
+  const stats = { cards: 0, reviews: 0, overridden: 0, deleted: 0, duplicated: 0 };
   for (const t of SYNC_TABLES) if (t.table !== 'cards' && t.table !== 'reviews') stats[t.table] = 0;
 
   // 1) 墓碑：按 deletedAt 谁新听谁合并（kind 缺失的旧数据按 card 处理）
@@ -136,10 +180,24 @@ export async function importBackup(backup) {
   // 2) 各数据表按清单策略合并（图片单独处理：base64→Blob 且存在即跳过，避免覆盖本地 Blob）
   for (const t of SYNC_TABLES) {
     if (t.table === 'images') continue;
-    const incoming = (backup[t.table] || []).filter(x => x && x.id);
+    let incoming = (backup[t.table] || []).filter(x => x && x.id);
     if (!incoming.length) continue;
     const base = await db[t.table].toArray();
     const baseMap = new Map(base.map(x => [x.id, x]));
+    // E1 去重合并：与本地 front+back+subject 完全相同的内容重复卡跳过不导入（避免跨设备重复入库）
+    if (t.table === 'cards') {
+      const norm = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      const localKeys = new Set(base.map(c => `${norm(c.front)}||${norm(c.back)}||${c.subject || ''}`));
+      const kept = [];
+      for (const c of incoming) {
+        const k = `${norm(c.front)}||${norm(c.back)}||${c.subject || ''}`;
+        if (localKeys.has(k)) { stats.duplicated++; continue; }
+        kept.push(c);
+        localKeys.add(k);
+      }
+      incoming = kept;
+    }
+    if (!incoming.length) continue;
     const merged = mergeRows(base, incoming, t.merge);
     let added = 0, updated = 0;
     for (const row of merged) {

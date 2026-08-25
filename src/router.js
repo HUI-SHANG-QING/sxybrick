@@ -19,6 +19,9 @@ const routes = [
   { path: '/achievements', component: () => import('./views/Achievements.vue') },
   { path: '/weekly', component: () => import('./views/WeeklyReport.vue') },
   { path: '/exam', component: () => import('./views/Exam.vue') },
+  { path: '/health', component: () => import('./views/Health.vue') },
+  { path: '/search', component: () => import('./views/Search.vue') },
+  { path: '/library', component: () => import('./views/Library.vue') },
 ];
 
 export const router = createRouter({
