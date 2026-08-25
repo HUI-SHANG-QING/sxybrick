@@ -23,11 +23,23 @@ const tagEl = ref(null);
 const wordEl = ref(null);
 let charts = [];
 
+// 图表主题：直接读取 CSS 变量（随 data-theme × data-style 任意组合换肤，含三大新主题与未来的个人主题）
 function getChartTheme() {
-  const t = document.documentElement.getAttribute('data-theme') || 'light';
-  if (t === 'dark') return { text: '#8b98a5', border: '#161b22', empty: '#21262d', grid: '#30363d', axis: '#8b98a5', bar: '#3b82f6' };
-  if (t === 'eye') return { text: '#5c6b5c', border: '#e6f2e6', empty: '#dceadc', grid: '#b8cfb9', axis: '#5c6b5c', bar: '#4c8352' };
-  return { text: '#9aa5b1', border: '#ffffff', empty: '#ebedf0', grid: '#e3e8ee', axis: '#9aa5b1', bar: '#16202c' };
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name, fallback) => (cs.getPropertyValue(name).trim() || fallback);
+  return {
+    text: v('--ink-2', '#475569'),
+    border: v('--panel', '#ffffff'),
+    empty: v('--code-inline', '#eef2f6'),
+    grid: v('--line', '#e3e8ee'),
+    axis: v('--ink-2', '#475569'),
+    bar: v('--accent', '#1d4ed8'),
+    blue: v('--blue', '#2563eb'),
+    green: v('--green', '#16a34a'),
+    red: v('--red', '#dc2626'),
+    amber: v('--amber', '#d97706'),
+    tagInk: v('--tag-ink', '#4338ca'),
+  };
 }
 
 function buildCharts() {
@@ -125,9 +137,9 @@ function buildCharts() {
       xAxis: { type: 'category', data: ['没记住', '还模糊', '记住了'], axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } } },
       yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
       series: [{ type: 'bar', data: [
-        { value: d[0], itemStyle: { color: '#ef4444' } },
-        { value: d[1], itemStyle: { color: '#f59e0b' } },
-        { value: d[2], itemStyle: { color: '#22c55e' } },
+        { value: d[0], itemStyle: { color: theme.red } },
+        { value: d[1], itemStyle: { color: theme.amber } },
+        { value: d[2], itemStyle: { color: theme.green } },
       ], borderRadius: [6, 6, 0, 0] }],
       grid: { left: 40, right: 12, top: 20, bottom: 28 },
     });
@@ -196,7 +208,7 @@ function buildCharts() {
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'category', data: stats.value.forgotTrend.map(t => t.date), axisLabel: { color: theme.axis } },
       yAxis: { type: 'value', max: 100, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
-      series: [{ type: 'line', data: stats.value.forgotTrend.map(t => t.rate), smooth: true, itemStyle: { color: '#ef4444' }, areaStyle: { opacity: .1 } }],
+      series: [{ type: 'line', data: stats.value.forgotTrend.map(t => t.rate), smooth: true, itemStyle: { color: theme.red }, areaStyle: { opacity: .1 } }],
       grid: { left: 32, right: 12, top: 20, bottom: 24 },
     });
     charts.push(forgot);

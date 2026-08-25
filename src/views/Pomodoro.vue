@@ -5,6 +5,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { toast } from '../utils/toast.js';
 import { speak } from '../utils/tts.js';
+import { sendNotify } from '../utils/notify.js';
 import { addPomoSession, countPomoToday } from '../repo.js';
 
 const MODES = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
@@ -84,6 +85,7 @@ async function finish() {
     }
     await refreshDone();
     toast('专注完成，休息一下！', 'success'); speak('专注完成，休息一下吧');
+    sendNotify('番茄钟完成', '专注 25 分钟结束，休息一下吧！');
     // 每 4 个专注一个长休（用今日总数判断，跨页面/跨天一致）
     switchMode(doneToday.value % 4 === 0 ? 'long' : 'short');
   } else {

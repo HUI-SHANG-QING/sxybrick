@@ -18,17 +18,40 @@ const difficulty = ref(props.card.difficulty ?? 1); // 0易 1中 2难
 const wrongReason = ref(props.card.wrongReason || '');
 const customWrong = ref('');
 const showCustomWrong = ref(false);
+// 默写题型（C7）：输入作答，逐字匹配判定
+const writingAnswer = ref('');
+const writingChecked = ref(false);
+const writingCorrect = ref(false);
 watch(() => props.card.id, () => {
   flipped.value = false; picked.value = null; hintReveal.value = false;
   difficulty.value = props.card.difficulty ?? 1;
   wrongReason.value = props.card.wrongReason || '';
   customWrong.value = '';
   showCustomWrong.value = false;
+  writingAnswer.value = '';
+  writingChecked.value = false;
+  writingCorrect.value = false;
 });
 
 const type = computed(() => props.card.type || 'basic');
-const typeText = computed(() => type.value === 'cloze' ? '填空' : type.value === 'choice' ? '选择' : '正反面');
+const typeText = computed(() => type.value === 'cloze' ? '填空' : type.value === 'choice' ? '选择' : type.value === 'writing' ? '默写' : '正反面');
 const hintText = computed(() => mdToSpeech(props.card.back).slice(0, 40) || '（无提示）');
+
+// 默写判定：忽略空格/标点/大小写后逐字比对
+function normalizeWriting(s) {
+  return String(s || '').toLowerCase().replace(/[\s，。、；：,.;:!?！？'"“”‘’()（）\[\]【】]/g, '');
+}
+function checkWriting() {
+  const user = normalizeWriting(writingAnswer.value);
+  const want = normalizeWriting(props.card.back);
+  writingChecked.value = true;
+  writingCorrect.value = !!user && user === want;
+  if (writingCorrect.value) {
+    doRate(2, false); // 默写全对：直接按「记住了」评判并进入下一张
+  } else {
+    flipped.value = true; // 展示标准答案，由用户自行评级
+  }
+}
 
 // 填空：{{答案}} → 挖空下划线
 const maskedFront = computed(() =>
@@ -73,6 +96,9 @@ function applyCustomWrong() {
   customWrong.value = '';
   showCustomWrong.value = false;
 }
+
+// 暴露给父级（键盘快捷键：空格翻面 / 1·2·3 评级）
+defineExpose({ flipped, showBack, doRate });
 </script>
 
 <template>
@@ -99,12 +125,21 @@ function applyCustomWrong() {
 
         <template v-else>
           <MarkdownRenderer :content="maskedFront" />
-          <div style="display:flex;gap:8px;margin-top:12px;align-items:center" @click.stop>
-            <button class="btn small" @click="speak(maskedFront)">朗读</button>
-            <button class="btn small" @click="hintReveal = !hintReveal">{{ hintReveal ? '收起提示' : '看提示' }}</button>
-          </div>
-          <div v-if="hintReveal" class="hint" style="margin-top:8px">提示：{{ hintText }}</div>
-          <div v-else class="hint" style="margin-top:10px">点击卡片任意区域翻看答案</div>
+          <template v-if="type === 'writing'">
+            <div style="display:flex;gap:8px;margin-top:12px" @click.stop>
+              <input v-model="writingAnswer" class="input" style="flex:1" placeholder="默写你的答案…" @keydown.enter="checkWriting" />
+              <button class="btn small primary" @click="checkWriting">提交</button>
+            </div>
+            <div v-if="writingChecked && !writingCorrect" class="hint" style="color:var(--red);margin-top:8px">与标准答案不完全一致，翻看答案后自评</div>
+          </template>
+          <template v-else>
+            <div style="display:flex;gap:8px;margin-top:12px;align-items:center" @click.stop>
+              <button class="btn small" @click="speak(maskedFront)">朗读</button>
+              <button class="btn small" @click="hintReveal = !hintReveal">{{ hintReveal ? '收起提示' : '看提示' }}</button>
+            </div>
+            <div v-if="hintReveal" class="hint" style="margin-top:8px">提示：{{ hintText }}</div>
+            <div v-else class="hint" style="margin-top:10px">点击卡片任意区域翻看答案</div>
+          </template>
         </template>
       </div>
 
@@ -139,6 +174,7 @@ function applyCustomWrong() {
         </template>
 
         <div v-if="card.mnemonic" class="mnemonic">助记：{{ card.mnemonic }}</div>
+        <div v-if="type === 'writing' && writingChecked && !writingCorrect" class="hint" style="margin-top:8px;color:var(--amber)">你的作答：「{{ writingAnswer }}」与标准答案有差异，请对照后自评</div>
 
         <div class="meta-row" @click.stop>
           <div class="meta-group">

@@ -1,6 +1,6 @@
 // 数据访问层：把原版 Express 后端的业务逻辑，改写成对本地 IndexedDB 的读写
 import { db, uid } from './db.js';
-import { computeNext } from './srs.js';
+import { computeNext, applyFeedback } from './srs.js';
 import { extractImageIds } from './images.js';
 
 export const DEFAULT_SUBJECTS = ['计算机网络', '操作系统', '数据结构', '计算机组成原理', '高等数学', '线性代数', '概率论'];
@@ -15,7 +15,7 @@ export function validateCard(body) {
   const tags = (Array.isArray(body.tags) ? body.tags : [])
     .map(t => String(t).trim().slice(0, 20)).filter(Boolean).slice(0, 16);
   const source = String(body.source ?? '').trim().slice(0, 60);
-  const type = ['basic', 'cloze', 'choice'].includes(body.type) ? body.type : 'basic';
+  const type = ['basic', 'cloze', 'choice', 'writing'].includes(body.type) ? body.type : 'basic';
   const marked = !!body.marked;
   const mnemonic = String(body.mnemonic ?? '').trim().slice(0, 200);
   const wrongReason = String(body.wrongReason ?? '').trim().slice(0, 20);
@@ -196,7 +196,15 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   if (!card) throw new Error('卡片不存在');
   const difficulty = Number(opts.difficulty ?? card.difficulty ?? 1);
   const wrongReason = opts.wrongReason || card.wrongReason || '';
-  const next = computeNext(card, rating, intensity, guessed, { difficulty, wrongReason });
+  // 自适应节奏（C4）：按该卡近 10 次复习的错误率微调间隔（仅开启时计算）
+  let adaptive = null;
+  if (opts.adaptive) {
+    const recent = await db.reviews.where('cardId').equals(cardId).reverse().sortBy('reviewedAt');
+    const last10 = recent.slice(0, 10);
+    const fail = last10.filter(r => r.rating === 0).length;
+    adaptive = { reviews: last10.length, failRate: last10.length ? fail / last10.length : 0 };
+  }
+  const next = computeNext(card, rating, intensity, guessed, { difficulty, wrongReason, adaptive });
   // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt：
   // 否则跨设备同步时「复习动作」会覆盖另一台设备对卡片文字的编辑（数据丢失）
   await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, difficulty, wrongReason, reviewedAt: now() });
@@ -211,6 +219,15 @@ export function formatDue(ts) {
   const d = new Date(ts);
   const pad = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 学习行为回写 SRS：语音评测得分 / 费曼练习加成（不改 updatedAt，仅 ease/dueAt）
+export async function applyCardFeedback(cardId, signal = {}) {
+  const card = await db.cards.get(cardId);
+  if (!card) return null;
+  const f = applyFeedback(card, signal);
+  await db.cards.put({ ...card, ease: f.ease, dueAt: f.dueAt });
+  return f;
 }
 
 // ---------- 已背记录 ----------
@@ -577,4 +594,30 @@ export async function unlockAchievement(key) {
   const row = { id, key, unlockedAt: now() };
   await db.achievements.put(row);
   return row;
+}
+
+// ---------- 组卷模考（成绩存档，随数据包同步；借鉴 Progress AI 的本地化实现） ----------
+export async function listExams() {
+  return db.exams.orderBy('createdAt').reverse().toArray();
+}
+export async function getExam(id) {
+  return (await db.exams.get(id)) || null;
+}
+export async function saveExam(payload) {
+  const t = now();
+  const e = {
+    id: uid(),
+    title: String(payload?.title || '模拟考试').trim().slice(0, 40),
+    subject: String(payload?.subject || '').trim(),
+    questions: Array.isArray(payload?.questions) ? payload.questions : [],
+    score: Number(payload?.score) || 0,
+    total: Number(payload?.total) || 0,
+    createdAt: t, updatedAt: t,
+  };
+  await db.exams.put(e);
+  return e;
+}
+export async function deleteExam(id) {
+  await db.exams.delete(id);
+  await db.tombstones.put({ id, kind: 'exam', deletedAt: now() }); // 墓碑：跨设备同步删除
 }

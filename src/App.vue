@@ -2,6 +2,8 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { toast } from './utils/toast.js';
 import { degraded } from './utils/perf.js';
+import { ensureNotifyPermission, sendNotify } from './utils/notify.js';
+import { getGoal, getTodayCount } from './utils/streak.js';
 import FloatAssistant from './components/FloatAssistant.vue';
 import NavBar from './components/NavBar.vue';
 import Intro from './components/Intro.vue';
@@ -28,6 +30,7 @@ const navItems = [
   { path: '/plans', label: '计划', icon: '🎯' },
   { path: '/docs', label: '文档', icon: '📄' },
   { path: '/weekly', label: '周报', icon: '📈' },
+  { path: '/exam', label: '模考', icon: '🧪' },
   { path: '/achievements', label: '成就', icon: '🏆' },
 ];
 
@@ -69,8 +72,47 @@ onMounted(() => {
   theme.apply();
   window.addEventListener('beforeinstallprompt', onBeforeInstall);
   if (!localStorage.getItem('sxy_onboarding_done')) beginOnboarding();
+  startReminderLoop();
 });
-onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBeforeInstall));
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+  clearInterval(reminderTimer);
+});
+
+// ---- C6 复习提醒：页面打开期间每分钟检查一次是否到点（当日只提醒一次） ----
+const remindTime = ref(localStorage.getItem('sxy_remind_time') || '');
+let reminderTimer = null;
+function startReminderLoop() {
+  clearInterval(reminderTimer);
+  reminderTimer = setInterval(checkReminder, 60 * 1000);
+}
+async function checkReminder() {
+  const t = (localStorage.getItem('sxy_remind_time') || '').trim();
+  if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return;
+  const today = new Date().toDateString();
+  if (localStorage.getItem('sxy_remind_today') === today) return;
+  const d = new Date();
+  const now = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (now < t) return;
+  try {
+    const [goal, done] = await Promise.all([getGoal(), getTodayCount()]);
+    if (done < goal) {
+      sendNotify('SxyBrick 复习提醒', `今日已复习 ${done}/${goal} 张，还差 ${goal - done} 张，趁热来背几张吧！`);
+    } else {
+      sendNotify('SxyBrick', '今日目标已达成，继续保持！');
+    }
+  } catch { /* db 未就绪时静默 */ }
+  localStorage.setItem('sxy_remind_today', today);
+}
+async function enableReminder() {
+  const t = (remindTime.value || '').trim();
+  if (!t) { toast('请先填写提醒时间（如 21:30）', 'error'); return; }
+  const perm = await ensureNotifyPermission();
+  if (perm !== 'granted') { toast('浏览器通知权限被拒绝，请在浏览器设置里允许本网站通知', 'error'); return; }
+  localStorage.setItem('sxy_remind_time', t);
+  localStorage.removeItem('sxy_remind_today');
+  toast(`已开启每日 ${t} 复习提醒（应用打开时生效）`, 'success');
+}
 </script>
 
 <template>
@@ -111,6 +153,13 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
               <div class="style-name">{{ s.name }}</div>
               <div class="style-desc">{{ s.desc }}</div>
             </div>
+          </div>
+
+          <div class="field-label">复习提醒（应用打开时生效，当日只提醒一次）</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input v-model="remindTime" class="input" style="width:110px" placeholder="如 21:30" />
+            <button class="btn small primary" @click="enableReminder">开启提醒</button>
+            <span class="hint">提醒时未达标会通知你差几张</span>
           </div>
 
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:8px">

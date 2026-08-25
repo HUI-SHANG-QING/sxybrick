@@ -46,6 +46,11 @@ db.version(7).stores({
   achievements: 'id, unlockedAt',
 });
 
+// v8：新增模考成绩存档表（组卷模考，随数据包同步）
+db.version(8).stores({
+  exams: 'id, createdAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

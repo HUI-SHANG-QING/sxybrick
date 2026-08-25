@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --host",
-    "hub": "node sync-hub/hub.js"
+    "hub": "node sync-hub/hub.js",
+    "test": "node --test tests/sync-manifest.test.mjs tests/srs.test.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.8",

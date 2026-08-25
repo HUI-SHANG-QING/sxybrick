@@ -5,8 +5,9 @@ import { useRouter } from 'vue-router';
 import VirtualList from '../components/VirtualList.vue';
 import CardModal from '../components/CardModal.vue';
 import EmptyState from '../components/EmptyState.vue';
+import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI } from '../ai.js';
 
@@ -50,7 +51,7 @@ function plain(md) {
     .trim();
 }
 
-function typeName(t) { return t === 'cloze' ? '填空' : t === 'choice' ? '选择' : ''; }
+function typeName(t) { return t === 'cloze' ? '填空' : t === 'choice' ? '选择' : t === 'writing' ? '默写' : ''; }
 
 async function loadMeta() {
   subjects.value = await getSubjects();
@@ -153,7 +154,73 @@ watch(searchInput, v => {
   searchTimer = setTimeout(() => { filters.q = v.trim(); }, 300);
 });
 
-onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
+onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); loadSmart(); });
+
+// ---- 批量建卡（P0 效率包）：粘贴文本按行拆成卡片 ----
+const batchOpen = ref(false);
+const batchText = ref('');
+const batchSubject = ref('');
+const batchBusy = ref(false);
+const batchParsed = computed(() => {
+  return batchText.value.split('\n').map(line => {
+    let front = line.trim();
+    let back = '';
+    if (!front) return null;
+    const m = front.match(/^(.+?)\s*(?:\||→|->|：答[:：]?)\s*(.+)$/);
+    if (m && m[2]) { front = m[1].trim(); back = m[2].trim(); }
+    return { front, back };
+  }).filter(Boolean).slice(0, 200);
+});
+function openBatch() {
+  batchText.value = '';
+  batchSubject.value = filters.subject || '';
+  batchOpen.value = true;
+}
+async function importBatch() {
+  const cards = batchParsed.value;
+  if (!cards.length) { toast('请先粘贴内容（每行一张卡）', 'error'); return; }
+  batchBusy.value = true;
+  try {
+    let n = 0;
+    for (const c of cards) {
+      await createCard({ front: c.front, back: c.back, subject: batchSubject.value || '', tags: [], type: 'basic' });
+      n++;
+    }
+    batchOpen.value = false;
+    toast(`已批量创建 ${n} 张卡片`, 'success');
+    loadCards();
+  } catch (e) { toast(e.message, 'error'); }
+  finally { batchBusy.value = false; }
+}
+
+// ---- 智能卡组（P0 效率包）：把当前筛选组合存成快捷入口 ----
+const smartFilters = ref([]);
+async function loadSmart() {
+  const row = await db.meta.get('smartFilters');
+  smartFilters.value = row?.value || [];
+}
+async function persistSmart() {
+  await db.meta.put({ key: 'smartFilters', value: smartFilters.value, updatedAt: Date.now() });
+}
+async function saveSmart() {
+  const name = prompt('给这个筛选组合起个名字：', filters.subject || '智能卡组');
+  if (!name) return;
+  smartFilters.value.push({
+    id: uid(), name: String(name).slice(0, 12),
+    q: filters.q, subject: filters.subject, tags: [...filters.tags], logic: filters.logic,
+  });
+  await persistSmart();
+  toast('已保存为智能卡组（本机偏好）', 'success');
+}
+function applySmart(f) {
+  filters.q = f.q || ''; filters.subject = f.subject || '';
+  filters.tags = [...(f.tags || [])]; filters.logic = f.logic || 'AND';
+  searchInput.value = f.q || '';
+}
+async function removeSmart(f) {
+  smartFilters.value = smartFilters.value.filter(x => x.id !== f.id);
+  await persistSmart();
+}
 </script>
 
 <template>
@@ -164,6 +231,7 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
       <span style="flex:1"></span>
       <button v-if="dueCount > 0" class="btn primary" @click="router.push('/review')">专注背诵（{{ dueCount }}）→</button>
       <button class="chip" :class="{ on: weakMode }" @click="toggleWeak">错题集</button>
+      <button class="btn" @click="openBatch">批量建卡</button>
       <button class="btn primary" @click="openCreate">＋ 新建卡</button>
     </div>
 
@@ -197,6 +265,7 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
         </select>
         <span style="flex:1"></span>
         <input v-model="searchInput" class="input" style="max-width:280px" placeholder="搜正面 / 背面内容…" />
+        <button class="btn small" @click="saveSmart">保存当前组合</button>
       </div>
       <div class="row">
         <span class="hint" style="width:56px">科目</span>
@@ -217,7 +286,39 @@ onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); });
           <option value="NOT">差集 NOT（排除所选）</option>
         </select>
       </div>
+      <div v-if="smartFilters.length" class="row" style="margin-top:2px">
+        <span class="hint" style="width:56px">智能卡组</span>
+        <span v-for="f in smartFilters" :key="f.id" class="chip" style="cursor:pointer" @click="applySmart(f)">
+          ⭐ {{ f.name }}<a @click.stop="removeSmart(f)" style="color:var(--red);margin-left:6px;cursor:pointer">✕</a>
+        </span>
+      </div>
     </div>
+
+    <!-- 批量建卡弹窗 -->
+    <teleport to="body">
+      <div v-if="batchOpen" class="modal-mask" @click.self="batchOpen = false">
+        <div class="modal">
+          <h3 style="margin-top:0">批量建卡</h3>
+          <p class="hint" style="margin-top:0">
+            每行一张卡；用 <code>|</code>、<code>→</code> 或 <code>-&gt;</code> 分隔正面与背面。<br>
+            例：<code>TCP 三次握手的过程？| 共 SYN / SYN-ACK / ACK 三步</code>
+          </p>
+          <div class="field-label" style="margin-top:12px">科目（可留空）</div>
+          <select v-model="batchSubject" class="input">
+            <option value="">不指定</option>
+            <option v-for="s in subjects" :key="s.name" :value="s.name">{{ s.name }}</option>
+          </select>
+          <div class="field-label">内容（已解析 {{ batchParsed.length }} 张）</div>
+          <textarea v-model="batchText" class="input" rows="10" placeholder="粘贴知识点清单…"></textarea>
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+            <button class="btn" @click="batchOpen = false">取消</button>
+            <button class="btn primary" :disabled="batchBusy || !batchParsed.length" @click="importBatch">
+              {{ batchBusy ? '导入中…' : `导入 ${batchParsed.length} 张` }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </teleport>
 
     <VirtualList v-if="viewMode === 'scroll'" :items="items">
       <template #default="{ item }">

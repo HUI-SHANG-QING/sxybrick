@@ -7,7 +7,8 @@ import CardModal from '../components/CardModal.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
-import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS } from '../repo.js';
+import { db } from '../db.js';
+import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS, applyCardFeedback } from '../repo.js';
 import { getGoal, getTodayCount } from '../utils/streak.js';
 import { startSpeech, isSpeechSupported } from '../utils/speech.js';
 import { mdToSpeech } from '../utils/tts.js';
@@ -86,7 +87,7 @@ async function loadQueue() {
 
 async function rate(card, rating, guessed = false, meta = {}) {
   try {
-    const res = await review(card.id, rating, intensity.value, guessed, meta);
+    const res = await review(card.id, rating, intensity.value, guessed, { ...meta, adaptive: adaptiveOn.value });
     todayCount.value = await getTodayCount(); // 从 db.reviews 推导（跨会话/跨设备同步）
     let msg = `下次复习：${res.dueText}`;
     if (rating === 0) {
@@ -146,7 +147,10 @@ function voiceEval() {
     const keywords = backText.split(/[\s，。、；：,.;:!?！？]+/).filter(w => w.length >= 2);
     const hit = keywords.filter(k => text.includes(k)).length;
     const cov = keywords.length ? Math.round((hit / keywords.length) * 100) : 0;
-    toast(`语音作答覆盖 ${cov}%（命中 ${hit}/${keywords.length} 个要点）`, cov >= 60 ? 'success' : 'info');
+    // 行为回写 SRS：复述覆盖率影响这张卡的 ease 与下次复习时间（数据一致性闭环）
+    applyCardFeedback(card.id, { score: cov });
+    const low = cov < 40 ? '；已安排 30 分钟内趁热重练' : cov >= 85 ? '；记忆较稳，间隔微调放宽' : '';
+    toast(`语音作答覆盖 ${cov}%（命中 ${hit}/${keywords.length} 个要点）${low}`, cov >= 60 ? 'success' : 'info');
   }, () => { voiceListening.value = false; });
   if (!rec) { voiceListening.value = false; toast('当前浏览器不支持语音识别', 'error'); }
 }
@@ -239,8 +243,85 @@ onMounted(async () => {
   loadQueue();
   loadMeta();
   focusTimer = setInterval(() => { focusSeconds.value++; }, 1000);
+  document.addEventListener('keydown', onKey);
 });
-onBeforeUnmount(() => { clearInterval(focusTimer); document.body.classList.remove('review-focus'); });
+onBeforeUnmount(() => {
+  clearInterval(focusTimer);
+  clearInterval(sessionTimer);
+  document.body.classList.remove('review-focus');
+  document.removeEventListener('keydown', onKey);
+});
+
+// ---- 键盘快捷键（P0 效率包）：空格翻面 · 1 没记住 · 2 还模糊 · 3 记住了 ----
+const flipRef = ref(null);
+function onKey(e) {
+  if (tab.value !== 'due' || showComplete.value || loading.value) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  if (!current()) return;
+  if (e.code === 'Space') { e.preventDefault(); flipRef.value?.showBack?.(); return; }
+  if (!flipRef.value?.flipped) return; // 未翻面不允许评级，防盲评
+  if (e.key === '1') { e.preventDefault(); flipRef.value?.doRate?.(0); }
+  else if (e.key === '2') { e.preventDefault(); flipRef.value?.doRate?.(1); }
+  else if (e.key === '3') { e.preventDefault(); flipRef.value?.doRate?.(2); }
+}
+
+// ---- C3 复习会话包：25 分钟倒计时，结束提醒去番茄钟休息 ----
+const sessionOn = ref(false);
+const sessionLeft = ref(0);
+const sessionDone = ref(false);
+let sessionTimer = null;
+function fmtClock(s) { const m = Math.floor(s / 60), sec = s % 60; return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`; }
+function toggleSession() {
+  if (sessionOn.value) { sessionOn.value = false; clearInterval(sessionTimer); return; }
+  sessionOn.value = true; sessionDone.value = false; sessionLeft.value = 25 * 60;
+  sessionTimer = setInterval(() => {
+    sessionLeft.value--;
+    if (sessionLeft.value <= 0) {
+      clearInterval(sessionTimer);
+      sessionOn.value = false; sessionDone.value = true;
+      toast('25 分钟复习会话结束，去休息一下吧！', 'success');
+    }
+  }, 1000);
+}
+
+// ---- C4 难度自适应：按历史错误率微调间隔（保守/稳健档，默认关） ----
+const adaptiveOn = ref(localStorage.getItem('sxy_adaptive') === '1');
+function toggleAdaptive() {
+  adaptiveOn.value = !adaptiveOn.value;
+  localStorage.setItem('sxy_adaptive', adaptiveOn.value ? '1' : '0');
+  toast(adaptiveOn.value ? '已开启自适应节奏：频繁出错的卡会加快重现，稳定掌握的卡会拉长间隔' : '已切回基准间隔', 'info');
+}
+
+// ---- C5 易混卡对决：看答案归属，练辨析 ----
+const duelOpen = ref(false);
+const duelIdx = ref(0);
+const duelTarget = ref(null); // 当前问的答案属于哪张卡
+const duelPicked = ref(null); // null | 选中卡 id
+const duelOptions = ref([]); // 本轮两个选项（随机顺序）
+const duelBack = ref(''); // 当前考问的答案文本（confusable 对里没有 back，需从库读）
+function shuffle(arr) { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function startDuel() {
+  if (!confusablePairs.value.length) { toast('暂无易混卡对：多答错几道带共同标签的题就会出现', 'info'); return; }
+  duelOpen.value = true;
+  duelIdx.value = 0;
+  nextDuel();
+}
+async function nextDuel() {
+  const p = confusablePairs.value[duelIdx.value % confusablePairs.value.length];
+  duelTarget.value = Math.random() < 0.5 ? p.a : p.b;
+  duelOptions.value = shuffle([p.a, p.b]);
+  duelPicked.value = null;
+  const full = await db.cards.get(duelTarget.value.id);
+  duelBack.value = full?.back || '';
+}
+function pickDuel(card) {
+  if (duelPicked.value) return;
+  const correct = card.id === duelTarget.value.id;
+  duelPicked.value = card.id;
+  toast(correct ? '✅ 辨析正确！' : `❌ 这张答案其实属于「${duelTarget.value.front.slice(0, 18)}」`, correct ? 'success' : 'error');
+  setTimeout(() => { duelIdx.value++; nextDuel(); }, 1200);
+}
 </script>
 
 <template>
@@ -264,6 +345,10 @@ onBeforeUnmount(() => { clearInterval(focusTimer); document.body.classList.remov
           <option :value="2">考前冲刺（最高频）</option>
         </select>
         <button class="chip" :class="{ on: interleave }" @click="toggleInterleave">交错混科</button>
+        <button class="chip" :class="{ on: adaptiveOn }" @click="toggleAdaptive" title="自适应节奏：按这张卡的历史错误率微调复习间隔">自适应节奏</button>
+        <button class="chip" :class="{ on: sessionOn }" @click="toggleSession">{{ sessionOn ? `会话中 ${fmtClock(sessionLeft)}` : '25 分钟会话' }}</button>
+        <button class="chip" @click="startDuel">易混对决</button>
+        <button v-if="sessionDone" class="chip" style="color:var(--green);border-color:var(--green)" @click="router.push('/pomodoro')">去番茄钟休息 →</button>
         <button class="chip" :class="{ on: filterActive }" @click="filterOpen = !filterOpen">
           筛选背诵{{ filterActive ? '（已选）' : '' }}
         </button>
@@ -300,10 +385,10 @@ onBeforeUnmount(() => { clearInterval(focusTimer); document.body.classList.remov
       <div v-if="loading" class="hint" style="text-align:center;padding:60px">加载中…</div>
 
       <template v-else-if="current()">
-        <FlipCard :card="current()" @rate="rate" @edit="openEdit" />
+        <FlipCard ref="flipRef" :card="current()" @rate="rate" @edit="openEdit" />
         <div v-if="confusableHint" class="confusable-hint">{{ confusableHint }}</div>
         <div class="hint" style="text-align:center;margin-top:12px">
-          第 {{ idx + 1 }} / {{ queue.length }} 张 · 翻到背面后选择自评结果
+          第 {{ idx + 1 }} / {{ queue.length }} 张 · 翻到背面后选择自评结果 · 快捷键：<b>空格</b> 翻面，<b>1</b> 没记住 <b>2</b> 还模糊 <b>3</b> 记住了
         </div>
       </template>
 
@@ -385,6 +470,29 @@ onBeforeUnmount(() => { clearInterval(focusTimer); document.body.classList.remov
         </div>
       </div>
     </teleport>
+
+    <!-- 易混卡对决弹窗（C5）：看答案归属，练辨析 -->
+    <teleport to="body">
+      <div v-if="duelOpen" class="modal-mask" @click.self="duelOpen = false">
+        <div class="modal" style="max-width:460px">
+          <h3 style="margin-top:0">易混卡对决</h3>
+          <p class="hint" style="margin-top:0">下面这段「答案」属于哪张卡？</p>
+          <div class="hint" style="margin:0 0 12px;font-size:15px;color:var(--ink);font-weight:600">
+            「{{ duelBack.slice(0, 60) }}…」
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button v-for="o in duelOptions" :key="o.id" class="duel-opt btn" :class="{ right: duelPicked === o.id && o.id === duelTarget?.id, wrong: duelPicked === o.id && o.id !== duelTarget?.id }"
+              :disabled="!!duelPicked" style="width:100%;text-align:left" @click="pickDuel(o)">
+              {{ o.front.slice(0, 60) }}
+            </button>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">
+            <span class="hint">第 {{ duelIdx + 1 }} 轮</span>
+            <button class="btn small" @click="duelOpen = false">结束</button>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -406,6 +514,8 @@ onBeforeUnmount(() => { clearInterval(focusTimer); document.body.classList.remov
 }
 .history-list { margin-top: 12px; }
 .front-preview { color: var(--ink); }
+.duel-opt.right { border-color: var(--green); background: var(--code-inline); color: var(--green); }
+.duel-opt.wrong { border-color: var(--red); background: var(--code-inline); color: var(--red); }
 .rating-pill { font-size: 12px; border-radius: 6px; padding: 2px 10px; font-weight: 600; }
 .rating-pill.r0 { background: #fee2e2; color: var(--red); }
 .rating-pill.r1 { background: #fef3c7; color: var(--amber); }

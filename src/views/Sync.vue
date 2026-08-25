@@ -5,7 +5,7 @@ import { toast } from '../utils/toast.js';
 import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup } from '../sync.js';
 import { getSubjects } from '../repo.js';
 
-const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0 });
+const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 const hubUrl = ref(localStorage.getItem('sxy_hub') || location.origin);
 const hubToken = ref(localStorage.getItem('sxy_hub_token') || '');
 const fileInput = ref(null);
@@ -31,7 +31,7 @@ function fmtStats(stats) {
   const extra = [
     ['aiChats', 'AI对话'], ['aiMemories', '记忆'], ['memos', '备忘'], ['plans', '计划'],
     ['graphEdges', '图谱'], ['docs', '文档'], ['pomoSessions', '专注'],
-    ['mindmaps', '导图'], ['weeklyReports', '周报'], ['achievements', '成就'],
+    ['mindmaps', '导图'], ['weeklyReports', '周报'], ['achievements', '成就'], ['exams', '模考'],
   ];
   for (const [k, label] of extra) if (stats[k]) parts.push(`${label} +${stats[k]}`);
   return parts.join('，');
@@ -102,7 +102,7 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
   <div style="max-width:720px;margin:0 auto">
     <h2 style="margin:0 0 4px">数据同步</h2>
     <div class="hint" style="margin-bottom:16px">
-      本机数据：{{ counts.cards }} 卡片 · {{ counts.reviews }} 复习 · {{ counts.images }} 图片 · {{ counts.aiChats }} 对话 · {{ counts.aiMemories }} 记忆 · {{ counts.memos }} 备忘 · {{ counts.plans }} 计划 · {{ counts.graphEdges }} 图谱边 · {{ counts.docs }} 文档 · {{ counts.pomoSessions }} 专注 · {{ counts.mindmaps }} 导图 · {{ counts.weeklyReports }} 周报 · {{ counts.achievements }} 成就
+      本机数据：{{ counts.cards }} 卡片 · {{ counts.reviews }} 复习 · {{ counts.images }} 图片 · {{ counts.aiChats }} 对话 · {{ counts.aiMemories }} 记忆 · {{ counts.memos }} 备忘 · {{ counts.plans }} 计划 · {{ counts.graphEdges }} 图谱边 · {{ counts.docs }} 文档 · {{ counts.pomoSessions }} 专注 · {{ counts.mindmaps }} 导图 · {{ counts.weeklyReports }} 周报 · {{ counts.achievements }} 成就 · {{ counts.exams }} 模考
     </div>
 
     <!-- 手动同步 -->

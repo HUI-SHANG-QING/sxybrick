@@ -23,6 +23,7 @@ export const SYNC_TABLES = [
   { table: 'mindmaps', kind: 'mindmap', merge: 'updatedAt' },
   { table: 'weeklyReports', kind: 'weeklyReport', merge: 'updatedAt' },
   { table: 'achievements', kind: 'achievement', merge: 'idOnly' }, // 解锁不可逆：id 幂等
+  { table: 'exams', kind: 'exam', merge: 'updatedAt' },
 ];
 
 // 卡片字段级合并分组：

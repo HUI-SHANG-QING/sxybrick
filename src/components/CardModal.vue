@@ -112,10 +112,10 @@ function onPaste(side, e) {
   if (item) { e.preventDefault(); insertImage(side, item.getAsFile()); }
 }
 
-const frontLabel = computed(() => type.value === 'cloze' ? '句子（用 {{答案}} 挖空）' : type.value === 'choice' ? '题干（问题）' : '正面（提示 / 问题）');
-const backLabel = computed(() => type.value === 'choice' ? '选项 + 答案' : type.value === 'cloze' ? '解释 / 提示（可选）' : '背面（结论 / 答案）');
-const frontPh = computed(() => type.value === 'cloze' ? '把要挖空的位置用 {{答案}} 包起来，例如：CPU 的中文是 {{中央处理器}}' : type.value === 'choice' ? '输入题干，例如：以下哪个不是操作系统？' : '背诵时先看到的提示，支持 Markdown / 公式 / 代码块');
-const backPh = computed(() => type.value === 'choice' ? '每行一个选项（A~D），最后一行写答案。例如：\nA. Linux\nB. Windows\nC. Chrome\nD. macOS\n答案：C' : type.value === 'cloze' ? '可选：补充解释或助记，帮助理解' : '翻开要记住的内容，支持 Markdown');
+const frontLabel = computed(() => type.value === 'cloze' ? '句子（用 {{答案}} 挖空）' : type.value === 'choice' ? '题干（问题）' : type.value === 'writing' ? '默写题目（提示）' : '正面（提示 / 问题）');
+const backLabel = computed(() => type.value === 'choice' ? '选项 + 答案' : type.value === 'writing' ? '标准答案（逐字匹配判对）' : type.value === 'cloze' ? '解释 / 提示（可选）' : '背面（结论 / 答案）');
+const frontPh = computed(() => type.value === 'cloze' ? '把要挖空的位置用 {{答案}} 包起来，例如：CPU 的中文是 {{中央处理器}}' : type.value === 'choice' ? '输入题干，例如：以下哪个不是操作系统？' : type.value === 'writing' ? '例如：TCP 三次握手分别是哪三步？' : '背诵时先看到的提示，支持 Markdown / 公式 / 代码块');
+const backPh = computed(() => type.value === 'choice' ? '每行一个选项（A~D），最后一行写答案。例如：\nA. Linux\nB. Windows\nC. Chrome\nD. macOS\n答案：C' : type.value === 'writing' ? '默写题的判定答案：与作答逐字（忽略空格标点、大小写）比对' : type.value === 'cloze' ? '可选：补充解释或助记，帮助理解' : '翻开要记住的内容，支持 Markdown');
 
 function validate() {
   const errs = {};
@@ -173,6 +173,7 @@ function close() { emit('update:modelValue', false); }
           <button class="chip" :class="{ on: type === 'basic' }" @click="type = 'basic'">正反面</button>
           <button class="chip" :class="{ on: type === 'cloze' }" @click="type = 'cloze'">填空</button>
           <button class="chip" :class="{ on: type === 'choice' }" @click="type = 'choice'">选择</button>
+          <button class="chip" :class="{ on: type === 'writing' }" @click="type = 'writing'">默写</button>
         </div>
 
         <div class="field-label">科目</div>

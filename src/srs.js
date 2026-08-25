@@ -63,7 +63,40 @@ export function computeNext(card, rating, intensity = 1, guessed = false, opts =
   const k = Math.min(2, Math.max(0.5, Number(intensity) || 1));
   if (k > 1) days = days / (1 + (k - 1) * 0.5);
 
+  // 自适应节奏（C4，可选开启）：按该卡近 10 次复习的错误率微调间隔
+  //   - 近 10 次中错误率 ≥40%：间隔 ×0.8（频繁出错 → 加快重现）
+  //   - 近 10 次全对且等级 ≥3：间隔 ×1.1（稳定掌握 → 拉长间隔）
+  // 仅作用于「记住了」，且样本量 ≥5 才有统计意义；增量保守，不会跳变。
+  if (rating === 2 && opts.adaptive && opts.adaptive.reviews >= 5) {
+    const failRate = Number(opts.adaptive.failRate) || 0;
+    if (failRate >= 0.4) days *= 0.8;
+    else if (failRate === 0 && (level || 0) >= 3) days *= 1.1;
+  }
+
   days = Math.min(365, days);
   const dueAt = now + Math.round(days * DAY);
   return { level, ease, intervalDays: days, dueAt };
+}
+
+/**
+ * 学习行为回写：复习之外的行为信号（语音复述覆盖率、费曼练习等）微调 SRS 状态。
+ * 规则（工程化二版）：
+ *   - 语音覆盖率 < 40%：ease -0.15，且 dueAt 提前到 30 分钟内（趁热重练）
+ *   - 语音覆盖率 >= 85%：ease +0.05（上限 2.8）
+ *   - 费曼练习加成：ease +0.03（上限 2.8），不改等级
+ * 不改 level 与 updatedAt（内容未变），只动 ease/dueAt，与双时间戳同步模型兼容。
+ */
+export function applyFeedback(card, { score = null, feynman = false } = {}) {
+  let ease = typeof card.ease === 'number' ? card.ease : 2.5;
+  let dueAt = typeof card.dueAt === 'number' ? card.dueAt : Date.now();
+  if (typeof score === 'number') {
+    if (score < 40) {
+      ease = Math.max(1.3, ease - 0.15);
+      dueAt = Math.min(dueAt, Date.now() + 30 * 60 * 1000);
+    } else if (score >= 85) {
+      ease = Math.min(2.8, ease + 0.05);
+    }
+  }
+  if (feynman) ease = Math.min(2.8, ease + 0.03);
+  return { ease, dueAt };
 }

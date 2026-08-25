@@ -18,6 +18,7 @@ const routes = [
   { path: '/mindmap', component: () => import('./views/Mindmap.vue') },
   { path: '/achievements', component: () => import('./views/Achievements.vue') },
   { path: '/weekly', component: () => import('./views/WeeklyReport.vue') },
+  { path: '/exam', component: () => import('./views/Exam.vue') },
 ];
 
 export const router = createRouter({

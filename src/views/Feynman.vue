@@ -3,7 +3,7 @@
 import { ref, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
 import { db, uid } from '../db.js';
-import { getSubjects, getTags, getStats, weakCards } from '../repo.js';
+import { getSubjects, getTags, getStats, weakCards, applyCardFeedback } from '../repo.js';
 import { chatAI, hasAIKey, saveChat, listChats, deleteChat, getChat } from '../ai.js';
 import { getCardAnalytics } from '../agent/analytics.js';
 import VoiceInput from '../components/VoiceInput.vue';
@@ -112,9 +112,19 @@ async function start() {
       { role: 'user', content: '开始吧，先看看我最薄弱的点，出第一道题。' },
     ]);
     messages.value.push({ role: 'assistant', content: reply }); if (voiceOn.value) speak(reply);
+    // 行为回写 SRS：完成一次费曼练习，给范围内最薄弱的 5 张卡小幅 ease 加成（每次会话一次）
+    if (!fedBoosted) {
+      fedBoosted = true;
+      const weak = await weakCards(40, 1);
+      const rangeIds = new Set(cards.map(c => c.id));
+      for (const w of weak.filter(c => rangeIds.has(c.id)).slice(0, 5)) {
+        await applyCardFeedback(w.id, { feynman: true });
+      }
+    }
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; scroll(); await persistSession(); }
 }
+let fedBoosted = false; // 每次费曼会话只加成一次
 
 // 上下文缓存：仅在「开始练习」或筛选条件变化时重建（与会话绑定）
 let ctxCache = '';
@@ -170,6 +180,9 @@ function newSession() {
   currentId.value = uid();
   messages.value = [];
   started.value = false;
+  fedBoosted = false;
+  ctxCache = '';
+  ctxKey = '';
   localStorage.setItem('sxy_last_feynman', currentId.value);
 }
 function selectSession(id) {
