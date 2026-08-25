@@ -1,41 +1,15 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
-import { toasts, toast } from './utils/toast.js';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { toast } from './utils/toast.js';
 import { degraded } from './utils/perf.js';
 import FloatAssistant from './components/FloatAssistant.vue';
 import NavBar from './components/NavBar.vue';
 import Intro from './components/Intro.vue';
 import Guide from './components/Guide.vue';
+import { useThemeStore, STYLES, MODES } from './stores/theme.js';
 
-// ---------- 风格（游戏级，布局/交互/场景差异大） ----------
-const STYLES = [
-  { id: 'classic', name: '经典', desc: '顶部导航 · 简洁扁平', icon: '☰' },
-  { id: 'card', name: '卡牌', desc: '炉石传说 · 卡牌桌游', icon: '🎴' },
-  { id: 'moba', name: '王者', desc: '王者荣耀 · MOBA 大厅', icon: '⚔️' },
-  { id: 'space', name: '星际', desc: '星际战争 · 太空 HUD', icon: '🛸' },
-  { id: 'adventure', name: '冒险', desc: '黑神话 · 冒险场景', icon: '🐒' },
-];
-// ---------- 配色模式（全局通用，适用于每一种风格） ----------
-const MODES = [
-  { id: 'light', name: '白天' },
-  { id: 'dark', name: '夜间' },
-  { id: 'eye', name: '护眼' },
-];
-
-const VALID_STYLES = STYLES.map(s => s.id);
-const VALID_MODES = MODES.map(m => m.id);
-const style = ref(VALID_STYLES.includes(localStorage.getItem('sxy_style')) ? localStorage.getItem('sxy_style') : 'classic');
-const mode = ref(VALID_MODES.includes(localStorage.getItem('sxy_mode')) ? localStorage.getItem('sxy_mode') : 'light');
+const theme = useThemeStore();
 const showSettings = ref(false);
-
-function apply() {
-  const el = document.documentElement;
-  el.setAttribute('data-style', style.value);
-  el.setAttribute('data-theme', mode.value);
-}
-const styleLabel = computed(() => STYLES.find(s => s.id === style.value)?.name || '经典');
-const modeLabel = computed(() => MODES.find(m => m.id === mode.value)?.name || '白天');
-watch([style, mode], () => { localStorage.setItem('sxy_style', style.value); localStorage.setItem('sxy_mode', mode.value); apply(); });
 
 const navItems = [
   { path: '/', label: '卡片', icon: '🗂️' },
@@ -89,7 +63,7 @@ function fabMove(e) {
 function fabUp() { fDrag = false; if (!fMoved) showSettings.value = !showSettings.value; }
 
 onMounted(() => {
-  apply();
+  theme.apply();
   window.addEventListener('beforeinstallprompt', onBeforeInstall);
   if (!localStorage.getItem('sxy_onboarding_done')) beginOnboarding();
 });
@@ -98,7 +72,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
 
 <template>
   <div class="app-shell" :class="{ 'no-anim': degraded }">
-    <NavBar :variant="style" :navItems="navItems" />
+    <NavBar :variant="theme.style" :navItems="navItems" />
 
     <main class="app-main">
       <router-view v-slot="{ Component }">
@@ -112,9 +86,6 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
     <button ref="fabEl" class="settings-fab no-print" :style="fabPos ? { left: fabPos.left + 'px', top: fabPos.top + 'px', right: 'auto' } : {}"
       @pointerdown="fabDown" @pointermove="fabMove" @pointerup="fabUp" @pointercancel="fabUp">🎨</button>
 
-    <div class="toast-wrap">
-      <div v-for="t in toasts" :key="t.id" class="toast" :class="t.type">{{ t.message }}</div>
-    </div>
     <div v-if="degraded" class="hint" style="position:fixed;bottom:8px;right:12px;z-index:200">已启用性能优化模式</div>
     <FloatAssistant />
     <Intro v-if="showIntro" @done="onIntroEnd" />
@@ -127,12 +98,12 @@ onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBefore
           <h3 style="margin-top:0">界面风格与配色</h3>
           <div class="field-label">配色模式（全局通用，适用于每一种风格）</div>
           <div class="mode-row">
-            <button v-for="m in MODES" :key="m.id" class="chip" :class="{ on: mode === m.id }" @click="mode = m.id">{{ m.name }}</button>
+            <button v-for="m in MODES" :key="m.id" class="chip" :class="{ on: theme.mode === m.id }" @click="theme.setMode(m.id)">{{ m.name }}</button>
           </div>
 
           <div class="field-label">界面风格（布局 / 交互 / 质感差异）</div>
           <div class="style-grid">
-            <div v-for="s in STYLES" :key="s.id" class="style-card" :class="{ on: style === s.id }" @click="style = s.id">
+            <div v-for="s in STYLES" :key="s.id" class="style-card" :class="{ on: theme.style === s.id }" @click="theme.setStyle(s.id)">
               <div class="style-icon">{{ s.icon }}</div>
               <div class="style-name">{{ s.name }}</div>
               <div class="style-desc">{{ s.desc }}</div>

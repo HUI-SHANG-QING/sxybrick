@@ -108,7 +108,7 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
     <div class="panel">
       <div class="panel-title">手动同步（数据包文件）</div>
       <p class="hint" style="margin-top:0">
-        导出一份数据包文件，包含<b>全部模块数据</b>：卡片、复习记录、图片、AI 对话（AI 问答 + 费曼 + Agent 工作台）、Agent 记忆、备忘录、学习计划、知识图谱、AI 文档、番茄专注记录。通过微信/QQ/网盘发到另一台设备导入即可。
+        导出一份数据包文件，包含<b>全部模块数据</b>：卡片、复习记录、图片、AI 对话（AI 问答 + 费曼 + Agent 工作台）、Agent 记忆、备忘录、学习计划、知识图谱、AI 文档、番茄专注记录、每日目标与打卡。通过微信/QQ/网盘发到另一台设备导入即可。
       </p>
       <div v-if="lastBackup" class="hint" style="margin-bottom:8px">上次备份：{{ fmt(lastBackup.at) }}</div>
       <div v-else class="hint" style="margin-bottom:8px;color:var(--amber)">⚠ 尚未备份过，建议定期导出数据包，防止数据丢失</div>

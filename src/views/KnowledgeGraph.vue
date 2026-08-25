@@ -86,15 +86,15 @@ const clusters = computed(() => {
 });
 
 async function saveGenerated() {
-  let n = 0;
+  let n = 0, skipped = 0;
   for (const e of generatedEdges.value) {
     const fn = generatedNodes.value.find(x => x.id === e.from);
     const tn = generatedNodes.value.find(x => x.id === e.to);
     if (!fn || !tn) continue;
-    await createGraphEdge({ from: fn.label, to: tn.label, label: e.label, subject: fn.subject || tn.subject || '' });
-    n++;
+    const created = await createGraphEdge({ from: fn.label, to: tn.label, label: e.label, subject: fn.subject || tn.subject || '' });
+    if (created) n++; else skipped++; // repo 层已去重：重复边返回 null，不会污染知识库
   }
-  toast(`已保存 ${n} 条关联到知识库（可跨设备同步）`, 'success');
+  toast(skipped ? `已保存 ${n} 条关联，跳过 ${skipped} 条重复（可跨设备同步）` : `已保存 ${n} 条关联到知识库（可跨设备同步）`, 'success');
   await loadSaved();
 }
 

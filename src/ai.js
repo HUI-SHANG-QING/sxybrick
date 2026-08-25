@@ -75,6 +75,7 @@ export async function saveChat(chat) {
 }
 export async function deleteChat(id) {
   await db.aiChats.delete(id);
+  await db.tombstones.put({ id, kind: 'chat', deletedAt: Date.now() }); // 墓碑：跨设备同步删除
 }
 export function newChat() {
   return { id: uid(), title: '新对话', createdAt: Date.now(), updatedAt: Date.now(), messages: [] };

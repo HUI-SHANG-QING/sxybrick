@@ -1,5 +1,7 @@
 node_modules
 dist
 sync-hub/hub-data.json
+sync-hub/hub-token.txt
+sxybrick-测试数据包-*.json
 .DS_Store
 *.log

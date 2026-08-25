@@ -1,5 +1,7 @@
 <script setup>
-// 番茄钟法：专注/短休/长休 循环；计时状态持久化，切页面或重开后继续走
+// 番茄钟法：专注/短休/长休 循环；计时状态持久化，切页面或重开后继续走。
+// 计时以 endTs（结束时刻）为准而非手数秒数：后台标签页/手机锁屏时浏览器会节流 setInterval，
+// 手数会漂移，用 endTs 计算剩余时间才能保证到点准确。
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { toast } from '../utils/toast.js';
 import { speak } from '../utils/tts.js';
@@ -11,8 +13,12 @@ const mode = ref('focus');
 const left = ref(MODES.focus);
 const running = ref(false);
 let timer = null;
-const doneToday = ref(parseInt(localStorage.getItem('sxy_pomo') || '0'));
-const focusStreak = ref(0);
+let endTs = 0; // 本轮结束时间戳（唯一计时事实来源；开始时刻 = endTs - 本轮时长）
+const doneToday = ref(0); // 今日完成番茄数，从 db 推导（跨天自动重置，跨设备同步）
+
+// 多标签页协调：同一台设备的两个标签页都开着番茄钟时，防止重复计时/重复入账
+let bc = null;
+let lastPeerFinish = 0;
 
 const total = computed(() => MODES[mode.value]);
 const progress = computed(() => total.value ? 1 - left.value / total.value : 0);
@@ -22,33 +28,72 @@ const ringColor = computed(() => mode.value === 'focus' ? 'var(--accent)' : 'var
 const modeLabel = computed(() => mode.value === 'focus' ? '专注' : mode.value === 'short' ? '短休息' : '长休息');
 
 function fmt(s) { const m = Math.floor(s / 60), sec = s % 60; return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`; }
+
 function saveState() {
   localStorage.setItem(STATE_KEY, JSON.stringify({
     mode: mode.value, left: left.value, running: running.value,
-    endTs: running.value ? Date.now() + left.value * 1000 : 0,
+    endTs: running.value ? endTs : 0,
   }));
 }
-function stop() { clearInterval(timer); running.value = false; saveState(); }
-function switchMode(m) { stop(); mode.value = m; left.value = MODES[m]; saveState(); }
-function start() { if (running.value) return; running.value = true; saveState(); timer = setInterval(tick, 1000); }
-function resetCur() { stop(); left.value = MODES[mode.value]; saveState(); }
+
+function stop() {
+  clearInterval(timer);
+  timer = null;
+  running.value = false;
+  left.value = Math.max(0, Math.ceil((endTs - Date.now()) / 1000));
+  saveState();
+}
+
+function start() {
+  if (running.value) return;
+  running.value = true;
+  endTs = Date.now() + left.value * 1000; // 以当前剩余时间为本轮时长（暂停恢复后自动顺延）
+  saveState();
+  timer = setInterval(tick, 1000);
+}
+
+function switchMode(m) {
+  stop();
+  mode.value = m;
+  left.value = MODES[m];
+  endTs = 0;
+  saveState();
+}
+
+function resetCur() {
+  stop();
+  left.value = MODES[mode.value];
+  saveState();
+}
 
 function tick() {
-  left.value--;
+  if (!running.value) return;
+  // 从 endTs 反推剩余时间：即使 setInterval 被后台节流/锁屏暂停，回来也是准的
+  left.value = Math.max(0, Math.ceil((endTs - Date.now()) / 1000));
   if (left.value <= 0) { stop(); finish(); } else saveState();
 }
 
-function finish() {
+async function finish() {
   if (mode.value === 'focus') {
-    doneToday.value++; localStorage.setItem('sxy_pomo', doneToday.value);
-    addPomoSession({ duration: 25 }).catch(() => {}); // 入库，随数据包同步
-    focusStreak.value++;
+    const focusStartedAt = endTs - MODES.focus * 1000; // 真正开始时刻（跨天归属正确）
+    if (Date.now() - lastPeerFinish < 5000) {
+      // 另一标签页刚刚完成并已入账：本页不重复记
+    } else {
+      bc?.postMessage({ type: 'pomo-finish', at: Date.now() });
+      await addPomoSession({ duration: 25, startedAt: focusStartedAt, tag: '' }); // 入库，随数据包同步
+    }
+    await refreshDone();
     toast('专注完成，休息一下！', 'success'); speak('专注完成，休息一下吧');
-    switchMode(focusStreak.value % 4 === 0 ? 'long' : 'short');
+    // 每 4 个专注一个长休（用今日总数判断，跨页面/跨天一致）
+    switchMode(doneToday.value % 4 === 0 ? 'long' : 'short');
   } else {
     toast('休息结束，继续加油！', 'success'); speak('休息结束，继续加油');
     switchMode('focus');
   }
+}
+
+async function refreshDone() {
+  try { doneToday.value = await countPomoToday(); } catch {}
 }
 
 function restore() {
@@ -57,20 +102,53 @@ function restore() {
     if (!s) return;
     mode.value = s.mode || 'focus';
     if (s.running && s.endTs) {
-      const remain = Math.floor((s.endTs - Date.now()) / 1000);
-      if (remain > 0) { left.value = remain; running.value = false; start(); }
-      else { left.value = 0; finish(); }
+      const remain = Math.ceil((s.endTs - Date.now()) / 1000);
+      if (remain > 0) {
+        left.value = remain;
+        endTs = s.endTs;
+        running.value = false; // 交给 start() 统一建计时器
+        start();
+      } else {
+        // 离开期间已到点：结算
+        endTs = s.endTs;
+        left.value = 0;
+        finish();
+      }
     } else {
       left.value = (typeof s.left === 'number' ? s.left : MODES[mode.value]);
+      if (left.value < 0 || left.value > MODES[mode.value]) left.value = MODES[mode.value];
     }
   } catch {}
 }
 
+// 回到前台时立即校准（应对标签页休眠期间的节流）
+function onVisible() {
+  if (document.visibilityState === 'visible' && running.value) tick();
+}
+
 onMounted(async () => {
   restore();
-  try { const n = await countPomoToday(); if (n > 0) { doneToday.value = n; localStorage.setItem('sxy_pomo', String(n)); } } catch {}
+  await refreshDone();
+  // 多标签协调：收到「别的标签页完成专注」→ 本页停掉自己的专注计时，只刷新计数
+  if ('BroadcastChannel' in window) {
+    bc = new BroadcastChannel('sxy_pomo');
+    bc.onmessage = (e) => {
+      const d = e.data || {};
+      if (d.type === 'pomo-finish') {
+        lastPeerFinish = Date.now();
+        if (running.value && mode.value === 'focus') switchMode('short');
+        refreshDone();
+      }
+    };
+  }
+  document.addEventListener('visibilitychange', onVisible);
 });
-onBeforeUnmount(() => { clearInterval(timer); });
+
+onBeforeUnmount(() => {
+  clearInterval(timer);
+  document.removeEventListener('visibilitychange', onVisible);
+  bc?.close();
+});
 </script>
 
 <template>

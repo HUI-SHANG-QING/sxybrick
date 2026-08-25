@@ -1,14 +1,19 @@
 // 局域网同步中枢 —— 在家里的电脑上运行，手机/平板连同一 WiFi 即可一键同步
 // 用法：在 new_card 目录下运行  npm run hub  （或 node sync-hub/hub.js）
 // 作用：
-//   1) 提供 GET/PUT /backup 接口，用「最后修改时间谁新听谁」把多台设备的数据合并到一起；
+//   1) 提供 GET/PUT /backup 接口，与前端共用 src/sync-manifest.js 的合并规则，
+//      把多台设备的数据合并到一起（卡片=内容/SRS 双时间戳，其余=updatedAt 或 id 幂等，删除走墓碑）；
 //   2) 同时把打包好的前端（dist/）直接提供出来，手机浏览器打开 http://<电脑IP>:4780 即用。
 import { createServer } from 'node:http';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { randomBytes } from 'node:crypto';
+import {
+  BACKUP_VERSION, SYNC_TABLES,
+  mergeRows, mergeTombstones, applyTombstones,
+} from '../src/sync-manifest.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST = join(__dirname, '..', 'dist');
@@ -36,85 +41,76 @@ const MIME = {
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
 };
 
+function emptyData() {
+  const out = { tombstones: [], streakMeta: null };
+  for (const t of SYNC_TABLES) out[t.table] = [];
+  return out;
+}
+
 function loadData() {
-  if (!existsSync(DATA_FILE)) return { cards: [], reviews: [], tombstones: [], images: [] };
-  try { return JSON.parse(readFileSync(DATA_FILE, 'utf8')); }
-  catch { return { cards: [], reviews: [], tombstones: [], images: [] }; }
+  if (!existsSync(DATA_FILE)) return emptyData();
+  try {
+    const raw = JSON.parse(readFileSync(DATA_FILE, 'utf8'));
+    return { ...emptyData(), ...raw }; // 旧版本数据文件缺新表时自动补齐空数组
+  } catch {
+    return emptyData();
+  }
 }
 
+// 原子写入：先写临时文件再改名，避免写入中途崩溃损坏数据文件
 function saveData(data) {
-  writeFileSync(DATA_FILE, JSON.stringify(data));
+  const tmp = DATA_FILE + '.tmp';
+  writeFileSync(tmp, JSON.stringify(data));
+  renameSync(tmp, DATA_FILE);
 }
 
-// 全量合并：卡片按 updatedAt 谁新听谁；墓碑按 deletedAt 谁新听谁；复习/图片按 id 幂等
+// 提取正文中的 sxy-img:// 图片 id（hub 运行于 Node，不能 import 浏览器模块，此处内联同款正则）
+function imageIdsOf(card) {
+  const ids = [];
+  const re = /sxy-img:\/\/([0-9a-fA-F-]+)/g;
+  const text = `${card.front || ''}\n${card.back || ''}`;
+  let m;
+  while ((m = re.exec(text))) ids.push(m[1]);
+  return ids;
+}
+
+// 全量合并：与前端 importBackup 共用 sync-manifest 的纯函数，保证两端合并语义一致
 function merge(base, incoming) {
-  const cards = new Map(base.cards.map(c => [c.id, c]));
-  for (const c of incoming.cards || []) {
-    const cur = cards.get(c.id);
-    if (!cur || (c.updatedAt || 0) >= (cur.updatedAt || 0)) cards.set(c.id, c);
+  const out = {};
+  out.tombstones = mergeTombstones(base.tombstones, incoming.tombstones);
+  for (const t of SYNC_TABLES) {
+    out[t.table] = mergeRows(base[t.table], incoming[t.table], t.merge);
   }
-  const tombstones = new Map((base.tombstones || []).map(t => [t.id, t]));
-  for (const t of incoming.tombstones || []) {
-    const cur = tombstones.get(t.id);
-    if (!cur || (t.deletedAt || 0) >= (cur.deletedAt || 0)) tombstones.set(t.id, t);
+
+  // 卡片：应用墓碑（删除跨设备传播）+ 级联清理复习记录与孤儿图片 + 复活卡清除墓碑
+  const cardRes = applyTombstones(out.cards, out.tombstones, 'card');
+  out.cards = cardRes.rows;
+  out.tombstones = out.tombstones.filter(t => !cardRes.stale.includes(t.id));
+  if (cardRes.removed.length) {
+    const alive = new Set(out.cards.map(c => c.id));
+    out.reviews = (out.reviews || []).filter(r => alive.has(r.cardId));
+    const used = new Set();
+    for (const c of out.cards) for (const id of imageIdsOf(c)) used.add(id);
+    out.images = (out.images || []).filter(i => used.has(i.id));
   }
-  const byId = (baseArr, incArr) => {
-    const m = new Map((baseArr || []).map(x => [x.id, x]));
-    for (const x of incArr || []) if (!m.has(x.id)) m.set(x.id, x);
-    return m;
-  };
-  // AI 对话：按 updatedAt 谁新听谁
-  const aiChats = new Map((base.aiChats || []).map(c => [c.id, c]));
-  for (const c of incoming.aiChats || []) {
-    const cur = aiChats.get(c.id);
-    if (!cur || (c.updatedAt || 0) >= (cur.updatedAt || 0)) aiChats.set(c.id, c);
+
+  // 其余各表：应用墓碑（备忘/计划/图谱边/文档/对话/记忆的删除跨设备传播）
+  for (const t of SYNC_TABLES) {
+    if (t.kind === 'card') continue;
+    const res = applyTombstones(out[t.table] || [], out.tombstones, t.kind);
+    out[t.table] = res.rows;
   }
-  // Agent 记忆：按 updatedAt 谁新听谁
-  const aiMemories = new Map((base.aiMemories || []).map(m => [m.id, m]));
-  for (const m of incoming.aiMemories || []) {
-    const cur = aiMemories.get(m.id);
-    if (!cur || (m.updatedAt || 0) >= (cur.updatedAt || 0)) aiMemories.set(m.id, m);
-  }
-  // 备忘录：按 id 谁新听谁
-  const memos = new Map((base.memos || []).map(m => [m.id, m]));
-  for (const m of incoming.memos || []) {
-    const cur = memos.get(m.id);
-    if (!cur || (m.updatedAt || 0) >= (cur.updatedAt || 0)) memos.set(m.id, m);
-  }
-  // 通用「按 id 幂等 + updatedAt 谁新听谁」合并器（学习计划/图谱边/AI文档/番茄专注）
-  const mergeUpdated = (baseArr, incArr) => {
-    const m = new Map((baseArr || []).map(x => [x.id, x]));
-    for (const x of incArr || []) {
-      const cur = m.get(x.id);
-      if (!cur || (x.updatedAt ?? x.createdAt ?? 0) >= (cur.updatedAt ?? cur.createdAt ?? 0)) m.set(x.id, x);
-    }
-    return [...m.values()];
-  };
-  const plans = mergeUpdated(base.plans, incoming.plans);
-  const graphEdges = mergeUpdated(base.graphEdges, incoming.graphEdges);
-  const docs = mergeUpdated(base.docs, incoming.docs);
-  const pomoSessions = mergeUpdated(base.pomoSessions, incoming.pomoSessions);
+
   // 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
   let streakMeta = base.streakMeta || null;
   if (incoming.streakMeta && (!streakMeta || (incoming.streakMeta.updatedAt || 0) >= (streakMeta.updatedAt || 0))) {
     streakMeta = incoming.streakMeta;
   }
-  return {
-    cards: [...cards.values()],
-    tombstones: [...tombstones.values()],
-    reviews: [...byId(base.reviews, incoming.reviews).values()],
-    images: [...byId(base.images, incoming.images).values()],
-    aiChats: [...aiChats.values()],
-    aiMemories: [...aiMemories.values()],
-    memos: [...memos.values()],
-    plans,
-    graphEdges,
-    docs,
-    pomoSessions,
-    streakMeta,
-  };
+  out.streakMeta = streakMeta;
+  return out;
 }
 
 function readBody(req) {
@@ -122,7 +118,8 @@ function readBody(req) {
     const chunks = [];
     req.on('data', c => chunks.push(c));
     req.on('end', () => {
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || 'null')); }
+      if (!chunks.length) return resolve(null);
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
       catch (e) { reject(e); }
     });
     req.on('error', reject);
@@ -135,8 +132,11 @@ function json(res, code, obj) {
 }
 
 function serveStatic(res, pathname) {
-  // 防目录穿越，归档到 dist 目录内
-  let p = normalize(join(DIST, pathname === '/' ? 'index.html' : pathname));
+  // 防目录穿越，归档到 dist 目录内。
+  // 打包产物 base 为 /sxybrick/（GitHub Pages 用），本地中枢直接提供 dist 时把该前缀剥掉，
+  // 否则手机会因资源路径不匹配而 404、应用白屏。
+  const rel = pathname.replace(/^\/sxybrick\b/, '');
+  let p = normalize(join(DIST, (!rel || rel === '/') ? 'index.html' : rel));
   if (!p.startsWith(DIST)) p = join(DIST, 'index.html');
   if (!existsSync(p) || extname(p) === '') p = join(DIST, 'index.html'); // SPA 回退
   const body = readFileSync(p);
@@ -148,8 +148,13 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
 
+  // CORS 预检：必须放行 x-sync-token 请求头，否则浏览器会拦截真实的 PUT/GET 请求
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' });
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, x-sync-token',
+    });
     return res.end();
   }
 
@@ -158,7 +163,7 @@ const server = createServer(async (req, res) => {
       return json(res, 401, { error: '同步密码错误，请在 App「同步」页填写正确密码' });
     }
     if (req.method === 'GET') {
-      return json(res, 200, { version: 1, app: 'sxybrick', exportedAt: Date.now(), ...loadData() });
+      return json(res, 200, { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), ...loadData() });
     }
     if (req.method === 'PUT') {
       try {
@@ -166,7 +171,7 @@ const server = createServer(async (req, res) => {
         if (!incoming || incoming.app !== 'sxybrick') return json(res, 400, { error: '无效数据包' });
         const merged = merge(loadData(), incoming);
         saveData(merged);
-        return json(res, 200, { version: 1, app: 'sxybrick', exportedAt: Date.now(), ...merged });
+        return json(res, 200, { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), ...merged });
       } catch (e) { return json(res, 400, { error: e.message }); }
     }
     return json(res, 405, { error: 'method not allowed' });

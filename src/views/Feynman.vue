@@ -4,7 +4,7 @@ import { ref, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
 import { db, uid } from '../db.js';
 import { getSubjects, getTags, getStats, weakCards } from '../repo.js';
-import { chatAI, hasAIKey, saveChat, listChats, deleteChat } from '../ai.js';
+import { chatAI, hasAIKey, saveChat, listChats, deleteChat, getChat } from '../ai.js';
 import { getCardAnalytics } from '../agent/analytics.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import { speak } from '../utils/tts.js';
@@ -106,7 +106,7 @@ async function start() {
   messages.value = [];
   loading.value = true;
   try {
-    const ctx = await buildFeynmanContext(cards);
+    const ctx = await getContext(cards); // 上下文构建一次并缓存，后续每轮对话复用（弱设备不卡顿）
     const reply = await chatAI([
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
       { role: 'user', content: '开始吧，先看看我最薄弱的点，出第一道题。' },
@@ -114,6 +114,20 @@ async function start() {
     messages.value.push({ role: 'assistant', content: reply }); if (voiceOn.value) speak(reply);
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; scroll(); await persistSession(); }
+}
+
+// 上下文缓存：仅在「开始练习」或筛选条件变化时重建（与会话绑定）
+let ctxCache = '';
+let ctxKey = '';
+function ctxSignature(cards) {
+  return `${allMode.value}|${[...selSubjects.value].sort().join(',')}|${[...selTags.value].sort().join(',')}|${logic.value}|${cards.length}`;
+}
+async function getContext(cards) {
+  const key = ctxSignature(cards);
+  if (ctxCache && key === ctxKey) return ctxCache;
+  ctxKey = key;
+  ctxCache = await buildFeynmanContext(cards);
+  return ctxCache;
 }
 
 async function send() {
@@ -125,7 +139,7 @@ async function send() {
   scroll();
   try {
     const cards = filterCards(await db.cards.toArray());
-    const ctx = await buildFeynmanContext(cards);
+    const ctx = await getContext(cards);
     const reply = await chatAI([
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
       ...messages.value,
@@ -168,7 +182,9 @@ function selectSession(id) {
 }
 async function persistSession() {
   if (!currentId.value) return;
-  await saveChat({ id: currentId.value, type: 'feynman', title: '费曼练习', messages: messages.value, createdAt: Date.now() });
+  // createdAt 只设一次：会话排序与跨设备合并都依赖它，不能每次保存都刷新
+  const old = await getChat(currentId.value);
+  await saveChat({ id: currentId.value, type: 'feynman', title: '费曼练习', messages: messages.value, createdAt: old?.createdAt || Date.now() });
   localStorage.setItem('sxy_last_feynman', currentId.value);
   await loadSessions();
 }
@@ -215,7 +231,7 @@ onMounted(async () => {
         </div>
         <div class="field-label">标签</div>
         <div class="row">
-          <button v-for="t in allTags.slice(0, 16)" :key="t.name" class="chip" :class="{ on: selTags.includes(t.name) }" @click="toggleTag(t.name)">{{ t.name }}</button>
+          <button v-for="t in allTags" :key="t.name" class="chip" :class="{ on: selTags.includes(t.name) }" @click="toggleTag(t.name)">{{ t.name }}</button>
           <select v-if="selTags.length" v-model="logic" class="input" style="width:auto">
             <option value="AND">交集（同时含）</option>
             <option value="OR">并集（含任一）</option>

@@ -1,38 +1,44 @@
 // 系统导出 / 导入（跨设备手动同步）
-// 导出：把所有数据（卡片 + 复习记录 + 删除墓碑 + 图片）打包成一个 JSON 文件
-// 导入：按「最后修改时间谁新听谁」合并，删除用墓碑传播，图片按 id 幂等写入
+// 导出：把所有数据打包成一个 JSON 文件（表清单见 sync-manifest.js，自动覆盖全部模块）
+// 导入：按策略合并（卡片=内容/SRS 双时间戳字段级；其他=updatedAt 或 id 幂等），
+//       删除经「墓碑」跨设备传播，图片按 id 幂等写入
 import { db } from './db.js';
 import { base64ToBlob, blobToBase64, extractImageIds } from './images.js';
+import {
+  BACKUP_VERSION, SYNC_TABLES,
+  mergeRows, mergeTombstones, applyTombstones, kindOf,
+} from './sync-manifest.js';
 
-export const BACKUP_VERSION = 3;
+export { BACKUP_VERSION };
 
 export async function countData() {
-  const [cards, reviews, images, aiChats, aiMemories, memos, plans, graphEdges, docs, pomoSessions] = await Promise.all([
-    db.cards.count(), db.reviews.count(), db.images.count(),
-    db.aiChats.count(), db.aiMemories.count(), db.memos.count(),
-    db.plans.count(), db.graphEdges.count(), db.docs.count(), db.pomoSessions.count(),
-  ]);
-  return { cards, reviews, images, aiChats, aiMemories, memos, plans, graphEdges, docs, pomoSessions };
+  const out = {};
+  const rows = await Promise.all(SYNC_TABLES.map(t => db[t.table].count()));
+  SYNC_TABLES.forEach((t, i) => { out[t.table] = rows[i]; });
+  return out;
 }
 
 export async function buildBackup(subject) {
   let cards = await db.cards.toArray();
   if (subject) cards = cards.filter(c => c.subject === subject);
   const cardIds = new Set(cards.map(c => c.id));
-  let reviews = await db.reviews.toArray();
-  if (subject) reviews = reviews.filter(r => cardIds.has(r.cardId));
-  const tombstones = await db.tombstones.toArray();
-  const aiChats = subject ? [] : await db.aiChats.toArray();
-  const aiMemories = subject ? [] : await db.aiMemories.toArray();
-  const memos = subject ? [] : await db.memos.toArray();
-  const plans = subject ? [] : await db.plans.toArray();
-  const graphEdges = subject ? [] : await db.graphEdges.toArray();
-  const docs = subject ? [] : await db.docs.toArray();
-  const pomoSessions = subject ? [] : await db.pomoSessions.toArray();
 
-  // 打卡元数据：每日目标 goal（存 db.meta，随同步走；打卡天数/今日复习由 reviews 推导）
-  const goalMeta = subject ? null : await db.meta.get('goal');
-  const streakMeta = goalMeta ? { goal: goalMeta.value, updatedAt: goalMeta.updatedAt || 0 } : null;
+  const parts = {};
+  for (const t of SYNC_TABLES) {
+    if (t.table === 'cards') parts.cards = cards;
+    else if (t.table === 'reviews') {
+      let reviews = await db.reviews.toArray();
+      if (subject) reviews = reviews.filter(r => cardIds.has(r.cardId));
+      parts.reviews = reviews;
+    } else if (t.table === 'images') {
+      continue; // 图片单独打包：只带被引用图片，且需 base64 编码（不能直接放 Blob）
+    } else {
+      // 科目卡组分享：其他模块数据不带（发给同学的包里只含该科目内容）
+      parts[t.table] = subject ? [] : await db[t.table].toArray();
+    }
+  }
+  // 科目分享包不携带墓碑（同学设备与你的删除历史无关）
+  const tombstones = subject ? [] : await db.tombstones.toArray();
 
   // 收集被打包卡片引用的图片
   const ids = new Set();
@@ -43,7 +49,11 @@ export async function buildBackup(subject) {
     if (row?.blob) images.push({ id, mime: row.mime || 'image/png', data: await blobToBase64(row.blob) });
   }
 
-  return { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), cards, reviews, tombstones, images, aiChats, aiMemories, memos, plans, graphEdges, docs, pomoSessions, streakMeta };
+  // 打卡元数据：每日目标 goal（存 db.meta，随同步走；打卡天数/今日复习由 reviews 推导）
+  const goalMeta = subject ? null : await db.meta.get('goal');
+  const streakMeta = goalMeta ? { goal: goalMeta.value, updatedAt: goalMeta.updatedAt || 0 } : null;
+
+  return { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), tombstones, images, streakMeta, ...parts };
 }
 
 export async function downloadBackup() {
@@ -113,119 +123,85 @@ export async function syncWithHub(hubUrl, token) {
   return importBackup(merged);
 }
 
+// 各表合并 + 墓碑应用（与中枢 hub.js 的 merge 使用同一套 sync-manifest 纯函数，保证两端一致）
 export async function importBackup(backup) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
-  const stats = { cards: 0, reviews: 0, images: 0, overridden: 0, deleted: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0 };
+  const stats = { cards: 0, reviews: 0, overridden: 0, deleted: 0 };
+  for (const t of SYNC_TABLES) if (t.table !== 'cards' && t.table !== 'reviews') stats[t.table] = 0;
 
-  // 1) 卡片：按 updatedAt 最后写入胜出
-  const localCards = new Map((await db.cards.toArray()).map(c => [c.id, c]));
-  for (const c of backup.cards || []) {
-    const local = localCards.get(c.id);
-    if (!local) { await db.cards.put(c); localCards.set(c.id, c); stats.cards++; }
-    else if ((c.updatedAt ?? 0) > (local.updatedAt ?? 0)) { await db.cards.put(c); localCards.set(c.id, c); stats.overridden++; }
+  // 1) 墓碑：按 deletedAt 谁新听谁合并（kind 缺失的旧数据按 card 处理）
+  const tombstones = mergeTombstones(await db.tombstones.toArray(), backup.tombstones || []);
+  for (const t of tombstones) await db.tombstones.put(t);
+
+  // 2) 各数据表按清单策略合并（图片单独处理：base64→Blob 且存在即跳过，避免覆盖本地 Blob）
+  for (const t of SYNC_TABLES) {
+    if (t.table === 'images') continue;
+    const incoming = (backup[t.table] || []).filter(x => x && x.id);
+    if (!incoming.length) continue;
+    const base = await db[t.table].toArray();
+    const baseMap = new Map(base.map(x => [x.id, x]));
+    const merged = mergeRows(base, incoming, t.merge);
+    let added = 0, updated = 0;
+    for (const row of merged) {
+      const old = baseMap.get(row.id);
+      if (!old) { added++; } else {
+        const a = JSON.stringify(old), b = JSON.stringify(row);
+        if (a !== b) updated++;
+      }
+      await db[t.table].put(row);
+    }
+    if (t.table === 'cards') { stats.cards = added; stats.overridden = updated; }
+    else if (t.table === 'reviews') { stats.reviews = added; }
+    else stats[t.table] = added + updated;
   }
 
-  // 2) 删除墓碑：晚删除的生效
-  const localTombs = new Map((await db.tombstones.toArray()).map(t => [t.id, t]));
-  for (const t of backup.tombstones || []) {
-    const lt = localTombs.get(t.id);
-    if (lt && (lt.deletedAt ?? 0) >= (t.deletedAt ?? 0)) continue;
-    const card = await db.cards.get(t.id);
-    if (card && (card.updatedAt ?? 0) <= (t.deletedAt ?? 0)) {
-      await db.cards.delete(t.id);
-      await db.reviews.where('cardId').equals(t.id).delete();
-      localCards.delete(t.id);
+  // 2b) 图片：base64 解码为 Blob 后按 id 幂等写入
+  stats.images = 0;
+  for (const img of backup.images || []) {
+    if (!img || !img.id || !img.data) continue;
+    if (await db.images.get(img.id)) continue;
+    await db.images.put({ id: img.id, blob: base64ToBlob(img.data, img.mime), mime: img.mime || 'image/png', createdAt: Date.now() });
+    stats.images++;
+  }
+
+  // 3) 应用墓碑：删除已在其他设备删除的记录；已「复活」（编辑晚于删除）的记录清除墓碑
+  for (const t of SYNC_TABLES) {
+    if (t.kind === 'card') continue; // 卡片单独处理（需级联清复习/图片）
+    const rows = await db[t.table].toArray();
+    const { removed, stale } = applyTombstones(rows, tombstones, t.kind);
+    for (const id of stale) await db.tombstones.delete(id);
+    for (const id of removed) await db[t.table].delete(id);
+  }
+
+  // 4) 卡片墓碑：删除卡片 + 级联删复习记录 + 清理孤儿图片
+  const cardsNow = await db.cards.toArray();
+  const { removed, stale } = applyTombstones(cardsNow, tombstones, 'card');
+  for (const id of stale) await db.tombstones.delete(id);
+  if (removed.length) {
+    const goneImgIds = new Set();
+    for (const c of cardsNow) {
+      if (!removed.includes(c.id)) continue;
+      for (const i of extractImageIds((c.front || '') + '\n' + (c.back || ''))) goneImgIds.add(i);
+      await db.cards.delete(c.id);
+      await db.reviews.where('cardId').equals(c.id).delete();
       stats.deleted++;
     }
-    await db.tombstones.put(t);
-    localTombs.set(t.id, t);
-  }
-
-  // 3) 清理已「复活」卡片的过期墓碑（最新编辑晚于删除时间）
-  for (const c of localCards.values()) {
-    const tb = localTombs.get(c.id);
-    if (tb && (c.updatedAt ?? 0) > (tb.deletedAt ?? 0)) await db.tombstones.delete(c.id);
-  }
-
-  // 4) 复习记录：按 id 幂等合并
-  for (const r of backup.reviews || []) {
-    if (!(await db.reviews.get(r.id))) { await db.reviews.put(r); stats.reviews++; }
-  }
-
-  // 5) 图片：按 id 幂等写入
-  for (const img of backup.images || []) {
-    if (!(await db.images.get(img.id)) && img.data) {
-      await db.images.put({ id: img.id, blob: base64ToBlob(img.data, img.mime), mime: img.mime || 'image/png', createdAt: Date.now() });
-      stats.images++;
+    if (goneImgIds.size) {
+      const rest = await db.cards.toArray();
+      const used = new Set();
+      for (const c of rest) for (const i of extractImageIds((c.front || '') + '\n' + (c.back || ''))) used.add(i);
+      for (const id of goneImgIds) if (!used.has(id)) await db.images.delete(id);
+    }
+  } else {
+    // 无删除也执行一遍复活清理（兜底旧墓碑）
+    const tombRows = await db.tombstones.toArray();
+    for (const c of cardsNow) {
+      const tb = tombRows.find(t => (kindOf(t)) === 'card' && t.id === c.id);
+      if (tb && (c.updatedAt ?? 0) > (tb.deletedAt ?? 0)) await db.tombstones.delete(c.id);
     }
   }
 
-  // 6) AI 对话：按 id 幂等 + updatedAt 胜出
-  for (const chat of backup.aiChats || []) {
-    const local = await db.aiChats.get(chat.id);
-    if (!local || (chat.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
-      await db.aiChats.put(chat);
-      stats.aiChats++;
-    }
-  }
-
-  // 7) Agent 记忆：按 id 幂等 + updatedAt 胜出
-  for (const m of backup.aiMemories || []) {
-    const local = await db.aiMemories.get(m.id);
-    if (!local || (m.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
-      await db.aiMemories.put(m);
-      stats.aiMemories++;
-    }
-  }
-
-  // 8) 备忘录：按 id 幂等 + updatedAt 胜出
-  for (const m of backup.memos || []) {
-    const local = await db.memos.get(m.id);
-    if (!local || (m.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
-      await db.memos.put(m);
-      stats.memos++;
-    } else if (!m.updatedAt && !local) {
-      await db.memos.put(m);
-      stats.memos++;
-    }
-  }
-
-  // 9) 学习计划：按 id 幂等 + updatedAt 胜出
-  for (const p of backup.plans || []) {
-    const local = await db.plans.get(p.id);
-    if (!local || (p.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
-      await db.plans.put(p);
-      stats.plans++;
-    }
-  }
-
-  // 10) 知识图谱关系：按 id 幂等 + updatedAt 胜出
-  for (const e of backup.graphEdges || []) {
-    const local = await db.graphEdges.get(e.id);
-    if (!local || (e.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
-      await db.graphEdges.put(e);
-      stats.graphEdges++;
-    }
-  }
-
-  // 11) AI 文档：按 id 幂等 + updatedAt 胜出
-  for (const d of backup.docs || []) {
-    const local = await db.docs.get(d.id);
-    if (!local || (d.updatedAt ?? 0) >= (local.updatedAt ?? 0)) {
-      await db.docs.put(d);
-      stats.docs++;
-    }
-  }
-
-  // 12) 番茄专注记录：按 id 幂等合并
-  for (const s of backup.pomoSessions || []) {
-    if (!(await db.pomoSessions.get(s.id))) {
-      await db.pomoSessions.put(s);
-      stats.pomoSessions++;
-    }
-  }
-
-  // 13) 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
+  // 5) 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
   if (backup.streakMeta && typeof backup.streakMeta.goal === 'number') {
     const local = await db.meta.get('goal');
     if (!local || (backup.streakMeta.updatedAt || 0) >= (local.updatedAt || 0)) {

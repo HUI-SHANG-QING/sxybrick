@@ -28,6 +28,7 @@ export async function addMemory(item) {
 /** 删除一条记忆 */
 export async function deleteMemory(id) {
   await db.aiMemories.delete(id);
+  await db.tombstones.put({ id, kind: 'memory', deletedAt: Date.now() }); // 墓碑：跨设备同步删除
 }
 
 /** 把分层记忆拼成注入文本（核心 > 偏好 > 事实） */

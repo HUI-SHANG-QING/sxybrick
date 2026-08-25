@@ -127,7 +127,7 @@ export async function deleteCard(id) {
   if (!old) return;
   const imgIds = [...extractImageIds((old.front || '') + '\n' + (old.back || ''))];
   await db.cards.delete(id);
-  await db.tombstones.put({ id, deletedAt: now() });
+  await db.tombstones.put({ id, kind: 'card', deletedAt: now() });
   await db.reviews.where('cardId').equals(id).delete();
   await cleanupOrphanImages(imgIds);
 }
@@ -197,7 +197,9 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   const difficulty = Number(opts.difficulty ?? card.difficulty ?? 1);
   const wrongReason = opts.wrongReason || card.wrongReason || '';
   const next = computeNext(card, rating, intensity, guessed, { difficulty, wrongReason });
-  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, difficulty, wrongReason, updatedAt: now() });
+  // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt：
+  // 否则跨设备同步时「复习动作」会覆盖另一台设备对卡片文字的编辑（数据丢失）
+  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, difficulty, wrongReason, reviewedAt: now() });
   await db.reviews.put({ id: uid(), cardId, reviewedAt: now(), rating, levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason });
   return { ...next, dueText: formatDue(next.dueAt) };
 }
@@ -389,7 +391,10 @@ export async function addMemo(payload) {
   await db.memos.put(m);
   return m;
 }
-export async function deleteMemo(id) { await db.memos.delete(id); }
+export async function deleteMemo(id) {
+  await db.memos.delete(id);
+  await db.tombstones.put({ id, kind: 'memo', deletedAt: now() }); // 墓碑：跨设备同步删除
+}
 
 // ---------- 学习计划（可持久化、随数据包同步） ----------
 export async function listPlans() {
@@ -414,7 +419,10 @@ export async function updatePlan(id, patch) {
   await db.plans.put(p);
   return p;
 }
-export async function deletePlan(id) { await db.plans.delete(id); }
+export async function deletePlan(id) {
+  await db.plans.delete(id);
+  await db.tombstones.put({ id, kind: 'plan', deletedAt: now() }); // 墓碑：跨设备同步删除
+}
 
 // ---------- 知识图谱关系（可持久化、随数据包同步） ----------
 export async function listGraphEdges() {
@@ -424,17 +432,25 @@ export async function createGraphEdge(payload) {
   const from = String(payload?.from || '').trim();
   const to = String(payload?.to || '').trim();
   if (!from || !to) throw new Error('关系的两端不能为空');
+  const label = String(payload?.label || '相关').trim();
+  const subject = String(payload?.subject || '').trim();
+  // 去重：同 from/to/label 的边已存在则不重复创建（避免「保存关联」多点几次就产生重复边）
+  const exists = await db.graphEdges.filter(e => e.from === from && e.to === to && (e.label || '相关') === label).first();
+  if (exists) return null;
   const t = now();
   const e = {
     id: uid(), from, to,
-    label: String(payload?.label || '相关').trim(),
-    subject: String(payload?.subject || '').trim(),
+    label,
+    subject,
     createdAt: t, updatedAt: t,
   };
   await db.graphEdges.put(e);
   return e;
 }
-export async function deleteGraphEdge(id) { await db.graphEdges.delete(id); }
+export async function deleteGraphEdge(id) {
+  await db.graphEdges.delete(id);
+  await db.tombstones.put({ id, kind: 'graphEdge', deletedAt: now() }); // 墓碑：跨设备同步删除
+}
 
 // ---------- AI 文档（可持久化、随数据包同步） ----------
 export async function listDocs() {
@@ -464,7 +480,10 @@ export async function updateDoc(id, patch) {
   await db.docs.put(d);
   return d;
 }
-export async function deleteDoc(id) { await db.docs.delete(id); }
+export async function deleteDoc(id) {
+  await db.docs.delete(id);
+  await db.tombstones.put({ id, kind: 'doc', deletedAt: now() }); // 墓碑：跨设备同步删除
+}
 
 // ---------- 番茄专注记录（可持久化、随数据包同步） ----------
 export async function addPomoSession(payload) {
