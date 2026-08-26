@@ -195,11 +195,12 @@ function selectSession(id) {
 }
 async function persistSession() {
   if (!currentId.value) return;
-  // createdAt 只设一次：会话排序与跨设备合并都依赖它，不能每次保存都刷新
-  const old = await getChat(currentId.value);
-  await saveChat({ id: currentId.value, type: 'feynman', title: '费曼练习', messages: messages.value, createdAt: old?.createdAt || Date.now() });
-  localStorage.setItem('sxy_last_feynman', currentId.value);
-  await loadSessions();
+  try {
+    const old = await getChat(currentId.value);
+    await saveChat({ id: currentId.value, type: 'feynman', title: '费曼练习', messages: messages.value, createdAt: old?.createdAt || Date.now() });
+    localStorage.setItem('sxy_last_feynman', currentId.value);
+    await loadSessions();
+  } catch (e) { toast('会话保存失败：' + e.message, 'error'); }
 }
 async function removeSession(id) {
   if (!confirm('删除这个费曼会话？')) return;

@@ -266,10 +266,12 @@ function removeSel() {
 }
 async function saveMap() {
   if (!current.value) return;
-  await updateMindmap(current.value.id, { title: current.value.title, root: current.value.root });
-  dirty.value = false;
-  await list();
-  toast('导图已保存（可跨设备同步）', 'success');
+  try {
+    await updateMindmap(current.value.id, { title: current.value.title, root: current.value.root });
+    dirty.value = false;
+    await list();
+    toast('导图已保存（可跨设备同步）', 'success');
+  } catch (e) { toast('保存失败：' + e.message, 'error'); }
 }
 async function removeMap(m) {
   if (!confirm(`删除导图「${m.title}」？`)) return;

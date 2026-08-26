@@ -33,6 +33,7 @@ function openEdit(d) {
 async function save() {
   if (!title.value.trim() && !content.value.trim()) { toast('标题或内容不能都为空', 'error'); return; }
   const tagArr = tags.value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
+  try {
   if (editing.value) {
     await updateDoc(editing.value.id, { title: title.value, content: content.value, type: type.value, tags: tagArr });
     toast('文档已更新', 'success');
@@ -41,6 +42,7 @@ async function save() {
     toast('文档已创建', 'success');
   }
   showForm.value = false; await load();
+  } catch (e) { toast('保存失败：' + e.message, 'error'); }
 }
 async function remove(d) { if (!confirm('删除这个文档？')) return; await deleteDoc(d.id); if (activeId.value === d.id) activeId.value = ''; await load(); }
 

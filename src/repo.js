@@ -7,6 +7,8 @@ export const DEFAULT_SUBJECTS = ['计算机网络', '操作系统', '数据结�
 const MAX_CHARS = 8000;
 
 const now = () => Date.now();
+// 剥离 Vue 响应式代理：Dexie put 前转纯对象，避免 reactive proxy 触发 IndexedDB 结构化克隆失败（思维导图等含嵌套对象的表曾因此保存失败）
+const plain = (x) => JSON.parse(JSON.stringify(x));
 
 export function validateCard(body) {
   const front = String(body.front ?? '').trim();
@@ -448,7 +450,7 @@ export async function createPlan(payload) {
 export async function updatePlan(id, patch) {
   const old = await db.plans.get(id);
   if (!old) throw new Error('计划不存在');
-  const p = { ...old, ...(patch || {}), updatedAt: now() };
+  const p = plain({ ...old, ...(patch || {}), updatedAt: now() });
   await db.plans.put(p);
   return p;
 }
@@ -509,7 +511,7 @@ export async function createDoc(payload) {
 export async function updateDoc(id, patch) {
   const old = await db.docs.get(id);
   if (!old) throw new Error('文档不存在');
-  const d = { ...old, ...(patch || {}), updatedAt: now() };
+  const d = plain({ ...old, ...(patch || {}), updatedAt: now() });
   await db.docs.put(d);
   return d;
 }
@@ -553,14 +555,14 @@ export async function createMindmap(payload) {
     ? payload.root
     : { id: uid(), label: String(payload?.rootLabel || '中心主题').trim() || '中心主题', children: [] };
   const t = now();
-  const m = { id: uid(), title, root, createdAt: t, updatedAt: t };
+  const m = { id: uid(), title, root: plain(root), createdAt: t, updatedAt: t };
   await db.mindmaps.put(m);
   return m;
 }
 export async function updateMindmap(id, patch) {
   const old = await db.mindmaps.get(id);
   if (!old) throw new Error('导图不存在');
-  const m = { ...old, ...(patch || {}), updatedAt: now() };
+  const m = plain({ ...old, ...(patch || {}), updatedAt: now() });
   await db.mindmaps.put(m);
   return m;
 }
@@ -640,7 +642,7 @@ export async function deleteExam(id) {
 export async function updateExam(id, patch) {
   const old = await db.exams.get(id);
   if (!old) throw new Error('成绩不存在');
-  const e = { ...old, ...(patch || {}), updatedAt: now() };
+  const e = plain({ ...old, ...(patch || {}), updatedAt: now() });
   await db.exams.put(e);
   return e;
 }

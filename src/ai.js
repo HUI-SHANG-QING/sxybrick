@@ -71,7 +71,9 @@ export async function getChat(id) {
   return (await db.aiChats.get(id)) || null;
 }
 export async function saveChat(chat) {
-  await db.aiChats.put({ ...chat, updatedAt: Date.now() });
+  // 剥离 Vue 响应式代理：messages 是 ref 数组，直接 put 会触发 IndexedDB 结构化克隆失败（费曼/AI 历史曾因此丢失）
+  const plain = JSON.parse(JSON.stringify(chat));
+  await db.aiChats.put({ ...plain, updatedAt: Date.now() });
 }
 export async function deleteChat(id) {
   await db.aiChats.delete(id);

@@ -59,8 +59,8 @@ async function removeChat(id) {
 }
 
 async function persist() {
-  await saveChat(currentChat.value);
-  await loadChatList();
+  try { await saveChat(currentChat.value); await loadChatList(); }
+  catch (e) { toast('对话保存失败：' + e.message, 'error'); }
 }
 
 async function send() {

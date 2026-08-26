@@ -34,6 +34,7 @@ function openEdit(p) {
 }
 async function save() {
   if (!title.value.trim() && !content.value.trim()) { toast('标题或内容不能都为空', 'error'); return; }
+  try {
   if (editing.value) {
     await updatePlan(editing.value.id, { title: title.value, content: content.value, status: status.value });
     toast('计划已更新', 'success');
@@ -42,6 +43,7 @@ async function save() {
     toast('计划已创建', 'success');
   }
   showForm.value = false; await load();
+  } catch (e) { toast('保存失败：' + e.message, 'error'); }
 }
 async function setStatus(p, s) { await updatePlan(p.id, { status: s }); await load(); }
 async function remove(p) { if (!confirm('删除这个计划？')) return; await deletePlan(p.id); if (activeId.value === p.id) activeId.value = ''; await load(); }
