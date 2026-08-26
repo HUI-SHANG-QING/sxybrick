@@ -1,7 +1,7 @@
 <script setup>
 // 卡片管理页：视图切换、科目/标签筛选、基础+高级搜索、虚拟列表（本地数据）
-import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import VirtualList from '../components/VirtualList.vue';
 import CardModal from '../components/CardModal.vue';
 import EmptyState from '../components/EmptyState.vue';
@@ -14,6 +14,7 @@ import { genVariants } from '../utils/genVariants.js';
 import { getForgetRisk } from '../agent/analytics.js';
 
 const router = useRouter();
+const route = useRoute();
 
 const viewMode = ref(localStorage.getItem('sxy_view') || 'scroll');
 const sortBy = ref(localStorage.getItem('sxy_card_sort') || 'updated');
@@ -78,8 +79,11 @@ async function loadCards() {
       tags: filters.tags, logic: filters.logic,
       sortBy: sortBy.value,
     });
-    items.value = data.items;
-    total.value = data.total;
+    // ?untagged=1：在 listCards 返回结果之上再做一层过滤，保留完全无标签的卡
+    let list = data.items;
+    if (filters._untagged) list = list.filter(c => !c.tags || !c.tags.length);
+    items.value = list;
+    total.value = filters._untagged ? list.length : data.total;
     dueCount.value = data.dueCount;
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; }
@@ -174,8 +178,73 @@ watch(searchInput, v => {
   localStorage.setItem('sxy_card_search', v);
 });
 
-onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); loadSmart(); loadRisk(); });
-// 清理搜索防抖定时器，避免卸载后触发游离 loadCards
+const highlightId = ref('');
+
+/**
+ * 读取 URL 查询参数（搜索结果跳转 / 命令面板跳转 / 科目和标签直链）：
+ *   ?id=xxx      → 自动打开该卡编辑弹窗，并滚动/高亮
+ *   ?subject=xxx → 自动筛选该科目
+ *   ?tag=xxx     → 自动筛选该标签（可重复出现多个）
+ *   ?untagged=1  → 仅显示无标签卡（"无标签卡 N 种"快捷跳转）
+ *   ?q=xxx       → 自动填充关键词搜索
+ */
+async function applyQueryParams() {
+  const id = route.query?.id ? String(route.query.id) : '';
+  const subj = route.query?.subject ? String(route.query.subject) : '';
+  const tags = Array.isArray(route.query?.tag)
+    ? route.query.tag.map(t => String(t).trim()).filter(Boolean)
+    : (route.query?.tag ? [String(route.query.tag).trim()] : []);
+  const untagged = route.query?.untagged === '1' || route.query?.untagged === true;
+  const qp = route.query?.q ? String(route.query.q).trim() : '';
+  let changed = false;
+  if (subj && filters.subject !== subj) { filters.subject = subj; changed = true; }
+  if (tags.length) {
+    const merged = [...new Set([...filters.tags, ...tags])];
+    if (merged.length !== filters.tags.length || merged.some((t, i) => t !== filters.tags[i])) {
+      filters.tags = merged; changed = true;
+    }
+  }
+  if (untagged) {
+    // 仅显示无标签卡：筛掉 tags 非空的卡，走 q 里注入 "无标签" 语义并在后处理补
+    // 这里直接在过滤器里追加 notag 专用逻辑，改 filters.q 会影响用户体验
+    filters.logic = 'NOT';
+    // 用一个特殊 tag 占位：虚拟列表里 tag 过滤逻辑会正常工作，
+    // 我们把 untagged 过滤在 listCards 外面的 postFilter 里处理更简单；
+    // 为此把 untagged 写入 filters，让 listCards 识别。
+    filters._untagged = true;
+    changed = true;
+  } else if (filters._untagged) {
+    delete filters._untagged;
+  }
+  if (qp && filters.q !== qp) { filters.q = qp; searchInput.value = qp; changed = true; }
+  if (changed) {
+    saveCardFilters();
+    await loadCards();
+  }
+  // 如果指定了 id，在加载完卡列表后自动打开该卡
+  if (id) {
+    await nextTick();
+    let target = items.value.find(c => c.id === id);
+    if (!target) {
+      // 不在当前筛选结果中：尝试直接从 IndexedDB 查找该卡
+      target = await db.cards.get(id);
+    }
+    if (target) {
+      highlightId.value = id;
+      editing.value = target;
+      modalOpen.value = true;
+      setTimeout(() => { highlightId.value = ''; }, 2500);
+    }
+  }
+}
+
+onMounted(async () => {
+  await loadMeta();
+  await loadCards();
+  await Promise.all([loadSuggestion(), loadStreak(), loadSmart(), loadRisk()]);
+  await applyQueryParams();
+});
+// 清理搜索防抖定时器，避免卸载后触发游离 searchTimer
 onBeforeUnmount(() => { clearTimeout(searchTimer); });
 
 // ---- 批量建卡（P0 效率包）：粘贴文本按行拆成卡片 ----

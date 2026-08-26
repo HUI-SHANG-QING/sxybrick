@@ -1,7 +1,7 @@
 <script setup>
 // 通知铃铛：主动智能体推送的建议/提醒入口。
 // 浮动在右上角（紧邻设置 FAB 左侧），跨主题通用，使用 CSS 变量适配所有风格。
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   listNotifications,
@@ -19,6 +19,61 @@ const unread = ref(0);
 const list = ref([]);
 const loading = ref(false);
 
+// 可拖动：位置存 localStorage；用 moved 标志区分拖动/点击（拖动不触发 toggle）
+const DRAG_KEY = 'sxy_nb_pos';
+function loadPos() {
+  try {
+    const p = JSON.parse(localStorage.getItem(DRAG_KEY) || 'null');
+    if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) return p;
+  } catch {}
+  return null;
+}
+const bellStyle = reactive({});
+function clampPos(x, y) {
+  const mx = window.innerWidth - 52, my = window.innerHeight - 52;
+  return { x: Math.max(8, Math.min(mx, x)), y: Math.max(8, Math.min(my, y)) };
+}
+function applyPos() {
+  const p = loadPos();
+  if (!p) { bellStyle.left = undefined; bellStyle.top = undefined; bellStyle.right = undefined; bellStyle.bottom = undefined; return; }
+  const c = clampPos(p.x, p.y);
+  bellStyle.position = 'fixed';
+  bellStyle.left = c.x + 'px'; bellStyle.top = c.y + 'px';
+  bellStyle.right = 'auto'; bellStyle.bottom = 'auto';
+}
+const bellEl = ref(null);
+let dragging = false, moved = false, startX = 0, startY = 0, origX = 0, origY = 0;
+function onBellDown(e) {
+  const pt = e.touches ? e.touches[0] : e;
+  dragging = true; moved = false;
+  startX = pt.clientX; startY = pt.clientY;
+  const rect = bellEl.value.getBoundingClientRect();
+  origX = rect.left; origY = rect.top;
+  bellStyle.position = 'fixed'; bellStyle.left = origX + 'px'; bellStyle.top = origY + 'px';
+  bellStyle.right = 'auto'; bellStyle.bottom = 'auto';
+  document.addEventListener('pointermove', onBellMove);
+  document.addEventListener('pointerup', onBellUp, { once: true });
+  document.addEventListener('pointercancel', onBellUp, { once: true });
+}
+function onBellMove(e) {
+  if (!dragging) return;
+  const pt = e.touches ? e.touches[0] : e;
+  const dx = pt.clientX - startX, dy = pt.clientY - startY;
+  if (!moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) moved = true;
+  if (!moved) return;
+  e.preventDefault?.();
+  const c = clampPos(origX + dx, origY + dy);
+  bellStyle.left = c.x + 'px'; bellStyle.top = c.y + 'px';
+}
+function onBellUp() {
+  dragging = false;
+  document.removeEventListener('pointermove', onBellMove);
+  if (bellEl.value) {
+    const r = bellEl.value.getBoundingClientRect();
+    localStorage.setItem(DRAG_KEY, JSON.stringify({ x: r.left, y: r.top }));
+  }
+}
+
 const hasItems = computed(() => list.value.length > 0);
 
 async function refreshUnread() {
@@ -32,6 +87,7 @@ async function loadList() {
 }
 
 async function toggle() {
+  if (moved) { moved = false; return; } // 拖动结束不触发面板
   open.value = !open.value;
   if (open.value) {
     await loadList();
@@ -96,21 +152,33 @@ function closeOnOutside(e) {
 }
 
 onMounted(() => {
+  applyPos();
   refreshUnread();
   pollTimer = setInterval(refreshUnread, 30000);
   document.addEventListener('click', closeOnOutside);
+  window.addEventListener('resize', applyPos);
 });
 onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer);
   document.removeEventListener('click', closeOnOutside);
+  window.removeEventListener('resize', applyPos);
+  document.removeEventListener('pointermove', onBellMove);
 });
 
 defineExpose({ refreshUnread, loadList });
 </script>
 
 <template>
-  <div class="nb-root no-print">
-    <button class="nb-bell" :class="{ hasunread: unread > 0 }" @click="toggle" :title="unread > 0 ? `${unread} 条未读` : '通知'">
+  <div class="nb-root no-print" :style="bellStyle">
+    <button
+      ref="bellEl"
+      class="nb-bell"
+      :class="{ hasunread: unread > 0, dragging: dragging }"
+      :style="{ cursor: dragging ? 'grabbing' : 'grab' }"
+      @pointerdown="onBellDown"
+      @click="toggle"
+      :title="unread > 0 ? `${unread} 条未读（可拖动）` : '通知（可拖动）'"
+    >
       <span class="nb-icon">🔔</span>
       <span v-if="unread > 0" class="nb-badge">{{ unread > 99 ? '99+' : unread }}</span>
     </button>

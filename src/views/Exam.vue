@@ -1,12 +1,15 @@
 <script setup>
 // 组卷模考（借鉴 Progress AI，纯本地实现）：从卡片库抽题组成简答式试卷，
 // 关键词覆盖判分，成绩自动存档（exams 表，随数据包同步），错题可一键加入错题本
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { db } from '../db.js';
 import { getSubjects, listExams, saveExam, deleteExam, setMarked, updateExam } from '../repo.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { mdToSpeech } from '../utils/tts.js';
 import { toast } from '../utils/toast.js';
+
+const route = useRoute();
 
 const subjects = ref([]);
 const selSubjects = ref([]);
@@ -158,7 +161,13 @@ function linePath(pts) {
   return pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.rate).toFixed(1)}`).join(' ');
 }
 
-onMounted(async () => { subjects.value = await getSubjects(); await loadHistory(); });
+onMounted(async () => {
+  subjects.value = await getSubjects();
+  await loadHistory();
+  // 搜索结果跳转：URL ?id=xxx 自动打开对应模考成绩详情弹窗
+  const id = route.query?.id ? String(route.query.id) : '';
+  if (id) { await nextTick(); const ex = history.value.find(h => h.id === id); if (ex) viewing.value = ex; }
+});
 </script>
 
 <template>

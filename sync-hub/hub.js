@@ -131,16 +131,27 @@ function json(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
+function usbHints(name) {
+  const s = String(name || '').toLowerCase();
+  if (/rndis|usb|android|remote ndis|tether/.test(s)) return '  ← USB/手机USB共享，手机连数据线时优先用这个';
+  if (/hyper-v|virtual|vmware|virtualbox|wsl|loopback/.test(s)) return '  ← 虚拟网卡，手机一般访问不到';
+  if (/wi-fi|wifi|wireless|wlan|802\.11/.test(s)) return '  ← WiFi 网卡，手机需连同一WiFi';
+  if (/ethernet|eth|lan|以太网|local area/.test(s)) return '  ← 有线网卡';
+  return '';
+}
+
 function serveStatic(res, pathname) {
   // 防目录穿越，归档到 dist 目录内。
-  // 打包产物 base 为 /sxybrick/（GitHub Pages 用），本地中枢直接提供 dist 时把该前缀剥掉，
-  // 否则手机会因资源路径不匹配而 404、应用白屏。
   const rel = pathname.replace(/^\/sxybrick\b/, '');
   let p = normalize(join(DIST, (!rel || rel === '/') ? 'index.html' : rel));
   if (!p.startsWith(DIST)) p = join(DIST, 'index.html');
   if (!existsSync(p) || extname(p) === '') p = join(DIST, 'index.html'); // SPA 回退
   const body = readFileSync(p);
-  res.writeHead(200, { 'Content-Type': MIME[extname(p)] || 'application/octet-stream' });
+  res.writeHead(200, {
+    'Content-Type': MIME[extname(p)] || 'application/octet-stream',
+    'Access-Control-Allow-Origin': '*',
+    'Cache-Control': 'no-cache',
+  });
   res.end(body);
 }
 
@@ -152,10 +163,26 @@ const server = createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS',
+      'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS,HEAD',
       'Access-Control-Allow-Headers': 'Content-Type, x-sync-token',
+      'Access-Control-Max-Age': '3600',
     });
     return res.end();
+  }
+
+  // 健康检查端点：用于同步页「测试连接」快速判断能否访问 Hub，也用于 CORS 预检后的探活
+  if (pathname === '/health' || pathname === '/healthz') {
+    return json(res, 200, {
+      ok: true, app: 'sxybrick-hub', version: BACKUP_VERSION,
+      tokenOk: req.headers['x-sync-token'] === TOKEN,
+      time: Date.now(),
+      tips: [
+        '如手机端浏览器显示无法访问：',
+        '1) 数据线连接电脑时，请在手机端开启「USB 共享网络 / USB 网络共享」，并使用上面标注 USB/RNDIS 的 IP；',
+        '2) Windows 端请确认已放行本 Hub 程序的「专用网络」防火墙权限（首次启动弹窗要点「允许访问」）；',
+        '3) 若前端部署在 GitHub Pages (HTTPS)，浏览器会阻止 HTTPS 页面调用 HTTP 内网地址（混合内容阻断），请改用本地 npm run hub 提供的 HTTP 页面或手机浏览器直接打开 Hub IP。',
+      ],
+    });
   }
 
   if (pathname === '/backup') {
@@ -182,17 +209,25 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log('\n✅ SxyBrick 局域网同步中枢已启动');
-  console.log(`   端口：${PORT}`);
-  console.log('   手机/平板连同一 WiFi 后，在浏览器打开以下任一地址即可：\n');
+  console.log(`   端口：${PORT}（监听 0.0.0.0，允许同一网段全部设备访问）`);
+  console.log('   下面列了本机全部 IPv4 网卡，请选与你手机/平板同一网段的地址。\n');
   const ifaces = networkInterfaces();
+  let any = false;
   for (const name of Object.keys(ifaces)) {
     for (const it of ifaces[name] || []) {
       if (it.family === 'IPv4' && !it.internal) {
-        console.log(`   http://${it.address}:${PORT}`);
+        any = true;
+        console.log(`   [${name}]  http://${it.address}:${PORT}${usbHints(name)}`);
       }
     }
   }
-  console.log(`   同步密码：${TOKEN}`);
+  if (!any) console.log('   ⚠ 未找到可用 IPv4 网卡，请检查网络连接后重试。');
+  console.log(`\n   同步密码：${TOKEN}`);
   console.log('   在 App「同步」页里，把「电脑端地址」和上面这个「同步密码」都填上，即可安全同步。');
+  console.log('   同步页内置了「测试连接」按钮：先跑一遍探活，再点立即同步。');
+  console.log('\n   💡 USB/数据线连接小贴士：');
+  console.log('   · 安卓：设置 → 连接与共享 → 打开「USB 共享网络」（手机从电脑获取网络，并出现 USB/RNDIS 网卡 IP）。');
+  console.log('   · iPhone：电脑安装 iTunes → 数据线连接 → 设置「个人热点」→ 选择「仅 USB」。');
+  console.log('   · 仍无法访问？请在 Windows 安全中心放防火墙：允许应用通过防火墙 → 勾选 node/npm 的专用/公用网络。');
   if (!existsSync(DIST)) console.log('\n⚠ 尚未找到 dist/，请先运行 npm run build 再访问网页。');
 });

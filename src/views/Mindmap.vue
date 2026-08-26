@@ -283,7 +283,11 @@ const selectedLabel = computed(() => findNode(current.value?.root, selId.value)?
 
 onMounted(async () => {
   await list();
-  if (maps.value.length) openMap(maps.value[0]);
+  // 搜索结果跳转：URL ?id=xxx 自动定位并打开对应导图
+  const id = route.query?.id ? String(route.query.id) : '';
+  const target = id ? maps.value.find(m => m.id === id) : null;
+  if (target) { await nextTick(); openMap(target); }
+  else if (maps.value.length) openMap(maps.value[0]);
 });
 </script>
 

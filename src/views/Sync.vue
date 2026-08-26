@@ -8,10 +8,16 @@ import { getErrors, clearErrors } from '../utils/errorLog.js';
 import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from '../utils/gistBackup.js';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
-const hubUrl = ref(localStorage.getItem('sxy_hub') || location.origin);
+// GH Pages 上 location.origin 是 https://xxx.github.io 且没有 /backup 接口，不能作为 Hub 默认地址。
+// 如果用户没手动填过 Hub，这里不默认使用 location.origin，避免误操作 Fail to fetch。
+const isOnGhPages = /\.github\.io$|pages\.dev|vercel\.app|netlify\.app/.test(location.hostname);
+const defaultHub = isOnGhPages ? '' : (location.protocol === 'https:' ? '' : location.origin);
+const hubUrl = ref(localStorage.getItem('sxy_hub') || defaultHub);
 const hubToken = ref(localStorage.getItem('sxy_hub_token') || '');
 const fileInput = ref(null);
 const syncing = ref(false);
+const testingHub = ref(false);
+const hubStatus = ref(null); // { ok, tips, tokenOk, error }
 const importing = ref(false);
 const lastBackup = ref(null);
 const lastReport = ref(JSON.parse(localStorage.getItem('sxy_last_sync_report') || 'null'));
@@ -152,19 +158,73 @@ async function onFile(e) {
 function saveHub() {
   localStorage.setItem('sxy_hub', hubUrl.value);
   localStorage.setItem('sxy_hub_token', hubToken.value);
+  hubStatus.value = null;
   toast('已保存电脑端地址和密码', 'success');
+}
+
+// 常见错误原因诊断（Fail to fetch / CORS / 混合内容）
+function diagnoseFetchError(msg, url) {
+  const text = String(msg || '').toLowerCase();
+  const hints = [];
+  try {
+    if (url && location.protocol === 'https:' && /^http:\/\//i.test(url)) {
+      hints.push('🚫 当前页面是 HTTPS（如 GitHub Pages），你填的 Hub 是 HTTP：浏览器「混合内容阻断」会直接拒绝请求，表现为「Failed to fetch」。');
+      hints.push('   → 解决：改用手机/平板浏览器直接打开 Hub 地址（http://<电脑IP>:4780），或本地启动前端 npm run dev 再用同步页。');
+    }
+    if (/failed to fetch|networkerror|网络错误|typeerror: failed/.test(text)) {
+      hints.push('💡 其它常见「Failed to fetch」原因：');
+      hints.push('   1) 电脑没启动 npm run hub，或填错端口；');
+      hints.push('   2) Windows 防火墙拦截了 node.exe 的 4780 端口入站请求，需在弹窗选「允许访问」；');
+      hints.push('   3) USB/数据线连接未开启 USB 共享网络 —— 手机设置里打开后再访问 Hub 提示的 RNDIS IP。');
+    }
+    if (/401|密码|token|unauthorized/.test(text)) hints.push('🔐 同步密码不匹配：复制 npm run hub 终端里打印的密码。');
+    if (/404|not found/.test(text)) hints.push('⚠ 响应 404：地址填错了？必须是 http://<IP>:<端口>，不要加子路径。');
+  } catch {}
+  return hints;
+}
+
+async function testHub() {
+  const hub = String(hubUrl.value || '').replace(/\/+$/, '');
+  if (!hub) { toast('请先填写电脑端地址', 'warn'); return; }
+  testingHub.value = true;
+  hubStatus.value = null;
+  try {
+    const res = await fetch(`${hub}/health`, {
+      method: 'GET',
+      headers: hubToken.value ? { 'x-sync-token': hubToken.value } : {},
+    });
+    if (!res.ok) throw new Error(`Hub 返回 HTTP ${res.status}`);
+    const j = await res.json();
+    hubStatus.value = { ok: true, tokenOk: !!j.tokenOk, tips: j.tips || [] };
+    toast(j.tokenOk ? '✅ 已连接，密码正确，可以同步' : '✅ 连接成功，但密码校验未通过，请检查同步密码', j.tokenOk ? 'success' : 'warn');
+  } catch (e) {
+    const hints = diagnoseFetchError(e.message, hub);
+    hubStatus.value = { ok: false, error: String(e.message || e), hints };
+    toast('无法访问 Hub：' + (e.message || e), 'error');
+  } finally { testingHub.value = false; }
 }
 
 async function doSync() {
   if (syncing.value) return;
+  const hub = String(hubUrl.value || '').replace(/\/+$/, '');
+  if (!hub) { toast('请先填写电脑端地址后再同步', 'warn'); return; }
   syncing.value = true;
   try {
-    const stats = await syncWithHub(hubUrl.value, hubToken.value);
+    const stats = await syncWithHub(hub, hubToken.value);
     await loadCounts();
     saveReport('局域网一键同步', stats);
     toast(`与电脑同步完成：${fmtStats(stats)}`, 'success');
   } catch (e) {
-    toast(e.message, 'error');
+    const base = e.message || String(e);
+    const extras = diagnoseFetchError(base, hub);
+    // 把诊断追加到 toast，详细诊断放错误日志便于排查
+    const fullMsg = base + (extras.length ? '\n\n' + extras.join('\n') : '');
+    toast(fullMsg, 'error');
+    try {
+      // 懒加载：避免顶层循环依赖
+      const { logError } = await import('../utils/errorLog.js');
+      await logError(new Error(base), { component: 'Sync.vue', route: '/sync', info: `hub=${hub} details=${JSON.stringify(extras).slice(0,250)}` });
+    } catch {}
   } finally { syncing.value = false; }
 }
 
@@ -327,10 +387,30 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); 
         手机/平板和电脑连同一个 WiFi 时，点一下就把三端数据合并一致。需要先在家里那台电脑上启动「同步中枢」。
       </p>
 
+      <div v-if="isOnGhPages" class="hub-banner hub-warn">
+        ⚠ 当前部署在 GitHub Pages（HTTPS），浏览器会阻止 HTTPS 页面请求 HTTP 内网 Hub，表现为「Fail to fetch」。<br/>
+        请用手机/平板浏览器直接打开电脑端 Hub 地址（<code>http://<b>&lt;电脑IP&gt;</b>:4780</code>），即可使用同步功能。
+      </div>
+      <div v-else-if="location.protocol === 'https:' && hubUrl && /^http:\/\//i.test(hubUrl)" class="hub-banner hub-warn">
+        ⚠ 当前页面是 HTTPS，但你填的 Hub 地址是 HTTP。浏览器「混合内容阻断」会直接拒绝请求，这就是「Fail to fetch」的常见原因。
+      </div>
+
       <div class="field-label" style="margin-top:0">电脑端地址</div>
       <div class="row">
         <input v-model="hubUrl" class="input" placeholder="例如 http://192.168.1.5:4780" />
+        <button class="btn small" :disabled="testingHub" @click="testHub">{{ testingHub ? '检测中…' : '测试连接' }}</button>
         <button class="btn small" @click="saveHub">保存</button>
+      </div>
+
+      <div v-if="hubStatus" class="hub-status" :class="hubStatus.ok ? 'ok' : 'bad'">
+        <template v-if="hubStatus.ok">
+          ✅ Hub 可达。{{ hubStatus.tokenOk ? '密码校验通过。' : '⚠ 密码未通过，请检查同步密码。' }}
+          <ul v-if="hubStatus.tips?.length" style="margin:6px 0 0 18px;padding:0"><li v-for="(t,i) in hubStatus.tips" :key="i" class="hint" style="font-size:12px">{{ t }}</li></ul>
+        </template>
+        <template v-else>
+          ❌ 无法访问 Hub：<b>{{ hubStatus.error }}</b>
+          <ul v-if="hubStatus.hints?.length" style="margin:6px 0 0 18px;padding:0"><li v-for="(h,i) in hubStatus.hints" :key="i" style="font-size:12px">{{ h }}</li></ul>
+        </template>
       </div>
 
       <div class="field-label">同步密码</div>
@@ -397,4 +477,9 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); 
 .err-ctx { color: var(--ink-2); font-family: monospace; }
 .err-msg { color: var(--ink); word-break: break-all; }
 .err-stack { font-size: 10px; color: var(--ink-2); white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow: auto; margin: 4px 0 0; }
+.hub-banner { padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.55; margin-bottom: 10px; }
+.hub-warn { background: color-mix(in srgb, #f59e0b 15%, transparent); border: 1px solid color-mix(in srgb,#f59e0b 40%,transparent); color: var(--ink); }
+.hub-status { margin-top: 8px; padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; }
+.hub-status.ok { background: color-mix(in srgb, #10b981 14%, transparent); border: 1px solid color-mix(in srgb,#10b981 40%,transparent); }
+.hub-status.bad { background: color-mix(in srgb, var(--red) 14%, transparent); border: 1px solid color-mix(in srgb,var(--red) 40%,transparent); }
 </style>

@@ -1,11 +1,13 @@
 <script setup>
 // AI 文档：保存 AI 生成的总结/讲义/计划等长文，可增删改，数据落 IndexedDB 并随数据包同步
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { listDocs, createDoc, updateDoc, deleteDoc, createCard } from '../repo.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 
+const route = useRoute();
 const docs = ref([]);
 const showForm = ref(false);
 const editing = ref(null);
@@ -70,7 +72,16 @@ async function importCards() {
   genOpen.value = false; genCards.value = [];
 }
 
-onMounted(load);
+// 从 URL ?id=xxx 定位具体文档（搜索结果跳转）
+async function applyRouteId() {
+  const id = route.query?.id ? String(route.query.id) : '';
+  if (!id) return;
+  await load();
+  await nextTick();
+  const hit = docs.value.find(d => d.id === id);
+  if (hit) activeId.value = hit.id;
+}
+onMounted(applyRouteId);
 </script>
 
 <template>

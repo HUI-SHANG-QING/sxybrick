@@ -1,11 +1,14 @@
 <script setup>
 // 备忘录 · 四象限：按「重要/紧急」分类事项，存 IndexedDB 可随数据包同步
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { toast } from '../utils/toast.js';
 import { listMemos, addMemo, deleteMemo } from '../repo.js';
 import VoiceInput from '../components/VoiceInput.vue';
 
+const route = useRoute();
 const memos = ref([]);
+const highlightId = ref('');
 const input = ref('');
 const important = ref(false);
 const urgent = ref(false);
@@ -32,7 +35,16 @@ const quadrants = computed(() => {
   return g;
 });
 
-onMounted(load);
+// 搜索结果跳转：URL ?id=xxx 自动高亮对应备忘（四象限里不影响展示，加 2s 高亮提示）
+async function applyRouteId() {
+  await load();
+  const id = route.query?.id ? String(route.query.id) : '';
+  if (!id) return;
+  await nextTick();
+  const hit = memos.value.find(m => m.id === id);
+  if (hit) { highlightId.value = id; setTimeout(() => { highlightId.value = ''; }, 2500); }
+}
+onMounted(applyRouteId);
 </script>
 
 <template>
@@ -54,28 +66,28 @@ onMounted(load);
       <div class="q q1">
         <div class="q-title">重要且紧急 · 先做</div>
         <div v-if="!quadrants.q1.length" class="hint" style="padding:12px">空</div>
-        <div v-for="m in quadrants.q1" :key="m.id" class="q-item">
+        <div v-for="m in quadrants.q1" :key="m.id" class="q-item" :class="{ hl: highlightId === m.id }">
           <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">删</a>
         </div>
       </div>
       <div class="q q2">
         <div class="q-title">重要不紧急 · 计划做</div>
         <div v-if="!quadrants.q2.length" class="hint" style="padding:12px">空</div>
-        <div v-for="m in quadrants.q2" :key="m.id" class="q-item">
+        <div v-for="m in quadrants.q2" :key="m.id" class="q-item" :class="{ hl: highlightId === m.id }">
           <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">删</a>
         </div>
       </div>
       <div class="q q3">
         <div class="q-title">不重要但紧急 · 可委派</div>
         <div v-if="!quadrants.q3.length" class="hint" style="padding:12px">空</div>
-        <div v-for="m in quadrants.q3" :key="m.id" class="q-item">
+        <div v-for="m in quadrants.q3" :key="m.id" class="q-item" :class="{ hl: highlightId === m.id }">
           <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">删</a>
         </div>
       </div>
       <div class="q q4">
         <div class="q-title">不重要不紧急 · 少做</div>
         <div v-if="!quadrants.q4.length" class="hint" style="padding:12px">空</div>
-        <div v-for="m in quadrants.q4" :key="m.id" class="q-item">
+        <div v-for="m in quadrants.q4" :key="m.id" class="q-item" :class="{ hl: highlightId === m.id }">
           <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">删</a>
         </div>
       </div>
@@ -98,5 +110,7 @@ onMounted(load);
 .q-item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13px; word-break: break-word; }
 .q-item:last-child { border-bottom: none; }
 .q-del { color: var(--red); cursor: pointer; flex: none; font-size: 12px; }
+.q-item.hl { padding: 6px 8px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 18%, transparent); animation: mem-hl 2s ease-in-out infinite; }
+@keyframes mem-hl { 0%,100%{ box-shadow: inset 0 0 0 0 color-mix(in srgb,var(--accent) 50%,transparent); } 50%{ box-shadow: inset 0 0 0 2px var(--accent); } }
 @media (max-width: 720px) { .quad { grid-template-columns: 1fr; } }
 </style>

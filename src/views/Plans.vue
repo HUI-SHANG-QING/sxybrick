@@ -1,13 +1,15 @@
 <script setup>
 // 学习计划：可增删改、标状态（进行中/已完成/已归档），数据落 IndexedDB 并随数据包同步
 // 含"一键自动编排"：基于真实复习数据生成阶段化计划草稿（数据驱动，零 LLM 也能用）
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { listPlans, createPlan, updatePlan, deletePlan, getSubjects, listCards } from '../repo.js';
 import { generateAutoPlan } from '../agent/analytics.js';
 import { linkPlanToPomodoro, linkCardsToPlan, refreshPlanProgress, refreshAllPlanProgress } from '../intelligence.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 
+const route = useRoute();
 const plans = ref([]);
 const showForm = ref(false);
 const editing = ref(null);
@@ -133,7 +135,16 @@ async function runAutoPlan() {
   finally { autoLoading.value = false; }
 }
 
-onMounted(load);
+// 搜索结果跳转：URL ?id=xxx 自动选中对应计划并展开详情
+async function applyRouteId() {
+  await load();
+  const id = route.query?.id ? String(route.query.id) : '';
+  if (!id) return;
+  await nextTick();
+  const hit = plans.value.find(p => p.id === id);
+  if (hit) activeId.value = hit.id;
+}
+onMounted(applyRouteId);
 </script>
 
 <template>

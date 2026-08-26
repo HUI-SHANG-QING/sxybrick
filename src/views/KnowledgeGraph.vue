@@ -4,6 +4,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
+import { logError } from '../utils/errorLog.js';
 import { db } from '../db.js';
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { listGraphEdges, createGraphEdge, deleteGraphEdge } from '../repo.js';
@@ -145,19 +146,57 @@ function buildOption(nds, eds, style) {
   };
   if (style === 'force') Object.assign(seriesCfg, { layout: 'force', force: { repulsion: 220, edgeLength: 100, gravity: 0.06, layoutAnimation: true } });
   else if (style === 'circular') Object.assign(seriesCfg, { layout: 'circular', circular: { rotateLabel: true } });
-  else if (style === 'concentric') Object.assign(seriesCfg, { layout: 'concentric', concentric: { minNodeSpacing: 30 } });
+  else if (style === 'concentric') {
+    // ECharts graph 不支持原生 concentric，这里按节点连通度（度）分层手动放置 x/y
+    const nMap = new Map(data.nodes.map(n => [n.id, n]));
+    const deg = new Map();
+    for (const n of data.nodes) deg.set(n.id, 0);
+    for (const l of data.links) { deg.set(l.source, (deg.get(l.source) || 0) + 1); deg.set(l.target, (deg.get(l.target) || 0) + 1); }
+    const maxDeg = Math.max(1, ...deg.values());
+    // 根据度把节点分 4 层，0 层在中心
+    const layers = [[], [], [], []];
+    for (const n of data.nodes) {
+      const d = deg.get(n.id) || 0;
+      const lv = d === 0 ? 3 : Math.min(3, Math.floor((1 - d / maxDeg) * 4));
+      layers[lv].push(n);
+    }
+    const W = 800, H = 560, cx = W / 2, cy = H / 2;
+    const radii = [0, 120, 220, 320];
+    layers.forEach((arr, li) => {
+      if (!arr.length) return;
+      if (li === 0) { arr[0].x = cx; arr[0].y = cy; return; }
+      const step = (Math.PI * 2) / arr.length;
+      arr.forEach((n, i) => {
+        const ang = i * step;
+        n.x = cx + radii[li] * Math.cos(ang);
+        n.y = cy + radii[li] * Math.sin(ang);
+        n.fixed = true;
+      });
+    });
+    Object.assign(seriesCfg, { layout: 'none' });
+  }
   return { ...base, series: [seriesCfg] };
 }
 
 function render() {
   if (!chart || !nodes.value.length) return;
-  chart.setOption(buildOption(nodes.value, edges.value, layout.value), true);
+  try {
+    chart.setOption(buildOption(nodes.value, edges.value, layout.value), true);
+  } catch (e) {
+    logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: `render layout=${layout.value}` });
+    toast('图谱渲染失败：' + e.message, 'error');
+  }
 }
 
 function initChart() {
-  chart = echarts.init(chartEl.value);
-  chart.on('click', p => { if (p.dataType === 'node' && p.data?.id) activeId.value = p.data.id; });
-  window.addEventListener('resize', onResize);
+  try {
+    chart = echarts.init(chartEl.value);
+    chart.on('click', p => { if (p.dataType === 'node' && p.data?.id) activeId.value = p.data.id; });
+    window.addEventListener('resize', onResize);
+  } catch (e) {
+    logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: 'initChart' });
+    toast('初始化图谱失败：' + e.message, 'error');
+  }
 }
 function onResize() { chart?.resize(); }
 onBeforeUnmount(() => { window.removeEventListener('resize', onResize); chart?.dispose(); });

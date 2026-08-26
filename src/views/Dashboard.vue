@@ -95,6 +95,14 @@ async function askCoach() {
 }
 
 function go(path) { router.push(path); }
+// 无标签卡 → 跳卡片库仅显示无标签卡（?untagged=1）
+function goUntagged() { router.push('/cards?untagged=1'); }
+// 点击科目 → 跳卡片库自动筛选该科目（?subject=X）
+function goSubject(name) { router.push(`/cards?subject=${encodeURIComponent(name)}`); }
+// 点击薄弱点具体一张卡 → 打开该卡（?id=X）
+function goWeak(w) { router.push(`/cards?id=${encodeURIComponent(w.id)}`); }
+// 点击具体计划 → 跳计划页定位该计划（?id=X）
+function goPlan(p) { router.push(`/plans?id=${encodeURIComponent(p.id)}`); }
 const abilityItems = computed(() => stats.value ? [
   { label: '掌握度', v: stats.value.ability.mastery },
   { label: '正确率', v: stats.value.ability.correct },
@@ -174,7 +182,7 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
       <div class="ds-card">
         <h3 class="ds-sec" style="margin-top:0">各科掌握度</h3>
         <div v-if="stats?.mastery?.length">
-          <div v-for="m in stats.mastery" :key="m.subject" class="ds-bar">
+          <div v-for="m in stats.mastery" :key="m.subject" class="ds-bar" :title="`查看该科目所有卡片：${m.subject}`" @click="goSubject(m.subject)">
             <div class="ds-bar-head"><span>{{ m.subject }}</span><span>{{ m.mastery }}% · {{ m.reviews }}次</span></div>
             <div class="ds-bar-track"><div class="ds-bar-fill" :style="{ width: m.mastery + '%' }"></div></div>
           </div>
@@ -185,7 +193,7 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
       <div class="ds-card">
         <h3 class="ds-sec" style="margin-top:0">薄弱点 TOP3</h3>
         <div v-if="weak.length">
-          <div v-for="w in weak" :key="w.id" class="ds-weak" @click="go('/review')">
+          <div v-for="w in weak" :key="w.id" class="ds-weak" :title="`查看并编辑该卡`" @click.stop="goWeak(w)">
             <span class="ds-weak-front">{{ String(w.front).slice(0, 28) }}</span>
             <span class="ds-weak-fail">错 {{ w.failCount }} 次</span>
           </div>
@@ -193,7 +201,7 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
         <div v-else class="hint" style="padding:12px;text-align:center">暂无薄弱点，继续保持</div>
         <h3 class="ds-sec">进行中计划</h3>
         <div v-if="plans.length">
-          <div v-for="p in plans" :key="p.id" class="ds-weak" @click="go('/plans')">
+          <div v-for="p in plans" :key="p.id" class="ds-weak" :title="`打开该计划`" @click.stop="goPlan(p)">
             <span class="ds-weak-front">{{ String(p.title).slice(0, 24) }}</span>
             <span class="ds-weak-fail">{{ p.status }}</span>
           </div>

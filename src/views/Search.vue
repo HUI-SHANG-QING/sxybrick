@@ -54,7 +54,17 @@ async function search() {
 }
 
 const total = () => results.value.cards.length + results.value.docs.length + results.value.mindmaps.length + results.value.memos.length + results.value.exams.length;
-function go(item) { if (item.go) router.push(item.go); }
+
+// 搜索结果点击跳转：把具体条目的 id 编码到 URL，目标页面读取后自动筛选/定位
+function go(item) {
+  if (!item || !item.go) return;
+  const base = item.go === '/' ? '/cards' : item.go;
+  const params = new URLSearchParams();
+  if (item.id) params.set('id', String(item.id));
+  // 卡片还可附加关键字，便于 Cards 页延续搜索上下文
+  if (base === '/cards' && q.value.trim()) params.set('q', q.value.trim());
+  router.push(`${base}${params.toString() ? '?' + params.toString() : ''}`);
+}
 </script>
 
 <template>
