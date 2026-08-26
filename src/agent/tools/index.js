@@ -29,6 +29,8 @@ import {
 } from '../../repo.js';
 import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards, getGraphDrivenReviewPlan, generateAutoPlan } from '../analytics.js';
 import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';
+import { hybridSearch, retrieveContext, ensureIndex, rebuildIndex, getIndexStatus } from '../retrieval.js';
+import { agentRegistry } from '../registry.js';
 
 // ---------- 1. 数据感知类（只读） ----------
 
@@ -661,6 +663,167 @@ toolRegistry.register({
     const arr = extractJSON(out);
     const cards = Array.isArray(arr) ? arr.filter(c => c && c.front && c.back) : [];
     return { ok: true, data: { count: cards.length, cards } };
+  },
+});
+
+// ---------- 9. RAG 检索增强（Agent 的「眼睛」） ----------
+
+toolRegistry.register({
+  name: 'semantic_search',
+  description: '语义+关键词混合检索：从用户卡片库/文档中找出与查询最相关的内容，返回 top-k 结果（含相似度分数、来源类型、卡片正反面/文档片段）。适合「我有没有学过X」「找一下关于Y的卡」类需求。',
+  parameters: {
+    query: 'string: 搜索内容',
+    topK: 'number: 返回条数，默认 6',
+  },
+  readsData: true,
+  async execute(args) {
+    const query = String(args?.query || '').trim();
+    if (!query) return { ok: false, error: '查询为空' };
+    const results = await hybridSearch(query, { topK: Number(args?.topK) || 6 });
+    return {
+      ok: true,
+      data: {
+        count: results.length,
+        items: results.map((r) => ({
+          sourceType: r.row.sourceType,
+          sourceId: r.row.sourceId,
+          subject: r.row.subject,
+          text: String(r.row.text).slice(0, 120),
+          fusedScore: Math.round(r.fused * 100),
+          semScore: Math.round((r.semScore || 0) * 100),
+          kwScore: Math.round((r.kwScore || 0) * 100),
+        })),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'retrieve_context',
+  description: '检索增强上下文：根据问题从卡片库/文档中检索最相关内容，格式化为可直接注入提示的文本。适合 Agent 自己在推理过程中按需补充上下文。',
+  parameters: {
+    query: 'string: 需要检索的问题/关键词',
+    topK: 'number: 返回条数，默认 6',
+  },
+  readsData: true,
+  async execute(args) {
+    const query = String(args?.query || '').trim();
+    if (!query) return { ok: false, error: '查询为空' };
+    const text = await retrieveContext(query, { topK: Number(args?.topK) || 6 });
+    return { ok: true, data: { context: text, hasResults: !!text } };
+  },
+});
+
+toolRegistry.register({
+  name: 'ensure_index',
+  description: '增量更新向量索引：把新增/修改的卡片文档生成 embedding（轻量，最多处理 50 卡+10 文档）。适合用户问完问题后后台补索引。',
+  parameters: {
+    maxCards: 'number: 最多处理卡片数，默认 50',
+    maxDocs: 'number: 最多处理文档数，默认 10',
+  },
+  writesData: true,
+  async execute(args) {
+    const r = await ensureIndex(Number(args?.maxCards) || 50, Number(args?.maxDocs) || 10);
+    return { ok: true, data: r };
+  },
+});
+
+toolRegistry.register({
+  name: 'rebuild_index',
+  description: '全量重建向量索引（耗时操作，适合 embedding 模型变更或索引损坏时使用）。',
+  parameters: {},
+  writesData: true,
+  async execute() {
+    const r = await rebuildIndex();
+    return { ok: true, data: r };
+  },
+});
+
+toolRegistry.register({
+  name: 'get_index_status',
+  description: '获取向量索引健康状态：卡片/文档的索引覆盖率、总 chunk 数、当前 embedding 模型签名。',
+  parameters: {},
+  readsData: true,
+  async execute() {
+    const s = await getIndexStatus();
+    return { ok: true, data: s };
+  },
+});
+
+// ---------- 10. 多智能体协作（Agent 间委托 + 黑板） ----------
+
+toolRegistry.register({
+  name: 'delegate_to_agent',
+  description: '把一个子任务委托给另一个专业 Agent 执行（轻量咨询，不走完整 ReAct 循环）。适合「这个问题让分析师看看」「请出题官出一道题」类需求。',
+  parameters: {
+    agentId: 'string: 目标 Agent id（tutor/analyst/cardsmith/quizmaster/mnemonist/smart-reviewer/mistake-analyst/graph-builder/planner）',
+    task: 'string: 委托的具体任务描述',
+  },
+  writesData: false,
+  async execute(args, ctx) {
+    const targetAgent = agentRegistry.get(String(args?.agentId || ''));
+    if (!targetAgent) return { ok: false, error: `Agent 不存在：${args?.agentId}` };
+    const task = String(args?.task || '').trim();
+    if (!task) return { ok: false, error: '任务为空' };
+    // 轻量委托：用目标 Agent 的 system prompt + 当前上下文，单轮调用 LLM
+    let sys = targetAgent.systemPrompt || '';
+    if (ctx.studyContext) sys = sys.replace(/\{context\}/g, ctx.studyContext);
+    if (ctx.memoryText) sys = sys.replace(/\{memory\}/g, ctx.memoryText);
+    // 黑板上下文（如果在流水线中）
+    if (ctx.blackboard) {
+      const bbText = ctx.blackboard.toContextText();
+      if (bbText) sys += `\n\n【协作黑板】\n${bbText}`;
+    }
+    const reply = await ctx.chat([
+      { role: 'system', content: sys },
+      { role: 'user', content: task },
+    ]);
+    // 把委托结果写到黑板
+    if (ctx.blackboard) {
+      ctx.blackboard.addFinding(targetAgent.id, reply);
+    }
+    return { ok: true, data: { agent: targetAgent.id, agentName: targetAgent.name, reply: reply.slice(0, 500) } };
+  },
+});
+
+toolRegistry.register({
+  name: 'read_blackboard',
+  description: '读取多智能体协作黑板上的已有发现和产出（仅在流水线模式中可用）。适合在协作中查看其他 Agent 已做了什么。',
+  parameters: {},
+  readsData: true,
+  async execute(args, ctx) {
+    if (!ctx.blackboard) return { ok: false, error: '当前不在多智能体协作模式（无黑板）' };
+    return {
+      ok: true,
+      data: {
+        query: ctx.blackboard.query,
+        findings: ctx.blackboard.findings.slice(-10).map((f) => ({ agent: f.agent, text: f.text.slice(0, 200), ts: f.ts })),
+        artifacts: Object.fromEntries(
+          Object.entries(ctx.blackboard.artifacts).map(([k, v]) => [k, { agent: v.agent, preview: typeof v.value === 'string' ? v.value.slice(0, 150) : JSON.stringify(v.value).slice(0, 150) }]),
+        ),
+        pendingSubtasks: ctx.blackboard.subtasks.filter((s) => s.status === 'pending').map((s) => ({ agent: s.agent, description: s.description })),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'write_blackboard',
+  description: '向多智能体协作黑板写入一条发现或结构化产出（仅在流水线模式中可用）。让其他 Agent 能看到你的工作成果。',
+  parameters: {
+    finding: 'string: 发现/结论文本（可选，与 artifactKey 二选一）',
+    artifactKey: 'string: 产出键名（可选，如 cards/plan/analysis）',
+    artifactValue: 'string: 产出内容（可选，与 artifactKey 配对）',
+  },
+  writesData: false,
+  async execute(args, ctx) {
+    if (!ctx.blackboard) return { ok: false, error: '当前不在多智能体协作模式（无黑板）' };
+    const agentId = ctx.agentId || 'unknown';
+    if (args?.finding) ctx.blackboard.addFinding(agentId, args.finding);
+    if (args?.artifactKey && args?.artifactValue !== undefined) {
+      ctx.blackboard.setArtifact(args.artifactKey, args.artifactValue, agentId);
+    }
+    return { ok: true, data: { written: true, totalFindings: ctx.blackboard.findings.length } };
   },
 });
 

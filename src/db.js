@@ -51,6 +51,19 @@ db.version(8).stores({
   exams: 'id, createdAt',
 });
 
+// v9：新增向量嵌入表（RAG 检索增强：卡片/文档 chunk 的 embedding 向量）
+// sourceType: 'card' | 'doc'；sourceId: 卡片/文档 id；chunkIdx: 分块序号
+// vector: Float32Array（或普通数组）；modelSig: 模型签名，模型变更时需重建索引
+db.version(9).stores({
+  embeddings: 'id, sourceType, sourceId, subject, updatedAt, modelSig',
+});
+
+// v10：新增主动智能体通知表（随数据包同步）
+// read 用 0/1 整数以支持 IndexedDB 索引（boolean 不可索引）
+db.version(10).stores({
+  notifications: 'id, read, createdAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

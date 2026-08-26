@@ -7,11 +7,15 @@ import { getGoal, getTodayCount, getDueCount, getLastReviewTs, getDueBySubject }
 // FloatAssistant / NavBar 首屏必需，保留同步
 import FloatAssistant from './components/FloatAssistant.vue';
 import NavBar from './components/NavBar.vue';
+// NotificationBell 首屏必需（通知铃铛），保留同步
+import NotificationBell from './components/NotificationBell.vue';
 // Intro/Guide 仅首次访问时显示、InkLandscape 仅国风主题激活时显示 → 异步加载以减小首屏 chunk
 const Intro = defineAsyncComponent(() => import('./components/Intro.vue'));
 const Guide = defineAsyncComponent(() => import('./components/Guide.vue'));
 const InkLandscape = defineAsyncComponent(() => import('./components/InkLandscape.vue'));
 import { useThemeStore, STYLES, MODES } from './stores/theme.js';
+import { getProactiveScheduler } from './agent/proactive.js';
+import { getAIConfig } from './ai.js';
 
 const theme = useThemeStore();
 const showSettings = ref(false);
@@ -79,10 +83,13 @@ onMounted(() => {
   window.addEventListener('beforeinstallprompt', onBeforeInstall);
   if (!localStorage.getItem('sxy_onboarding_done')) beginOnboarding();
   startReminderLoop();
+  // 主动智能体：后台轮询学习数据，主动推送建议到通知中心
+  getProactiveScheduler().start({ cfgGetter: () => getAIConfig() });
 });
 onBeforeUnmount(() => {
   window.removeEventListener('beforeinstallprompt', onBeforeInstall);
   clearInterval(reminderTimer);
+  getProactiveScheduler().stop();
 });
 
 // ---- C6 复习提醒（2026-08-26 速赢区升级）：3 条件独立触发 + 丰富通知内容 ----
@@ -175,6 +182,7 @@ async function enableReminder() {
 
     <div v-if="degraded" class="hint" style="position:fixed;bottom:8px;right:12px;z-index:200">已启用性能优化模式</div>
     <FloatAssistant />
+    <NotificationBell />
     <Intro v-if="showIntro" @done="onIntroEnd" />
     <Guide v-if="showGuide" @done="onGuideEnd" />
 

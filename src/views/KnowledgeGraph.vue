@@ -1,10 +1,13 @@
 <script setup>
-// 知识图谱：AI 从卡片里提取知识点和关联画成图；生成的关联可保存到本地库并随数据包同步。
-import { ref, computed, onMounted } from 'vue';
+// 知识图谱：多风格可视化（力导向/圆形/同心圆/树状）+ AI 生成 + Agent 智能构建（A 镜头）
+// 生成的关联可保存到本地库并随数据包同步。
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
 import { db } from '../db.js';
-import { chatAI, hasAIKey } from '../ai.js';
+import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { listGraphEdges, createGraphEdge, deleteGraphEdge } from '../repo.js';
+import { agentSystem } from '../agent/index.js';
 
 const generatedNodes = ref([]);
 const generatedEdges = ref([]);
@@ -12,32 +15,109 @@ const savedNodes = ref([]);
 const savedEdges = ref([]);
 const loading = ref(false);
 const activeId = ref('');
-const mode = ref('generated'); // generated | saved
-const W = 800, H = 560;
+const mode = ref('generated');
+
+// ---- 多风格 ----
+const layout = ref(localStorage.getItem('sxy_kg_layout') || 'force');
+const LAYOUTS = [
+  { id: 'force', name: '力导向', icon: '⊛' },
+  { id: 'circular', name: '圆形', icon: '◯' },
+  { id: 'concentric', name: '同心圆', icon: '◎' },
+  { id: 'tree', name: '树状', icon: '⋗' },
+];
+function setLayout(id) { layout.value = id; localStorage.setItem('sxy_kg_layout', id); render(); }
+
+const chartEl = ref(null);
+let chart = null;
 
 const nodes = computed(() => (mode.value === 'saved' ? savedNodes.value : generatedNodes.value));
 const edges = computed(() => (mode.value === 'saved' ? savedEdges.value : generatedEdges.value));
 
-function plain(md) {
-  return String(md || '')
-    .replace(/```[\s\S]*?```/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\$\$?([^$\n]+)\$\$?/g, ' $1 ')
-    .replace(/[*_#>`~|-]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+// 主题色
+function themeColor(key) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(key).trim();
+  return v || (key.includes('accent') ? '#4a9eff' : key.includes('ink') ? '#333' : '#999');
 }
 
-function layout(arr) {
-  const n = arr.length;
-  if (!n) return;
-  const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 60;
-  arr.forEach((nd, i) => {
-    const a = (2 * Math.PI * i) / n - Math.PI / 2;
-    nd.x = cx + R * Math.cos(a);
-    nd.y = cy + R * Math.sin(a);
-  });
+function plain(md) {
+  return String(md || '')
+    .replace(/```[\s\S]*?```/g, ' ').replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\$\$?([^$\n]+)\$\$?/g, ' $1 ').replace(/[*_#>`~|-]/g, '').replace(/\s+/g, ' ').trim();
 }
+
+// 构建图数据：按 subject 分组（用于同心圆分层着色）
+function buildGraphData(nds, eds) {
+  const subjects = [...new Set(nds.map(n => n.subject).filter(Boolean))];
+  const categories = [{ name: '未分类' }, ...subjects.map(s => ({ name: s }))];
+  const catOf = (n) => n.subject ? categories.findIndex(c => c.name === n.subject) : 0;
+  const nodeList = nds.map(n => ({
+    id: n.id, name: n.label, category: catOf(n),
+    symbolSize: 22, itemStyle: { color: palette[catOf(n) % palette.length] },
+    label: { show: true, position: 'right', fontSize: 12 },
+  }));
+  const linkList = eds.map(e => ({ source: e.from, target: e.to, label: e.label ? { show: true, formatter: e.label, fontSize: 10 } : { show: false } }));
+  return { nodes: nodeList, links: linkList, categories };
+}
+const palette = ['#4a9eff', '#f5a623', '#7ed321', '#bd10e0', '#f8e71c', '#50e3c2', '#b8e986', '#d0021b'];
+
+function buildOption(nds, eds, style) {
+  const data = buildGraphData(nds, eds);
+  const base = {
+    tooltip: { trigger: 'item', formatter: p => p.dataType === 'node' ? p.data.name : `${p.data.source} → ${p.data.target}` },
+    legend: [{ data: data.categories.map(c => c.name), bottom: 6, textStyle: { color: themeColor('--ink-2'), fontSize: 11 } }],
+  };
+  if (style === 'tree') {
+    // 树状：把有向边转成树（防环），用 ECharts tree 系列
+    const childrenOf = new Map();
+    for (const e of eds) { if (!childrenOf.has(e.from)) childrenOf.set(e.from, []); childrenOf.get(e.from).push(e.to); }
+    const all = new Set([...eds.map(e => e.from), ...eds.map(e => e.to)]);
+    const inDeg = new Map(); for (const e of eds) inDeg.set(e.to, (inDeg.get(e.to) || 0) + 1);
+    const roots = [...all].filter(n => !inDeg.has(n));
+    const rootLabel = (roots.length ? roots : [...all])[0];
+    const build = (label, visited) => {
+      if (visited.has(label)) return null;
+      visited.add(label);
+      const kids = (childrenOf.get(label) || []).map(k => build(k, new Set(visited))).filter(Boolean);
+      return { name: label, children: kids };
+    };
+    const root = build(rootLabel, new Set()) || { name: rootLabel };
+    return {
+      tooltip: { trigger: 'item', formatter: p => p.data.name },
+      series: [{
+        type: 'tree', data: [root], left: '6%', right: '12%', top: '6%', bottom: '10%',
+        symbol: 'circle', symbolSize: 14, orient: 'LR', layout: 'orthogonal',
+        label: { position: 'left', verticalAlign: 'middle', align: 'right', fontSize: 12, color: themeColor('--ink') },
+        leaves: { label: { position: 'right', verticalAlign: 'middle', align: 'left' } },
+        emphasis: { focus: 'descendant' }, expandAndCollapse: true, initialTreeDepth: -1,
+        lineStyle: { color: themeColor('--line-strong'), width: 1.5, curveness: 0.4 },
+        itemStyle: { color: themeColor('--accent') },
+      }],
+    };
+  }
+  const seriesCfg = {
+    type: 'graph', roam: true, data: data.nodes, links: data.links,
+    categories: data.categories, edgeLabel: { color: themeColor('--ink-2') },
+    lineStyle: { color: themeColor('--line-strong'), width: 1.4, curveness: 0.15, opacity: 0.7 },
+    emphasis: { focus: 'adjacency', lineStyle: { width: 3 } },
+  };
+  if (style === 'force') Object.assign(seriesCfg, { layout: 'force', force: { repulsion: 220, edgeLength: 100, gravity: 0.06, layoutAnimation: true } });
+  else if (style === 'circular') Object.assign(seriesCfg, { layout: 'circular', circular: { rotateLabel: true } });
+  else if (style === 'concentric') Object.assign(seriesCfg, { layout: 'concentric', concentric: { minNodeSpacing: 30 } });
+  return { ...base, series: [seriesCfg] };
+}
+
+function render() {
+  if (!chart || !nodes.value.length) return;
+  chart.setOption(buildOption(nodes.value, edges.value, layout.value), true);
+}
+
+function initChart() {
+  chart = echarts.init(chartEl.value);
+  chart.on('click', p => { if (p.dataType === 'node' && p.data?.id) activeId.value = p.data.id; });
+  window.addEventListener('resize', onResize);
+}
+function onResize() { chart?.resize(); }
+onBeforeUnmount(() => { window.removeEventListener('resize', onResize); chart?.dispose(); });
 
 async function generate() {
   if (!hasAIKey()) { toast('请先配置 AI 密钥', 'error'); return; }
@@ -54,11 +134,29 @@ async function generate() {
     const obj = JSON.parse(m ? m[0] : r);
     generatedNodes.value = (obj.nodes || []).map(n => ({ id: String(n.id), label: String(n.label || n.id), subject: n.subject || '' }));
     generatedEdges.value = (obj.edges || []).map(e => ({ from: String(e.from), to: String(e.to), label: e.label || '' }));
-    layout(generatedNodes.value);
-    activeId.value = '';
-    mode.value = 'generated';
+    activeId.value = ''; mode.value = 'generated';
+    nextTick(() => { if (!chart) initChart(); render(); });
     if (!generatedNodes.value.length) toast('没解析出知识点', 'error');
   } catch (e) { toast(e.message, 'error'); }
+  finally { loading.value = false; }
+}
+
+// Agent 智能构建：走 graph-builder agent 的 ReAct 工具调用循环
+// agent 会用 search_cards / list_subjects_and_tags 智能检索，用 link_cards 直接建立持久化关联（去重）
+async function generateByAgent() {
+  if (!hasAIKey()) { toast('请先配置 AI 密钥', 'error'); return; }
+  loading.value = true;
+  try {
+    const { reply } = await agentSystem.runTask({
+      userInput: '分析我的卡片库，提取核心知识点（8~20 个），建立它们之间的关联（依赖/前置/对比/属于），用 link_cards 持久化保存。完成后用 <final> 简述你构建了哪些主题与关联。',
+      cfg: getAIConfig(),
+      agentId: 'graph-builder',
+    });
+    toast('Agent 智能构建完成', 'success');
+    await loadSaved();
+    mode.value = 'saved';
+    nextTick(() => { if (!chart) initChart(); render(); });
+  } catch (e) { toast('Agent 构建失败：' + e.message, 'error'); }
   finally { loading.value = false; }
 }
 
@@ -70,20 +168,9 @@ async function loadSaved() {
   const idOf = {};
   savedNodes.value.forEach((n) => { idOf[n.label] = n.id; });
   savedEdges.value = list.map(e => ({ id: e.id, from: idOf[e.from] ?? ensure(e.from), to: idOf[e.to] ?? ensure(e.to), label: e.label, subject: e.subject || '' }));
-  layout(savedNodes.value);
   if (list.length) mode.value = 'saved';
+  nextTick(() => { if (chart && savedNodes.value.length) render(); });
 }
-
-// 自动聚类章节：按科目把已保存的关联分组
-const clusters = computed(() => {
-  const m = new Map();
-  for (const e of savedEdges.value) {
-    const k = e.subject || '未分类';
-    if (!m.has(k)) m.set(k, []);
-    m.get(k).push(e);
-  }
-  return [...m.entries()].map(([subject, edges]) => ({ subject, edges }));
-});
 
 async function saveGenerated() {
   let n = 0, skipped = 0;
@@ -92,7 +179,7 @@ async function saveGenerated() {
     const tn = generatedNodes.value.find(x => x.id === e.to);
     if (!fn || !tn) continue;
     const created = await createGraphEdge({ from: fn.label, to: tn.label, label: e.label, subject: fn.subject || tn.subject || '' });
-    if (created) n++; else skipped++; // repo 层已去重：重复边返回 null，不会污染知识库
+    if (created) n++; else skipped++;
   }
   toast(skipped ? `已保存 ${n} 条关联，跳过 ${skipped} 条重复（可跨设备同步）` : `已保存 ${n} 条关联到知识库（可跨设备同步）`, 'success');
   await loadSaved();
@@ -103,6 +190,16 @@ async function removeEdge(id) {
   await loadSaved();
 }
 
+const clusters = computed(() => {
+  const m = new Map();
+  for (const e of savedEdges.value) {
+    const k = e.subject || '未分类';
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(e);
+  }
+  return [...m.entries()].map(([subject, edges]) => ({ subject, edges }));
+});
+
 const relatedIds = () => {
   if (!activeId.value) return [];
   const s = new Set([activeId.value]);
@@ -112,40 +209,35 @@ const relatedIds = () => {
   }
   return s;
 };
-
 function nodeById(id) { return nodes.value.find(n => n.id === id); }
 
-onMounted(loadSaved);
+onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value.length && !chart) initChart(); render(); }); });
 </script>
 
 <template>
-  <div style="max-width:900px;margin:0 auto">
-    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <div style="max-width:980px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <h2 style="margin:0">知识图谱</h2>
       <span style="flex:1"></span>
       <button v-if="savedEdges.length" class="chip" @click="mode = mode === 'saved' ? 'generated' : 'saved'">
         {{ mode === 'saved' ? '切换到 AI 生成' : '查看已保存图谱' }}
       </button>
-      <button class="btn primary" :disabled="loading" @click="generate">{{ loading ? '生成中…' : '生成图谱' }}</button>
+      <button class="btn" :disabled="loading" @click="generateByAgent" title="走 graph-builder agent 工具调用循环，更懂卡片库且自动去重">🤖 Agent 智能构建</button>
+      <button class="btn primary" :disabled="loading" @click="generate">{{ loading ? '生成中…' : 'AI 生成图谱' }}</button>
     </div>
-    <p class="hint" style="margin:4px 0 12px">AI 从卡片挖出知识点和关联；可把生成的关联保存进知识库，随数据包同步。</p>
+    <p class="hint" style="margin:4px 0 10px">AI/Agent 从卡片挖出知识点和关联；多风格可视化；可保存进知识库随数据包同步。</p>
 
-    <div v-if="!nodes.length && !loading" class="hint" style="text-align:center;padding:60px">点右上角「生成图谱」，AI 会自动分析你的卡片。</div>
+    <div v-if="nodes.length" class="kg-layout-bar">
+      <span class="hint" style="margin-right:4px">风格：</span>
+      <button v-for="l in LAYOUTS" :key="l.id" class="kg-style-chip" :class="{active: layout === l.id}" @click="setLayout(l.id)" :title="l.name">
+        <span style="font-size:14px">{{ l.icon }}</span><span>{{ l.name }}</span>
+      </button>
+    </div>
+
+    <div v-if="!nodes.length && !loading" class="hint" style="text-align:center;padding:60px">点右上角「AI 生成图谱」或「🤖 Agent 智能构建」，自动分析你的卡片。</div>
 
     <div v-if="nodes.length" class="graph-box">
-      <svg :viewBox="`0 0 ${W} ${H}`" width="100%">
-        <g v-for="e in edges" :key="'e' + e.from + e.to + e.label">
-          <line :x1="(nodeById(e.from)||{}).x" :y1="(nodeById(e.from)||{}).y" :x2="(nodeById(e.to)||{}).x" :y2="(nodeById(e.to)||{}).y"
-            :stroke="activeId && (e.from === activeId || e.to === activeId) ? 'var(--accent)' : 'var(--line-strong)'" stroke-width="1.5" />
-          <text v-if="e.label" :x="((((nodeById(e.from)||{}).x||0) + ((nodeById(e.to)||{}).x||0)) / 2)" :y="((((nodeById(e.from)||{}).y||0) + ((nodeById(e.to)||{}).y||0)) / 2)"
-            text-anchor="middle" class="edge-label">{{ e.label }}</text>
-        </g>
-        <g v-for="n in nodes" :key="n.id" @click="activeId = n.id" style="cursor:pointer">
-          <circle :cx="n.x" :cy="n.y" :r="18" :fill="activeId === n.id ? 'var(--accent)' : relatedIds().includes(n.id) ? 'var(--green)' : 'var(--panel-solid)'" stroke="var(--accent)" stroke-width="2" />
-          <text :x="n.x" :y="n.y - 30" text-anchor="middle" class="node-label">{{ n.label.slice(0, 8) }}</text>
-          <text v-if="n.subject" :x="n.x" :y="n.y + 38" text-anchor="middle" class="edge-label">{{ n.subject.slice(0, 6) }}</text>
-        </g>
-      </svg>
+      <div ref="chartEl" style="width:100%;height:58vh;min-height:400px"></div>
     </div>
 
     <div v-if="mode === 'generated' && generatedEdges.length" style="text-align:center;margin-top:10px">
@@ -160,7 +252,7 @@ onMounted(loadSaved);
           <span>{{ nodeById(e.from)?.label || e.from }}</span>
           <span class="saved-rel">{{ e.label }}</span>
           <span>{{ nodeById(e.to)?.label || e.to }}</span>
-          <a style="color:var(--red);cursor:pointer;margin-left:8px" @click="removeEdge(e.id)">删</a>
+          <a style="color:var(--red);cursor:pointer;margin-left:8px" @click="removeEdge(e.id)" aria-label="删除关联">删</a>
         </div>
       </div>
     </div>
@@ -172,9 +264,11 @@ onMounted(loadSaved);
 </template>
 
 <style scoped>
+.kg-layout-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.kg-style-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; font-size: 12px; cursor: pointer; transition: .12s; }
+.kg-style-chip:hover { border-color: var(--accent); }
+.kg-style-chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .graph-box { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 8px; }
-.node-label { font-size: 12px; fill: var(--ink); font-weight: 600; }
-.edge-label { font-size: 10px; fill: var(--ink-2); }
 .chip { font-size: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
 .saved-box { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 12px; margin-top: 14px; }
 .saved-title { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
@@ -184,4 +278,5 @@ onMounted(loadSaved);
 .cluster { margin-bottom: 10px; padding: 8px 12px; background: var(--code-bg); border-radius: 8px; }
 .cluster-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
 .cluster-count { font-size: 11px; color: var(--ink-2); margin-left: 6px; font-weight: 400; }
+@media (max-width: 720px) { .graph-box > div { height: 46vh !important; } }
 </style>

@@ -5,6 +5,7 @@
 
 import { getStats, weakCards, getReviewSuggestion, getTags } from '../repo.js';
 import { getModuleSummary } from './analytics.js';
+import { retrieveContext, ensureIndex } from './retrieval.js';
 
 function tagCountsStr(tags) {
   if (!tags || !tags.length) return '';
@@ -57,7 +58,7 @@ export async function buildStudyContext() {
 }
 
 /**
- * 构建可供工具调用的“结构化上下文对象”（供 Agent 在 ReAct 循环中按需取用，
+ * 构建可供工具调用的"结构化上下文对象"（供 Agent 在 ReAct 循环中按需取用，
  * 避免把全部数据一次性塞进 prompt，节省 token）。
  */
 export async function getStructuredContext() {
@@ -67,4 +68,35 @@ export async function getStructuredContext() {
     getReviewSuggestion(),
   ]);
   return { stats, weak, suggestion };
+}
+
+/**
+ * RAG 检索增强上下文：根据用户问题，从卡片库/文档中检索最相关的内容注入。
+ * 这是 Agent 从「全量注入」升级到「精准注入」的关键——Agent 只看到与问题最相关的 top-k 条。
+ * 会顺带做一次轻量增量索引（ensureIndex），保证索引不滞后太多。
+ * @param {string} query 用户问题
+ * @returns {Promise<string>} RAG 上下文文本（可能为空）
+ */
+export async function buildRAGContext(query) {
+  const q = String(query || '').trim();
+  if (!q || q.length < 2) return '';
+  try {
+    // 轻量增量索引：最多补 20 张过期卡 + 3 篇过期文档，不阻塞太久
+    await ensureIndex(20, 3);
+    const ragText = await retrieveContext(q, { topK: 6 });
+    return ragText || '';
+  } catch {
+    return ''; // RAG 失败不阻塞主流程
+  }
+}
+
+/**
+ * 构建完整上下文：学习数据概览 + RAG 检索增强。
+ * Orchestrator 调用此函数，把结果注入 Agent 系统提示。
+ * @param {string} query 用户问题（用于 RAG 检索）
+ * @returns {Promise<string>}
+ */
+export async function buildFullContext(query) {
+  const [study, rag] = await Promise.all([buildStudyContext(), buildRAGContext(query)]);
+  return [study, rag].filter(Boolean).join('\n\n');
 }

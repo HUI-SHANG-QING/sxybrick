@@ -6,10 +6,11 @@
 
 import { agentRegistry, toolRegistry } from './registry.js';
 import { runReActAgent } from './agents/base.js';
-import { buildStudyContext } from './context.js';
+import { buildStudyContext, buildFullContext } from './context.js';
 import { buildMemoryText } from './memory.js';
 import { chat as llmChat } from './llm.js';
 import { TraceKind } from './types.js';
+import { runPipeline, shouldUsePipeline, PRESET_PIPELINES } from './pipeline.js';
 
 // 意图关键词 → Agent 映射（更具体的放前面）
 const INTENT_RULES = [
@@ -48,8 +49,24 @@ export async function runTask(opt) {
   const trace = [];
   const push = (node) => { trace.push(node); onTrace?.(node); };
 
-  // 1) 构建上下文（学习数据 + 长期记忆）
-  const [studyContext, memoryText] = await Promise.all([buildStudyContext(), buildMemoryText()]);
+  // 0) 多智能体流水线判断：自动路由模式下，复杂多步任务走流水线
+  if (!agentId && shouldUsePipeline(userInput)) {
+    push({ kind: TraceKind.ROUTE, text: '检测到复杂多步任务，启动多智能体流水线', agentId: 'pipeline' });
+    const result = await runPipeline({ query: userInput, cfg, onTrace: push, signal });
+    if (!result.fallback) {
+      return {
+        reply: result.reply,
+        agentId: 'pipeline',
+        agentName: `多智能体流水线`,
+        trace: [...trace, ...result.trace],
+      };
+    }
+    // 流水线回退 → 继续走单 Agent
+    push({ kind: TraceKind.ROUTE, text: '流水线回退，改用单 Agent 模式', agentId: 'tutor' });
+  }
+
+  // 1) 构建上下文（学习数据 + RAG 检索增强 + 长期记忆）
+  const [studyContext, memoryText] = await Promise.all([buildFullContext(userInput), buildMemoryText()]);
   const ctx = {
     cfg,
     studyContext,

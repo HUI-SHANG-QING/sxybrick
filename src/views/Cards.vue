@@ -1,6 +1,6 @@
 <script setup>
 // 卡片管理页：视图切换、科目/标签筛选、基础+高级搜索、虚拟列表（本地数据）
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import VirtualList from '../components/VirtualList.vue';
 import CardModal from '../components/CardModal.vue';
@@ -175,6 +175,8 @@ watch(searchInput, v => {
 });
 
 onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); loadSmart(); loadRisk(); });
+// 清理搜索防抖定时器，避免卸载后触发游离 loadCards
+onBeforeUnmount(() => { clearTimeout(searchTimer); });
 
 // ---- 批量建卡（P0 效率包）：粘贴文本按行拆成卡片 ----
 const batchOpen = ref(false);

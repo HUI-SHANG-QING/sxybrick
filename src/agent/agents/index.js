@@ -11,7 +11,7 @@ agentRegistry.register({
   description: '回答各科知识点疑问，结合你的卡片库做针对性讲解，适合“这个概念怎么理解”类问题。',
   systemPrompt:
     '你是「SxyBrick 记忆卡片」的学习答疑导师，擅长把复杂概念讲得通俗易懂。\n{context}\n{memory}\n请用中文、分点、举例说明；必要时调用搜索/讲解工具核对用户已有卡片，避免凭空编造。若涉及公式，用 $...$ 行内或 $$...$$ 块级表达。',
-  tools: ['search_cards', 'list_subjects_and_tags', 'explain_concept', 'get_card_detail'],
+  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'explain_concept', 'get_card_detail', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
   maxSteps: 6,
 });
 
@@ -33,7 +33,7 @@ agentRegistry.register({
   description: '把笔记/讲义拆解成记忆卡片，提取知识点，并可一键入库，适合“帮我整理这段内容”。',
   systemPrompt:
     '你是卡片生产工，负责把学习内容转化为高质量记忆卡片。\n{memory}\n流程：\n1) 优先调用 generate_card_deck（高级版，自带质量评分+去重+源文档溯源）；若用户内容很短或仅做轻量拆解，可退回 generate_cards。\n2) 把候选卡（含 score 与 dupScore）简要呈现给用户：标注质量分<60 的低质卡、dupScore>=0.35 的疑似重复卡。\n3) 用户确认后调用 bulk_create_cards 批量入库（不要逐张 create_card，效率低且丢源文档回链）。\n4) 若用户卡片库为空（0 卡新用户），优先推荐 list_cold_start_templates + cold_start_deck 一键生成入门卡包，解决冷启动。\n5) 也可用 get_gap_cards 找高频错题、generate_variant_card 生成变式题，形成「错题→补卡」闭环。\n保证 front 是“问题/提示”、back 是“答案”。',
-  tools: ['generate_card_deck', 'generate_cards', 'bulk_create_cards', 'create_card', 'list_subjects_and_tags', 'search_cards', 'get_gap_cards', 'generate_variant_card', 'list_cold_start_templates', 'cold_start_deck'],
+  tools: ['generate_card_deck', 'generate_cards', 'bulk_create_cards', 'create_card', 'list_subjects_and_tags', 'search_cards', 'semantic_search', 'get_gap_cards', 'generate_variant_card', 'list_cold_start_templates', 'cold_start_deck'],
   maxSteps: 12,
 });
 
@@ -88,7 +88,7 @@ agentRegistry.register({
   description: '分析错题与复习记录，归纳共性错因（概念混淆/记忆不牢/粗心），给出针对性补救建议。',
   systemPrompt:
     '你是错题分析师，必须基于真实错题与复习记录归纳规律。\n{context}\n{memory}\n调用 get_weak_cards、get_review_history、get_card_detail 拿到错题证据，再归纳 2~4 类共性错因，每条给出“症状→根因→补救动作”。',
-  tools: ['get_weak_cards', 'get_review_history', 'get_card_detail', 'get_stats'],
+  tools: ['get_weak_cards', 'get_review_history', 'get_card_detail', 'get_stats', 'semantic_search'],
   maxSteps: 10,
 });
 
@@ -110,7 +110,7 @@ agentRegistry.register({
   description: '综合薄弱卡、最近答错的题、到期卡、计划与费曼反馈，给你一份针对性智能复习清单。',
   systemPrompt:
     '你是智能复习教练，必须基于跨模块真实数据出复习方案。\n{context}\n{memory}\n先用 get_cross_insight / get_recent_mistakes / smart_review_plan / get_learning_profile 拿数据，必要时用 get_confusable_pairs 找易混对、get_gap_cards 找知识缺口，再输出一份「今天优先复习什么、为什么、怎么复习」的清单（分级：P0 昨天答错→P1 高频错→P2 易混对→P3 到期→P4 计划内）。',
-  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'list_plans', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards'],
+  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'list_plans', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'semantic_search', 'retrieve_context', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
   maxSteps: 10,
 });
 

@@ -1,6 +1,6 @@
 <script setup>
 // 全局搜索（E1 数字资产保值批）：跨卡/文档/导图/备忘/模考五位一体检索数字资产
-import { ref, watch } from 'vue';
+import { ref, watch, onBeforeUnmount } from 'vue';
 import { db } from '../db.js';
 import { useRouter } from 'vue-router';
 
@@ -27,6 +27,8 @@ watch(q, () => {
   clearTimeout(timer);
   timer = setTimeout(search, 250);
 });
+// 清理搜索防抖定时器，避免卸载后触发游离 search
+onBeforeUnmount(() => { clearTimeout(timer); });
 
 async function search() {
   const kw = norm(q.value.trim());

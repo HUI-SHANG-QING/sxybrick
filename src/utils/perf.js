@@ -3,8 +3,11 @@ import { ref } from 'vue';
 
 export const degraded = ref(false);
 let recent = [];
+let started = false; // 幂等守卫：防止 HMR 热更新重复调用导致多个 observer + interval 泄漏
 
 export function startPerfMonitor() {
+  if (started) return;
+  started = true;
   if (typeof PerformanceObserver === 'undefined') return;
   try {
     const po = new PerformanceObserver((list) => {
