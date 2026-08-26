@@ -9,6 +9,7 @@ import FloatAssistant from './components/FloatAssistant.vue';
 import NavBar from './components/NavBar.vue';
 // NotificationBell 首屏必需（通知铃铛），保留同步
 import NotificationBell from './components/NotificationBell.vue';
+import ErrorBoundary from './components/ErrorBoundary.vue';
 // Intro/Guide 仅首次访问时显示、InkLandscape 仅国风主题激活时显示 → 异步加载以减小首屏 chunk
 const Intro = defineAsyncComponent(() => import('./components/Intro.vue'));
 const Guide = defineAsyncComponent(() => import('./components/Guide.vue'));
@@ -172,7 +173,7 @@ async function enableReminder() {
     <main class="app-main">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
-          <component :is="Component" />
+          <ErrorBoundary><component :is="Component" /></ErrorBoundary>
         </transition>
       </router-view>
     </main>

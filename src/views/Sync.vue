@@ -4,6 +4,7 @@ import { ref, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
 import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines } from '../sync.js';
 import { getSubjects, createCard } from '../repo.js';
+import { getErrors, clearErrors } from '../utils/errorLog.js';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 const hubUrl = ref(localStorage.getItem('sxy_hub') || location.origin);
@@ -13,6 +14,9 @@ const syncing = ref(false);
 const importing = ref(false);
 const lastBackup = ref(null);
 const lastReport = ref(JSON.parse(localStorage.getItem('sxy_last_sync_report') || 'null'));
+const errors = ref([]);
+async function loadErrors() { errors.value = await getErrors(30); }
+async function clearErrs() { await clearErrors(); errors.value = []; toast('错误日志已清空', 'success'); }
 
 function saveReport(mode, stats) {
   lastReport.value = { at: Date.now(), mode, stats };
@@ -132,7 +136,7 @@ async function onAnkiFile(e) {
   finally { ankiBusy.value = false; }
 }
 
-onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
+onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); });
 </script>
 
 <template>
@@ -246,6 +250,27 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
         </ol>
       </div>
     </div>
+
+    <div class="card" style="margin-top:16px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <h3 style="margin:0">本地错误日志</h3>
+        <span class="hint">{{ errors.length }} 条</span>
+        <span style="flex:1"></span>
+        <button class="btn small" @click="loadErrors">刷新</button>
+        <button class="btn small" style="color:var(--red)" @click="clearErrs" v-if="errors.length">清空</button>
+      </div>
+      <p class="hint" style="margin:4px 0 8px">记录应用运行时的异常（看不见的崩溃），便于反馈排查。最多保留 200 条。</p>
+      <div v-if="!errors.length" class="hint" style="padding:12px;text-align:center">暂无错误记录</div>
+      <div v-for="e in errors" :key="e.id" class="err-row">
+        <div class="err-head">
+          <span class="err-sev" :class="e.severity">{{ e.severity }}</span>
+          <span class="err-time">{{ fmt(e.createdAt) }}</span>
+          <span class="err-ctx" v-if="e.ctx">{{ e.ctx }}</span>
+        </div>
+        <div class="err-msg">{{ e.message }}</div>
+        <details v-if="e.stack"><summary class="hint">堆栈</summary><pre class="err-stack">{{ e.stack }}</pre></details>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -261,4 +286,13 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); });
 .sync-detail { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; }
 .sd-item { font-size: 12px; color: var(--ink-2); }
 .sd-item b { color: var(--ink); }
+.err-row { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; font-size: 12px; }
+.err-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.err-sev { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+.err-sev.error { background: var(--red); color: #fff; }
+.err-sev.warn { background: var(--accent); color: #fff; }
+.err-time { color: var(--ink-2); }
+.err-ctx { color: var(--ink-2); font-family: monospace; }
+.err-msg { color: var(--ink); word-break: break-all; }
+.err-stack { font-size: 10px; color: var(--ink-2); white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow: auto; margin: 4px 0 0; }
 </style>

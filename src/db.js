@@ -64,6 +64,12 @@ db.version(10).stores({
   notifications: 'id, read, createdAt',
 });
 
+// v11：新增本地错误日志表（#16 错误边界+日志，便于排查看不见的崩溃）
+// severity: 'error'|'warn'；ctx: 组件/路由名；stack: 错误堆栈
+db.version(11).stores({
+  errors: 'id, createdAt, severity',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }
