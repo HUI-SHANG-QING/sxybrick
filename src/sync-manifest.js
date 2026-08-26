@@ -27,10 +27,12 @@ export const SYNC_TABLES = [
 ];
 
 // 卡片字段级合并分组：
-//   内容侧（按 updatedAt 谁新听谁）：文本/科目/标签/来源/错题标记/助记/错因
+//   内容侧（按 updatedAt 谁新听谁）：文本/科目/标签/来源/错题标记/助记/错因/难度梯度(P3-E)
 //   SRS 侧（按 reviewedAt ?? updatedAt 谁新听谁）：记忆曲线状态与复习元信息
-export const CARD_CONTENT_FIELDS = ['front', 'back', 'subject', 'source', 'type', 'marked', 'mnemonic', 'tags', 'frontChars', 'backChars', 'wrongReason'];
-export const CARD_SRS_FIELDS = ['ease', 'level', 'intervalDays', 'dueAt', 'difficulty', 'reviewedAt'];
+//   注：difficulty 是卡片固有内容属性（basic/applied/challenge），随内容编辑走 updatedAt 合并，
+//       而非复习状态；否则另一台设备单纯复习（reviewedAt 更新）会覆盖本机的难度编辑。
+export const CARD_CONTENT_FIELDS = ['front', 'back', 'subject', 'source', 'type', 'marked', 'mnemonic', 'tags', 'frontChars', 'backChars', 'wrongReason', 'difficulty'];
+export const CARD_SRS_FIELDS = ['ease', 'level', 'intervalDays', 'dueAt', 'reviewedAt'];
 
 // ---------- 纯合并函数（无浏览器依赖，前端 sync.js 与 Node 端 hub.js 共用） ----------
 

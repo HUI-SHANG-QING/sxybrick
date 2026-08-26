@@ -3,6 +3,7 @@
 // 一次生成多张变式，写入卡片库关联原始卡
 import { chatAI, hasAIKey } from '../ai.js';
 import { createCard } from '../repo.js';
+import { offlineGenVariants, shouldFallback, isNetworkError } from './offlineAI.js';
 
 function plain(md) {
   return String(md || '')
@@ -21,33 +22,57 @@ function plain(md) {
  * @returns {Promise<Array>} 生成的变式卡数组
  */
 export async function genVariants(card, count = 3) {
-  if (!hasAIKey()) throw new Error('请先在「AI 设置」里填入密钥');
-  const r = await chatAI([
-    {
-      role: 'system',
-      content: `你是出题老师。针对下面的知识点出 ${count} 道「情境变式」题（同知识点、不同问法/场景、难度相当），每道换一个真实应用场景，避免简单换汤不换药。输出严格 JSON 数组：[{"front":"问题","back":"答案"}]。只输出 JSON，不要多余文字。`,
-    },
-    {
-      role: 'user',
-      content: `原题：${plain(card.front)}\n原答案：${plain(card.back)}\n科目：${card.subject || '未分类'}`,
-    },
-  ]);
-  const m = String(r).match(/\[[\s\S]*\]/);
-  const arr = JSON.parse(m ? m[0] : r);
-  if (!Array.isArray(arr)) throw new Error('AI 返回格式异常');
+  // difficulty 梯度：basic / applied / challenge（P3-E 渐进式复杂度）
+  const make = async (v) => createCard({
+    front: String(v.front).slice(0, 8000),
+    back: String(v.back).slice(0, 8000),
+    subject: card.subject || '',
+    tags: ['情境变式', ...(card.tags || []).slice(0, 3)],
+    type: 'basic',
+    source: '情境变式生成',
+    sourceCardId: card.id,
+    difficulty: ['basic', 'applied', 'challenge'].includes(v.difficulty) ? v.difficulty : 'applied',
+  });
+
+  // 离线兜底：无 key 时用本地模板变式（已带难度梯度）
+  if (shouldFallback()) {
+    const variants = offlineGenVariants(card, count);
+    const created = [];
+    for (const v of variants) { try { created.push(await make(v)); } catch {} }
+    if (!created.length) throw new Error('离线模式无法生成变式，请先配置 AI 密钥');
+    return created;
+  }
+
+  let arr;
+  try {
+    const r = await chatAI([
+      {
+        role: 'system',
+        content: `你是出题老师。针对下面的知识点出 ${count} 道「情境变式」题，难度覆盖 basic（基础识记）/ applied（情境应用）/ challenge（综合辨析）三级梯度，每道换一个真实应用场景，避免简单换汤不换药。输出严格 JSON 数组：[{"front":"问题","back":"答案","difficulty":"basic|applied|challenge"}]。只输出 JSON，不要多余文字。`,
+      },
+      {
+        role: 'user',
+        content: `原题：${plain(card.front)}\n原答案：${plain(card.back)}\n科目：${card.subject || '未分类'}`,
+      },
+    ]);
+    const m = String(r).match(/\[[\s\S]*\]/);
+    arr = JSON.parse(m ? m[0] : r);
+    if (!Array.isArray(arr)) throw new Error('AI 返回格式异常');
+  } catch (e) {
+    if (isNetworkError(e)) {
+      // 网络失败：降级本地模板变式
+      const variants = offlineGenVariants(card, count);
+      const created = [];
+      for (const v of variants) { try { created.push(await make(v)); } catch {} }
+      if (!created.length) throw new Error('网络失败且离线变式生成失败，请稍后重试');
+      return created;
+    }
+    throw e;
+  }
   const created = [];
   for (const v of arr) {
     if (!v.front || !v.back) continue;
-    const c = await createCard({
-      front: String(v.front).slice(0, 8000),
-      back: String(v.back).slice(0, 8000),
-      subject: card.subject || '',
-      tags: ['情境变式', ...(card.tags || []).slice(0, 3)],
-      type: 'basic',
-      source: '情境变式生成',
-      sourceCardId: card.id,   // 变式卡溯源：记录原卡 ID
-    });
-    created.push(c);
+    try { created.push(await make(v)); } catch {}
   }
   if (!created.length) throw new Error('AI 未生成有效变式');
   return created;

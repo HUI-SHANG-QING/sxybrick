@@ -4,9 +4,10 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
-import { getSubjects, getTags, listCards } from '../repo.js';
+import { getSubjects, getTags, listCards, createCard } from '../repo.js';
 import { downloadCsv } from '../sync.js';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
+import { encodeShareCode, decodeShareCode, estimateSize } from '../utils/shareCode.js';
 
 const subjects = ref([]);
 const allTags = ref([]);
@@ -243,6 +244,82 @@ onMounted(() => {
   loadMeta();
   try { lastExport.value = JSON.parse(localStorage.getItem('sxy_last_export') || 'null'); } catch {}
 });
+
+// ---------- P3·#1 卡组分享码：生成 / 复制 / 粘贴导入 ----------
+const shareOpen = ref(false);
+const shareMode = ref('generate'); // 'generate' | 'import'
+const shareCode = ref('');
+const shareBusy = ref(false);
+const importCode = ref('');
+const importPreview = ref(null); // { cards, scope, exportedAt }
+
+async function openShareGen() {
+  const cards = selectedCards();
+  if (!cards.length) { toast('没有可分享的卡片', 'error'); return; }
+  shareMode.value = 'generate';
+  shareOpen.value = true;
+  shareCode.value = '';
+  shareBusy.value = true;
+  try {
+    const code = await encodeShareCode(cards, { scope: buildDesc() });
+    shareCode.value = code;
+    toast(`已生成分享码（${cards.length} 张，约 ${estimateSize(cards)} KB）`, 'success');
+  } catch (e) { toast('生成失败：' + e.message, 'error'); }
+  finally { shareBusy.value = false; }
+}
+
+async function copyShareCode() {
+  if (!shareCode.value) return;
+  try {
+    await navigator.clipboard.writeText(shareCode.value);
+    toast('分享码已复制到剪贴板', 'success');
+  } catch { toast('剪贴板不可用，请手动选中复制', 'info'); }
+}
+
+function openShareImport() {
+  shareMode.value = 'import';
+  shareOpen.value = true;
+  importCode.value = '';
+  importPreview.value = null;
+}
+
+async function previewImport() {
+  if (!importCode.value.trim()) { toast('请粘贴分享码', 'error'); return; }
+  if (shareBusy.value) return;
+  shareBusy.value = true;
+  try {
+    const r = await decodeShareCode(importCode.value);
+    importPreview.value = r;
+    toast(`解析成功：${r.cards.length} 张卡片${r.scope ? '·范围 ' + r.scope : ''}`, 'success');
+  } catch (e) {
+    toast('解析失败：' + e.message, 'error');
+    importPreview.value = null;
+  } finally { shareBusy.value = false; }
+}
+
+async function doImport() {
+  if (!importPreview.value?.cards?.length) { toast('请先解析预览', 'error'); return; }
+  if (shareBusy.value) return;
+  shareBusy.value = true;
+  let n = 0, fail = 0;
+  try {
+    for (const c of importPreview.value.cards) {
+      try {
+        await createCard({
+          front: c.front, back: c.back, subject: c.subject || '',
+          tags: c.tags || [], mnemonic: c.mnemonic || '',
+          wrongReason: c.wrongReason || '', type: c.type || 'basic',
+          source: '分享码导入',
+        });
+        n++;
+      } catch { fail++; }
+    }
+    toast(`已导入 ${n} 张卡片${fail ? `，失败 ${fail} 张` : ''}（可在「我的卡片」查看）`, 'success');
+    shareOpen.value = false;
+    await loadMeta();
+  } catch (e) { toast('导入失败：' + e.message, 'error'); }
+  finally { shareBusy.value = false; }
+}
 </script>
 
 <template>
@@ -327,6 +404,8 @@ onMounted(() => {
       </button>
       <button class="btn" @click="doCsv">导出 CSV</button>
       <button class="btn" @click="doMarkdown">导出 Markdown</button>
+      <button class="btn" @click="openShareGen" title="把当前筛选/勾选的卡片编码成短字符串，对方粘贴即可导入">🔗 生成分享码</button>
+      <button class="btn" @click="openShareImport" title="粘贴他人分享的码，解析后批量导入">📥 导入分享码</button>
       <button class="chip" :class="{ on: hideAnswer }" @click="hideAnswer = !hideAnswer">
         {{ hideAnswer ? '已隐藏答案（自测）' : '隐藏答案（自测模式）' }}
       </button>
@@ -382,6 +461,52 @@ onMounted(() => {
             </div>
 
             <div class="export-foot">— SxyBrick 记忆卡片 · {{ exportDate }} —</div>
+          </div>
+        </div>
+      </div>
+    </teleport>
+
+    <!-- P3·#1 卡组分享码弹窗：生成 / 复制 / 粘贴 / 导入 -->
+    <teleport to="body">
+      <div v-if="shareOpen" class="modal-mask" @click.self="shareOpen = false">
+        <div class="modal" style="max-width:620px">
+          <h3 style="margin-top:0">🔗 卡组分享码</h3>
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <button class="chip" :class="{ on: shareMode === 'generate' }" @click="shareMode = 'generate'">生成分享码</button>
+            <button class="chip" :class="{ on: shareMode === 'import' }" @click="shareMode = 'import'">粘贴导入</button>
+          </div>
+
+          <div v-if="shareMode === 'generate'">
+            <p class="hint" style="margin:4px 0 8px">把当前筛选/勾选的卡片编码成短字符串（gzip+base64 压缩，零外部服务）。对方在「导入分享码」粘贴即可批量导入。</p>
+            <div v-if="shareBusy" class="hint" style="padding:12px;text-align:center">生成中…</div>
+            <template v-else-if="shareCode">
+              <textarea class="input" rows="6" readonly :value="shareCode" style="font-family:monospace;font-size:11px;word-break:break-all"></textarea>
+              <div style="display:flex;gap:8px;margin-top:10px">
+                <button class="btn primary" @click="copyShareCode">📋 复制到剪贴板</button>
+                <button class="btn" @click="shareOpen = false">关闭</button>
+              </div>
+            </template>
+          </div>
+
+          <div v-else>
+            <p class="hint" style="margin:4px 0 8px">粘贴以 <code>SXY1:</code> 或 <code>SXY0:</code> 开头的分享码，先解析预览，再批量导入。</p>
+            <textarea v-model="importCode" class="input" rows="5" placeholder="在此粘贴分享码…" style="font-family:monospace;font-size:11px;word-break:break-all"></textarea>
+            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+              <button class="btn" :disabled="shareBusy || !importCode.trim()" @click="previewImport">解析预览</button>
+              <button v-if="importPreview" class="btn primary" :disabled="shareBusy" @click="doImport">📥 导入 {{ importPreview.cards.length }} 张</button>
+              <button class="btn" @click="shareOpen = false">关闭</button>
+            </div>
+            <div v-if="importPreview" class="hint" style="margin-top:10px;padding:8px 10px;background:var(--code-bg);border-radius:6px">
+              <div>✅ 解析成功：{{ importPreview.cards.length }} 张卡片</div>
+              <div v-if="importPreview.scope">范围：{{ importPreview.scope }}</div>
+              <div v-if="importPreview.exportedAt">导出于：{{ fmtTime(importPreview.exportedAt) }}</div>
+              <div style="margin-top:6px;max-height:120px;overflow-y:auto">
+                <div v-for="(c, i) in importPreview.cards.slice(0, 5)" :key="i" style="font-size:12px;padding:2px 0">
+                  · {{ (c.subject || '未分类') }} — {{ String(c.front).slice(0, 40) }}
+                </div>
+                <div v-if="importPreview.cards.length > 5" style="font-size:11px;color:var(--ink-2)">… 还有 {{ importPreview.cards.length - 5 }} 张</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

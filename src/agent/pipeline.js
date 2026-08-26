@@ -15,6 +15,19 @@ import { buildMemoryText } from './memory.js';
 import { chat as llmChat } from './llm.js';
 import { createBlackboard } from './blackboard.js';
 import { TraceKind } from './types.js';
+import { offlineChat, shouldFallback, isNetworkError } from '../utils/offlineAI.js';
+
+// Agent 层离线兜底：与 ai.js chatAI 同款逻辑，避免在 agent 层直调 llm.js 绕过 P3-D 兜底。
+// 不能直接 import { chatAI } from '../ai.js'，否则会与 ai.js → agentSystem → 本模块 形成循环依赖。
+async function chatWithFallback(messages, cfg, opts = {}) {
+  if (shouldFallback()) return offlineChat(messages);
+  try {
+    return await llmChat(messages, cfg, opts);
+  } catch (e) {
+    if (isNetworkError(e)) return offlineChat(messages);
+    throw e;
+  }
+}
 
 // ---------- 预设流水线：常见多智能体协作场景 ----------
 
@@ -137,7 +150,7 @@ export async function runPipeline(opt) {
     cfg,
     studyContext: '',
     memoryText: await buildMemoryText(),
-    chat: (messages, opts = {}) => llmChat(messages, cfg, { ...opts, signal }),
+    chat: (messages, opts = {}) => chatWithFallback(messages, cfg, { ...opts, signal }),
   };
 
   // 3) 无预设匹配 → LLM 自动分解

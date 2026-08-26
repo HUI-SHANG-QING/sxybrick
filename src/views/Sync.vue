@@ -2,9 +2,10 @@
 // 数据同步：手动导出/导入（数据包文件）+ 局域网一键同步（电脑端中枢）
 import { ref, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
-import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines } from '../sync.js';
+import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup } from '../sync.js';
 import { getSubjects, createCard } from '../repo.js';
 import { getErrors, clearErrors } from '../utils/errorLog.js';
+import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from '../utils/gistBackup.js';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 const hubUrl = ref(localStorage.getItem('sxy_hub') || location.origin);
@@ -17,6 +18,77 @@ const lastReport = ref(JSON.parse(localStorage.getItem('sxy_last_sync_report') |
 const errors = ref([]);
 async function loadErrors() { errors.value = await getErrors(30); }
 async function clearErrs() { await clearErrors(); errors.value = []; toast('错误日志已清空', 'success'); }
+
+// ---------- P3·#2 Gist 云备份 ----------
+const ghToken = ref(localStorage.getItem('sxy_gist_token') || '');
+const gistId = ref(localStorage.getItem('sxy_gist_id') || '');
+const ghLogin = ref(localStorage.getItem('sxy_gist_login') || '');
+const gistBusy = ref(false);
+const gistOpen = ref(false);
+
+function saveGistCfg() {
+  localStorage.setItem('sxy_gist_token', ghToken.value);
+  localStorage.setItem('sxy_gist_id', gistId.value);
+  localStorage.setItem('sxy_gist_login', ghLogin.value);
+}
+
+async function verifyGhToken() {
+  if (!ghToken.value) { toast('请填写 Token', 'error'); return; }
+  if (gistBusy.value) return;
+  gistBusy.value = true;
+  try {
+    const r = await verifyToken(ghToken.value);
+    ghLogin.value = r.login;
+    saveGistCfg();
+    toast(`✅ Token 有效，账号：${r.login}`, 'success');
+  } catch (e) { toast('Token 校验失败：' + e.message, 'error'); }
+  finally { gistBusy.value = false; }
+}
+
+async function uploadToGist() {
+  if (!ghToken.value) { toast('请先填 Token 并校验', 'error'); return; }
+  if (gistBusy.value) return;
+  gistBusy.value = true;
+  try {
+    const payload = await buildBackup();
+    if (gistId.value) {
+      // 已有 gist：PATCH 更新
+      const r = await updateGistBackup(ghToken.value, gistId.value, payload);
+      toast(`✅ 已更新 Gist 备份（${counts.value.cards} 张卡 · 更新于 ${new Date(r.updatedAt).toLocaleString()}）`, 'success');
+    } else {
+      // 首次：创建新 secret gist
+      const r = await createGistBackup(ghToken.value, payload);
+      gistId.value = r.gistId;
+      saveGistCfg();
+      toast(`✅ 首次云备份完成（${counts.value.cards} 张卡 · Gist ID 已保存）`, 'success');
+    }
+  } catch (e) { toast('上传失败：' + e.message, 'error'); }
+  finally { gistBusy.value = false; }
+}
+
+async function pullFromGist() {
+  if (!ghToken.value || !gistId.value) { toast('请先填 Token 和 Gist ID', 'error'); return; }
+  if (gistBusy.value) return;
+  if (!confirm('将从 Gist 拉取备份并合并到本地库（保留本地较新内容）。继续？')) return;
+  gistBusy.value = true;
+  try {
+    const payload = await fetchGistBackup(ghToken.value, gistId.value);
+    const stats = await importBackup(payload, 'merge');
+    saveReport('gist-pull', stats);
+    await loadCounts();
+    toast(`✅ 已从 Gist 拉取并合并：${fmtStats(stats)}`, 'success');
+  } catch (e) { toast('拉取失败：' + e.message, 'error'); }
+  finally { gistBusy.value = false; }
+}
+
+function resetGist() {
+  if (!confirm('清空本机的 Gist 配置（不影响云端 Gist）？')) return;
+  ghToken.value = ''; gistId.value = ''; ghLogin.value = '';
+  localStorage.removeItem('sxy_gist_token');
+  localStorage.removeItem('sxy_gist_id');
+  localStorage.removeItem('sxy_gist_login');
+  toast('已清空 Gist 配置', 'info');
+}
 
 function saveReport(mode, stats) {
   lastReport.value = { at: Date.now(), mode, stats };
@@ -215,6 +287,36 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); 
         <button class="btn" @click="doAnkiExport">导出 Anki 文本</button>
         <button class="btn" :disabled="ankiBusy" @click="pickAnki">{{ ankiBusy ? '导入中…' : '导入 Anki 文本' }}</button>
         <input ref="ankiInput" type="file" accept=".txt,.tsv,.csv,text/plain" style="display:none" @change="onAnkiFile" />
+      </div>
+    </div>
+
+    <!-- Gist 云备份（P3-B） -->
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-title">GitHub Gist 云备份</div>
+      <p class="hint" style="margin-top:0">
+        用 GitHub Gist 做跨设备云端备份：上传一份加密快照到你的 Gist，换设备/换浏览器时拉取合并。Token 仅存本机 localStorage，不上传任何第三方。
+      </p>
+
+      <div class="field-label" style="margin-top:0">GitHub Personal Access Token（需 gist 权限）</div>
+      <div class="row">
+        <input v-model="ghToken" class="input" type="password" placeholder="ghp_xxxx（在 GitHub Settings → Developer settings → Tokens 生成）" />
+        <button class="btn small" :disabled="gistBusy" @click="verifyGhToken">{{ gistBusy ? '校验中…' : '校验' }}</button>
+      </div>
+      <div v-if="ghLogin" class="hint" style="margin-bottom:8px;color:var(--green)">✓ 已校验账号：{{ ghLogin }}</div>
+
+      <div class="field-label" v-if="gistId">已绑定的 Gist ID</div>
+      <div class="row" v-if="gistId">
+        <input v-model="gistId" class="input" :readonly="!gistOpen" placeholder="Gist ID（首次上传后自动填入）" />
+        <button class="btn small" @click="gistOpen = !gistOpen">{{ gistOpen ? '锁定' : '编辑' }}</button>
+      </div>
+
+      <div class="row" style="margin-bottom:0">
+        <button class="btn primary" :disabled="gistBusy" @click="uploadToGist">{{ gistBusy ? '处理中…' : (gistId ? '上传更新到 Gist' : '首次云备份') }}</button>
+        <button class="btn" :disabled="gistBusy || !gistId" @click="pullFromGist">从 Gist 拉取合并</button>
+        <button class="btn small" style="color:var(--red)" @click="resetGist" v-if="ghToken || gistId">清空配置</button>
+      </div>
+      <div class="hint" style="margin-top:8px;margin-bottom:0">
+        提示：首次点「首次云备份」会创建一个 secret Gist 并自动记下 ID；之后点「上传更新」即覆盖同一份。拉取时按「最后修改时间」合并，保留本地较新内容。
       </div>
     </div>
 

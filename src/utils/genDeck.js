@@ -9,6 +9,7 @@
 // 设计原则：纯前端、模块化、无额外 LLM 调用做评分（省 token、可离线）
 import { chatAI, hasAIKey } from '../ai.js';
 import { listCards, createCard, createDoc } from '../repo.js';
+import { offlineGenDeck, shouldFallback, isNetworkError } from './offlineAI.js';
 
 // ---------- 文本预处理 ----------
 const MAX_CHUNK_CHARS = 2000; // 单次 LLM 拆卡输入上限，超长则分块
@@ -185,6 +186,19 @@ export async function generateChunk(chunk, subjectHint = '') {
   return parseCards(r);
 }
 
+// 把本地兜底卡片包装成与 AI 路径一致的返回结构
+function formatOfflineResult(cards, sourceDocId, opts) {
+  return {
+    sourceDocId,
+    candidates: cards.map(enrichCard),
+    deduped: cards.map(enrichCard),
+    chunks: 1,
+    meta: { subject: opts.subject || '', title: opts.title || '' },
+    count: cards.length,
+    offline: true, // 标记：本次为离线降级产物
+  };
+}
+
 export function parseCards(text) {
   try {
     const m = String(text).match(/\[[\s\S]*\]/);
@@ -244,19 +258,34 @@ export const COLD_START_TEMPLATES = [
 export async function generateColdStartDeck(templateId) {
   const tpl = COLD_START_TEMPLATES.find(t => t.id === templateId);
   if (!tpl) throw new Error('未知冷启动模板');
-  if (!hasAIKey()) throw new Error('请先在「AI 设置」里填入密钥');
-  const r = await chatAI([
-    { role: 'system', content: GEN_SYS_PROMPT },
-    { role: 'user', content: tpl.prompt },
-  ]);
-  const raw = parseCards(r).map(c => ({ ...c, subject: c.subject || tpl.subject }));
-  const { candidates, deduped } = await dedupAgainstLibrary(raw);
-  return {
-    template: tpl,
-    candidates: candidates.map(enrichCard),
-    deduped: deduped.map(enrichCard),
-    count: candidates.length,
-  };
+  // 离线兜底：无 key 时用模板内置文本本地切卡
+  if (shouldFallback()) {
+    const cards = offlineGenDeck(tpl.prompt, { subject: tpl.subject })
+      .map(c => ({ ...c, subject: c.subject || tpl.subject, tags: [tpl.subject] }));
+    return { template: tpl, candidates: cards, deduped: cards, count: cards.length, offline: true };
+  }
+  try {
+    const r = await chatAI([
+      { role: 'system', content: GEN_SYS_PROMPT },
+      { role: 'user', content: tpl.prompt },
+    ]);
+    const raw = parseCards(r).map(c => ({ ...c, subject: c.subject || tpl.subject }));
+    const { candidates, deduped } = await dedupAgainstLibrary(raw);
+    return {
+      template: tpl,
+      candidates: candidates.map(enrichCard),
+      deduped: deduped.map(enrichCard),
+      count: candidates.length,
+    };
+  } catch (e) {
+    if (isNetworkError(e)) {
+      // 网络失败：降级本地切卡，保证冷启动可用
+      const cards = offlineGenDeck(tpl.prompt, { subject: tpl.subject })
+        .map(c => ({ ...c, subject: c.subject || tpl.subject, tags: [tpl.subject] }));
+      return { template: tpl, candidates: cards, deduped: cards, count: cards.length, offline: true };
+    }
+    throw e;
+  }
 }
 
 // ---------- 主入口：从一段文本生成完整卡组 ----------
@@ -265,7 +294,6 @@ export async function generateColdStartDeck(templateId) {
  * @param {object} opts { subject?, title?, saveSource? }
  */
 export async function generateDeck(text, opts = {}) {
-  if (!hasAIKey()) throw new Error('请先在「AI 设置」里填入密钥');
   const src = String(text || '').trim();
   if (!src) throw new Error('内容为空');
   const chunks = splitIntoChunks(src);
@@ -277,14 +305,48 @@ export async function generateDeck(text, opts = {}) {
     catch { /* 失败不阻塞生成 */ }
   }
 
-  const results = [];
-  const CONCURRENCY = 3;
-  for (let i = 0; i < chunks.length; i += CONCURRENCY) {
-    const batch = chunks.slice(i, i + CONCURRENCY);
-    const out = await Promise.all(batch.map(c => generateChunk(c, opts.subject)));
-    results.push(...out);
+  // 离线兜底：无 key 或网络失败时，走本地规则切卡
+  if (shouldFallback()) {
+    const cards = offlineGenDeck(src, { subject: opts.subject });
+    const { candidates, deduped } = await dedupAgainstLibrary(cards);
+    return {
+      sourceDocId,
+      candidates: candidates.map(enrichCard),
+      deduped: deduped.map(enrichCard),
+      chunks: chunks.length,
+      meta: { subject: opts.subject || '', title: opts.title || '' },
+      count: candidates.length,
+      offline: true,
+    };
   }
-  const raw = results.flat();
+
+  let raw;
+  try {
+    const results = [];
+    const CONCURRENCY = 3;
+    for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+      const batch = chunks.slice(i, i + CONCURRENCY);
+      const out = await Promise.all(batch.map(c => generateChunk(c, opts.subject)));
+      results.push(...out);
+    }
+    raw = results.flat();
+  } catch (e) {
+    if (isNetworkError(e)) {
+      // 网络失败：降级本地切卡
+      const cards = offlineGenDeck(src, { subject: opts.subject });
+      const { candidates, deduped } = await dedupAgainstLibrary(cards);
+      return {
+        sourceDocId,
+        candidates: candidates.map(enrichCard),
+        deduped: deduped.map(enrichCard),
+        chunks: chunks.length,
+        meta: { subject: opts.subject || '', title: opts.title || '' },
+        count: candidates.length,
+        offline: true,
+      };
+    }
+    throw e;
+  }
   const { candidates, deduped } = await dedupAgainstLibrary(raw);
 
   return {

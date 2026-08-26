@@ -16,6 +16,7 @@ import {
 } from './agent/memory.js';
 import { chat as llmChat } from './agent/llm.js';
 import { agentSystem } from './agent/index.js';
+import { offlineChat, shouldFallback, isNetworkError } from './utils/offlineAI.js';
 
 export { agentSystem } from './agent/index.js';
 
@@ -39,8 +40,15 @@ export function hasAIKey() {
 }
 
 // 调 OpenAI 兼容的 chat/completions 接口（供简单直连场景复用）
+// 离线兜底：无 key 或网络失败时返回诚实引导，避免功能直接崩溃
 export async function chatAI(messages, opts = {}) {
-  return llmChat(messages, getAIConfig(), opts);
+  if (shouldFallback()) return offlineChat(messages);
+  try {
+    return await llmChat(messages, getAIConfig(), opts);
+  } catch (e) {
+    if (isNetworkError(e)) return offlineChat(messages);
+    throw e;
+  }
 }
 
 // ---- 上下文 / 记忆：委托给引擎 ----

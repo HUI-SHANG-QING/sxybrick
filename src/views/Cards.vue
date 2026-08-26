@@ -222,7 +222,9 @@ async function loadSmart() {
   smartFilters.value = row?.value || [];
 }
 async function persistSmart() {
-  await db.meta.put({ key: 'smartFilters', value: smartFilters.value, updatedAt: Date.now() });
+  // smartFilters.value 是 Vue 响应式代理数组，直接 put 会触发 IndexedDB 结构化克隆失败
+  const plainFilters = JSON.parse(JSON.stringify(smartFilters.value));
+  await db.meta.put({ key: 'smartFilters', value: plainFilters, updatedAt: Date.now() });
 }
 async function saveSmart() {
   const name = prompt('给这个筛选组合起个名字：', filters.subject || '智能卡组');

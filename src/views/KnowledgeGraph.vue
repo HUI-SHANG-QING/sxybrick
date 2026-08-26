@@ -8,6 +8,7 @@ import { db } from '../db.js';
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { listGraphEdges, createGraphEdge, deleteGraphEdge } from '../repo.js';
 import { agentSystem } from '../agent/index.js';
+import { recommendGraphEdges } from '../intelligence.js';
 
 const generatedNodes = ref([]);
 const generatedEdges = ref([]);
@@ -16,6 +17,48 @@ const savedEdges = ref([]);
 const loading = ref(false);
 const activeId = ref('');
 const mode = ref('generated');
+// P2·#13 图谱关系自动推荐：基于卡片相似度的本地算法（零 LLM 开销）
+const recommended = ref([]);
+const recommendLoading = ref(false);
+
+async function autoRecommend() {
+  if (recommendLoading.value) return;
+  recommendLoading.value = true;
+  try {
+    const list = await recommendGraphEdges({ topN: 30 });
+    recommended.value = list;
+    if (!list.length) toast('暂无可推荐关联：卡片数量不足或已全部建立关联', 'info');
+    else toast(`分析出 ${list.length} 条候选关联（基于卡片相似度，可一键保存）`, 'success');
+  } catch (e) { toast(e.message, 'error'); }
+  finally { recommendLoading.value = false; }
+}
+
+async function saveRecommended(idx) {
+  const r = recommended.value[idx];
+  if (!r) return;
+  const created = await createGraphEdge({ from: r.from, to: r.to, label: r.label, subject: r.subject });
+  if (created) {
+    toast(`已保存：${r.from} ${r.label} ${r.to}`, 'success');
+    recommended.value.splice(idx, 1);
+    await loadSaved();
+  } else {
+    toast('该关联已存在，已从列表移除', 'info');
+    recommended.value.splice(idx, 1);
+  }
+}
+
+async function saveAllRecommended() {
+  let n = 0, skip = 0;
+  for (const r of [...recommended.value]) {
+    const created = await createGraphEdge({ from: r.from, to: r.to, label: r.label, subject: r.subject });
+    if (created) n++; else skip++;
+  }
+  recommended.value = [];
+  await loadSaved();
+  toast(`批量保存 ${n} 条${skip ? `，跳过 ${skip} 条重复` : ''}`, 'success');
+}
+
+function fmtScore(s) { return `${(s * 100 | 0)}%`; }
 
 // ---- 多风格 ----
 const layout = ref(localStorage.getItem('sxy_kg_layout') || 'force');
@@ -222,10 +265,34 @@ onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value
       <button v-if="savedEdges.length" class="chip" @click="mode = mode === 'saved' ? 'generated' : 'saved'">
         {{ mode === 'saved' ? '切换到 AI 生成' : '查看已保存图谱' }}
       </button>
+      <button class="btn" :disabled="loading" @click="autoRecommend" title="基于卡片相似度的本地算法，零 LLM 开销，零延迟">🔗 智能推荐关联</button>
       <button class="btn" :disabled="loading" @click="generateByAgent" title="走 graph-builder agent 工具调用循环，更懂卡片库且自动去重">🤖 Agent 智能构建</button>
       <button class="btn primary" :disabled="loading" @click="generate">{{ loading ? '生成中…' : 'AI 生成图谱' }}</button>
     </div>
-    <p class="hint" style="margin:4px 0 10px">AI/Agent 从卡片挖出知识点和关联；多风格可视化；可保存进知识库随数据包同步。</p>
+    <p class="hint" style="margin:4px 0 10px">AI/Agent 从卡片挖出知识点和关联；多风格可视化；可保存进知识库随数据包同步。「🔗 智能推荐」用本地相似度算法，免 Key 免流量。</p>
+
+    <div v-if="recommendLoading" class="hint" style="padding:12px;text-align:center">分析卡片相似度中…</div>
+    <div v-if="recommended.length" class="rec-box">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <strong>智能推荐 {{ recommended.length }} 条关联</strong>
+        <span class="hint">基于卡片内容/标签/科目相似度，可一键保存</span>
+        <span style="flex:1"></span>
+        <button class="btn small primary" @click="saveAllRecommended">💾 全部保存</button>
+      </div>
+      <div v-for="(r, i) in recommended" :key="`${r.from}-${r.to}-${r.label}`" class="rec-row">
+        <div class="rec-main">
+          <span class="rec-node">{{ r.from }}</span>
+          <span class="rec-rel" :title="r.reason">{{ r.label }}</span>
+          <span class="rec-node">{{ r.to }}</span>
+          <span class="rec-score" :title="r.reason">相似度 {{ fmtScore(r.score) }}</span>
+        </div>
+        <div class="rec-reason">{{ r.reason }}</div>
+        <div style="margin-top:4px">
+          <button class="btn small primary" @click="saveRecommended(i)">保存</button>
+          <button class="btn small" @click="recommended.splice(i, 1)">忽略</button>
+        </div>
+      </div>
+    </div>
 
     <div v-if="nodes.length" class="kg-layout-bar">
       <span class="hint" style="margin-right:4px">风格：</span>
@@ -279,4 +346,12 @@ onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value
 .cluster-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
 .cluster-count { font-size: 11px; color: var(--ink-2); margin-left: 6px; font-weight: 400; }
 @media (max-width: 720px) { .graph-box > div { height: 46vh !important; } }
+.rec-box { border: 1px solid var(--accent); border-radius: var(--radius); background: var(--panel); padding: 12px; margin-bottom: 12px; }
+.rec-row { padding: 8px 10px; border-bottom: 1px dashed var(--line); }
+.rec-row:last-child { border-bottom: none; }
+.rec-main { display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+.rec-node { background: var(--code-bg); padding: 2px 8px; border-radius: 4px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-rel { color: var(--accent); font-size: 12px; font-weight: 600; }
+.rec-score { font-size: 11px; color: var(--ink-2); margin-left: auto; }
+.rec-reason { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
 </style>

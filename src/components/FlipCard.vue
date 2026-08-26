@@ -14,7 +14,9 @@ const emit = defineEmits(['rate', 'edit']);
 const flipped = ref(false);
 const picked = ref(null);
 const hintReveal = ref(false);
-const difficulty = ref(props.card.difficulty ?? 1); // 0易 1中 2难
+// 本次复习难度评分（0易/1中/2难）：默认取卡片固有难度的映射值
+const DIFF_DEFAULT = { basic: 0, applied: 1, challenge: 2 };
+const difficulty = ref(DIFF_DEFAULT[props.card.difficulty] ?? (Number.isFinite(Number(props.card.difficulty)) ? Number(props.card.difficulty) : 1));
 const wrongReason = ref(props.card.wrongReason || '');
 const customWrong = ref('');
 const showCustomWrong = ref(false);
@@ -24,7 +26,7 @@ const writingChecked = ref(false);
 const writingCorrect = ref(false);
 watch(() => props.card.id, () => {
   flipped.value = false; picked.value = null; hintReveal.value = false;
-  difficulty.value = props.card.difficulty ?? 1;
+  difficulty.value = DIFF_DEFAULT[props.card.difficulty] ?? (Number.isFinite(Number(props.card.difficulty)) ? Number(props.card.difficulty) : 1);
   wrongReason.value = props.card.wrongReason || '';
   customWrong.value = '';
   showCustomWrong.value = false;

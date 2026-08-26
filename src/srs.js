@@ -42,7 +42,11 @@ export function computeNext(card, rating, intensity = 1, guessed = false, opts =
   const now = Date.now();
   let { level, ease } = card;
   ease = typeof ease === 'number' ? ease : 2.5;
-  const difficulty = Number(opts.difficulty ?? card.difficulty ?? 1);
+  // 难度系数：opts.difficulty（复习时评分 0/1/2）优先；否则取卡片固有 difficulty
+  // 兼容字符串梯度（P3-E：basic/applied/challenge → 0/1/2）与旧数值
+  const DIFF_MAP = { basic: 0, applied: 1, challenge: 2 };
+  const rawDiff = opts.difficulty ?? card.difficulty ?? 1;
+  const difficulty = DIFF_MAP[rawDiff] ?? (Number.isFinite(Number(rawDiff)) ? Number(rawDiff) : 1);
   const wrongReason = opts.wrongReason || card.wrongReason || '';
   // 短期巩固状态：null/0=未启用或已毕业，1=当日巩固待完成，2=隔日巩固待完成
   let consolidation = card.consolidation || null;

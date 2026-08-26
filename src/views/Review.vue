@@ -11,9 +11,10 @@ import { db } from '../db.js';
 import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS, applyCardFeedback } from '../repo.js';
 import { getGoal, getTodayCount } from '../utils/streak.js';
 import { startSpeech, isSpeechSupported } from '../utils/speech.js';
-import { mdToSpeech } from '../utils/tts.js';
+import { mdToSpeech, speak } from '../utils/tts.js';
 import { getConfusablePairs, getGraphDrivenReviewPlan } from '../agent/analytics.js';
 import { getQuickCheckDue, recordQuickCheck } from '../utils/quickCheck.js';
+import { recommendTodaySequence, syncReviewToPlan } from '../intelligence.js';
 
 const router = useRouter();
 
@@ -56,8 +57,15 @@ const confusableHint = ref('');
 const voiceListening = ref(false);
 const focusMode = ref(false);
 const speechSupported = isSpeechSupported();
+// P3-C 语音复习：TTS 朗读题面/答案 + 自动朗读模式
+const ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+const autoRead = ref(localStorage.getItem('sxy_rv_autoread') === '1');
+const reading = ref(''); // '' | 'front' | 'back'，标识当前正在朗读哪一面
 const graphMode = ref(localStorage.getItem('sxy_rv_graph') === '1');
 const graphMeta = ref(null);
+// P2·#14 今日最优序列：综合到期+薄弱+精力曲线+交错混科+变式分散的智能排程
+const smartMode = ref(localStorage.getItem('sxy_rv_smart') === '1');
+const smartMeta = ref(null); // { segments, summary, phase }
 
 // 短期提取巩固（C6）：新卡 10min~1h 内快速校验，不计 SRS
 const quickMode = ref(false);
@@ -111,13 +119,23 @@ function filterObj() {
 async function loadQueue() {
   loading.value = true;
   try {
-    if (graphMode.value) {
+    if (smartMode.value) {
+      // 今日最优序列：智能排程（含交错混科+难度梯度+变式分散），优先级最高
+      const opt = { limit: 100, includeNew: false };
+      if (fSubjects.value.length === 1) opt.focusSubject = fSubjects.value[0];
+      const r = await recommendTodaySequence(opt);
+      queue.value = r.sequence || [];
+      smartMeta.value = r;
+      graphMeta.value = null;
+    } else if (graphMode.value) {
       const plan = await getGraphDrivenReviewPlan({ limit: 100, includeDueOnly: !repeatMode });
       queue.value = plan.path;
       graphMeta.value = plan;
+      smartMeta.value = null;
     } else {
       queue.value = await reviewQueue(100, interleave.value, filterObj());
       graphMeta.value = null;
+      smartMeta.value = null;
     }
     idx.value = 0;
     goalNotified = false;
@@ -126,6 +144,29 @@ async function loadQueue() {
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; }
 }
+
+function toggleSmart() {
+  smartMode.value = !smartMode.value;
+  localStorage.setItem('sxy_rv_smart', smartMode.value ? '1' : '0');
+  if (smartMode.value) {
+    interleave.value = false; // 智能序列已含交错
+    graphMode.value = false;
+    localStorage.setItem('sxy_rv_graph', '0');
+  }
+  loadQueue();
+}
+
+// 智能序列段落提示（热身/主攻/收尾）
+const smartHint = computed(() => {
+  if (!smartMode.value || !smartMeta.value?.segments) return '';
+  const i = idx.value;
+  const segs = smartMeta.value.segments;
+  for (const s of segs) {
+    const [start, end] = s.range.split('-').map(Number);
+    if (i + 1 >= start && i + 1 <= end) return `🎯 ${s.name}：${s.desc}`;
+  }
+  return '';
+});
 
 function toggleGraph() {
   graphMode.value = !graphMode.value;
@@ -138,6 +179,8 @@ async function rate(card, rating, guessed = false, meta = {}) {
   try {
     const res = await review(card.id, rating, intensity.value, guessed, { ...meta, adaptive: adaptiveOn.value });
     todayCount.value = await getTodayCount(); // 从 db.reviews 推导（跨会话/跨设备同步）
+    // P2·#12 计划↔复习联动：复习后刷新引用此卡的计划的进度
+    syncReviewToPlan(card.id).catch(() => {});
     let msg = `下次复习：${res.dueText}`;
     if (rating === 0) {
       const pair = confusablePairs.value.find(p => p.a.id === card.id || p.b.id === card.id);
@@ -202,6 +245,30 @@ function voiceEval() {
     toast(`语音作答覆盖 ${cov}%（命中 ${hit}/${keywords.length} 个要点）${low}`, cov >= 60 ? 'success' : 'info');
   }, () => { voiceListening.value = false; });
   if (!rec) { voiceListening.value = false; toast('当前浏览器不支持语音识别', 'error'); }
+}
+
+// P3-C TTS 朗读：part = 'front' | 'back'
+function readAloud(part = 'front') {
+  if (!ttsSupported) { toast('当前浏览器不支持语音朗读', 'error'); return; }
+  const card = current();
+  if (!card) return;
+  const text = part === 'back' ? card.back : card.front;
+  const ok = speak(text);
+  if (!ok) { toast('该卡无可朗读内容', 'info'); return; }
+  reading.value = part;
+  // 朗读结束后清除状态（SpeechSynthesis 无精确 end 事件可靠，用定时兜底）
+  const dur = Math.max(1500, mdToSpeech(text).length * 180);
+  setTimeout(() => { if (reading.value === part) reading.value = ''; }, dur);
+}
+function stopRead() {
+  if (ttsSupported) window.speechSynthesis?.cancel();
+  reading.value = '';
+}
+function toggleAutoRead() {
+  autoRead.value = !autoRead.value;
+  localStorage.setItem('sxy_rv_autoread', autoRead.value ? '1' : '0');
+  if (!autoRead.value) stopRead();
+  else readAloud('front');
 }
 
 function toggleFocus() {
@@ -331,6 +398,13 @@ onMounted(async () => {
   }, 60000);
 });
 watch(intensity, v => localStorage.setItem('sxy_rv_intensity', String(v)));
+// P3-C：切到新卡时若开启自动朗读，先停旧朗读再读题面
+watch([idx, queue], () => {
+  stopRead();
+  if (autoRead.value && tab.value === 'due' && current()) {
+    setTimeout(() => readAloud('front'), 120);
+  }
+});
 onBeforeUnmount(() => {
   clearInterval(focusTimer);
   clearInterval(sessionTimer);
@@ -338,6 +412,7 @@ onBeforeUnmount(() => {
   localStorage.setItem('sxy_rv_focus', String(focusSeconds.value));
   document.body.classList.remove('review-focus');
   document.removeEventListener('keydown', onKey);
+  stopRead(); // 离开页面停止朗读
 });
 
 // ---- 键盘快捷键（P0 效率包）：空格翻面 · 1 没记住 · 2 还模糊 · 3 记住了 ----
@@ -480,6 +555,7 @@ async function recordDuelWrong(idA, idB) {
           <option :value="2">考前冲刺（最高频）</option>
         </select>
         <button class="chip" :class="{ on: interleave }" @click="toggleInterleave">交错混科</button>
+        <button class="chip" :class="{ on: smartMode }" @click="toggleSmart" title="综合到期+薄弱+精力曲线+交错混科+变式分散的智能排程（本地算法，零 LLM 开销）">🎯 今日最优序列</button>
         <button class="chip" :class="{ on: graphMode }" @click="toggleGraph" title="按知识图谱的前置/依赖关系编排复习顺序：基础知识卡在前，易混卡挨着复习">图驱动复习</button>
         <button class="chip" :class="{ on: adaptiveOn }" @click="toggleAdaptive" title="自适应节奏：按这张卡的历史错误率微调复习间隔">自适应节奏</button>
         <button class="chip" :class="{ on: sessionOn }" @click="toggleSession">{{ sessionOn ? `会话中 ${fmtClock(sessionLeft)}` : '25 分钟会话' }}</button>
@@ -489,6 +565,12 @@ async function recordDuelWrong(idA, idB) {
           筛选背诵{{ filterActive ? '（已选）' : '' }}
         </button>
         <button v-if="speechSupported" class="chip" :class="{ on: voiceListening }" @click="voiceEval">{{ voiceListening ? '聆听中…' : '语音作答' }}</button>
+        <template v-if="ttsSupported">
+          <button class="chip" :class="{ on: reading === 'front' }" @click="readAloud('front')" title="用语音朗读题面">🔊 朗读题面</button>
+          <button class="chip" :class="{ on: reading === 'back' }" @click="readAloud('back')" title="翻面后朗读答案">朗读答案</button>
+          <button class="chip" :class="{ on: autoRead }" @click="toggleAutoRead" title="切到每张卡时自动朗读题面">自动朗读</button>
+          <button v-if="reading" class="chip" style="color:var(--red);border-color:var(--red)" @click="stopRead">停止</button>
+        </template>
         <button class="chip" :class="{ on: focusMode }" @click="toggleFocus">专注模式</button>
       </div>
 
@@ -549,6 +631,7 @@ async function recordDuelWrong(idA, idB) {
 
       <template v-else-if="current()">
         <FlipCard ref="flipRef" :card="current()" @rate="rate" @edit="openEdit" />
+        <div v-if="smartHint" class="consolidation-hint" style="color:var(--accent)">{{ smartHint }}</div>
         <div v-if="graphHint" class="consolidation-hint" style="color:var(--blue)">{{ graphHint }}</div>
         <div v-if="consolidationHint" class="consolidation-hint">{{ consolidationHint }}</div>
         <div v-if="confusableHint" class="confusable-hint">{{ confusableHint }}</div>

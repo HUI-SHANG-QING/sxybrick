@@ -97,7 +97,7 @@ async function buildFeynmanContext(cards) {
   return L.join('\n');
 }
 
-async function start() {
+async function start(initialUserMsg) {
   if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
   const cards = filterCards(await db.cards.toArray());
   if (!cards.length) { toast('该范围内没有卡片', 'error'); return; }
@@ -109,7 +109,7 @@ async function start() {
     const ctx = await getContext(cards); // 上下文构建一次并缓存，后续每轮对话复用（弱设备不卡顿）
     const reply = await chatAI([
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
-      { role: 'user', content: '开始吧，先看看我最薄弱的点，出第一道题。' },
+      { role: 'user', content: initialUserMsg || '开始吧，先看看我最薄弱的点，出第一道题。' },
     ]);
     messages.value.push({ role: 'assistant', content: reply }); if (voiceOn.value) speak(reply);
     // 行为回写 SRS：完成一次费曼练习，给范围内最薄弱的 5 张卡小幅 ease 加成（每次会话一次）
@@ -211,6 +211,23 @@ async function removeSession(id) {
 
 onMounted(async () => {
   loadMeta(); await loadSessions();
+  // P2-C 协同：错题集「去费曼练习 →」跳转过来时，预填费曼主题并自动开一轮会话
+  const topic = sessionStorage.getItem('sxy_feynman_topic');
+  if (topic) {
+    const prompt = sessionStorage.getItem('sxy_feynman_prompt') || `请用费曼学习法讲解：「${topic}」`;
+    sessionStorage.removeItem('sxy_feynman_topic');
+    sessionStorage.removeItem('sxy_feynman_prompt');
+    newSession();
+    input.value = prompt;
+    toast(`已载入错题补救的费曼建议：${topic}`, 'info');
+    // 已配 AI Key 则自动开练；否则把 prompt 留在输入框，引导用户先配置
+    if (hasAIKey()) {
+      await start(prompt);
+    } else {
+      toast('请先在「AI 设置」里填入密钥，再点「开始费曼练习」', 'info');
+    }
+    return;
+  }
   const last = localStorage.getItem('sxy_last_feynman');
   if (last && sessions.value.some(s => s.id === last)) selectSession(last);
 });

@@ -5,8 +5,9 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { db } from '../db.js';
 import { weakCards, setMarked, getSubjects, gradeCard, createCard } from '../repo.js';
-import { chatAI, hasAIKey } from '../ai.js';
+import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
+import { smartRemediation } from '../intelligence.js';
 
 const items = ref([]);
 const subjects = ref([]);
@@ -16,6 +17,41 @@ watch(filterSubject, v => localStorage.setItem('sxy_wrong_subject', v));
 watch(filterStage, v => localStorage.setItem('sxy_wrong_stage', v));
 const genBusy = ref(new Set()); // 正在生成变式的卡 id 集合
 const batchBusy = ref(false);
+
+// P2·#11 错题闭环：智能补救结果面板
+const remediation = ref(null); // { card, diagnosis, feynmanHint, variantCards, graphLinks }
+const remediationBusy = ref(new Set()); // 正在补救的卡 id 集合
+
+async function startRemediation(c, withCards = false) {
+  if (remediationBusy.value.has(c.id)) return;
+  remediationBusy.value.add(c.id);
+  try {
+    const opt = { linkGraph: true };
+    if (withCards && hasAIKey()) {
+      opt.generateCards = true;
+      opt.aiCfg = getAIConfig();
+    }
+    const r = await smartRemediation(c.id, opt);
+    remediation.value = r;
+    if (withCards && r.variantCards?.length) {
+      toast(`补救闭环完成：诊断 + ${r.variantCards.length} 张变式卡 + ${r.graphLinks.length} 条图谱关联`, 'success');
+    } else {
+      toast(`补救闭环完成：诊断 + ${r.graphLinks.length} 条图谱关联（变式卡需 AI Key）`, 'success');
+    }
+    await load();
+  } catch (e) { toast('补救失败：' + e.message, 'error'); }
+  finally { remediationBusy.value.delete(c.id); }
+}
+
+function closeRemediation() { remediation.value = null; }
+
+async function goFeynman() {
+  if (!remediation.value?.feynmanHint) return;
+  // 跳转费曼页并带参数（用 sessionStorage 传递主题，避免 url 编码问题）
+  sessionStorage.setItem('sxy_feynman_topic', remediation.value.feynmanHint.topic);
+  sessionStorage.setItem('sxy_feynman_prompt', remediation.value.feynmanHint.prompt);
+  location.hash = '#/feynman';
+}
 
 function plain(md) {
   return String(md || '')
@@ -66,7 +102,8 @@ async function unmark(card) {
   await load();
 }
 async function dueNow(card) {
-  await db.cards.put({ ...card, dueAt: Date.now(), updatedAt: Date.now() });
+  // 用 db.cards.update 局部更新（而非 put 整对象）：避免 Vue reactive Proxy 写入 IDB 失败 + 不覆盖其他字段
+  await db.cards.update(card.id, { dueAt: Date.now(), updatedAt: Date.now() });
   toast('已加入今日复习，去「背诵」页练习', 'success');
 }
 function reason(c) {
@@ -149,12 +186,52 @@ onMounted(() => { load(); loadSubjects(); });
         <span class="chip" style="color:var(--red);border-color:var(--red)">{{ reason(c) }}</span>
         <span class="hint" style="font-size:12px">{{ gradeCard(c).label }}</span>
         <span style="flex:1"></span>
+        <button class="btn small" :disabled="remediationBusy.has(c.id)" @click="startRemediation(c, false)" title="一键触发：诊断→费曼建议→图谱关联，零 LLM 开销">{{ remediationBusy.has(c.id) ? '补救中…' : '🧩 智能补救' }}</button>
+        <button v-if="hasAIKey()" class="btn small" :disabled="remediationBusy.has(c.id)" @click="startRemediation(c, true)" title="智能补救 + AI 生成 2 张变式卡">{{ remediationBusy.has(c.id) ? '补救中…' : '🧩+卡片' }}</button>
         <button class="btn small" :disabled="genBusy.has(c.id)" @click="genVariant(c)">{{ genBusy.has(c.id) ? '生成中…' : 'AI 变式补卡' }}</button>
         <button class="btn small" @click="dueNow(c)">加入复习</button>
         <button class="btn small danger" @click="unmark(c)">取消标记</button>
       </div>
       <div class="wb-front">{{ plain(c.front) }}</div>
       <div class="wb-back">{{ plain(c.back) }}</div>
+
+      <!-- P2·#11 智能补救结果面板 -->
+      <div v-if="remediation && remediation.card?.id === c.id" class="remediation-box">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <b>🧩 智能补救闭环</b>
+          <span class="hint">诊断 → 费曼 → 补卡 → 图谱关联</span>
+          <span style="flex:1"></span>
+          <button class="btn small" @click="closeRemediation">关闭</button>
+        </div>
+        <div class="rm-section">
+          <div class="rm-section-title">📋 诊断</div>
+          <div>{{ remediation.diagnosis.summary }}</div>
+          <div class="hint" style="margin-top:4px">
+            近 10 次复习：错误 {{ remediation.diagnosis.failCount }} 次 · 模糊 {{ remediation.diagnosis.fuzzyCount }} 次 · 错误率 {{ Math.round(remediation.diagnosis.failRate * 100) }}%
+            <span v-if="remediation.diagnosis.wrongReason"> · 错因：{{ remediation.diagnosis.wrongReason }}</span>
+          </div>
+        </div>
+        <div class="rm-section">
+          <div class="rm-section-title">🧠 费曼学习建议</div>
+          <div class="hint" style="margin:4px 0">{{ remediation.feynmanHint.prompt }}</div>
+          <button class="btn small primary" @click="goFeynman">去费曼练习 →</button>
+        </div>
+        <div v-if="remediation.variantCards?.length" class="rm-section">
+          <div class="rm-section-title">📝 已生成变式卡（{{ remediation.variantCards.length }} 张）</div>
+          <div v-for="(v, i) in remediation.variantCards" :key="i" class="rm-variant">
+            <div v-if="!v.error"><b>题：</b>{{ v.front }} <span class="hint">→ {{ v.subject }}</span></div>
+            <div v-else style="color:var(--red)">{{ v.error }}</div>
+          </div>
+        </div>
+        <div v-if="remediation.graphLinks?.length" class="rm-section">
+          <div class="rm-section-title">🔗 已建立图谱关联（{{ remediation.graphLinks.length }} 条）</div>
+          <div v-for="(e, i) in remediation.graphLinks" :key="i" class="rm-edge">
+            <span>{{ e.from }}</span>
+            <span class="rm-rel">{{ e.label }}</span>
+            <span>{{ e.to }}</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -170,4 +247,10 @@ onMounted(() => { load(); loadSubjects(); });
 .stage-bar .chip .n { opacity: .65; margin-left: 4px; font-weight: 600; }
 .stage-bar .chip[disabled] { opacity: .4; cursor: not-allowed; }
 .stage-bar .chip.on[disabled] { opacity: 1; cursor: default; }
+.remediation-box { margin-top: 12px; padding: 12px 14px; background: var(--code-bg); border-radius: 8px; border: 1px solid var(--accent); }
+.rm-section { margin-top: 10px; padding: 8px 10px; background: var(--panel); border-radius: 6px; }
+.rm-section-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.rm-variant { padding: 4px 0; font-size: 13px; }
+.rm-edge { display: flex; gap: 6px; align-items: center; padding: 4px 0; font-size: 13px; }
+.rm-rel { color: var(--accent); font-size: 12px; }
 </style>

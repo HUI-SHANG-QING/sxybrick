@@ -23,14 +23,17 @@ export function validateCard(body) {
   const wrongReason = String(body.wrongReason ?? '').trim().slice(0, 20);
   // 变式卡溯源：记录原卡 ID，便于"同知识点不同情境"复习混排与追溯
   const sourceCardId = body.sourceCardId ? String(body.sourceCardId).slice(0, 60) : '';
+  // 渐进式复杂度（P3-E）：基础 / 应用 / 挑战 三级，便于脚手架式复习编排
+  const difficulty = ['basic', 'applied', 'challenge'].includes(body.difficulty) ? body.difficulty : 'basic';
   if (!front) return { error: '正面内容不能为空' };
   if (type !== 'cloze' && !back) return { error: '背面内容不能为空' };
   if ([...front].length > MAX_CHARS) return { error: `正面内容不能超过 ${MAX_CHARS} 字` };
   if ([...back].length > MAX_CHARS) return { error: `背面内容不能超过 ${MAX_CHARS} 字` };
-  return { value: { front, back, subject, tags, source, type, marked, mnemonic, wrongReason, sourceCardId } };
+  return { value: { front, back, subject, tags, source, type, marked, mnemonic, wrongReason, sourceCardId, difficulty } };
 }
 
-async function allCards() {
+// 导出供 intelligence.js 等模块复用（避免重复实现全量读取）
+export async function allCards() {
   return db.cards.toArray();
 }
 
@@ -102,6 +105,7 @@ export async function createCard(payload) {
     mnemonic: r.value.mnemonic,
     wrongReason: r.value.wrongReason,
     sourceCardId: r.value.sourceCardId || null,
+    difficulty: r.value.difficulty,
     tags: r.value.tags, frontChars: [...r.value.front].length, backChars: [...r.value.back].length,
     ease: 2.5, level: 0, intervalDays: 0, dueAt: t, createdAt: t, updatedAt: t,
   };
@@ -121,6 +125,7 @@ export async function updateCard(id, payload) {
     marked: r.value.marked,
     mnemonic: r.value.mnemonic,
     wrongReason: r.value.wrongReason,
+    difficulty: r.value.difficulty,
     frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
   };
   await db.cards.put(card);
@@ -211,7 +216,11 @@ export async function reviewQueue(limit = 100, interleave = false, filter = {}) 
 export async function review(cardId, rating, intensity = 1, guessed = false, opts = {}) {
   const card = await db.cards.get(cardId);
   if (!card) throw new Error('卡片不存在');
-  const difficulty = Number(opts.difficulty ?? card.difficulty ?? 1);
+  // 每复习难度评分（0/1/2）：opts 优先，否则取卡片内容难度映射值
+  // 注意：difficulty 是卡片固有内容属性（basic/applied/challenge），复习不应回写覆盖它
+  const DIFF_MAP = { basic: 0, applied: 1, challenge: 2 };
+  const toDiffNum = (v) => DIFF_MAP[v] ?? (Number.isFinite(Number(v)) ? Number(v) : null);
+  const difficulty = toDiffNum(opts.difficulty) ?? toDiffNum(card.difficulty) ?? 1;
   const wrongReason = opts.wrongReason || card.wrongReason || '';
   // 自适应节奏（C4）：按该卡近 10 次复习的错误率微调间隔（仅开启时计算）
   let adaptive = null;
@@ -222,10 +231,10 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
     adaptive = { reviews: last10.length, failRate: last10.length ? fail / last10.length : 0 };
   }
   const next = computeNext(card, rating, intensity, guessed, { difficulty, wrongReason, adaptive });
-  // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt：
-  // 否则跨设备同步时「复习动作」会覆盖另一台设备对卡片文字的编辑（数据丢失）
+  // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt、不回写 difficulty（内容属性）：
+  // 否则跨设备同步时「复习动作」会覆盖另一台设备对卡片文字/难度的编辑（数据丢失）
   // consolidation 字段：短期巩固状态（null/1/2），跟随 SRS 一并写回
-  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, difficulty, wrongReason, reviewedAt: now() });
+  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, wrongReason, reviewedAt: now() });
   await db.reviews.put({ id: uid(), cardId, reviewedAt: now(), rating, levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason });
   return { ...next, dueText: formatDue(next.dueAt) };
 }
@@ -589,7 +598,8 @@ export async function saveWeeklyReport(payload) {
     id: old?.id || uid(),
     weekStart,
     title: String(payload?.title || '学习周报').trim(),
-    data: payload?.data || {},
+    // data 可能是视图传入的 Vue 响应式代理（ref.value），直接 put 会触发 IndexedDB 结构化克隆失败
+    data: plain(payload?.data || {}),
     summary: String(payload?.summary || '').trim(),
     createdAt: old?.createdAt || t,
     updatedAt: t,

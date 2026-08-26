@@ -70,6 +70,11 @@ db.version(11).stores({
   errors: 'id, createdAt, severity',
 });
 
+// v12：cards 新增 difficulty 索引（P3-E 渐进式复杂度，便于按难度梯度编排复习）
+db.version(12).stores({
+  cards: 'id, subject, dueAt, updatedAt, createdAt, difficulty',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }
