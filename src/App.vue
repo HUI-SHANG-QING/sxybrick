@@ -21,7 +21,8 @@ const theme = useThemeStore();
 const showSettings = ref(false);
 
 const navItems = [
-  { path: '/', label: '卡片', icon: '🗂️' },
+  { path: '/', label: '总览', icon: '📊' },
+  { path: '/cards', label: '卡片', icon: '🗂️' },
   { path: '/review', label: '背诵', icon: '📖' },
   { path: '/stats', label: '数据', icon: '📊' },
   { path: '/export', label: '导出', icon: '🖨️' },
