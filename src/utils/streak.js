@@ -43,3 +43,47 @@ export async function getStreak() {
   while (days.has(dayKey(d.getTime()))) { streak++; d.setDate(d.getDate() - 1); }
   return streak;
 }
+
+// —— 2026-08-26 速赢区：智能复习提醒增强所需辅助查询 ——
+
+// 待复习卡片数（dueAt <= 现在）
+export async function getDueCount() {
+  const now = Date.now();
+  return await db.cards.where('dueAt').belowOrEqual(now).count();
+}
+
+// 各科目待复习数（前 5 科，用于通知正文展示）
+export async function getDueBySubject(topN = 5) {
+  const now = Date.now();
+  const due = await db.cards.where('dueAt').belowOrEqual(now).toArray();
+  const m = new Map();
+  for (const c of due) {
+    const k = c.subject || '未分类';
+    m.set(k, (m.get(k) || 0) + 1);
+  }
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, topN);
+}
+
+// 上次复习时间戳（毫秒），无记录返回 0
+export async function getLastReviewTs() {
+  const r = await db.reviews.orderBy('reviewedAt').last();
+  return r?.reviewedAt || 0;
+}
+
+// 近 N 天每日复习量（用于"本周 vs 上周"对比）
+export async function getDailyCounts(days) {
+  const out = [];
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const all = await db.reviews.toArray();
+  const byDay = new Map();
+  for (const r of all) {
+    const d = new Date(r.reviewedAt); d.setHours(0, 0, 0, 0);
+    const k = d.getTime();
+    byDay.set(k, (byDay.get(k) || 0) + 1);
+  }
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    out.push({ date: d.getTime(), count: byDay.get(d.getTime()) || 0 });
+  }
+  return out;
+}

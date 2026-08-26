@@ -27,7 +27,8 @@ import {
   updateDoc,
   deleteDoc,
 } from '../../repo.js';
-import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards } from '../analytics.js';
+import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards, getGraphDrivenReviewPlan, generateAutoPlan } from '../analytics.js';
+import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';
 
 // ---------- 1. 数据感知类（只读） ----------
 
@@ -160,6 +161,84 @@ toolRegistry.register({
     const arr = extractJSON(out);
     const cards = Array.isArray(arr) ? arr.filter((c) => c && c.front && c.back) : [];
     return { ok: true, data: { count: cards.length, cards } };
+  },
+});
+
+// 高级卡组生成（Phase 2 杀手锏）：分块 + 多题型 + 质量评分 + 去重 + 源文档溯源
+toolRegistry.register({
+  name: 'generate_card_deck',
+  description: '智能卡组生成：把长文/讲义拆成高质量记忆卡组，自动分块、多题型决策（basic/cloze/choice）、质量评分（0-100）、与已有库去重、原文存为 AI 文档溯源。返回候选卡（含 score/dupScore）+ 去重后子集。',
+  parameters: {
+    text: 'string: 学习内容（笔记/讲义/文章，可超长，自动分块）',
+    subject: 'string: 指定科目（可选）',
+    title: 'string: 源文档标题（可选）',
+    saveSource: 'boolean: 是否持久化源文档，默认 true',
+  },
+  writesData: true, // 持久化源文档
+  async execute(args) {
+    try {
+      const deck = await generateDeck(args?.text || '', {
+        subject: args?.subject || '',
+        title: args?.title || '',
+        saveSource: args?.saveSource !== false,
+      });
+      return { ok: true, data: deck };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+});
+
+// 批量入库（带源文档回链 + 失败收集）
+toolRegistry.register({
+  name: 'bulk_create_cards',
+  description: '把候选卡数组批量入库，自动给每张打 source 标记（可回链源文档）。返回成功/失败计数。',
+  parameters: {
+    cards: 'array: 候选卡数组 [{front,back,subject,tags,type}]',
+    sourceDocId: 'string: 源文档 id（可选，会写入 source 字段）',
+    subject: 'string: 统一科目覆盖（可选）',
+  },
+  writesData: true,
+  async execute(args) {
+    const list = Array.isArray(args?.cards) ? args.cards : [];
+    if (!list.length) return { ok: false, error: 'cards 为空' };
+    const r = await bulkCreateCards(list, {
+      sourceDocId: args?.sourceDocId || '',
+      subject: args?.subject || '',
+    });
+    return { ok: true, data: r };
+  },
+});
+
+// 冷启动卡组（0 卡新用户的杀手锏：一键生成入门卡包）
+toolRegistry.register({
+  name: 'cold_start_deck',
+  description: '为 0 卡新用户基于预设学科模板生成入门卡组（解决空库冷启动）。可先调 list_cold_start_templates 查模板，再传 templateId 生成。',
+  parameters: {
+    templateId: 'string: 冷启动模板 id（如 cs-ds/cs-net/cs-os/math-gaoshu/en-vocab）',
+  },
+  writesData: false,
+  async execute(args) {
+    try {
+      const r = await generateColdStartDeck(args?.templateId || '');
+      return { ok: true, data: r };
+    } catch (e) { return { ok: false, error: e.message }; }
+  },
+});
+
+// 列出冷启动模板
+toolRegistry.register({
+  name: 'list_cold_start_templates',
+  description: '列出全部冷启动卡组模板（学科 + 简介），供用户挑选后再调 cold_start_deck 生成。',
+  parameters: {},
+  readsData: false,
+  async execute() {
+    return {
+      ok: true,
+      data: {
+        templates: COLD_START_TEMPLATES.map(t => ({
+          id: t.id, name: t.name, subject: t.subject, description: t.description,
+        })),
+      },
+    };
   },
 });
 
@@ -509,6 +588,47 @@ toolRegistry.register({
     const limit = Number(args?.limit) || 10;
     const pairs = await getConfusablePairs(limit);
     return { ok: true, data: { count: pairs.length, items: pairs } };
+  },
+});
+
+// 知识图谱驱动复习编排：基于持久化图谱边做 prereq 回溯 + contrast 配对
+toolRegistry.register({
+  name: 'graph_review_plan',
+  description: '知识图谱驱动复习编排：基于用户已保存的图谱边（前置/依赖/对比），把到期/薄弱卡的前置知识点对应卡排在前面，易混卡挨着复习。返回有序 path + 额外加入的 prereqsAdded + 配对 contrastPairs。',
+  parameters: {
+    limit: 'number: 复习卡数上限，默认 50',
+    includeDueOnly: 'boolean: 是否只含到期卡，默认 true（false 时会纳入薄弱卡作种子）',
+  },
+  readsData: true,
+  async execute(args) {
+    const plan = await getGraphDrivenReviewPlan({
+      limit: Number(args?.limit) || 50,
+      includeDueOnly: args?.includeDueOnly !== false,
+    });
+    return {
+      ok: true,
+      data: {
+        path: plan.path.slice(0, 50).map(c => ({ id: c.id, subject: c.subject, front: String(c.front).slice(0, 60), graphReason: c.graphReason, level: c.level, dueAt: c.dueAt })),
+        prereqsAdded: plan.prereqsAdded.slice(0, 15).map(c => ({ id: c.id, front: String(c.front).slice(0, 60), subject: c.subject })),
+        contrastPairs: plan.contrastPairs.slice(0, 15),
+        unmapped: plan.unmapped,
+        edgesUsed: plan.edgesUsed,
+        fallback: plan.fallback,
+      },
+    };
+  },
+});
+
+// 自动编排学习计划（数据驱动，零 LLM 也能用）
+toolRegistry.register({
+  name: 'auto_generate_plan',
+  description: '基于跨模块真实数据（薄弱科目/到期分布/遗忘风险/易混对/图驱动路径）自动编排一份分阶段学习计划（抢救→巩固→收尾），返回 title+content（markdown）+meta。可直接交给 create_plan 持久化。',
+  parameters: { days: 'number: 计划天数，默认 7，范围 1-30' },
+  readsData: true,
+  async execute(args) {
+    const days = Number(args?.days) || 7;
+    const r = await generateAutoPlan(days);
+    return { ok: true, data: r };
   },
 });
 

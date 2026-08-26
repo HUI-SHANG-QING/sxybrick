@@ -200,13 +200,28 @@ input, select, textarea { font: inherit; color: inherit; }
   [data-style='card'] .app-main { padding-bottom: 190px; }
   [data-style='moba'] .app-main { padding-left: 260px; }
   [data-style='space'] .app-main { padding-bottom: 140px; }
-  [data-style='adventure'] .app-main { padding-bottom: 350px; }
+  [data-style='adventure'] .app-main { padding-bottom: 410px; }
 }
 
 /* 复习专注模式：隐藏导航与浮动助手，沉浸式背题 */
 body.review-focus .app-nav { display: none; }
 body.review-focus .fa-root { display: none !important; }
 body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
+
+/* —— 速赢区：主题切换过渡动画（颜色/背景/边框平滑淡入，仅切换瞬间生效）—— */
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: background-color .32s ease, border-color .32s ease, color .32s ease,
+              fill .32s ease, stroke .32s ease, box-shadow .32s ease,
+              background .32s ease !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .theme-switching, .theme-switching *, .theme-switching *::before, .theme-switching *::after {
+    transition: none !important;
+  }
+}
 
 /* ============================================================
    新增三主题（2026-08-25 · 教育类 UI 设计系统 · 原 5 风格不变）
@@ -326,4 +341,270 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* ============================================================
+   ⑤ amber 琥珀主题（2026-08-26）
+   1:1 复刻 localhost:3000/ 简洁扁平风 + 琥珀暖光专属动效
+   - 颜色变量与目标站点完全一致：bg #f5f6f8 / panel #fff / ink #16202c
+   - 主强调色改为琥珀 #d97706（目标站 classic 配色基础上点亮）
+   - 交互范围：完全复刻 + 琥珀流光按钮 / 暖色卡片光晕 / 琥珀聚焦环
+   ============================================================ */
+
+/* ---------- 基础配色（白天 / 夜间 / 护眼） ---------- */
+:root[data-style='amber'] {
+  --bg: #f5f6f8; --panel: #ffffff; --ink: #16202c; --ink-2: #5b6b7d; --line: #e3e8ee;
+  --accent: #d97706; --blue: #2563eb; --red: #dc2626; --amber: #d97706; --green: #16a34a;
+  --radius: 10px; --toast-bg: #16202c;
+  --code-bg: #f6f8fa; --code-inline: #fef3c7; --tag-bg: #fef3c7; --tag-ink: #92400e;
+}
+:root[data-style='amber'][data-theme='dark'] {
+  --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --ink-2: #8b98a5; --line: #30363d;
+  --accent: #f59e0b; --blue: #3b82f6; --red: #f87171; --amber: #f59e0b; --green: #34d399;
+  --toast-bg: #30363d; --code-bg: #0d1117; --code-inline: #2a1f0a; --tag-bg: #2a1f0a; --tag-ink: #fbbf24;
+}
+:root[data-style='amber'][data-theme='eye'] {
+  --bg: #cfe4d0; --panel: #e6f2e6; --ink: #2f3b2f; --ink-2: #5c6b5c; --line: #b8cfb9;
+  --accent: #b07800; --blue: #3a70b0; --red: #c0392b; --amber: #b07800; --green: #2e7d32;
+  --toast-bg: #2f3b2f; --code-bg: #dceadc; --code-inline: #e8d49a; --tag-bg: #e8d49a; --tag-ink: #7a5a1e;
+}
+
+/* ---------- 全局背景：双角暖色辉光（轻氛围，不破坏扁平） ---------- */
+:root[data-style='amber'] .app-shell {
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(251, 191, 36, .06), transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(217, 119, 6, .04), transparent 50%),
+    var(--bg);
+}
+:root[data-style='amber'] body { font-size: 15px; }
+
+/* ---------- 按钮：1:1 复刻 + 琥珀流光（仅 primary） ---------- */
+:root[data-style='amber'] .btn {
+  border-radius: 999px; padding: 8px 18px; transition: all .15s;
+}
+:root[data-style='amber'] .btn:hover {
+  border-color: rgba(217, 119, 6, .35);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, .12);
+}
+:root[data-style='amber'] .btn.primary {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  border-color: #d97706;
+  position: relative; overflow: hidden;
+}
+:root[data-style='amber'] .btn.primary::after {
+  content: ''; position: absolute; top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .35), transparent);
+  animation: amber-shine 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes amber-shine {
+  0%, 60% { left: -100%; }
+  100% { left: 200%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style='amber'] .btn.primary::after { animation: none; }
+}
+
+/* ---------- 卡片：1:1 复刻 hover 上浮 2px + 琥珀边框光晕 ---------- */
+:root[data-style='amber'] .card-item {
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+:root[data-style='amber'] .card-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(217, 119, 6, .1);
+  border-color: rgba(217, 119, 6, .4);
+}
+
+/* ---------- 输入框：1:1 复刻 + 琥珀聚焦环（替换蓝色） ---------- */
+:root[data-style='amber'] .input:focus {
+  border-color: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, .15);
+}
+
+/* ---------- Chip 选中：琥珀渐变 ---------- */
+:root[data-style='amber'] .chip.on {
+  background: linear-gradient(135deg, #d97706, #b45309);
+  border-color: #d97706;
+  color: #fff;
+}
+
+/* ---------- 标签：琥珀色调 ---------- */
+:root[data-style='amber'] .tag-pill {
+  background: #fef3c7; color: #92400e;
+}
+
+/* ---------- 页面切换过渡：1:1 复刻 0.18s 淡入上浮 ---------- */
+:root[data-style='amber'] .page-enter-active,
+:root[data-style='amber'] .page-leave-active {
+  transition: opacity .18s ease, transform .18s ease;
+}
+:root[data-style='amber'] .page-enter-from { opacity: 0; transform: translateY(10px); }
+:root[data-style='amber'] .page-leave-to { opacity: 0; transform: translateY(-10px); }
+
+/* ---------- 翻转卡：1:1 复刻 0.5s cubic-bezier 3D 变换 ---------- */
+:root[data-style='amber'] .flip-inner {
+  transition: transform .5s cubic-bezier(.2, .7, .3, 1);
+}
+
+/* ---------- 琥珀无障碍基线 ---------- */
+:root[data-style='amber'] :focus-visible {
+  outline: 2px solid #d97706; outline-offset: 2px; border-radius: 4px;
+}
+:root[data-style='amber'] .btn:focus-visible { outline-offset: 3px; }
+@media (max-width: 720px) {
+  :root[data-style='amber'] .btn { min-height: 44px; }
+  :root[data-style='amber'] .chip { min-height: 40px; }
+}
+
+/* ============================================================ */
+/*  国风主题 guofeng（2026-08-26）—— 真水墨山水画交互            */
+/*  致敬宋元名家：宣纸底 + 淡墨 + 朱印 + 书法字体 + 半透明面板   */
+/* ============================================================ */
+:root[data-style='guofeng'] {
+  --bg: #f0ebe0; --panel: rgba(245, 240, 228, 0.85); --ink: #1a1a1a; --ink-2: #4a4a4a; --line: rgba(30, 30, 30, 0.15);
+  --accent: #a8312a; --blue: #2c5f8a; --red: #a8312a; --amber: #b07800; --green: #4a6b3a;
+  --radius: 6px; --toast-bg: #1a1a1a;
+  --code-bg: rgba(30, 30, 30, 0.06); --code-inline: rgba(168, 49, 42, 0.12); --tag-bg: rgba(168, 49, 42, 0.12); --tag-ink: #a8312a;
+  --gf-paper: #f0ebe0;
+  --gf-ink: #1a1a1a;
+  --gf-seal: #a8312a;
+  --font-kai: 'KaiTi', 'STKaiti', '楷体', 'STSong', '宋体', serif;
+}
+:root[data-style='guofeng'][data-theme='dark'] {
+  --bg: #1a1814; --panel: rgba(40, 36, 30, 0.85); --ink: #e8e0d0; --ink-2: #b0a890; --line: rgba(200, 190, 170, 0.18);
+  --accent: #d4524a; --blue: #6a9fc8; --red: #d4524a; --amber: #d4a040; --green: #7a9f5a;
+  --gf-paper: #1a1814; --gf-ink: #e8e0d0; --gf-seal: #d4524a;
+  --code-bg: rgba(200, 190, 170, 0.08); --code-inline: rgba(212, 82, 74, 0.18); --tag-bg: rgba(212, 82, 74, 0.18); --tag-ink: #d4524a;
+}
+:root[data-style='guofeng'][data-theme='eye'] {
+  --bg: #e8e6d8; --panel: rgba(240, 235, 220, 0.9); --ink: #2a2a2a; --ink-2: #5a5a5a; --line: rgba(40, 40, 40, 0.15);
+  --accent: #8a2820; --blue: #2a5078; --red: #8a2820; --amber: #8a6020; --green: #3a5b2a;
+  --gf-paper: #e8e6d8; --gf-ink: #2a2a2a; --gf-seal: #8a2820;
+}
+
+/* 国风：背景透明化，让山水画 Canvas 透出 */
+:root[data-style='guofeng'] .app-shell {
+  background: transparent;
+}
+:root[data-style='guofeng'] .app-main {
+  background: transparent;
+  position: relative;
+  z-index: 1;
+}
+
+/* 国风：面板半透明 + 宣纸质感 + 圆角收小（似册页） */
+:root[data-style='guofeng'] .panel {
+  background: var(--panel);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 12px rgba(30, 30, 30, 0.08);
+}
+
+/* 国风：标题用楷书 */
+:root[data-style='guofeng'] h1,
+:root[data-style='guofeng'] h2,
+:root[data-style='guofeng'] h3,
+:root[data-style='guofeng'] .panel-title {
+  font-family: var(--font-kai);
+  letter-spacing: 1px;
+}
+
+/* 国风：按钮 —— 朱印 / 墨边 */
+:root[data-style='guofeng'] .btn {
+  font-family: var(--font-kai);
+  border-radius: 4px;
+  padding: 7px 16px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  transition: all .15s;
+}
+:root[data-style='guofeng'] .btn:hover {
+  background: rgba(30, 30, 30, 0.06);
+  border-color: var(--accent);
+}
+:root[data-style='guofeng'] .btn.primary {
+  background: var(--gf-seal);
+  color: #fff;
+  border-color: var(--gf-seal);
+  box-shadow: 0 1px 4px rgba(168, 49, 42, 0.3);
+}
+:root[data-style='guofeng'] .btn.primary:hover {
+  background: #8a2820;
+  box-shadow: 0 2px 8px rgba(168, 49, 42, 0.4);
+}
+
+/* 国风：输入框 / chip */
+:root[data-style='guofeng'] .input {
+  font-family: var(--font-kai);
+  background: rgba(245, 240, 228, 0.6);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+:root[data-style='guofeng'] .input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(168, 49, 42, 0.12);
+}
+:root[data-style='guofeng'] .chip {
+  font-family: var(--font-kai);
+  border-radius: 4px;
+}
+:root[data-style='guofeng'] .chip.on {
+  background: var(--gf-seal);
+  color: #fff;
+  border-color: var(--gf-seal);
+}
+
+/* 国风：标签 */
+:root[data-style='guofeng'] .tag-pill {
+  background: rgba(168, 49, 42, 0.12);
+  color: var(--accent);
+}
+
+/* 国风：卡片悬停 —— 如卷轴轻展 */
+:root[data-style='guofeng'] .card-item {
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+:root[data-style='guofeng'] .card-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(30, 30, 30, 0.12);
+}
+
+/* 国风：翻面卡 —— 慢一些，似翻册页 */
+:root[data-style='guofeng'] .flip-inner {
+  transition: transform .6s cubic-bezier(.2, .7, .3, 1);
+}
+
+/* 国风：页面切换 —— 如展卷 */
+:root[data-style='guofeng'] .page-enter-active,
+:root[data-style='guofeng'] .page-leave-active {
+  transition: opacity .3s ease, transform .3s ease;
+}
+:root[data-style='guofeng'] .page-enter-from { opacity: 0; transform: translateY(8px); }
+:root[data-style='guofeng'] .page-leave-to { opacity: 0; transform: translateY(-8px); }
+
+/* 国风：焦点轮廓 */
+:root[data-style='guofeng'] :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* 国风：移动端可点击区域 */
+@media (max-width: 720px) {
+  :root[data-style='guofeng'] .btn { min-height: 44px; }
+  :root[data-style='guofeng'] .chip { min-height: 40px; }
+}
+
+/* 国风：滚动条细如游丝 */
+:root[data-style='guofeng'] ::-webkit-scrollbar { width: 6px; height: 6px; }
+:root[data-style='guofeng'] ::-webkit-scrollbar-thumb { background: rgba(30, 30, 30, 0.2); border-radius: 3px; }
+:root[data-style='guofeng'] ::-webkit-scrollbar-track { background: transparent; }
+
+/* 国风：设置面板背景调暗，便于阅读 */
+:root[data-style='guofeng'] .settings-modal {
+  background: rgba(240, 235, 224, 0.95);
+  backdrop-filter: blur(10px);
 }

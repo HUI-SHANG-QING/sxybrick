@@ -19,11 +19,13 @@ export function validateCard(body) {
   const marked = !!body.marked;
   const mnemonic = String(body.mnemonic ?? '').trim().slice(0, 200);
   const wrongReason = String(body.wrongReason ?? '').trim().slice(0, 20);
+  // 变式卡溯源：记录原卡 ID，便于"同知识点不同情境"复习混排与追溯
+  const sourceCardId = body.sourceCardId ? String(body.sourceCardId).slice(0, 60) : '';
   if (!front) return { error: '正面内容不能为空' };
   if (type !== 'cloze' && !back) return { error: '背面内容不能为空' };
   if ([...front].length > MAX_CHARS) return { error: `正面内容不能超过 ${MAX_CHARS} 字` };
   if ([...back].length > MAX_CHARS) return { error: `背面内容不能超过 ${MAX_CHARS} 字` };
-  return { value: { front, back, subject, tags, source, type, marked, mnemonic, wrongReason } };
+  return { value: { front, back, subject, tags, source, type, marked, mnemonic, wrongReason, sourceCardId } };
 }
 
 async function allCards() {
@@ -97,6 +99,7 @@ export async function createCard(payload) {
     marked: r.value.marked,
     mnemonic: r.value.mnemonic,
     wrongReason: r.value.wrongReason,
+    sourceCardId: r.value.sourceCardId || null,
     tags: r.value.tags, frontChars: [...r.value.front].length, backChars: [...r.value.back].length,
     ease: 2.5, level: 0, intervalDays: 0, dueAt: t, createdAt: t, updatedAt: t,
   };
@@ -188,6 +191,18 @@ export async function reviewQueue(limit = 100, interleave = false, filter = {}) 
     }
     cards = result;
   }
+  // 变式卡分散：避免同原卡的变式卡连续出现
+  // 认知科学：刚看完变式A 立刻看到变式B，会让"答案"在短时记忆里仍鲜活，导致"假掌握"
+  // 简单 anti-adjacent pass：相邻两张同 sourceCardId 时往后换一张
+  if (cards.length > 2) {
+    for (let i = 1; i < cards.length - 1; i++) {
+      const cur = cards[i], prev = cards[i - 1];
+      if (cur.sourceCardId && prev.sourceCardId && cur.sourceCardId === prev.sourceCardId) {
+        [cards[i], cards[i + 1]] = [cards[i + 1], cards[i]];
+        i++; // 跳过交换来的卡片，避免连换
+      }
+    }
+  }
   return cards.slice(0, limit);
 }
 
@@ -207,7 +222,8 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   const next = computeNext(card, rating, intensity, guessed, { difficulty, wrongReason, adaptive });
   // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt：
   // 否则跨设备同步时「复习动作」会覆盖另一台设备对卡片文字的编辑（数据丢失）
-  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, difficulty, wrongReason, reviewedAt: now() });
+  // consolidation 字段：短期巩固状态（null/1/2），跟随 SRS 一并写回
+  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, difficulty, wrongReason, reviewedAt: now() });
   await db.reviews.put({ id: uid(), cardId, reviewedAt: now(), rating, levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason });
   return { ...next, dueText: formatDue(next.dueAt) };
 }

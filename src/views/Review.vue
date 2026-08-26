@@ -1,6 +1,6 @@
 <script setup>
 // 背诵页：到期队列 + 翻转卡 + 三档自评 + 自由组合筛选 + 每日目标(去重卡片数) + 完成弹窗 + 已背记录(默认全展开)
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import FlipCard from '../components/FlipCard.vue';
 import CardModal from '../components/CardModal.vue';
@@ -12,14 +12,15 @@ import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS
 import { getGoal, getTodayCount } from '../utils/streak.js';
 import { startSpeech, isSpeechSupported } from '../utils/speech.js';
 import { mdToSpeech } from '../utils/tts.js';
-import { getConfusablePairs } from '../agent/analytics.js';
+import { getConfusablePairs, getGraphDrivenReviewPlan } from '../agent/analytics.js';
+import { getQuickCheckDue, recordQuickCheck } from '../utils/quickCheck.js';
 
 const router = useRouter();
 
 const queue = ref([]);
 const idx = ref(0);
 const loading = ref(false);
-const intensity = ref(1);
+const intensity = ref(Number(localStorage.getItem('sxy_rv_intensity')) || 1);
 const interleave = ref(localStorage.getItem('sxy_interleave') !== '0');
 const editOpen = ref(false);
 const editing = ref(null);
@@ -28,12 +29,12 @@ const editing = ref(null);
 const goal = ref(20);
 const todayCount = ref(0);
 
-// 自由组合筛选
+// 自由组合筛选（持久化：切走后回来保留筛选条件）
 const filterOpen = ref(false);
-const fSubjects = ref([]);
-const fTags = ref([]);
-const fLogic = ref('OR');
-const fWrongReasons = ref([]);
+const fSubjects = ref(JSON.parse(localStorage.getItem('sxy_rv_fsubs') || '[]'));
+const fTags = ref(JSON.parse(localStorage.getItem('sxy_rv_ftags') || '[]'));
+const fLogic = ref(localStorage.getItem('sxy_rv_flogic') || 'OR');
+const fWrongReasons = ref(JSON.parse(localStorage.getItem('sxy_rv_fwrong') || '[]'));
 const subjects = ref([]);
 const allTags = ref([]);
 
@@ -44,10 +45,10 @@ let goalNotified = false;
 let emptyNotified = false;
 let repeatMode = false; // 重复复习（背全部而非仅到期）
 
-const tab = ref('due'); // due | history
+const tab = ref(localStorage.getItem('sxy_rv_tab') || 'due'); // due | history
 const history = ref([]);
 const historyLoading = ref(false);
-const collapsedIds = ref(new Set()); // 已背记录里被收起的卡 id（默认全展开）
+const collapsedIds = ref(new Set(JSON.parse(localStorage.getItem('sxy_rv_collapsed') || '[]'))); // 已背记录里被收起的卡 id（默认全展开）
 const onlyToday = ref(false);
 
 const confusablePairs = ref([]);
@@ -55,9 +56,43 @@ const confusableHint = ref('');
 const voiceListening = ref(false);
 const focusMode = ref(false);
 const speechSupported = isSpeechSupported();
+const graphMode = ref(localStorage.getItem('sxy_rv_graph') === '1');
+const graphMeta = ref(null);
+
+// 短期提取巩固（C6）：新卡 10min~1h 内快速校验，不计 SRS
+const quickMode = ref(false);
+const quickQueue = ref([]);
+const quickIdx = ref(0);
+const quickFlipped = ref(false);
+let quickCheckTimer = null;
+const quickCurrent = computed(() => quickQueue.value[quickIdx.value] || null);
 
 const current = () => queue.value[idx.value] || null;
 const hasMore = computed(() => idx.value < queue.value.length);
+
+// 短期提取巩固提示：当前卡处于阶段1（当日巩固）/ 阶段2（隔日巩固）时给出认知科学说明
+const consolidationHint = computed(() => {
+  const c = current();
+  if (!c) return '';
+  if (c.consolidation === 1) return '🧠 当日巩固 · 6 小时内首次主动提取，强化工作记忆→长期记忆转化';
+  if (c.consolidation === 2) return '😴 隔日巩固 · 跨越睡眠周期，固化长期记忆';
+  return '';
+});
+// 队列中短期巩固卡数量（让用户知道有几张在巩固阶段）
+const consolidationCount = computed(() =>
+  queue.value.filter(c => c.consolidation === 1 || c.consolidation === 2).length
+);
+
+// 图驱动复习：当前卡为何被排在这里（前置知识/易混配对）
+const graphHint = computed(() => {
+  if (!graphMode.value) return '';
+  const c = current();
+  if (!c) return '';
+  if (c.graphReason === '前置知识') return '🧠 图驱动 · 前置知识：先把这块基础过一遍，再复习依赖它的卡';
+  if (c.graphReason === '易混配对') return '🔀 图驱动 · 易混配对：与上一张挨着复习，强化辨析';
+  if (c.graphReason === '到期/薄弱') return '📌 图驱动 · 当前到期/薄弱卡';
+  return '';
+});
 
 const filterActive = computed(() =>
   fSubjects.value.length + fTags.value.length + fWrongReasons.value.length > 0,
@@ -76,13 +111,27 @@ function filterObj() {
 async function loadQueue() {
   loading.value = true;
   try {
-    queue.value = await reviewQueue(100, interleave.value, filterObj());
+    if (graphMode.value) {
+      const plan = await getGraphDrivenReviewPlan({ limit: 100, includeDueOnly: !repeatMode });
+      queue.value = plan.path;
+      graphMeta.value = plan;
+    } else {
+      queue.value = await reviewQueue(100, interleave.value, filterObj());
+      graphMeta.value = null;
+    }
     idx.value = 0;
     goalNotified = false;
     emptyNotified = false;
     confusablePairs.value = await getConfusablePairs(40);
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; }
+}
+
+function toggleGraph() {
+  graphMode.value = !graphMode.value;
+  localStorage.setItem('sxy_rv_graph', graphMode.value ? '1' : '0');
+  if (graphMode.value) interleave.value = false; // 图驱动已自带排序，关交错混科
+  loadQueue();
 }
 
 async function rate(card, rating, guessed = false, meta = {}) {
@@ -181,8 +230,14 @@ function toggleFWrong(r) {
   const i = fWrongReasons.value.indexOf(r);
   if (i >= 0) fWrongReasons.value.splice(i, 1); else fWrongReasons.value.push(r);
 }
-function applyFilter() { filterOpen.value = false; repeatMode = false; loadQueue(); }
-function clearFilter() { fSubjects.value = []; fTags.value = []; fWrongReasons.value = []; fLogic.value = 'OR'; repeatMode = false; loadQueue(); }
+function saveFilter() {
+  localStorage.setItem('sxy_rv_fsubs', JSON.stringify(fSubjects.value));
+  localStorage.setItem('sxy_rv_ftags', JSON.stringify(fTags.value));
+  localStorage.setItem('sxy_rv_flogic', fLogic.value);
+  localStorage.setItem('sxy_rv_fwrong', JSON.stringify(fWrongReasons.value));
+}
+function applyFilter() { filterOpen.value = false; repeatMode = false; saveFilter(); loadQueue(); }
+function clearFilter() { fSubjects.value = []; fTags.value = []; fWrongReasons.value = []; fLogic.value = 'OR'; repeatMode = false; saveFilter(); loadQueue(); }
 
 async function loadMeta() {
   subjects.value = await getSubjects();
@@ -203,16 +258,17 @@ const shownHistory = computed(() => {
 });
 
 function switchTab(t) {
-  tab.value = t;
+  tab.value = t; localStorage.setItem('sxy_rv_tab', t);
   if (t === 'history' && !history.value.length) loadHistory();
 }
+function saveCollapsed() { localStorage.setItem('sxy_rv_collapsed', JSON.stringify([...collapsedIds.value])); }
 function toggleCollapse(id) {
   const s = new Set(collapsedIds.value);
   if (s.has(id)) s.delete(id); else s.add(id);
-  collapsedIds.value = s;
+  collapsedIds.value = s; saveCollapsed();
 }
-function collapseAll() { collapsedIds.value = new Set(shownHistory.value.map(h => h.id)); }
-function expandAll() { collapsedIds.value = new Set(); }
+function collapseAll() { collapsedIds.value = new Set(shownHistory.value.map(h => h.id)); saveCollapsed(); }
+function expandAll() { collapsedIds.value = new Set(); saveCollapsed(); }
 
 function plain(md) {
   return String(md || '')
@@ -240,14 +296,46 @@ function fmtFocus(s) {
 onMounted(async () => {
   goal.value = await getGoal();
   todayCount.value = await getTodayCount();
+  focusSeconds.value = Number(localStorage.getItem('sxy_rv_focus')) || 0;
+  // 恢复未完成的 25 分钟会话（基于 endTs 校准剩余时间）
+  const savedEnd = Number(localStorage.getItem('sxy_rv_session_end'));
+  if (savedEnd && savedEnd > Date.now()) {
+    sessionOn.value = true;
+    sessionLeft.value = Math.round((savedEnd - Date.now()) / 1000);
+    sessionEndTs = savedEnd;
+    startSessionTimer();
+  } else if (savedEnd) {
+    localStorage.removeItem('sxy_rv_session_end');
+  }
   loadQueue();
   loadMeta();
   focusTimer = setInterval(() => { focusSeconds.value++; }, 1000);
   document.addEventListener('keydown', onKey);
+  // 短期提取巩固：检查刚学的新卡是否需要快速校验
+  const quickDue = await getQuickCheckDue();
+  if (quickDue.length) {
+    quickQueue.value = quickDue;
+    quickMode.value = true;
+  }
+  // 每分钟检查一次是否有新卡进入快速校验窗口
+  quickCheckTimer = setInterval(async () => {
+    if (quickMode.value || showComplete.value || loading.value) return;
+    const due = await getQuickCheckDue();
+    if (due.length) {
+      quickQueue.value = due;
+      quickIdx.value = 0;
+      quickFlipped.value = false;
+      quickMode.value = true;
+      toast(`⚡ ${due.length} 张新卡需要快速校验`, 'info');
+    }
+  }, 60000);
 });
+watch(intensity, v => localStorage.setItem('sxy_rv_intensity', String(v)));
 onBeforeUnmount(() => {
   clearInterval(focusTimer);
   clearInterval(sessionTimer);
+  clearInterval(quickCheckTimer);
+  localStorage.setItem('sxy_rv_focus', String(focusSeconds.value));
   document.body.classList.remove('review-focus');
   document.removeEventListener('keydown', onKey);
 });
@@ -258,6 +346,15 @@ function onKey(e) {
   if (tab.value !== 'due' || showComplete.value || loading.value) return;
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+  // 短期提取巩固快捷键：空格翻面 · 1 没记住 · 2 记住了
+  if (quickMode.value && quickCurrent.value) {
+    if (e.code === 'Space') { e.preventDefault(); quickFlipped.value = true; return; }
+    if (quickFlipped.value) {
+      if (e.key === '1') { e.preventDefault(); quickRate(false); }
+      else if (e.key === '2') { e.preventDefault(); quickRate(true); }
+    }
+    return;
+  }
   if (!current()) return;
   if (e.code === 'Space') { e.preventDefault(); flipRef.value?.showBack?.(); return; }
   if (!flipRef.value?.flipped) return; // 未翻面不允许评级，防盲评
@@ -272,17 +369,24 @@ const sessionLeft = ref(0);
 const sessionDone = ref(false);
 let sessionTimer = null;
 function fmtClock(s) { const m = Math.floor(s / 60), sec = s % 60; return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`; }
-function toggleSession() {
-  if (sessionOn.value) { sessionOn.value = false; clearInterval(sessionTimer); return; }
-  sessionOn.value = true; sessionDone.value = false; sessionLeft.value = 25 * 60;
+let sessionEndTs = 0;
+function startSessionTimer() {
   sessionTimer = setInterval(() => {
-    sessionLeft.value--;
+    sessionLeft.value = Math.max(0, Math.round((sessionEndTs - Date.now()) / 1000));
     if (sessionLeft.value <= 0) {
       clearInterval(sessionTimer);
       sessionOn.value = false; sessionDone.value = true;
+      localStorage.removeItem('sxy_rv_session_end');
       toast('25 分钟复习会话结束，去休息一下吧！', 'success');
     }
   }, 1000);
+}
+function toggleSession() {
+  if (sessionOn.value) { sessionOn.value = false; clearInterval(sessionTimer); localStorage.removeItem('sxy_rv_session_end'); return; }
+  sessionOn.value = true; sessionDone.value = false; sessionLeft.value = 25 * 60;
+  sessionEndTs = Date.now() + 25 * 60 * 1000;
+  localStorage.setItem('sxy_rv_session_end', String(sessionEndTs));
+  startSessionTimer();
 }
 
 // ---- C4 难度自适应：按历史错误率微调间隔（保守/稳健档，默认关） ----
@@ -291,6 +395,28 @@ function toggleAdaptive() {
   adaptiveOn.value = !adaptiveOn.value;
   localStorage.setItem('sxy_adaptive', adaptiveOn.value ? '1' : '0');
   toast(adaptiveOn.value ? '已开启自适应节奏：频繁出错的卡会加快重现，稳定掌握的卡会拉长间隔' : '已切回基准间隔', 'info');
+}
+
+// ---- C6 短期提取巩固：新卡快速校验 ----
+function flipQuick() { quickFlipped.value = true; }
+async function quickRate(remembered) {
+  const card = quickCurrent.value;
+  if (!card) return;
+  await recordQuickCheck(card.id, remembered);
+  if (!remembered) {
+    // 没记住：微调 ease，提前到期（趁热重练）
+    await applyCardFeedback(card.id, { score: 30 });
+  }
+  quickIdx.value++;
+  quickFlipped.value = false;
+  if (quickIdx.value >= quickQueue.value.length) {
+    quickMode.value = false;
+    toast('⚡ 快速校验完成，继续正常复习', 'success');
+  }
+}
+function skipQuick() {
+  quickMode.value = false;
+  toast('已跳过快速校验', 'info');
 }
 
 // ---- C5 易混卡对决：看答案归属，练辨析 ----
@@ -354,6 +480,7 @@ async function recordDuelWrong(idA, idB) {
           <option :value="2">考前冲刺（最高频）</option>
         </select>
         <button class="chip" :class="{ on: interleave }" @click="toggleInterleave">交错混科</button>
+        <button class="chip" :class="{ on: graphMode }" @click="toggleGraph" title="按知识图谱的前置/依赖关系编排复习顺序：基础知识卡在前，易混卡挨着复习">图驱动复习</button>
         <button class="chip" :class="{ on: adaptiveOn }" @click="toggleAdaptive" title="自适应节奏：按这张卡的历史错误率微调复习间隔">自适应节奏</button>
         <button class="chip" :class="{ on: sessionOn }" @click="toggleSession">{{ sessionOn ? `会话中 ${fmtClock(sessionLeft)}` : '25 分钟会话' }}</button>
         <button class="chip" @click="startDuel">易混对决</button>
@@ -393,8 +520,37 @@ async function recordDuelWrong(idA, idB) {
 
       <div v-if="loading" class="hint" style="text-align:center;padding:60px">加载中…</div>
 
+      <!-- 短期提取巩固：新卡快速校验（不计 SRS） -->
+      <template v-else-if="quickMode && quickCurrent">
+        <div class="quick-check panel" style="margin-top:12px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <span style="font-size:18px">⚡</span>
+            <b>短期提取巩固</b>
+            <span class="hint">{{ quickIdx + 1 }} / {{ quickQueue.length }}</span>
+            <span style="flex:1"></span>
+            <button class="chip" @click="skipQuick">跳过</button>
+          </div>
+          <div class="hint" style="margin-bottom:8px">刚学的卡在 10 分钟后快速回忆一次，巩固工作记忆（不计入复习排期）· 快捷键：空格翻面，1 没记住 2 记住了</div>
+          <div v-if="!quickFlipped" class="quick-front" @click="flipQuick">
+            <MarkdownRenderer :content="quickCurrent.front" />
+            <div class="hint" style="text-align:center;margin-top:8px">点击卡片查看答案</div>
+          </div>
+          <div v-else>
+            <div class="quick-back">
+              <MarkdownRenderer :content="quickCurrent.back" />
+            </div>
+            <div style="display:flex;gap:12px;margin-top:12px;justify-content:center">
+              <button class="btn" style="border-color:var(--red);color:var(--red)" @click="quickRate(false)">没记住</button>
+              <button class="btn primary" @click="quickRate(true)">记住了</button>
+            </div>
+          </div>
+        </div>
+      </template>
+
       <template v-else-if="current()">
         <FlipCard ref="flipRef" :card="current()" @rate="rate" @edit="openEdit" />
+        <div v-if="graphHint" class="consolidation-hint" style="color:var(--blue)">{{ graphHint }}</div>
+        <div v-if="consolidationHint" class="consolidation-hint">{{ consolidationHint }}</div>
         <div v-if="confusableHint" class="confusable-hint">{{ confusableHint }}</div>
         <div class="hint" style="text-align:center;margin-top:12px">
           第 {{ idx + 1 }} / {{ queue.length }} 张 · 翻到背面后选择自评结果 · 快捷键：<b>空格</b> 翻面，<b>1</b> 没记住 <b>2</b> 还模糊 <b>3</b> 记住了
@@ -531,4 +687,10 @@ async function recordDuelWrong(idA, idB) {
 .rating-pill.r2 { background: #dcfce7; color: var(--green); }
 .history-detail { border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 4px; }
 .confusable-hint { margin-top: 12px; padding: 10px 14px; border: 1px solid #fcd34d; background: #fef3c7; color: #92400e; border-radius: 8px; font-size: 13px; }
+.consolidation-hint { margin-top: 12px; padding: 10px 14px; border: 1px solid var(--blue, #2563eb); background: color-mix(in srgb, var(--blue, #2563eb) 8%, var(--panel, #fff)); color: var(--blue, #2563eb); border-radius: 8px; font-size: 13px; text-align: center; }
+/* 短期提取巩固 */
+.quick-check { border-left: 3px solid var(--amber) !important; }
+.quick-front { cursor: pointer; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); transition: background .15s; }
+.quick-front:hover { background: var(--code-bg); }
+.quick-back { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--code-bg); }
 </style>

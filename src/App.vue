@@ -1,13 +1,16 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
 import { toast } from './utils/toast.js';
 import { degraded } from './utils/perf.js';
 import { ensureNotifyPermission, sendNotify } from './utils/notify.js';
-import { getGoal, getTodayCount } from './utils/streak.js';
+import { getGoal, getTodayCount, getDueCount, getLastReviewTs, getDueBySubject } from './utils/streak.js';
+// FloatAssistant / NavBar 首屏必需，保留同步
 import FloatAssistant from './components/FloatAssistant.vue';
 import NavBar from './components/NavBar.vue';
-import Intro from './components/Intro.vue';
-import Guide from './components/Guide.vue';
+// Intro/Guide 仅首次访问时显示、InkLandscape 仅国风主题激活时显示 → 异步加载以减小首屏 chunk
+const Intro = defineAsyncComponent(() => import('./components/Intro.vue'));
+const Guide = defineAsyncComponent(() => import('./components/Guide.vue'));
+const InkLandscape = defineAsyncComponent(() => import('./components/InkLandscape.vue'));
 import { useThemeStore, STYLES, MODES } from './stores/theme.js';
 
 const theme = useThemeStore();
@@ -82,30 +85,65 @@ onBeforeUnmount(() => {
   clearInterval(reminderTimer);
 });
 
-// ---- C6 复习提醒：页面打开期间每分钟检查一次是否到点（当日只提醒一次） ----
+// ---- C6 复习提醒（2026-08-26 速赢区升级）：3 条件独立触发 + 丰富通知内容 ----
+// 触发器：① 到点（用户设置的时间） ② 长时间未复习（≥3h 未复习且未达标） ③ 待复习堆积（≥15 张未清且未达标）
+// 每个条件当日只触发一次；当日达标也只发一次庆祝
 const remindTime = ref(localStorage.getItem('sxy_remind_time') || '');
 let reminderTimer = null;
+const REMINDER_KEYS = { time: 'sxy_remind_today_time', idle: 'sxy_remind_today_idle', pile: 'sxy_remind_today_pile' };
+const IDLE_HOURS = 3;
+const PILE_THRESHOLD = 15;
+const todayKey = () => new Date().toDateString();
+const alreadyFired = (k) => localStorage.getItem(REMINDER_KEYS[k]) === todayKey();
+const markFired = (k) => localStorage.setItem(REMINDER_KEYS[k], todayKey());
+function pickNudge(diff) {
+  if (diff <= 3) return '就差几颗草莓啦，再坚持一下！';
+  if (diff <= 10) return '趁热打铁，复习一两张就能赶上进度。';
+  return '别让进度落后太多，先来背 5 张暖个身？';
+}
 function startReminderLoop() {
   clearInterval(reminderTimer);
   reminderTimer = setInterval(checkReminder, 60 * 1000);
 }
 async function checkReminder() {
-  const t = (localStorage.getItem('sxy_remind_time') || '').trim();
-  if (!t || !/^\d{1,2}:\d{2}$/.test(t)) return;
-  const today = new Date().toDateString();
-  if (localStorage.getItem('sxy_remind_today') === today) return;
-  const d = new Date();
-  const now = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-  if (now < t) return;
+  if (['time', 'idle', 'pile'].every(alreadyFired)) return;
   try {
-    const [goal, done] = await Promise.all([getGoal(), getTodayCount()]);
-    if (done < goal) {
-      sendNotify('SxyBrick 复习提醒', `今日已复习 ${done}/${goal} 张，还差 ${goal - done} 张，趁热来背几张吧！`);
-    } else {
+    const [goal, done, due, lastTs, bySubj] = await Promise.all([
+      getGoal(), getTodayCount(), getDueCount(), getLastReviewTs(), getDueBySubject(5),
+    ]);
+    const d = new Date();
+    const now = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const t = (localStorage.getItem('sxy_remind_time') || '').trim();
+    const idleMs = Date.now() - lastTs;
+    const idleEnough = lastTs === 0 || idleMs > IDLE_HOURS * 3600 * 1000;
+    const pileEnough = due >= PILE_THRESHOLD;
+
+    // 条件 1：到点提醒（需用户配置时间且未达标）
+    if (!alreadyFired('time') && t && /^\d{1,2}:\d{2}$/.test(t) && now >= t && done < goal) {
+      sendNotify('SxyBrick 复习提醒', `今日 ${done}/${goal} 张，还差 ${goal - done} 张。${pickNudge(goal - done)}`);
+      markFired('time');
+      return;
+    }
+    // 条件 2：长时间未复习（且未达标）
+    if (!alreadyFired('idle') && idleEnough && done < goal) {
+      const hours = lastTs ? Math.max(1, Math.floor(idleMs / 3600000)) : 24;
+      sendNotify('SxyBrick · 该回来啦', `已 ${hours} 小时没复习了，今日还差 ${goal - done} 张。${pickNudge(goal - done)}`);
+      markFired('idle');
+      return;
+    }
+    // 条件 3：待复习堆积（通知正文含科目明细）
+    if (!alreadyFired('pile') && pileEnough && done < goal) {
+      const subjList = bySubj.map(([k, n]) => `${k} ${n} 张`).slice(0, 3).join(' · ');
+      sendNotify('SxyBrick · 待复习堆积', `待复习 ${due} 张${subjList ? '（' + subjList + '）' : ''}，趁早清一清。`);
+      markFired('pile');
+      return;
+    }
+    // 已达标：当日只发一次庆祝（复用 time 槽位）
+    if (done >= goal && !alreadyFired('time')) {
       sendNotify('SxyBrick', '今日目标已达成，继续保持！');
+      markFired('time');
     }
   } catch { /* db 未就绪时静默 */ }
-  localStorage.setItem('sxy_remind_today', today);
 }
 async function enableReminder() {
   const t = (remindTime.value || '').trim();
@@ -113,13 +151,14 @@ async function enableReminder() {
   const perm = await ensureNotifyPermission();
   if (perm !== 'granted') { toast('浏览器通知权限被拒绝，请在浏览器设置里允许本网站通知', 'error'); return; }
   localStorage.setItem('sxy_remind_time', t);
-  localStorage.removeItem('sxy_remind_today');
-  toast(`已开启每日 ${t} 复习提醒（应用打开时生效）`, 'success');
+  Object.values(REMINDER_KEYS).forEach(k => localStorage.removeItem(k));
+  toast(`已开启每日 ${t} 复习提醒（应用打开时生效，另含"未复习 3h"与"待复习堆积"自动提醒）`, 'success');
 }
 </script>
 
 <template>
   <div class="app-shell" :class="{ 'no-anim': degraded }">
+    <InkLandscape v-if="theme.style === 'guofeng'" :active="theme.style === 'guofeng'" :reduced="degraded" />
     <NavBar :variant="theme.style === 'custom' ? 'focus' : theme.style" :navItems="navItems" />
 
     <main class="app-main">
@@ -197,7 +236,14 @@ async function enableReminder() {
 .style-card { border: 2px solid var(--line); border-radius: 12px; padding: 12px 8px; cursor: pointer; text-align: center; transition: .15s; }
 .style-card:hover { border-color: var(--accent); }
 .style-card.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--line); }
-.style-icon { font-size: 26px; }
+.style-icon { font-size: 26px; transition: transform .25s cubic-bezier(.34, 1.56, .64, 1); }
+.style-card.on .style-icon { animation: icon-pop .4s cubic-bezier(.34, 1.56, .64, 1); }
+@keyframes icon-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.28) rotate(-6deg); }
+  70% { transform: scale(.94) rotate(2deg); }
+  100% { transform: scale(1); }
+}
 .style-name { font-weight: 600; font-size: 14px; margin-top: 6px; }
 .style-desc { font-size: 11px; color: var(--ink-2); margin-top: 2px; line-height: 1.4; }
 .hue-slider { flex: 1; max-width: 240px; accent-color: var(--accent); }

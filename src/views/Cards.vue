@@ -10,13 +10,14 @@ import { toast } from '../utils/toast.js';
 import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI } from '../ai.js';
+import { genVariants } from '../utils/genVariants.js';
 import { getForgetRisk } from '../agent/analytics.js';
 
 const router = useRouter();
 
 const viewMode = ref(localStorage.getItem('sxy_view') || 'scroll');
-const sortBy = ref('updated');
-const filters = reactive({ q: '', subject: '', tags: [], logic: 'AND' });
+const sortBy = ref(localStorage.getItem('sxy_card_sort') || 'updated');
+const filters = reactive(JSON.parse(localStorage.getItem('sxy_card_filters') || '{"q":"","subject":"","tags":[],"logic":"AND"}'));
 
 const subjects = ref([]);
 const allTags = ref([]);
@@ -27,7 +28,7 @@ const loading = ref(false);
 
 const modalOpen = ref(false);
 const editing = ref(null);
-const weakMode = ref(false);
+const weakMode = ref(localStorage.getItem('sxy_card_weak') === '1');
 const suggestion = ref(null);
 const goal = ref(20);
 const todayCount = ref(0);
@@ -41,6 +42,10 @@ async function loadStreak() {
 async function onGoalChange() { await setGoal(goal.value); await loadStreak(); }
 
 watch(viewMode, v => localStorage.setItem('sxy_view', v));
+watch(sortBy, v => localStorage.setItem('sxy_card_sort', v));
+function saveCardFilters() { localStorage.setItem('sxy_card_filters', JSON.stringify({ q: filters.q, subject: filters.subject, tags: filters.tags, logic: filters.logic })); }
+watch(() => [filters.subject, filters.logic], saveCardFilters);
+watch(() => filters.tags, saveCardFilters, { deep: true });
 
 function plain(md) {
   return String(md || '')
@@ -93,13 +98,26 @@ function toggleTag(name) {
 
 function openCreate() { editing.value = null; modalOpen.value = true; }
 function openEdit(card) { editing.value = card; modalOpen.value = true; }
-function toggleWeak() { weakMode.value = !weakMode.value; loadCards(); }
+function toggleWeak() { weakMode.value = !weakMode.value; localStorage.setItem('sxy_card_weak', weakMode.value ? '1' : '0'); loadCards(); }
 async function toggleMarked(card) {
   try {
     await setMarked(card.id, !card.marked);
     await loadCards();
     toast(card.marked ? '已移出错题集' : '已加入错题集', 'success');
   } catch (e) { toast(e.message, 'error'); }
+}
+
+// 情境变式生成：AI 为同一知识点生成不同问法/场景的变式卡
+const variantBusy = ref(new Set());
+async function genVariantsFor(card) {
+  if (variantBusy.value.has(card.id)) return;
+  variantBusy.value.add(card.id);
+  try {
+    const created = await genVariants(card, 3);
+    toast(`已生成 ${created.length} 张情境变式卡`, 'success');
+    await loadCards();
+  } catch (e) { toast('变式生成失败：' + e.message, 'error'); }
+  finally { variantBusy.value.delete(card.id); }
 }
 
 async function remove(card) {
@@ -149,10 +167,11 @@ async function onSaved() {
 }
 
 let searchTimer = null;
-const searchInput = ref('');
+const searchInput = ref(localStorage.getItem('sxy_card_search') || '');
 watch(searchInput, v => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => { filters.q = v.trim(); }, 300);
+  localStorage.setItem('sxy_card_search', v);
 });
 
 onMounted(() => { loadMeta(); loadCards(); loadSuggestion(); loadStreak(); loadSmart(); loadRisk(); });
@@ -366,7 +385,7 @@ async function rescueAll() {
           <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
             <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
-            <button class="btn small" @click="openDiagnose(item)">诊断</button> <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
+            <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? '生成中…' : '变式' }}</button> <button class="btn small" @click="openDiagnose(item)">诊断</button> <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
           </div>
         </div>
       </template>
@@ -383,7 +402,7 @@ async function rescueAll() {
         <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
           <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
-          <button class="btn small" @click="openDiagnose(item)">诊断</button> <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
+          <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? '生成中…' : '变式' }}</button> <button class="btn small" @click="openDiagnose(item)">诊断</button> <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
         </div>
       </div>
     </template>

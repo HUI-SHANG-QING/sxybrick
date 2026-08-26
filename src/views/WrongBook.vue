@@ -1,7 +1,8 @@
 <script setup>
 // 错题集：独立页面，汇总所有错题（手动标记 + 遗忘多次），支持筛选/复习/取消标记
 // P0 增补：AI 变式补卡（错题→生成同考点变式题，写入卡片库形成闭环）
-import { ref, onMounted } from 'vue';
+// 2026-08-26 速赢区：SRS 阶段自动归类 + "重点区"快捷过滤
+import { ref, computed, onMounted, watch } from 'vue';
 import { db } from '../db.js';
 import { weakCards, setMarked, getSubjects, gradeCard, createCard } from '../repo.js';
 import { chatAI, hasAIKey } from '../ai.js';
@@ -9,7 +10,10 @@ import { toast } from '../utils/toast.js';
 
 const items = ref([]);
 const subjects = ref([]);
-const filterSubject = ref('');
+const filterSubject = ref(localStorage.getItem('sxy_wrong_subject') || '');
+const filterStage = ref(localStorage.getItem('sxy_wrong_stage') || '');    // '' 全部 / 'focus' 重点区 / 'marked' 错题标记 / 'learning' / 'growing' / 'mastered'
+watch(filterSubject, v => localStorage.setItem('sxy_wrong_subject', v));
+watch(filterStage, v => localStorage.setItem('sxy_wrong_stage', v));
 const genBusy = ref(new Set()); // 正在生成变式的卡 id 集合
 const batchBusy = ref(false);
 
@@ -28,6 +32,33 @@ async function load() {
   items.value = w.filter(c => !filterSubject.value || c.subject === filterSubject.value);
 }
 async function loadSubjects() { subjects.value = await getSubjects(); }
+
+// 阶段分组计数（用于 chip 上的数字徽章）
+const stageCounts = computed(() => {
+  const c = { focus: 0, marked: 0, learning: 0, growing: 0, mastered: 0 };
+  for (const it of items.value) {
+    if ((it.failCount || 0) >= 3) c.focus++;
+    if (it.marked) c.marked++;
+    const g = gradeCard(it).cls;
+    if (g === 'g-learning') c.learning++;
+    else if (g === 'g-good') c.growing++;
+    else if (g === 'g-master') c.mastered++;
+  }
+  return c;
+});
+// 按 SRS 阶段过滤后的列表
+const filteredItems = computed(() => {
+  if (!filterStage.value) return items.value;
+  return items.value.filter(c => {
+    if (filterStage.value === 'focus') return (c.failCount || 0) >= 3;
+    if (filterStage.value === 'marked') return !!c.marked;
+    const g = gradeCard(c).cls;
+    if (filterStage.value === 'learning') return g === 'g-learning';
+    if (filterStage.value === 'growing') return g === 'g-good';
+    if (filterStage.value === 'mastered') return g === 'g-master';
+    return true;
+  });
+});
 
 async function unmark(card) {
   await setMarked(card.id, false);
@@ -91,7 +122,7 @@ onMounted(() => { load(); loadSubjects(); });
   <div style="max-width:820px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <h2 style="margin:0">错题集</h2>
-      <span class="hint">共 {{ items.length }} 道错题</span>
+      <span class="hint">共 {{ filteredItems.length }} 道错题</span>
       <span style="flex:1"></span>
       <button class="btn small" :disabled="batchBusy" @click="genTop5">{{ batchBusy ? '正在生成…' : '为最薄弱 5 题生成变式卡' }}</button>
       <select v-model="filterSubject" class="input" style="width:auto" @change="load">
@@ -100,9 +131,19 @@ onMounted(() => { load(); loadSubjects(); });
       </select>
     </div>
 
-    <div v-if="!items.length" class="hint" style="text-align:center;padding:60px">暂无错题，继续保持！</div>
+    <!-- 速赢区：SRS 阶段快捷过滤 -->
+    <div class="stage-bar">
+      <button class="chip" :class="{ on: !filterStage }" @click="filterStage = ''">全部 <span class="n">{{ items.length }}</span></button>
+      <button class="chip" :class="{ on: filterStage === 'focus' }" @click="filterStage = 'focus'" :disabled="!stageCounts.focus">重点区 <span class="n">{{ stageCounts.focus }}</span></button>
+      <button class="chip" :class="{ on: filterStage === 'marked' }" @click="filterStage = 'marked'" :disabled="!stageCounts.marked">错题标记 <span class="n">{{ stageCounts.marked }}</span></button>
+      <button class="chip" :class="{ on: filterStage === 'learning' }" @click="filterStage = 'learning'" :disabled="!stageCounts.learning">学习中 <span class="n">{{ stageCounts.learning }}</span></button>
+      <button class="chip" :class="{ on: filterStage === 'growing' }" @click="filterStage = 'growing'" :disabled="!stageCounts.growing">巩固中 <span class="n">{{ stageCounts.growing }}</span></button>
+      <button class="chip" :class="{ on: filterStage === 'mastered' }" @click="filterStage = 'mastered'" :disabled="!stageCounts.mastered">已掌握 <span class="n">{{ stageCounts.mastered }}</span></button>
+    </div>
 
-    <div v-for="c in items" :key="c.id" class="wb-item">
+    <div v-if="!filteredItems.length" class="hint" style="text-align:center;padding:60px">该筛选下暂无错题，继续保持！</div>
+
+    <div v-for="c in filteredItems" :key="c.id" class="wb-item">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
         <span class="chip">{{ c.subject || '未分类' }}</span>
         <span class="chip" style="color:var(--red);border-color:var(--red)">{{ reason(c) }}</span>
@@ -122,4 +163,11 @@ onMounted(() => { load(); loadSubjects(); });
 .wb-item { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--red); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; }
 .wb-front { font-weight: 600; line-height: 1.6; }
 .wb-back { color: var(--ink-2); margin-top: 6px; line-height: 1.6; font-size: 14px; }
+
+/* —— 速赢区：阶段过滤条 —— */
+.stage-bar { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 16px; }
+.stage-bar .chip { padding: 5px 12px; font-size: 13px; }
+.stage-bar .chip .n { opacity: .65; margin-left: 4px; font-weight: 600; }
+.stage-bar .chip[disabled] { opacity: .4; cursor: not-allowed; }
+.stage-bar .chip.on[disabled] { opacity: 1; cursor: default; }
 </style>

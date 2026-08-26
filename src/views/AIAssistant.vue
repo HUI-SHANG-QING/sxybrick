@@ -3,7 +3,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
 import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
-import { createCard } from '../repo.js';
+import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLATES } from '../utils/genDeck.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import { speak } from '../utils/tts.js';
 
@@ -18,12 +18,15 @@ const cfg = ref(getAIConfig());
 
 const genOpen = ref(false);
 const genText = ref('');
-const genCards = ref([]);
-const genLoading = ref(false);
+const genSubject = ref('');
+const deck = ref(null);
+const deckLoading = ref(false);
+const deckSelected = ref(new Set());
+const deckFilter = ref('all');
 
-const extractOpen = ref(false);
-const extractCards = ref([]);
-const extractLoading = ref(false);
+const coldOpen = ref(false);
+const coldLoading = ref(false);
+const coldTemplates = ref(COLD_START_TEMPLATES.map(t => ({ id: t.id, name: t.name, subject: t.subject, description: t.description })));
 
 const SYSTEM_PROMPT = '你是「SxyBrick 记忆卡片」的智能学习助手。你会拿到用户的真实学习数据（卡片、复习记录、错题、标签、掌握度）。请用中文、简洁、友好地回答。当用户问学习情况、薄弱点、错因、复习建议时，务必结合下面提供的数据给出针对性建议，不要泛泛而谈。';
 
@@ -114,35 +117,88 @@ const quickActions = [
 ];
 function clickQuick(q) { input.value = q.prompt; send(); }
 
-// ---- 智能组卡 ----
-async function generateCards() {
+// ---- 智能卡组生成（Phase 2 杀手锏）----
+async function generateDeckFlow() {
   const t = genText.value.trim();
   if (!t) return toast('请先粘贴内容', 'error');
-  genLoading.value = true;
+  if (!hasAIKey()) { showSettings.value = true; toast('请先配置 AI 密钥', 'error'); return; }
+  deckLoading.value = true;
+  deck.value = null;
+  deckSelected.value = new Set();
   try {
-    const r = await chatAI([
-      { role: 'system', content: '你是学习内容拆解助手。把用户文字拆成记忆卡片，输出严格 JSON 数组，每项 {"front":"问题/提示","back":"答案","subject":"科目","tags":["标签"]}。只输出 JSON 数组，不要 markdown 代码块，不要多余文字。' },
-      { role: 'user', content: t },
-    ]);
-    genCards.value = parseCards(r);
-    if (!genCards.value.length) toast('没解析出卡片，请检查内容', 'error');
+    const r = await generateDeck(t, { subject: genSubject.value.trim() });
+    deck.value = r;
+    const sel = new Set();
+    r.deduped.forEach((c) => {
+      const idx = r.candidates.indexOf(c);
+      if (idx >= 0 && (c.score?.overall ?? 0) >= 60) sel.add(idx);
+    });
+    deckSelected.value = sel;
+    if (!r.candidates.length) toast('没解析出卡片，请检查内容', 'error');
+    else toast(`生成 ${r.candidates.length} 张候选卡（去重后 ${r.deduped.length} 张，已勾选 ${sel.size} 张）`, 'success');
   } catch (e) { toast(e.message, 'error'); }
-  finally { genLoading.value = false; }
+  finally { deckLoading.value = false; }
 }
-function parseCards(text) {
-  try {
-    const m = String(text).match(/\[[\s\S]*\]/);
-    const arr = JSON.parse(m ? m[0] : text);
-    return Array.isArray(arr) ? arr.filter(c => c && c.front && c.back) : [];
-  } catch { return []; }
+
+function toggleCard(i) {
+  const s = new Set(deckSelected.value);
+  if (s.has(i)) s.delete(i); else s.add(i);
+  deckSelected.value = s;
 }
-async function importCards() {
-  if (!genCards.value.length) return;
-  for (const c of genCards.value) {
-    await createCard({ front: String(c.front), back: String(c.back), subject: c.subject || '', tags: c.tags || [], type: 'basic' });
+
+function selectAllVisible() {
+  if (!deck.value) return;
+  const s = new Set(deckSelected.value);
+  for (const x of filteredCandidates.value) s.add(x._idx);
+  deckSelected.value = s;
+}
+function clearSelection() { deckSelected.value = new Set(); }
+
+const filteredCandidates = computed(() => {
+  if (!deck.value) return [];
+  const all = deck.value.candidates.map((c, i) => ({ ...c, _idx: i }));
+  if (deckFilter.value === 'deduped') {
+    const dedupIdx = new Set(deck.value.deduped.map(c => deck.value.candidates.indexOf(c)));
+    return all.filter(x => dedupIdx.has(x._idx));
   }
-  toast(`已导入 ${genCards.value.length} 张卡片`, 'success');
-  genOpen.value = false; genCards.value = []; genText.value = '';
+  if (deckFilter.value === 'selected') return all.filter(x => deckSelected.value.has(x._idx));
+  return all;
+});
+
+async function importDeck() {
+  if (!deck.value) return;
+  const picks = [...deckSelected.value].map(i => deck.value.candidates[i]).filter(Boolean);
+  if (!picks.length) return toast('请至少勾选一张卡', 'error');
+  deckLoading.value = true;
+  try {
+    const r = await bulkCreateCards(picks, { sourceDocId: deck.value.sourceDocId });
+    toast(`已导入 ${r.created} 张卡片${r.failed.length ? `，${r.failed.length} 张失败` : ''}`, r.failed.length ? 'error' : 'success');
+    if (!r.failed.length) {
+      genOpen.value = false; deck.value = null; genText.value = ''; genSubject.value = ''; deckSelected.value = new Set();
+    }
+  } catch (e) { toast(e.message, 'error'); }
+  finally { deckLoading.value = false; }
+}
+
+// ---- 冷启动卡组（0 卡新用户首选）----
+async function runColdStart(tplId) {
+  if (!hasAIKey()) { showSettings.value = true; toast('请先配置 AI 密钥', 'error'); return; }
+  coldLoading.value = true;
+  try {
+    const r = await generateColdStartDeck(tplId);
+    deck.value = { sourceDocId: null, candidates: r.candidates, deduped: r.deduped, chunks: 1, count: r.count };
+    const sel = new Set();
+    r.deduped.forEach((c) => {
+      const idx = r.candidates.indexOf(c);
+      if (idx >= 0 && (c.score?.overall ?? 0) >= 60) sel.add(idx);
+    });
+    deckSelected.value = sel;
+    deckFilter.value = 'all';
+    coldOpen.value = false;
+    genOpen.value = true;
+    toast(`冷启动生成 ${r.candidates.length} 张卡（去重后 ${r.deduped.length} 张）`, 'success');
+  } catch (e) { toast(e.message, 'error'); }
+  finally { coldLoading.value = false; }
 }
 
 // ---- 记忆库 ----
@@ -187,7 +243,7 @@ onMounted(async () => {
     <div class="quick-bar">
       <button v-for="q in quickActions" :key="q.label" class="chip" @click="clickQuick(q)">{{ q.label }}</button>
       <button class="chip" style="border-color:var(--blue);color:var(--blue)" @click="genOpen = true">智能组卡</button>
-      <button class="chip" style="border-color:var(--green);color:var(--green)" @click="extractKnowledge">提取知识点</button>
+      <button class="chip" style="border-color:var(--green);color:var(--green)" @click="coldOpen = true">冷启动卡组</button>
     </div>
 
     <div class="ai-body">
@@ -252,28 +308,75 @@ onMounted(async () => {
       </div>
     </teleport>
 
-    <!-- 智能组卡弹窗 -->
+    <!-- 智能卡组弹窗（Phase 2 杀手锏：质量评分 + 多题型 + 去重 + 源文档溯源）-->
     <teleport to="body">
       <div v-if="genOpen" class="modal-mask" @click.self="genOpen = false">
         <div class="modal">
-          <h3>智能组卡</h3>
-          <p class="hint" style="margin-top:0">粘贴一段学习内容（笔记/讲义/文章），AI 自动拆成记忆卡片。</p>
-          <textarea v-model="genText" class="input" rows="6" placeholder="粘贴内容…"></textarea>
+          <h3>智能卡组生成</h3>
+          <p class="hint" style="margin-top:0">粘贴学习内容（笔记/讲义/文章），AI 自动拆成高质量记忆卡组，含质量评分、多题型、重复检测、原文溯源。</p>
+          <textarea v-model="genText" class="input" rows="6" placeholder="粘贴内容（可超长，自动分块拆解）…"></textarea>
+          <input v-model="genSubject" class="input" style="margin-top:8px" placeholder="科目提示（可选，如 数据结构 / 高数 / 英语）" />
           <div style="display:flex;gap:10px;margin-top:12px">
-            <button class="btn primary" :disabled="genLoading" @click="generateCards">{{ genLoading ? '生成中…' : '生成卡片' }}</button>
+            <button class="btn primary" :disabled="deckLoading" @click="generateDeckFlow">{{ deckLoading ? '生成中…' : '生成卡组' }}</button>
+            <button class="btn" @click="coldOpen = true">从模板冷启动</button>
           </div>
-          <div v-if="genCards.length" style="margin-top:12px">
-            <div class="hint" style="margin-bottom:6px">预览（{{ genCards.length }} 张）</div>
+
+          <div v-if="deck" style="margin-top:14px">
+            <div class="deck-summary">
+              <span>候选 <b>{{ deck.count }}</b></span>
+              <span>去重后 <b style="color:var(--green)">{{ deck.deduped.length }}</b></span>
+              <span>已勾选 <b style="color:var(--blue)">{{ deckSelected.size }}</b></span>
+              <span v-if="deck.sourceDocId" title="原文已存为 AI 文档">源文档 ✓</span>
+              <span v-if="deck.chunks > 1">分块 {{ deck.chunks }}</span>
+            </div>
+            <div class="deck-filter">
+              <button :class="['chip-sm', deckFilter==='all'?'on':'']" @click="deckFilter='all'">全部 {{ deck.count }}</button>
+              <button :class="['chip-sm', deckFilter==='deduped'?'on':'']" @click="deckFilter='deduped'">去重后 {{ deck.deduped.length }}</button>
+              <button :class="['chip-sm', deckFilter==='selected'?'on':'']" @click="deckFilter='selected'">已选 {{ deckSelected.size }}</button>
+              <span style="flex:1"></span>
+              <button class="chip-sm" @click="selectAllVisible">全选可见</button>
+              <button class="chip-sm" @click="clearSelection">清空</button>
+            </div>
             <div class="gen-list">
-              <div v-for="(c, i) in genCards" :key="i" class="gen-item">
-                <div class="gen-q">{{ c.front }}</div>
-                <div class="gen-a">{{ c.back }}</div>
-              </div>
+              <label v-for="c in filteredCandidates" :key="c._idx" class="gen-item" :class="{ sel: deckSelected.has(c._idx), dup: c.dupScore >= 0.35, low: (c.score?.overall ?? 0) < 60 }">
+                <input type="checkbox" :checked="deckSelected.has(c._idx)" @change="toggleCard(c._idx)" />
+                <div class="gen-main">
+                  <div class="gen-q">
+                    <span class="badge" :class="'t-' + c.type">{{ c.type === 'cloze' ? '填空' : c.type === 'choice' ? '选择' : '问答' }}</span>
+                    {{ c.front }}
+                  </div>
+                  <div class="gen-a">{{ c.back }}</div>
+                  <div class="gen-meta">
+                    <span :class="['sc', c.score?.overall >= 80 ? 's-hi' : c.score?.overall >= 60 ? 's-mid' : 's-low']">质量 {{ c.score?.overall ?? '-' }}</span>
+                    <span v-if="c.subject">· {{ c.subject }}</span>
+                    <span v-if="c.dupScore >= 0.35" class="dup-warn">⚠ 疑似重复 ({{ (c.dupScore * 100).toFixed(0) }}%)</span>
+                  </div>
+                </div>
+              </label>
             </div>
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px">
               <button class="btn" @click="genOpen = false">取消</button>
-              <button class="btn primary" @click="importCards">导入这 {{ genCards.length }} 张</button>
+              <button class="btn primary" :disabled="deckLoading || !deckSelected.size" @click="importDeck">导入勾选的 {{ deckSelected.size }} 张</button>
             </div>
+          </div>
+        </div>
+      </div>
+    </teleport>
+
+    <!-- 冷启动卡组弹窗（0 卡新用户首选：预设学科模板）-->
+    <teleport to="body">
+      <div v-if="coldOpen" class="modal-mask" @click.self="coldOpen = false">
+        <div class="modal">
+          <h3>冷启动卡组</h3>
+          <p class="hint" style="margin-top:0">卡片库空空如也？选一个学科模板，AI 一键生成入门卡包，立刻开始复习。</p>
+          <div class="cold-list">
+            <div v-for="t in coldTemplates" :key="t.id" class="cold-item" @click="runColdStart(t.id)">
+              <div class="cold-name">{{ t.name }} <span class="cold-sub">{{ t.subject }}</span></div>
+              <div class="cold-desc">{{ t.description }}</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:12px">
+            <button class="btn" :disabled="coldLoading" @click="coldOpen = false">{{ coldLoading ? '生成中…' : '关闭' }}</button>
           </div>
         </div>
       </div>
@@ -333,11 +436,38 @@ onMounted(async () => {
 .tl-text { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .input-row { display: flex; gap: 8px; margin-top: 12px; }
 .input-row .input { flex: 1; }
-.gen-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
-.gen-item { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.gen-list { max-height: 420px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px 12px; }
+.gen-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 4px; border-bottom: 1px dashed var(--line); cursor: pointer; }
 .gen-item:last-child { border-bottom: none; }
-.gen-q { font-weight: 600; }
-.gen-a { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.gen-item:hover { background: var(--code-inline); }
+.gen-item.sel { background: var(--code-bg); }
+.gen-item.dup { border-left: 3px solid var(--red); padding-left: 5px; }
+.gen-item.low { opacity: 0.7; }
+.gen-item input { margin-top: 4px; flex: none; }
+.gen-main { flex: 1; min-width: 0; }
+.gen-q { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.gen-a { color: var(--ink-2); font-size: 13px; margin-top: 2px; word-break: break-word; }
+.gen-meta { font-size: 11px; color: var(--ink-2); margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--code-inline); color: var(--ink-2); flex: none; }
+.t-cloze { background: #eef2ff; color: #4338ca; }
+.t-choice { background: #fef3c7; color: #b45309; }
+.t-basic { background: var(--code-inline); color: var(--ink-2); }
+.sc { font-weight: 600; }
+.s-hi { color: var(--green); }
+.s-mid { color: var(--blue); }
+.s-low { color: var(--red); }
+.dup-warn { color: var(--red); }
+.deck-summary { display: flex; gap: 14px; font-size: 13px; color: var(--ink-2); margin-bottom: 8px; flex-wrap: wrap; }
+.deck-summary b { color: var(--ink); }
+.deck-filter { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.chip-sm { font-size: 12px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink-2); cursor: pointer; }
+.chip-sm.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.cold-list { display: flex; flex-direction: column; gap: 8px; }
+.cold-item { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; transition: border-color 0.15s; }
+.cold-item:hover { border-color: var(--accent); }
+.cold-name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.cold-sub { font-size: 11px; color: var(--accent); background: var(--code-bg); padding: 1px 6px; border-radius: 4px; }
+.cold-desc { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
 .mem-add { display: flex; gap: 8px; margin-bottom: 12px; }
 .mem-add .input[type="text"], .mem-add .input:not(select) { flex: 1; }
 .mem-list { max-height: 320px; overflow-y: auto; }

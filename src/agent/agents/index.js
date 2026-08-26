@@ -32,9 +32,9 @@ agentRegistry.register({
   name: '卡片生产工',
   description: '把笔记/讲义拆解成记忆卡片，提取知识点，并可一键入库，适合“帮我整理这段内容”。',
   systemPrompt:
-    '你是卡片生产工，负责把学习内容转化为高质量记忆卡片。\n{memory}\n流程：先调用 generate_cards 拆解内容得到候选卡片，向用户简要说明后可调用 create_card 逐张入库；入库前可询问科目/标签。也可用 get_gap_cards 找高频错题、generate_variant_card 生成变式题，形成「错题→补卡」闭环。保证 front 是“问题/提示”、back 是“答案”。',
-  tools: ['generate_cards', 'create_card', 'list_subjects_and_tags', 'search_cards', 'get_gap_cards', 'generate_variant_card'],
-  maxSteps: 10,
+    '你是卡片生产工，负责把学习内容转化为高质量记忆卡片。\n{memory}\n流程：\n1) 优先调用 generate_card_deck（高级版，自带质量评分+去重+源文档溯源）；若用户内容很短或仅做轻量拆解，可退回 generate_cards。\n2) 把候选卡（含 score 与 dupScore）简要呈现给用户：标注质量分<60 的低质卡、dupScore>=0.35 的疑似重复卡。\n3) 用户确认后调用 bulk_create_cards 批量入库（不要逐张 create_card，效率低且丢源文档回链）。\n4) 若用户卡片库为空（0 卡新用户），优先推荐 list_cold_start_templates + cold_start_deck 一键生成入门卡包，解决冷启动。\n5) 也可用 get_gap_cards 找高频错题、generate_variant_card 生成变式题，形成「错题→补卡」闭环。\n保证 front 是“问题/提示”、back 是“答案”。',
+  tools: ['generate_card_deck', 'generate_cards', 'bulk_create_cards', 'create_card', 'list_subjects_and_tags', 'search_cards', 'get_gap_cards', 'generate_variant_card', 'list_cold_start_templates', 'cold_start_deck'],
+  maxSteps: 12,
 });
 
 // 4) 测评出题官：基于薄弱点生成自测题
@@ -54,9 +54,9 @@ agentRegistry.register({
   name: '复习计划编排师',
   description: '结合你的掌握度与到期情况，编排一份可执行的阶段复习计划（含优先级与节奏）。',
   systemPrompt:
-    '你是复习计划编排师，擅长把“目标”拆成“可执行的步骤序列”。\n{context}\n{memory}\n先调用数据工具了解现状，再输出一份分阶段的复习计划（阶段目标→每日任务→优先级→里程碑）。若用户认可，可调用 create_plan 把计划持久化（会随数据包同步）。用 <final> 输出最终计划。',
-  tools: ['get_stats', 'get_review_suggestion', 'get_weak_cards', 'create_plan', 'list_plans'],
-  maxSteps: 8,
+    '你是复习计划编排师，擅长把“目标”拆成“可执行的步骤序列”。\n{context}\n{memory}\n流程：\n1) 优先调用 auto_generate_plan（数据驱动、零 LLM 即可生成结构化阶段计划 markdown + meta），把生成的 title/content 直接交给 create_plan 持久化。\n2) 如用户希望更个性化，再叠加 graph_review_plan（图驱动复习路径）作为计划内的复习序列补充。\n3) 若用户认可最终计划，调用 create_plan 落库（会随数据包同步）。\n用 <final> 输出最终计划摘要。',
+  tools: ['auto_generate_plan', 'graph_review_plan', 'get_stats', 'get_review_suggestion', 'get_weak_cards', 'create_plan', 'list_plans'],
+  maxSteps: 10,
 });
 
 // 6) 记忆管家：帮你沉淀跨对话的长期记忆（核心/偏好/事实）

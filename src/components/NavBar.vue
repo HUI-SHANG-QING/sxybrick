@@ -1,9 +1,16 @@
 <script setup>
 // 导航栏：5 种「游戏级」风格，各有独立的场景背景、菜单造型、交互与音效
 // classic 经典顶栏 / card 炉石卡牌桌游 / moba 王者大厅 / space 星际HUD / adventure 冒险场景
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue';
 import { useRouter } from 'vue-router';
 import { playBlip } from '../utils/sound.js';
+// 3D 角色组件异步加载：three.js（约 600KB）只在 adventure 主题激活时才拉取
+// 默认主题/其他主题的首屏 chunk 不再携带 three.js
+const ThreeDCharacter = defineAsyncComponent({
+  loader: () => import('./ThreeDCharacter.vue'),
+  loadingComponent: { template: '<div class="tdc-loading">⏳</div>' },
+  delay: 0,
+});
 
 const props = defineProps({
   variant: { type: String, default: 'classic' },
@@ -33,11 +40,18 @@ function tapAdventure(item, i) {
   setTimeout(() => playBlip(200, 0.12, 'square', 0.25), 80);
   setTimeout(() => { acting.value = false; go(item.path); }, 350);
 }
+// 3D 角色被点击：附加音效反馈（角色自身已联动跳跃）
+function onCharAction() {
+  playBlip(180, 0.08, 'triangle', 0.25);
+  setTimeout(() => playBlip(300, 0.1, 'triangle', 0.22), 60);
+}
 
 // 新增三风格（2026-08-25）：专注/活力/纸墨 —— 轻量音效反馈
 function tapFocus(item) { playBlip(520, 0.04, 'sine', 0.18); }
 function tapFlat(item) { playBlip(760, 0.06, 'triangle', 0.2); setTimeout(() => playBlip(1020, 0.06, 'triangle', 0.16), 60); go(item.path); }
 function tapPaper(item) { playBlip(180, 0.08, 'sine', 0.14); }
+// 国风（2026-08-26）：古琴泛音 —— 点击菜单如拨弦
+function tapGuofeng(item) { playBlip(330, 0.18, 'sine', 0.16); setTimeout(() => playBlip(495, 0.22, 'sine', 0.12), 90); go(item.path); }
 </script>
 
 <template>
@@ -92,12 +106,18 @@ function tapPaper(item) { playBlip(180, 0.08, 'sine', 0.14); }
     </div>
   </nav>
 
-  <!-- 冒险场景：角色 + 符石菜单 -->
+  <!-- 冒险场景：3D 角色 + 符石菜单（旗舰主题 · 黑神话风） -->
   <nav v-else-if="props.variant === 'adventure'" class="app-nav nav-adventure">
     <div class="adv-scene" :style="{ '--hue': advHue }">
       <div class="adv-moon"></div>
       <div class="adv-mountains"></div>
-      <div class="adv-character" :class="{ act: acting }">🐒</div>
+      <div class="adv-fog"></div>
+      <div class="adv-embers">
+        <i v-for="n in 8" :key="n" :style="{ '--n': n }"></i>
+      </div>
+      <div class="adv-character-3d">
+        <ThreeDCharacter :hue="advHue" :acting="acting" @action="onCharAction" />
+      </div>
       <div class="adv-ground"></div>
       <div class="adv-menu">
         <button v-for="(item, i) in navItems" :key="item.path" class="adv-sigil" @click="tapAdventure(item, i)">
@@ -127,6 +147,13 @@ function tapPaper(item) { playBlip(180, 0.08, 'sine', 0.14); }
     <span class="paper-seal">SxyBrick</span>
     <router-link v-for="item in navItems" :key="item.path" :to="item.path" @click="tapPaper(item)"><em>{{ item.label }}</em></router-link>
     <span class="paper-quote">日拱一卒</span>
+  </nav>
+
+  <!-- 兜底：未知/旧风格值回退到经典顶栏 -->
+  <nav v-else-if="props.variant === 'guofeng'" class="app-nav nav-guofeng">
+    <span class="gf-brand">山水</span>
+    <router-link v-for="item in navItems" :key="item.path" :to="item.path" @click="tapGuofeng(item)"><em>{{ item.label }}</em></router-link>
+    <span class="gf-quote">澄怀观道</span>
   </nav>
 
   <!-- 兜底：未知/旧风格值回退到经典顶栏 -->
@@ -185,20 +212,28 @@ function tapPaper(item) { playBlip(180, 0.08, 'sine', 0.14); }
 .space-btn em { font-style: normal; font-size: 11px; }
 .space-btn:hover { border-color: #00e5ff; box-shadow: 0 0 14px #00e5ff66; }
 
-/* 冒险场景 */
+/* 冒险场景（旗舰 · 真 3D 角色） */
 .nav-adventure { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; pointer-events: none; }
-.adv-scene { position: fixed; left: 0; right: 0; bottom: 0; height: 320px; pointer-events: auto; overflow: hidden; }
-.adv-moon { position: absolute; right: 12%; top: 12%; width: 64px; height: 64px; border-radius: 50%; background: radial-gradient(circle, #ffe9b0, #f5c87888); box-shadow: 0 0 40px #f5c87866; }
-.adv-mountains { position: absolute; left: -5%; right: -5%; bottom: 18%; height: 55%; background: linear-gradient(165deg, hsl(var(--hue), 34%, 24%), hsl(var(--hue), 40%, 14%)); clip-path: polygon(0 100%, 0 45%, 18% 30%, 34% 50%, 52% 26%, 70% 46%, 88% 30%, 100% 48%, 100% 100%); transition: filter .5s; }
+.adv-scene { position: fixed; left: 0; right: 0; bottom: 0; height: 380px; pointer-events: auto; overflow: hidden; }
+.adv-moon { position: absolute; right: 12%; top: 10%; width: 78px; height: 78px; border-radius: 50%; background: radial-gradient(circle, #ffe9b0, #f5c87888); box-shadow: 0 0 50px #f5c87877, 0 0 100px #f5c87844; }
+.adv-mountains { position: absolute; left: -5%; right: -5%; bottom: 18%; height: 60%; background: linear-gradient(165deg, hsl(var(--hue), 34%, 24%), hsl(var(--hue), 40%, 14%)); clip-path: polygon(0 100%, 0 45%, 18% 30%, 34% 50%, 52% 26%, 70% 46%, 88% 30%, 100% 48%, 100% 100%); transition: filter .5s; }
+.adv-fog { position: absolute; left: 0; right: 0; bottom: 14%; height: 30%; background: linear-gradient(0deg, hsl(var(--hue), 25%, 8%) 0%, transparent 100%); pointer-events: none; }
+.adv-embers { position: absolute; left: 0; right: 0; bottom: 0; top: 0; pointer-events: none; }
+.adv-embers i { position: absolute; bottom: 5%; left: calc(var(--n) * 12%); width: 3px; height: 3px; border-radius: 50%; background: #ff9944; box-shadow: 0 0 6px #ff7733; opacity: .7; animation: ember-float calc(5s + var(--n) * 0.6s) ease-in infinite; }
+@keyframes ember-float {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  20% { opacity: .8; }
+  100% { transform: translateY(-260px) translateX(20px) scale(.3); opacity: 0; }
+}
 .adv-ground { position: absolute; left: 0; right: 0; bottom: 0; height: 18%; background: linear-gradient(hsl(var(--hue), 30%, 12%), hsl(var(--hue), 35%, 6%)); }
-.adv-character { position: absolute; left: 50%; bottom: 16%; transform: translateX(-50%); font-size: 72px; filter: drop-shadow(0 6px 10px rgba(0,0,0,.5)); transition: transform .3s; }
-.adv-character.act { animation: adv-jump .35s ease; }
-@keyframes adv-jump { 0% { transform: translateX(-50%) translateY(0) scale(1); } 40% { transform: translateX(-50%) translateY(-46px) scale(1.1); } 100% { transform: translateX(-50%) translateY(0) scale(1); } }
-.adv-menu { position: absolute; left: 0; right: 0; bottom: 8px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 0 12px; }
-.adv-sigil { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 10px; border-radius: 999px; border: 1px solid hsl(var(--hue), 50%, 60%); background: rgba(0,0,0,.35); color: #f5f0df; cursor: pointer; transition: .15s; }
+.adv-character-3d { position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%); width: 260px; height: 300px; z-index: 2; }
+.adv-character-3d :deep(.tdc-canvas) { width: 100%; height: 100%; }
+.adv-menu { position: absolute; left: 0; right: 0; bottom: 8px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; padding: 0 12px; z-index: 3; }
+.adv-sigil { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 10px; border-radius: 999px; border: 1px solid hsl(var(--hue), 50%, 60%); background: rgba(0,0,0,.35); color: #f5f0df; cursor: pointer; transition: .15s; backdrop-filter: blur(4px); }
 .adv-sigil span { font-size: 18px; }
 .adv-sigil em { font-style: normal; font-size: 11px; }
-.adv-sigil:hover { background: hsl(var(--hue), 50%, 45%); box-shadow: 0 0 16px hsl(var(--hue), 60%, 55%); }
+.adv-sigil:hover { background: hsl(var(--hue), 50%, 45%); box-shadow: 0 0 16px hsl(var(--hue), 60%, 55%); transform: translateY(-2px); }
+@media (max-width: 720px) { .adv-scene { height: 280px; } .adv-character-3d { width: 200px; height: 220px; } }
 
 /* ===== 新增三风格导航（2026-08-25，不影响原 5 风格）===== */
 /* 专注：专业现代顶栏 */
@@ -225,4 +260,15 @@ function tapPaper(item) { playBlip(180, 0.08, 'sine', 0.14); }
 .nav-paper a.router-link-active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
 .paper-quote { margin-left: auto; font-family: 'KaiTi', 'STKaiti', '楷体', serif; color: var(--ink-2); font-size: 13px; letter-spacing: 3px; }
 @media (max-width: 900px) { .paper-quote { display: none; } .nav-paper { gap: 12px; } }
+
+/* 国风：透明顶栏 + 印章品牌 + 毛笔字导航（2026-08-26，叠加在山水画背景上） */
+.nav-guofeng { display: flex; align-items: center; gap: 16px; padding: 0 28px; height: 64px; position: sticky; top: 0; z-index: 60; background: rgba(240, 235, 224, 0.55); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(30, 30, 30, 0.12); }
+.gf-brand { font-family: 'KaiTi', 'STKaiti', '楷体', 'STSong', '宋体', serif; font-size: 22px; font-weight: 700; color: #fff; background: rgba(168, 49, 42, 0.9); padding: 5px 14px 7px; border-radius: 4px; letter-spacing: 4px; box-shadow: 0 2px 8px rgba(168, 49, 42, 0.3); }
+.nav-guofeng a { color: rgba(20, 24, 28, 0.7); text-decoration: none; font-size: 15px; padding: 6px 8px; border-bottom: 2px solid transparent; }
+.nav-guofeng a em { font-style: normal; font-family: 'KaiTi', 'STKaiti', '楷体', serif; }
+.nav-guofeng a:hover { color: var(--ink); }
+.nav-guofeng a.router-link-active { color: rgba(168, 49, 42, 0.95); border-bottom-color: rgba(168, 49, 42, 0.8); font-weight: 600; }
+.gf-quote { margin-left: auto; font-family: 'KaiTi', 'STKaiti', '楷体', serif; color: rgba(20, 24, 28, 0.5); font-size: 14px; letter-spacing: 6px; }
+@media (max-width: 900px) { .gf-quote { display: none; } .nav-guofeng { gap: 10px; } }
+
 </style>

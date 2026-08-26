@@ -1,11 +1,12 @@
 <script setup>
 // 数据可视化：复习热力图 + 各科掌握度雷达图 + 14 天趋势 + 统计指标（本地）
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
 import 'echarts-wordcloud';
 import { toast } from '../utils/toast.js';
 import { getStats } from '../repo.js';
 import { getLearningProfile, getSubjectDiagnosis } from '../agent/analytics.js';
+import { getDailyCounts } from '../utils/streak.js';
 import { degraded } from '../utils/perf.js';
 
 const stats = ref(null);
@@ -22,6 +23,11 @@ const forgotEl = ref(null);
 const tagEl = ref(null);
 const wordEl = ref(null);
 let charts = [];
+
+// —— 2026-08-26 速赢区：趋势图可切换 7/14/30 天 + 本周 vs 上周对比 ——
+const trendRange = ref(Number(localStorage.getItem('sxy_stats_range')) || 14);
+const weekDelta = ref(null); // { thisWeek, lastWeek, diff, percent }
+const trendData = ref([]);  // 当前 range 的每日数据
 
 // 图表主题：直接读取 CSS 变量（随 data-theme × data-style 任意组合换肤，含三大新主题与未来的个人主题）
 function getChartTheme() {
@@ -101,11 +107,13 @@ function buildCharts() {
 
   if (trendEl.value) {
     const trend = echarts.init(trendEl.value);
+    const data = trendData.value.length ? trendData.value : stats.value.trend;
+    const xData = data.map(t => typeof t.date === 'number' ? fmtDate(t.date) : t.date);
     trend.setOption({
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: stats.value.trend.map(t => t.date), axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } } },
+      xAxis: { type: 'category', data: xData, axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } } },
       yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
-      series: [{ type: 'bar', data: stats.value.trend.map(t => t.count), itemStyle: { color: theme.bar, borderRadius: [4, 4, 0, 0] } }],
+      series: [{ type: 'bar', data: data.map(t => t.count), itemStyle: { color: theme.bar, borderRadius: [4, 4, 0, 0] } }],
       grid: { left: 36, right: 12, top: 20, bottom: 28 },
     });
     charts.push(trend);
@@ -253,11 +261,42 @@ async function load() {
   try {
     const [s, p, diag] = await Promise.all([getStats(), getLearningProfile(), getSubjectDiagnosis()]);
     stats.value = s; profile.value = p; diagnosis.value = diag;
+    // 速赢区：加载趋势数据 + 计算本周 vs 上周对比
+    await loadTrendByRange(trendRange.value);
+    await computeWeekDelta();
     if (degraded.value) setTimeout(buildCharts, 300);
     else buildCharts();
   } catch (e) { toast(e.message, 'error'); }
 }
 const diagnosis = ref([]); // D1 单科诊断
+
+// 速赢区：根据 range 重新加载趋势数据并重绘趋势图
+function fmtDate(ts) {
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+async function loadTrendByRange(range) {
+  trendData.value = await getDailyCounts(range);
+  // 仅重绘趋势图，避免重建所有图表
+  const trend = charts.find(c => c.getDom() === trendEl.value);
+  if (trend) {
+    const theme = getChartTheme();
+    trend.setOption({
+      xAxis: { data: trendData.value.map(t => fmtDate(t.date)) },
+      series: [{ data: trendData.value.map(t => t.count) }],
+    });
+  }
+}
+// 本周 vs 上周对比：取近 14 天每日复习量，前 7 = 上周，后 7 = 本周
+async function computeWeekDelta() {
+  const daily = await getDailyCounts(14);
+  const lastWeek = daily.slice(0, 7).reduce((s, d) => s + d.count, 0);
+  const thisWeek = daily.slice(7, 14).reduce((s, d) => s + d.count, 0);
+  const diff = thisWeek - lastWeek;
+  const percent = lastWeek === 0 ? (thisWeek > 0 ? 100 : 0) : Math.round(diff / lastWeek * 100);
+  weekDelta.value = { thisWeek, lastWeek, diff, percent };
+}
+watch(trendRange, (r) => { localStorage.setItem('sxy_stats_range', String(r)); loadTrendByRange(r); });
 
 function onResize() { charts.forEach(c => c.resize()); }
 
@@ -304,8 +343,29 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
         <div v-if="stats && !stats.mastery.length" class="hint" style="text-align:center">暂无复习记录</div>
       </div>
       <div class="panel">
-        <div class="hint" style="margin-bottom:8px">近 14 天复习趋势</div>
-        <div ref="trendEl" style="height:300px"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+          <div class="hint">复习趋势</div>
+          <div class="range-switch">
+            <button v-for="r in [7, 14, 30]" :key="r" class="chip" :class="{ on: trendRange === r }" @click="trendRange = r">{{ r }} 天</button>
+          </div>
+        </div>
+        <div v-if="weekDelta" class="week-delta">
+          <div class="wd-cell">
+            <div class="wd-num">{{ weekDelta.thisWeek }}</div>
+            <div class="hint">本周复习</div>
+          </div>
+          <div class="wd-arrow" :class="{ up: weekDelta.diff > 0, down: weekDelta.diff < 0 }">
+            <span v-if="weekDelta.diff > 0">↑</span>
+            <span v-else-if="weekDelta.diff < 0">↓</span>
+            <span v-else>＝</span>
+            <span class="wd-pct">{{ weekDelta.percent }}%</span>
+          </div>
+          <div class="wd-cell">
+            <div class="wd-num">{{ weekDelta.lastWeek }}</div>
+            <div class="hint">上周复习</div>
+          </div>
+        </div>
+        <div ref="trendEl" style="height:260px;margin-top:8px"></div>
       </div>
     </div>
 
@@ -375,4 +435,24 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
 .diag-row:last-child { border-bottom: none; }
 .diag-subj { font-weight: 700; min-width: 110px; }
 .diag-advice { color: var(--amber); font-size: 13px; max-width: 420px; }
+
+/* —— 速赢区：周对比卡 + 范围切换器 —— */
+.range-switch { display: flex; gap: 4px; }
+.range-switch .chip { padding: 3px 10px; font-size: 12px; }
+.week-delta {
+  display: flex; align-items: center; justify-content: space-around;
+  background: var(--code-bg);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-top: 4px;
+}
+.wd-cell { text-align: center; min-width: 80px; }
+.wd-num { font-size: 24px; font-weight: 700; color: var(--ink); line-height: 1.1; }
+.wd-arrow {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: 18px; font-weight: 600; color: var(--ink-2);
+}
+.wd-arrow.up { color: var(--green); }
+.wd-arrow.down { color: var(--red); }
+.wd-pct { font-size: 12px; font-weight: 600; }
 </style>

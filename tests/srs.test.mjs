@@ -6,12 +6,38 @@ import { computeNext, GRADUATED_STEPS, applyFeedback } from '../src/srs.js';
 
 const base = { level: 0, ease: 2.5 };
 
-test('记住了：等级+1、ease 上升、间隔进入学习梯度', () => {
+test('记住了：等级+1、ease 上升、新卡进入短期巩固阶段1（当日 6 小时）', () => {
   const n = computeNext(base, 2, 1, false, {});
   assert.equal(n.level, 1);
+  assert.equal(n.consolidation, 1); // 进入短期巩固阶段1
   assert.ok(n.ease > 2.5);
-  assert.equal(n.intervalDays, GRADUATED_STEPS[0]);
+  assert.equal(n.intervalDays, 6 / 24); // 6 小时后再次提取
   assert.ok(n.dueAt > Date.now());
+});
+
+test('短期巩固完整流程：阶段1→阶段2（隔日）→毕业进正常梯度', () => {
+  // 阶段1 完成（6h 后再答对）→ 进入阶段2，level 不变，隔日复习
+  const after1 = computeNext({ level: 1, ease: 2.5, consolidation: 1 }, 2, 1, false, {});
+  assert.equal(after1.level, 1);       // 阶段2 不升级
+  assert.equal(after1.consolidation, 2);
+  assert.equal(after1.intervalDays, 1); // 隔日
+
+  // 阶段2 完成（隔日再答对）→ 毕业，level 升到 2，进入 3 天梯度
+  const after2 = computeNext({ level: 1, ease: 2.5, consolidation: 2 }, 2, 1, false, {});
+  assert.equal(after2.level, 2);
+  assert.equal(after2.consolidation, null); // 毕业退出短期巩固
+  assert.equal(after2.intervalDays, GRADUATED_STEPS[1]); // 3 天
+});
+
+test('短期巩固中评级 0/1 → 退出巩固回正常流程', () => {
+  // 阶段1 中答"还模糊" → 退出巩固
+  const fuzzy = computeNext({ level: 1, ease: 2.5, consolidation: 1 }, 1, 1, false, {});
+  assert.equal(fuzzy.consolidation, null);
+  assert.equal(fuzzy.intervalDays, 1); // level=1, rating=1 → 1 天
+  // 阶段2 中答"没记住" → 退出巩固、等级回退
+  const forgot = computeNext({ level: 1, ease: 2.5, consolidation: 2 }, 0, 1, false, {});
+  assert.equal(forgot.consolidation, null);
+  assert.equal(forgot.level, 0); // level-2 后下限 0
 });
 
 test('没记住：等级回退到 0、10 分钟后重学、ease 下降', () => {

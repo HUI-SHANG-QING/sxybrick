@@ -1,14 +1,35 @@
 <script setup>
 // Markdown 渲染：marked(GFM) + highlight.js 高亮 + KaTeX 公式 + 本地图片解析
+// 性能：katex / highlight.js 改为按需动态 import（仅当源文本含对应语法时加载）
+// 首屏 chunk 不再携带这两个重型库（合计约 +400KB），仅在内容需要时才拉取。
 import { ref, watch } from 'vue';
 import { marked } from 'marked';
-import hljs from 'highlight.js';
-import katex from 'katex';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
 
 const props = defineProps({ content: { type: String, default: '' } });
 
 marked.setOptions({ breaks: true, gfm: true });
+
+// 懒加载重型依赖：使用模块级缓存，避免重复加载
+// null=未加载，false=加载失败，object=已加载的模块
+let katexMod = null;
+let hljsMod = null;
+
+async function loadKatex() {
+  if (katexMod === null) {
+    try { katexMod = (await import('katex')).default; }
+    catch (e) { console.warn('[MarkdownRenderer] katex 加载失败', e); katexMod = false; }
+  }
+  return katexMod;
+}
+
+async function loadHljs() {
+  if (hljsMod === null) {
+    try { hljsMod = (await import('highlight.js')).default; }
+    catch (e) { console.warn('[MarkdownRenderer] highlight.js 加载失败', e); hljsMod = false; }
+  }
+  return hljsMod;
+}
 
 function render(src) {
   const stash = [];
@@ -20,9 +41,16 @@ function render(src) {
     const nl = code.indexOf('\n');
     let lang = '', body = code;
     if (nl >= 0) { lang = code.slice(0, nl).trim(); body = code.slice(nl + 1); }
-    const html = lang && hljs.getLanguage(lang)
-      ? `<pre><code class="hljs language-${lang}">${hljs.highlight(body, { language: lang }).value}</code></pre>`
-      : `<pre><code class="hljs">${hljs.highlightAuto(body).value}</code></pre>`;
+    let html;
+    if (hljsMod && lang && hljsMod.getLanguage(lang)) {
+      html = `<pre><code class="hljs language-${lang}">${hljsMod.highlight(body, { language: lang }).value}</code></pre>`;
+    } else if (hljsMod) {
+      html = `<pre><code class="hljs">${hljsMod.highlightAuto(body).value}</code></pre>`;
+    } else {
+      // hljs 尚未加载：纯文本转义后保护，等待下一轮渲染再高亮
+      const esc = body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      html = `<pre><code class="hljs pending">${esc}</code></pre>`;
+    }
     return put(html);
   });
 
@@ -34,14 +62,20 @@ function render(src) {
   text = text.replace(/!\[([^\]]*)\]\(sxy-img:\/\/([0-9a-fA-F-]+)\)/g, (m, alt, id) =>
     put(`<img src="${imgUrl(id) || ''}" alt="${alt}" class="md-img" />`));
 
-  // 4) 公式保护
+  // 4) 公式保护（仅当 katex 已加载时才渲染，否则保留原始 $$..$$ / $..$）
   text = text.replace(/\$\$([\s\S]+?)\$\$/g, (m, tex) => {
-    try { return put(katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false })); }
-    catch { return m; }
+    if (katexMod) {
+      try { return put(katexMod.renderToString(tex.trim(), { displayMode: true, throwOnError: false })); }
+      catch { return m; }
+    }
+    return m;
   });
   text = text.replace(/\$([^$\n]+?)\$/g, (m, tex) => {
-    try { return put(katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false })); }
-    catch { return m; }
+    if (katexMod) {
+      try { return put(katexMod.renderToString(tex.trim(), { displayMode: false, throwOnError: false })); }
+      catch { return m; }
+    }
+    return m;
   });
 
   // 5) Markdown 解析
@@ -56,7 +90,12 @@ const html = ref('');
 
 async function update() {
   await ensureImages(extractImageIds(props.content));
-  html.value = render(props.content);
+  const src = props.content || '';
+  // 按需加载：仅当源文本包含对应语法标记时才加载重型库
+  // 这两个 await 是串行的（一般内容里两种语法都很少），可保证 render 时模块就位
+  if (src.includes('$')) await loadKatex();
+  if (src.includes('`')) await loadHljs();
+  html.value = render(src);
 }
 
 watch(() => props.content, update, { immediate: true });

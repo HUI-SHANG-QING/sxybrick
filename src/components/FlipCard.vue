@@ -33,8 +33,37 @@ watch(() => props.card.id, () => {
   writingCorrect.value = false;
 });
 
-const type = computed(() => props.card.type || 'basic');
-const typeText = computed(() => type.value === 'cloze' ? '填空' : type.value === 'choice' ? '选择' : type.value === 'writing' ? '默写' : '正反面');
+const type = computed(() => {
+  const t = props.card.type || 'basic';
+  // 难度梯度：basic 卡在 level>=4（巩固期）自动升级为默写模式（自由回忆）
+  // 认知科学：再认(level 0-1) → 线索回忆(level 2-3 自动展示首字+字数) → 自由回忆(level 4+ 默写)
+  if (t === 'basic' && (props.card.level ?? 0) >= 4) return 'writing';
+  return t;
+});
+const autoWriting = computed(() => (!props.card.type || props.card.type === 'basic') && (props.card.level ?? 0) >= 4);
+// 线索回忆层（level 2-3 的 basic 卡）：自动展示"首字+字数"提示，强迫主动提取
+// 不暴露完整答案，只给最小线索，降低再认依赖、提升回忆难度
+const autoClue = computed(() =>
+  (!props.card.type || props.card.type === 'basic') &&
+  !autoWriting.value &&
+  (props.card.level ?? 0) >= 2 && (props.card.level ?? 0) <= 3,
+);
+const clueHint = computed(() => {
+  if (!autoClue.value) return '';
+  // 清洗 markdown/标点后取首字 + 字数
+  const back = String(props.card.back || '')
+    .replace(/[#*`_\[\]()!~>\-]/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+  if (!back) return '';
+  const first = back[0] || '';
+  return `首字「${first}」· 共 ${back.length} 字`;
+});
+const typeText = computed(() => {
+  if (autoWriting.value) return '默写（巩固）';
+  if (autoClue.value) return '线索回忆';
+  return type.value === 'cloze' ? '填空' : type.value === 'choice' ? '选择' : type.value === 'writing' ? '默写' : '正反面';
+});
 const hintText = computed(() => mdToSpeech(props.card.back).slice(0, 40) || '（无提示）');
 
 // 默写判定：忽略空格/标点/大小写后逐字比对
@@ -126,6 +155,7 @@ defineExpose({ flipped, showBack, doRate });
         <template v-else>
           <MarkdownRenderer :content="maskedFront" />
           <template v-if="type === 'writing'">
+            <div v-if="autoWriting" class="hint" style="margin-top:4px;color:var(--green)">巩固期 · 默写模式（自由回忆，检验真实掌握度）</div>
             <div style="display:flex;gap:8px;margin-top:12px" @click.stop>
               <input v-model="writingAnswer" class="input" style="flex:1" placeholder="默写你的答案…" @keydown.enter="checkWriting" />
               <button class="btn small primary" @click="checkWriting">提交</button>
@@ -133,12 +163,13 @@ defineExpose({ flipped, showBack, doRate });
             <div v-if="writingChecked && !writingCorrect" class="hint" style="color:var(--red);margin-top:8px">与标准答案不完全一致，翻看答案后自评</div>
           </template>
           <template v-else>
+            <div v-if="autoClue && clueHint" class="hint" style="margin-top:8px;color:var(--blue)">🧠 线索回忆 · {{ clueHint }}（先主动提取，再翻面对照）</div>
             <div style="display:flex;gap:8px;margin-top:12px;align-items:center" @click.stop>
               <button class="btn small" @click="speak(maskedFront)">朗读</button>
               <button class="btn small" @click="hintReveal = !hintReveal">{{ hintReveal ? '收起提示' : '看提示' }}</button>
             </div>
             <div v-if="hintReveal" class="hint" style="margin-top:8px">提示：{{ hintText }}</div>
-            <div v-else class="hint" style="margin-top:10px">点击卡片任意区域翻看答案</div>
+            <div v-else-if="!autoClue" class="hint" style="margin-top:10px">点击卡片任意区域翻看答案</div>
           </template>
         </template>
       </div>

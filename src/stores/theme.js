@@ -11,6 +11,10 @@ export const STYLES = [
   { id: 'focus', name: '专注', desc: '专业现代 · 深蓝聚焦 · WCAG AA', icon: '🎯' },
   { id: 'flat', name: '活力', desc: '高饱和平铺 · 多彩大按钮', icon: '🌈' },
   { id: 'paper', name: '纸墨', desc: '静学纸墨 · 朱印 · 反焦虑', icon: '📜' },
+  // —— 2026-08-26 新增：琥珀主题（1:1 复刻 localhost:3000 + 专属暖光动效）——
+  { id: 'amber', name: '琥珀', desc: '暖光琥珀 · 简洁扁平 · 流光按钮', icon: '🔥' },
+  // —— 2026-08-26 新增：国风主题（真水墨山水画交互 · 致敬宋元名家）——
+  { id: 'guofeng', name: '国风', desc: '水墨山水 · 飞鸟涟漪 · 朱印题款', icon: '🏔️' },
 ];
 
 // 配色模式（全局通用，适用于每一种风格）
@@ -43,6 +47,9 @@ export const useThemeStore = defineStore('theme', {
     },
     apply() {
       const root = document.documentElement;
+      // 速赢区：主题切换过渡动画 —— 仅在"切换"时启用 0.32s 颜色淡入（初次加载跳过，避免 FOUC 闪烁）
+      const isSwitch = root.hasAttribute('data-style');
+      if (isSwitch) root.classList.add('theme-switching');
       root.setAttribute('data-style', this.style);
       root.setAttribute('data-theme', this.mode);
       // 个人主题：由色相生成强调色族（随配色模式微调亮度/饱和度），写入 CSS 变量供 [data-style='custom'] 消费
@@ -57,6 +64,10 @@ export const useThemeStore = defineStore('theme', {
         root.style.removeProperty('--cust-accent');
         root.style.removeProperty('--cust-soft');
         root.style.removeProperty('--cust-tag-bg');
+      }
+      if (isSwitch) {
+        clearTimeout(this._switchTimer);
+        this._switchTimer = setTimeout(() => root.classList.remove('theme-switching'), 340);
       }
     },
   },
