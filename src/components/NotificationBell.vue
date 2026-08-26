@@ -42,32 +42,53 @@ function applyPos() {
   bellStyle.right = 'auto'; bellStyle.bottom = 'auto';
 }
 const bellEl = ref(null);
-let dragging = false, moved = false, startX = 0, startY = 0, origX = 0, origY = 0;
+const BELL_CLICK_DIST = 14; // 曼哈顿总位移 14 以下视为点击（手指点按天然抖动）
+const BELL_CLICK_MS = 250;   // 250ms 内按-抬无条件算点击
+let dragging = false, moved = false, startX = 0, startY = 0, origX = 0, origY = 0, downAt = 0, activePointerId = null;
 function onBellDown(e) {
-  const pt = e.touches ? e.touches[0] : e;
-  dragging = true; moved = false;
-  startX = pt.clientX; startY = pt.clientY;
+  const pt = e.clientX != null ? e : (e.touches ? e.touches[0] : e);
+  dragging = true; moved = false; startX = pt.clientX; startY = pt.clientY; downAt = Date.now();
   const rect = bellEl.value.getBoundingClientRect();
   origX = rect.left; origY = rect.top;
   bellStyle.position = 'fixed'; bellStyle.left = origX + 'px'; bellStyle.top = origY + 'px';
   bellStyle.right = 'auto'; bellStyle.bottom = 'auto';
-  document.addEventListener('pointermove', onBellMove);
+  // 指针捕获：手指滑出按钮也能继续收到事件（触屏拖动丝滑的关键）
+  try {
+    if (e.pointerId != null && bellEl.value?.setPointerCapture) {
+      bellEl.value.setPointerCapture(e.pointerId); activePointerId = e.pointerId;
+    }
+  } catch {}
+  // pointermove 必须 passive:false，否则 e.preventDefault 会被浏览器静默忽略 → 页面跟着滚动
+  document.addEventListener('pointermove', onBellMove, { passive: false });
   document.addEventListener('pointerup', onBellUp, { once: true });
   document.addEventListener('pointercancel', onBellUp, { once: true });
+  // 拖动时临时锁定页面滚动，避免页面一起滚
+  try { document.body.style.touchAction = 'none'; document.documentElement.style.overflow = 'hidden'; } catch {}
 }
 function onBellMove(e) {
   if (!dragging) return;
-  const pt = e.touches ? e.touches[0] : e;
+  const pt = e.clientX != null ? e : (e.touches ? e.touches[0] : e);
   const dx = pt.clientX - startX, dy = pt.clientY - startY;
-  if (!moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) moved = true;
+  const dist = Math.abs(dx) + Math.abs(dy);
+  const elapsed = Date.now() - downAt;
+  if (!moved && dist > BELL_CLICK_DIST && elapsed > 60) moved = true;
   if (!moved) return;
-  e.preventDefault?.();
+  // 关键：禁用浏览器默认滚动/缩放手势，否则拖动卡顿
+  try { e.preventDefault(); } catch {}
   const c = clampPos(origX + dx, origY + dy);
   bellStyle.left = c.x + 'px'; bellStyle.top = c.y + 'px';
 }
 function onBellUp() {
   dragging = false;
   document.removeEventListener('pointermove', onBellMove);
+  try {
+    if (activePointerId != null && bellEl.value?.releasePointerCapture) {
+      bellEl.value.releasePointerCapture(activePointerId);
+    }
+  } catch {}
+  activePointerId = null;
+  // 恢复页面滚动
+  try { document.body.style.touchAction = ''; document.documentElement.style.overflow = ''; } catch {}
   if (bellEl.value) {
     const r = bellEl.value.getBoundingClientRect();
     localStorage.setItem(DRAG_KEY, JSON.stringify({ x: r.left, y: r.top }));
@@ -87,7 +108,11 @@ async function loadList() {
 }
 
 async function toggle() {
-  if (moved) { moved = false; return; } // 拖动结束不触发面板
+  const elapsed = Date.now() - downAt;
+  // 250ms 内的短按 或者 没超过位移阈值 → 视为点击；清理 moved 避免污染下次状态
+  const isClick = (elapsed <= BELL_CLICK_MS) || !moved;
+  moved = false;
+  if (!isClick) return;
   open.value = !open.value;
   if (open.value) {
     await loadList();
@@ -224,8 +249,9 @@ defineExpose({ refreshUnread, loadList });
 </template>
 
 <style scoped>
-.nb-root { position: fixed; top: 12px; right: 64px; z-index: 70; }
-.nb-bell { position: relative; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.12); transition: transform .18s, box-shadow .18s; }
+.nb-root { position: fixed; top: 12px; right: 64px; z-index: 70; touch-action: none; }
+.nb-bell { position: relative; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); cursor: grab; font-size: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.12); transition: transform .18s, box-shadow .18s; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.nb-bell.dragging { cursor: grabbing; transition: none; }
 .nb-bell:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.16); }
 .nb-bell.hasunread { animation: nb-ring 1.6s ease-in-out infinite; }
 @keyframes nb-ring {

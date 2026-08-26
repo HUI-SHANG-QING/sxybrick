@@ -8,6 +8,24 @@ import { weakCards, setMarked, getSubjects, gradeCard, createCard } from '../rep
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import { smartRemediation } from '../intelligence.js';
+import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+
+const expandedId = ref(localStorage.getItem('sxy_wb_expanded') || '');
+// 错题详情：默认全展开（与「背诵 → 已背记录」一致），collapsedIds 存储被用户手动收起的卡 id
+const collapsedIds = ref(new Set(JSON.parse(localStorage.getItem('sxy_wb_collapsed') || '[]')));
+function persistCollapsed() { localStorage.setItem('sxy_wb_collapsed', JSON.stringify([...collapsedIds.value])); }
+function toggleExpand(id) {
+  const next = new Set(collapsedIds.value);
+  if (next.has(id)) next.delete(id); else next.add(id);
+  collapsedIds.value = next; persistCollapsed();
+  expandedId.value = String(id);
+  localStorage.setItem('sxy_wb_expanded', expandedId.value);
+}
+function expandAll() { collapsedIds.value = new Set(); persistCollapsed(); }
+function collapseAll() {
+  const ids = new Set(filteredItems.value.map(c => c.id));
+  collapsedIds.value = ids; persistCollapsed();
+}
 
 const items = ref([]);
 const subjects = ref([]);
@@ -176,24 +194,39 @@ onMounted(() => { load(); loadSubjects(); });
       <button class="chip" :class="{ on: filterStage === 'learning' }" @click="filterStage = 'learning'" :disabled="!stageCounts.learning">学习中 <span class="n">{{ stageCounts.learning }}</span></button>
       <button class="chip" :class="{ on: filterStage === 'growing' }" @click="filterStage = 'growing'" :disabled="!stageCounts.growing">巩固中 <span class="n">{{ stageCounts.growing }}</span></button>
       <button class="chip" :class="{ on: filterStage === 'mastered' }" @click="filterStage = 'mastered'" :disabled="!stageCounts.mastered">已掌握 <span class="n">{{ stageCounts.mastered }}</span></button>
+      <span style="flex:1"></span>
+      <button class="chip" @click="expandAll">全部展开</button>
+      <button class="chip" @click="collapseAll">全部收起</button>
     </div>
 
     <div v-if="!filteredItems.length" class="hint" style="text-align:center;padding:60px">该筛选下暂无错题，继续保持！</div>
 
-    <div v-for="c in filteredItems" :key="c.id" class="wb-item">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+    <div v-for="c in filteredItems" :key="c.id" class="wb-item" :class="{ expanded: !collapsedIds.has(c.id) }">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;cursor:pointer" @click="toggleExpand(c.id)" title="点击展开/收起完整背诵详情（默认全展开，与「已背记录」一致）">
         <span class="chip">{{ c.subject || '未分类' }}</span>
         <span class="chip" style="color:var(--red);border-color:var(--red)">{{ reason(c) }}</span>
         <span class="hint" style="font-size:12px">{{ gradeCard(c).label }}</span>
         <span style="flex:1"></span>
-        <button class="btn small" :disabled="remediationBusy.has(c.id)" @click="startRemediation(c, false)" title="一键触发：诊断→费曼建议→图谱关联，零 LLM 开销">{{ remediationBusy.has(c.id) ? '补救中…' : '🧩 智能补救' }}</button>
-        <button v-if="hasAIKey()" class="btn small" :disabled="remediationBusy.has(c.id)" @click="startRemediation(c, true)" title="智能补救 + AI 生成 2 张变式卡">{{ remediationBusy.has(c.id) ? '补救中…' : '🧩+卡片' }}</button>
-        <button class="btn small" :disabled="genBusy.has(c.id)" @click="genVariant(c)">{{ genBusy.has(c.id) ? '生成中…' : 'AI 变式补卡' }}</button>
-        <button class="btn small" @click="dueNow(c)">加入复习</button>
-        <button class="btn small danger" @click="unmark(c)">取消标记</button>
+        <span class="hint" style="font-size:12px">{{ collapsedIds.has(c.id) ? '点击展开答案 ↓' : '点击收起 ↑' }}</span>
+        <button class="btn small" :disabled="remediationBusy.has(c.id)" @click.stop="startRemediation(c, false)" title="一键触发：诊断→费曼建议→图谱关联，零 LLM 开销">{{ remediationBusy.has(c.id) ? '补救中…' : '🧩 智能补救' }}</button>
+        <button v-if="hasAIKey()" class="btn small" :disabled="remediationBusy.has(c.id)" @click.stop="startRemediation(c, true)" title="智能补救 + AI 生成 2 张变式卡">{{ remediationBusy.has(c.id) ? '补救中…' : '🧩+卡片' }}</button>
+        <button class="btn small" :disabled="genBusy.has(c.id)" @click.stop="genVariant(c)">{{ genBusy.has(c.id) ? '生成中…' : 'AI 变式补卡' }}</button>
+        <button class="btn small" @click.stop="dueNow(c)">加入复习</button>
+        <button class="btn small danger" @click.stop="unmark(c)">取消标记</button>
       </div>
-      <div class="wb-front">{{ plain(c.front) }}</div>
-      <div class="wb-back">{{ plain(c.back) }}</div>
+      <!-- 默认全展开（collapsedIds 里没有=显示详情）；手动收起的才显示 plain 预览 -->
+      <template v-if="collapsedIds.has(c.id)">
+        <div class="wb-front">{{ plain(c.front) }}</div>
+        <div class="wb-back">{{ plain(c.back) }}</div>
+      </template>
+      <template v-else>
+        <div class="wb-detail">
+          <div class="hint" style="margin:4px 0 4px">📖 正面 / 题目</div>
+          <MarkdownRenderer :content="c.front" />
+          <div class="hint" style="margin:14px 0 4px">💡 背面 / 答案（与「已背记录」一致，默认全展开）</div>
+          <MarkdownRenderer :content="c.back" />
+        </div>
+      </template>
 
       <!-- P2·#11 智能补救结果面板 -->
       <div v-if="remediation && remediation.card?.id === c.id" class="remediation-box">
@@ -237,9 +270,11 @@ onMounted(() => { load(); loadSubjects(); });
 </template>
 
 <style scoped>
-.wb-item { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--red); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; }
+.wb-item { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--red); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 12px; transition: border-color .2s, box-shadow .2s; }
+.wb-item.expanded { border-color: var(--accent); box-shadow: 0 6px 20px rgba(0,0,0,.08); }
 .wb-front { font-weight: 600; line-height: 1.6; }
 .wb-back { color: var(--ink-2); margin-top: 6px; line-height: 1.6; font-size: 14px; }
+.wb-detail { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 10px; }
 
 /* —— 速赢区：阶段过滤条 —— */
 .stage-bar { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0 16px; }

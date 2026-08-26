@@ -140,7 +140,7 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
     <!-- 数字资产网格 -->
     <h3 class="ds-sec">数字资产总览</h3>
     <div class="ds-grid">
-      <div class="ds-asset" @click="go('/')"><span class="ds-asset-n">{{ assets.cards }}</span><span class="ds-asset-l">🗂️ 卡片</span></div>
+      <div class="ds-asset" @click="go('/cards')"><span class="ds-asset-n">{{ assets.cards }}</span><span class="ds-asset-l">🗂️ 卡片</span></div>
       <div class="ds-asset" @click="go('/wrong')"><span class="ds-asset-n">{{ weak.length }}</span><span class="ds-asset-l">⚠️ 薄弱</span></div>
       <div class="ds-asset" @click="go('/plans')"><span class="ds-asset-n">{{ assets.plans }}</span><span class="ds-asset-l">📋 计划</span></div>
       <div class="ds-asset" @click="go('/mindmap')"><span class="ds-asset-n">{{ assets.mindmaps }}</span><span class="ds-asset-l">🗺️ 导图</span></div>

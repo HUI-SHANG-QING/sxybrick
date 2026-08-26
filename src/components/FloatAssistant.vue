@@ -35,22 +35,55 @@ async function send() {
 
 function toggle() { open.value = !open.value; }
 
-// 拖拽（pointer 事件统一鼠标/触摸）
+// 拖拽（pointer 事件统一鼠标/触摸）—— 与通知铃铛/主题 FAB 一致的移动端丝滑拖动
 const rootEl = ref(null);
 const pos = ref(null);
-let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0;
+let dragging = false, moved = false, sx = 0, sy = 0, ox = 0, oy = 0, downAt = 0, activePointerId = null;
+const DRAG_CLICK_DIST = 14;
+const DRAG_CLICK_MS = 250;
 function onPointerDown(e) {
-  dragging = true; moved = false; sx = e.clientX; sy = e.clientY;
+  const pt = e.touches ? e.touches[0] : e;
+  dragging = true; moved = false; sx = pt.clientX; sy = pt.clientY; downAt = Date.now();
+  activePointerId = e.pointerId;
   const r = rootEl.value.getBoundingClientRect();
   ox = r.left; oy = r.top;
+  try { e.currentTarget.setPointerCapture && e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
+  try { document.body.style.touchAction = 'none'; document.documentElement.style.overflow = 'hidden'; } catch (err) {}
+  document.addEventListener('pointermove', onDocMove, { passive: false, capture: false });
+  document.addEventListener('pointerup', onDocUp, { once: true, capture: false });
+  document.addEventListener('pointercancel', onDocUp, { once: true, capture: false });
 }
-function onPointerMove(e) {
+function onDocMove(e) {
   if (!dragging) return;
-  const dx = e.clientX - sx, dy = e.clientY - sy;
-  if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
-  if (moved) pos.value = { left: ox + dx, top: oy + dy };
+  const pt = e.touches ? e.touches[0] : e;
+  const dx = pt.clientX - sx, dy = pt.clientY - sy;
+  const dist = Math.abs(dx) + Math.abs(dy);
+  const elapsed = Date.now() - downAt;
+  if (dist > DRAG_CLICK_DIST && elapsed > 60) moved = true;
+  if (moved) {
+    try { e.preventDefault && e.preventDefault(); } catch (err) {}
+    pos.value = { left: ox + dx, top: oy + dy };
+  }
 }
-function onPointerUp() { dragging = false; if (!moved) toggle(); }
+function onPointerMove() {}
+function onDocUp() {
+  document.removeEventListener('pointermove', onDocMove);
+  document.removeEventListener('pointerup', onDocUp);
+  document.removeEventListener('pointercancel', onDocUp);
+  if (activePointerId != null) {
+    try {
+      const btn = rootEl.value && rootEl.value.querySelector && rootEl.value.querySelector('button');
+      btn && btn.releasePointerCapture && btn.releasePointerCapture(activePointerId);
+    } catch (err) {}
+  }
+  activePointerId = null;
+  try { document.body.style.touchAction = ''; document.documentElement.style.overflow = ''; } catch (err) {}
+  const elapsed = Date.now() - downAt;
+  const wasClick = elapsed <= DRAG_CLICK_MS || !moved;
+  dragging = false;
+  if (wasClick) toggle();
+}
+function onPointerUp() {}
 </script>
 
 <template>

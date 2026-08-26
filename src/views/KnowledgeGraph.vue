@@ -2,6 +2,7 @@
 // 知识图谱：多风格可视化（力导向/圆形/同心圆/树状）+ AI 生成 + Agent 智能构建（A 镜头）
 // 生成的关联可保存到本地库并随数据包同步。
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
@@ -17,7 +18,36 @@ const savedNodes = ref([]);
 const savedEdges = ref([]);
 const loading = ref(false);
 const activeId = ref('');
+const activeLabel = ref('');
+const activeSubject = ref('');
 const mode = ref('generated');
+const router = useRouter();
+// 节点跳转：根据 label+subject 精确匹配卡片；1:1 命中直接带 id 打开弹窗，N:1 命中则用关键字搜索跳转
+async function jumpToNodeCard(label, subject) {
+  if (!label) return;
+  const q = String(label).trim();
+  const sub = String(subject || '').trim();
+  try {
+    const all = await db.cards.toArray();
+    let pool = all;
+    if (sub) pool = pool.filter(c => (c.subject || '') === sub);
+    const exact = pool.filter(c => c.front === q);
+    const loose = exact.length ? exact : pool.filter(c => String(c.front || '').includes(q) || String(c.back || '').includes(q));
+    if (loose.length === 1) {
+      router.push(`/cards?id=${encodeURIComponent(loose[0].id)}`);
+    } else if (loose.length > 1) {
+      const params = new URLSearchParams({ q });
+      if (sub) params.set('subject', sub);
+      router.push(`/cards?${params.toString()}`);
+    } else {
+      // 卡片库里没直接命中：带 q 搜索跳，让用户新建/关联
+      const params = new URLSearchParams({ q });
+      if (sub) params.set('subject', sub);
+      toast(`没找到名为「${q}」的卡片，已跳转搜索结果`, 'warn');
+      router.push(`/cards?${params.toString()}`);
+    }
+  } catch (e) { logError(e, { component: 'KnowledgeGraph.vue:jumpToNodeCard', route: '/graph', info: `label=${q.slice(0,60)} sub=${sub}` }); throw e; }
+}
 // P2·#13 图谱关系自动推荐：基于卡片相似度的本地算法（零 LLM 开销）
 const recommended = ref([]);
 const recommendLoading = ref(false);
@@ -111,7 +141,8 @@ function buildOption(nds, eds, style) {
     legend: [{ data: data.categories.map(c => c.name), bottom: 6, textStyle: { color: themeColor('--ink-2'), fontSize: 11 } }],
   };
   if (style === 'tree') {
-    // 树状：把有向边转成树（防环），用 ECharts tree 系列
+    // 树状：把有向边转成树（防环），用 ECharts tree 系列；每个节点携带 subject 便于后续跳转
+    const subjOf = new Map(nds.map(n => [n.label, n.subject || '']));
     const childrenOf = new Map();
     for (const e of eds) { if (!childrenOf.has(e.from)) childrenOf.set(e.from, []); childrenOf.get(e.from).push(e.to); }
     const all = new Set([...eds.map(e => e.from), ...eds.map(e => e.to)]);
@@ -122,17 +153,21 @@ function buildOption(nds, eds, style) {
       if (visited.has(label)) return null;
       visited.add(label);
       const kids = (childrenOf.get(label) || []).map(k => build(k, new Set(visited))).filter(Boolean);
-      return { name: label, children: kids };
+      return { name: label, value: { subject: subjOf.get(label) || '' }, children: kids };
     };
-    const root = build(rootLabel, new Set()) || { name: rootLabel };
+    const root = build(rootLabel, new Set()) || { name: rootLabel, value: { subject: '' } };
     return {
-      tooltip: { trigger: 'item', formatter: p => p.data.name },
+      tooltip: { trigger: 'item', formatter: p => {
+        const subj = p.data?.value?.subject;
+        const tip = `📚 ${p.data.name}${subj ? `\n🎓 科目：${subj}` : ''}\n💡 单击展开/折叠子节点；点下方「跳转卡片」按钮查看关联卡片。`;
+        return tip.replace(/\n/g, '<br/>');
+      } },
       series: [{
-        type: 'tree', data: [root], left: '6%', right: '12%', top: '6%', bottom: '10%',
+        type: 'tree', data: [root], left: '6%', right: '18%', top: '6%', bottom: '10%',
         symbol: 'circle', symbolSize: 14, orient: 'LR', layout: 'orthogonal',
         label: { position: 'left', verticalAlign: 'middle', align: 'right', fontSize: 12, color: themeColor('--ink') },
         leaves: { label: { position: 'right', verticalAlign: 'middle', align: 'left' } },
-        emphasis: { focus: 'descendant' }, expandAndCollapse: true, initialTreeDepth: -1,
+        emphasis: { focus: 'descendant' }, expandAndCollapse: true, initialTreeDepth: 2, animationDuration: 350, animationDurationUpdate: 600,
         lineStyle: { color: themeColor('--line-strong'), width: 1.5, curveness: 0.4 },
         itemStyle: { color: themeColor('--accent') },
       }],
@@ -191,7 +226,27 @@ function render() {
 function initChart() {
   try {
     chart = echarts.init(chartEl.value);
-    chart.on('click', p => { if (p.dataType === 'node' && p.data?.id) activeId.value = p.data.id; });
+    chart.off('click');
+    chart.on('click', p => {
+      // graph 风格：单击直接跳转对应卡片 + 选中高亮
+      if (p.seriesType === 'graph' && p.dataType === 'node') {
+        const d = p.data || {};
+        const label = d.name || d.label || ''; const subj = d.subject || '';
+        activeId.value = String(d.id || '');
+        activeLabel.value = label; activeSubject.value = subj;
+        jumpToNodeCard(label, subj);
+        return;
+      }
+      // tree 风格：ECharts 内置单击会展开/折叠，这里只把节点信息写入选中态，
+      // 用户用面板里的「跳转卡片」按钮显式跳转，避免打断树形交互
+      if (p.seriesType === 'tree' && p.data?.name) {
+        const d = p.data;
+        const label = String(d.name || '');
+        const subj = String(d.value?.subject || '');
+        activeLabel.value = label; activeSubject.value = subj;
+        activeId.value = '';
+      }
+    });
     window.addEventListener('resize', onResize);
   } catch (e) {
     logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: 'initChart' });
@@ -363,7 +418,17 @@ onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value
       </div>
     </div>
 
-    <div v-if="activeId && nodeById(activeId)" class="hint" style="text-align:center;margin-top:10px">
+    <div v-if="activeLabel" class="selected-node-bar" style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap">
+      <span class="hint">
+        <template v-if="activeId && nodeById(activeId)">选中节点：<b>{{ nodeById(activeId).label }}</b>，</template>
+        <template v-else>当前节点：<b>{{ activeLabel }}</b>，</template>
+        <span v-if="activeSubject" style="margin-right:6px">🎓 {{ activeSubject }}</span>
+        可直接跳转到对应的知识卡片浏览。
+      </span>
+      <button class="btn primary small" @click="jumpToNodeCard(activeLabel, activeSubject)">🔗 跳转知识卡片</button>
+      <button class="btn small" @click="activeLabel='';activeSubject='';activeId=''">清空选择</button>
+    </div>
+    <div v-else-if="activeId && nodeById(activeId)" class="hint" style="text-align:center;margin-top:10px">
       选中：{{ nodeById(activeId).label }}，相关节点已高亮。
     </div>
   </div>

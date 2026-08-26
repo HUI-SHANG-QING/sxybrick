@@ -66,19 +66,32 @@ function replayOnboarding() { showSettings.value = false; beginOnboarding(); }
 // 设置按钮拖拽（pointer 事件，统一鼠标/触摸，与 AI 助手一致）
 const fabEl = ref(null);
 const fabPos = ref(null);
-let fDrag = false, fMoved = false, fSx = 0, fSy = 0, fOx = 0, fOy = 0;
+let fDrag = false, fMoved = false, fSx = 0, fSy = 0, fOx = 0, fOy = 0, fDownAt = 0;
+const FAB_CLICK_DIST = 14; // 移动端手指点按天然抖动：曼哈顿距离放宽到 14（≈ 欧式 ~10px）
+const FAB_CLICK_MS = 250;   // 按下-抬起在 250ms 内无条件当点击（避免抖动误判）
 function fabDown(e) {
-  fDrag = true; fMoved = false; fSx = e.clientX; fSy = e.clientY;
+  fDrag = true; fMoved = false; fSx = e.clientX; fSy = e.clientY; fDownAt = Date.now();
   const r = fabEl.value.getBoundingClientRect(); fOx = r.left; fOy = r.top;
-  e.currentTarget.setPointerCapture?.(e.pointerId);
+  try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch {}
 }
 function fabMove(e) {
   if (!fDrag) return;
   const dx = e.clientX - fSx, dy = e.clientY - fSy;
-  if (Math.abs(dx) + Math.abs(dy) > 4) fMoved = true;
-  if (fMoved) fabPos.value = { left: fOx + dx, top: fOy + dy };
+  // 仅当超过判定阈值 + 超出点击短按时窗 才认为是真的拖动
+  const dist = Math.abs(dx) + Math.abs(dy);
+  const elapsed = Date.now() - fDownAt;
+  if (dist > FAB_CLICK_DIST && elapsed > 80) fMoved = true;
+  if (fMoved) {
+    e.preventDefault?.();
+    fabPos.value = { left: fOx + dx, top: fOy + dy };
+  }
 }
-function fabUp() { fDrag = false; if (!fMoved) showSettings.value = !showSettings.value; }
+function fabUp() {
+  const elapsed = Date.now() - fDownAt;
+  fDrag = false;
+  // 250ms 内的短按，或者没有超过距离阈值 → 视为点击
+  if (elapsed <= FAB_CLICK_MS || !fMoved) showSettings.value = !showSettings.value;
+}
 
 onMounted(() => {
   theme.apply();
@@ -240,7 +253,7 @@ async function enableReminder() {
 </template>
 
 <style scoped>
-.settings-fab { position: fixed; top: 12px; right: 14px; z-index: 70; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.settings-fab { position: fixed; top: 12px; right: 14px; z-index: 70; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.12); touch-action: none; -webkit-user-select: none; user-select: none; }
 .mode-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
 .style-card { border: 2px solid var(--line); border-radius: 12px; padding: 12px 8px; cursor: pointer; text-align: center; transition: .15s; }

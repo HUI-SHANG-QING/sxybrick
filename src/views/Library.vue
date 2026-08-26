@@ -67,7 +67,7 @@ onMounted(async () => {
     <div class="lib-section">
       <div class="lib-title">科目书架</div>
       <div class="shelf">
-        <div v-for="s in subjects" :key="s.name" class="book" :class="{ empty: !s.count }" @click="router.push('/')">
+        <div v-for="s in subjects" :key="s.name" class="book" :class="{ empty: !s.count }" :title="`查看 ${s.name} 全部 ${s.count} 张卡片`" @click="router.push(`/cards?subject=${encodeURIComponent(s.name)}`)">
           <div class="book-spine" :style="{ background: `hsl(${(subjects.indexOf(s) * 47) % 360} 55% 45%)` }">{{ s.name.slice(0, 1) }}</div>
           <div class="book-name">{{ s.name }}</div>
           <div class="book-n">{{ s.count }} 卡</div>
@@ -79,8 +79,13 @@ onMounted(async () => {
     <div class="lib-section">
       <div class="lib-title">资产捷径</div>
       <div class="shortcuts">
+        <div class="shortcut" @click="router.push('/cards')"><span class="sc-icon">🗂️</span><span>知识卡片（{{ counts.cards }}）</span></div>
+        <div class="shortcut" @click="router.push('/wrong')"><span class="sc-icon">❌</span><span>错题集（薄弱点）</span></div>
+        <div class="shortcut" @click="router.push('/review')"><span class="sc-icon">🧠</span><span>背诵复习</span></div>
+        <div class="shortcut" @click="router.push('/plans')"><span class="sc-icon">📋</span><span>学习计划</span></div>
         <div class="shortcut" @click="router.push('/mindmap')"><span class="sc-icon">🗺️</span><span>思维导图（{{ counts.mindmaps }}）</span></div>
         <div class="shortcut" @click="router.push('/docs')"><span class="sc-icon">📄</span><span>AI 文档（{{ counts.docs }}）</span></div>
+        <div class="shortcut" @click="router.push('/graph')"><span class="sc-icon">🔗</span><span>知识图谱</span></div>
         <div class="shortcut" @click="router.push('/exam')"><span class="sc-icon">🧪</span><span>模考成绩（{{ counts.exams }}）</span></div>
         <div class="shortcut" @click="router.push('/achievements')"><span class="sc-icon">🏆</span><span>成就徽章（{{ unlocked }}/{{ totalAch }}）</span></div>
         <div class="shortcut" @click="router.push('/health')"><span class="sc-icon">🩺</span><span>资产体检</span></div>

@@ -2,16 +2,36 @@
 // 思维导图（借鉴 Progress AI，纯本地化：ECharts 多风格 + IndexedDB 持久化，随数据包同步）
 // 支持：多风格切换（横向树/放射树/竖向树/桑基图/力导向）+ 手动建图 / 从知识图谱生成 / AI 从卡片生成 / 文字生成 / Agent 智能生成
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import { uid } from '../db.js';
 import { listMindmaps, createMindmap, updateMindmap, deleteMindmap, listGraphEdges } from '../repo.js';
 import { db } from '../db.js';
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
+import { logError } from '../utils/errorLog.js';
 import { agentSystem } from '../agent/index.js';
 
 const route = useRoute();
+const router = useRouter();
+
+// 选中节点（显式跳转按钮）
+const selSubject = ref(''); // 导图本身不带科目，跳的时候只按 label 搜索
+async function jumpToNodeCard(label) {
+  const q = String(label || '').trim();
+  if (!q) return;
+  try {
+    const all = await db.cards.toArray();
+    const exact = all.filter(c => String(c.front || '') === q);
+    const loose = exact.length ? exact : all.filter(c => String(c.front || '').includes(q) || String(c.back || '').includes(q));
+    if (loose.length === 1) router.push(`/cards?id=${encodeURIComponent(loose[0].id)}`);
+    else if (loose.length > 1) router.push(`/cards?q=${encodeURIComponent(q)}`);
+    else { toast(`卡片库里没找到「${q}」，已跳转搜索结果`, 'warn'); router.push(`/cards?q=${encodeURIComponent(q)}`); }
+  } catch (e) {
+    logError(e, { component: 'Mindmap.vue:jumpToNodeCard', route: '/mindmap', info: `label=${q.slice(0,80)}` });
+    toast('跳转失败：' + e.message, 'error');
+  }
+}
 
 const maps = ref([]);
 const current = ref(null);
@@ -68,14 +88,31 @@ function buildOption(data, style) {
   if (style === 'tree-radial') return treeOption(data, 'LR', 'radial', accent, ink, line);
   if (style === 'sankey') {
     const { nodes, links } = treeToFlat(data);
+    // 桑基图要求节点 name 唯一；如果叶子节点很多，需要增大迭代次数、nodeGap 与内边距，
+    // 避免节点/标签重叠（用户说的"双肾图被挡住"）
     return {
       tooltip: { trigger: 'item' },
       series: [{
-        type: 'sankey', data: nodes, links,
-        left: '4%', right: '8%', top: '6%', bottom: '6%',
-        label: { color: ink, fontSize: 12 },
-        lineStyle: { color: accent, opacity: 0.35, curveness: 0.5 },
-        itemStyle: { color: accent, borderColor: 'transparent' },
+        type: 'sankey',
+        data: nodes,
+        links: links,
+        left: 80, right: 160, top: 24, bottom: 24,
+        width: 'auto', height: 'auto',
+        nodeWidth: 18,         // 节点（矩形）宽度
+        nodeGap: 14,           // 同列节点之间间距，越大越不容易重叠
+        nodeAlign: 'justify',  // 两端对齐，视觉更整齐
+        layoutIterations: 96,  // 增大布局迭代次数，减少遮挡
+        draggable: true,
+        emphasis: { focus: 'adjacency' },
+        label: {
+          color: ink, fontSize: 12,
+          position: 'right',   // 标签放在节点右侧（避免画到边缘被裁切）
+          distance: 8,
+          formatter: p => String(p.name || '').length > 18 ? String(p.name).slice(0,16)+'…' : p.name,
+        },
+        lineStyle: { color: 'gradient', opacity: 0.35, curveness: 0.55 },
+        itemStyle: { color: accent, borderColor: 'transparent', borderWidth: 0, borderRadius: 3 },
+        dataGroupId: 'sankey-g',
       }],
     };
   }
@@ -131,8 +168,32 @@ function openMap(m) {
 
 function initChart() {
   chart = echarts.init(chartEl.value);
-  chart.on('click', p => { if (p.data?.id) selId.value = p.data.id; });
+  chart.off('click');
+  chart.on('click', p => {
+    // 统一处理三种系列的点击：
+    // 1) tree 系列（横/竖/放射树）：单击会触发 ECharts 内置展开/折叠，不打断它，
+    //    只把节点 id/name 同步到选中态；显式跳转用面板按钮
+    // 2) sankey / graph (force) 风格：同样把 name/id 写入选中态 + 面板按钮跳转
+    const d = p.data || {};
+    const name = d.name || d.label;
+    const id = d.id;
+    if (id) selId.value = String(id);
+    else if (name && current.value?.root) {
+      // 用 name 反查树节点 id（桑基/力导向只带 name 没带 id）
+      const hit = findNodeByName(current.value.root, name);
+      if (hit) selId.value = hit.id;
+    }
+  });
   window.addEventListener('resize', onResize);
+}
+function findNodeByName(root, name) {
+  if (!root) return null;
+  if ((root.name || root.label) === name) return root;
+  for (const c of root.children || []) {
+    const h = findNodeByName(c, name);
+    if (h) return h;
+  }
+  return null;
 }
 function onResize() { chart?.resize(); }
 onBeforeUnmount(() => { window.removeEventListener('resize', onResize); chart?.dispose(); });
@@ -338,6 +399,13 @@ onMounted(async () => {
             <button class="btn small primary" :disabled="!dirty" @click="saveMap">{{ dirty ? '保存' : '已保存' }}</button>
           </div>
           <div ref="chartEl" class="mm-chart"></div>
+          <div v-if="selectedLabel" style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:8px">
+            <span class="hint">
+              当前节点：<b>{{ selectedLabel }}</b>
+              <span class="hint" style="margin-left:4px">· 树状单击=展开子节点；点下面按钮才跳转到知识卡片（桑基/力导向同理）</span>
+            </span>
+            <button class="btn small primary" @click="jumpToNodeCard(selectedLabel)">🔗 跳转关联卡片</button>
+          </div>
           <p class="hint" style="margin:6px 0 0">提示：点节点选中后可编辑；切换上方风格按钮看不同呈现；修改后记得点「保存」。</p>
         </template>
         <div v-else class="hint" style="text-align:center;padding:80px">从左侧选择导图，或新建一张。</div>
