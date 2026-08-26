@@ -10,8 +10,10 @@ import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 // GH Pages 上 location.origin 是 https://xxx.github.io 且没有 /backup 接口，不能作为 Hub 默认地址。
 // 如果用户没手动填过 Hub，这里不默认使用 location.origin，避免误操作 Fail to fetch。
+// 注意：Vue SFC 模板里无法直接访问全局 location，模板要用的属性必须显式暴露为顶层变量。
 const isOnGhPages = /\.github\.io$|pages\.dev|vercel\.app|netlify\.app/.test(location.hostname);
-const defaultHub = isOnGhPages ? '' : (location.protocol === 'https:' ? '' : location.origin);
+const isHttps = location.protocol === 'https:';
+const defaultHub = isOnGhPages ? '' : (isHttps ? '' : location.origin);
 const hubUrl = ref(localStorage.getItem('sxy_hub') || defaultHub);
 const hubToken = ref(localStorage.getItem('sxy_hub_token') || '');
 const fileInput = ref(null);
@@ -391,7 +393,7 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); 
         ⚠ 当前部署在 GitHub Pages（HTTPS），浏览器会阻止 HTTPS 页面请求 HTTP 内网 Hub，表现为「Fail to fetch」。<br/>
         请用手机/平板浏览器直接打开电脑端 Hub 地址（<code>http://<b>&lt;电脑IP&gt;</b>:4780</code>），即可使用同步功能。
       </div>
-      <div v-else-if="location.protocol === 'https:' && hubUrl && /^http:\/\//i.test(hubUrl)" class="hub-banner hub-warn">
+      <div v-else-if="isHttps && hubUrl && /^http:\/\//i.test(hubUrl)" class="hub-banner hub-warn">
         ⚠ 当前页面是 HTTPS，但你填的 Hub 地址是 HTTP。浏览器「混合内容阻断」会直接拒绝请求，这就是「Fail to fetch」的常见原因。
       </div>
 
