@@ -3,7 +3,7 @@ import { db, uid } from './db.js';
 import { computeNext, applyFeedback, scheduleReview, RETRIEVAL_STRENGTH_OPTIONS } from './srs.js';
 // P1-3 检索强度分级选项：供 Review.vue 等 UI 直接渲染选择器
 export { RETRIEVAL_STRENGTH_OPTIONS };
-import { mergeUserWeights } from './fsrs.js';
+import { mergeUserWeights, retrievability } from './fsrs.js';
 import { extractImageIds } from './images.js';
 import { initialStabilityForCard } from './algorithms/pretest.js';
 import { buildReviewSession, retrievalGrading } from './algorithms/session.js';
@@ -263,9 +263,15 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   // fsrs：FSRS 状态 {s,d,reps,last}；SM-2 路径 next.fsrs 为 undefined → 保留 card.fsrs（切换调度器后可无缝接续）
   // wrongReasonAt：错因独立时间戳，跨设备合并时按此取新者（不跟随 updatedAt 也不跟随 reviewedAt）
   const nowTs = now();
+  // 校准回测（calibration）：用复习前的 fsrs 状态计算当时预测 R，落盘进复习记录。
+  // 历史记录无 predR 由 calibration.js 回溯模拟补估；从这里起的新数据都是真实值。
+  const predR = (card.fsrs && Number.isFinite(card.fsrs.s) && Number.isFinite(card.fsrs.last))
+    ? Number(retrievability(card.fsrs.s, (nowTs - card.fsrs.last) / 86400000).toFixed(4))
+    : null;
   await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: next.fsrs ?? card.fsrs, wrongReason, wrongReasonAt: nowTs, reviewedAt: nowTs });
   await db.reviews.put({
     id: uid(), cardId, reviewedAt: now(), rating,
+    predR,
     levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason,
     retrievalStrength: opts.retrievalStrength || '',
     responseMs: opts.responseMs || 0,

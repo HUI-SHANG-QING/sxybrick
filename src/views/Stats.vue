@@ -5,7 +5,7 @@ import * as echarts from 'echarts';
 import 'echarts-wordcloud';
 import { toast } from '../utils/toast.js';
 import { getStats } from '../repo.js';
-import { getLearningProfile, getSubjectDiagnosis } from '../agent/analytics.js';
+import { getLearningProfile, getSubjectDiagnosis, getCalibration } from '../agent/analytics.js';
 import { getDailyCounts } from '../utils/streak.js';
 import { degraded } from '../utils/perf.js';
 
@@ -22,6 +22,8 @@ const hourlyEl = ref(null);
 const forgotEl = ref(null);
 const tagEl = ref(null);
 const wordEl = ref(null);
+const calibEl = ref(null);     // 校准回测曲线
+const calibration = ref(null); // { n, brier, ece, bias, verdict, note, buckets }
 let charts = [];
 
 // —— 2026-08-26 速赢区：趋势图可切换 7/14/30 天 + 本周 vs 上周对比 ——
@@ -255,12 +257,45 @@ function buildCharts() {
     });
     charts.push(wc);
   }
+
+  // 校准回测曲线：x=预测记忆概率，y=实际正确率；对角线=完美校准，点大小=样本量
+  if (calibEl.value && calibration.value && calibration.value.buckets.length) {
+    const calib = echarts.init(calibEl.value);
+    const maxN = Math.max(...calibration.value.buckets.map(b => b.n), 1);
+    calib.setOption({
+      tooltip: {
+        formatter: p => {
+          const b = calibration.value.buckets[p.dataIndex];
+          return b
+            ? `预测 ${(b.predMean * 100).toFixed(0)}% · 实际 ${(b.actualRate * 100).toFixed(0)}%<br/>样本 ${b.n} 次${b.simulatedShare != null ? ` · 模拟补估 ${(b.simulatedShare * 100).toFixed(0)}%` : ''}`
+            : `${p.data[0]}% / ${p.data[1]}%`;
+        },
+      },
+      grid: { left: 44, right: 16, top: 24, bottom: 34 },
+      xAxis: { type: 'value', min: 0, max: 100, name: '预测记忆 %', nameTextStyle: { color: theme.axis }, axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } } },
+      yAxis: { type: 'value', min: 0, max: 100, name: '实际正确 %', nameTextStyle: { color: theme.axis }, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
+      series: [
+        {
+          type: 'scatter',
+          data: calibration.value.buckets.map(b => ({ value: [Number((b.predMean * 100).toFixed(1)), Number((b.actualRate * 100).toFixed(1))], n: b.n })),
+          symbolSize: (val, params) => 8 + 22 * ((params?.data?.n) || 0) / maxN,
+          itemStyle: { color: theme.blue, opacity: 0.85 },
+          name: '实测',
+        },
+        {
+          type: 'line', data: [[0, 0], [100, 100]], symbol: 'none',
+          lineStyle: { color: theme.red, type: 'dashed', width: 1.5 }, name: '完美校准',
+        },
+      ],
+    });
+    charts.push(calib);
+  }
 }
 
 async function load() {
   try {
-    const [s, p, diag] = await Promise.all([getStats(), getLearningProfile(), getSubjectDiagnosis()]);
-    stats.value = s; profile.value = p; diagnosis.value = diag;
+    const [s, p, diag, calib] = await Promise.all([getStats(), getLearningProfile(), getSubjectDiagnosis(), getCalibration()]);
+    stats.value = s; profile.value = p; diagnosis.value = diag; calibration.value = calib;
     // 速赢区：加载趋势数据 + 计算本周 vs 上周对比
     await loadTrendByRange(trendRange.value);
     await computeWeekDelta();
@@ -334,6 +369,23 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
     <div class="panel">
       <div class="hint" style="margin-bottom:8px">复习热力图（近一年）</div>
       <div ref="heatEl" style="height:210px"></div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div class="hint">校准回测 · 预测记忆概率 vs 实际正确率</div>
+        <div v-if="calibration && calibration.n" class="hint" style="font-size:12px">
+          样本 {{ calibration.n }} · Brier {{ calibration.brier }} · ECE {{ calibration.ece }} ·
+          偏差 {{ (calibration.bias > 0 ? '+' : '') + calibration.bias }}
+        </div>
+      </div>
+      <div v-if="calibration && calibration.n" ref="calibEl" style="height:280px"></div>
+      <div v-else class="hint" style="text-align:center;padding:24px 0">
+        {{ calibration?.note || '暂无校准数据' }}
+      </div>
+      <div v-if="calibration && calibration.n" class="hint" style="margin-top:6px">
+        {{ calibration.verdict }} —— {{ calibration.note }}
+      </div>
     </div>
 
     <div class="grid2">

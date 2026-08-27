@@ -28,7 +28,7 @@ import {
   updateDoc,
   deleteDoc,
 } from '../../repo.js';
-import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards, getGraphDrivenReviewPlan, generateAutoPlan } from '../analytics.js';
+import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards, getGraphDrivenReviewPlan, generateAutoPlan, getCalibration } from '../analytics.js';
 import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';
 import { hybridSearch, retrieveContext, ensureIndex, rebuildIndex, getIndexStatus } from '../retrieval.js';
 import { agentRegistry } from '../registry.js';
@@ -519,6 +519,23 @@ toolRegistry.register({
     const days = Number(args?.days) || 1;
     const list = await getRecentMistakes(days);
     return { ok: true, data: { count: list.length, items: list.slice(0, 30) } };
+  },
+});
+
+toolRegistry.register({
+  name: 'calibration_report',
+  description: '校准回测：FSRS 预测的记忆概率 vs 实际正确率分桶对比（Brier/ECE/偏差/结论），检验调度器科学性与是否需要重新训练权重。',
+  parameters: {},
+  readsData: true,
+  async execute() {
+    const c = await getCalibration();
+    return {
+      ok: true,
+      data: {
+        n: c.n, brier: c.brier, ece: c.ece, bias: c.bias, verdict: c.verdict, note: c.note,
+        buckets: c.buckets,
+      },
+    };
   },
 });
 

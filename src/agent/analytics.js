@@ -644,3 +644,11 @@ export async function getAssetHealth() {
     untaggedCount,
   };
 }
+
+// ---------- 校准回测（Calibration）----------
+// FSRS 预测记忆概率 vs 实际正确率的分桶对比；纯函数在 algorithms/calibration.js，这里只做 IO。
+import { computeCalibration } from '../algorithms/calibration.js';
+export async function getCalibration() {
+  const reviews = await db.reviews.toArray();
+  return computeCalibration(reviews);
+}
