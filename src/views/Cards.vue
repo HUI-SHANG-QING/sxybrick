@@ -364,6 +364,7 @@ const orphanImagesVisible = ref(false);
 async function removeOrphan(id) {
   try {
     await db.images.delete(id);
+    _revokeObjUrl(id);
     orphanImages.value = orphanImages.value.filter(i => i.id !== id);
     toast('已删除 1 张孤儿图片', 'success');
   } catch (e) { toast(e.message, 'error'); }
@@ -372,15 +373,26 @@ async function removeAllOrphans() {
   if (!orphanImages.value.length) return;
   if (!confirm(`一次性清理 ${orphanImages.value.length} 张孤儿图片？`)) return;
   try {
-    for (const i of orphanImages.value) await db.images.delete(i.id);
+    for (const i of orphanImages.value) { await db.images.delete(i.id); _revokeObjUrl(i.id); }
     orphanImages.value = [];
     toast('孤儿图片已全部清理', 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
+// 图片对象 URL 缓存：模板里 :src="dataUrlOf(img)" 每次渲染都会重算，
+// 不记忆化的话每渲染一轮就泄漏一个 objectURL（Blob 永远不回收）
+const _objUrlCache = new Map(); // imgId -> objectURL
+function _objUrlOf(img) {
+  if (!_objUrlCache.has(img.id)) _objUrlCache.set(img.id, URL.createObjectURL(img.data));
+  return _objUrlCache.get(img.id);
+}
+function _revokeObjUrl(id) {
+  const u = _objUrlCache.get(id);
+  if (u) { URL.revokeObjectURL(u); _objUrlCache.delete(id); }
+}
 function dataUrlOf(img) {
   if (!img?.data) return '';
   if (typeof img.data === 'string') return img.data;
-  if (img.data instanceof Blob) return URL.createObjectURL(img.data);
+  if (img.data instanceof Blob) return _objUrlOf(img);
   if (img.data instanceof ArrayBuffer || ArrayBuffer.isView(img.data)) {
     let binary = ''; const bytes = new Uint8Array(img.data);
     for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
@@ -395,8 +407,11 @@ onMounted(async () => {
   await Promise.all([loadSuggestion(), loadStreak(), loadSmart(), loadRisk()]);
   await applyQueryParams();
 });
-// 清理搜索防抖定时器，避免卸载后触发游离 searchTimer
-onBeforeUnmount(() => { clearTimeout(searchTimer); });
+// 清理搜索防抖定时器与孤儿图片 objectURL，避免卸载后泄漏
+onBeforeUnmount(() => {
+  clearTimeout(searchTimer);
+  for (const id of [..._objUrlCache.keys()]) _revokeObjUrl(id);
+});
 
 // ---- 批量建卡（P0 效率包）：粘贴文本按行拆成卡片 ----
 const batchOpen = ref(false);

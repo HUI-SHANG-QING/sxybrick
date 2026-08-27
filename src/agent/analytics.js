@@ -81,20 +81,27 @@ export async function getCardAnalytics(cardId) {
 // ---------- 历史维度：最近 N 天答错的题 ----------
 export async function getRecentMistakes(days = 1) {
   const since = now() - days * DAY;
+  // N+1 修复：一次全表扫描在内存聚合每卡错误/总数，替代逐卡 getCardAnalytics（N 次 get + N 次索引查询）
   const reviews = await db.reviews.toArray();
   const wrongIds = new Set();
+  const wrongCount = new Map();
+  const totalCount = new Map();
   for (const r of reviews) {
-    if (r.rating === 0 && r.reviewedAt >= since) wrongIds.add(r.cardId);
+    const id = r.cardId;
+    totalCount.set(id, (totalCount.get(id) || 0) + 1);
+    if (r.rating === 0) {
+      wrongCount.set(id, (wrongCount.get(id) || 0) + 1);
+      if (r.reviewedAt >= since) wrongIds.add(id);
+    }
   }
-  const cards = await db.cards.toArray();
-  const cardMap = new Map(cards.map(c => [c.id, c]));
+  const ids = [...wrongIds];
+  if (!ids.length) return [];
+  const cards = await db.cards.bulkGet(ids); // 只取错题卡，替代全卡 toArray
   const out = [];
-  for (const id of wrongIds) {
-    const c = cardMap.get(id);
-    if (!c) continue;
-    const a = await getCardAnalytics(id);
-    out.push({ id, subject: c.subject, front: String(c.front).slice(0, 60), wrongCount: a?.wrong || 0, total: a?.total || 0 });
-  }
+  cards.forEach((c, i) => {
+    if (!c) return;
+    out.push({ id: ids[i], subject: c.subject, front: String(c.front).slice(0, 60), wrongCount: wrongCount.get(ids[i]) || 0, total: totalCount.get(ids[i]) || 0 });
+  });
   return out.sort((a, b) => b.wrongCount - a.wrongCount);
 }
 
@@ -420,12 +427,13 @@ async function _getGraphDrivenReviewPlan(opts = {}) {
 
   for (const seed of seeds) {
     const prereqIds = [];
+    const seenPrereq = new Set(); // Set 判重替代数组 includes（O(1)），带环图不再 O(n²)
     const visit = (cid, depth) => {
       if (depth > 3) return;
       const node = idx.get(cid);
       if (!node) return;
       for (const p of node.prereqs) {
-        if (!prereqIds.includes(p)) prereqIds.push(p);
+        if (!seenPrereq.has(p)) { seenPrereq.add(p); prereqIds.push(p); }
         visit(p, depth + 1);
       }
     };

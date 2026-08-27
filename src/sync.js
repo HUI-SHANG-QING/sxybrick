@@ -318,7 +318,7 @@ export async function importBackup(backup) {
 
   // 1) 墓碑：按 deletedAt 谁新听谁合并（kind 缺失的旧数据按 card 处理）
   const tombstones = mergeTombstones(await db.tombstones.toArray(), backup.tombstones || []);
-  for (const t of tombstones) await db.tombstones.put(t);
+  if (tombstones.length) await db.tombstones.bulkPut(tombstones);
 
   // 2) 各数据表按清单策略合并（图片单独处理：base64→Blob 且存在即跳过，避免覆盖本地 Blob）
   for (const t of effTables) {
@@ -338,32 +338,39 @@ export async function importBackup(backup) {
     if (!incoming.length) continue;
     const merged = mergeRows(base, incoming, t.merge);
     let added = 0, updated = 0;
+    const toWrite = [];
+    const incomingMap = new Map(incoming.map(x => [x.id, x])); // O(n) 查表，替代循环内 find 的 O(n²)
     for (const row of merged) {
       const old = baseMap.get(row.id);
-      if (!old) { added++; } else {
-        const a = JSON.stringify(old), b = JSON.stringify(row);
-        if (a !== b) updated++;
+      if (!old) { added++; toWrite.push(row); }
+      else {
+        if (JSON.stringify(old) !== JSON.stringify(row)) { updated++; toWrite.push(row); }
         // P3-3 卡片冲突可视化：对 cards 表逐字段比对，记录哪些字段被谁覆盖
         if (t.table === 'cards') {
-          const inc = incoming.find(x => x.id === row.id);
+          const inc = incomingMap.get(row.id);
           const conflict = collectCardConflict(old, inc, row);
           if (conflict) stats.conflicts.push(conflict);
         }
       }
-      await db[t.table].put(row);
     }
+    // 批量导入：一次 bulkPut 替代 N 次逐行 put（千卡导入从 N 次事务降为 1 次）
+    if (toWrite.length) await db[t.table].bulkPut(toWrite);
     if (t.table === 'cards') { stats.cards = added; stats.overridden = updated; }
     else if (t.table === 'reviews') { stats.reviews = added; }
     else stats[t.table] = added + updated;
   }
 
-  // 2b) 图片：base64 解码为 Blob 后按 id 幂等写入
+  // 2b) 图片：base64 解码为 Blob 后按 id 幂等写入（bulkGet 已存在 id + 一次 bulkPut，替代逐张 get/put）
   stats.images = 0;
-  for (const img of backup.images || []) {
-    if (!img || !img.id || !img.data) continue;
-    if (await db.images.get(img.id)) continue;
-    await db.images.put({ id: img.id, blob: base64ToBlob(img.data, img.mime), mime: img.mime || 'image/png', createdAt: Date.now() });
-    stats.images++;
+  const incomingImgs = (backup.images || []).filter(img => img && img.id && img.data);
+  if (incomingImgs.length) {
+    const existing = await db.images.bulkGet(incomingImgs.map(i => i.id));
+    const toAdd = [];
+    incomingImgs.forEach((img, i) => {
+      if (existing[i]) return;
+      toAdd.push({ id: img.id, blob: base64ToBlob(img.data, img.mime), mime: img.mime || 'image/png', createdAt: Date.now() });
+    });
+    if (toAdd.length) { await db.images.bulkPut(toAdd); stats.images = toAdd.length; }
   }
 
   // 3) 应用墓碑：删除已在其他设备删除的记录；已「复活」（编辑晚于删除）的记录清除墓碑
@@ -371,36 +378,42 @@ export async function importBackup(backup) {
     if (t.kind === 'card') continue; // 卡片单独处理（需级联清复习/图片）
     const rows = await db[t.table].toArray();
     const { removed, stale } = applyTombstones(rows, tombstones, t.kind);
-    for (const id of stale) await db.tombstones.delete(id);
-    for (const id of removed) await db[t.table].delete(id);
+    if (stale.length) await db.tombstones.bulkDelete(stale);
+    if (removed.length) await db[t.table].bulkDelete(removed);
   }
 
   // 4) 卡片墓碑：删除卡片 + 级联删复习记录 + 清理孤儿图片
   const cardsNow = await db.cards.toArray();
   const { removed, stale } = applyTombstones(cardsNow, tombstones, 'card');
-  for (const id of stale) await db.tombstones.delete(id);
+  if (stale.length) await db.tombstones.bulkDelete(stale);
   if (removed.length) {
+    const removedSet = new Set(removed);
     const goneImgIds = new Set();
     for (const c of cardsNow) {
-      if (!removed.includes(c.id)) continue;
+      if (!removedSet.has(c.id)) continue;
       for (const i of extractImageIds((c.front || '') + '\n' + (c.back || ''))) goneImgIds.add(i);
-      await db.cards.delete(c.id);
-      await db.reviews.where('cardId').equals(c.id).delete();
-      stats.deleted++;
     }
+    await db.cards.bulkDelete(removed);
+    await db.reviews.where('cardId').anyOf(removed).delete(); // 一次范围删除替代逐卡 delete
+    stats.deleted = removed.length;
     if (goneImgIds.size) {
       const rest = await db.cards.toArray();
       const used = new Set();
       for (const c of rest) for (const i of extractImageIds((c.front || '') + '\n' + (c.back || ''))) used.add(i);
-      for (const id of goneImgIds) if (!used.has(id)) await db.images.delete(id);
+      const orphan = [...goneImgIds].filter(id => !used.has(id));
+      if (orphan.length) await db.images.bulkDelete(orphan);
     }
   } else {
     // 无删除也执行一遍复活清理（兜底旧墓碑）
     const tombRows = await db.tombstones.toArray();
+    const cardTomb = new Map(); // O(1) 查表，替代逐卡 find 的 O(n·m)
+    for (const t of tombRows) if (kindOf(t) === 'card') cardTomb.set(t.id, t);
+    const toClear = [];
     for (const c of cardsNow) {
-      const tb = tombRows.find(t => (kindOf(t)) === 'card' && t.id === c.id);
-      if (tb && (c.updatedAt ?? 0) > (tb.deletedAt ?? 0)) await db.tombstones.delete(c.id);
+      const tb = cardTomb.get(c.id);
+      if (tb && (c.updatedAt ?? 0) > (tb.deletedAt ?? 0)) toClear.push(c.id);
     }
+    if (toClear.length) await db.tombstones.bulkDelete(toClear);
   }
 
   // 5) 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
