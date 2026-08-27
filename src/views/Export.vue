@@ -11,6 +11,7 @@ import {
 import { downloadCsv, downloadAnkiText, downloadBackup as doDownloadBackup, countData } from '../sync.js';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
 import { encodeShareCode, decodeShareCode, estimateSize } from '../utils/shareCode.js';
+import { parseApkg } from '../utils/apkg.js';
 import { flushTelemetry, T } from '../utils/telemetry.js';
 import { db } from '../db.js';
 
@@ -461,6 +462,51 @@ async function doImport() {
   } catch (e) { toast('导入失败：' + e.message, 'error'); }
   finally { shareBusy.value = false; }
 }
+
+// ————— Anki .apkg 二进制导入（jszip + sql.js 本地解析，零服务端） —————
+const apkgBusy = ref(false);
+const apkgOpen = ref(false);
+const apkgPreview = ref(null);  // { cards, count }
+const apkgSubject = ref('');    // 导入目标科目（空 = 未分类）
+const apkgFileEl = ref(null);
+function openApkg() { apkgOpen.value = true; apkgPreview.value = null; apkgSubject.value = ''; }
+function pickApkg() { apkgFileEl.value?.click(); }
+async function onApkgFile(e) {
+  const file = e.target.files?.[0];
+  e.target.value = ''; // 允许重复选同一文件
+  if (!file || apkgBusy.value) return;
+  apkgBusy.value = true;
+  try {
+    const buf = await file.arrayBuffer();
+    const r = await parseApkg(buf);
+    apkgPreview.value = r;
+    toast(`解析成功：${r.count} 张卡片（下方预览前 8 张）`, 'success');
+  } catch (err) {
+    toast('解析失败：' + (err?.message || err), 'error');
+    apkgPreview.value = null;
+  } finally { apkgBusy.value = false; }
+}
+async function doApkgImport() {
+  if (!apkgPreview.value?.cards?.length) { toast('请先选择 .apkg 文件', 'error'); return; }
+  if (apkgBusy.value) return;
+  apkgBusy.value = true;
+  let n = 0, fail = 0;
+  try {
+    for (const c of apkgPreview.value.cards) {
+      try {
+        await createCard({
+          front: c.front, back: c.back, subject: apkgSubject.value || '',
+          tags: c.tags || [], type: 'basic', source: 'Anki 导入',
+        });
+        n++;
+      } catch { fail++; }
+    }
+    toast(`已导入 ${n} 张卡片${fail ? `，失败 ${fail} 张` : ''}（可在「我的卡片」查看）`, 'success');
+    apkgOpen.value = false;
+    await loadMeta();
+  } catch (err) { toast('导入失败：' + (err?.message || err), 'error'); }
+  finally { apkgBusy.value = false; }
+}
 </script>
 
 <template>
@@ -548,6 +594,7 @@ async function doImport() {
       <button class="btn" @click="doMarkdown">导出 Markdown</button>
       <button class="btn" @click="openShareGen" title="把当前筛选/勾选的卡片编码成短字符串，对方粘贴即可导入">🔗 生成分享码</button>
       <button class="btn" @click="openShareImport" title="粘贴他人分享的码，解析后批量导入">📥 导入分享码</button>
+      <button class="btn" @click="openApkg" title="导入 Anki 桌面版导出的 .apkg 卡组（本地解析，零服务端）">📦 导入 .apkg</button>
       <button class="chip" :class="{ on: hideAnswer }" @click="hideAnswer = !hideAnswer">
         {{ hideAnswer ? '已隐藏答案（自测）' : '隐藏答案（自测模式）' }}
       </button>
@@ -650,6 +697,44 @@ async function doImport() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </teleport>
+
+    <!-- Anki .apkg 导入 -->
+    <input ref="apkgFileEl" type="file" accept=".apkg,.colpkg,.zip" style="display:none" @change="onApkgFile" />
+    <teleport to="body">
+      <div v-if="apkgOpen" class="modal-mask" @click.self="apkgOpen = false">
+        <div class="modal" style="max-width:620px">
+          <h3 style="margin-top:0">📦 导入 Anki 卡组（.apkg）</h3>
+          <p class="hint" style="margin:4px 0 8px">
+            Anki 桌面版「导出 → 卡组格式(.apkg)」得到文件后在此导入。全程本地解析，不上传任何数据。
+          </p>
+          <button class="btn" :disabled="apkgBusy" @click="pickApkg">{{ apkgBusy ? '解析中…' : '选择 .apkg 文件' }}</button>
+
+          <div v-if="apkgPreview" style="margin-top:12px">
+            <div class="hint" style="padding:8px 10px;background:var(--code-bg);border-radius:6px">
+              <div>✅ 解析成功：{{ apkgPreview.count }} 张卡片</div>
+            </div>
+            <div style="margin-top:10px">
+              <label class="field-label">导入到科目（留空 = 未分类）</label>
+              <select v-model="apkgSubject" class="input" style="width:100%;max-width:260px">
+                <option value="">未分类</option>
+                <option v-for="s in subjects" :key="s.name" :value="s.name">{{ s.name }}</option>
+              </select>
+            </div>
+            <div style="margin-top:8px;max-height:140px;overflow-y:auto">
+              <div v-for="(c, i) in apkgPreview.cards.slice(0, 8)" :key="i" style="font-size:12px;padding:3px 0;border-bottom:1px dashed var(--line)">
+                · {{ String(c.front).slice(0, 50) }} <span v-if="c.tags?.length" class="hint">[{{ c.tags.join(' ') }}]</span>
+              </div>
+              <div v-if="apkgPreview.count > 8" class="hint" style="font-size:11px;padding:4px 0">… 还有 {{ apkgPreview.count - 8 }} 张</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+              <button class="btn primary" :disabled="apkgBusy" @click="doApkgImport">📥 导入 {{ apkgPreview.count }} 张</button>
+              <button class="btn" @click="apkgOpen = false">关闭</button>
+            </div>
+          </div>
+          <div v-else-if="!apkgBusy" class="hint" style="margin-top:12px">尚未选择文件。</div>
         </div>
       </div>
     </teleport>
