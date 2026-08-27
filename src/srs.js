@@ -15,6 +15,7 @@
 //   FSRS 路径的难度 D 与稳定度 S 已自适应卡片难度与错因信号，故不复用 SM-2 的错因惩罚与
 //   短期巩固状态机（避免双重惩罚）；wrongReason 仍写入复习日志供分析。
 import { schedule as fsrsSchedule } from './fsrs.js';
+import { examWindowUrgency, compressIntoWindow, applyElasticDue } from './algorithms/scheduling.js';
 
 const MIN = 60 * 1000;
 const DAY = 24 * 60 * MIN;
@@ -208,7 +209,7 @@ const RETRIEVAL_FACTOR = Object.fromEntries(RETRIEVAL_STRENGTH_OPTIONS.map(o => 
 export function scheduleReview(card, rating, intensity = 1, guessed = false, opts = {}) {
   let r;
   if (opts.scheduler === 'fsrs') {
-    r = fsrsSchedule(card, rating, { weights: opts.weights, desiredRetention: opts.desiredRetention });
+    r = fsrsSchedule(card, rating, { weights: opts.weights, desiredRetention: opts.desiredRetention, initialStability: opts.initialStability });
     // 蒙对：FSRS grade 仍记 good，但缩短间隔（与 SM-2 一致语义：不算真掌握）
     if (guessed && rating === 2) {
       r.intervalDays = Math.max(1, r.intervalDays * 0.6);
@@ -221,6 +222,19 @@ export function scheduleReview(card, rating, intensity = 1, guessed = false, opt
   if (rs && RETRIEVAL_FACTOR[rs] !== undefined && RETRIEVAL_FACTOR[rs] !== 1.0) {
     r.intervalDays = Math.max(10 / 1440, r.intervalDays * RETRIEVAL_FACTOR[rs]);
     r.dueAt = Date.now() + Math.round(r.intervalDays * DAY);
+  }
+  // 考试窗口感知：标注紧迫度（不改 FSRS 真实状态，仅在排程优先级层面生效）
+  if (opts.examAt) {
+    const eu = examWindowUrgency(card, opts.examAt, { desiredRetention: opts.desiredRetention });
+    r.examUrgency = eu.urgency;
+    r.atExamR = eu.atExamR;
+    // 若下次复习落在考试之后，软压缩到考前窗口
+    r.dueAt = compressIntoWindow(r.dueAt, opts.examAt);
+  }
+  // 节假日弹性：due 落在休息日则顺延到最近工作日（仅展示/排程层）
+  if (opts.restDays && opts.restDays.weekdays?.length || opts.restDays?.dates?.length) {
+    const moved = applyElasticDue(r.dueAt, opts.restDays);
+    if (moved !== r.dueAt) r.dueAt = moved;
   }
   return r;
 }

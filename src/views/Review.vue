@@ -26,6 +26,13 @@ const intensity = ref(Number(localStorage.getItem('sxy_rv_intensity')) || 1);
 // P1-3 检索强度分级（再认/回忆/生成/讲解）：映射不同间隔乘子，与 intensity（时间压力）正交
 const retrievalStrength = ref(localStorage.getItem('sxy_rv_retrieval') || 'recall');
 const interleave = ref(localStorage.getItem('sxy_interleave') !== '0');
+// 目标考试日时间戳（来自卡片洞察页 db.meta.examAt；0=未设置）
+const examAtTs = ref(0);
+// P1-A 检索分级：当前卡被展示的时刻；作答耗时 responseMs = 本次评分时刻 - 展示时刻，
+// 喂给 repo.review 的 retrievalGrading，用于「答得慢→提取不流畅→更早重现」（间隔效应）。
+const cardShownAt = ref(Date.now());
+// 切换到下一张卡时重置计时；loadQueue 末尾也会重置首张卡，双保险
+watch(idx, () => { cardShownAt.value = Date.now(); });
 const editOpen = ref(false);
 const editing = ref(null);
 
@@ -124,6 +131,8 @@ function filterObj() {
     logic: fLogic.value,
     wrongReasons: fWrongReasons.value,
     includeDueOnly: !repeatMode,
+    // P1-A：把考试窗口透传给 reviewQueue → buildReviewSession，启用「临考卡靠前」的间隔效应排序
+    examAt: examAtTs.value || 0,
   };
 }
 
@@ -149,6 +158,7 @@ async function loadQueue() {
       smartMeta.value = null;
     }
     idx.value = 0;
+    cardShownAt.value = Date.now(); // 首张卡计时起点
     goalNotified = false;
     emptyNotified = false;
     confusablePairs.value = await getConfusablePairs(40);
@@ -188,7 +198,7 @@ function toggleGraph() {
 
 async function rate(card, rating, guessed = false, meta = {}) {
   try {
-    const res = await review(card.id, rating, intensity.value, guessed, { ...meta, adaptive: adaptiveOn.value, retrievalStrength: retrievalStrength.value });
+    const res = await review(card.id, rating, intensity.value, guessed, { ...meta, adaptive: adaptiveOn.value, retrievalStrength: retrievalStrength.value, examAt: examAtTs.value || 0, responseMs: Date.now() - cardShownAt.value });
     todayCount.value = await getTodayCount(); // 从 db.reviews 推导（跨会话/跨设备同步）
     // P2·#12 计划↔复习联动：复习后刷新引用此卡的计划的进度
     syncReviewToPlan(card.id).catch(() => {});
@@ -376,6 +386,11 @@ onMounted(async () => {
   goal.value = await getGoal();
   todayCount.value = await getTodayCount();
   focusSeconds.value = Number(localStorage.getItem('sxy_rv_focus')) || 0;
+  // 考试窗口感知：读取卡片洞察页保存的目标考试日，复习时把到期日软压缩进考前窗口并标注紧迫度
+  try {
+    const row = await db.meta.get('examAt');
+    if (row?.value) examAtTs.value = new Date(row.value).getTime();
+  } catch { /* meta 不可用时忽略 */ }
   // 恢复未完成的 25 分钟会话（基于 endTs 校准剩余时间）
   const savedEnd = Number(localStorage.getItem('sxy_rv_session_end'));
   if (savedEnd && savedEnd > Date.now()) {

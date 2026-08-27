@@ -132,8 +132,10 @@ export function schedule(card, rating, opts = {}) {
 
   let S, D, reps;
   if (!prev || !prev.reps) {
-    // 首次复习：初始化
-    S = initStability(grade, w);
+    // 首次复习：初始化（冷启动前测估计优先于默认 S0）
+    S = (typeof opts.initialStability === 'number' && opts.initialStability > 0)
+      ? Math.max(0.5, opts.initialStability)
+      : initStability(grade, w);
     D = initDifficulty(grade, w);
     reps = 1;
   } else {

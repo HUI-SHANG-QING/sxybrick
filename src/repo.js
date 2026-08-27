@@ -5,6 +5,8 @@ import { computeNext, applyFeedback, scheduleReview, RETRIEVAL_STRENGTH_OPTIONS 
 export { RETRIEVAL_STRENGTH_OPTIONS };
 import { mergeUserWeights } from './fsrs.js';
 import { extractImageIds } from './images.js';
+import { initialStabilityForCard } from './algorithms/pretest.js';
+import { buildReviewSession, retrievalGrading } from './algorithms/session.js';
 
 export const DEFAULT_SUBJECTS = ['计算机网络', '操作系统', '数据结构', '计算机组成原理', '高等数学', '线性代数', '概率论'];
 const MAX_CHARS = 8000;
@@ -203,6 +205,21 @@ export function wrongReasonToCode(reason) {
 // UI 用的数组：[{code, label}]，自定义项由 UI 追加
 export const WRONG_REASONS = Object.entries(WRONG_REASON_MAP).map(([code, label]) => ({ code, label }));
 
+// 取候选卡的复习历史（单条 anyOf 索引查询，非 N 查询），供 buildReviewSession 做检索分级。
+// 返回 Map<cardId, review[]>，每条 review 含 { rating, guessed, responseMs, retrievalStrength }，
+// 正好喂给 session.js 的 estimateRetrievalDifficulty。
+async function buildReviewsByCard(cards) {
+  const ids = (cards || []).map(c => c.id);
+  const map = new Map();
+  if (!ids.length) return map;
+  const revs = await db.reviews.where('cardId').anyOf(ids).toArray();
+  for (const r of revs) {
+    if (!map.has(r.cardId)) map.set(r.cardId, []);
+    map.get(r.cardId).push(r);
+  }
+  return map;
+}
+
 // ---------- 复习 ----------
 // filter: { subjects:[], tags:[], logic:'AND'|'OR'|'NOT', wrongReasons:[], includeDueOnly:true }
 // 自由组合背诵：按科目/标签/错因并集·交集·差集筛选到期队列（默认全量到期，遵循复习曲线）
@@ -220,57 +237,25 @@ export async function reviewQueue(limit = 100, interleave = false, filter = {}) 
   // 默认只背到期卡（遵循复习曲线）；includeDueOnly=false 时可背全部（重复复习场景）
   if (f.includeDueOnly !== false) cards = cards.filter(c => c.dueAt <= now());
   cards.sort((a, b) => a.dueAt - b.dueAt || (a.id < b.id ? -1 : 1));
-  // 三维交错（P1-2）：科目 + 题型 + 难度，避免相邻卡片"过于相似"
+  // 三维交错（P1-2 + 2026-08-27 抽取为 algorithms/session.js 的 interleaveQueue）：
+  // 科目 + 题型 + 难度，避免相邻卡片"过于相似"
   // 认知科学：交错练习（Interleaving）比集中练习（Blocked）提升远迁移 40%+；
   //   - 科目切换最强（激活不同知识网络）
   //   - 难度切换避免"难度定势"（basic/applied/challenge）
   //   - 题型切换避免"题型定势"（basic/cloze/choice/writing）
   // 算法：贪心 + 邻接惩罚。维护最近 WINDOW 张的维度集合，每步从剩余候选选 penalty 最低的，
   //   并列时按 dueAt 升序（仍优先到期卡）。变式卡同 sourceCardId 重罚（合并原 anti-adjacent 逻辑）。
+  // P1-A 会话编排：用 algorithms/session.js 的 buildReviewSession 取代裸 interleaveQueue，
+  //   在「交错混科」之上叠加「检索分级（难卡早重现）+ 测试间隔效应（考试窗口紧迫度）」：
+  //   - 无 examAt 且不带复习历史 → rank 退化为 dueAt 序，行为与原交错一致（保序，零回归）
+  //   - 有复习历史 → 提取流畅度低的难卡靠前；有 examAt → 临考卡靠前（间隔效应·考前密集重现）
   if (interleave && cards.length > 1) {
-    const WINDOW = 3; // 邻接窗口：最近 3 张
-    const W_SUBJECT = 3;   // 同科目惩罚（最强）
-    const W_DIFF = 1;      // 同难度惩罚
-    const W_TYPE = 1;      // 同题型惩罚
-    const W_SOURCE = 5;    // 同原卡变式惩罚（防"假掌握"）
-    const remaining = cards.slice();
-    const result = [];
-    const winSubject = [], winDiff = [], winType = [], winSource = [];
-    const pushWin = (c) => {
-      winSubject.push(c.subject || '未分类');
-      winDiff.push(c.difficulty || 'basic');
-      winType.push(c.type || 'basic');
-      winSource.push(c.sourceCardId || '');
-      if (winSubject.length > WINDOW) {
-        winSubject.shift(); winDiff.shift(); winType.shift(); winSource.shift();
-      }
-    };
-    while (remaining.length) {
-      // 每步扫描全部剩余候选选 penalty 最低的；n≤100，O(n·WINDOW) 一帧内可完成
-      let bestIdx = 0, bestPen = Infinity;
-      for (let i = 0; i < remaining.length; i++) {
-        const c = remaining[i];
-        let pen = 0;
-        if (winSubject.length) {
-          const cs = c.subject || '未分类';
-          const cd = c.difficulty || 'basic';
-          const ct = c.type || 'basic';
-          const csrc = c.sourceCardId || '';
-          for (let j = 0; j < winSubject.length; j++) {
-            if (winSubject[j] === cs) pen += W_SUBJECT;
-            if (winDiff[j] === cd) pen += W_DIFF;
-            if (winType[j] === ct) pen += W_TYPE;
-            if (csrc && winSource[j] === csrc) pen += W_SOURCE;
-          }
-        }
-        // 并列时 dueAt 升序已在 sort 中保证，这里同 penalty 取索引最早（即 dueAt 最早）
-        if (pen < bestPen) { bestPen = pen; bestIdx = i; }
-      }
-      const picked = remaining.splice(bestIdx, 1)[0];
-      result.push(picked);
-      pushWin(picked);
-    }
-    cards = result;
+    const reviewsByCard = await buildReviewsByCard(cards);
+    cards = buildReviewSession(cards, {
+      interleave: true,
+      examAt: filter.examAt || 0,
+      reviewsByCard,
+    }).queue;
   }
   return cards.slice(0, limit);
 }
@@ -294,7 +279,28 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
     const fail = last10.filter(r => r.rating === 0).length;
     adaptive = { reviews: last10.length, failRate: last10.length ? fail / last10.length : 0 };
   }
-  const next = scheduleReview(card, rating, intensity, guessed, { difficulty, wrongReason, adaptive, scheduler: cfg.scheduler, weights: cfg.weights });
+  // 冷启动前测：若该科目做过前测且本卡无复习历史，用估计的初始稳定度替代 FSRS 默认 S0
+  const pretestRow = await db.meta.get('pretestStability');
+  const pretestMap = pretestRow && typeof pretestRow.value === 'object' ? pretestRow.value : null;
+  const initialStability = initialStabilityForCard(card, pretestMap);
+  const next = scheduleReview(card, rating, intensity, guessed, {
+    difficulty, wrongReason, adaptive,
+    scheduler: cfg.scheduler, weights: cfg.weights, initialStability,
+    // P1-3 检索强度分级 + 考试窗口感知/节假日弹性：必须透传，否则 UI 选择不生效
+    retrievalStrength: opts.retrievalStrength,
+    examAt: opts.examAt || 0,
+    desiredRetention: opts.desiredRetention,
+    restDays: opts.restDays,
+  });
+  // P1-A 检索分级：把这一次提取尝试定级（failed/hard/medium/easy），写入复习记录，
+  // 供 buildReviewSession 的 estimateRetrievalDifficulty 估算「当前检索难度」→ 难卡早重现 / 间隔效应。
+  // 信号来源：用户自评 rating + 是否蒙对 guessed + 作答时长 responseMs + 检索强度 retrievalStrength。
+  const grade = retrievalGrading({
+    rating,
+    guessed: !!guessed,
+    responseMs: opts.responseMs || 0,
+    retrievalStrength: opts.retrievalStrength || '',
+  });
   // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt、不回写 difficulty（内容属性）：
   // 否则跨设备同步时「复习动作」会覆盖另一台设备对卡片文字/难度的编辑（数据丢失）
   // consolidation 字段：短期巩固状态（null/1/2），跟随 SRS 一并写回
@@ -302,7 +308,13 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   // wrongReasonAt：错因独立时间戳，跨设备合并时按此取新者（不跟随 updatedAt 也不跟随 reviewedAt）
   const nowTs = now();
   await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: next.fsrs ?? card.fsrs, wrongReason, wrongReasonAt: nowTs, reviewedAt: nowTs });
-  await db.reviews.put({ id: uid(), cardId, reviewedAt: now(), rating, levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason });
+  await db.reviews.put({
+    id: uid(), cardId, reviewedAt: now(), rating,
+    levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason,
+    retrievalStrength: opts.retrievalStrength || '',
+    responseMs: opts.responseMs || 0,
+    grade: grade.level, gradeScore: grade.score,
+  });
   return { ...next, dueText: formatDue(next.dueAt) };
 }
 
