@@ -660,3 +660,11 @@ export async function getDueForecast(days = 30) {
   const cards = await db.cards.toArray();
   return forecastDue(cards, days);
 }
+
+// ---------- 知识净值（Knowledge Net Worth）----------
+// 卡片库「知识资产负债表」；纯函数在 algorithms/networth.js，这里只做 IO。
+import { computeNetWorth } from '../algorithms/networth.js';
+export async function getNetWorth() {
+  const cards = await db.cards.toArray();
+  return computeNetWorth(cards);
+}

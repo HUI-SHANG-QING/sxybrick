@@ -3,7 +3,7 @@
 // 所有删除走 deleteCard（墓碑跨设备传播）+ 图片直接清理，保证多端一致
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { getAssetHealth } from '../agent/analytics.js';
+import { getAssetHealth, getNetWorth } from '../agent/analytics.js';
 import { deleteCard } from '../repo.js';
 import { db } from '../db.js';
 import { toast } from '../utils/toast.js';
@@ -11,6 +11,7 @@ import { T } from '../utils/telemetry.js';
 
 const router = useRouter();
 const health = ref(null);
+const networth = ref(null);
 const busy = ref(false);
 
 // 跳转到 /cards + 指定筛选参数；默认全展开（背诵效果页，用户先预览再决定是否编辑）
@@ -26,7 +27,8 @@ function openOrphans() { jumpCards({ orphan: '1', expandAll: '1' }); }
 async function load() {
   busy.value = true;
   try {
-    health.value = await getAssetHealth();
+    const [h, nw] = await Promise.all([getAssetHealth(), getNetWorth()]);
+    health.value = h; networth.value = nw;
     try { T.healthScan(); } catch {}
   }
   catch (e) { toast(e.message, 'error'); }
@@ -87,6 +89,30 @@ onMounted(load);
       <div class="stat clickable" title="查看僵尸卡" @click="openZombies"><div class="num" :style="{ color: health.zombieCount ? 'var(--amber)' : 'var(--green)' }">{{ health.zombieCount }}</div><div class="hint">僵尸卡</div></div>
       <div class="stat clickable" title="查看孤儿图片" @click="openOrphans"><div class="num" :style="{ color: health.orphanImageCount ? 'var(--amber)' : 'var(--green)' }">{{ health.orphanImageCount }}</div><div class="hint">孤儿图片</div></div>
       <div class="stat clickable" title="查看无标签卡" @click="openUntagged"><div class="num">{{ health.untaggedCount }}</div><div class="hint">无标签卡</div></div>
+    </div>
+
+    <!-- 知识净值（资产负债表） -->
+    <div v-if="networth" class="panel" style="margin-top:14px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="field-label" style="margin:0">知识净值</span>
+        <span class="hint">卡片库「资产负债表」：资产原值 − 遗忘折旧 = 净值（按记忆保持度 R 折算）</span>
+      </div>
+      <div class="stat-cards" style="margin-top:10px">
+        <div class="stat"><div class="num">{{ networth.totalValue }}</div><div class="hint">知识净值</div></div>
+        <div class="stat"><div class="num">{{ networth.idealValue }}</div><div class="hint">资产原值</div></div>
+        <div class="stat"><div class="num" :style="{ color: networth.decayedValue > 0 ? 'var(--amber)' : 'var(--green)' }">{{ networth.decayedValue }}</div><div class="hint">遗忘折旧</div></div>
+        <div class="stat"><div class="num" :style="{ color: networth.retentionRate >= 90 ? 'var(--green)' : networth.retentionRate >= 70 ? 'var(--amber)' : 'var(--red)' }">{{ networth.retentionRate }}%</div><div class="hint">知识保持率</div></div>
+        <div class="stat"><div class="num">{{ networth.masteredCount }}</div><div class="hint">已掌握</div></div>
+        <div class="stat"><div class="num">{{ networth.newCount }}</div><div class="hint">待复习(新)</div></div>
+      </div>
+      <div v-if="networth.bySubject.length" style="margin-top:14px">
+        <div class="hint" style="margin-bottom:6px">按科目净值（保持率条越长 = 记得越牢）</div>
+        <div v-for="s in networth.bySubject" :key="s.subject" class="health-row">
+          <span class="hint" style="flex:1;min-width:150px">{{ s.subject }} <span style="color:var(--ink-2)">（{{ s.count }} 张）</span></span>
+          <div class="nw-track"><div class="nw-bar" :style="{ width: Math.max(4, s.retentionRate) + '%' }"></div></div>
+          <span class="hint" style="min-width:150px;text-align:right">净值 {{ s.value }} / 原值 {{ s.ideal }} · {{ s.retentionRate }}%</span>
+        </div>
+      </div>
     </div>
 
     <!-- 重复卡 -->
@@ -160,4 +186,6 @@ onMounted(load);
 .health-row:last-child { border-bottom: none; }
 .health-row.clickable { cursor: pointer; border-radius: 8px; padding: 8px 8px; }
 .health-row.clickable:hover { background: var(--code-bg); border-color: var(--line); }
+.nw-track { flex: 1; min-width: 100px; height: 8px; background: var(--code-bg); border-radius: 99px; overflow: hidden; }
+.nw-bar { height: 100%; background: linear-gradient(90deg, var(--blue), var(--green)); border-radius: 99px; transition: width .4s ease; }
 </style>
