@@ -95,21 +95,22 @@ test('stats：完美校准 → bias=0 / ece=0，Brier 按公式', () => {
   assert.equal(s.verdict, '校准良好');
 });
 
-test('stats：高估记忆 → 乐观结论 + 建议下调', () => {
+test('stats：高估记忆 → 乐观结论 + 建议上调（缩短间隔）', () => {
   const rows = [];
   for (let i = 0; i < 100; i++) rows.push({ predR: 0.95, rating: 0 });
   const s = calibrationStats(rows);
   assert.ok(s.bias > 0.05);
   assert.ok(s.verdict.includes('乐观'));
-  assert.ok(s.note.includes('下调'));
+  assert.ok(s.note.includes('上调'));
 });
 
-test('stats：低估记忆 → 悲观结论', () => {
+test('stats：低估记忆 → 悲观结论 + 建议下调（延长间隔）', () => {
   const rows = [];
   for (let i = 0; i < 100; i++) rows.push({ predR: 0.3, rating: 2 });
   const s = calibrationStats(rows);
   assert.ok(s.bias < -0.05);
   assert.ok(s.verdict.includes('悲观'));
+  assert.ok(s.note.includes('下调'));
 });
 
 test('stats：空样本 → 样本不足且不抛错', () => {

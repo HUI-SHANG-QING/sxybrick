@@ -671,8 +671,11 @@ export async function getNetWorth() {
 
 // ---------- 每科自适应目标保持率（per-subject adaptive desired retention）----------
 // 掌握度低的科目复习更勤（更高保持率）；纯函数在 algorithms/adaptive-retention.js，这里只做 IO。
+// 校准闭环：先用校准偏差 bias 全局微调 base（高估→更勤、低估→更省），再按每科掌握度自适应。
 import { subjectRetentionMap } from '../algorithms/adaptive-retention.js';
+import { calibrateFromStats } from '../algorithms/calibration-feedback.js';
 export async function getSubjectRetentionMap() {
-  const s = await getStats();
-  return subjectRetentionMap(s.mastery);
+  const [s, calib] = await Promise.all([getStats(), getCalibration()]);
+  const base = calibrateFromStats(0.9, calib);
+  return subjectRetentionMap(s.mastery, base);
 }
