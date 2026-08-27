@@ -435,7 +435,19 @@ toolRegistry.register({
   },
   writesData: true,
   async execute(args) {
-    const e = await createGraphEdge({ from: args?.from, to: args?.to, label: args?.label, subject: args?.subject });
+    // R10：把 AI 给的 label 解析为真实卡片 id，避免文本匹配静默覆盖
+    const all = await listCards();
+    const lower = new Map();
+    for (const c of all) {
+      const f = String(c.front || '').replace(/[*_#>`~|-]/g, '').trim().toLowerCase();
+      if (f && !lower.has(f)) lower.set(f, c.id);
+    }
+    const resolveId = (s) => lower.get(String(s || '').replace(/[*_#>`~|-]/g, '').trim().toLowerCase()) || '';
+    const e = await createGraphEdge({
+      from: args?.from, to: args?.to,
+      fromCardId: resolveId(args?.from), toCardId: resolveId(args?.to),
+      label: args?.label, subject: args?.subject,
+    });
     return { ok: true, data: { id: e.id, from: e.from, to: e.to, label: e.label } };
   },
 });

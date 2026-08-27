@@ -4,7 +4,8 @@
 import { ref, computed, watch } from 'vue';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
-import { getSubjects, getTags, createCard, updateCard, WRONG_REASONS } from '../repo.js';
+import { getSubjects, getTags, createCard, updateCard, WRONG_REASONS, wrongReasonToCode } from '../repo.js';
+import { T } from '../utils/telemetry.js';
 import { putImage } from '../images.js';
 import { uid } from '../db.js';
 
@@ -52,8 +53,8 @@ watch(() => props.modelValue, async (open) => {
     type.value = props.card.type || 'basic';
     marked.value = !!props.card.marked;
     mnemonic.value = props.card.mnemonic || '';
-    const wr = props.card.wrongReason || '';
-    if (wr && !WRONG_REASONS.includes(wr)) { wrongReason.value = '__custom__'; customWrong.value = wr; }
+    const wr = wrongReasonToCode(props.card.wrongReason || '');
+    if (wr && !WRONG_REASONS.some(r => r.code === wr) && wr !== 'OTHER') { wrongReason.value = '__custom__'; customWrong.value = props.card.wrongReason || ''; }
     else { wrongReason.value = wr; customWrong.value = ''; }
     const known = subjects.value.some(s => s.name === props.card.subject);
     useCustomSubject.value = !!props.card.subject && !known;
@@ -149,8 +150,13 @@ async function save() {
         ? (wrongReason.value === '__custom__' ? customWrong.value.trim() : wrongReason.value)
         : '',
     };
-    if (props.card) await updateCard(props.card.id, payload);
-    else await createCard(payload);
+    if (props.card) {
+      await updateCard(props.card.id, payload);
+      try { T.cardEdit(props.card.id); } catch {}
+    } else {
+      const r = await createCard(payload);
+      try { T.cardNew(r?.id || r); } catch {}
+    }
     emit('saved');
     emit('update:modelValue', false);
     toast(props.card ? '已保存修改' : '卡片已创建', 'success');
@@ -200,7 +206,7 @@ function close() { emit('update:modelValue', false); }
           <div class="field-label">错因</div>
           <select v-model="wrongReason" class="input" style="max-width:240px">
             <option value="">选择错因（可选）</option>
-            <option v-for="r in WRONG_REASONS" :key="r" :value="r">{{ r }}</option>
+            <option v-for="r in WRONG_REASONS" :key="r.code" :value="r.code">{{ r.label }}</option>
             <option value="__custom__">自定义…</option>
           </select>
           <input v-if="wrongReason === '__custom__'" v-model="customWrong" class="input"

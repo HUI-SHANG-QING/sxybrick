@@ -15,6 +15,7 @@ import { mdToSpeech, speak } from '../utils/tts.js';
 import { getConfusablePairs, getGraphDrivenReviewPlan } from '../agent/analytics.js';
 import { getQuickCheckDue, recordQuickCheck } from '../utils/quickCheck.js';
 import { recommendTodaySequence, syncReviewToPlan } from '../intelligence.js';
+import { T } from '../utils/telemetry.js';
 
 const router = useRouter();
 
@@ -77,6 +78,14 @@ const quickCurrent = computed(() => quickQueue.value[quickIdx.value] || null);
 
 const current = () => queue.value[idx.value] || null;
 const hasMore = computed(() => idx.value < queue.value.length);
+
+// 卡片导航：上一张/下一张（不重置翻转状态，FlipCard 会 watch card.id 自动重置）
+function prevCard() {
+  if (idx.value > 0) idx.value -= 1;
+}
+function nextCard() {
+  if (idx.value < queue.value.length - 1) idx.value += 1;
+}
 
 // 短期提取巩固提示：当前卡处于阶段1（当日巩固）/ 阶段2（隔日巩固）时给出认知科学说明
 const consolidationHint = computed(() => {
@@ -194,6 +203,7 @@ async function rate(card, rating, guessed = false, meta = {}) {
     if (rating === 0) queue.value.push({ ...card, ...res });
     idx.value += 1;
     checkComplete();
+    try { T.reviewRate(rating, card.id, card.front); } catch { /* 埋点失败不阻塞业务 */ }
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -431,7 +441,16 @@ function onKey(e) {
     return;
   }
   if (!current()) return;
-  if (e.code === 'Space') { e.preventDefault(); flipRef.value?.showBack?.(); return; }
+  // 上一张/下一张导航（与翻面/评级无关，任意翻转状态均可触发）
+  if (e.key === 'ArrowLeft') { e.preventDefault(); prevCard(); return; }
+  if (e.key === 'ArrowRight') { e.preventDefault(); nextCard(); return; }
+  if (e.code === 'Space') {
+    e.preventDefault();
+    const wasFlipped = flipRef.value?.flipped;
+    flipRef.value?.showBack?.();
+    if (!wasFlipped) { try { T.reviewFlip(current()?.id); } catch {} }
+    return;
+  }
   if (!flipRef.value?.flipped) return; // 未翻面不允许评级，防盲评
   if (e.key === '1') { e.preventDefault(); flipRef.value?.doRate?.(0); }
   else if (e.key === '2') { e.preventDefault(); flipRef.value?.doRate?.(1); }
@@ -592,7 +611,7 @@ async function recordDuelWrong(idA, idB) {
         </div>
         <div class="field-label">错因（多选）</div>
         <div class="row">
-          <button v-for="r in WRONG_REASONS" :key="r" class="chip" :class="{ on: fWrongReasons.includes(r) }" @click="toggleFWrong(r)">{{ r }}</button>
+          <button v-for="r in WRONG_REASONS" :key="r.code" class="chip" :class="{ on: fWrongReasons.includes(r.code) }" @click="toggleFWrong(r.code)">{{ r.label }}</button>
         </div>
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn primary" @click="applyFilter">应用筛选</button>
@@ -630,14 +649,18 @@ async function recordDuelWrong(idA, idB) {
       </template>
 
       <template v-else-if="current()">
-        <FlipCard ref="flipRef" :card="current()" @rate="rate" @edit="openEdit" />
+        <!-- 卡片 + 难度/错因/自评（FlipCard 内部已拆分：舞台内滚 + 操作区在舞台外独立块） -->
+        <div class="review-card-wrap">
+          <FlipCard ref="flipRef" :card="current()" @rate="rate" @edit="openEdit" />
+        </div>
+
         <div v-if="smartHint" class="consolidation-hint" style="color:var(--accent)">{{ smartHint }}</div>
         <div v-if="graphHint" class="consolidation-hint" style="color:var(--blue)">{{ graphHint }}</div>
         <div v-if="consolidationHint" class="consolidation-hint">{{ consolidationHint }}</div>
         <div v-if="confusableHint" class="confusable-hint">{{ confusableHint }}</div>
-        <div class="hint" style="text-align:center;margin-top:12px">
-          第 {{ idx + 1 }} / {{ queue.length }} 张 · 翻到背面后选择自评结果 · 快捷键：<b>空格</b> 翻面，<b>1</b> 没记住 <b>2</b> 还模糊 <b>3</b> 记住了
-        </div>
+
+        <!-- 底部占位：高度等于底部 sticky 快捷键条，避免被遮挡 -->
+        <div class="review-kb-spacer" aria-hidden="true"></div>
       </template>
 
       <div v-else class="empty">
@@ -741,6 +764,24 @@ async function recordDuelWrong(idA, idB) {
         </div>
       </div>
     </teleport>
+
+    <!-- 独立底部快捷键提示条（position: sticky）：永远不与卡片难度/错因/自评按钮重叠 -->
+    <div v-if="tab === 'due' && current() && !showComplete" class="review-kb-bar no-print">
+      <div class="kb-col">
+        <button class="chip" :disabled="idx <= 0" @click="prevCard" title="上一张（←）">←</button>
+        <span class="kb-page">第 <b>{{ idx + 1 }}</b> / {{ queue.length }} 张</span>
+        <button class="chip" :disabled="idx >= queue.length - 1" @click="nextCard" title="下一张（→）">→</button>
+        <span v-if="current()?.subject" class="kb-subj">{{ current().subject }}</span>
+      </div>
+      <div class="kb-col kb-keys">
+        <span class="kb" title="上一张">← 上一张</span>
+        <span class="kb" title="下一张">→ 下一张</span>
+        <span class="kb" title="翻面">␣ 翻面</span>
+        <span class="kb bad" title="没记住">1 没记住</span>
+        <span class="kb mid" title="还模糊">2 还模糊</span>
+        <span class="kb good" title="记住了">3 记住了</span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -776,4 +817,47 @@ async function recordDuelWrong(idA, idB) {
 .quick-front { cursor: pointer; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); transition: background .15s; }
 .quick-front:hover { background: var(--code-bg); }
 .quick-back { padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--code-bg); }
+
+/* P0·1 防遮挡：背诵容器加底部安全区，为 sticky 快捷键条预留空间 */
+.review-card-wrap { margin-top: 12px; }
+.review-kb-spacer { height: 0; }
+@media (min-width: 721px) { .review-kb-spacer { height: 74px; } }
+.review-kb-bar {
+  position: sticky;
+  left: 0; right: 0; bottom: 0;
+  margin: 14px -12px -16px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: color-mix(in srgb, var(--page-bg, #fff) 94%, var(--ink, #111) 6%);
+  backdrop-filter: saturate(1.2) blur(6px);
+  border-top: 1px solid var(--line);
+  z-index: 50;
+}
+.kb-col { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kb-page { color: var(--ink-2); font-size: 13px; }
+.kb-page b { color: var(--ink); font-weight: 700; }
+/* 导航按钮：禁用时灰显不可点 */
+.chip:disabled { opacity: .4; cursor: not-allowed; }
+.kb-subj { font-size: 12px; background: var(--code-inline); color: var(--ink-2); padding: 2px 8px; border-radius: 6px; }
+.kb-keys .kb {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel);
+  font-size: 12px; color: var(--ink-2); line-height: 1.4;
+}
+.kb.bad { color: var(--red); border-color: #fecaca; background: #fff1f2; }
+.kb.mid { color: #b45309; border-color: #fcd34d; background: #fffbeb; }
+.kb.good { color: var(--green); border-color: #86efac; background: #f0fdf4; }
+
+@media (max-width: 720px) {
+  .review-kb-spacer { height: 98px; }
+  .review-kb-bar { margin: 12px -14px -24px; padding: 8px 12px; gap: 8px; }
+  .kb-col { width: 100%; justify-content: space-between; }
+  .kb-keys { justify-content: flex-start; }
+  .kb-keys .kb { font-size: 11px; padding: 3px 8px; }
+}
 </style>

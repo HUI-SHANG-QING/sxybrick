@@ -161,7 +161,29 @@ export async function setMarked(id, marked) {
 
 // ---------- 错因 ----------
 // 统一错因选项（新建卡片 + 背诵页共用）；「自定义」由 UI 层追加
-export const WRONG_REASONS = ['概念混淆', '记忆不牢', '审题偏差', '记忆模糊', '计算失误', '粗心', '其他'];
+// 枚举码 → 中文展示标签映射；存储用 code，展示用 label
+export const WRONG_REASON_MAP = {
+  CONCEPT_MIS: '概念混淆',
+  MEMORY_WEAK: '记忆不牢',
+  REVIEW_ERROR: '审题偏差',
+  MEMORY_VAGUE: '记忆模糊',
+  CALC_ERROR: '计算失误',
+  CARELESS: '粗心',
+  OTHER: '其他',
+};
+// 向后兼容：旧数据可能存的是中文字符串，用此函数转为 code
+export function wrongReasonToCode(reason) {
+  if (!reason) return '';
+  // 已是 code
+  if (WRONG_REASON_MAP[reason]) return reason;
+  // 中文 → code
+  for (const [code, label] of Object.entries(WRONG_REASON_MAP)) {
+    if (reason === label || reason.includes(label)) return code;
+  }
+  return 'OTHER';
+}
+// UI 用的数组：[{code, label}]，自定义项由 UI 追加
+export const WRONG_REASONS = Object.entries(WRONG_REASON_MAP).map(([code, label]) => ({ code, label }));
 
 // ---------- 复习 ----------
 // filter: { subjects:[], tags:[], logic:'AND'|'OR'|'NOT', wrongReasons:[], includeDueOnly:true }
@@ -234,7 +256,9 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt、不回写 difficulty（内容属性）：
   // 否则跨设备同步时「复习动作」会覆盖另一台设备对卡片文字/难度的编辑（数据丢失）
   // consolidation 字段：短期巩固状态（null/1/2），跟随 SRS 一并写回
-  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, wrongReason, reviewedAt: now() });
+  // wrongReasonAt：错因独立时间戳，跨设备合并时按此取新者（不跟随 updatedAt 也不跟随 reviewedAt）
+  const nowTs = now();
+  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, wrongReason, wrongReasonAt: nowTs, reviewedAt: nowTs });
   await db.reviews.put({ id: uid(), cardId, reviewedAt: now(), rating, levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason });
   return { ...next, dueText: formatDue(next.dueAt) };
 }
@@ -478,12 +502,20 @@ export async function createGraphEdge(payload) {
   if (!from || !to) throw new Error('关系的两端不能为空');
   const label = String(payload?.label || '相关').trim();
   const subject = String(payload?.subject || '').trim();
-  // 去重：同 from/to/label 的边已存在则不重复创建（避免「保存关联」多点几次就产生重复边）
-  const exists = await db.graphEdges.filter(e => e.from === from && e.to === to && (e.label || '相关') === label).first();
+  // R10 修复：边存卡片 id 直连，避免文本匹配静默覆盖（两卡文本相同时旧逻辑会覆盖）
+  // from/to 仍保留（兼容遗留数据 + 图谱节点显示用 label）；fromCardId/toCardId 为稳定连接键
+  const fromCardId = payload?.fromCardId ? String(payload.fromCardId) : '';
+  const toCardId = payload?.toCardId ? String(payload.toCardId) : '';
+  // 去重：双方都有 cardId 时按 cardId 去重（精准）；否则回退 label 去重（遗留兼容）
+  const exists = await db.graphEdges.filter(e => {
+    const sameLabel = (e.label || '相关') === label;
+    if (fromCardId && toCardId) return e.fromCardId === fromCardId && e.toCardId === toCardId && sameLabel;
+    return e.from === from && e.to === to && sameLabel;
+  }).first();
   if (exists) return null;
   const t = now();
   const e = {
-    id: uid(), from, to,
+    id: uid(), from, to, fromCardId, toCardId,
     label,
     subject,
     createdAt: t, updatedAt: t,
@@ -655,4 +687,388 @@ export async function updateExam(id, patch) {
   const e = plain({ ...old, ...(patch || {}), updatedAt: now() });
   await db.exams.put(e);
   return e;
+}
+
+// ————————————————————————————————————————————————————————————
+// 新增：资产体检 / 埋点 / 最佳最坏拍档 / 隐私数据（P1·8 八项接口）
+// ————————————————————————————————————————————————————————————
+
+// 1) 僵尸卡 ID 集合（90 天到期且从未复习）
+export async function zombieCardIds() {
+  const threshold = Date.now() - 90 * 24 * 3600 * 1000;
+  const cards = await db.cards.toArray();
+  const reviewed = new Set((await db.reviews.toArray()).map(r => r.cardId));
+  return cards
+    .filter(c => (c.createdAt || 0) <= threshold && !reviewed.has(c.id))
+    .map(c => c.id);
+}
+
+// 2) 埋点写入（同步到 telemetry A 级），返回立即 flush 的 Promise
+import { trackAction, flushTelemetry } from './utils/telemetry.js';
+export async function recordUserOp(type, payload = null, extra = {}) {
+  trackAction(type, payload, extra);
+  return flushTelemetry();
+}
+
+// 3) 查询 userOps + 分组聚合（仪表盘数据层核心）
+// opts:
+//   from: ms (inclusive, nullable)
+//   to:   ms (inclusive, nullable)
+//   groupBy: 'day' | 'hour' | 'module' | 'type' | 'category' | 'dayHour' | null(全量返回数组)
+// 返回：groupBy=null → 原始数组；否则 Map(key → count) 或 数组（day/hour 有序）
+export async function queryUserOps(opts = {}) {
+  const { from = 0, to = Date.now(), groupBy = null } = opts;
+  let arr;
+  if (from > 0) {
+    arr = await db.userOps.where('t').between(from, to, true, true).toArray();
+  } else {
+    arr = (await db.userOps.toArray()).filter(o => (o.t || 0) <= to);
+  }
+  if (!groupBy) return arr;
+  const fmt = (ts) => {
+    const d = new Date(ts);
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  };
+  if (groupBy === 'day') {
+    const m = new Map();
+    for (const o of arr) { const k = fmt(o.t); m.set(k, (m.get(k)||0) + 1); }
+    return [...m.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([d,c])=>({date:d,count:c}));
+  }
+  if (groupBy === 'hour') {
+    const m = new Map();
+    for (let i=0;i<24;i++) m.set(i, 0);
+    for (const o of arr) { const k = new Date(o.t).getHours(); m.set(k, (m.get(k)||0) + 1); }
+    return [...m.entries()].sort(([a],[b])=>a-b).map(([h,c])=>({hour:h,count:c}));
+  }
+  if (groupBy === 'dayHour') {
+    // 7*24 heatmap matrix key = YYYY-MM-DD-HH
+    const m = new Map();
+    for (const o of arr) {
+      const k = `${fmt(o.t)}-${String(new Date(o.t).getHours()).padStart(2,'0')}`;
+      m.set(k, (m.get(k)||0) + 1);
+    }
+    return m; // Map<String, count>
+  }
+  if (groupBy === 'module' || groupBy === 'type' || groupBy === 'category') {
+    const m = new Map();
+    for (const o of arr) { const k = String(o[groupBy] || '（空）'); m.set(k, (m.get(k)||0) + 1); }
+    return [...m.entries()].sort((a,b)=>b[1]-a[1]).map(([k,c])=>({key:k,count:c}));
+  }
+  return arr;
+}
+
+// 4) 最佳 / 最坏拍档（A/B/C/D 四类 + 近期/长期 + 正/反 共 16 种组合）
+// kind:
+//   A = 最高频学习科目（/最冷门）
+//   B = 最高频 Agent 工具调（/最少）
+//   C = 最常共现知识点 pair（/最少）
+//   D = 最活跃单份资产（/最不活跃僵尸单份）
+// rangeDays: 7 = 近期, 90 = 长期
+// worst: false=最佳, true=最坏
+export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = false }) {
+  const since = Date.now() - rangeDays * 24 * 3600 * 1000;
+  const ops = await db.userOps.where('t').above(since - 1).toArray();
+  const dataNotEnough = { notEnough: true, title: '数据不足，继续积累', desc: `近 ${rangeDays} 天操作样本偏少，无法稳定分析。再多使用几天系统就会有结果。`, items: [] };
+
+  // —— A：科目学习频次（基于复习评分/卡片新建）
+  if (kind === 'A') {
+    // 优先从 cards.reviews + card subject 取真实数据
+    const reviews = (await db.reviews.where('reviewedAt').above(since - 1).toArray());
+    if (reviews.length < 3) return dataNotEnough;
+    const cardMap = new Map((await db.cards.bulkGet(reviews.map(r => r.cardId)).then(list => list.filter(Boolean).map(c => [c.id, c]))));
+    const cnt = new Map();
+    for (const r of reviews) {
+      const c = cardMap.get(r.cardId); const k = c?.subject || '未分类';
+      cnt.set(k, (cnt.get(k) || 0) + 1);
+    }
+    let arr = [...cnt.entries()].map(([k,c])=>({key:k,count:c}));
+    arr.sort((a,b)=>worst ? a.count-b.count : b.count-a.count);
+    if (!arr.length) return dataNotEnough;
+    const top = arr.slice(0, 1)[0];
+    return {
+      notEnough: false,
+      title: (worst ? '最冷门学习科目' : '最高频学习科目') + `（近 ${rangeDays} 天）`,
+      desc: `${top.key}：${top.count} 次复习`,
+      items: arr.slice(0, 5),
+      primary: top.key,
+      suggest: worst
+        ? `建议优先补短板：在「${top.key}」安排 30 分钟专项复习`
+        : `优势科目「${top.key}」已形成节奏，可推进到更难章节。`,
+    };
+  }
+
+  // —— B：最高频 Agent 工具（基于 userOps type=ai_call，payload.agentId）
+  if (kind === 'B') {
+    const calls = ops.filter(o => o.type === 'ai_call' || o.type === 'agent_tool_call');
+    if (calls.length < 3) return dataNotEnough;
+    const cnt = new Map();
+    for (const o of calls) { const k = o.payload?.agentId || o.category || 'chat'; cnt.set(k, (cnt.get(k)||0)+1); }
+    let arr = [...cnt.entries()].map(([k,c])=>({key:k,count:c}));
+    arr.sort((a,b)=>worst ? a.count-b.count : b.count-a.count);
+    if (!arr.length) return dataNotEnough;
+    const top = arr[0];
+    return {
+      notEnough: false,
+      title: (worst ? '最少被调 Agent 工具' : '最高频 Agent 工具') + `（近 ${rangeDays} 天）`,
+      desc: `${top.key}：${top.count} 次调用`,
+      items: arr.slice(0, 5),
+      primary: top.key,
+      suggest: worst
+        ? `${top.key} 还有挖掘空间，遇到不确定的知识可尝试调用它。`
+        : `${top.key} 是你的得力助手，继续保持协同节奏。`,
+    };
+  }
+
+  // —— C：最常共现知识点对（基于复习连续两张卡 subject + tags + front 首字共现）
+  if (kind === 'C') {
+    const reviews = (await db.reviews.where('reviewedAt').above(since - 1).limit(200).reverse().toArray()).reverse();
+    if (reviews.length < 8) return dataNotEnough;
+    const cardIds = [...new Set(reviews.map(r => r.cardId))];
+    const cardMap = new Map((await db.cards.bulkGet(cardIds).then(list => list.filter(Boolean).map(c => [c.id, c]))));
+    const pairCnt = new Map();
+    let prevKey = null;
+    for (const r of reviews) {
+      const c = cardMap.get(r.cardId); if (!c) continue;
+      // 签名 = subject + (tags[0] || front 前 4 字)
+      const sig = `${c.subject || '未分类'}|${(c.tags?.[0] || String(c.front||'').slice(0,4))}`;
+      if (prevKey && prevKey !== sig) {
+        const k = [prevKey, sig].sort().join(' ⇄ ');
+        pairCnt.set(k, (pairCnt.get(k) || 0) + 1);
+      }
+      prevKey = sig;
+    }
+    if (pairCnt.size < 2) return dataNotEnough;
+    let arr = [...pairCnt.entries()].map(([k,c])=>({key:k,count:c}));
+    arr.sort((a,b)=>worst ? a.count-b.count : b.count-a.count);
+    const top = arr[0];
+    return {
+      notEnough: false,
+      title: (worst ? '最少共现知识对' : '最常共现知识对') + `（近 ${rangeDays} 天）`,
+      desc: `${top.key}：共现 ${top.count} 次`,
+      items: arr.slice(0, 5),
+      primary: top.key,
+      suggest: worst
+        ? `${top.key} 组合联系薄弱，建议把两者放一张导图里加强关联。`
+        : `${top.key} 已经形成强关联，可尝试合并为高维模型。`,
+    };
+  }
+
+  // —— D：最活跃 / 最不活跃 单份资产（基于 userOps 里卡片 id 出现的次数 / 僵尸）
+  if (kind === 'D') {
+    // 先从 reviews + ops 聚合每卡片的活跃分
+    const reviews = (await db.reviews.where('reviewedAt').above(since - 1).toArray());
+    const opCards = [];
+    for (const o of ops) { if (o.payload?.cardId) opCards.push(String(o.payload.cardId)); }
+    const score = new Map();
+    for (const r of reviews) score.set(r.cardId, (score.get(r.cardId)||0) + 3); // 复习 = 3 分
+    for (const cid of opCards)  score.set(cid,    (score.get(cid)||0) + 1);       // DOM/业务提及 = 1 分
+    let arr;
+    if (worst) {
+      // 最坏：范围时间内分数为 0 且历史总复习为 0 的僵尸卡
+      const all = await db.cards.orderBy('createdAt').limit(500).toArray();
+      const reviewed = new Set(reviews.map(r => r.cardId));
+      const scopedZero = all.filter(c => !score.has(c.id)).map(c => ({ card: c, score: 0 }));
+      const neverReviewed = scopedZero.filter(x => !reviewed.has(x.card.id));
+      if (!neverReviewed.length) return dataNotEnough;
+      neverReviewed.sort((a,b)=>(a.card.createdAt||0)-(b.card.createdAt||0)); // 最老在前
+      const top = neverReviewed[0].card;
+      arr = neverReviewed.slice(0, 10).map(x => ({
+        key: String(x.card.front||'').slice(0, 30) || '（空卡）',
+        count: 0,
+        cardId: x.card.id,
+      }));
+      return {
+        notEnough: false,
+        title: `最不活跃的僵尸单份资产（近 ${rangeDays} 天）`,
+        desc: `${String(top.front||'').slice(0,50) || '（空卡）'} · 创建于 ${new Date(top.createdAt||0).toLocaleDateString()} · 从未复习`,
+        items: arr,
+        primary: String(top.front||'').slice(0, 40),
+        cardId: top.id,
+        suggest: '建议今天就把它加入复习队列，把僵尸资产唤醒。',
+      };
+    }
+    // 最佳：score 最高
+    if (score.size < 5) return dataNotEnough;
+    arr = [...score.entries()].map(([k,c])=>({cardId:String(k),count:c}));
+    arr.sort((a,b)=>b.count-a.count);
+    // 取 top10，把卡片信息补全
+    const ids = arr.slice(0, 10).map(x => x.cardId);
+    const cards = await db.cards.bulkGet(ids);
+    const cardOf = new Map();
+    for (const c of cards) if (c) cardOf.set(c.id, c);
+    const items = arr.slice(0, 10).map(x => ({
+      key: String(cardOf.get(x.cardId)?.front || x.cardId).slice(0, 40),
+      count: x.count,
+      cardId: x.cardId,
+    }));
+    const top = items[0];
+    return {
+      notEnough: false,
+      title: `最活跃单份资产「最佳拍档」（近 ${rangeDays} 天）`,
+      desc: `${top.key} · 互动分数 ${top.count}`,
+      items,
+      primary: top.key,
+      cardId: top.cardId,
+      suggest: `它是你近期最常用的知识点，考虑围绕它构建一张导图，把网络效应放大。`,
+    };
+  }
+  return dataNotEnough;
+}
+
+// 5) 隐私数据 CRUD（B 档超级详尽结构化）
+export async function savePrivacyRecord(record) {
+  const nowTs = Date.now();
+  let payload;
+  if (record?.id) {
+    const old = await db.privacyRecords.get(record.id);
+    payload = plain({
+      ...(old || {}),
+      ...record,
+      updatedAt: nowTs,
+    });
+  } else {
+    const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    const today = new Date();
+    const p = n => String(n).padStart(2, '0');
+    const dateKey = record?.date || `${today.getFullYear()}-${p(today.getMonth()+1)}-${p(today.getDate())}`;
+    payload = plain({
+      id,
+      date: dateKey,
+      startTime: record?.startTime ?? nowTs,
+      endTime: record?.endTime ?? nowTs,
+      type: record?.type || 'other',
+      subType: record?.subType || '',
+      location: record?.location || '',
+      people: Array.isArray(record?.people) ? record.people : [],
+      mood: Number(record?.mood) || 3,
+      energy: Number(record?.energy) || 3,
+      focus: Number(record?.focus) || 3,
+      pleasure: Number(record?.pleasure) || 3,
+      stress: Number(record?.stress) || 3,
+      painIndex: Number(record?.painIndex) || 0,
+      painParts: Array.isArray(record?.painParts) ? record.painParts : [],
+      sleepBlock: record?.sleepBlock || null,
+      eatBlock: record?.eatBlock || null,
+      moveBlock: record?.moveBlock || null,
+      learnBlock: record?.learnBlock || null,
+      workBlock: record?.workBlock || null,
+      screenBlock: record?.screenBlock || null,
+      financeBlock: record?.financeBlock || null,
+      mental: record?.mental || '',
+      customTags: Array.isArray(record?.customTags) ? record.customTags : [],
+      customKV: record?.customKV || {},
+      createdAt: old?.createdAt || nowTs,
+      updatedAt: nowTs,
+    });
+  }
+  await db.privacyRecords.put(payload);
+  return payload;
+}
+export async function listPrivacyRecords({ fromDate, toDate, type, limit = 500 } = {}) {
+  let arr = await db.privacyRecords.orderBy('updatedAt').reverse().limit(limit).toArray();
+  if (fromDate) arr = arr.filter(r => (r.date || '') >= fromDate);
+  if (toDate)   arr = arr.filter(r => (r.date || '') <= toDate);
+  if (type)     arr = arr.filter(r => r.type === type);
+  return arr;
+}
+export async function getPrivacyRecord(id) { return (await db.privacyRecords.get(id)) || null; }
+export async function deletePrivacyRecord(id) {
+  await db.privacyRecords.delete(id);
+  await db.tombstones.put({ id, kind: 'privacy', deletedAt: Date.now() });
+}
+
+// 6) 隐私人物画像报告（启发式本地算法 + 可选 AI 增强）
+// 返回 { physical, behavioral, mental, prediction } 四大块文字
+export async function privacyPersonaReport({ rangeDays = 7, includeUserOps = true } = {}) {
+  const since = Date.now() - rangeDays * 24 * 3600 * 1000;
+  const records = (await db.privacyRecords.toArray()).filter(r => (r.updatedAt || 0) >= since);
+  const N = records.length;
+  const lines = [];
+  lines.push(`【画像周期】近 ${rangeDays} 天，共 ${N} 条隐私记录。${includeUserOps ? '已叠加系统真实操作埋点。' : ''}`);
+
+  // 物理画像：睡眠趋势 / 能量潮汐 / 饮食风险 / 疼痛高发
+  const sleepHrs = records.map(r => r.sleepBlock?.hours).filter(v => Number.isFinite(v));
+  const avgSleep = sleepHrs.length ? sleepHrs.reduce((a,b)=>a+b,0)/sleepHrs.length : null;
+  const mood = records.map(r => Number(r.mood)||0).filter(v=>v>0);
+  const avgMood = mood.length ? mood.reduce((a,b)=>a+b,0)/mood.length : null;
+  const energy = records.map(r => Number(r.energy)||0).filter(v=>v>0);
+  const avgEnergy = energy.length ? energy.reduce((a,b)=>a+b,0)/energy.length : null;
+  const stress = records.map(r => Number(r.stress)||0).filter(v=>v>0);
+  const avgStress = stress.length ? stress.reduce((a,b)=>a+b,0)/stress.length : null;
+
+  const physical = [];
+  if (avgSleep !== null) physical.push(`平均睡眠 ${avgSleep.toFixed(1)}h${avgSleep < 6.5 ? ' ⚠ 偏少，长期缺觉会显著削弱记忆巩固与判断力。' : avgSleep > 8.5 ? '，睡眠充足，是学习效率的基础。' : '，在健康区间。'}`);
+  const caffMg = records.reduce((s,r)=>s + (Number(r.eatBlock?.caffeineMg)||0), 0);
+  if (caffMg > 0) physical.push(`周期咖啡因摄入 ${Math.round(caffMg)}mg${caffMg / rangeDays > 300 ? ' ⚠ 日均超 300mg，会影响深睡结构，建议减半。' : '。'}`);
+  const painScores = records.map(r => Number(r.painIndex)||0).filter(v=>v>0);
+  if (painScores.length) {
+    const allParts = new Map();
+    for (const r of records) for (const p of (r.painParts||[])) allParts.set(p,(allParts.get(p)||0)+1);
+    const topPart = [...allParts.entries()].sort((a,b)=>b[1]-a[1])[0];
+    physical.push(`躯体疼痛发作 ${painScores.length} 天，高发部位：${topPart ? topPart[0] : '无'}，建议安排放松或就医。`);
+  }
+  if (!physical.length) physical.push('（周期内暂无完整睡眠/饮食指标，建议在隐私模块补录。）');
+
+  // 行为画像：科目强弱 / 注意力黄金时段 / 休息缺口（融合 userOps）
+  const behavioral = [];
+  if (includeUserOps) {
+    const ops = await db.userOps.where('t').above(since - 1).toArray();
+    const reviews = ops.filter(o => o.type === 'review_rate');
+    if (reviews.length) {
+      const hrs = new Map();
+      for (const o of reviews) { const h = new Date(o.t).getHours(); hrs.set(h,(hrs.get(h)||0)+1); }
+      const topH = [...hrs.entries()].sort((a,b)=>b[1]-a[1]).slice(0,3).map(([h,c])=>`${String(h).padStart(2,'0')}点(${c}次)`).join('、');
+      behavioral.push(`复习时段热力峰值：${topH}。建议把最难的知识点安排在黄金时段。`);
+    } else { behavioral.push('周期内暂无复习记录，难以锁定注意力黄金时段。'); }
+    // 连续高强度：看日期序列是否出现 7 天全勤但 avgEnergy < 3
+    const daySet = new Set(ops.map(o=>new Date(o.t).toDateString()));
+    if (daySet.size >= rangeDays * 0.8 && avgEnergy !== null && avgEnergy < 3) {
+      behavioral.push('⚠ 出现连续高强度周期但能量分偏低，存在疲劳缺口。建议明天安排一次主动休息。');
+    }
+  } else {
+    behavioral.push('（未融合系统操作，打开 includeUserOps 可得更准确行为画像。）');
+  }
+
+  // 情绪/精神画像：高频情绪词 + 压力趋势
+  const mental = [];
+  if (avgMood !== null) mental.push(`平均心情：${avgMood.toFixed(1)} / 5 ${avgMood>=4?'（非常棒，继续保持）':avgMood<=2.5?'⚠ 偏低，建议安排社交/运动/复盘支持':'（稳定）'}`);
+  if (avgStress !== null) mental.push(`平均压力：${avgStress.toFixed(1)} / 5 ${avgStress>=4?'⚠ 偏高，建议冥想或减少承诺。':avgStress<=2?'（松弛，适合攻坚）':'（适度）'}`);
+  // 精神心得词频（去停用词后取前 6 高频 2+ 字词，不依赖第三方库，简化做）
+  const mentStr = records.map(r => r.mental || '').join('\n');
+  if (mentStr.length > 20) {
+    const stop = new Set(['的','了','和','是','我','也','就','在','都','有','这','不','你','他','她','一','个','很','上','下','会','要','去','把','还','没','吗','呢','啊','吧']);
+    const grams = new Map();
+    for (let i = 0; i < mentStr.length - 1; i++) {
+      const s = mentStr.slice(i, i+2);
+      if (/[\u4e00-\u9fa5]{2}/.test(s) && !stop.has(s[0]) && !stop.has(s[1])) grams.set(s, (grams.get(s)||0)+1);
+    }
+    const top = [...grams.entries()].sort((a,b)=>b[1]-a[1]).slice(0,6).map(([k])=>k);
+    if (top.length) mental.push(`精神高频词：${top.join(' · ')}。`);
+  }
+  if (!mental.length) mental.push('（周期内暂无心情/心得记录，建议在「精神」块补日记。）');
+
+  // 下一步预测 + 调节建议（纯文字报告，不改系统任何参数，完全实验室）
+  const pred = [];
+  if (avgSleep !== null && avgSleep < 6.5) {
+    pred.push('🌙 睡眠预测：若未来 48 小时仍低于 6.5h，次日「记住了」自评率预计下降 15~22%，「没记住」比例上升。建议今晚 23:30 前入睡。');
+  }
+  if (avgEnergy !== null && avgEnergy < 2.8) {
+    pred.push('🔋 能量预测：当前能量分偏低，明日专注深度任务（费曼/模考）的容错空间小。建议先完成 20 分钟轻度整理/标签补全类任务积累状态。');
+  }
+  if (avgStress !== null && avgStress >= 4) {
+    pred.push('🧘 压力预测：压力分持续偏高，接下来 3 天遗忘曲线更陡，薄弱卡复习失败率上升。建议插入 1 场 25 分钟番茄+5 分钟冥想缓冲。');
+  }
+  if (caffMg / rangeDays > 300) {
+    pred.push('☕ 咖啡因预测：高咖啡因 + 睡眠不足的组合会制造「假能量」，真实学习产出反而下降。建议用散步/冷水脸替代下午提神咖啡。');
+  }
+  if (!pred.length) pred.push('📈 综合预测：周期数据整体健康。继续保持现有节奏的同时，可尝试把复习间隔 +10%（SRS ease 加成），进一步压缩总复习时长。');
+
+  return {
+    physical: physical.join('\n'),
+    behavioral: behavioral.join('\n'),
+    mental: mental.join('\n'),
+    prediction: pred.join('\n'),
+    stats: { N, rangeDays, avgSleep, avgMood, avgEnergy, avgStress },
+  };
 }

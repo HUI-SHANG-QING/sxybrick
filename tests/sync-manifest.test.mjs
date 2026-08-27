@@ -1,23 +1,76 @@
 // 同步清单与合并语义回归测试（node --test）
-// 覆盖：13 表登记、卡片双时间戳字段级合并、三种 merge 策略、墓碑 kind 传播与复活
+// 覆盖：16 表登记（含 embeddings，不含 privacyRecords 默认）、
+//   卡片双时间戳字段级合并、consolidation(R2) / wrongReasonAt(R1) 跨设备保留、
+//   三种 merge 策略、墓碑 kind 传播与复活
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   SYNC_TABLES, BACKUP_VERSION,
+  EXCLUDED_FROM_SYNC, PRIVACY_SYNC_TABLES,
+  CARD_SRS_FIELDS,
   mergeCardPair, mergeRows, mergeTombstones, applyTombstones, kindOf,
 } from '../src/sync-manifest.js';
 
-test('清单：14 张表全部登记且策略合法', () => {
-  assert.equal(SYNC_TABLES.length, 14);
-  assert.equal(BACKUP_VERSION, 3);
+test('清单：16 张表全部登记且策略合法', () => {
+  assert.equal(SYNC_TABLES.length, 16);
+  assert.equal(BACKUP_VERSION, 5);
   const names = SYNC_TABLES.map(t => t.table);
-  for (const need of ['cards', 'reviews', 'images', 'aiChats', 'aiMemories', 'memos', 'plans', 'graphEdges', 'docs', 'pomoSessions', 'mindmaps', 'weeklyReports', 'achievements', 'exams']) {
+  // privacyRecords 不在默认同步清单
+  assert.ok(!names.includes('privacyRecords'), 'privacyRecords 不应默认入同步');
+  for (const need of ['cards', 'reviews', 'images', 'aiChats', 'aiMemories', 'memos', 'plans', 'graphEdges', 'docs', 'pomoSessions', 'mindmaps', 'weeklyReports', 'achievements', 'exams', 'embeddings', 'userOps']) {
     assert.ok(names.includes(need), `缺少表 ${need}`);
   }
   for (const t of SYNC_TABLES) {
     assert.ok(['card', 'updatedAt', 'idOnly'].includes(t.merge), `${t.table} 策略非法`);
     assert.ok(t.kind, `${t.table} 缺 kind`);
   }
+});
+
+test('排除表：notifications/errors 故意不同步', () => {
+  assert.ok(EXCLUDED_FROM_SYNC.includes('notifications'));
+  assert.ok(EXCLUDED_FROM_SYNC.includes('errors'));
+});
+
+test('隐私表：默认不入同步，opt-in 清单存在', () => {
+  assert.ok(PRIVACY_SYNC_TABLES.some(t => t.table === 'privacyRecords'));
+  assert.ok(!SYNC_TABLES.some(t => t.table === 'privacyRecords'));
+});
+
+test('R2: consolidation 已入 CARD_SRS_FIELDS', () => {
+  assert.ok(CARD_SRS_FIELDS.includes('consolidation'), 'consolidation 必须在 SRS 字段列表中');
+});
+
+test('R2 回归：consolidation 跨设备合并保留（复习推进不 bump updatedAt）', () => {
+  // 设备A：复习把 consolidation 推进 1→2（不 bump updatedAt）
+  const local = { id: 'c1', front: '旧文', back: '旧答', ease: 2.5, level: 2, consolidation: 2, reviewedAt: 2000, updatedAt: 1000 };
+  // 设备B：编辑文字（bump updatedAt），consolidation 未变
+  const incoming = { id: 'c1', front: '新文', back: '新答', ease: 2.0, level: 1, consolidation: 1, reviewedAt: 900, updatedAt: 2000 };
+  const m = mergeCardPair(local, incoming);
+  assert.equal(m.front, '新文'); // 内容取 updatedAt 新者（设备B）
+  assert.equal(m.consolidation, 2); // SRS 取 reviewedAt 新者（设备A），consolidation 必须保留
+  assert.equal(m.ease, 2.5);
+  assert.equal(m.level, 2);
+});
+
+test('R1 回归：wrongReason 用独立时间戳合并，不随 updatedAt 丢失', () => {
+  // 设备A：复习写错因 wrongReason='概念混淆'，wrongReasonAt=3000（不 bump updatedAt=1000）
+  const local = { id: 'c2', front: '旧文', back: '旧答', wrongReason: '概念混淆', wrongReasonAt: 3000, updatedAt: 1000, reviewedAt: 1000, ease: 2.5, level: 1 };
+  // 设备B：编辑文字（bump updatedAt=2000），不写错因
+  const incoming = { id: 'c2', front: '新文', back: '新答', updatedAt: 2000, reviewedAt: 900, ease: 2.0, level: 2 };
+  const m = mergeCardPair(local, incoming);
+  assert.equal(m.front, '新文'); // 内容取设备B
+  assert.equal(m.wrongReason, '概念混淆'); // 错因必须保留（设备A 的 wrongReasonAt 更新）
+  assert.equal(m.wrongReasonAt, 3000);
+});
+
+test('R1 回归：wrongReason 反向场景（设备B 写了更新的错因）', () => {
+  // 设备A：旧错因，wrongReasonAt=1000
+  const local = { id: 'c3', front: '文', back: '答', wrongReason: '粗心', wrongReasonAt: 1000, updatedAt: 500, reviewedAt: 500, ease: 2.5, level: 1 };
+  // 设备B：复习写新错因，wrongReasonAt=4000
+  const incoming = { id: 'c3', front: '文', back: '答', wrongReason: '记忆不牢', wrongReasonAt: 4000, updatedAt: 500, reviewedAt: 4000, ease: 2.0, level: 2 };
+  const m = mergeCardPair(local, incoming);
+  assert.equal(m.wrongReason, '记忆不牢'); // 取 wrongReasonAt 更新者
+  assert.equal(m.wrongReasonAt, 4000);
 });
 
 test('卡片双时间戳：内容按 updatedAt、SRS 按 reviewedAt 字段级合并', () => {

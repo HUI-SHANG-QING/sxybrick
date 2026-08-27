@@ -618,6 +618,7 @@ export async function smartRemediation(cardId, opt = {}) {
       const toLabel = String(t.card.front || '').slice(0, 30).trim();
       const e = await createGraphEdge({
         from: fromLabel, to: toLabel,
+        fromCardId: card.id, toCardId: t.card.id,
         label: t.label,
         subject: card.subject || t.card.subject || '',
       });

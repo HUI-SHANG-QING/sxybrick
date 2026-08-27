@@ -6,6 +6,7 @@ import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBa
 import { getSubjects, createCard } from '../repo.js';
 import { getErrors, clearErrors } from '../utils/errorLog.js';
 import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from '../utils/gistBackup.js';
+import { T } from '../utils/telemetry.js';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 // GH Pages 上 location.origin 是 https://xxx.github.io 且没有 /backup 接口，不能作为 Hub 默认地址。
@@ -215,9 +216,11 @@ async function doSync() {
     const stats = await syncWithHub(hub, hubToken.value);
     await loadCounts();
     saveReport('局域网一键同步', stats);
+    try { T.syncRun('hub', true); } catch {}
     toast(`与电脑同步完成：${fmtStats(stats)}`, 'success');
   } catch (e) {
     const base = e.message || String(e);
+    try { T.syncRun('hub', false); } catch {}
     const extras = diagnoseFetchError(base, hub);
     // 把诊断追加到 toast，详细诊断放错误日志便于排查
     const fullMsg = base + (extras.length ? '\n\n' + extras.join('\n') : '');

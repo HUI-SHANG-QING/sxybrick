@@ -7,6 +7,7 @@ import { toast } from '../utils/toast.js';
 import { speak } from '../utils/tts.js';
 import { sendNotify } from '../utils/notify.js';
 import { addPomoSession, countPomoToday } from '../repo.js';
+import { T } from '../utils/telemetry.js';
 
 const MODES = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
 const STATE_KEY = 'sxy_pomo_state';
@@ -82,6 +83,7 @@ async function finish() {
     } else {
       bc?.postMessage({ type: 'pomo-finish', at: Date.now() });
       await addPomoSession({ duration: 25, startedAt: focusStartedAt, tag: '' }); // 入库，随数据包同步
+      try { T.pomodoroEnd(25, 'focus'); } catch {}
     }
     await refreshDone();
     toast('专注完成，休息一下！', 'success'); speak('专注完成，休息一下吧');
@@ -89,6 +91,7 @@ async function finish() {
     // 每 4 个专注一个长休（用今日总数判断，跨页面/跨天一致）
     switchMode(doneToday.value % 4 === 0 ? 'long' : 'short');
   } else {
+    try { T.pomodoroEnd(mode.value === 'short' ? 5 : 15, mode.value); } catch {}
     toast('休息结束，继续加油！', 'success'); speak('休息结束，继续加油');
     switchMode('focus');
   }

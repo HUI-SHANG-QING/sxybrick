@@ -4,14 +4,17 @@ import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } 
 import { useRouter, useRoute } from 'vue-router';
 import VirtualList from '../components/VirtualList.vue';
 import CardModal from '../components/CardModal.vue';
+import FlipCard from '../components/FlipCard.vue';
 import EmptyState from '../components/EmptyState.vue';
+import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
 import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI } from '../ai.js';
 import { genVariants } from '../utils/genVariants.js';
-import { getForgetRisk } from '../agent/analytics.js';
+import { getForgetRisk, getAssetHealth } from '../agent/analytics.js';
+import { T } from '../utils/telemetry.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -27,8 +30,47 @@ const total = ref(0);
 const dueCount = ref(0);
 const loading = ref(false);
 
+// ---------- 资产体检跳转支持（?zombie=1 / ?dupGroup=key / ?orphan=1 / ?expandAll=1） ----------
+const activeFilterBanner = ref('');   // 顶部提示：当前是从资产体检跳过来的哪一组
+// collapsedIds 语义：集合中的 id = 当前卡详情被“收起”（看不见 front+back 全 Markdown）
+// expandAllByDefault=true 时 collapsedIds 默认为空→全展开；false 时 collapsedIds 放所有卡 id，用户点开的从集合移除。
+const collapsedIds = ref(new Set());
+const expandAllByDefault = ref(false);
+// 普通模式下用户主动展开过的卡，用于区分“默认隐藏”还是“用户已主动点开”
+const normalExpandedIds = ref(new Set());
+function showFullDetail(id) {
+  if (expandAllByDefault.value) return !collapsedIds.value.has(id);
+  // 普通模式：只有用户点过展开的卡才显示详情
+  return normalExpandedIds.value.has(id) && !collapsedIds.value.has(id);
+}
+function toggleExpand(id) {
+  if (expandAllByDefault.value) {
+    const s = new Set(collapsedIds.value);
+    if (s.has(id)) s.delete(id); else s.add(id);
+    collapsedIds.value = s;
+    return;
+  }
+  // 普通模式
+  const n = new Set(normalExpandedIds.value);
+  const c = new Set(collapsedIds.value);
+  if (n.has(id)) {
+    n.delete(id); c.add(id);
+  } else {
+    n.add(id); c.delete(id);
+  }
+  normalExpandedIds.value = n;
+  collapsedIds.value = c;
+}
+function isExpanded(id) {
+  if (expandAllByDefault.value) return !collapsedIds.value.has(id);
+  return normalExpandedIds.value.has(id);
+}
+
 const modalOpen = ref(false);
 const editing = ref(null);
+// 预览模式：点击卡片体打开 FlipCard 预览层，再决定是否编辑
+const previewCard = ref(null);
+const showPreview = ref(false);
 const weakMode = ref(localStorage.getItem('sxy_card_weak') === '1');
 const suggestion = ref(null);
 const goal = ref(20);
@@ -79,11 +121,21 @@ async function loadCards() {
       tags: filters.tags, logic: filters.logic,
       sortBy: sortBy.value,
     });
-    // ?untagged=1：在 listCards 返回结果之上再做一层过滤，保留完全无标签的卡
     let list = data.items;
     if (filters._untagged) list = list.filter(c => !c.tags || !c.tags.length);
+    if (filters._zombieIds && filters._zombieIds.size) {
+      list = list.filter(c => filters._zombieIds.has(c.id));
+    }
+    if (filters._dupIds && filters._dupIds.size) {
+      list = list.filter(c => filters._dupIds.has(c.id));
+    }
+    if (filters._orphanImageIds && filters._orphanImageIds.size) {
+      // 孤儿图片不是卡片，空列表；用 activeFilterBanner 说明
+      list = [];
+    }
     items.value = list;
-    total.value = filters._untagged ? list.length : data.total;
+    total.value = (filters._untagged || filters._zombieIds || filters._dupIds || filters._orphanImageIds)
+      ? list.length : data.total;
     dueCount.value = data.dueCount;
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; }
@@ -102,6 +154,18 @@ function toggleTag(name) {
 
 function openCreate() { editing.value = null; modalOpen.value = true; }
 function openEdit(card) { editing.value = card; modalOpen.value = true; }
+// 卡片预览：点击卡片体（非按钮区）打开 FlipCard 预览层
+function openPreview(item, e) {
+  if (e && e.target.closest('button')) return;
+  previewCard.value = item;
+  showPreview.value = true;
+}
+function closePreview() { showPreview.value = false; previewCard.value = null; }
+function previewEdit() {
+  const card = previewCard.value;
+  showPreview.value = false;
+  if (card) { editing.value = card; modalOpen.value = true; }
+}
 function toggleWeak() { weakMode.value = !weakMode.value; localStorage.setItem('sxy_card_weak', weakMode.value ? '1' : '0'); loadCards(); }
 async function toggleMarked(card) {
   try {
@@ -128,6 +192,7 @@ async function remove(card) {
   if (!confirm(`确定删除这张卡片？\n${plain(card.front).slice(0, 40)}`)) return;
   try {
     await deleteCard(card.id);
+    try { T.cardDelete(card.id); } catch {}
     await loadCards();
     await loadMeta();
     toast('已删除', 'success');
@@ -181,12 +246,16 @@ watch(searchInput, v => {
 const highlightId = ref('');
 
 /**
- * 读取 URL 查询参数（搜索结果跳转 / 命令面板跳转 / 科目和标签直链）：
+ * 读取 URL 查询参数（搜索结果跳转 / 命令面板跳转 / 科目和标签直链 / 资产体检快捷跳转）：
  *   ?id=xxx      → 自动打开该卡编辑弹窗，并滚动/高亮
  *   ?subject=xxx → 自动筛选该科目
  *   ?tag=xxx     → 自动筛选该标签（可重复出现多个）
- *   ?untagged=1  → 仅显示无标签卡（"无标签卡 N 种"快捷跳转）
+ *   ?untagged=1  → 仅显示无标签卡
  *   ?q=xxx       → 自动填充关键词搜索
+ *   ?zombie=1    → 从资产体检「僵尸卡」跳转：筛出从未复习的到期 90+ 天卡
+ *   ?dupGroup=xx → 从资产体检「重复卡组」跳转：筛出该组内所有重复卡（按 subject+front 开头匹配）
+ *   ?orphan=1    → 从资产体检「孤儿图片」跳转：展示无引用图片（卡片列表没内容，顶部会给出图片浏览面板）
+ *   ?expandAll=1 → 默认全展开详情（背诵效果页：同时展示正面 + 背面完整 Markdown）
  */
 async function applyQueryParams() {
   const id = route.query?.id ? String(route.query.id) : '';
@@ -195,6 +264,10 @@ async function applyQueryParams() {
     ? route.query.tag.map(t => String(t).trim()).filter(Boolean)
     : (route.query?.tag ? [String(route.query.tag).trim()] : []);
   const untagged = route.query?.untagged === '1' || route.query?.untagged === true;
+  const zombie = route.query?.zombie === '1' || route.query?.zombie === true;
+  const dupGroup = route.query?.dupGroup ? String(route.query.dupGroup) : '';
+  const orphan = route.query?.orphan === '1' || route.query?.orphan === true;
+  const expand = route.query?.expandAll === '1' || route.query?.expandAll === true;
   const qp = route.query?.q ? String(route.query.q).trim() : '';
   let changed = false;
   if (subj && filters.subject !== subj) { filters.subject = subj; changed = true; }
@@ -205,16 +278,61 @@ async function applyQueryParams() {
     }
   }
   if (untagged) {
-    // 仅显示无标签卡：筛掉 tags 非空的卡，走 q 里注入 "无标签" 语义并在后处理补
-    // 这里直接在过滤器里追加 notag 专用逻辑，改 filters.q 会影响用户体验
     filters.logic = 'NOT';
-    // 用一个特殊 tag 占位：虚拟列表里 tag 过滤逻辑会正常工作，
-    // 我们把 untagged 过滤在 listCards 外面的 postFilter 里处理更简单；
-    // 为此把 untagged 写入 filters，让 listCards 识别。
     filters._untagged = true;
+    activeFilterBanner.value = '🏷 显示「无标签卡」（从资产体检跳转而来）。可点卡片右上角的「编辑」补齐标签，或点「清理」回到资产体检。';
     changed = true;
   } else if (filters._untagged) {
     delete filters._untagged;
+  }
+  // 从资产体检跳转：动态取到最新健康结果，按 id/组精确过滤
+  let healthCache = null;
+  if (zombie || dupGroup || orphan) {
+    try { healthCache = await getAssetHealth(); } catch (e) { healthCache = null; }
+  }
+  if (zombie && healthCache) {
+    filters._zombieIds = new Set(healthCache.zombies.map(z => z.id));
+    activeFilterBanner.value = `🧟 显示「僵尸卡」共 ${healthCache.zombies.length} 张（90+ 天未复习且早已到期）。默认全展开详情，方便决定是否清理。`;
+    collapsedIds.value = new Set();
+    expandAllByDefault.value = true;
+    changed = true;
+  } else { filters._zombieIds = null; }
+  if (dupGroup && healthCache) {
+    // __all__ = 查看全部重复卡组合并；否则按 key 找单个组
+    if (dupGroup === '__all__' && healthCache.duplicates.length) {
+      const allIds = [];
+      let totalDup = 0;
+      for (const g of healthCache.duplicates) { allIds.push(...g.cards.map(c => c.id)); totalDup += g.n - 1; }
+      filters._dupIds = new Set(allIds);
+      activeFilterBanner.value = `♻ 显示「全部重复卡」共 ${healthCache.duplicates.length} 组 / ${allIds.length} 张（重复冗余 ${totalDup} 张）。默认全展开详情对比后，可回到资产体检合并去重。`;
+      collapsedIds.value = new Set();
+      expandAllByDefault.value = true;
+      changed = true;
+    } else {
+      const group = healthCache.duplicates.find(g => g.key === dupGroup)
+        || healthCache.duplicates.find(g => g.front && dupGroup.includes(String(g.front).slice(0, 30)));
+      if (group) {
+        filters._dupIds = new Set(group.cards.map(c => c.id));
+        activeFilterBanner.value = `♻ 显示「重复卡组」共 ${group.cards.length} 张（正面：${String(group.front).slice(0,40)}…）。默认全展开详情对比后，可回到资产体检合并去重。`;
+        collapsedIds.value = new Set();
+        expandAllByDefault.value = true;
+        changed = true;
+      } else {
+        filters._dupIds = null;
+      }
+    }
+  } else { filters._dupIds = null; }
+  if (orphan) {
+    filters._orphanImageIds = new Set((healthCache?.orphanImages || []).map(i => i.id));
+    activeFilterBanner.value = `🖼 显示「孤儿图片」共 ${healthCache?.orphanImages?.length || 0} 张（已无卡片引用，可直接清理）。`;
+    orphanImages.value = healthCache?.orphanImages || [];
+    orphanImagesVisible.value = true;
+    changed = true;
+  } else { filters._orphanImageIds = null; orphanImagesVisible.value = false; orphanImages.value = []; }
+
+  if (expand) {
+    expandAllByDefault.value = true;
+    collapsedIds.value = new Set();
   }
   if (qp && filters.q !== qp) { filters.q = qp; searchInput.value = qp; changed = true; }
   if (changed) {
@@ -236,6 +354,37 @@ async function applyQueryParams() {
       setTimeout(() => { highlightId.value = ''; }, 2500);
     }
   }
+}
+
+// —— 孤儿图片面板（仅在 ?orphan=1 时显示） ——
+const orphanImages = ref([]);
+const orphanImagesVisible = ref(false);
+async function removeOrphan(id) {
+  try {
+    await db.images.delete(id);
+    orphanImages.value = orphanImages.value.filter(i => i.id !== id);
+    toast('已删除 1 张孤儿图片', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+async function removeAllOrphans() {
+  if (!orphanImages.value.length) return;
+  if (!confirm(`一次性清理 ${orphanImages.value.length} 张孤儿图片？`)) return;
+  try {
+    for (const i of orphanImages.value) await db.images.delete(i.id);
+    orphanImages.value = [];
+    toast('孤儿图片已全部清理', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+function dataUrlOf(img) {
+  if (!img?.data) return '';
+  if (typeof img.data === 'string') return img.data;
+  if (img.data instanceof Blob) return URL.createObjectURL(img.data);
+  if (img.data instanceof ArrayBuffer || ArrayBuffer.isView(img.data)) {
+    let binary = ''; const bytes = new Uint8Array(img.data);
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    return `data:${img.type || 'image/png'};base64,${btoa(binary)}`;
+  }
+  return '';
 }
 
 onMounted(async () => {
@@ -274,7 +423,8 @@ async function importBatch() {
   try {
     let n = 0;
     for (const c of cards) {
-      await createCard({ front: c.front, back: c.back, subject: batchSubject.value || '', tags: [], type: 'basic' });
+      const r = await createCard({ front: c.front, back: c.back, subject: batchSubject.value || '', tags: [], type: 'basic' });
+      try { T.cardNew(r?.id ?? r); } catch {}
       n++;
     }
     batchOpen.value = false;
@@ -448,15 +598,31 @@ async function rescueAll() {
 
     <VirtualList v-if="viewMode === 'scroll'" :items="items">
       <template #default="{ item }">
-        <div class="card-item">
+        <div class="card-item" :class="{ highlight: highlightId === item.id }" @click="openPreview(item, $event)" style="cursor:pointer">
           <div class="tags">
             <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
             <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
             <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">遗忘{{ item.failCount }}次</span>
+            <span style="flex:1"></span>
+            <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)" :title="(expandAllByDefault ? (collapsedIds.has(item.id) ? '展开' : '收起') : (collapsedIds.has(item.id) ? '收起' : '展开')) + '完整详情'">
+              {{ expandAllByDefault ? (collapsedIds.has(item.id) ? '展开详情' : '收起详情') : (collapsedIds.has(item.id) ? '收起详情' : '展开详情') }}
+            </button>
           </div>
           <div v-if="item.source" class="hint" style="margin-bottom:4px">来源：{{ item.source }}</div>
-          <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
-          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+          <!-- 默认：只显示 front preview；expandAll=1 或用户点展开：显示 front + back 完整 Markdown（背诵效果） -->
+          <template v-if="showFullDetail(item.id)">
+            <div class="detail-block">
+              <div class="detail-label">正面（问题）</div>
+              <div class="detail-face front"><MarkdownRenderer :content="item.front" /></div>
+              <div v-if="item.back" class="detail-label" style="margin-top:8px">背面（答案）</div>
+              <div v-if="item.back" class="detail-face back"><MarkdownRenderer :content="item.back" /></div>
+              <div v-if="item.mnemonic" class="mnemonic-block">助记：{{ item.mnemonic }}</div>
+            </div>
+          </template>
+          <template v-else>
+            <div class="front-preview">{{ plain(item.front).slice(0, 160) || '（空）' }}</div>
+          </template>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
             <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
             <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? '生成中…' : '变式' }}</button> <button class="btn small" @click="openDiagnose(item)">诊断</button> <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
           </div>
@@ -465,24 +631,85 @@ async function rescueAll() {
     </VirtualList>
 
     <template v-else>
-      <div v-for="item in items" :key="item.id" class="card-item">
+      <div v-for="item in items" :key="item.id" class="card-item" :class="{ highlight: highlightId === item.id }" @click="openPreview(item, $event)" style="cursor:pointer">
         <div class="tags">
           <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
           <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
           <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">遗忘{{ item.failCount }}次</span>
+          <span style="flex:1"></span>
+          <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)">
+            {{ expandAllByDefault ? (collapsedIds.has(item.id) ? '展开详情' : '收起详情') : (collapsedIds.has(item.id) ? '收起详情' : '展开详情') }}
+          </button>
         </div>
         <div v-if="item.source" class="hint" style="margin-bottom:4px">来源：{{ item.source }}</div>
-        <div class="front-preview">{{ plain(item.front).slice(0, 120) || '（空）' }}</div>
-        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px">
+        <template v-if="showFullDetail(item.id)">
+          <div class="detail-block">
+            <div class="detail-label">正面（问题）</div>
+            <div class="detail-face front"><MarkdownRenderer :content="item.front" /></div>
+            <div v-if="item.back" class="detail-label" style="margin-top:8px">背面（答案）</div>
+            <div v-if="item.back" class="detail-face back"><MarkdownRenderer :content="item.back" /></div>
+            <div v-if="item.mnemonic" class="mnemonic-block">助记：{{ item.mnemonic }}</div>
+          </div>
+        </template>
+        <template v-else>
+          <div class="front-preview">{{ plain(item.front).slice(0, 160) || '（空）' }}</div>
+        </template>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
           <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
           <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? '生成中…' : '变式' }}</button> <button class="btn small" @click="openDiagnose(item)">诊断</button> <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
         </div>
       </div>
     </template>
 
+    <!-- 孤儿图片面板（从资产体检跳转 orphan=1 时显示） -->
+    <div v-if="orphanImagesVisible" class="panel orphan-panel" style="margin-top:12px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <span class="field-label" style="margin:0">孤儿图片（{{ orphanImages.length }} 张）</span>
+        <span class="hint">这些图片已无任何卡片 Markdown 引用，可直接删除释放本地空间。</span>
+        <span style="flex:1"></span>
+        <button v-if="orphanImages.length" class="btn small primary" @click="removeAllOrphans">一键全部清理</button>
+      </div>
+      <div v-if="!orphanImages.length" class="hint">✅ 暂无需清理的孤儿图片。</div>
+      <div v-else class="orphan-grid">
+        <div v-for="img in orphanImages" :key="img.id" class="orphan-cell">
+          <img :src="dataUrlOf(img)" :alt="img.id" />
+          <div class="orphan-meta">
+            <span class="hint">{{ new Date(img.createdAt || Date.now()).toLocaleDateString() }}</span>
+            <span style="flex:1"></span>
+            <button class="btn small danger" @click="removeOrphan(img.id)">删除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 资产体检跳转 banner -->
+    <div v-if="activeFilterBanner" class="filter-banner" style="margin-top:14px">
+      <span>{{ activeFilterBanner }}</span>
+      <span style="flex:1"></span>
+      <button class="chip" @click="router.push('/health')">回到资产体检</button>
+      <button class="chip" @click="activeFilterBanner='';location.search=''">清空当前筛选</button>
+    </div>
+
     <EmptyState v-if="!loading && !items.length" title="还没有卡片" message="创建第一张记忆卡片，开始高效复习">
       <button class="btn primary" @click="openCreate">＋ 新建第一张卡</button>
     </EmptyState>
+
+    <!-- 卡片预览层：点击卡片体打开，内嵌 FlipCard 翻转预览，编辑按钮才打开 CardModal -->
+    <teleport to="body">
+      <div v-if="showPreview && previewCard" class="modal-mask preview-mask" @click.self="closePreview">
+        <div class="preview-wrap" @click.stop>
+          <div class="preview-head">
+            <span class="hint" style="font-weight:600;color:var(--ink)">卡片预览（点击卡片翻面）</span>
+            <span style="flex:1"></span>
+            <button class="btn small primary" @click="previewEdit">编辑</button>
+            <button class="btn small" @click="closePreview">关闭</button>
+          </div>
+          <div class="preview-body">
+            <FlipCard :card="previewCard" @edit="previewEdit" />
+          </div>
+        </div>
+      </div>
+    </teleport>
 
     <CardModal v-model="modalOpen" :card="editing" @saved="onSaved" />
 
@@ -551,4 +778,71 @@ async function rescueAll() {
 .g-master { background: #dbeafe; color: #2563eb; }
 .g-weak { background: #fee2e2; color: #dc2626; }
 .diag-text { white-space: pre-wrap; line-height: 1.7; color: var(--ink); }
+
+/* 资产体检跳转：高亮、详情展开、banner、孤儿图网格 */
+.card-item.highlight { box-shadow: 0 0 0 2px var(--blue), 0 8px 20px rgba(37,99,235,.15); }
+.expand-chip { font-size: 11px; padding: 2px 10px; }
+.detail-block {
+  margin: 6px 0 2px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px;
+  background: color-mix(in srgb, var(--code-bg) 50%, transparent);
+}
+.detail-label { font-size: 11px; color: var(--ink-2); letter-spacing: .5px; margin-bottom: 4px; font-weight: 600; }
+.detail-face { padding: 6px 8px; border-radius: 8px; background: var(--panel); }
+.detail-face.back { background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.mnemonic-block { margin-top: 8px; padding: 6px 10px; background: var(--code-bg); border-radius: 8px; color: var(--ink-2); font-size: 13px; }
+
+.filter-banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: 10px;
+  background: color-mix(in srgb, var(--amber) 10%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--line));
+  color: #78350f; font-size: 13px;
+}
+
+.orphan-panel { border-left: 3px solid var(--amber) !important; }
+.orphan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+.orphan-cell {
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--page-bg);
+  display: flex; flex-direction: column;
+}
+.orphan-cell img {
+  width: 100%; height: 140px; object-fit: contain; background: #fff; display: block;
+  border-bottom: 1px solid var(--line);
+}
+.orphan-meta { display: flex; align-items: center; gap: 8px; padding: 6px 8px; }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; }
+.field-label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.chip.mini { font-size: 12px; padding: 2px 10px; }
+
+/* 卡片预览层：fixed 全屏半透明遮罩 + 居中容器 */
+.preview-mask { align-items: center; justify-content: center; padding: 20px; }
+.preview-wrap {
+  width: min(720px, 92vw);
+  max-height: 90vh;
+  background: var(--panel);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 60px rgba(0,0,0,.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.preview-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--code-bg);
+  flex-shrink: 0;
+}
+.preview-body {
+  padding: 14px 16px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
 </style>

@@ -1,14 +1,23 @@
 // 同步清单（唯一事实来源）
 // 前端 src/sync.js 与局域网中枢 sync-hub/hub.js 共用同一份清单，
 // 新增数据表时只需在此登记，导出/导入/中枢合并便自动覆盖，避免多处遗漏。
-// 注意：本文件必须保持“无浏览器依赖”，因为 hub.js 会直接在 Node 里 import 它。
+// 注意：本文件必须保持"无浏览器依赖"，因为 hub.js 会直接在 Node 里 import 它。
 
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 5;
 
 // merge 策略：
-//   card      卡片专属：内容字段按 updatedAt、SRS 字段（ease/level/intervalDays/dueAt/difficulty/wrongReason）按 reviewedAt 字段级合并
+//   card      卡片专属：内容字段按 updatedAt、SRS 字段按 reviewedAt、错因按 wrongReasonAt 字段级合并
 //   updatedAt 按 max(updatedAt ?? createdAt ?? 0) 谁新听谁
-//   idOnly    按 id 幂等（不可变记录：复习、图片、番茄专注）
+//   idOnly    按 id 幂等（不可变记录：复习、图片、番茄专注、向量嵌入）
+
+// 本地日志/通知表——设备本地诊断数据，故意不同步（跨设备无意义且增大包体积）
+export const EXCLUDED_FROM_SYNC = ['notifications', 'errors'];
+
+// 隐私敏感表——默认不入同步/全量导出，需用户显式 opt-in（PIPL 合规）
+export const PRIVACY_SYNC_TABLES = [
+  { table: 'privacyRecords', kind: 'privacy', merge: 'updatedAt' },
+];
+
 export const SYNC_TABLES = [
   { table: 'cards', kind: 'card', merge: 'card' },
   { table: 'reviews', kind: 'review', merge: 'idOnly' },
@@ -24,23 +33,31 @@ export const SYNC_TABLES = [
   { table: 'weeklyReports', kind: 'weeklyReport', merge: 'updatedAt' },
   { table: 'achievements', kind: 'achievement', merge: 'idOnly' }, // 解锁不可逆：id 幂等
   { table: 'exams', kind: 'exam', merge: 'updatedAt' },
+  // v9 新增：RAG 向量嵌入（由 cardId+content 确定性生成，idOnly 幂等即可）
+  { table: 'embeddings', kind: 'embedding', merge: 'idOnly' },
+  // v13 新增：用户全操作埋点（量大：导出时默认提供"仅导出聚合"选项以缩小包体积）
+  { table: 'userOps', kind: 'userOp', merge: 'idOnly' },
+  // privacyRecords 默认不入同步（PIPL 敏感数据），见 PRIVACY_SYNC_TABLES + includePrivacySync()
 ];
 
 // 卡片字段级合并分组：
-//   内容侧（按 updatedAt 谁新听谁）：文本/科目/标签/来源/错题标记/助记/错因/难度梯度(P3-E)
-//   SRS 侧（按 reviewedAt ?? updatedAt 谁新听谁）：记忆曲线状态与复习元信息
+//   内容侧（按 updatedAt 谁新听谁）：文本/科目/标签/来源/错题标记/助记/难度梯度(P3-E)
+//   SRS 侧（按 reviewedAt ?? updatedAt 谁新听谁）：记忆曲线状态(ease/level/intervalDays/dueAt) + consolidation(短期巩固状态)
+//   错因侧（按 wrongReasonAt 独立取新者）：wrongReason 由复习写入但不 bump updatedAt，
+//         故不跟随内容也不跟随 SRS，用独立时间戳 wrongReasonAt 合并，避免跨设备丢失
 //   注：difficulty 是卡片固有内容属性（basic/applied/challenge），随内容编辑走 updatedAt 合并，
 //       而非复习状态；否则另一台设备单纯复习（reviewedAt 更新）会覆盖本机的难度编辑。
-export const CARD_CONTENT_FIELDS = ['front', 'back', 'subject', 'source', 'type', 'marked', 'mnemonic', 'tags', 'frontChars', 'backChars', 'wrongReason', 'difficulty'];
-export const CARD_SRS_FIELDS = ['ease', 'level', 'intervalDays', 'dueAt', 'reviewedAt'];
+export const CARD_CONTENT_FIELDS = ['front', 'back', 'subject', 'source', 'type', 'marked', 'mnemonic', 'tags', 'frontChars', 'backChars', 'difficulty'];
+export const CARD_SRS_FIELDS = ['ease', 'level', 'intervalDays', 'dueAt', 'reviewedAt', 'consolidation'];
 
 // ---------- 纯合并函数（无浏览器依赖，前端 sync.js 与 Node 端 hub.js 共用） ----------
 
 // 墓碑 kind 缺省 = card（兼容旧数据包）
 export function kindOf(t) { return t?.kind || 'card'; }
 
-// 卡片字段级合并：内容与 SRS 各自独立取「新者」，
-// 解决「复习动作 bump updatedAt 会把另一台设备的文字编辑覆盖掉」的数据丢失问题
+// 卡片字段级合并：内容、SRS、错因各自独立取「新者」，
+// 解决「复习动作 bump updatedAt 会把另一台设备的文字编辑覆盖掉」的数据丢失问题，
+// 同时解决「错因随复习写入但不 bump updatedAt，另一台设备编辑文字后错因被丢」的问题
 export function mergeCardPair(local, incoming) {
   const incTs = incoming.updatedAt ?? 0;
   const locTs = local.updatedAt ?? 0;
@@ -51,6 +68,16 @@ export function mergeCardPair(local, incoming) {
   const out = { ...content, updatedAt: Math.max(incTs, locTs) };
   for (const f of CARD_SRS_FIELDS) {
     if (srs && srs[f] !== undefined) out[f] = srs[f];
+  }
+  // 错因用独立时间戳 wrongReasonAt 合并（不跟随 updatedAt 也不跟随 reviewedAt）
+  const incWRA = incoming.wrongReasonAt ?? 0;
+  const locWRA = local.wrongReasonAt ?? 0;
+  if (incWRA >= locWRA) {
+    out.wrongReason = incoming.wrongReason ?? '';
+    if (incWRA) out.wrongReasonAt = incWRA;
+  } else {
+    out.wrongReason = local.wrongReason ?? '';
+    if (locWRA) out.wrongReasonAt = locWRA;
   }
   return out;
 }

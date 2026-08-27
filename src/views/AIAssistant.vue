@@ -6,6 +6,7 @@ import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, ge
 import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLATES } from '../utils/genDeck.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import { speak } from '../utils/tts.js';
+import { T } from '../utils/telemetry.js';
 
 const chats = ref([]);
 const currentChat = ref(newChat());
@@ -78,6 +79,7 @@ async function send() {
       { role: 'system', content: SYSTEM_PROMPT + '\n\n' + (mem ? mem + '\n\n' : '') + ctx },
       ...currentChat.value.messages,
     ]);
+    try { T.aiCall('chat', (reply || '').length); } catch {}
     currentChat.value.messages.push({ role: 'assistant', content: reply });
     if (voiceOn.value) speak(reply);
     const n = await extractMemories(text, reply);

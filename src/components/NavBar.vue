@@ -15,6 +15,8 @@ const ThreeDCharacter = defineAsyncComponent({
 const props = defineProps({
   variant: { type: String, default: 'classic' },
   navItems: { type: Array, default: () => [] },
+  coreNavs: { type: Array, default: () => [] },
+  hasCoreSetting: { type: Boolean, default: false },
 });
 const router = useRouter();
 const go = (p) => router.push(p);
@@ -52,18 +54,46 @@ function tapFlat(item) { playBlip(760, 0.06, 'triangle', 0.2); setTimeout(() => 
 function tapPaper(item) { playBlip(180, 0.08, 'sine', 0.14); }
 // 国风（2026-08-26）：古琴泛音 —— 点击菜单如拨弦
 function tapGuofeng(item) { playBlip(330, 0.18, 'sine', 0.16); setTimeout(() => playBlip(495, 0.22, 'sine', 0.12), 90); go(item.path); }
+
+// 功能精简：核心项常驻导航，非核心折叠到「更多 ▼」浮层
+// hasCoreSetting=false（用户未设置）时 coreList=全部、moreList=空（向后兼容）
+const coreList = computed(() => props.hasCoreSetting
+  ? props.navItems.filter(item => props.coreNavs.includes(item.path))
+  : props.navItems);
+const moreList = computed(() => props.hasCoreSetting
+  ? props.navItems.filter(item => !props.coreNavs.includes(item.path))
+  : []);
+const moreOpen = ref(false);
+function toggleMore() { moreOpen.value = !moreOpen.value; }
+function closeMore() { moreOpen.value = false; }
+// 点击「更多」浮层里的项：关闭浮层后走对应风格的跳转/音效
+function onMoreItem(item) {
+  closeMore();
+  const v = props.variant;
+  if (v === 'card') tapCard(item);
+  else if (v === 'moba') tapMoba(item);
+  else if (v === 'space') tapSpace(item);
+  else if (v === 'adventure') tapAdventure(item, 0);
+  else if (v === 'flat') tapFlat(item);
+  else if (v === 'focus') { tapFocus(item); go(item.path); }
+  else if (v === 'paper') { tapPaper(item); go(item.path); }
+  else if (v === 'guofeng') tapGuofeng(item);
+  else go(item.path);
+}
 </script>
 
 <template>
   <!-- 移动端：统一底部 Tab -->
   <nav v-if="isMobile" class="app-nav nav-mobile">
-    <router-link v-for="item in navItems.slice(0, 7)" :key="item.path" :to="item.path"><span class="mi">{{ item.icon }}</span>{{ item.label }}</router-link>
+    <router-link v-for="item in coreList" :key="item.path" :to="item.path"><span class="mi">{{ item.icon }}</span>{{ item.label }}</router-link>
+    <a v-if="moreList.length" href="javascript:void(0)" class="more-trigger more-mobile" @click="toggleMore"><span class="mi">⋯</span>更多</a>
   </nav>
 
   <!-- 经典 -->
   <nav v-else-if="props.variant === 'classic'" class="app-nav nav-classic">
     <span class="brand">SxyBrick</span>
-    <router-link v-for="item in navItems" :key="item.path" :to="item.path">{{ item.label }}</router-link>
+    <router-link v-for="item in coreList" :key="item.path" :to="item.path">{{ item.label }}</router-link>
+    <button v-if="moreList.length" class="more-trigger" @click="toggleMore">更多 ▼</button>
   </nav>
 
   <!-- 炉石卡牌：底部卡牌手牌 -->
@@ -71,10 +101,15 @@ function tapGuofeng(item) { playBlip(330, 0.18, 'sine', 0.16); setTimeout(() => 
     <div class="card-table">
       <div class="card-deck">🎴</div>
       <div class="card-hand">
-        <button v-for="item in navItems" :key="item.path" class="hs-card" @click="tapCard(item)">
+        <button v-for="item in coreList" :key="item.path" class="hs-card" @click="tapCard(item)">
           <span class="hs-cost">✦</span>
           <span class="hs-icon">{{ item.icon }}</span>
           <span class="hs-name">{{ item.label }}</span>
+        </button>
+        <button v-if="moreList.length" class="hs-card hs-more" @click="toggleMore">
+          <span class="hs-cost">✦</span>
+          <span class="hs-icon">⋯</span>
+          <span class="hs-name">更多</span>
         </button>
       </div>
     </div>
@@ -85,9 +120,13 @@ function tapGuofeng(item) { playBlip(330, 0.18, 'sine', 0.16); setTimeout(() => 
     <div class="moba-lobby">
       <div class="moba-title">⚔ 选择你的英雄</div>
       <div class="moba-heroes">
-        <button v-for="item in navItems" :key="item.path" class="moba-hero" @click="tapMoba(item)">
+        <button v-for="item in coreList" :key="item.path" class="moba-hero" @click="tapMoba(item)">
           <span class="mh-avatar">{{ item.icon }}</span>
           <span class="mh-name">{{ item.label }}</span>
+        </button>
+        <button v-if="moreList.length" class="moba-hero mh-more" @click="toggleMore">
+          <span class="mh-avatar">⋯</span>
+          <span class="mh-name">更多</span>
         </button>
       </div>
     </div>
@@ -98,8 +137,11 @@ function tapGuofeng(item) { playBlip(330, 0.18, 'sine', 0.16); setTimeout(() => 
     <div class="space-hud">
       <div class="space-radar"><i></i></div>
       <div class="space-items">
-        <button v-for="item in navItems" :key="item.path" class="space-btn" @click="tapSpace(item)">
+        <button v-for="item in coreList" :key="item.path" class="space-btn" @click="tapSpace(item)">
           <span class="sp-icon">{{ item.icon }}</span><em>{{ item.label }}</em>
+        </button>
+        <button v-if="moreList.length" class="space-btn sp-more" @click="toggleMore">
+          <span class="sp-icon">⋯</span><em>更多</em>
         </button>
       </div>
       <div class="space-frame"></div>
@@ -120,8 +162,11 @@ function tapGuofeng(item) { playBlip(330, 0.18, 'sine', 0.16); setTimeout(() => 
       </div>
       <div class="adv-ground"></div>
       <div class="adv-menu">
-        <button v-for="(item, i) in navItems" :key="item.path" class="adv-sigil" @click="tapAdventure(item, i)">
+        <button v-for="(item, i) in coreList" :key="item.path" class="adv-sigil" @click="tapAdventure(item, i)">
           <span>{{ item.icon }}</span><em>{{ item.label }}</em>
+        </button>
+        <button v-if="moreList.length" class="adv-sigil adv-more" @click="toggleMore">
+          <span>⋯</span><em>更多</em>
         </button>
       </div>
     </div>
@@ -130,14 +175,18 @@ function tapGuofeng(item) { playBlip(330, 0.18, 'sine', 0.16); setTimeout(() => 
   <!-- 专注：专业现代顶栏（新主题 · 教育设计系统） -->
   <nav v-else-if="props.variant === 'focus'" class="app-nav nav-focus">
     <span class="brand">🎯 SxyBrick</span>
-    <router-link v-for="item in navItems" :key="item.path" :to="item.path" @click="tapFocus(item)">{{ item.label }}</router-link>
+    <router-link v-for="item in coreList" :key="item.path" :to="item.path" @click="tapFocus(item)">{{ item.label }}</router-link>
+    <button v-if="moreList.length" class="more-trigger" @click="toggleMore">更多 ▼</button>
   </nav>
 
   <!-- 活力：高饱和度胶囊 Dock（新主题 · 平铺多彩） -->
   <nav v-else-if="props.variant === 'flat'" class="app-nav nav-flat">
     <div class="flat-dock">
-      <button v-for="(item, i) in navItems" :key="item.path" class="flat-pill" :style="{ '--i': i }" @click="tapFlat(item)">
+      <button v-for="(item, i) in coreList" :key="item.path" class="flat-pill" :style="{ '--i': i }" @click="tapFlat(item)">
         <span class="fp-dot">{{ item.icon }}</span><span class="fp-name">{{ item.label }}</span>
+      </button>
+      <button v-if="moreList.length" class="flat-pill fp-more" :style="{ '--i': coreList.length }" @click="toggleMore">
+        <span class="fp-dot">⋯</span><span class="fp-name">更多</span>
       </button>
     </div>
   </nav>
@@ -145,22 +194,40 @@ function tapGuofeng(item) { playBlip(330, 0.18, 'sine', 0.16); setTimeout(() => 
   <!-- 纸墨：静学顶栏 + 朱印（新主题 · 反焦虑纸墨风） -->
   <nav v-else-if="props.variant === 'paper'" class="app-nav nav-paper">
     <span class="paper-seal">SxyBrick</span>
-    <router-link v-for="item in navItems" :key="item.path" :to="item.path" @click="tapPaper(item)"><em>{{ item.label }}</em></router-link>
+    <router-link v-for="item in coreList" :key="item.path" :to="item.path" @click="tapPaper(item)"><em>{{ item.label }}</em></router-link>
+    <button v-if="moreList.length" class="more-trigger" @click="toggleMore">更多 ▼</button>
     <span class="paper-quote">日拱一卒</span>
   </nav>
 
   <!-- 兜底：未知/旧风格值回退到经典顶栏 -->
   <nav v-else-if="props.variant === 'guofeng'" class="app-nav nav-guofeng">
     <span class="gf-brand">山水</span>
-    <router-link v-for="item in navItems" :key="item.path" :to="item.path" @click="tapGuofeng(item)"><em>{{ item.label }}</em></router-link>
+    <router-link v-for="item in coreList" :key="item.path" :to="item.path" @click="tapGuofeng(item)"><em>{{ item.label }}</em></router-link>
+    <button v-if="moreList.length" class="more-trigger" @click="toggleMore">更多 ▼</button>
     <span class="gf-quote">澄怀观道</span>
   </nav>
 
   <!-- 兜底：未知/旧风格值回退到经典顶栏 -->
   <nav v-else class="app-nav nav-classic">
     <span class="brand">SxyBrick</span>
-    <router-link v-for="item in navItems" :key="item.path" :to="item.path">{{ item.label }}</router-link>
+    <router-link v-for="item in coreList" :key="item.path" :to="item.path">{{ item.label }}</router-link>
+    <button v-if="moreList.length" class="more-trigger" @click="toggleMore">更多 ▼</button>
   </nav>
+
+  <!-- 功能精简：所有风格共享的「更多 ▼」浮层（点击外部 / 选项后自动关闭） -->
+  <teleport to="body">
+    <div v-if="moreOpen" class="more-mask" @click.self="closeMore">
+      <div class="more-panel">
+        <div class="more-title">更多功能</div>
+        <div class="more-grid">
+          <button v-for="item in moreList" :key="item.path" class="more-item" @click="onMoreItem(item)">
+            <span class="more-icon">{{ item.icon }}</span>
+            <span class="more-name">{{ item.label }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </teleport>
 </template>
 
 <style scoped>
@@ -271,4 +338,32 @@ function tapGuofeng(item) { playBlip(330, 0.18, 'sine', 0.16); setTimeout(() => 
 .gf-quote { margin-left: auto; font-family: 'KaiTi', 'STKaiti', '楷体', serif; color: rgba(20, 24, 28, 0.5); font-size: 14px; letter-spacing: 6px; }
 @media (max-width: 900px) { .gf-quote { display: none; } .nav-guofeng { gap: 10px; } }
 
+/* ===== 功能精简：「更多 ▼」触发按钮 + 共享浮层 ===== */
+/* 通用触发按钮：用于 classic / focus / paper / guofeng 等顶栏风格 */
+.more-trigger { color: var(--ink-2); background: transparent; border: 1px solid var(--line); padding: 6px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; transition: .15s; }
+.more-trigger:hover { color: var(--ink); border-color: var(--accent); background: var(--code-inline); }
+/* 移动端底部 Tab 里的触发器：模仿 router-link 的列布局 */
+.more-mobile { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 11px; padding: 4px 10px; color: var(--ink-2); text-decoration: none; border: none; background: transparent; }
+.more-mobile .mi { font-size: 18px; margin: 0; }
+/* 各强风格触发器微调：让"更多"按钮融入对应主题（复用已有 class 的造型） */
+.hs-more { opacity: .92; }
+.hs-more:hover { transform: translateY(-14px) rotate(3deg) scale(1.04); box-shadow: 0 18px 28px rgba(0,0,0,.6), 0 0 20px #c8a44e66; }
+.mh-more { opacity: .9; }
+.mh-more:hover { border-color: #d4af37; background: rgba(212, 175, 55, .12); transform: translateX(4px); }
+.sp-more { opacity: .9; }
+.sp-more:hover { border-color: #00e5ff; box-shadow: 0 0 14px #00e5ff66; }
+.adv-more { opacity: .92; }
+.adv-more:hover { background: hsl(var(--hue), 50%, 45%); box-shadow: 0 0 16px hsl(var(--hue), 60%, 55%); transform: translateY(-2px); }
+.fp-more { opacity: .95; }
+
+/* 共享浮层：点击遮罩外部关闭 */
+.more-mask { position: fixed; inset: 0; z-index: 200; background: rgba(0, 0, 0, .42); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.more-panel { width: min(560px, 100%); max-height: 80vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 40px rgba(0, 0, 0, .28); padding: 16px; }
+.more-title { font-weight: 600; font-size: 14px; color: var(--ink-2); margin-bottom: 10px; letter-spacing: .5px; }
+.more-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.more-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 10px; border: 1px solid var(--line); background: var(--code-inline); cursor: pointer; transition: .15s; color: var(--ink); }
+.more-item:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, .1); }
+.more-icon { font-size: 22px; }
+.more-name { font-size: 12px; }
+@media (max-width: 720px) { .more-grid { grid-template-columns: repeat(3, 1fr); } }
 </style>

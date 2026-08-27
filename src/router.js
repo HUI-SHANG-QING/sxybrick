@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
+import { pageView } from './utils/telemetry.js';
 
 const routes = [
   { path: '/', component: () => import('./views/Dashboard.vue') },
@@ -23,9 +24,17 @@ const routes = [
   { path: '/health', component: () => import('./views/Health.vue') },
   { path: '/search', component: () => import('./views/Search.vue') },
   { path: '/library', component: () => import('./views/Library.vue') },
+  // P2·10 + P3·11 新增：用户仪表盘（恐怖监控图表）+ 隐私人生数据模块
+  { path: '/user-dashboard', component: () => import('./views/UserDashboard.vue') },
+  { path: '/privacy', component: () => import('./views/PrivacyData.vue') },
 ];
 
 export const router = createRouter({
   history: createWebHashHistory(),
   routes,
+});
+
+// P1·9：路由切换后自动埋点 page_view（恐怖监控的页面级基础来源）
+router.afterEach((to) => {
+  try { pageView(to.path || '/'); } catch { /* 不阻塞主流程 */ }
 });

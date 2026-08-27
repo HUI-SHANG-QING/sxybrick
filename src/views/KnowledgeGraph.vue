@@ -11,6 +11,7 @@ import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { listGraphEdges, createGraphEdge, deleteGraphEdge } from '../repo.js';
 import { agentSystem } from '../agent/index.js';
 import { recommendGraphEdges } from '../intelligence.js';
+import { T } from '../utils/telemetry.js';
 
 const generatedNodes = ref([]);
 const generatedEdges = ref([]);
@@ -67,7 +68,8 @@ async function autoRecommend() {
 async function saveRecommended(idx) {
   const r = recommended.value[idx];
   if (!r) return;
-  const created = await createGraphEdge({ from: r.from, to: r.to, label: r.label, subject: r.subject });
+  // R10：recommendGraphEdges 已返回 fromId/toId（卡片 id），直传避免文本匹配
+  const created = await createGraphEdge({ from: r.from, to: r.to, fromCardId: r.fromId || '', toCardId: r.toId || '', label: r.label, subject: r.subject });
   if (created) {
     toast(`已保存：${r.from} ${r.label} ${r.to}`, 'success');
     recommended.value.splice(idx, 1);
@@ -81,7 +83,7 @@ async function saveRecommended(idx) {
 async function saveAllRecommended() {
   let n = 0, skip = 0;
   for (const r of [...recommended.value]) {
-    const created = await createGraphEdge({ from: r.from, to: r.to, label: r.label, subject: r.subject });
+    const created = await createGraphEdge({ from: r.from, to: r.to, fromCardId: r.fromId || '', toCardId: r.toId || '', label: r.label, subject: r.subject });
     if (created) n++; else skip++;
   }
   recommended.value = [];
@@ -147,15 +149,21 @@ function buildOption(nds, eds, style) {
     for (const e of eds) { if (!childrenOf.has(e.from)) childrenOf.set(e.from, []); childrenOf.get(e.from).push(e.to); }
     const all = new Set([...eds.map(e => e.from), ...eds.map(e => e.to)]);
     const inDeg = new Map(); for (const e of eds) inDeg.set(e.to, (inDeg.get(e.to) || 0) + 1);
+    // 兼容旧数据：edges.from/to 可能是 label（字符串本身）或 新id（=label），统一按 label 走
     const roots = [...all].filter(n => !inDeg.has(n));
-    const rootLabel = (roots.length ? roots : [...all])[0];
+    const forest = roots.length ? roots : [...all];
     const build = (label, visited) => {
       if (visited.has(label)) return null;
       visited.add(label);
       const kids = (childrenOf.get(label) || []).map(k => build(k, new Set(visited))).filter(Boolean);
       return { name: label, value: { subject: subjOf.get(label) || '' }, children: kids };
     };
-    const root = build(rootLabel, new Set()) || { name: rootLabel, value: { subject: '' } };
+    const rootsBuilt = forest.map(r => build(r, new Set())).filter(Boolean);
+    // 多个不连通的树：用一个虚拟根包一层，避免只剩一个“N0”
+    let root = rootsBuilt[0] || { name: '（空）', value: { subject: '' } };
+    if (rootsBuilt.length > 1) {
+      root = { name: '📚 知识图谱', value: { subject: '' }, children: rootsBuilt };
+    }
     return {
       tooltip: { trigger: 'item', formatter: p => {
         const subj = p.data?.value?.subject;
@@ -163,11 +171,19 @@ function buildOption(nds, eds, style) {
         return tip.replace(/\n/g, '<br/>');
       } },
       series: [{
-        type: 'tree', data: [root], left: '6%', right: '18%', top: '6%', bottom: '10%',
-        symbol: 'circle', symbolSize: 14, orient: 'LR', layout: 'orthogonal',
-        label: { position: 'left', verticalAlign: 'middle', align: 'right', fontSize: 12, color: themeColor('--ink') },
-        leaves: { label: { position: 'right', verticalAlign: 'middle', align: 'left' } },
-        emphasis: { focus: 'descendant' }, expandAndCollapse: true, initialTreeDepth: 2, animationDuration: 350, animationDurationUpdate: 600,
+        type: 'tree', data: [root],
+        left: '2%', right: '22%', top: '4%', bottom: '8%',
+        symbol: 'circle', symbolSize: 10, orient: 'LR', layout: 'orthogonal',
+        roam: true, zoom: 0.9, nodePadding: 22, layerPadding: 180,
+        label: {
+          position: 'left', verticalAlign: 'middle', align: 'right',
+          fontSize: 13, color: themeColor('--ink'),
+          width: 160, overflow: 'truncate', ellipsis: '…',
+        },
+        leaves: { label: { position: 'right', verticalAlign: 'middle', align: 'left', width: 200, overflow: 'truncate' } },
+        emphasis: { focus: 'descendant' },
+        expandAndCollapse: true, initialTreeDepth: 2,
+        animationDuration: 350, animationDurationUpdate: 600,
         lineStyle: { color: themeColor('--line-strong'), width: 1.5, curveness: 0.4 },
         itemStyle: { color: themeColor('--accent') },
       }],
@@ -299,27 +315,39 @@ async function generateByAgent() {
 
 async function loadSaved() {
   const list = await listGraphEdges();
-  const labelMap = new Map();
-  const ensure = (label) => { if (!labelMap.has(label)) labelMap.set(label, `n${labelMap.size}`); return labelMap.get(label); };
-  savedNodes.value = [...new Set(list.flatMap(e => [e.from, e.to]))].map((label, i) => ({ id: `n${i}`, label, subject: '' }));
-  const idOf = {};
-  savedNodes.value.forEach((n) => { idOf[n.label] = n.id; });
-  savedEdges.value = list.map(e => ({ id: e.id, from: idOf[e.from] ?? ensure(e.from), to: idOf[e.to] ?? ensure(e.to), label: e.label, subject: e.subject || '' }));
+  // 以真实 label 作为节点 id，保证图谱/树状图显示的就是真实文字，而不是 n0/n1 假编号
+  const labelSet = new Set();
+  list.forEach(e => { labelSet.add(e.from); labelSet.add(e.to); });
+  savedNodes.value = [...labelSet].map(label => ({ id: label, label, subject: '' }));
+  savedEdges.value = list.map(e => ({ id: e.id, from: e.from, to: e.to, label: e.label || '', subject: e.subject || '' }));
   if (list.length) mode.value = 'saved';
   nextTick(() => { if (chart && savedNodes.value.length) render(); });
 }
 
 async function saveGenerated() {
   let n = 0, skipped = 0;
+  // R10：AI 生成的节点只有 label，保存时把 label 解析为真实卡片 id，边存 cardId 直连
+  const all = await db.cards.toArray();
+  const labelToId = new Map();
+  for (const c of all) {
+    const f = String(c.front || '').replace(/[*_#>`~|-]/g, '').trim().toLowerCase();
+    if (f && !labelToId.has(f)) labelToId.set(f, c.id); // 首次精确命中即用，避免覆盖
+  }
+  const resolveId = (label) => labelToId.get(String(label || '').replace(/[*_#>`~|-]/g, '').trim().toLowerCase()) || '';
   for (const e of generatedEdges.value) {
     const fn = generatedNodes.value.find(x => x.id === e.from);
     const tn = generatedNodes.value.find(x => x.id === e.to);
     if (!fn || !tn) continue;
-    const created = await createGraphEdge({ from: fn.label, to: tn.label, label: e.label, subject: fn.subject || tn.subject || '' });
+    const created = await createGraphEdge({
+      from: fn.label, to: tn.label,
+      fromCardId: resolveId(fn.label), toCardId: resolveId(tn.label),
+      label: e.label, subject: fn.subject || tn.subject || '',
+    });
     if (created) n++; else skipped++;
   }
   toast(skipped ? `已保存 ${n} 条关联，跳过 ${skipped} 条重复（可跨设备同步）` : `已保存 ${n} 条关联到知识库（可跨设备同步）`, 'success');
   await loadSaved();
+  try { T.graphSave(savedEdges.value.length); } catch {}
 }
 
 async function removeEdge(id) {

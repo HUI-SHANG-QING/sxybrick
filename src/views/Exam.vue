@@ -8,6 +8,7 @@ import { getSubjects, listExams, saveExam, deleteExam, setMarked, updateExam } f
 import { chatAI, hasAIKey } from '../ai.js';
 import { mdToSpeech } from '../utils/tts.js';
 import { toast } from '../utils/toast.js';
+import { T } from '../utils/telemetry.js';
 
 const route = useRoute();
 
@@ -78,6 +79,7 @@ async function submit() {
   savedExam.value = saved;
   phase.value = 'result';
   await loadHistory();
+  try { T.examEnd(score.value, g.length); } catch {}
   toast(`交卷：${score.value}/${g.length} 分（已存档，可跨设备同步）`, score.value === g.length ? 'success' : 'info');
 }
 

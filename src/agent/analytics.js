@@ -297,7 +297,18 @@ export async function getGraphDrivenReviewPlan(opts = {}) {
     return { path: pool.slice(0, limit), prereqsAdded: [], contrastPairs: [], unmapped: [], edgesUsed: 0, fallback: true };
   }
 
+  // R10 修复：邻接表以 cardId 为键，优先用边存的 fromCardId/toCardId 直连，
+  // 仅遗留边（无 cardId）回退文本匹配，杜绝两卡文本相同导致的静默覆盖。
+  const byId = new Map(cards.map(c => [c.id, c]));
   const byLabel = mapLabelsToCards(cards);
+  const resolveEndpoint = (edge, side) => {
+    const cardId = side === 'from' ? edge.fromCardId : edge.toCardId;
+    if (cardId && byId.has(cardId)) return cardId;
+    const lbl = side === 'from' ? edge.from : edge.to;
+    const c = findCardForLabel(lbl, byLabel, cards);
+    return c ? c.id : null;
+  };
+
   const nowTs = now();
   const failCount = new Map();
   for (const r of reviews) if (r.rating === 0) failCount.set(r.cardId, (failCount.get(r.cardId) || 0) + 1);
@@ -310,16 +321,23 @@ export async function getGraphDrivenReviewPlan(opts = {}) {
   seeds = [...seedSet.values()];
 
   const idx = new Map();
-  const ensure = (l) => { if (!idx.has(l)) idx.set(l, { prereqs: [], contrasts: [], related: [] }); return idx.get(l); };
+  const ensure = (cid) => { if (!idx.has(cid)) idx.set(cid, { prereqs: [], contrasts: [], related: [] }); return idx.get(cid); };
   let edgesUsed = 0;
+  const unmapped = new Set();
   for (const e of edges) {
     const t = classifyEdge(e.label);
-    if (t === 'prereq') { ensure(e.from).prereqs.push(e.to); edgesUsed++; }
-    else if (t === 'contrast') { ensure(e.from).contrasts.push(e.to); ensure(e.to).contrasts.push(e.from); edgesUsed++; }
-    else { ensure(e.from).related.push(e.to); }
+    const fromCid = resolveEndpoint(e, 'from');
+    const toCid = resolveEndpoint(e, 'to');
+    if (!fromCid || !toCid || fromCid === toCid) {
+      if (!fromCid) unmapped.add(e.from);
+      if (!toCid) unmapped.add(e.to);
+      continue;
+    }
+    if (t === 'prereq') { ensure(fromCid).prereqs.push(toCid); edgesUsed++; }
+    else if (t === 'contrast') { ensure(fromCid).contrasts.push(toCid); ensure(toCid).contrasts.push(fromCid); edgesUsed++; }
+    else { ensure(fromCid).related.push(toCid); }
   }
 
-  const unmapped = new Set();
   const added = new Map();
   const inPath = new Set();
   const path = [];
@@ -331,25 +349,24 @@ export async function getGraphDrivenReviewPlan(opts = {}) {
   }
 
   for (const seed of seeds) {
-    const seedLabels = [String(seed.front || '').replace(/[*_#>`~|-]/g, '').trim().toLowerCase()];
-    const prereqLabels = [];
-    const visit = (lbl, depth) => {
+    const prereqIds = [];
+    const visit = (cid, depth) => {
       if (depth > 3) return;
-      const node = idx.get(lbl);
+      const node = idx.get(cid);
       if (!node) return;
       for (const p of node.prereqs) {
-        if (!prereqLabels.includes(p)) prereqLabels.push(p);
+        if (!prereqIds.includes(p)) prereqIds.push(p);
         visit(p, depth + 1);
       }
     };
-    for (const sl of seedLabels) visit(sl, 0);
+    visit(seed.id, 0);
 
-    for (const pl of prereqLabels) {
-      const pc = findCardForLabel(pl, byLabel, cards);
+    for (const pid of prereqIds) {
+      const pc = byId.get(pid);
       if (pc) {
         if (!added.has(pc.id) && !inPath.has(pc.id)) added.set(pc.id, pc);
         pushCard(pc, '前置知识');
-      } else if (!unmapped.has(pl)) unmapped.add(pl);
+      }
     }
     pushCard(seed, '到期/薄弱');
   }
@@ -358,14 +375,13 @@ export async function getGraphDrivenReviewPlan(opts = {}) {
   const baseLen = path.length;
   for (let i = 0; i < baseLen; i++) {
     const item = path[i];
-    const lbl = String(item.front || '').replace(/[*_#>`~|-]/g, '').trim().toLowerCase();
-    const node = idx.get(lbl);
+    const node = idx.get(item.id);
     if (!node || !node.contrasts.length) continue;
-    for (const cl of node.contrasts) {
-      const cc = findCardForLabel(cl, byLabel, cards);
+    for (const cid of node.contrasts) {
+      const cc = byId.get(cid);
       if (cc && !inPath.has(cc.id)) {
         pushCard(cc, '易混配对');
-        contrastPairs.push({ a: item.id, b: cc.id, label: lbl });
+        contrastPairs.push({ a: item.id, b: cc.id, label: item.front });
       }
     }
   }

@@ -20,12 +20,27 @@ const CONSOLIDATION_SECOND_DAYS = 1;   // 阶段2：隔日
 // 难度 → 间隔系数（越难，间隔越短）
 const DIFF_FACTOR = [1.15, 1.0, 0.8];
 
-// 错因 → 间隔保留比例（答对后仍按错因惩罚下次间隔）
+// 错因枚举 → 间隔保留比例（答对后仍按错因惩罚下次间隔）
+// 使用受控枚举码，不再用中文子串嗅探（避免措辞偏差导致静默失效）
+const WRONG_PENALTY_MAP = {
+  CONCEPT_MIS: 0.6,   // 概念混淆：重罚
+  MEMORY_WEAK: 0.7,   // 记忆不牢：中罚
+  MEMORY_VAGUE: 0.7,  // 记忆模糊：中罚（同记忆不牢）
+  REVIEW_ERROR: 0.85, // 审题偏差：中轻罚
+  CALC_ERROR: 0.9,    // 计算失误：轻罚
+  CARELESS: 0.9,      // 粗心：轻罚
+  OTHER: 1.0,         // 其他：不罚
+  '': 1.0,            // 无错因：不罚
+};
 function wrongPenalty(reason) {
-  const r = String(reason || '');
-  if (r.includes('概念') || r.includes('混淆')) return 0.6;  // 概念混淆：重罚
-  if (r.includes('记忆') || r.includes('记不') || r.includes('忘')) return 0.7; // 记忆不牢：中罚
-  if (r.includes('粗心') || r.includes('马虎') || r.includes('看错')) return 0.9; // 粗心：轻罚
+  if (!reason) return 1.0;
+  // 新：枚举码直接查表
+  if (WRONG_PENALTY_MAP[reason] !== undefined) return WRONG_PENALTY_MAP[reason];
+  // 旧：中文字符串回退（向后兼容旧数据）
+  const r = String(reason);
+  if (r.includes('概念') || r.includes('混淆')) return 0.6;
+  if (r.includes('记忆') || r.includes('记不') || r.includes('忘') || r.includes('模糊')) return 0.7;
+  if (r.includes('粗心') || r.includes('马虎') || r.includes('看错')) return 0.9;
   return 1.0;
 }
 

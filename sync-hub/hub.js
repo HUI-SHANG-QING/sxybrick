@@ -11,9 +11,12 @@ import { dirname, join, extname, normalize } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import {
-  BACKUP_VERSION, SYNC_TABLES,
+  BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES,
   mergeRows, mergeTombstones, applyTombstones,
 } from '../src/sync-manifest.js';
+
+// 中枢同时处理标准表和隐私表（仅当客户端 opt-in 发送时才包含隐私数据）
+const ALL_TABLES = [...SYNC_TABLES, ...PRIVACY_SYNC_TABLES];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST = join(__dirname, '..', 'dist');
@@ -46,7 +49,7 @@ const MIME = {
 
 function emptyData() {
   const out = { tombstones: [], streakMeta: null };
-  for (const t of SYNC_TABLES) out[t.table] = [];
+  for (const t of ALL_TABLES) out[t.table] = [];
   return out;
 }
 
@@ -81,7 +84,7 @@ function imageIdsOf(card) {
 function merge(base, incoming) {
   const out = {};
   out.tombstones = mergeTombstones(base.tombstones, incoming.tombstones);
-  for (const t of SYNC_TABLES) {
+  for (const t of ALL_TABLES) {
     out[t.table] = mergeRows(base[t.table], incoming[t.table], t.merge);
   }
 
@@ -98,7 +101,7 @@ function merge(base, incoming) {
   }
 
   // 其余各表：应用墓碑（备忘/计划/图谱边/文档/对话/记忆的删除跨设备传播）
-  for (const t of SYNC_TABLES) {
+  for (const t of ALL_TABLES) {
     if (t.kind === 'card') continue;
     const res = applyTombstones(out[t.table] || [], out.tombstones, t.kind);
     out[t.table] = res.rows;

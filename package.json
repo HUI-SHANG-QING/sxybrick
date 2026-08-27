@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview --host",
     "hub": "node sync-hub/hub.js",
-    "test": "node --test tests/sync-manifest.test.mjs tests/srs.test.mjs"
+    "test": "node --test tests/sync-manifest.test.mjs tests/sync-export.test.mjs tests/srs.test.mjs tests/analytics.test.mjs tests/crypto.test.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.8",

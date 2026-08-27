@@ -4,10 +4,15 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
-import { getSubjects, getTags, listCards, createCard } from '../repo.js';
-import { downloadCsv } from '../sync.js';
+import {
+  getSubjects, getTags, listCards, createCard,
+  queryUserOps, listPrivacyRecords,
+} from '../repo.js';
+import { downloadCsv, downloadBackup as doDownloadBackup, countData } from '../sync.js';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
 import { encodeShareCode, decodeShareCode, estimateSize } from '../utils/shareCode.js';
+import { flushTelemetry, T } from '../utils/telemetry.js';
+import { db } from '../db.js';
 
 const subjects = ref([]);
 const allTags = ref([]);
@@ -21,6 +26,127 @@ const hideAnswer = ref(false);
 const checkedIds = ref([]);   // 批量勾选的卡片 id
 const allCache = ref([]);     // 全量卡片缓存
 const thumbMap = ref({});     // cardId -> objectURL（响应式缩略图）
+
+// ————— P1·9 新增：全量数据导出（含 userOps / privacyRecords）+ 仪表盘 + 隐私 CSV 导出 —————
+const globalCounts = ref({});
+const exportOpsMode = ref('full');   // 'full' 全量 | 'aggregate' 仅聚合（体积小）
+const exportOpsRange = ref('90');    // '7'|'30'|'90'|'all'
+const privacyExportRange = ref('90');
+const backupBusy = ref(false);
+async function refreshCounts() {
+  try { globalCounts.value = await countData(); } catch {}
+}
+async function doFullBackup() {
+  if (backupBusy.value) return;
+  backupBusy.value = true;
+  try {
+    await flushTelemetry();
+    await doDownloadBackup();
+    T.exportRun('json', null);
+    toast('全量数据包已导出（含 userOps 埋点 + privacyRecords 隐私记录，可用于跨设备同步）', 'success');
+    await refreshCounts();
+  } catch (e) { toast(e.message, 'error'); }
+  finally { backupBusy.value = false; }
+}
+function fmtBytes(n) {
+  if (!Number.isFinite(n)) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(2)} MB`;
+}
+// 导出 userOps：full = 原始 JSON 数组；aggregate = 日 / 模块 / 类型聚合三份 JSON
+async function doExportUserOps() {
+  try {
+    await flushTelemetry();
+    const range = exportOpsRange.value;
+    const from = range === 'all' ? 0 : Date.now() - Number(range) * 24 * 3600 * 1000;
+    const rows = await queryUserOps({ from, groupBy: null });
+    if (!rows.length) { toast('范围内没有 userOps 记录', 'warn'); return; }
+    let payload;
+    if (exportOpsMode.value === 'aggregate') {
+      const [byDay, byHour, byModule, byType] = await Promise.all([
+        queryUserOps({ from, groupBy: 'day' }),
+        queryUserOps({ from, groupBy: 'hour' }),
+        queryUserOps({ from, groupBy: 'module' }),
+        queryUserOps({ from, groupBy: 'type' }),
+      ]);
+      payload = { mode: 'aggregate', rangeDays: range === 'all' ? 'all' : Number(range), total: rows.length, byDay, byHour, byModule, byType, exportedAt: Date.now() };
+    } else {
+      payload = { mode: 'full', rangeDays: range === 'all' ? 'all' : Number(range), total: rows.length, rows, exportedAt: Date.now() };
+    }
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const d = new Date(); const p = n => String(n).padStart(2, '0');
+    a.download = `sxybrick-userOps-${exportOpsMode.value === 'aggregate' ? '聚合' : '全量'}-${range === 'all' ? 'all' : range + 'd'}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    T.exportRun('userOps.' + exportOpsMode.value, rows.length);
+    toast(`已导出 userOps ${fmtBytes(blob.size)}（${rows.length} 条）`, 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+// 导出隐私记录：JSON + CSV 双通道
+async function doExportPrivacy() {
+  try {
+    await flushTelemetry();
+    const range = privacyExportRange.value;
+    const fromMs = range === 'all' ? 0 : Date.now() - Number(range) * 24 * 3600 * 1000;
+    const recs = (await listPrivacyRecords({ limit: 5000 })).filter(r => (r.updatedAt || 0) >= fromMs);
+    if (!recs.length) { toast('范围内没有隐私记录', 'warn'); return; }
+    // JSON 通道
+    const jsonBlob = new Blob([JSON.stringify({ rangeDays: range === 'all' ? 'all' : Number(range), total: recs.length, records: recs, exportedAt: Date.now() })], { type: 'application/json' });
+    // CSV 通道（物理/精神/自定义的关键字段展开，复杂块以 JSON 字符串存放）
+    const header = ['id', 'date', 'type', 'subType', 'startTime', 'endTime', 'location', 'people', 'mood', 'energy', 'focus', 'pleasure', 'stress', 'painIndex', 'painParts', 'sleepBlock', 'eatBlock', 'moveBlock', 'learnBlock', 'workBlock', 'screenBlock', 'financeBlock', 'customTags', 'customKV', 'mental', 'createdAt', 'updatedAt'];
+    const rows = [header];
+    for (const r of recs) {
+      rows.push(header.map(h => {
+        const v = r[h];
+        if (v == null) return '';
+        if (typeof v === 'object') {
+          try { return JSON.stringify(v); } catch { return String(v); }
+        }
+        return String(v);
+      }));
+    }
+    const esc = s => String(s ?? '').replace(/"/g, '""');
+    const csv = rows.map(r => r.map(c => `"${esc(c)}"`).join(',')).join('\n');
+    const csvBlob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    const d = new Date(); const p = n => String(n).padStart(2, '0');
+    const suffix = `${range === 'all' ? 'all' : range + 'd'}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
+    const save = (blob, ext) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `sxybrick-privacyRecords-${suffix}.${ext}`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    };
+    save(jsonBlob, 'json');
+    save(csvBlob, 'csv');
+    T.exportRun('privacy.json+csv', recs.length);
+    toast(`已导出 privacyRecords（JSON + CSV，${recs.length} 条 · ${fmtBytes(jsonBlob.size + csvBlob.size)}）`, 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+// 一次性清空两张新表（给用户"撤销恐怖监控"的按钮）
+const dangerOpen = ref(false);
+const dangerConfirm = ref('');
+async function wipeUserOps() {
+  if (dangerConfirm.value !== '清空埋点') return toast('请在输入框输入「清空埋点」再确认', 'warn');
+  try {
+    await db.userOps.clear();
+    dangerConfirm.value = '';
+    await refreshCounts();
+    toast('已清空全部 userOps 埋点记录（本地与同步链均失效，需重新同步）', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+async function wipePrivacy() {
+  if (dangerConfirm.value !== '清空隐私') return toast('请在输入框输入「清空隐私」再确认', 'warn');
+  try {
+    await db.privacyRecords.clear();
+    dangerConfirm.value = '';
+    await refreshCounts();
+    toast('已清空全部 privacyRecords 隐私记录（历史画像一并重置）', 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
 
 const SORT_OPTIONS = [
   { id: 'updated', label: '最近更新' },
@@ -242,6 +368,7 @@ async function onAfterPrint() {
 
 onMounted(() => {
   loadMeta();
+  refreshCounts();
   try { lastExport.value = JSON.parse(localStorage.getItem('sxy_last_export') || 'null'); } catch {}
 });
 
@@ -511,6 +638,85 @@ async function doImport() {
         </div>
       </div>
     </teleport>
+
+    <!-- ————— P1·9 新增：全量同步包 / 埋点监控 / 隐私人生数据 导出面板 ————— -->
+    <div class="panel no-print" style="margin-top:18px;border-color:var(--accent)">
+      <h3 style="margin:0 0 12px">🧰 系统级数据导出 / 一键同步备份</h3>
+      <div class="hint" style="margin-bottom:10px">
+        「全量数据包」包含卡片 / 复习 / AI / 导图 / 周报 / 成就 / 模考 / 通知 / 错误日志 / 操作埋点(userOps) / 人生隐私(privacyRecords) 全部模块，
+        与「同步 / 局域网一键同步」走同一条链路，可直接跨设备导入。
+      </div>
+      <div class="stat-grid" style="margin-bottom:12px">
+        <div v-for="(v, k) in ['cards','reviews','userOps','privacyRecords','docs','mindmaps','graphEdges','aiChats','weeklyReports','exams']"
+             :key="k" class="stat-chip" :class="{ 'is-zero': !globalCounts[k] }">
+          <span class="stat-k">{{ k }}</span>
+          <span class="stat-v">{{ globalCounts[k] ?? 0 }}</span>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:0">
+        <button class="btn primary" :disabled="backupBusy" @click="doFullBackup">
+          {{ backupBusy ? '打包中…' : '📦 导出全量数据包（一键同步）' }}
+        </button>
+        <button class="chip" @click="refreshCounts">🔄 刷新统计</button>
+      </div>
+    </div>
+
+    <div class="panel no-print" style="margin-top:14px">
+      <h3 style="margin:0 0 10px">👁️ 恐怖级操作监控（userOps 埋点）导出</h3>
+      <div class="row">
+        <span class="field-label" style="margin:0">范围</span>
+        <select v-model="exportOpsRange" class="input" style="width:auto">
+          <option value="7">近 7 天</option>
+          <option value="30">近 30 天</option>
+          <option value="90">近 90 天</option>
+          <option value="all">全部历史</option>
+        </select>
+        <span class="field-label" style="margin:0">粒度</span>
+        <button class="chip" :class="{ on: exportOpsMode === 'full' }" @click="exportOpsMode = 'full'">原始明细（全量）</button>
+        <button class="chip" :class="{ on: exportOpsMode === 'aggregate' }" @click="exportOpsMode = 'aggregate'">仅聚合（体积小）</button>
+        <button class="btn" @click="doExportUserOps">📤 导出 userOps JSON</button>
+      </div>
+      <div class="hint" style="margin:8px 0 0">
+        聚合版会自动压缩出：日活跃、24 小时时段、模块使用占比、操作类型分布 4 份结果，体积通常为明细的 1~5%。
+      </div>
+    </div>
+
+    <div class="panel no-print" style="margin-top:14px">
+      <h3 style="margin:0 0 10px">🧍 人生隐私监控（privacyRecords）导出</h3>
+      <div class="row">
+        <span class="field-label" style="margin:0">范围</span>
+        <select v-model="privacyExportRange" class="input" style="width:auto">
+          <option value="7">近 7 天</option>
+          <option value="30">近 30 天</option>
+          <option value="90">近 90 天</option>
+          <option value="all">全部历史</option>
+        </select>
+        <button class="btn" @click="doExportPrivacy">📤 导出 JSON + CSV（双通道）</button>
+      </div>
+      <div class="hint" style="margin:8px 0 0">
+        CSV 展开睡眠 / 饮食 / 运动 / 学习 / 工作 / 屏幕 / 财务 / 心情 / 疼痛 / 自定义标签等字段，可用 Excel 做二次透视；JSON 保留完整结构，可再导入本系统。
+      </div>
+    </div>
+
+    <div class="panel no-print" style="margin-top:14px;border-color:#e11d48;background:linear-gradient(180deg,#fff1f2,var(--panel))">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">⚠️ 危险区：清空监控 / 隐私数据</h3>
+        <button class="btn small" @click="dangerOpen = !dangerOpen">
+          {{ dangerOpen ? '收起' : '展开危险区' }}
+        </button>
+      </div>
+      <div v-if="dangerOpen" style="margin-top:12px">
+        <div class="hint" style="margin-bottom:8px">
+          清空是单向的：本地 IndexedDB 立即删除，下一次同步会把删除事件传播到其他设备。请谨慎操作。
+        </div>
+        <div class="row">
+          <input v-model="dangerConfirm" class="input" style="max-width:260px"
+                 placeholder="输入「清空埋点」或「清空隐私」" />
+          <button class="btn" style="background:#e11d48;color:#fff;border-color:#be123c" @click="wipeUserOps">🗑️ 清空全部 userOps 埋点</button>
+          <button class="btn" style="background:#9f1239;color:#fff;border-color:#881337" @click="wipePrivacy">🗑️ 清空全部隐私人生记录</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -585,6 +791,18 @@ async function doImport() {
 .print-card :deep(th) { background: #16202c; color: #fff; font-weight: 600; }
 .print-card :deep(th), .print-card :deep(td) { border: 1px solid #d1d5db; padding: 6px 10px; text-align: left; }
 .print-card :deep(tr:nth-child(even) td) { background: #f8fafc; }
+
+.stat-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px;
+}
+.stat-chip {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; border-radius: 8px; background: var(--code-inline);
+  border: 1px solid var(--line);
+}
+.stat-chip.is-zero { opacity: 0.55; }
+.stat-k { font-size: 12px; color: var(--ink-2); font-weight: 600; word-break: break-all; }
+.stat-v { font-size: 13px; font-weight: 700; color: var(--accent); flex: none; margin-left: 8px; }
 
 @media (max-width: 720px) {
   .export-sheet { padding: 18px 14px; }

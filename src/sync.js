@@ -5,16 +5,29 @@
 import { db } from './db.js';
 import { base64ToBlob, blobToBase64, extractImageIds } from './images.js';
 import {
-  BACKUP_VERSION, SYNC_TABLES,
+  BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES, EXCLUDED_FROM_SYNC,
   mergeRows, mergeTombstones, applyTombstones, kindOf,
 } from './sync-manifest.js';
 
-export { BACKUP_VERSION };
+export { BACKUP_VERSION, EXCLUDED_FROM_SYNC };
+
+// 隐私数据 opt-in：默认 false，用户在设置面板显式开启后隐私表才入同步/导出
+export function isPrivacySyncEnabled() {
+  return localStorage.getItem('sxy_privacy_sync') === '1';
+}
+export function setPrivacySyncEnabled(v) {
+  localStorage.setItem('sxy_privacy_sync', v ? '1' : '0');
+}
+// 根据用户设置返回有效同步表清单
+function getEffectiveSyncTables() {
+  return isPrivacySyncEnabled() ? [...SYNC_TABLES, ...PRIVACY_SYNC_TABLES] : SYNC_TABLES;
+}
 
 export async function countData() {
   const out = {};
-  const rows = await Promise.all(SYNC_TABLES.map(t => db[t.table].count()));
-  SYNC_TABLES.forEach((t, i) => { out[t.table] = rows[i]; });
+  const tables = getEffectiveSyncTables();
+  const rows = await Promise.all(tables.map(t => db[t.table].count()));
+  tables.forEach((t, i) => { out[t.table] = rows[i]; });
   return out;
 }
 
@@ -24,7 +37,7 @@ export async function buildBackup(subject) {
   const cardIds = new Set(cards.map(c => c.id));
 
   const parts = {};
-  for (const t of SYNC_TABLES) {
+  for (const t of getEffectiveSyncTables()) {
     if (t.table === 'cards') parts.cards = cards;
     else if (t.table === 'reviews') {
       let reviews = await db.reviews.toArray();
@@ -171,14 +184,15 @@ export async function syncWithHub(hubUrl, token) {
 export async function importBackup(backup) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
   const stats = { cards: 0, reviews: 0, overridden: 0, deleted: 0, duplicated: 0 };
-  for (const t of SYNC_TABLES) if (t.table !== 'cards' && t.table !== 'reviews') stats[t.table] = 0;
+  const effTables = getEffectiveSyncTables();
+  for (const t of effTables) if (t.table !== 'cards' && t.table !== 'reviews') stats[t.table] = 0;
 
   // 1) 墓碑：按 deletedAt 谁新听谁合并（kind 缺失的旧数据按 card 处理）
   const tombstones = mergeTombstones(await db.tombstones.toArray(), backup.tombstones || []);
   for (const t of tombstones) await db.tombstones.put(t);
 
   // 2) 各数据表按清单策略合并（图片单独处理：base64→Blob 且存在即跳过，避免覆盖本地 Blob）
-  for (const t of SYNC_TABLES) {
+  for (const t of effTables) {
     if (t.table === 'images') continue;
     let incoming = (backup[t.table] || []).filter(x => x && x.id);
     if (!incoming.length) continue;
@@ -223,7 +237,7 @@ export async function importBackup(backup) {
   }
 
   // 3) 应用墓碑：删除已在其他设备删除的记录；已「复活」（编辑晚于删除）的记录清除墓碑
-  for (const t of SYNC_TABLES) {
+  for (const t of effTables) {
     if (t.kind === 'card') continue; // 卡片单独处理（需级联清复习/图片）
     const rows = await db[t.table].toArray();
     const { removed, stale } = applyTombstones(rows, tombstones, t.kind);

@@ -4,6 +4,8 @@ import App from './App.vue';
 import { router } from './router.js';
 import { startPerfMonitor } from './utils/perf.js';
 import { logError } from './utils/errorLog.js';
+// P1·7 + P2·10：启动恐怖级埋点采集器（A 级业务事件 + B 级 DOM 点击）
+import { startTelemetry, pageView } from './utils/telemetry.js';
 import 'katex/dist/katex.min.css';
 import 'highlight.js/styles/github.css';
 import './styles.css';
@@ -25,5 +27,16 @@ window.addEventListener('unhandledrejection', (e) => {
   e.preventDefault?.();
 });
 
+startTelemetry({
+  onReady: () => {
+    // 首屏 page_view（router.afterEach 会接住后续切换）
+    if (typeof location !== 'undefined') {
+      // hash 路由：取 #/xx 作为 path，否则兜底 /
+      const hash = location.hash || '#/';
+      const p = hash.replace(/^#/, '') || '/';
+      pageView(p);
+    }
+  },
+});
 startPerfMonitor();
 app.mount('#app');

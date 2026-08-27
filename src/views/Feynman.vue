@@ -8,6 +8,7 @@ import { chatAI, hasAIKey, saveChat, listChats, deleteChat, getChat } from '../a
 import { getCardAnalytics } from '../agent/analytics.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import { speak } from '../utils/tts.js';
+import { T } from '../utils/telemetry.js';
 
 const subjects = ref([]);
 const allTags = ref([]);
@@ -155,6 +156,7 @@ async function send() {
       ...messages.value,
     ]);
     messages.value.push({ role: 'assistant', content: reply }); if (voiceOn.value) speak(reply);
+    try { T.feynmanRound(currentId.value); } catch {}
   } catch (e) {
     toast(e.message, 'error');
     messages.value.push({ role: 'assistant', content: '（出错了：' + e.message + '）' });
@@ -191,16 +193,59 @@ function selectSession(id) {
   currentId.value = id;
   messages.value = s.messages || [];
   started.value = messages.value.length > 0;
+  // 恢复会话的筛选范围（便于继续练习使用同样卡片范围）
+  if (s.scope) {
+    allMode.value = !!s.scope.allMode;
+    selSubjects.value = Array.isArray(s.scope.selSubjects) ? [...s.scope.selSubjects] : [];
+    selTags.value = Array.isArray(s.scope.selTags) ? [...s.scope.selTags] : [];
+    logic.value = s.scope.logic || 'AND';
+  }
   localStorage.setItem('sxy_last_feynman', id);
 }
 async function persistSession() {
   if (!currentId.value) return;
   try {
     const old = await getChat(currentId.value);
-    await saveChat({ id: currentId.value, type: 'feynman', title: '费曼练习', messages: messages.value, createdAt: old?.createdAt || Date.now() });
+    // 最后一条助手消息作为卡片列表的摘要预览
+    const lastAssistant = [...messages.value].reverse().find(m => m.role === 'assistant');
+    const preview = lastAssistant?.content?.slice(0, 60) || '';
+    const scope = {
+      allMode: !!allMode.value,
+      selSubjects: [...selSubjects.value],
+      selTags: [...selTags.value],
+      logic: logic.value,
+    };
+    await saveChat({
+      id: currentId.value, type: 'feynman',
+      title: '费曼练习',
+      messages: messages.value,
+      createdAt: old?.createdAt || Date.now(),
+      scope, preview,
+      rounds: messages.value.filter(m => m.role === 'assistant').length,
+    });
     localStorage.setItem('sxy_last_feynman', currentId.value);
     await loadSessions();
   } catch (e) { toast('会话保存失败：' + e.message, 'error'); }
+}
+// 构建会话卡片的「范围摘要」文字
+function scopeSummary(s) {
+  if (!s?.scope || s.scope.allMode) return '📚 范围：全量卡片';
+  const parts = [];
+  if (s.scope.selSubjects?.length) parts.push(`科目[${s.scope.selSubjects.slice(0,3).join('/')}${s.scope.selSubjects.length>3?'…':''}]`);
+  if (s.scope.selTags?.length) {
+    const log = s.scope.logic === 'AND' ? '∩' : s.scope.logic === 'NOT' ? '差集' : '∪';
+    parts.push(`${log}标签[${s.scope.selTags.slice(0,3).join('/')}${s.scope.selTags.length>3?'…':''}]`);
+  }
+  return parts.length ? '📚 范围：' + parts.join(' · ') : '📚 范围：自定义（未选条件）';
+}
+function fmtTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  const now = new Date();
+  const sameDay = d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() && d.getDate()===now.getDate();
+  if (sameDay) return `今天 ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 async function removeSession(id) {
   if (!confirm('删除这个费曼会话？')) return;
@@ -241,13 +286,33 @@ onMounted(async () => {
     </div>
     <p class="hint" style="margin:4px 0 12px">以教代学：AI 出题考你，你用自己的话讲出来，讲不出的就是薄弱点。</p>
 
-    <div v-if="sessions.length" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-      <span class="hint">历史：</span>
-      <button class="btn small primary" @click="newSession">＋ 新练习</button>
-      <button v-for="s in sessions" :key="s.id" class="chip" :class="{ on: s.id === currentId }" @click="selectSession(s.id)">
-        {{ (s.messages?.length || 0) }} 轮
-        <a style="color:var(--red);cursor:pointer;margin-left:4px" @click.stop="removeSession(s.id)">删</a>
-      </button>
+    <div v-if="sessions.length" style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <span class="field-label" style="margin:0">历史练习（{{ sessions.length }} 条）</span>
+        <span class="hint">按时间倒序，点「继续」载入该会话的范围并接着练</span>
+        <span style="flex:1"></span>
+        <button class="btn small primary" @click="newSession">＋ 新练习</button>
+      </div>
+      <div class="feyn-history">
+        <div v-for="s in sessions" :key="s.id" class="feyn-card" :class="{ active: s.id === currentId }">
+          <div class="feyn-card-head">
+            <span class="feyn-ts">🕒 {{ fmtTime(s.updatedAt || s.createdAt) }}</span>
+            <span class="feyn-rounds pill">{{ (s.rounds ?? (s.messages?.filter(m=>m.role==='assistant').length) ?? 0) }} 轮</span>
+            <span v-if="s.id === currentId" class="pill on">当前会话</span>
+            <span style="flex:1"></span>
+          </div>
+          <div class="feyn-scope">{{ scopeSummary(s) }}</div>
+          <div v-if="s.preview || (s.messages?.length)" class="feyn-preview">
+            💬 {{ (s.preview || s.messages?.[s.messages.length-1]?.content || '（尚未开始对话）').replace(/\s+/g,' ').slice(0, 80) }}
+          </div>
+          <div class="feyn-actions">
+            <button class="btn small primary" @click="selectSession(s.id)">
+              {{ s.id === currentId ? '已载入' : '继续此会话' }}
+            </button>
+            <button class="btn small" :disabled="s.id === currentId" @click="removeSession(s.id)">删除</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="panel">
@@ -291,7 +356,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.feynman-wrap { max-width: 760px; margin: 0 auto; }
+.feynman-wrap { max-width: 900px; margin: 0 auto; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
 .field-label { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 10px 0 6px; }
@@ -303,4 +368,46 @@ onMounted(async () => {
 .msg.assistant .bubble { background: var(--code-bg); color: var(--ink); }
 .input-row { display: flex; gap: 8px; }
 .input-row .input { flex: 1; }
+
+/* —— 费曼历史卡片列表 —— */
+.feyn-history {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+.feyn-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all .15s ease;
+}
+.feyn-card:hover { border-color: var(--accent); }
+.feyn-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+}
+.feyn-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.feyn-ts { font-size: 12px; color: var(--ink-2); }
+.pill {
+  display: inline-flex; align-items: center;
+  font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  background: var(--code-inline); color: var(--ink-2); font-weight: 600;
+}
+.pill.on { background: var(--accent); color: #fff; }
+.feyn-rounds { color: var(--blue); background: #dbeafe; }
+.feyn-scope { font-size: 13px; color: var(--ink); font-weight: 500; }
+.feyn-preview {
+  font-size: 12px; color: var(--ink-2);
+  padding: 6px 8px; background: var(--code-bg); border-radius: 8px;
+  line-height: 1.5; min-height: 20px;
+}
+.feyn-actions {
+  display: flex; gap: 8px; margin-top: 4px;
+}
+.feyn-actions .btn.small { flex: 1; }
 </style>

@@ -2,17 +2,33 @@
 // 资产体检（E1 数字资产保值批）：重复卡 / 僵尸卡 / 孤儿图片 / 无标签卡 检测与清理
 // 所有删除走 deleteCard（墓碑跨设备传播）+ 图片直接清理，保证多端一致
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { getAssetHealth } from '../agent/analytics.js';
 import { deleteCard } from '../repo.js';
 import { db } from '../db.js';
 import { toast } from '../utils/toast.js';
+import { T } from '../utils/telemetry.js';
 
+const router = useRouter();
 const health = ref(null);
 const busy = ref(false);
 
+// 跳转到 /cards + 指定筛选参数；默认全展开（背诵效果页，用户先预览再决定是否编辑）
+function jumpCards(query) {
+  const qs = new URLSearchParams(query).toString();
+  router.push(`/cards?${qs}`);
+}
+function openUntagged() { jumpCards({ untagged: '1', expandAll: '1' }); }
+function openZombies()  { jumpCards({ zombie: '1', expandAll: '1' }); }
+function openDuplicates(g) { jumpCards({ dupGroup: g.key, expandAll: '1' }); }
+function openOrphans() { jumpCards({ orphan: '1', expandAll: '1' }); }
+
 async function load() {
   busy.value = true;
-  try { health.value = await getAssetHealth(); }
+  try {
+    health.value = await getAssetHealth();
+    try { T.healthScan(); } catch {}
+  }
   catch (e) { toast(e.message, 'error'); }
   finally { busy.value = false; }
 }
@@ -67,10 +83,10 @@ onMounted(load);
 
     <div v-if="health" class="stat-cards" style="margin-top:14px">
       <div class="stat"><div class="num">{{ health.totalCards }}</div><div class="hint">总卡片（资产数）</div></div>
-      <div class="stat"><div class="num" :style="{ color: health.duplicates.length ? 'var(--red)' : 'var(--green)' }">{{ health.duplicates.reduce((s, g) => s + g.n - 1, 0) }}</div><div class="hint">重复卡</div></div>
-      <div class="stat"><div class="num" :style="{ color: health.zombieCount ? 'var(--amber)' : 'var(--green)' }">{{ health.zombieCount }}</div><div class="hint">僵尸卡</div></div>
-      <div class="stat"><div class="num" :style="{ color: health.orphanImageCount ? 'var(--amber)' : 'var(--green)' }">{{ health.orphanImageCount }}</div><div class="hint">孤儿图片</div></div>
-      <div class="stat"><div class="num">{{ health.untaggedCount }}</div><div class="hint">无标签卡</div></div>
+      <div class="stat clickable" title="查看全部重复卡" @click="jumpCards({dupGroup: '__all__', expandAll: '1'})"><div class="num" :style="{ color: health.duplicates.length ? 'var(--red)' : 'var(--green)' }">{{ health.duplicates.reduce((s, g) => s + g.n - 1, 0) }}</div><div class="hint">重复卡</div></div>
+      <div class="stat clickable" title="查看僵尸卡" @click="openZombies"><div class="num" :style="{ color: health.zombieCount ? 'var(--amber)' : 'var(--green)' }">{{ health.zombieCount }}</div><div class="hint">僵尸卡</div></div>
+      <div class="stat clickable" title="查看孤儿图片" @click="openOrphans"><div class="num" :style="{ color: health.orphanImageCount ? 'var(--amber)' : 'var(--green)' }">{{ health.orphanImageCount }}</div><div class="hint">孤儿图片</div></div>
+      <div class="stat clickable" title="查看无标签卡" @click="openUntagged"><div class="num">{{ health.untaggedCount }}</div><div class="hint">无标签卡</div></div>
     </div>
 
     <!-- 重复卡 -->
@@ -79,12 +95,15 @@ onMounted(load);
         <span class="field-label" style="margin:0">重复卡（{{ health?.duplicates.length || 0 }} 组）</span>
         <span class="hint">相同正反面+科目的卡重复入库</span>
         <span style="flex:1"></span>
+        <button v-if="health?.duplicates.length" class="btn small" @click="jumpCards({dupGroup: '__all__', expandAll: '1'})">查看全部</button>
         <button v-if="health?.duplicates.length" class="btn small primary" @click="dedupeAll">全部清理（每组保留最新 1 张）</button>
       </div>
       <div v-if="health && !health.duplicates.length" class="hint" style="margin-top:8px">✅ 没有重复卡，资产很干净</div>
-      <div v-for="g in health?.duplicates || []" :key="g.key" class="health-row">
+      <div v-for="g in health?.duplicates || []" :key="g.key" class="health-row clickable" @click="openDuplicates(g)">
         <span class="hint" style="flex:1">[{{ g.subject }}] {{ g.front.slice(0, 40) }} <b style="color:var(--red)">×{{ g.n }}</b></span>
-        <button class="btn small" @click="dedupeGroup(g)">合并去重</button>
+        <span class="hint">点击查看完整组</span>
+        <button class="btn small" @click.stop="openDuplicates(g)">展开对比</button>
+        <button class="btn small primary" @click.stop="dedupeGroup(g)">合并去重</button>
       </div>
     </div>
 
@@ -94,12 +113,14 @@ onMounted(load);
         <span class="field-label" style="margin:0">僵尸卡（{{ health?.zombieCount || 0 }} 张）</span>
         <span class="hint">创建超 90 天、从未复习且早已到期</span>
         <span style="flex:1"></span>
+        <button v-if="health?.zombieCount" class="btn small" @click="openZombies">查看详情（展开背诵效果）</button>
         <button v-if="health?.zombieCount" class="btn small" @click="removeZombies">清理僵尸卡</button>
       </div>
       <div v-if="health && !health.zombieCount" class="hint" style="margin-top:8px">✅ 没有僵尸卡</div>
-      <div v-for="z in health?.zombies || []" :key="z.id" class="health-row">
+      <div v-for="z in health?.zombies || []" :key="z.id" class="health-row clickable" @click="jumpCards({zombie:'1', expandAll:'1'})">
         <span class="hint" style="flex:1">[{{ z.subject }}] {{ z.front }}</span>
         <span class="hint">创建于 {{ new Date(z.createdAt).toLocaleDateString() }}</span>
+        <button class="btn small" @click.stop="openZombies">浏览</button>
       </div>
     </div>
 
@@ -109,14 +130,20 @@ onMounted(load);
         <span class="field-label" style="margin:0">孤儿图片（{{ health?.orphanImageCount || 0 }} 张）</span>
         <span class="hint">已无任何卡片引用，占用本地存储</span>
         <span style="flex:1"></span>
+        <button v-if="health?.orphanImageCount" class="btn small" @click="openOrphans">预览/批量清理</button>
         <button v-if="health?.orphanImageCount" class="btn small" @click="cleanOrphanImages">清理孤儿图片</button>
       </div>
       <div v-if="health && !health.orphanImageCount" class="hint" style="margin-top:8px">✅ 没有孤儿图片</div>
     </div>
 
     <div class="panel" style="margin-top:14px">
-      <span class="field-label" style="margin:0">无标签卡（{{ health?.untaggedCount || 0 }} 张）</span>
-      <p class="hint" style="margin-top:6px">标签是复习筛选、易混对决与 AI 上下文的关键资产元数据。建议按科目批量补标签（卡片页筛选出无标签卡后编辑，或建卡时养成加标签习惯）。</p>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="field-label" style="margin:0">无标签卡（{{ health?.untaggedCount || 0 }} 张）</span>
+        <span class="hint">标签是复习筛选、易混对决与 AI 上下文的关键资产元数据。</span>
+        <span style="flex:1"></span>
+        <button v-if="health?.untaggedCount" class="btn small primary" @click="openUntagged">全部查看（默认全展开背诵效果）</button>
+      </div>
+      <p class="hint" style="margin-top:6px">建议按科目批量补标签（卡片页筛选出无标签卡后编辑，或建卡时养成加标签习惯）。</p>
     </div>
   </div>
 </template>
@@ -125,8 +152,12 @@ onMounted(load);
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; }
 .field-label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .stat-cards { display: flex; gap: 12px; flex-wrap: wrap; }
-.stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 22px; text-align: center; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 22px; text-align: center; cursor: default; }
 .stat .num { font-size: 24px; font-weight: 700; }
+.stat.clickable { cursor: pointer; transition: box-shadow .15s, border-color .15s, transform .15s; }
+.stat.clickable:hover { border-color: var(--brand, var(--ink-2)); box-shadow: 0 2px 8px rgba(0,0,0,.08); transform: translateY(-1px); }
 .health-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px dashed var(--line); }
 .health-row:last-child { border-bottom: none; }
+.health-row.clickable { cursor: pointer; border-radius: 8px; padding: 8px 8px; }
+.health-row.clickable:hover { background: var(--code-bg); border-color: var(--line); }
 </style>

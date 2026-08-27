@@ -6,7 +6,8 @@
 import { ref, computed, watch } from 'vue';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { speak, mdToSpeech } from '../utils/tts.js';
-import { WRONG_REASONS } from '../repo.js';
+import { WRONG_REASONS, wrongReasonToCode } from '../repo.js';
+import { T } from '../utils/telemetry.js';
 
 const props = defineProps({ card: { type: Object, required: true } });
 const emit = defineEmits(['rate', 'edit']);
@@ -17,7 +18,7 @@ const hintReveal = ref(false);
 // 本次复习难度评分（0易/1中/2难）：默认取卡片固有难度的映射值
 const DIFF_DEFAULT = { basic: 0, applied: 1, challenge: 2 };
 const difficulty = ref(DIFF_DEFAULT[props.card.difficulty] ?? (Number.isFinite(Number(props.card.difficulty)) ? Number(props.card.difficulty) : 1));
-const wrongReason = ref(props.card.wrongReason || '');
+const wrongReason = ref(wrongReasonToCode(props.card.wrongReason));
 const customWrong = ref('');
 const showCustomWrong = ref(false);
 // 默写题型（C7）：输入作答，逐字匹配判定
@@ -27,7 +28,7 @@ const writingCorrect = ref(false);
 watch(() => props.card.id, () => {
   flipped.value = false; picked.value = null; hintReveal.value = false;
   difficulty.value = DIFF_DEFAULT[props.card.difficulty] ?? (Number.isFinite(Number(props.card.difficulty)) ? Number(props.card.difficulty) : 1);
-  wrongReason.value = props.card.wrongReason || '';
+  wrongReason.value = wrongReasonToCode(props.card.wrongReason);
   customWrong.value = '';
   showCustomWrong.value = false;
   writingAnswer.value = '';
@@ -110,7 +111,12 @@ const choiceData = computed(() => {
 
 const isCorrect = computed(() => !!picked.value && picked.value === choiceData.value?.answer);
 
-function showBack() { if (!flipped.value) flipped.value = true; }
+function showBack() {
+  if (!flipped.value) {
+    flipped.value = true;
+    try { T.reviewFlip(props.card?.id); } catch { /* 埋点失败不阻塞业务 */ }
+  }
+}
 function showFront() { flipped.value = false; }
 function pick(key) { if (picked.value) return; picked.value = key; flipped.value = true; }
 function doRate(rating, guessed = false) {
@@ -134,89 +140,98 @@ defineExpose({ flipped, showBack, doRate });
 
 <template>
   <div class="flip-scene">
+    <!-- 翻转 3D 舞台：限制最大高度，正面/背面内容过长时内滚，保证底部操作区不被挤出视窗 -->
     <div class="flip-inner" :class="{ flipped }">
       <!-- 正面 -->
       <div class="flip-face flip-front card-item" @click="type !== 'choice' && showBack()">
-        <div class="tags">
-          <span class="tag-pill subj">{{ typeText }}</span>
-          <span v-if="card.subject" class="tag-pill subj">{{ card.subject }}</span>
-          <span v-for="t in card.tags" :key="t" class="tag-pill">{{ t }}</span>
-        </div>
-
-        <template v-if="type === 'choice'">
-          <MarkdownRenderer :content="card.front" />
-          <div class="options">
-            <button v-for="o in choiceData.options" :key="o.key" class="opt" @click.stop="pick(o.key)">
-              <b>{{ o.key }}.</b> <span>{{ o.text }}</span>
-            </button>
+        <div class="face-scroll">
+          <div class="tags">
+            <span class="tag-pill subj">{{ typeText }}</span>
+            <span v-if="card.subject" class="tag-pill subj">{{ card.subject }}</span>
+            <span v-for="t in card.tags" :key="t" class="tag-pill">{{ t }}</span>
           </div>
-          <button class="btn small" @click.stop="speak(card.front)" style="margin-top:10px">朗读题干</button>
-          <div class="hint" style="margin-top:10px">点击一个选项作答</div>
-        </template>
 
-        <template v-else>
-          <MarkdownRenderer :content="maskedFront" />
-          <template v-if="type === 'writing'">
-            <div v-if="autoWriting" class="hint" style="margin-top:4px;color:var(--green)">巩固期 · 默写模式（自由回忆，检验真实掌握度）</div>
-            <div style="display:flex;gap:8px;margin-top:12px" @click.stop>
-              <input v-model="writingAnswer" class="input" style="flex:1" placeholder="默写你的答案…" @keydown.enter="checkWriting" />
-              <button class="btn small primary" @click="checkWriting">提交</button>
+          <template v-if="type === 'choice'">
+            <MarkdownRenderer :content="card.front" />
+            <div class="options">
+              <button v-for="o in choiceData.options" :key="o.key" class="opt" @click.stop="pick(o.key)">
+                <b>{{ o.key }}.</b> <span>{{ o.text }}</span>
+              </button>
             </div>
-            <div v-if="writingChecked && !writingCorrect" class="hint" style="color:var(--red);margin-top:8px">与标准答案不完全一致，翻看答案后自评</div>
+            <button class="btn small" @click.stop="speak(card.front)" style="margin-top:10px">朗读题干</button>
+            <div class="hint" style="margin-top:10px">点击一个选项作答</div>
           </template>
+
           <template v-else>
-            <div v-if="autoClue && clueHint" class="hint" style="margin-top:8px;color:var(--blue)">🧠 线索回忆 · {{ clueHint }}（先主动提取，再翻面对照）</div>
-            <div style="display:flex;gap:8px;margin-top:12px;align-items:center" @click.stop>
-              <button class="btn small" @click="speak(maskedFront)">朗读</button>
-              <button class="btn small" @click="hintReveal = !hintReveal">{{ hintReveal ? '收起提示' : '看提示' }}</button>
-            </div>
-            <div v-if="hintReveal" class="hint" style="margin-top:8px">提示：{{ hintText }}</div>
-            <div v-else-if="!autoClue" class="hint" style="margin-top:10px">点击卡片任意区域翻看答案</div>
+            <MarkdownRenderer :content="maskedFront" />
+            <template v-if="type === 'writing'">
+              <div v-if="autoWriting" class="hint" style="margin-top:4px;color:var(--green)">巩固期 · 默写模式（自由回忆，检验真实掌握度）</div>
+              <div style="display:flex;gap:8px;margin-top:12px" @click.stop>
+                <input v-model="writingAnswer" class="input" style="flex:1" placeholder="默写你的答案…" @keydown.enter="checkWriting" />
+                <button class="btn small primary" @click="checkWriting">提交</button>
+              </div>
+              <div v-if="writingChecked && !writingCorrect" class="hint" style="color:var(--red);margin-top:8px">与标准答案不完全一致，翻看答案后自评</div>
+            </template>
+            <template v-else>
+              <div v-if="autoClue && clueHint" class="hint" style="margin-top:8px;color:var(--blue)">🧠 线索回忆 · {{ clueHint }}（先主动提取，再翻面对照）</div>
+              <div style="display:flex;gap:8px;margin-top:12px;align-items:center" @click.stop>
+                <button class="btn small" @click="speak(maskedFront)">朗读</button>
+                <button class="btn small" @click="hintReveal = !hintReveal">{{ hintReveal ? '收起提示' : '看提示' }}</button>
+              </div>
+              <div v-if="hintReveal" class="hint" style="margin-top:8px">提示：{{ hintText }}</div>
+              <div v-else-if="!autoClue" class="hint" style="margin-top:10px">点击卡片任意区域翻看答案</div>
+            </template>
           </template>
-        </template>
+        </div>
       </div>
 
-      <!-- 背面 -->
+      <!-- 背面：顶部固定操作按钮（看回问题/朗读/编辑），主体内容独立滚动 -->
       <div class="flip-face flip-back card-item">
         <div class="back-top">
           <button class="btn small" @click="showFront">看回问题</button>
           <button class="btn small" @click="speak(card.back)">朗读答案</button>
           <button class="btn small" @click.stop="emit('edit', card)">编辑这张卡</button>
         </div>
-
-        <template v-if="type === 'choice'">
-          <MarkdownRenderer :content="card.front" />
-          <div class="options">
-            <div v-for="o in choiceData.options" :key="o.key" class="opt"
-                 :class="{ correct: o.key === choiceData.answer, wrong: picked === o.key && o.key !== choiceData.answer }">
-              <b>{{ o.key }}.</b> <span>{{ o.text }}</span>
-              <span v-if="o.key === choiceData.answer" class="mark">✓</span>
+        <div class="back-body face-scroll">
+          <template v-if="type === 'choice'">
+            <MarkdownRenderer :content="card.front" />
+            <div class="options">
+              <div v-for="o in choiceData.options" :key="o.key" class="opt"
+                   :class="{ correct: o.key === choiceData.answer, wrong: picked === o.key && o.key !== choiceData.answer }">
+                <b>{{ o.key }}.</b> <span>{{ o.text }}</span>
+                <span v-if="o.key === choiceData.answer" class="mark">✓</span>
+              </div>
             </div>
-          </div>
-          <div v-if="isCorrect" class="hint" style="color:var(--green);margin-top:8px">答对了</div>
-          <div v-else class="hint" style="color:var(--red);margin-top:8px">正确答案是 {{ choiceData.answer }}</div>
-        </template>
+            <div v-if="isCorrect" class="hint" style="color:var(--green);margin-top:8px">答对了</div>
+            <div v-else class="hint" style="color:var(--red);margin-top:8px">正确答案是 {{ choiceData.answer }}</div>
+          </template>
 
-        <template v-else-if="type === 'cloze'">
-          <MarkdownRenderer :content="clozeReveal" />
-          <div v-if="card.back" class="hint" style="margin-top:10px;border-top:1px dashed var(--line);padding-top:10px">{{ card.back }}</div>
-        </template>
+          <template v-else-if="type === 'cloze'">
+            <MarkdownRenderer :content="clozeReveal" />
+            <div v-if="card.back" class="hint" style="margin-top:10px;border-top:1px dashed var(--line);padding-top:10px">{{ card.back }}</div>
+          </template>
 
-        <template v-else>
-          <MarkdownRenderer :content="card.back" />
-        </template>
+          <template v-else>
+            <MarkdownRenderer :content="card.back" />
+          </template>
 
-        <div v-if="card.mnemonic" class="mnemonic">助记：{{ card.mnemonic }}</div>
-        <div v-if="type === 'writing' && writingChecked && !writingCorrect" class="hint" style="margin-top:8px;color:var(--amber)">你的作答：「{{ writingAnswer }}」与标准答案有差异，请对照后自评</div>
+          <div v-if="card.mnemonic" class="mnemonic">助记：{{ card.mnemonic }}</div>
+          <div v-if="type === 'writing' && writingChecked && !writingCorrect" class="hint" style="margin-top:8px;color:var(--amber)">你的作答：「{{ writingAnswer }}」与标准答案有差异，请对照后自评</div>
+        </div>
+      </div>
+    </div>
 
-        <div class="meta-row" @click.stop>
+    <!-- 操作区（难度/错因 + 三档自评）：位于翻转舞台外部独立块，始终可见；翻面后淡入 -->
+    <transition name="fade">
+      <div v-if="flipped" class="flip-controls" @click.stop>
+        <div class="meta-row">
           <div class="meta-group">
             <span class="meta-label">难度</span>
             <button v-for="d in [{v:0,t:'易'},{v:1,t:'中'},{v:2,t:'难'}]" :key="d.v" class="chip mini" :class="{ on: difficulty === d.v }" @click="setDifficulty(d.v)">{{ d.t }}</button>
           </div>
           <div class="meta-group">
             <span class="meta-label">错因</span>
-            <button v-for="r in WRONG_REASONS" :key="r" class="chip mini" :class="{ on: wrongReason === r }" @click="setWrongReason(r)">{{ r }}</button>
+            <button v-for="r in WRONG_REASONS" :key="r.code" class="chip mini" :class="{ on: wrongReason === r.code }" @click="setWrongReason(r.code)">{{ r.label }}</button>
             <button class="chip mini" :class="{ on: showCustomWrong }" @click="setWrongReason('__custom__')">自定义</button>
             <template v-if="showCustomWrong">
               <input v-model="customWrong" class="input" style="width:130px" placeholder="自定义错因（20字内）" maxlength="20" @keydown.enter="applyCustomWrong" />
@@ -224,20 +239,82 @@ defineExpose({ flipped, showBack, doRate });
             </template>
           </div>
         </div>
-
-        <div class="rate-row" @click.stop>
+        <div class="rate-row">
           <button class="btn rate bad" @click="doRate(0)">没记住</button>
           <button class="btn rate mid" @click="doRate(1)">还模糊</button>
           <button class="btn rate guess" @click="doRate(2, true)">蒙对</button>
           <button class="btn rate good" @click="doRate(2)">记住了</button>
         </div>
       </div>
-    </div>
+    </transition>
   </div>
 </template>
 
 <style scoped>
-.back-top { display: flex; gap: 8px; margin-bottom: 10px; }
+/* 翻转舞台：限定最大高度，避免长答案把底部操作条+快捷键提示挤出视窗 */
+.flip-scene {
+  perspective: 1400px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.flip-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform .55s cubic-bezier(.2, .7, .3, 1);
+  /* 舞台高度取正/反面最大高度，但不超过视窗预留值（vh-顶栏-底部操作条-提示条） */
+  max-height: min(72vh, 780px);
+  min-height: 280px;
+}
+.flip-inner.flipped { transform: rotateY(180deg); }
+
+/* 正反面都叠放在 flip-inner 里，且内容做内滚 */
+.flip-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  min-width: 0;
+  overflow: hidden;
+}
+.flip-back { transform: rotateY(180deg); }
+
+/* 正面整面可点：正面 body 也需要滚动 */
+.flip-front .face-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  padding: 0 2px;
+}
+
+/* 背面结构：back-top 固定在顶部，back-body 内滚 */
+.back-top {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+.back-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 2px;
+}
+
+/* 让 flip-inner 的高度能随内容自适应：使用 grid 布局代替 absolute，
+   让 flip-inner 的尺寸 = max(正面,背面) 内容；超过 max-height 则各自滚动。 */
+.flip-inner { display: grid; }
+.flip-face {
+  position: static;
+  grid-area: 1 / 1;
+  max-height: min(72vh, 780px);
+  min-height: 280px;
+}
+.flip-inner.flipped .flip-front { visibility: hidden; }
+.flip-inner:not(.flipped) .flip-back { visibility: hidden; }
+
 .options { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .opt {
   text-align: left; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px;
@@ -248,29 +325,50 @@ defineExpose({ flipped, showBack, doRate });
 .opt.correct { border-color: var(--green); background: rgba(22, 163, 74, .08); cursor: default; }
 .opt.wrong { border-color: var(--red); background: rgba(220, 38, 38, .08); }
 .mark { color: var(--green); font-weight: 700; }
-.rate-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+
+/* 操作区：独立块，不参与翻转，翻面后才显示 */
+.flip-controls {
+  margin-top: 4px;
+  padding: 10px 4px 2px;
+  border-top: 1px dashed var(--line);
+  background: linear-gradient(to bottom, rgba(255,255,255,0), var(--page-bg) 40%);
+}
+.rate-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
 .rate { border-radius: 8px; font-weight: 600; }
 .rate.bad { color: var(--red); border-color: #fca5a5; }
 .rate.mid { color: var(--amber); border-color: #fcd34d; }
 .rate.good { color: var(--green); border-color: #86efac; }
 .rate.guess { color: var(--blue); border-color: #93c5fd; }
 .mnemonic { margin-top: 12px; padding: 8px 12px; background: var(--code-bg); border-radius: 8px; font-size: 13px; color: var(--ink-2); }
-/* 3D 翻转动效：正反面 grid 叠放，容器高度 = max(正面, 背面)，背面内容长时不溢出/不遮挡 */
-.flip-scene { perspective: 1400px; }
-.flip-inner { position: relative; transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2, .7, .3, 1); display: grid; }
-.flip-inner.flipped { transform: rotateY(180deg); }
-.flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; grid-area: 1 / 1; min-width: 0; }
-.flip-back { grid-area: 1 / 1; transform: rotateY(180deg); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-.meta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+
+.meta-row { display: flex; gap: 14px; flex-wrap: wrap; }
 .meta-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .meta-label { font-size: 12px; color: var(--ink-2); }
 .chip.mini { font-size: 12px; padding: 2px 10px; }
 
-/* 移动端/平板：收紧卡片内边距、图片限高，防止长图+标签+自评按钮底部被遮挡 */
+/* 图片大屏显示：横屏横显、竖屏竖显，自适应容器，最大化利用可用空间 */
+.face-scroll :deep(img), .face-scroll img {
+  max-width: 100%;
+  max-height: 60vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 8px auto;
+  border-radius: 8px;
+}
+
+/* 滚动条美化 */
+.face-scroll::-webkit-scrollbar { width: 6px; }
+.face-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+/* 移动端/平板：收紧卡片内边距，按钮自动换行 */
 @media (max-width: 720px) {
-  .flip-face.card-item { padding: 14px 14px; }
-  .flip-face :deep(img), .flip-face img { max-height: 40vh; width: auto; }
-  .rate-row { flex-wrap: wrap; justify-content: stretch; gap: 8px; }
+  .flip-face.card-item { padding: 12px 14px; }
+  .flip-inner { min-height: 320px; max-height: 62vh; }
+  .flip-face { min-height: 320px; max-height: 62vh; }
+  .face-scroll :deep(img), .face-scroll img { max-height: 50vh; }
+  .rate-row { justify-content: stretch; gap: 8px; }
   .rate-row .btn { flex: 1 1 44%; }
   .meta-row { gap: 8px; }
   .back-top { flex-wrap: wrap; }

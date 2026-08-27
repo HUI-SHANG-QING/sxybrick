@@ -11,6 +11,7 @@ import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
 import { agentSystem } from '../agent/index.js';
+import { T } from '../utils/telemetry.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -88,31 +89,35 @@ function buildOption(data, style) {
   if (style === 'tree-radial') return treeOption(data, 'LR', 'radial', accent, ink, line);
   if (style === 'sankey') {
     const { nodes, links } = treeToFlat(data);
-    // 桑基图要求节点 name 唯一；如果叶子节点很多，需要增大迭代次数、nodeGap 与内边距，
-    // 避免节点/标签重叠（用户说的"双肾图被挡住"）
+    // 桑基图防堆叠：节点最小高度 minNodeHeight=6 防止一堆点挤成一条黑线；
+    // 加大 nodeGap、迭代次数、容器边距，并让长标签截断避免横向重叠
+    const count = Math.max(nodes.length, 1);
+    const nodeGap = Math.min(28, Math.max(10, 600 / count));  // 节点越多间距越小，但不低于 10
+    const minNodeHeight = 6;
     return {
       tooltip: { trigger: 'item' },
+      animation: true,
       series: [{
         type: 'sankey',
         data: nodes,
         links: links,
-        left: 80, right: 160, top: 24, bottom: 24,
+        left: 96, right: 200, top: 40, bottom: 40,
         width: 'auto', height: 'auto',
-        nodeWidth: 18,         // 节点（矩形）宽度
-        nodeGap: 14,           // 同列节点之间间距，越大越不容易重叠
-        nodeAlign: 'justify',  // 两端对齐，视觉更整齐
-        layoutIterations: 96,  // 增大布局迭代次数，减少遮挡
+        nodeWidth: 18,
+        nodeGap,
+        nodeAlign: 'justify',
+        minNodeHeight,
+        layoutIterations: 128,
         draggable: true,
         emphasis: { focus: 'adjacency' },
         label: {
           color: ink, fontSize: 12,
-          position: 'right',   // 标签放在节点右侧（避免画到边缘被裁切）
+          position: 'right',
           distance: 8,
-          formatter: p => String(p.name || '').length > 18 ? String(p.name).slice(0,16)+'…' : p.name,
+          width: 180, overflow: 'truncate', ellipsis: '…',
         },
         lineStyle: { color: 'gradient', opacity: 0.35, curveness: 0.55 },
         itemStyle: { color: accent, borderColor: 'transparent', borderWidth: 0, borderRadius: 3 },
-        dataGroupId: 'sankey-g',
       }],
     };
   }
@@ -122,12 +127,18 @@ function buildOption(data, style) {
       tooltip: { trigger: 'item', formatter: p => p.data?.name || p.name },
       series: [{
         type: 'graph', layout: 'force',
-        data: nodes.map(n => ({ name: n.name, symbolSize: 18, itemStyle: { color: accent } })),
+        data: nodes.map(n => ({
+          name: n.name, id: n.id, symbolSize: 18,
+          itemStyle: { color: accent },
+        })),
         links: links.map(l => ({ source: l.source, target: l.target })),
-        force: { repulsion: 280, edgeLength: 90, gravity: 0.04, layoutAnimation: true },
-        label: { show: true, color: ink, fontSize: 12, position: 'right' },
+        force: { repulsion: 320, edgeLength: 110, gravity: 0.035, layoutAnimation: true },
+        label: {
+          show: true, color: ink, fontSize: 12, position: 'right',
+          width: 140, overflow: 'truncate', ellipsis: '…',
+        },
         lineStyle: { color: line, width: 1.2, curveness: 0.1 },
-        roam: true,
+        roam: true, zoom: 1,
       }],
     };
   }
@@ -136,18 +147,34 @@ function buildOption(data, style) {
 
 function treeOption(data, orient, layout, accent, ink, line) {
   const isRadial = layout === 'radial';
+  const isTB = orient === 'TB';
+  // 防重叠：LR 默认 label 右对齐 160/140，TB 上下给 width+截断；径向留 distance
+  const baseLabel = isRadial
+    ? { position: 'radial', fontSize: 13, color: ink, distance: 6 }
+    : isTB
+      ? { position: 'top', verticalAlign: 'middle', align: 'center', fontSize: 13, color: ink, width: 120, overflow: 'truncate', ellipsis: '…' }
+      : { position: 'left', verticalAlign: 'middle', align: 'right', fontSize: 13, color: ink, width: 160, overflow: 'truncate', ellipsis: '…' };
+  const leavesLabel = isRadial
+    ? { position: 'radial', distance: 8, fontSize: 13, color: ink }
+    : isTB
+      ? { position: 'bottom', verticalAlign: 'middle', align: 'center', width: 140, overflow: 'truncate', ellipsis: '…' }
+      : { position: 'right', verticalAlign: 'middle', align: 'left', width: 200, overflow: 'truncate', ellipsis: '…' };
   return {
     tooltip: { trigger: 'item', formatter: p => p.data.name },
     series: [{
       type: 'tree', data: [data],
-      left: '4%', right: (orient === 'LR' ? '12%' : '4%'), top: '6%', bottom: '6%',
-      symbol: 'circle', symbolSize: 12, orient, layout,
-      label: isRadial
-        ? { position: 'radial', fontSize: 13, color: ink }
-        : { position: orient === 'LR' ? 'left' : 'top', verticalAlign: 'middle', align: 'center', fontSize: 13, color: ink },
-      leaves: { label: isRadial ? { position: 'radial' } : { position: orient === 'LR' ? 'right' : 'bottom', verticalAlign: 'middle', align: 'center' } },
+      left: isRadial ? '8%' : (isTB ? '4%' : '2%'),
+      right: isRadial ? '8%' : (isTB ? '4%' : '18%'),
+      top: isRadial ? '8%' : (isTB ? '4%' : '3%'),
+      bottom: isRadial ? '8%' : (isTB ? '6%' : '3%'),
+      symbol: 'circle', symbolSize: 10, orient, layout,
+      roam: true, zoom: isRadial ? 0.9 : 1,
+      nodePadding: isRadial ? 20 : 24,
+      layerPadding: isRadial ? 90 : (isTB ? 160 : 200),
+      label: baseLabel,
+      leaves: { label: leavesLabel },
       emphasis: { focus: 'descendant' },
-      expandAndCollapse: true, initialTreeDepth: -1,
+      expandAndCollapse: true, initialTreeDepth: 3,
       lineStyle: { color: line, width: 1.5, curveness: 0.4 },
       itemStyle: { color: accent, borderColor: 'transparent' },
     }],
@@ -216,16 +243,21 @@ async function fromGraph() {
   const allNames = new Set([...edges.map(e => e.from), ...edges.map(e => e.to)]);
   const inDeg = new Map();
   for (const e of edges) inDeg.set(e.to, (inDeg.get(e.to) || 0) + 1);
+  // 所有入度为 0 的点都作为子树根（森林），避免“只生成两个节点”
   const roots = [...allNames].filter(n => !inDeg.has(n));
-  const rootLabel = (roots.length ? roots : [...allNames])[0];
+  const seedRoots = roots.length ? roots : [...allNames];
   const build = (label, visited) => {
     if (visited.has(label)) return null;
     visited.add(label);
     const kids = (childrenOf.get(label) || []).map(k => build(k, new Set(visited))).filter(Boolean);
     return { id: uid(), label, children: kids };
   };
-  const root = build(rootLabel, new Set()) || { id: uid(), label: rootLabel, children: [] };
-  const m = await createMindmap({ title: `${rootLabel} 知识导图`, root });
+  const subTrees = seedRoots.map(r => build(r, new Set())).filter(Boolean);
+  let root;
+  if (subTrees.length === 1) root = subTrees[0];
+  else root = { id: uid(), label: '📚 知识图谱', children: subTrees };
+  const title = (subTrees.length === 1 ? `${subTrees[0].label} 知识导图` : '综合知识导图');
+  const m = await createMindmap({ title, root });
   await list(); openMap(m);
   toast('已从知识图谱生成导图', 'success');
 }
@@ -334,6 +366,8 @@ async function saveMap() {
     await updateMindmap(current.value.id, { title: current.value.title, root: current.value.root });
     dirty.value = false;
     await list();
+    const count = (function countNodes(n){ if (!n) return 0; return 1 + ((n.children||[]).reduce((s,c)=>s+countNodes(c),0)); })(current.value.root);
+    try { T.mindmapSave(count); } catch {}
     toast('导图已保存（可跨设备同步）', 'success');
   } catch (e) { toast('保存失败：' + e.message, 'error'); }
 }
@@ -441,9 +475,9 @@ onMounted(async () => {
 .mm-title { font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mm-del { color: var(--red); font-size: 12px; cursor: pointer; }
 .mm-meta { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
-.mm-main { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 12px; min-height: 480px; }
+.mm-main { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 12px; min-height: 560px; display: flex; flex-direction: column; }
 .mm-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
-.mm-chart { width: 100%; height: 60vh; min-height: 420px; }
+.mm-chart { width: 100%; height: 68vh; min-height: 560px; flex: 1; }
 .mm-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 90; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .mm-modal { width: 560px; max-width: 100%; background: var(--panel); border-radius: 14px; padding: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
 .mm-modal-title { font-size: 16px; font-weight: 700; }
@@ -451,7 +485,7 @@ onMounted(async () => {
 @media (max-width: 720px) {
   .mm-body { grid-template-columns: 1fr; }
   .mm-list { max-height: 150px; }
-  .mm-chart { height: 48vh; }
+  .mm-chart { height: 58vh; min-height: 420px; }
   .mm-modal { width: 100%; }
 }
 </style>
