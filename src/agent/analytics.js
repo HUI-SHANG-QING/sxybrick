@@ -9,6 +9,41 @@ import { getStats, weakCards } from '../repo.js';
 const DAY = 86400000;
 const now = () => Date.now();
 
+// ---------- P0-3: 重计算移入 Web Worker，避免 O(n²)/全表扫描阻塞主线程 ----------
+// 主线程创建 worker；worker 内 _analyticsWorker 为 null → offload 直接返回 _FALLBACK → 走 inline，无循环递归
+const isMainThread = typeof window !== 'undefined';
+let _analyticsWorker = null;
+const _pending = new Map();
+let _seq = 0;
+const _FALLBACK = Symbol('fallback');
+if (isMainThread) {
+  try {
+    _analyticsWorker = new Worker(new URL('./analytics.worker.js', import.meta.url), { type: 'module' });
+    _analyticsWorker.onmessage = (ev) => {
+      const { id, result, error } = ev.data || {};
+      const p = _pending.get(id);
+      if (!p) return;
+      _pending.delete(id);
+      if (error) p.reject(new Error(error));
+      else p.resolve(result);
+    };
+    _analyticsWorker.onerror = () => {
+      _analyticsWorker = null; // worker 加载/运行失败：清空，后续调用回退主线程
+      for (const [, p] of _pending) p.reject(new Error('worker unavailable'));
+      _pending.clear();
+    };
+  } catch { _analyticsWorker = null; }
+}
+// 通用 offload：worker 优先，失败/无 worker 返回 _FALLBACK 让调用方走 inline
+function offload(fn, args) {
+  if (!_analyticsWorker) return Promise.resolve(_FALLBACK);
+  const id = ++_seq;
+  return new Promise((resolve, reject) => {
+    _pending.set(id, { resolve, reject });
+    _analyticsWorker.postMessage({ id, fn, args });
+  }).catch(() => _FALLBACK);
+}
+
 // ---------- 卡片维度：单卡复习画像 ----------
 export async function getCardAnalytics(cardId) {
   const card = await db.cards.get(cardId);
@@ -63,7 +98,7 @@ export async function getRecentMistakes(days = 1) {
 }
 
 // ---------- 全局维度：跨模块概览 ----------
-export async function getCrossModuleInsight() {
+async function _getCrossModuleInsight() {
   const stats = await getStats();
   const weak = await weakCards(20, 1);
   const recentMistakes = await getRecentMistakes(1);
@@ -94,6 +129,12 @@ export async function getCrossModuleInsight() {
     ai: { feynman: feynmanCount, agent: agentCount, chat: chatCount },
     pomodoro: { today: pomoToday, totalSessions: pomoSessions.length, totalMinutes: pomoMinutes },
   };
+}
+// P0-3：6 表全表扫描移入 worker，失败回退 inline
+export async function getCrossModuleInsight() {
+  const r = await offload('getCrossModuleInsight', []);
+  if (r !== _FALLBACK) return r;
+  return _getCrossModuleInsight();
 }
 
 // ---------- 模块概览（供 context.js 注入一段精简文本） ----------
@@ -143,7 +184,7 @@ export async function getLearningProfile() {
 }
 
 // ---------- 易混卡片自动配对（同科目、双方都有答错记录） ----------
-export async function getConfusablePairs(limit = 10) {
+async function _getConfusablePairs(limit = 10) {
   const cards = await db.cards.toArray();
   const reviews = await db.reviews.toArray();
   const wrongCount = new Map();
@@ -174,6 +215,12 @@ export async function getConfusablePairs(limit = 10) {
   }
   pairs.sort((x, y) => y.confusable - x.confusable);
   return pairs.slice(0, limit);
+}
+// P0-3：O(n²) 全对配对移入 worker，避免千卡级阻塞主线程
+export async function getConfusablePairs(limit = 10) {
+  const r = await offload('getConfusablePairs', [limit]);
+  if (r !== _FALLBACK) return r;
+  return _getConfusablePairs(limit);
 }
 
 // ---------- 费曼→错题→卡片 闭环：找出高频错题（可据此生成巩固/变式卡） ----------
@@ -218,7 +265,7 @@ export async function getForgetRisk(limit = 5) {
 }
 
 // ---------- D1 单科诊断：每科的掌握度/到期/错题/易混画像 + 规则化建议 ----------
-export async function getSubjectDiagnosis() {
+async function _getSubjectDiagnosis() {
   const [stats, pairs] = await Promise.all([getStats(), getConfusablePairs(300)]);
   const cards = await db.cards.toArray();
   const nowTs = now();
@@ -240,6 +287,12 @@ export async function getSubjectDiagnosis() {
     diag.push({ subject, cards: subjCards.length, due, marked, mastery: m, pairN, advice: advices.join('；') });
   }
   return diag.sort((a, b) => b.cards - a.cards);
+}
+// P0-3：单科诊断含易混对(300)+全卡扫描，移入 worker
+export async function getSubjectDiagnosis() {
+  const r = await offload('getSubjectDiagnosis', []);
+  if (r !== _FALLBACK) return r;
+  return _getSubjectDiagnosis();
 }
 
 // ---------- 知识图谱驱动复习编排 ----------
@@ -283,7 +336,7 @@ function findCardForLabel(label, byLabel, cards) {
  * @param {object} opts { limit, includeDueOnly }
  * @returns {Promise<{path, prereqsAdded, contrastPairs, unmapped, edgesUsed}>}
  */
-export async function getGraphDrivenReviewPlan(opts = {}) {
+async function _getGraphDrivenReviewPlan(opts = {}) {
   const limit = Number(opts?.limit) || 50;
   const includeDueOnly = opts?.includeDueOnly !== false;
   const [cards, edges, reviews] = await Promise.all([
@@ -395,12 +448,18 @@ export async function getGraphDrivenReviewPlan(opts = {}) {
     fallback: false,
   };
 }
+// P0-3：3 表扫描 + 邻接编排移入 worker
+export async function getGraphDrivenReviewPlan(opts = {}) {
+  const r = await offload('getGraphDrivenReviewPlan', [opts]);
+  if (r !== _FALLBACK) return r;
+  return _getGraphDrivenReviewPlan(opts);
+}
 
 // ---------- 学习计划自动编排（数据驱动，零 LLM 也能用）----------
 // 拉取跨模块数据（薄弱/到期/遗忘风险/易混对/单科诊断/图驱动路径），
 // 按 days 切成 3 阶段（抢救→巩固→收尾），每阶段含目标/任务/优先级/里程碑
 // 输出 markdown content + 结构化 meta，可由 create_plan 直接持久化
-export async function generateAutoPlan(days = 7) {
+async function _generateAutoPlan(days = 7) {
   const D = Math.max(1, Math.min(30, Number(days) | 0));
   const [stats, diag, risks, weak, graph] = await Promise.all([
     getStats(),
@@ -506,6 +565,12 @@ export async function generateAutoPlan(days = 7) {
       graphEdgesUsed: graph.edgesUsed,
     },
   };
+}
+// P0-3：自动编排聚合多个重计算，整块移入 worker（子调用在 worker 内本地执行，省跨线程往返）
+export async function generateAutoPlan(days = 7) {
+  const r = await offload('generateAutoPlan', [days]);
+  if (r !== _FALLBACK) return r;
+  return _generateAutoPlan(days);
 }
 
 // ---------- E1 资产健康度：重复卡 / 僵尸卡 / 孤儿图片 / 无标签卡 ----------
