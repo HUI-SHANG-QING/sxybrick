@@ -196,6 +196,7 @@ export async function runPipeline(opt) {
     const fullContext = [studyContext, bbContext ? `\n【协作黑板】\n${bbContext}` : ''].filter(Boolean).join('\n');
 
     const stepCtx = {
+      agentId: agent.id, // 让本步 Agent 经 write_blackboard 写入的发现正确归因到自己
       cfg,
       studyContext: fullContext,
       memoryText: ctx.memoryText,

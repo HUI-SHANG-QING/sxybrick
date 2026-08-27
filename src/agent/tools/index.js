@@ -4,6 +4,7 @@
 
 import { toolRegistry } from '../registry.js';
 import { extractJSON } from '../llm.js';
+import { resolveAgentId } from '../attribution.js';
 import {
   getStats,
   weakCards,
@@ -686,12 +687,15 @@ toolRegistry.register({
   parameters: {
     query: 'string: 搜索内容',
     topK: 'number: 返回条数，默认 6',
+    subject: 'string: 可选，限定科目（走索引，缩小检索范围、提速）',
   },
   readsData: true,
   async execute(args) {
     const query = String(args?.query || '').trim();
     if (!query) return { ok: false, error: '查询为空' };
-    const results = await hybridSearch(query, { topK: Number(args?.topK) || 6 });
+    const opts = { topK: Number(args?.topK) || 6 };
+    if (args?.subject && String(args.subject).trim()) opts.subject = String(args.subject).trim();
+    const results = await hybridSearch(query, opts);
     return {
       ok: true,
       data: {
@@ -716,12 +720,15 @@ toolRegistry.register({
   parameters: {
     query: 'string: 需要检索的问题/关键词',
     topK: 'number: 返回条数，默认 6',
+    subject: 'string: 可选，限定科目（走索引，缩小检索范围、提速）',
   },
   readsData: true,
   async execute(args) {
     const query = String(args?.query || '').trim();
     if (!query) return { ok: false, error: '查询为空' };
-    const text = await retrieveContext(query, { topK: Number(args?.topK) || 6 });
+    const opts = { topK: Number(args?.topK) || 6 };
+    if (args?.subject && String(args.subject).trim()) opts.subject = String(args.subject).trim();
+    const text = await retrieveContext(query, opts);
     return { ok: true, data: { context: text, hasResults: !!text } };
   },
 });
@@ -830,7 +837,7 @@ toolRegistry.register({
   writesData: false,
   async execute(args, ctx) {
     if (!ctx.blackboard) return { ok: false, error: '当前不在多智能体协作模式（无黑板）' };
-    const agentId = ctx.agentId || 'unknown';
+    const agentId = resolveAgentId(ctx);
     if (args?.finding) ctx.blackboard.addFinding(agentId, args.finding);
     if (args?.artifactKey && args?.artifactValue !== undefined) {
       ctx.blackboard.setArtifact(args.artifactKey, args.artifactValue, agentId);
@@ -844,3 +851,87 @@ export function registerDefaultTools() {
   // 工具已在模块加载时通过 toolRegistry.register 注册，这里仅作显式语义占位。
   return toolRegistry.list().length;
 }
+
+// ---------- 智能层算法工具（2026-08-27）：本地错题归因 + 图谱自动构建 ----------
+import { attributeMistakes } from '../../algorithms/mistakeAttribution.js';
+import { autoBuildGraph, derivePrereqPlan } from '../../algorithms/graphAuto.js';
+import { planMistakeQuiz } from '../../algorithms/session.js';
+
+toolRegistry.register({
+  name: 'attribute_mistakes',
+  description: '本地离线错题归因：用 TF-IDF 把错题按概念聚类，找出用户反复错的薄弱知识点（不调用 LLM，零成本）。返回聚类概念、涉及卡片与簇内相似度。',
+  parameters: {
+    days: 'number: 只统计最近 N 天的错题，默认 30',
+    limit: 'number: 最多取多少张错题卡，默认 50',
+  },
+  readsData: true,
+  async execute(args) {
+    const cards = await weakCards(Number(args?.limit) || 50, 1);
+    if (!cards.length) return { ok: true, data: { clusters: [], note: '暂无错题' } };
+    const clusters = attributeMistakes(cards);
+    return {
+      ok: true,
+      data: {
+        clusters: clusters.map(c => ({
+          concept: c.concept, size: c.size, score: c.score,
+          cards: c.cardIds.slice(0, 5),
+        })),
+        note: '按簇大小降序；建议从最大簇开始补练（先补前置再练当前）',
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'auto_build_graph',
+  description: '自动构建知识图谱：从标签共现/学习顺序/错题同现/内容相似推导卡片间的前置依赖与关联边（写入 graphEdges，kind=auto）。可指定卡片查它的前置补练计划。',
+  parameters: {
+    cardId: 'string: 可选，指定卡片 ID 则返回该卡的前置依赖补练计划（不传则全量重建图谱）',
+  },
+  readsData: true,
+  writesData: true,
+  async execute(args) {
+    if (args?.cardId) {
+      const plan = await derivePrereqPlan(String(args.cardId));
+      return { ok: true, data: plan };
+    }
+    const res = await autoBuildGraph();
+    return { ok: true, data: { stats: res.stats, edgeCount: res.edges.length } };
+  },
+});
+
+// 错题聚类反哺智能出题（2026-08-27 P1）：高频错因簇 → 先补前置 → 交错出题
+// 零 LLM、确定性、离线可跑，smart-reviewer 用它生成「错题轰炸」测验序列
+toolRegistry.register({
+  name: 'build_quiz_from_mistakes',
+  description: '错题聚类反哺出题（零 LLM，离线）：把高频错题按概念簇组织成一份「错题轰炸」测验序列——每个错因簇先补未掌握的前置卡（derivePrereqPlan），再练簇内错题卡，全程交错排序防相似题连排。返回按序作答的测验计划（sequence 直接用于逐卡引导）。',
+  parameters: {
+    limit: 'number: 取前几个错因簇，默认 5',
+    count: 'number: 测验总卡数上限，默认 10',
+    days: 'number: 只统计最近 N 天的错题（透传 weakCards），默认 30',
+    interleave: 'boolean: 是否交错排序，默认 true',
+  },
+  readsData: true,
+  async execute(args) {
+    const limit = Number(args?.limit) || 5;
+    const count = Number(args?.count) || 10;
+    const interleave = args?.interleave !== false;
+    // 错题池：近 N 天/全量中答过错的卡（failCount>=1 即纳入，聚类本身会归并同概念）
+    const pool = await weakCards(Math.max(count * 3, 20), 1);
+    if (!pool.length) {
+      return { ok: true, data: { clusters: [], sequence: [], meta: { note: '暂无错题，先去复习积累数据' } } };
+    }
+    const clusters = attributeMistakes(pool);
+    // 为每个簇的领衔错卡取未掌握前置（先补前置再练当前）；图谱未建时静默降级
+    const prereq = new Map();
+    for (const cl of clusters.slice(0, limit)) {
+      const leadId = cl.cardIds[0];
+      try {
+        const plan = await derivePrereqPlan(leadId);
+        if (plan.prereqCardIds.length) prereq.set(leadId, plan.prereqCardIds);
+      } catch { /* 忽略：无图谱边时不出前置卡 */ }
+    }
+    const quiz = planMistakeQuiz(clusters, pool, { limit, count, prereq, interleave });
+    return { ok: true, data: quiz };
+  },
+});

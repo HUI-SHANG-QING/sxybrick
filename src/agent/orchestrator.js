@@ -80,17 +80,19 @@ export async function runTask(opt) {
 
   // 1) 构建上下文（学习数据 + RAG 检索增强 + 长期记忆）
   const [studyContext, memoryText] = await Promise.all([buildFullContext(userInput), buildMemoryText()]);
+  // 2) 路由 / 选定 Agent（先于 ctx 解析，便于把 agentId 注入工具上下文，
+  //    这样多智能体协作时 write_blackboard 能把发现正确归因到调用它的 Agent，而非 'unknown'）
+  const resolvedId = agentId || routeIntent(userInput);
+  const agent = agentRegistry.get(resolvedId) || agentRegistry.get('tutor');
+  push({ kind: TraceKind.ROUTE, text: `路由到 Agent：${agent.name}`, agentId: agent.id });
+
   const ctx = {
+    agentId: agent.id,
     cfg,
     studyContext,
     memoryText,
     chat: (messages, opts = {}) => chatWithFallback(messages, cfg, { ...opts, signal }),
   };
-
-  // 2) 路由 / 选定 Agent
-  const resolvedId = agentId || routeIntent(userInput);
-  const agent = agentRegistry.get(resolvedId) || agentRegistry.get('tutor');
-  push({ kind: TraceKind.ROUTE, text: `路由到 Agent：${agent.name}`, agentId: agent.id });
 
   // 3) 拼接对话（保留最近若干轮历史，控制 token）
   const recent = history.slice(-12);

@@ -96,18 +96,30 @@ function localEmbed(texts) {
 }
 
 /**
+ * 该配置指向的提供方是否不支持 /embeddings 端点。
+ * DeepSeek 等仅提供 chat 不提供 embeddings，强行走远程必 4xx；
+ * 直接本地降级，避免无谓网络请求与误导性报错（开箱即用性，N5）。
+ */
+function isEmbeddingsUnsupported(cfg) {
+  const base = String(cfg.baseUrl || '').toLowerCase();
+  return base.includes('deepseek');
+}
+
+/**
  * 批量生成 embedding
  * @param {string[]} texts
  * @returns {Promise<number[][]>} 向量数组
  */
 export async function embedBatch(texts) {
   if (!texts.length) return [];
-  if (hasKey()) {
+  // 远程仅在「有 key 且提供方支持 embeddings」时尝试；其余（无 key / DeepSeek 等）直接本地，零报错。
+  const tryRemote = hasKey() && !isEmbeddingsUnsupported(getCfg());
+  if (tryRemote) {
     try {
       return await remoteEmbed(texts);
     } catch (e) {
-      // 远程失败时降级到本地，保证可用性
-      console.warn('[embedding] 远程失败，降级本地：', e.message);
+      // 远程失败时降级到本地，保证可用性（info 级，非报错）
+      console.info('[embedding] 远程 embedding 不可用，已降级本地向量：', e.message);
     }
   }
   return localEmbed(texts);

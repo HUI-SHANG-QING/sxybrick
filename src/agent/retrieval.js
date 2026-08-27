@@ -9,7 +9,9 @@
 //   4) 模型签名(modelSig)：embedding 模型变更时自动标记全量重建
 
 import { db, uid } from '../db.js';
-import { embedBatch, embed, cosine, getModelSig } from './embedding.js';
+import { embedBatch, embed, getModelSig } from './embedding.js';
+import { computeStaleItems } from './stale.js';
+import { scoreSemantic, scoreKeyword, fuseResults } from './retrieval-core.js';
 
 const CHUNK_LEN = 500; // 文档分块长度
 const CHUNK_OVERLAP = 50; // 分块重叠（避免切断语义）
@@ -104,30 +106,27 @@ export async function indexDoc(doc) {
 export async function getStaleCards(limit = 200) {
   const modelSig = getModelSig();
   const cards = await db.cards.limit(limit * 2).toArray();
-  const stale = [];
-  for (const c of cards) {
-    if (stale.length >= limit) break;
-    const emb = await db.embeddings.where('sourceId').equals(c.id).first();
-    if (!emb || emb.modelSig !== modelSig || emb.updatedAt < (c.updatedAt || 0)) {
-      stale.push(c);
-    }
-  }
-  return stale;
+  // 一次批量查询拿到所有相关 embedding，避免在循环里逐卡 N 次查询（N2 性能回归）
+  const ids = cards.map((c) => c.id);
+  const embById = new Map(
+    ids.length
+      ? (await db.embeddings.where('sourceId').anyOf(ids).toArray()).map((e) => [e.sourceId, e])
+      : []
+  );
+  return computeStaleItems(cards, embById, modelSig, limit);
 }
 
 /** 找出需要重新索引的文档 */
 export async function getStaleDocs(limit = 50) {
   const modelSig = getModelSig();
   const docs = await db.docs.limit(limit * 2).toArray();
-  const stale = [];
-  for (const d of docs) {
-    if (stale.length >= limit) break;
-    const emb = await db.embeddings.where('sourceId').equals(d.id).first();
-    if (!emb || emb.modelSig !== modelSig || emb.updatedAt < (d.updatedAt || 0)) {
-      stale.push(d);
-    }
-  }
-  return stale;
+  const ids = docs.map((d) => d.id);
+  const embById = new Map(
+    ids.length
+      ? (await db.embeddings.where('sourceId').anyOf(ids).toArray()).map((e) => [e.sourceId, e])
+      : []
+  );
+  return computeStaleItems(docs, embById, modelSig, limit);
 }
 
 /** 增量索引：处理过期卡片+文档（轻量，可后台跑） */
@@ -173,71 +172,64 @@ export async function rebuildIndex() {
 
 // ---------- 混合检索 ----------
 
+/**
+ * 加载待检索的 embedding 行。
+ * 关键优化（N1）：当调用方提供 subject / sourceType 时，走 IndexedDB 索引
+ * （embeddings 表已建 'subject'/'sourceType' 索引）做范围裁剪，避免全表扫描。
+ * 未提供时退回全表扫描，行为与旧实现完全一致（向后兼容）。
+ */
+async function loadEmbeddingRows(opts = {}) {
+  const subject = opts.subject && String(opts.subject).trim();
+  if (subject) return db.embeddings.where('subject').equals(subject).toArray();
+  if (opts.sourceType) return db.embeddings.where('sourceType').equals(opts.sourceType).toArray();
+  return db.embeddings.toArray();
+}
+
 /** 语义检索：用 query 的 embedding 对所有 chunk 做余弦相似度排序 */
 export async function semanticSearch(query, opts = {}) {
   const topK = opts.topK || 8;
   const minScore = opts.minScore || 0.15;
   const qVec = await embed(query);
-  const all = await db.embeddings.toArray();
-  if (!all.length) return [];
-  const scored = all.map((row) => ({ row, score: cosine(qVec, row.vector || []) }));
-  scored.sort((a, b) => b.score - a.score);
-  return scored.filter((s) => s.score >= minScore).slice(0, topK);
+  const rows = await loadEmbeddingRows(opts);
+  if (!rows.length) return [];
+  return scoreSemantic(qVec, rows)
+    .sort((a, b) => b.score - a.score)
+    .filter((s) => s.score >= minScore)
+    .slice(0, topK);
 }
 
 /** 关键词检索：在 chunk 文本里做子串/分词匹配（轻量全文检索） */
 export async function keywordSearch(query, opts = {}) {
   const topK = opts.topK || 8;
-  const q = String(query || '').trim().toLowerCase();
-  if (!q) return [];
-  const terms = new Set();
-  const cjk = q.replace(/[^\u4e00-\u9fff]/g, '');
-  for (let i = 0; i < cjk.length - 1; i++) terms.add(cjk.slice(i, i + 2));
-  for (const ch of cjk) terms.add(ch);
-  for (const w of q.split(/\s+/)) if (w) terms.add(w);
-  if (!terms.size) return [];
-
-  const all = await db.embeddings.toArray();
-  const scored = all.map((row) => {
-    const text = (row.text || '').toLowerCase();
-    let hits = 0;
-    for (const t of terms) if (text.includes(t)) hits++;
-    return { row, score: hits / terms.size };
-  });
-  scored.sort((a, b) => b.score - a.score);
-  return scored.filter((s) => s.score > 0).slice(0, topK);
+  const rows = await loadEmbeddingRows(opts);
+  if (!rows.length) return [];
+  return scoreKeyword(query, rows)
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK);
 }
 
-/** 混合检索：语义 + 关键词 → reranking 融合排序 → top-k */
+/**
+ * 混合检索：语义 + 关键词 → reranking 融合排序 → top-k。
+ * 关键优化（N1）：仅加载一次 embedding 行，语义与关键词两套打分复用同一批数据，
+ * 不再各扫一次全表（旧实现 hybridSearch 会触发 2 次完整 toArray）。
+ */
 export async function hybridSearch(query, opts = {}) {
   const topK = opts.topK || 6;
   const semW = opts.semanticWeight ?? 0.65;
   const kwW = opts.keywordWeight ?? 0.35;
-
-  const [sem, kw] = await Promise.all([
-    semanticSearch(query, { topK: topK * 3, minScore: 0.1 }),
-    keywordSearch(query, { topK: topK * 3 }),
-  ]);
-
-  // 融合：同一 sourceId 取最高分 chunk，按加权得分排序
-  const byId = new Map();
-  for (const s of sem) {
-    const key = s.row.sourceId;
-    if (!byId.has(key) || byId.get(key).score < s.score) byId.set(key, s);
-  }
-  for (const k of kw) {
-    const key = k.row.sourceId;
-    if (!byId.has(key) || byId.get(key).score < k.score) byId.set(key, k);
-  }
-
-  const merged = [...byId.values()].map((item) => {
-    const semScore = sem.find((s) => s.row.sourceId === item.row.sourceId)?.score || 0;
-    const kwScore = kw.find((k) => k.row.sourceId === item.row.sourceId)?.score || 0;
-    const fused = semScore * semW + kwScore * kwW;
-    return { ...item, fused, semScore, kwScore };
-  });
-  merged.sort((a, b) => b.fused - a.fused);
-  return merged.slice(0, topK);
+  const qVec = await embed(query);
+  const rows = await loadEmbeddingRows(opts);
+  if (!rows.length) return [];
+  const semScored = scoreSemantic(qVec, rows)
+    .filter((s) => s.score >= (opts.minScore ?? 0.1))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK * 3);
+  const kwScored = scoreKeyword(query, rows)
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK * 3);
+  return fuseResults(semScored, kwScored, { topK, semanticWeight: semW, keywordWeight: kwW });
 }
 
 // ---------- 上下文注入：把检索结果格式化为 Agent 可用文本 ----------
