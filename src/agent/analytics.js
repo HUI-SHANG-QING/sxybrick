@@ -652,3 +652,11 @@ export async function getCalibration() {
   const reviews = await db.reviews.toArray();
   return computeCalibration(reviews);
 }
+
+// ---------- 到期洪峰预测（Due Forecast）----------
+// 预测未来 N 天每日到期卡量（含复习推进模拟）；纯函数在 algorithms/forecast.js，这里只做 IO。
+import { forecastDue } from '../algorithms/forecast.js';
+export async function getDueForecast(days = 30) {
+  const cards = await db.cards.toArray();
+  return forecastDue(cards, days);
+}

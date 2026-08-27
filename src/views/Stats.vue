@@ -5,7 +5,7 @@ import * as echarts from 'echarts';
 import 'echarts-wordcloud';
 import { toast } from '../utils/toast.js';
 import { getStats } from '../repo.js';
-import { getLearningProfile, getSubjectDiagnosis, getCalibration } from '../agent/analytics.js';
+import { getLearningProfile, getSubjectDiagnosis, getCalibration, getDueForecast } from '../agent/analytics.js';
 import { getDailyCounts } from '../utils/streak.js';
 import { degraded } from '../utils/perf.js';
 
@@ -24,6 +24,8 @@ const tagEl = ref(null);
 const wordEl = ref(null);
 const calibEl = ref(null);     // 校准回测曲线
 const calibration = ref(null); // { n, brier, ece, bias, verdict, note, buckets }
+const forecastEl = ref(null);  // 到期洪峰预测
+const forecast = ref(null);    // { byDay:[{date,count}], totalDue, backlog, peak, avgPerDay }
 let charts = [];
 
 // —— 2026-08-26 速赢区：趋势图可切换 7/14/30 天 + 本周 vs 上周对比 ——
@@ -290,12 +292,39 @@ function buildCharts() {
     });
     charts.push(calib);
   }
+
+  // 到期洪峰预测：未来 30 天每日到期卡量柱状图（峰值标红、今日标蓝）
+  if (forecastEl.value && forecast.value) {
+    const fc = forecast.value;
+    const fchart = echarts.init(forecastEl.value);
+    const todayIdx = 0;
+    fchart.setOption({
+      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}：预计到期 ${p[0].value} 张` },
+      grid: { left: 36, right: 12, top: 24, bottom: 40 },
+      xAxis: {
+        type: 'category', data: fc.byDay.map(b => b.date.slice(5)),
+        axisLabel: { color: theme.axis, interval: 4 }, axisLine: { lineStyle: { color: theme.grid } },
+      },
+      yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
+      series: [{
+        type: 'bar',
+        data: fc.byDay.map((b, i) => ({
+          value: b.count,
+          itemStyle: {
+            color: i === todayIdx ? theme.blue : (b.count === fc.peak.count && b.count > 0 ? theme.red : theme.bar),
+            borderRadius: [4, 4, 0, 0],
+          },
+        })),
+      }],
+    });
+    charts.push(fchart);
+  }
 }
 
 async function load() {
   try {
-    const [s, p, diag, calib] = await Promise.all([getStats(), getLearningProfile(), getSubjectDiagnosis(), getCalibration()]);
-    stats.value = s; profile.value = p; diagnosis.value = diag; calibration.value = calib;
+    const [s, p, diag, calib, fc] = await Promise.all([getStats(), getLearningProfile(), getSubjectDiagnosis(), getCalibration(), getDueForecast(30)]);
+    stats.value = s; profile.value = p; diagnosis.value = diag; calibration.value = calib; forecast.value = fc;
     // 速赢区：加载趋势数据 + 计算本周 vs 上周对比
     await loadTrendByRange(trendRange.value);
     await computeWeekDelta();
@@ -386,6 +415,18 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
       <div v-if="calibration && calibration.n" class="hint" style="margin-top:6px">
         {{ calibration.verdict }} —— {{ calibration.note }}
       </div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div class="hint">到期洪峰预测 · 未来 30 天（按当前复习节奏模拟）</div>
+        <div v-if="forecast" class="hint" style="font-size:12px">
+          逾期待补 {{ forecast.backlog }} · 30 天累计 {{ forecast.totalDue }} ·
+          日均 {{ forecast.avgPerDay }} · 峰值 {{ forecast.peak.date.slice(5) }}（{{ forecast.peak.count }} 张）
+        </div>
+      </div>
+      <div v-if="forecast && forecast.totalDue" ref="forecastEl" style="height:260px"></div>
+      <div v-else class="hint" style="text-align:center;padding:24px 0">暂无到期卡片</div>
     </div>
 
     <div class="grid2">
