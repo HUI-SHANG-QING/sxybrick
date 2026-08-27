@@ -5,6 +5,7 @@
 
 import { db } from '../db.js';
 import { getStats, weakCards } from '../repo.js';
+import { trainWeights } from '../fsrs.js';
 
 const DAY = 86400000;
 const now = () => Date.now();
@@ -135,6 +136,22 @@ export async function getCrossModuleInsight() {
   const r = await offload('getCrossModuleInsight', []);
   if (r !== _FALLBACK) return r;
   return _getCrossModuleInsight();
+}
+
+// ---------- P1-1 FSRS ML 训练数据准备 + 训练调度（offload 到 worker） ----------
+// 训练数据：全部复习记录 + 卡片当前 fsrs 状态，按时间升序
+export async function prepareFsrsTrainingData() {
+  const [reviews, cards] = await Promise.all([db.reviews.toArray(), db.cards.toArray()]);
+  const cardsById = new Map(cards.map(c => [c.id, c]));
+  reviews.sort((a, b) => (a.reviewedAt || 0) - (b.reviewedAt || 0));
+  return { reviews, cardsById };
+}
+// 训练用户 FSRS 权重（自动 offload 到 worker；样本不足/无 worker 回退默认）
+export async function trainFsrsModel() {
+  const r = await offload('trainFsrs', []);
+  if (r !== _FALLBACK) return r;
+  const { reviews, cardsById } = await prepareFsrsTrainingData();
+  return trainWeights(reviews, cardsById);
 }
 
 // ---------- 模块概览（供 context.js 注入一段精简文本） ----------

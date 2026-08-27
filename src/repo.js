@@ -1,12 +1,30 @@
 // 数据访问层：把原版 Express 后端的业务逻辑，改写成对本地 IndexedDB 的读写
 import { db, uid } from './db.js';
-import { computeNext, applyFeedback } from './srs.js';
+import { computeNext, applyFeedback, scheduleReview, RETRIEVAL_STRENGTH_OPTIONS } from './srs.js';
+// P1-3 检索强度分级选项：供 Review.vue 等 UI 直接渲染选择器
+export { RETRIEVAL_STRENGTH_OPTIONS };
+import { mergeUserWeights } from './fsrs.js';
 import { extractImageIds } from './images.js';
 
 export const DEFAULT_SUBJECTS = ['计算机网络', '操作系统', '数据结构', '计算机组成原理', '高等数学', '线性代数', '概率论'];
 const MAX_CHARS = 8000;
 
 const now = () => Date.now();
+
+// P1-1 FSRS 调度配置缓存：避免每次复习都查 db.meta（scheduler/fsrsWeights）
+let _schedCache = null;
+async function getSchedConfig() {
+  if (_schedCache && Date.now() - _schedCache.loadedAt < 60000) return _schedCache;
+  const [sched, wRow] = await Promise.all([db.meta.get('scheduler'), db.meta.get('fsrsWeights')]);
+  _schedCache = {
+    scheduler: sched?.value === 'fsrs' ? 'fsrs' : 'sm2',
+    weights: mergeUserWeights(wRow?.value),
+    loadedAt: Date.now(),
+  };
+  return _schedCache;
+}
+/** 设置变更后调用，清缓存使下次复习读到新调度器/新权重 */
+export function refreshSchedConfig() { _schedCache = null; }
 // 剥离 Vue 响应式代理：Dexie put 前转纯对象，避免 reactive proxy 触发 IndexedDB 结构化克隆失败（思维导图等含嵌套对象的表曾因此保存失败）
 const plain = (x) => JSON.parse(JSON.stringify(x));
 
@@ -202,35 +220,57 @@ export async function reviewQueue(limit = 100, interleave = false, filter = {}) 
   // 默认只背到期卡（遵循复习曲线）；includeDueOnly=false 时可背全部（重复复习场景）
   if (f.includeDueOnly !== false) cards = cards.filter(c => c.dueAt <= now());
   cards.sort((a, b) => a.dueAt - b.dueAt || (a.id < b.id ? -1 : 1));
-  // 交错混科：把到期卡片按科目轮流取出，避免同一科目连串出现
+  // 三维交错（P1-2）：科目 + 题型 + 难度，避免相邻卡片"过于相似"
+  // 认知科学：交错练习（Interleaving）比集中练习（Blocked）提升远迁移 40%+；
+  //   - 科目切换最强（激活不同知识网络）
+  //   - 难度切换避免"难度定势"（basic/applied/challenge）
+  //   - 题型切换避免"题型定势"（basic/cloze/choice/writing）
+  // 算法：贪心 + 邻接惩罚。维护最近 WINDOW 张的维度集合，每步从剩余候选选 penalty 最低的，
+  //   并列时按 dueAt 升序（仍优先到期卡）。变式卡同 sourceCardId 重罚（合并原 anti-adjacent 逻辑）。
   if (interleave && cards.length > 1) {
-    const groups = new Map();
-    for (const c of cards) {
-      const k = c.subject || '未分类';
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k).push(c);
-    }
+    const WINDOW = 3; // 邻接窗口：最近 3 张
+    const W_SUBJECT = 3;   // 同科目惩罚（最强）
+    const W_DIFF = 1;      // 同难度惩罚
+    const W_TYPE = 1;      // 同题型惩罚
+    const W_SOURCE = 5;    // 同原卡变式惩罚（防"假掌握"）
+    const remaining = cards.slice();
     const result = [];
-    let added = true;
-    while (added) {
-      added = false;
-      for (const arr of groups.values()) {
-        if (arr.length) { result.push(arr.shift()); added = true; }
+    const winSubject = [], winDiff = [], winType = [], winSource = [];
+    const pushWin = (c) => {
+      winSubject.push(c.subject || '未分类');
+      winDiff.push(c.difficulty || 'basic');
+      winType.push(c.type || 'basic');
+      winSource.push(c.sourceCardId || '');
+      if (winSubject.length > WINDOW) {
+        winSubject.shift(); winDiff.shift(); winType.shift(); winSource.shift();
       }
+    };
+    while (remaining.length) {
+      // 每步扫描全部剩余候选选 penalty 最低的；n≤100，O(n·WINDOW) 一帧内可完成
+      let bestIdx = 0, bestPen = Infinity;
+      for (let i = 0; i < remaining.length; i++) {
+        const c = remaining[i];
+        let pen = 0;
+        if (winSubject.length) {
+          const cs = c.subject || '未分类';
+          const cd = c.difficulty || 'basic';
+          const ct = c.type || 'basic';
+          const csrc = c.sourceCardId || '';
+          for (let j = 0; j < winSubject.length; j++) {
+            if (winSubject[j] === cs) pen += W_SUBJECT;
+            if (winDiff[j] === cd) pen += W_DIFF;
+            if (winType[j] === ct) pen += W_TYPE;
+            if (csrc && winSource[j] === csrc) pen += W_SOURCE;
+          }
+        }
+        // 并列时 dueAt 升序已在 sort 中保证，这里同 penalty 取索引最早（即 dueAt 最早）
+        if (pen < bestPen) { bestPen = pen; bestIdx = i; }
+      }
+      const picked = remaining.splice(bestIdx, 1)[0];
+      result.push(picked);
+      pushWin(picked);
     }
     cards = result;
-  }
-  // 变式卡分散：避免同原卡的变式卡连续出现
-  // 认知科学：刚看完变式A 立刻看到变式B，会让"答案"在短时记忆里仍鲜活，导致"假掌握"
-  // 简单 anti-adjacent pass：相邻两张同 sourceCardId 时往后换一张
-  if (cards.length > 2) {
-    for (let i = 1; i < cards.length - 1; i++) {
-      const cur = cards[i], prev = cards[i - 1];
-      if (cur.sourceCardId && prev.sourceCardId && cur.sourceCardId === prev.sourceCardId) {
-        [cards[i], cards[i + 1]] = [cards[i + 1], cards[i]];
-        i++; // 跳过交换来的卡片，避免连换
-      }
-    }
   }
   return cards.slice(0, limit);
 }
@@ -238,6 +278,8 @@ export async function reviewQueue(limit = 100, interleave = false, filter = {}) 
 export async function review(cardId, rating, intensity = 1, guessed = false, opts = {}) {
   const card = await db.cards.get(cardId);
   if (!card) throw new Error('卡片不存在');
+  // P1-1：读取调度器配置（FSRS opt-in）+ 用户训练权重（带 60s 缓存）
+  const cfg = await getSchedConfig();
   // 每复习难度评分（0/1/2）：opts 优先，否则取卡片内容难度映射值
   // 注意：difficulty 是卡片固有内容属性（basic/applied/challenge），复习不应回写覆盖它
   const DIFF_MAP = { basic: 0, applied: 1, challenge: 2 };
@@ -252,13 +294,14 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
     const fail = last10.filter(r => r.rating === 0).length;
     adaptive = { reviews: last10.length, failRate: last10.length ? fail / last10.length : 0 };
   }
-  const next = computeNext(card, rating, intensity, guessed, { difficulty, wrongReason, adaptive });
+  const next = scheduleReview(card, rating, intensity, guessed, { difficulty, wrongReason, adaptive, scheduler: cfg.scheduler, weights: cfg.weights });
   // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt、不回写 difficulty（内容属性）：
   // 否则跨设备同步时「复习动作」会覆盖另一台设备对卡片文字/难度的编辑（数据丢失）
   // consolidation 字段：短期巩固状态（null/1/2），跟随 SRS 一并写回
+  // fsrs：FSRS 状态 {s,d,reps,last}；SM-2 路径 next.fsrs 为 undefined → 保留 card.fsrs（切换调度器后可无缝接续）
   // wrongReasonAt：错因独立时间戳，跨设备合并时按此取新者（不跟随 updatedAt 也不跟随 reviewedAt）
   const nowTs = now();
-  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, wrongReason, wrongReasonAt: nowTs, reviewedAt: nowTs });
+  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: next.fsrs ?? card.fsrs, wrongReason, wrongReasonAt: nowTs, reviewedAt: nowTs });
   await db.reviews.put({ id: uid(), cardId, reviewedAt: now(), rating, levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason });
   return { ...next, dueText: formatDue(next.dueAt) };
 }

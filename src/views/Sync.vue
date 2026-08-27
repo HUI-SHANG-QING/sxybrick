@@ -2,7 +2,7 @@
 // 数据同步：手动导出/导入（数据包文件）+ 局域网一键同步（电脑端中枢）
 import { ref, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
-import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup } from '../sync.js';
+import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup } from '../sync.js';
 import { getSubjects, createCard } from '../repo.js';
 import { getErrors, clearErrors } from '../utils/errorLog.js';
 import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from '../utils/gistBackup.js';
@@ -27,6 +27,48 @@ const lastReport = ref(JSON.parse(localStorage.getItem('sxy_last_sync_report') |
 const errors = ref([]);
 async function loadErrors() { errors.value = await getErrors(30); }
 async function clearErrs() { await clearErrors(); errors.value = []; toast('错误日志已清空', 'success'); }
+
+// ---------- P3-3 快照 / 回滚 / 冲突可视化 ----------
+const snapshots = ref([]);
+const lastConflicts = ref([]); // 上次导入返回的 stats.conflicts（在 UI 展示哪些字段被覆盖）
+const showConflicts = ref(false);
+const snapshotBusy = ref(false);
+async function loadSnapshots() { try { snapshots.value = await listSnapshots(); } catch {} }
+async function doManualSnapshot() {
+  snapshotBusy.value = true;
+  try {
+    const snap = await saveSnapshot(`手动快照 · ${new Date().toLocaleString('zh-CN')}`, 'manual');
+    await loadSnapshots();
+    toast(`已创建快照（含 ${snap.sizeBytes ? Math.round(snap.sizeBytes / 1024) + ' KB' : '数据'}，可在下方回滚）`, 'success');
+  } catch (e) { toast('创建快照失败：' + (e?.message || e), 'error'); }
+  finally { snapshotBusy.value = false; }
+}
+async function doRestore(id, label) {
+  if (!confirm(`确定回滚到该快照吗？\n\n${label}\n\n回滚后当前所有非图片数据会被该快照覆盖，请谨慎操作。`)) return;
+  snapshotBusy.value = true;
+  try {
+    // 回滚前再保存一次「回滚前自动快照」，避免回滚动作本身不可逆
+    await saveSnapshot(`回滚前自动快照 · ${new Date().toLocaleString('zh-CN')}`, 'backup-before-import');
+    const r = await restoreSnapshot(id);
+    await loadCounts(); await loadSnapshots();
+    toast(`已回滚到：${r.label}（${fmt(r.restoredAt)}）`, 'success');
+  } catch (e) { toast('回滚失败：' + (e?.message || e), 'error'); }
+  finally { snapshotBusy.value = false; }
+}
+async function doDeleteSnapshot(id) {
+  if (!confirm('确定删除该快照？删除后无法恢复。')) return;
+  try { await deleteSnapshot(id); await loadSnapshots(); toast('快照已删除', 'success'); }
+  catch (e) { toast('删除失败：' + (e?.message || e), 'error'); }
+}
+function fmtSize(n) {
+  if (!Number.isFinite(n)) return '—';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+function winnerLabel(w) {
+  return w === 'incoming' ? '导入方' : w === 'local' ? '本地' : '混合';
+}
 
 // ---------- P3·#2 Gist 云备份 ----------
 const ghToken = ref(localStorage.getItem('sxy_gist_token') || '');
@@ -149,10 +191,16 @@ async function onFile(e) {
     const backup = JSON.parse(await f.text());
     const stats = await importBackup(backup);
     await loadCounts();
+    await loadSnapshots(); // P3-3 导入会自动创建快照，刷新列表
     saveReport('导入数据包', stats);
+    // P3-3 冲突可视化：若有字段被覆盖，提示用户可查看明细
+    lastConflicts.value = stats.conflicts || [];
+    showConflicts.value = lastConflicts.value.length > 0;
     const meta = backup.deckMeta;
     const metaText = meta?.author ? `（卡组作者：${meta.author}${meta.description ? ' · ' + meta.description.slice(0, 40) : ''}）` : '';
-    toast(`导入完成：${fmtStats(stats)}${metaText}`, 'success');
+    const conflictText = lastConflicts.value.length ? `，${lastConflicts.value.length} 张卡片有字段被覆盖` : '';
+    const snapText = stats.snapshotId ? '（已自动创建导入前快照，可在下方回滚）' : '';
+    toast(`导入完成：${fmtStats(stats)}${metaText}${conflictText}${snapText}`, 'success');
   } catch (err) {
     toast(err.message || '导入失败，请检查文件格式', 'error');
   } finally { importing.value = false; }
@@ -273,7 +321,7 @@ async function onAnkiFile(e) {
   finally { ankiBusy.value = false; }
 }
 
-onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); });
+onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); loadSnapshots(); });
 </script>
 
 <template>
@@ -322,6 +370,52 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); 
         <span class="sd-item">周报 <b>{{ lastReport.stats.weeklyReports || 0 }}</b></span>
         <span class="sd-item">成就 <b>{{ lastReport.stats.achievements || 0 }}</b></span>
         <span class="sd-item">模考 <b>{{ lastReport.stats.exams || 0 }}</b></span>
+      </div>
+    </div>
+
+    <!-- P3-3 冲突可视化：哪些卡片的哪些字段被覆盖 -->
+    <div v-if="showConflicts" class="panel" style="margin-top:16px">
+      <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>字段冲突明细（{{ lastConflicts.length }} 张卡片有字段被覆盖）</span>
+        <button class="btn small" @click="showConflicts = false">收起</button>
+      </div>
+      <p class="hint" style="margin-top:0">合并按「双时间戳字段级」策略：内容字段按 updatedAt、复习状态按 reviewedAt、错因按 wrongReasonAt 各自取新者。下表显示每张卡被覆盖的字段来自哪一端。</p>
+      <div v-if="lastConflicts.length > 50" class="hint" style="color:var(--ink-2)">仅展示前 50 条，完整明细可在「自动快照」中回滚查看。</div>
+      <div class="conflict-list">
+        <div v-for="c in lastConflicts.slice(0, 50)" :key="c.id" class="conflict-item" :class="'win-' + c.winner">
+          <div class="conflict-front">{{ c.front || '(空卡)' }}</div>
+          <div class="conflict-meta">
+            <span class="conflict-winner">{{ winnerLabel(c.winner) }}</span>
+            <span class="conflict-fields">{{ c.fields.join(' / ') }}</span>
+          </div>
+          <div class="conflict-reason">{{ c.reason }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- P3-3 历史快照 / 回滚 -->
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>历史快照与回滚</span>
+        <button class="btn small" :disabled="snapshotBusy" @click="doManualSnapshot">立即创建快照</button>
+      </div>
+      <p class="hint" style="margin-top:0">每次导入数据包前会自动创建快照（最多保留 12 份，超出自动删最旧）。回滚会把当前所有非图片数据覆盖为快照内容，回滚前会再自动保存一次「回滚前快照」。</p>
+      <div v-if="!snapshots.length" class="hint">暂无快照。导入数据包或点击「立即创建快照」即可生成。</div>
+      <div v-else class="snapshot-list">
+        <div v-for="s in snapshots" :key="s.id" class="snapshot-item">
+          <div class="snapshot-main">
+            <div class="snapshot-label">{{ s.label || '(未命名快照)' }}</div>
+            <div class="snapshot-meta">
+              <span>{{ fmt(s.createdAt) }}</span>
+              <span v-if="s.sizeBytes"> · {{ fmtSize(s.sizeBytes) }}</span>
+              <span class="snapshot-kind">{{ s.kind === 'manual' ? '手动' : s.kind === 'auto-before-sync' ? '同步前' : '导入前' }}</span>
+            </div>
+          </div>
+          <div class="snapshot-actions">
+            <button class="btn small" :disabled="snapshotBusy" @click="doRestore(s.id, s.label || fmt(s.createdAt))">回滚</button>
+            <button class="btn small danger" :disabled="snapshotBusy" @click="doDeleteSnapshot(s.id)">删除</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -487,4 +581,24 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); 
 .hub-status { margin-top: 8px; padding: 10px 12px; border-radius: 8px; font-size: 13px; line-height: 1.5; }
 .hub-status.ok { background: color-mix(in srgb, #10b981 14%, transparent); border: 1px solid color-mix(in srgb,#10b981 40%,transparent); }
 .hub-status.bad { background: color-mix(in srgb, var(--red) 14%, transparent); border: 1px solid color-mix(in srgb,var(--red) 40%,transparent); }
+/* P3-3 冲突可视化 */
+.conflict-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.conflict-item { border: 1px solid var(--line); border-left: 4px solid var(--ink-2); border-radius: 8px; padding: 8px 10px; font-size: 12px; }
+.conflict-item.win-incoming { border-left-color: #3b82f6; }
+.conflict-item.win-local { border-left-color: #10b981; }
+.conflict-item.win-mixed { border-left-color: #f59e0b; }
+.conflict-front { font-weight: 600; color: var(--ink); margin-bottom: 4px; word-break: break-all; }
+.conflict-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.conflict-winner { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--code-inline); font-weight: 600; }
+.conflict-fields { font-family: monospace; color: var(--ink-2); }
+.conflict-reason { color: var(--ink-2); margin-top: 4px; }
+/* P3-3 快照列表 */
+.snapshot-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.snapshot-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.snapshot-main { flex: 1; min-width: 0; }
+.snapshot-label { font-size: 13px; font-weight: 600; color: var(--ink); word-break: break-all; }
+.snapshot-meta { font-size: 11px; color: var(--ink-2); margin-top: 2px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.snapshot-kind { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--code-inline); }
+.snapshot-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.btn.danger { border-color: color-mix(in srgb, var(--red) 40%, var(--line)); color: var(--red); }
 </style>

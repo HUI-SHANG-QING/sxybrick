@@ -105,6 +105,22 @@ db.version(14).stores({
   privacyRecords: 'id, date, startTime, endTime, type, mood, updatedAt',
 });
 
+// v15：新增同步快照表（P3-3 多设备同步增强）
+//   每次 importBackup 前自动 saveSnapshot，支持历史回滚；snapshots 本身不同步（设备本地诊断数据）
+//   id, label(快照名/来源), kind(backup-before-import | manual | auto-before-sync), createdAt, rows(JSON), sizeBytes
+db.version(15).stores({
+  snapshots: 'id, createdAt, kind',
+});
+
+// v16：新增插件表（P3-4 插件/MCP 接入机制）
+//   插件以 ES Module 字符串形式存于本表，运行时通过 Blob URL 动态 import
+//   id(插件 name 作主键), version, description, author, code(JS 字符串), enabled(0/1),
+//   installedAt, updatedAt, lastError(上次调用失败的错误信息，便于排查)
+//   plugins 本身不同步（设备本地扩展，跨设备无意义且可能含敏感配置）
+db.version(16).stores({
+  plugins: 'id, enabled, installedAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

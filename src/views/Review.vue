@@ -8,7 +8,7 @@ import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { db } from '../db.js';
-import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS, applyCardFeedback } from '../repo.js';
+import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS, applyCardFeedback, RETRIEVAL_STRENGTH_OPTIONS } from '../repo.js';
 import { getGoal, getTodayCount } from '../utils/streak.js';
 import { startSpeech, isSpeechSupported } from '../utils/speech.js';
 import { mdToSpeech, speak } from '../utils/tts.js';
@@ -23,6 +23,8 @@ const queue = ref([]);
 const idx = ref(0);
 const loading = ref(false);
 const intensity = ref(Number(localStorage.getItem('sxy_rv_intensity')) || 1);
+// P1-3 检索强度分级（再认/回忆/生成/讲解）：映射不同间隔乘子，与 intensity（时间压力）正交
+const retrievalStrength = ref(localStorage.getItem('sxy_rv_retrieval') || 'recall');
 const interleave = ref(localStorage.getItem('sxy_interleave') !== '0');
 const editOpen = ref(false);
 const editing = ref(null);
@@ -186,7 +188,7 @@ function toggleGraph() {
 
 async function rate(card, rating, guessed = false, meta = {}) {
   try {
-    const res = await review(card.id, rating, intensity.value, guessed, { ...meta, adaptive: adaptiveOn.value });
+    const res = await review(card.id, rating, intensity.value, guessed, { ...meta, adaptive: adaptiveOn.value, retrievalStrength: retrievalStrength.value });
     todayCount.value = await getTodayCount(); // 从 db.reviews 推导（跨会话/跨设备同步）
     // P2·#12 计划↔复习联动：复习后刷新引用此卡的计划的进度
     syncReviewToPlan(card.id).catch(() => {});
@@ -408,6 +410,7 @@ onMounted(async () => {
   }, 60000);
 });
 watch(intensity, v => localStorage.setItem('sxy_rv_intensity', String(v)));
+watch(retrievalStrength, v => localStorage.setItem('sxy_rv_retrieval', v));
 // P3-C：切到新卡时若开启自动朗读，先停旧朗读再读题面
 watch([idx, queue], () => {
   stopRead();
@@ -572,6 +575,10 @@ async function recordDuelWrong(idA, idB) {
           <option :value="1">正常</option>
           <option :value="1.5">考试临近（更频繁）</option>
           <option :value="2">考前冲刺（最高频）</option>
+        </select>
+        <label class="hint" title="检索方式越强，记忆越牢固，下次间隔越长（生成效应 + 费曼学习法）">检索方式</label>
+        <select v-model="retrievalStrength" class="input" style="width:auto">
+          <option v-for="o in RETRIEVAL_STRENGTH_OPTIONS" :key="o.code" :value="o.code" :title="o.desc">{{ o.label }}</option>
         </select>
         <button class="chip" :class="{ on: interleave }" @click="toggleInterleave">交错混科</button>
         <button class="chip" :class="{ on: smartMode }" @click="toggleSmart" title="综合到期+薄弱+精力曲线+交错混科+变式分散的智能排程（本地算法，零 LLM 开销）">🎯 今日最优序列</button>

@@ -11,7 +11,9 @@ export const BACKUP_VERSION = 5;
 //   idOnly    按 id 幂等（不可变记录：复习、图片、番茄专注、向量嵌入）
 
 // 本地日志/通知表——设备本地诊断数据，故意不同步（跨设备无意义且增大包体积）
-export const EXCLUDED_FROM_SYNC = ['notifications', 'errors'];
+// snapshots：同步快照仅本机回滚用，跨设备无意义且增大包体积
+// plugins：插件为本机扩展，跨设备无意义且可能含敏感配置（API Key 等）
+export const EXCLUDED_FROM_SYNC = ['notifications', 'errors', 'snapshots', 'plugins'];
 
 // 隐私敏感表——默认不入同步/全量导出，需用户显式 opt-in（PIPL 合规）
 export const PRIVACY_SYNC_TABLES = [
@@ -48,7 +50,7 @@ export const SYNC_TABLES = [
 //   注：difficulty 是卡片固有内容属性（basic/applied/challenge），随内容编辑走 updatedAt 合并，
 //       而非复习状态；否则另一台设备单纯复习（reviewedAt 更新）会覆盖本机的难度编辑。
 export const CARD_CONTENT_FIELDS = ['front', 'back', 'subject', 'source', 'type', 'marked', 'mnemonic', 'tags', 'frontChars', 'backChars', 'difficulty'];
-export const CARD_SRS_FIELDS = ['ease', 'level', 'intervalDays', 'dueAt', 'reviewedAt', 'consolidation'];
+export const CARD_SRS_FIELDS = ['ease', 'level', 'intervalDays', 'dueAt', 'reviewedAt', 'consolidation', 'fsrs'];
 
 // ---------- 纯合并函数（无浏览器依赖，前端 sync.js 与 Node 端 hub.js 共用） ----------
 

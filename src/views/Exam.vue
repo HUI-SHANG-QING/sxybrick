@@ -6,6 +6,10 @@ import { useRoute } from 'vue-router';
 import { db } from '../db.js';
 import { getSubjects, listExams, saveExam, deleteExam, setMarked, updateExam } from '../repo.js';
 import { chatAI, hasAIKey } from '../ai.js';
+// P2-2 模考-错题-AI补卡闭环：错题一键生成卡片入复习队列（与生成式测验共享逻辑）
+import { wrongQuestionsToCards } from '../utils/wrongToCards.js';
+// P2-4 模考分析与预测：成绩趋势 + 薄弱科目 + 通过率预估
+import { getExamTrend, getWeakSubjects, predictPassRate } from '../agent/examAnalytics.js';
 import { mdToSpeech } from '../utils/tts.js';
 import { toast } from '../utils/toast.js';
 import { T } from '../utils/telemetry.js';
@@ -120,6 +124,28 @@ async function markWrong() {
   toast(`已将 ${n} 道错题加入错题本`, 'success');
 }
 
+// P2-2 模考-错题-AI补卡闭环：错题一键生成卡片入复习队列
+// 与 markWrong（加入错题本）正交：错题本=标记重点，补卡=把错题本身作为新卡入复习轮
+const supplementBusy = ref(false);
+async function supplementWrongToCards() {
+  if (supplementBusy.value) return;
+  supplementBusy.value = true;
+  try {
+    const wrongs = wrongList.value;
+    if (!wrongs.length) { toast('没有错题需要补卡', 'info'); return; }
+    const r = await wrongQuestionsToCards(wrongs, { tag: '模考错题', source: '模考-错题补卡' });
+    if (r.created > 0) {
+      toast(`已将 ${r.created} 道错题补卡入复习队列${r.failed ? `（${r.failed} 道失败）` : ''}`, 'success');
+    } else {
+      toast('补卡失败：' + (r.failed ? `${r.failed} 道无法生成` : '未知错误'), 'error');
+    }
+  } catch (e) {
+    toast('错题补卡失败：' + (e?.message || e), 'error');
+  } finally {
+    supplementBusy.value = false;
+  }
+}
+
 function viewExam(ex) { viewing.value = ex; }
 function closeView() { viewing.value = null; }
 async function removeExam(ex) {
@@ -154,6 +180,12 @@ const trendPoints = computed(() => {
   }
   return arr;
 });
+
+// P2-4 模考分析与预测：薄弱科目 + 通过率预估 + 趋势摘要
+const weakSubjects = computed(() => getWeakSubjects(history.value));
+const passPrediction = computed(() => predictPassRate(history.value));
+const trendSummary = computed(() => getExamTrend(history.value));
+
 const svgW = 560, svgH = 180, padX = 40, padY = 24;
 function linePath(pts) {
   if (!pts.length) return '';
@@ -213,6 +245,9 @@ onMounted(async () => {
         <span style="flex:1"></span>
         <button class="btn small" :disabled="explainBusy || !wrongList.length" @click="aiExplain">{{ explainBusy ? '讲解中…' : `AI 逐题讲解错题（${wrongList.length}）` }}</button>
         <button class="btn small" :disabled="!wrongList.length" @click="markWrong">错题加入错题本（{{ wrongList.length }}）</button>
+        <button class="btn small primary" :disabled="supplementBusy || !wrongList.length" @click="supplementWrongToCards" title="把错题生成新卡片入复习队列，形成模考→错题→补卡→复习闭环">
+          {{ supplementBusy ? '补卡中…' : `错题补卡入复习（${wrongList.length}）` }}
+        </button>
         <button class="btn small" @click="backToSetup">再来一场</button>
       </div>
       <div v-for="(g, i) in graded" :key="g.cardId" class="exam-q" :class="{ wrong: !g.correct }">
@@ -244,6 +279,33 @@ onMounted(async () => {
           </svg>
           <span class="hint" style="flex:1">{{ t.pts.map(p => `${p.rate}%`).join(' → ') }}</span>
         </div>
+      </div>
+
+      <!-- P2-4 模考分析与预测：通过率预估 + 薄弱科目 -->
+      <div v-if="history.length >= 2" class="exam-analytics">
+        <div class="field-label">📊 通过率预估</div>
+        <div class="prediction-card" :class="{ pass: passPrediction.willPass, fail: !passPrediction.willPass }">
+          <div class="prediction-main">
+            <span class="prediction-rate">{{ passPrediction.predictedRate }}%</span>
+            <span class="prediction-verdict">{{ passPrediction.willPass ? '✓ 预估通过' : '✗ 预估不通过' }}</span>
+            <span class="hint">通过线 {{ passPrediction.passLine }}% · 置信度 {{ passPrediction.confidence }}%</span>
+          </div>
+          <div class="prediction-reasons">
+            <span v-for="(r, i) in passPrediction.reasons" :key="i" class="reason-tag">{{ r }}</span>
+          </div>
+        </div>
+
+        <div class="field-label" style="margin-top:14px">⚠️ 薄弱科目（错题率 ≥40% 标红）</div>
+        <div v-if="weakSubjects.length" class="weak-grid">
+          <div v-for="w in weakSubjects" :key="w.subject" class="weak-item" :class="{ weak: w.weak }">
+            <div class="weak-subject">{{ w.subject }}</div>
+            <div class="weak-bar-wrap">
+              <div class="weak-bar" :style="{ width: w.wrongRate + '%' }"></div>
+            </div>
+            <div class="weak-stat">{{ w.wrong }}/{{ w.total }} · {{ w.wrongRate }}%</div>
+          </div>
+        </div>
+        <div v-else class="hint">暂无错题数据。</div>
       </div>
 
       <div v-for="ex in history" :key="ex.id" class="exam-row">
@@ -291,4 +353,23 @@ onMounted(async () => {
 .exam-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px dashed var(--line); }
 .exam-row:last-child { border-bottom: none; }
 .trend-line { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+/* P2-4 模考分析与预测 */
+.exam-analytics { margin: 14px 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--code-inline); }
+.prediction-card { padding: 12px; border-radius: 8px; border-left: 4px solid var(--ink-2); background: var(--panel); }
+.prediction-card.pass { border-left-color: var(--accent, #27ae60); }
+.prediction-card.fail { border-left-color: var(--warn, #e74c3c); }
+.prediction-main { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.prediction-rate { font-size: 26px; font-weight: 800; color: var(--accent, #27ae60); }
+.prediction-card.fail .prediction-rate { color: var(--warn, #e74c3c); }
+.prediction-verdict { font-weight: 700; font-size: 15px; }
+.prediction-reasons { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.reason-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--code-inline); color: var(--ink-2); }
+.weak-grid { display: flex; flex-direction: column; gap: 8px; }
+.weak-item { display: grid; grid-template-columns: 100px 1fr auto; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 6px; background: var(--panel); font-size: 13px; }
+.weak-item.weak { border-left: 3px solid var(--warn, #e74c3c); }
+.weak-subject { font-weight: 600; }
+.weak-bar-wrap { height: 8px; background: var(--code-inline); border-radius: 4px; overflow: hidden; }
+.weak-bar { height: 100%; background: var(--accent, #27ae60); transition: width .3s; }
+.weak-item.weak .weak-bar { background: var(--warn, #e74c3c); }
+.weak-stat { font-size: 11px; color: var(--ink-2); }
 </style>

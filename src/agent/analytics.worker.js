@@ -10,7 +10,9 @@ import {
   getSubjectDiagnosis,
   getGraphDrivenReviewPlan,
   generateAutoPlan,
+  prepareFsrsTrainingData,
 } from './analytics.js';
+import { trainWeights } from '../fsrs.js';
 
 const handlers = {
   getConfusablePairs,
@@ -18,6 +20,11 @@ const handlers = {
   getSubjectDiagnosis,
   getGraphDrivenReviewPlan,
   generateAutoPlan,
+  // P1-1：FSRS 权重训练（在 worker 内读训练数据 + 拟合，主线程零阻塞）
+  async trainFsrs() {
+    const { reviews, cardsById } = await prepareFsrsTrainingData();
+    return trainWeights(reviews, cardsById);
+  },
 };
 
 self.onmessage = async (ev) => {

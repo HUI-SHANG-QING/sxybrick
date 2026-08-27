@@ -8,6 +8,14 @@
 //      · 阶段2（隔日巩固）：次日再提取一次，跨越睡眠周期固化；
 //      · 完成后进入正常 SM-2 梯度（3 天后）。
 //      认知科学依据：24h 内首次主动提取是记忆巩固的最强窗口（Roediger & Karpicke, 2006）。
+//
+// P1-1：新增 FSRS-4.5 调度器（scheduleReview），与 SM-2 并行 opt-in：
+//   - opts.scheduler === 'fsrs' → 走 fsrs.schedule（用机器学习拟合的遗忘曲线）
+//   - 否则 → 沿用 computeNext（SM-2 变体，含巩固/错因惩罚）
+//   FSRS 路径的难度 D 与稳定度 S 已自适应卡片难度与错因信号，故不复用 SM-2 的错因惩罚与
+//   短期巩固状态机（避免双重惩罚）；wrongReason 仍写入复习日志供分析。
+import { schedule as fsrsSchedule } from './fsrs.js';
+
 const MIN = 60 * 1000;
 const DAY = 24 * 60 * MIN;
 
@@ -170,4 +178,49 @@ export function applyFeedback(card, { score = null, feynman = false } = {}) {
   }
   if (feynman) ease = Math.min(2.8, ease + 0.03);
   return { ease, dueAt };
+}
+
+/**
+ * P1-1 调度分发器：FSRS opt-in，否则走 SM-2 变体
+ * @param {object} card  { level, ease, difficulty?, consolidation?, fsrs? }
+ * @param {number} rating 0没记住/1还模糊/2记住了
+ * @param {number} intensity 强度系数
+ * @param {boolean} guessed 是否蒙对
+ * @param {object} opts { difficulty?, wrongReason?, adaptive?, scheduler?, weights?, desiredRetention?, retrievalStrength? }
+ *   - opts.scheduler === 'fsrs' 时启用 FSRS（opts.weights 为用户训练出的 19 权重）
+ *   - opts.retrievalStrength: P1-3 检索强度分级（recognize/recall/generate/explain）
+ * @returns {{ level, ease, intervalDays, dueAt, consolidation, fsrs? }}
+ */
+// P1-3 检索强度 → 间隔乘子（认知科学：生成效应 Generation Effect、费曼学习法）
+//   recognize 再认：×0.7（看了选项才认出 ≠ 真记住，间隔缩短，更早重测）
+//   recall    回忆：×1.0（基准，主动从记忆提取）
+//   generate  生成：×1.25（用自己的话重组输出，生成效应强 25%）
+//   explain   讲解：×1.5 （费曼学习法，向他人讲解，检索强度最高）
+// 注：乘子在 SM-2 与 FSRS 路径之后统一应用，与 intensity（时间压力维度）正交
+export const RETRIEVAL_STRENGTH_OPTIONS = [
+  { code: 'recognize', label: '再认', factor: 0.7, desc: '看了选项能认出（掌握度最低）' },
+  { code: 'recall',    label: '回忆', factor: 1.0, desc: '主动从记忆提取（基准）' },
+  { code: 'generate',  label: '生成', factor: 1.25, desc: '用自己的话重组输出（生成效应）' },
+  { code: 'explain',   label: '讲解', factor: 1.5, desc: '费曼学习法，向他人讲解（最强）' },
+];
+const RETRIEVAL_FACTOR = Object.fromEntries(RETRIEVAL_STRENGTH_OPTIONS.map(o => [o.code, o.factor]));
+
+export function scheduleReview(card, rating, intensity = 1, guessed = false, opts = {}) {
+  let r;
+  if (opts.scheduler === 'fsrs') {
+    r = fsrsSchedule(card, rating, { weights: opts.weights, desiredRetention: opts.desiredRetention });
+    // 蒙对：FSRS grade 仍记 good，但缩短间隔（与 SM-2 一致语义：不算真掌握）
+    if (guessed && rating === 2) {
+      r.intervalDays = Math.max(1, r.intervalDays * 0.6);
+    }
+  } else {
+    r = computeNext(card, rating, intensity, guessed, opts);
+  }
+  // P1-3 检索强度分级：在调度结果上统一应用乘子
+  const rs = opts.retrievalStrength;
+  if (rs && RETRIEVAL_FACTOR[rs] !== undefined && RETRIEVAL_FACTOR[rs] !== 1.0) {
+    r.intervalDays = Math.max(10 / 1440, r.intervalDays * RETRIEVAL_FACTOR[rs]);
+    r.dueAt = Date.now() + Math.round(r.intervalDays * DAY);
+  }
+  return r;
 }

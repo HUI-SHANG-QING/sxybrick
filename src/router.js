@@ -21,12 +21,16 @@ const routes = [
   { path: '/achievements', component: () => import('./views/Achievements.vue') },
   { path: '/weekly', component: () => import('./views/WeeklyReport.vue') },
   { path: '/exam', component: () => import('./views/Exam.vue') },
+  // P2-1 生成式测验：从卡片/知识点用 LLM 自动生成选择/填空/简答题（测试效应）
+  { path: '/genquiz', component: () => import('./views/GenQuiz.vue') },
   { path: '/health', component: () => import('./views/Health.vue') },
   { path: '/search', component: () => import('./views/Search.vue') },
   { path: '/library', component: () => import('./views/Library.vue') },
   // P2·10 + P3·11 新增：用户仪表盘（恐怖监控图表）+ 隐私人生数据模块
   { path: '/user-dashboard', component: () => import('./views/UserDashboard.vue') },
   { path: '/privacy', component: () => import('./views/PrivacyData.vue') },
+  // P3-4 插件 / MCP 接入：本地插件管理与工具调用（MCP 兼容 schema）
+  { path: '/plugins', component: () => import('./views/Plugins.vue') },
 ];
 
 export const router = createRouter({

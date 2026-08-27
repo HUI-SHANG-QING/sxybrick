@@ -11,8 +11,10 @@ import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
 import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
-import { chatAI } from '../ai.js';
+import { chatAI, hasAIKey } from '../ai.js';
 import { genVariants } from '../utils/genVariants.js';
+// P2-3 AI 智能卡组生成：从纯笔记用 LLM 自动拆成 front/back 卡片（与手动分隔的批量建卡并存）
+import { genCardDeck } from '../utils/genCardDeck.js';
 import { getForgetRisk, getAssetHealth } from '../agent/analytics.js';
 import { T } from '../utils/telemetry.js';
 
@@ -434,6 +436,51 @@ async function importBatch() {
   finally { batchBusy.value = false; }
 }
 
+// ---- P2-3 AI 智能卡组生成：粘贴纯笔记，LLM 自动拆成 front/back 卡片 ----
+// 与批量建卡（手动 | 分隔）并存：batchMode='manual' | 'ai'
+const batchMode = ref('manual');
+const aiDeckCount = ref(8);
+const aiDeck = ref([]); // AI 拆出的卡片预览
+const aiGenBusy = ref(false);
+async function aiGenerateDeck() {
+  const text = batchText.value.trim();
+  if (!text) { toast('请先粘贴笔记内容', 'error'); return; }
+  if (text.length < 20) { toast('内容太短（至少 20 字）', 'error'); return; }
+  aiGenBusy.value = true;
+  try {
+    const deck = await genCardDeck(text, { count: aiDeckCount.value, subject: batchSubject.value || '未分类' });
+    aiDeck.value = deck;
+    toast(`AI 已拆出 ${deck.length} 张卡片，预览后可导入`, 'success');
+  } catch (e) {
+    toast('AI 拆分失败：' + (e?.message || e), 'error');
+  } finally {
+    aiGenBusy.value = false;
+  }
+}
+async function importAiDeck() {
+  const deck = aiDeck.value;
+  if (!deck.length) { toast('没有可导入的卡片', 'error'); return; }
+  batchBusy.value = true;
+  try {
+    let n = 0;
+    for (const c of deck) {
+      const r = await createCard({
+        front: c.front, back: c.back, subject: c.subject || batchSubject.value || '',
+        tags: ['AI卡组', ...(c.tags || [])], type: 'basic', difficulty: c.difficulty || 'basic',
+        source: 'AI智能卡组生成',
+      });
+      try { T.cardNew(r?.id ?? r); } catch {}
+      n++;
+    }
+    batchOpen.value = false;
+    aiDeck.value = [];
+    batchText.value = '';
+    toast(`已导入 ${n} 张 AI 生成的卡片`, 'success');
+    loadCards();
+  } catch (e) { toast(e.message, 'error'); }
+  finally { batchBusy.value = false; }
+}
+
 // ---- 智能卡组（P0 效率包）：把当前筛选组合存成快捷入口 ----
 const smartFilters = ref([]);
 async function loadSmart() {
@@ -575,23 +622,55 @@ async function rescueAll() {
       <div v-if="batchOpen" class="modal-mask" @click.self="batchOpen = false">
         <div class="modal">
           <h3 style="margin-top:0">批量建卡</h3>
-          <p class="hint" style="margin-top:0">
+          <!-- P2-3 模式切换：手动分隔 vs AI 智能拆分 -->
+          <div class="batch-mode-row">
+            <button class="chip" :class="{ on: batchMode === 'manual' }" @click="batchMode = 'manual'; aiDeck = []">手动分隔</button>
+            <button class="chip" :class="{ on: batchMode === 'ai' }" @click="batchMode = 'ai'">🔬 AI 智能拆分</button>
+            <span v-if="batchMode === 'ai' && !hasAIKey()" class="hint" style="color:var(--warn)">⚠ 无 AI key，将降级段落拆分</span>
+          </div>
+          <p v-if="batchMode === 'manual'" class="hint" style="margin-top:0">
             每行一张卡；用 <code>|</code>、<code>→</code> 或 <code>-&gt;</code> 分隔正面与背面。<br>
             例：<code>TCP 三次握手的过程？| 共 SYN / SYN-ACK / ACK 三步</code>
+          </p>
+          <p v-else class="hint" style="margin-top:0">
+            粘贴一段笔记/文档（无需分隔符），AI 自动识别知识点并生成问句式卡片。<br>
+            陈述句会被改写成提问，复习时检索强度更高。
           </p>
           <div class="field-label" style="margin-top:12px">科目（可留空）</div>
           <select v-model="batchSubject" class="input">
             <option value="">不指定</option>
             <option v-for="s in subjects" :key="s.name" :value="s.name">{{ s.name }}</option>
           </select>
-          <div class="field-label">内容（已解析 {{ batchParsed.length }} 张）</div>
-          <textarea v-model="batchText" class="input" rows="10" placeholder="粘贴知识点清单…"></textarea>
-          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-            <button class="btn" @click="batchOpen = false">取消</button>
-            <button class="btn primary" :disabled="batchBusy || !batchParsed.length" @click="importBatch">
-              {{ batchBusy ? '导入中…' : `导入 ${batchParsed.length} 张` }}
-            </button>
-          </div>
+          <template v-if="batchMode === 'manual'">
+            <div class="field-label">内容（已解析 {{ batchParsed.length }} 张）</div>
+            <textarea v-model="batchText" class="input" rows="10" placeholder="粘贴知识点清单…"></textarea>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+              <button class="btn" @click="batchOpen = false">取消</button>
+              <button class="btn primary" :disabled="batchBusy || !batchParsed.length" @click="importBatch">
+                {{ batchBusy ? '导入中…' : `导入 ${batchParsed.length} 张` }}
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="field-label">目标卡片数</div>
+            <input type="number" min="1" max="30" v-model.number="aiDeckCount" class="input" style="width:120px" />
+            <div class="field-label">笔记内容</div>
+            <textarea v-model="batchText" class="input" rows="10" placeholder="粘贴一段笔记或文档，AI 会自动拆成问句式卡片…"></textarea>
+            <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px">
+              <button class="btn" @click="batchOpen = false">取消</button>
+              <button class="btn" :disabled="aiGenBusy" @click="aiGenerateDeck">{{ aiGenBusy ? 'AI 拆分中…' : '生成预览' }}</button>
+              <button class="btn primary" :disabled="batchBusy || !aiDeck.length" @click="importAiDeck">
+                {{ batchBusy ? '导入中…' : `导入 ${aiDeck.length} 张` }}
+              </button>
+            </div>
+            <!-- AI 拆分预览 -->
+            <div v-if="aiDeck.length" class="ai-deck-preview">
+              <div v-for="(c, i) in aiDeck" :key="i" class="ai-deck-card">
+                <div class="ai-deck-front"><span class="ai-deck-tag">{{ c.difficulty }}</span>{{ c.front }}</div>
+                <div class="ai-deck-back">{{ c.back }}</div>
+              </div>
+            </div>
+          </template>
         </div>
       </div>
     </teleport>
@@ -845,4 +924,11 @@ async function rescueAll() {
   flex: 1;
   min-height: 0;
 }
+/* P2-3 AI 智能卡组生成：模式切换行 + 预览卡片 */
+.batch-mode-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.ai-deck-preview { margin-top: 12px; max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--code-inline); border-radius: 8px; }
+.ai-deck-card { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: var(--panel); }
+.ai-deck-front { font-weight: 600; font-size: 13px; line-height: 1.5; }
+.ai-deck-back { font-size: 12px; color: var(--ink-2); margin-top: 4px; line-height: 1.5; white-space: pre-wrap; }
+.ai-deck-tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--code-inline); color: var(--ink-2); margin-right: 6px; }
 </style>

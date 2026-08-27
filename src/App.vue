@@ -17,11 +17,46 @@ const InkLandscape = defineAsyncComponent(() => import('./components/InkLandscap
 import { useThemeStore, STYLES, MODES } from './stores/theme.js';
 import { getProactiveScheduler } from './agent/proactive.js';
 import { getAIConfig } from './ai.js';
+// P3-2 PWA 离线优化：离线指示 / 新版本提示 / 配额告警
+import {
+  isOnline, subscribeOnline, subscribeSwUpdate, subscribeOfflineReady,
+  subscribeQuotaWarn, applyUpdate, requestPersistentStorage, getStorageEstimate,
+} from './utils/pwa.js';
 // P1·7 埋点开关：在设置面板允许用户开/关 A/B 级
 import { isAEnabled, isBEnabled, setAEnabled, setBEnabled } from './utils/telemetry.js';
+// P1-1 FSRS 调度器 opt-in：在设置面板切换 SM-2 ↔ FSRS，并允许用户用真实评分历史训练 19 权重
+import { db } from './db.js';
+import { refreshSchedConfig } from './repo.js';
+import { trainFsrsModel } from './agent/analytics.js';
 
 const theme = useThemeStore();
 const showSettings = ref(false);
+
+// ---------- P3-2 PWA 离线优化：响应式状态 ----------
+const online = ref(isOnline());           // 浏览器在线状态
+const swNeedRefresh = ref(false);         // 有新版本待激活
+const swOfflineReady = ref(false);       // 已可离线启动
+const quotaWarn = ref(null);             // { usage, quota, usagePercent } 或 null
+const storageEstimate = ref(null);       // 用于在设置面板展示当前存储占用
+// 用户主动忽略本次新版本提示后，不再弹（直到下次出新版本）
+const swUpdateDismissed = ref(false);
+let unsubOnline, unsubSwUpdate, unsubOfflineReady, unsubQuotaWarn;
+
+async function reloadForUpdate() {
+  swNeedRefresh.value = false;
+  await applyUpdate();
+}
+function dismissSwUpdate() {
+  swNeedRefresh.value = false;
+  swUpdateDismissed.value = true;
+}
+function fmtBytes(n) {
+  if (!Number.isFinite(n)) return '—';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
 
 const navItems = [
   { path: '/', label: '总览', icon: '📊' },
@@ -42,6 +77,8 @@ const navItems = [
   { path: '/docs', label: '文档', icon: '📄' },
   { path: '/weekly', label: '周报', icon: '📈' },
   { path: '/exam', label: '模考', icon: '🧪' },
+  // P2-1 生成式测验：LLM 自动出题（选择/填空/简答），测试效应
+  { path: '/genquiz', label: '生成测验', icon: '🔬' },
   { path: '/search', label: '搜索', icon: '🔍' },
   { path: '/health', label: '体检', icon: '🩺' },
   { path: '/library', label: '书房', icon: '📚' },
@@ -49,6 +86,8 @@ const navItems = [
   // P2·10 + P3·11：用户仪表盘（恐怖监控图表）与隐私人生数据（超级监控）
   { path: '/user-dashboard', label: '仪表盘', icon: '🛰️' },
   { path: '/privacy', label: '隐私', icon: '🧾' },
+  // P3-4 插件 / MCP 接入：本地扩展机制（工具调用 + 事件钩子）
+  { path: '/plugins', label: '插件', icon: '🔌' },
 ];
 
 // 功能精简：用户自定义核心导航项（始终显示）；未勾选的折叠到 NavBar 的「更多 ▼」
@@ -89,8 +128,62 @@ function onToggleTelB(v) {
   toast(v ? '已启用 B 级 DOM 交互埋点（按钮 / 卡片点击，不记录隐私内容）' : '已关闭 B 级 DOM 监听，点击不再采集', 'success');
 }
 watch(showSettings, (open) => {
-  if (open) { telA.value = isAEnabled(); telB.value = isBEnabled(); }
+  if (open) {
+    telA.value = isAEnabled(); telB.value = isBEnabled(); loadScheduler();
+    // P3-2 打开设置面板时刷新存储占用，让用户看到实时数据
+    getStorageEstimate().then(e => { storageEstimate.value = e; });
+  }
 });
+
+// ---------- P1-1 FSRS 调度器 opt-in ----------
+// scheduler: 'sm2'(默认，类 SM-2 变体，含短巩固/错因惩罚) | 'fsrs'(FSRS-4.5，ML 拟合每用户遗忘曲线)
+// fsrsWeights: 训练出的 19 权重；fsrsInfo: 上次训练摘要（样本数/损失），用于在面板向用户展示
+const scheduler = ref('sm2');
+const fsrsTraining = ref(false);
+const fsrsInfo = ref(null); // { samples, loss, weights }
+async function loadScheduler() {
+  try {
+    const [s, w, info] = await Promise.all([
+      db.meta.get('scheduler'), db.meta.get('fsrsWeights'), db.meta.get('fsrsInfo'),
+    ]);
+    scheduler.value = s?.value === 'fsrs' ? 'fsrs' : 'sm2';
+    fsrsInfo.value = info?.value || null;
+  } catch { /* db 未就绪时静默 */ }
+}
+async function onToggleScheduler(v) {
+  const next = v ? 'fsrs' : 'sm2';
+  scheduler.value = next;
+  try {
+    await db.meta.put({ key: 'scheduler', value: next });
+    refreshSchedConfig(); // 清缓存，下次复习读到新调度器
+    toast(next === 'fsrs'
+      ? '已切换到 FSRS 调度（ML 遗忘曲线，需训练权重后效果最佳）'
+      : '已切回 SM-2 调度（含短期巩固与错因惩罚）', 'success');
+  } catch (e) { toast('调度器切换失败：' + (e?.message || e), 'error'); }
+}
+async function trainFsrs() {
+  if (fsrsTraining.value) return;
+  fsrsTraining.value = true;
+  try {
+    const r = await trainFsrsModel();
+    if (!r || r.samples === 0) {
+      toast('复习样本不足（需 ≥8 次），暂未训练。多复习几次再来。', 'info');
+      return;
+    }
+    await Promise.all([
+      db.meta.put({ key: 'fsrsWeights', value: r.weights }),
+      db.meta.put({ key: 'fsrsInfo', value: { samples: r.samples, loss: r.loss, trainedAt: Date.now() } }),
+    ]);
+    fsrsInfo.value = { samples: r.samples, loss: r.loss, trainedAt: Date.now() };
+    refreshSchedConfig();
+    const lossTxt = r.loss != null ? ` 平均对数损失 ${(+r.loss).toFixed(3)}` : '';
+    toast(`FSRS 训练完成：基于 ${r.samples} 次复习样本${lossTxt}。已应用新权重。`, 'success');
+  } catch (e) {
+    toast('FSRS 训练失败：' + (e?.message || e), 'error');
+  } finally {
+    fsrsTraining.value = false;
+  }
+}
 
 const installEvt = ref(null);
 function onBeforeInstall(e) { e.preventDefault(); installEvt.value = e; }
@@ -147,11 +240,35 @@ onMounted(() => {
   startReminderLoop();
   // 主动智能体：后台轮询学习数据，主动推送建议到通知中心
   getProactiveScheduler().start({ cfgGetter: () => getAIConfig() });
+
+  // P3-2 PWA：订阅在线/离线变化、SW 新版本、配额告警
+  //   initPwa 已在 main.js 启动，这里仅订阅 UI 事件
+  unsubOnline = subscribeOnline((isOn) => {
+    online.value = isOn;
+    if (!isOn) toast('已切换到离线模式，数据将保存在本地，联网后自动同步', 'info');
+  });
+  unsubSwUpdate = subscribeSwUpdate((need) => {
+    if (need && !swUpdateDismissed.value) swNeedRefresh.value = true;
+  });
+  unsubOfflineReady = subscribeOfflineReady(() => {
+    swOfflineReady.value = true;
+    // 离线就绪一次性提示，仅在非打扰时段（不打断首次启动 onboarding）
+    if (localStorage.getItem('sxy_onboarding_done')) {
+      toast('应用已可离线使用，断网也能复习卡片', 'success');
+    }
+  });
+  unsubQuotaWarn = subscribeQuotaWarn((info) => {
+    quotaWarn.value = info;
+    toast(`本地存储已用 ${info.usagePercent}%，建议导出备份后清理旧数据`, 'warn');
+  });
+  // 启动时尝试申请持久化存储（避免浏览器在 quota 紧张时回收 IndexedDB）
+  requestPersistentStorage().then(() => { getStorageEstimate().then(e => { storageEstimate.value = e; }); });
 });
 onBeforeUnmount(() => {
   window.removeEventListener('beforeinstallprompt', onBeforeInstall);
   clearInterval(reminderTimer);
   getProactiveScheduler().stop();
+  unsubOnline?.(); unsubSwUpdate?.(); unsubOfflineReady?.(); unsubQuotaWarn?.();
 });
 
 // ---- C6 复习提醒（2026-08-26 速赢区升级）：3 条件独立触发 + 丰富通知内容 ----
@@ -228,6 +345,20 @@ async function enableReminder() {
 <template>
   <div class="app-shell" :class="{ 'no-anim': degraded }">
     <InkLandscape v-if="theme.style === 'guofeng'" :active="theme.style === 'guofeng'" :reduced="degraded" />
+    <!-- P3-2 PWA 状态条：离线指示 + 新版本可用 + 配额告警（顶部非遮挡式横条） -->
+    <div class="pwa-bar no-print">
+      <div v-if="!online" class="pwa-chip pwa-offline" title="当前离线，数据保存在本地，联网后自动同步">
+        <span>📵</span><span>离线模式</span>
+      </div>
+      <div v-if="swNeedRefresh" class="pwa-chip pwa-update" title="应用新版本已下载完毕，点击立即更新">
+        <span>🆕</span><span>有新版本可用</span>
+        <button class="pwa-act" @click="reloadForUpdate">立即更新</button>
+        <button class="pwa-dismiss" @click="dismissSwUpdate" title="本次忽略">×</button>
+      </div>
+      <div v-else-if="quotaWarn" class="pwa-chip pwa-quota" :title="`已用 ${quotaWarn.usagePercent}%（${fmtBytes(quotaWarn.usage)} / ${fmtBytes(quotaWarn.quota)}），建议导出备份后清理旧数据`">
+        <span>💾</span><span>本地存储已用 {{ quotaWarn.usagePercent }}%</span>
+      </div>
+    </div>
     <NavBar :variant="theme.style === 'custom' ? 'focus' : theme.style" :navItems="navItems" :coreNavs="coreNavs" :hasCoreSetting="hasCoreSetting" />
 
     <main class="app-main">
@@ -304,6 +435,24 @@ async function enableReminder() {
             </label>
           </div>
 
+          <div class="field-label" style="margin-top:16px">🧠 复习调度器（记忆曲线算法）</div>
+          <div class="hint" style="margin-bottom:8px">
+            SM-2（默认）= 含短期巩固与错因惩罚的变体；FSRS = 基于机器学习的遗忘曲线，实测可省 20~30% 复习时间达到同等保持率。<br/>
+            切到 FSRS 后建议点「训练权重」用你的真实评分历史拟合 19 个参数（样本 ≥8 次可用，越多越准）。
+          </div>
+          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+            <label style="display:flex;gap:6px;align-items:center;cursor:pointer">
+              <input type="checkbox" :checked="scheduler === 'fsrs'" @change="onToggleScheduler($event.target.checked)" />
+              <span>启用 FSRS 调度（opt-in，默认 SM-2）</span>
+            </label>
+            <button class="btn small" :disabled="fsrsTraining" @click="trainFsrs">
+              {{ fsrsTraining ? '训练中…' : '训练权重' }}
+            </button>
+            <span v-if="fsrsInfo" class="hint">
+              上次：{{ fsrsInfo.samples }} 样本{{ fsrsInfo.loss != null ? ' · 损失 ' + (+fsrsInfo.loss).toFixed(3) : '' }}
+            </span>
+          </div>
+
           <div class="field-label" style="margin-top:16px">🧭 功能精简（自定义核心导航）</div>
           <div class="hint" style="margin-bottom:8px">
             勾选的项常驻导航栏；未勾选的折叠到「更多 ▼」展开菜单。<br/>
@@ -322,6 +471,16 @@ async function enableReminder() {
             <button v-if="installEvt" class="btn small primary" @click="install">装到桌面</button>
             <button class="btn" @click="showSettings = false">关闭</button>
           </div>
+
+          <!-- P3-2 PWA：离线与存储状态（让用户随时查看本地数据占用，避免超 quota 丢数据） -->
+          <div class="field-label" style="margin-top:16px">💾 离线与存储</div>
+          <div class="hint" style="margin-bottom:6px">应用已注册为 PWA，可「装到桌面」断网使用。本地数据保存在浏览器 IndexedDB。</div>
+          <div v-if="storageEstimate" class="storage-row">
+            <div class="storage-bar"><div class="storage-bar-fill" :style="{ width: storageEstimate.usagePercent + '%' }" :class="{ warn: storageEstimate.usagePercent >= 85 }"></div></div>
+            <span class="storage-text">{{ fmtBytes(storageEstimate.usage) }} / {{ fmtBytes(storageEstimate.quota) }} · {{ storageEstimate.usagePercent }}%</span>
+          </div>
+          <div v-else class="hint">当前浏览器不支持存储配额查询。</div>
+          <div class="hint" v-if="swOfflineReady" style="color:var(--accent)">✓ 离线缓存已就绪，断网可正常打开与复习</div>
         </div>
       </div>
     </teleport>
@@ -330,6 +489,23 @@ async function enableReminder() {
 
 <style scoped>
 .settings-fab { position: fixed; top: 12px; right: 14px; z-index: 70; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.12); touch-action: none; -webkit-user-select: none; user-select: none; }
+/* P3-2 PWA 状态条：顶部非遮挡式横条，离线 / 新版本 / 配额告警 */
+.pwa-bar { position: sticky; top: 0; z-index: 90; display: flex; gap: 8px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); pointer-events: none; min-height: 0; }
+.pwa-bar:empty { display: none; }
+.pwa-chip { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; margin: 4px 0; padding: 4px 10px; border-radius: 12px; font-size: 12px; color: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+.pwa-offline { background: #6b7280; }
+.pwa-update { background: #16a34a; }
+.pwa-quota { background: #d97706; }
+.pwa-act { margin-left: 4px; padding: 1px 8px; border: none; border-radius: 8px; background: rgba(255,255,255,.22); color: #fff; font-size: 12px; cursor: pointer; }
+.pwa-act:hover { background: rgba(255,255,255,.34); }
+.pwa-dismiss { margin-left: 2px; width: 18px; height: 18px; border: none; border-radius: 50%; background: rgba(255,255,255,.22); color: #fff; font-size: 14px; line-height: 1; cursor: pointer; }
+.pwa-dismiss:hover { background: rgba(255,255,255,.4); }
+/* 设置面板：存储占用条 */
+.storage-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.storage-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.storage-bar-fill { height: 100%; background: var(--accent); transition: width .3s; }
+.storage-bar-fill.warn { background: #d97706; }
+.storage-text { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
 .mode-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
 .style-card { border: 2px solid var(--line); border-radius: 12px; padding: 12px 8px; cursor: pointer; text-align: center; transition: .15s; }

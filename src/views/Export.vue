@@ -8,7 +8,7 @@ import {
   getSubjects, getTags, listCards, createCard,
   queryUserOps, listPrivacyRecords,
 } from '../repo.js';
-import { downloadCsv, downloadBackup as doDownloadBackup, countData } from '../sync.js';
+import { downloadCsv, downloadAnkiText, downloadBackup as doDownloadBackup, countData } from '../sync.js';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
 import { encodeShareCode, decodeShareCode, estimateSize } from '../utils/shareCode.js';
 import { flushTelemetry, T } from '../utils/telemetry.js';
@@ -316,6 +316,20 @@ async function doCsv() {
   catch (e) { toast(e.message, 'error'); }
 }
 
+// P3-1 Anki 互操作导出：导出为 Anki 友好的 TSV（带 #tags column 配置，Anki 导入自动带标签）
+// 优先导出勾选的卡片，无勾选则导出当前筛选结果
+async function doAnki() {
+  try {
+    const cards = checkedIds.value.length
+      ? candidates.value.filter(c => checkedIds.value.includes(c.id))
+      : candidates.value;
+    if (!cards.length) { toast('当前筛选范围内没有卡片可导出', 'error'); return; }
+    await downloadAnkiText(cards);
+    try { T.exportRun('anki', cards.length); } catch {}
+    toast(`已导出 ${cards.length} 张为 Anki TSV（带标签列），Anki 桌面版「导入 → 文本文件」直接可用`, 'success');
+  } catch (e) { toast(e.message, 'error'); }
+}
+
 // 导出 Markdown 文件（按科目分组 Q/A，配合知识库使用）
 function doMarkdown() {
   const cards = selectedCards();
@@ -530,6 +544,7 @@ async function doImport() {
         生成 PDF 预览{{ checkedCount ? `（已选 ${checkedCount} 张）` : `（全部 ${candidates.length} 张）` }}
       </button>
       <button class="btn" @click="doCsv">导出 CSV</button>
+      <button class="btn" @click="doAnki" title="导出为 Anki 桌面版可识别的 TSV（带标签列），导入时自动带标签">导出 Anki 卡组</button>
       <button class="btn" @click="doMarkdown">导出 Markdown</button>
       <button class="btn" @click="openShareGen" title="把当前筛选/勾选的卡片编码成短字符串，对方粘贴即可导入">🔗 生成分享码</button>
       <button class="btn" @click="openShareImport" title="粘贴他人分享的码，解析后批量导入">📥 导入分享码</button>
