@@ -1,6 +1,6 @@
 <script setup>
 // 数据可视化：复习热力图 + 各科掌握度雷达图 + 14 天趋势 + 统计指标（本地）
-import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
 import 'echarts-wordcloud';
 import { toast } from '../utils/toast.js';
@@ -8,6 +8,7 @@ import { getStats } from '../repo.js';
 import { getLearningProfile, getSubjectDiagnosis, getCalibration, getDueForecast } from '../agent/analytics.js';
 import { getDailyCounts } from '../utils/streak.js';
 import { degraded } from '../utils/perf.js';
+import { goldenHours } from '../algorithms/golden-hours.js';
 
 const stats = ref(null);
 const profile = ref(null);
@@ -32,6 +33,9 @@ let charts = [];
 const trendRange = ref(Number(localStorage.getItem('sxy_stats_range')) || 14);
 const weekDelta = ref(null); // { thisWeek, lastWeek, diff, percent }
 const trendData = ref([]);  // 当前 range 的每日数据
+
+// 黄金时段：从 24h 复习分布推导「最集中的连续时段」建议
+const goldenHint = computed(() => (stats.value ? goldenHours(stats.value.hourly).label : ''));
 
 // 图表主题：直接读取 CSS 变量（随 data-theme × data-style 任意组合换肤，含三大新主题与未来的个人主题）
 function getChartTheme() {
@@ -481,6 +485,7 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
       <div class="panel">
         <div class="hint" style="margin-bottom:8px">复习时间分布（24 小时）</div>
         <div ref="hourlyEl" style="height:260px"></div>
+        <div v-if="goldenHint" class="hint" style="margin-top:8px;color:var(--amber)">⏰ {{ goldenHint }}</div>
       </div>
     </div>
 

@@ -12,7 +12,8 @@ import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS
 import { getGoal, getTodayCount } from '../utils/streak.js';
 import { startSpeech, isSpeechSupported } from '../utils/speech.js';
 import { mdToSpeech, speak } from '../utils/tts.js';
-import { getConfusablePairs, getGraphDrivenReviewPlan } from '../agent/analytics.js';
+import { getConfusablePairs, getGraphDrivenReviewPlan, getSubjectRetentionMap } from '../agent/analytics.js';
+import { retentionFor } from '../algorithms/adaptive-retention.js';
 import { getQuickCheckDue, recordQuickCheck } from '../utils/quickCheck.js';
 import { recommendTodaySequence, syncReviewToPlan } from '../intelligence.js';
 import { T } from '../utils/telemetry.js';
@@ -21,6 +22,8 @@ const router = useRouter();
 
 const queue = ref([]);
 const idx = ref(0);
+// 每科自适应目标保持率（掌握度低 → 复习更勤）；加载一次，rate 时 O(1) 查表
+const subjectRetention = ref({});
 const loading = ref(false);
 const intensity = ref(Number(localStorage.getItem('sxy_rv_intensity')) || 1);
 // P1-3 检索强度分级（再认/回忆/生成/讲解）：映射不同间隔乘子，与 intensity（时间压力）正交
@@ -162,6 +165,8 @@ async function loadQueue() {
     goalNotified = false;
     emptyNotified = false;
     confusablePairs.value = await getConfusablePairs(40);
+    // 每科自适应目标保持率（学习科学：弱科多复习、强科省时间）
+    subjectRetention.value = await getSubjectRetentionMap();
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; }
 }
@@ -198,7 +203,7 @@ function toggleGraph() {
 
 async function rate(card, rating, guessed = false, meta = {}) {
   try {
-    const res = await review(card.id, rating, intensity.value, guessed, { ...meta, adaptive: adaptiveOn.value, retrievalStrength: retrievalStrength.value, examAt: examAtTs.value || 0, responseMs: Date.now() - cardShownAt.value });
+    const res = await review(card.id, rating, intensity.value, guessed, { ...meta, adaptive: adaptiveOn.value, retrievalStrength: retrievalStrength.value, examAt: examAtTs.value || 0, responseMs: Date.now() - cardShownAt.value, desiredRetention: retentionFor(subjectRetention.value, card.subject) });
     todayCount.value = await getTodayCount(); // 从 db.reviews 推导（跨会话/跨设备同步）
     // P2·#12 计划↔复习联动：复习后刷新引用此卡的计划的进度
     syncReviewToPlan(card.id).catch(() => {});

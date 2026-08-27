@@ -668,3 +668,11 @@ export async function getNetWorth() {
   const cards = await db.cards.toArray();
   return computeNetWorth(cards);
 }
+
+// ---------- 每科自适应目标保持率（per-subject adaptive desired retention）----------
+// 掌握度低的科目复习更勤（更高保持率）；纯函数在 algorithms/adaptive-retention.js，这里只做 IO。
+import { subjectRetentionMap } from '../algorithms/adaptive-retention.js';
+export async function getSubjectRetentionMap() {
+  const s = await getStats();
+  return subjectRetentionMap(s.mastery);
+}
