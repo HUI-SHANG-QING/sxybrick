@@ -13,6 +13,7 @@ import {
   CARD_CONTENT_FIELDS, CARD_SRS_FIELDS,
   mergeRows, mergeTombstones, applyTombstones, kindOf,
 } from './sync-manifest.js';
+import { dedupeIncomingCards } from './sync-dedup.js';
 
 export { BACKUP_VERSION, EXCLUDED_FROM_SYNC };
 
@@ -326,17 +327,12 @@ export async function importBackup(backup) {
     if (!incoming.length) continue;
     const base = await db[t.table].toArray();
     const baseMap = new Map(base.map(x => [x.id, x]));
-    // E1 去重合并：与本地 front+back+subject 完全相同的内容重复卡跳过不导入（避免跨设备重复入库）
+    // E1 去重合并：内容雷同的异 id 卡视为重复跳过；但【同 id 卡必须放行】，
+    // 交给下方 mergeRows 做字段级合并（SRS 按 reviewedAt 取新），否则纯复习（SRS 字段变）的卡
+    // 会被内容去重静默丢弃 → 跨设备复习进度永不同步（P0 修复，逻辑见 src/sync-dedup.js）。
     if (t.table === 'cards') {
-      const norm = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
-      const localKeys = new Set(base.map(c => `${norm(c.front)}||${norm(c.back)}||${c.subject || ''}`));
-      const kept = [];
-      for (const c of incoming) {
-        const k = `${norm(c.front)}||${norm(c.back)}||${c.subject || ''}`;
-        if (localKeys.has(k)) { stats.duplicated++; continue; }
-        kept.push(c);
-        localKeys.add(k);
-      }
+      const { kept, duplicated: dup } = dedupeIncomingCards(incoming, baseMap, base);
+      stats.duplicated += dup;
       incoming = kept;
     }
     if (!incoming.length) continue;
