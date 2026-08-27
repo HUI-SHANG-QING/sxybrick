@@ -8,7 +8,7 @@ import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { db } from '../db.js';
-import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS, applyCardFeedback, RETRIEVAL_STRENGTH_OPTIONS } from '../repo.js';
+import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS, applyCardFeedback, RETRIEVAL_STRENGTH_OPTIONS, attachSelfExplanation } from '../repo.js';
 import { getGoal, getTodayCount } from '../utils/streak.js';
 import { startSpeech, isSpeechSupported } from '../utils/speech.js';
 import { mdToSpeech, speak } from '../utils/tts.js';
@@ -24,6 +24,14 @@ const queue = ref([]);
 const idx = ref(0);
 // 每科自适应目标保持率（掌握度低 → 复习更勤）；加载一次，rate 时 O(1) 查表
 const subjectRetention = ref({});
+// 自我解释钩子（学习科学：错题后一句话反思「为什么错/正确理解」），默认开
+const selfExplainOn = ref(localStorage.getItem('sxy_self_explain') !== '0');
+// 延迟反馈：错题后停留 N 秒再看答案（Bjork 间隔揭示），默认关
+const delayedOn = ref(localStorage.getItem('sxy_delayed') === '1');
+const DELAY_MS = 3000;
+// 反思卡弹窗状态：{ reviewId, front, back, resolve }
+const selfExplain = ref(null);
+const selfExplainText = ref('');
 const loading = ref(false);
 const intensity = ref(Number(localStorage.getItem('sxy_rv_intensity')) || 1);
 // P1-3 检索强度分级（再认/回忆/生成/讲解）：映射不同间隔乘子，与 intensity（时间压力）正交
@@ -217,11 +225,48 @@ async function rate(card, rating, guessed = false, meta = {}) {
       } else confusableHint.value = '';
     } else confusableHint.value = '';
     toast(msg, 'success');
-    if (rating === 0) queue.value.push({ ...card, ...res });
+    if (rating === 0) {
+      queue.value.push({ ...card, ...res });
+      // 自我解释钩子：错题后停留反思（阻塞 idx 推进，天然实现延迟反馈）
+      if (selfExplainOn.value) await promptSelfExplain(card, res.reviewId);
+      // 延迟反馈（未开反思卡时）：错题后停留 N 秒再看一眼答案
+      else if (delayedOn.value) await new Promise(r => setTimeout(r, DELAY_MS));
+    }
     idx.value += 1;
     checkComplete();
     try { T.reviewRate(rating, card.id, card.front); } catch { /* 埋点失败不阻塞业务 */ }
   } catch (e) { toast(e.message, 'error'); }
+}
+
+// 弹出反思卡，返回 Promise，用户提交/跳过时 resolve
+function promptSelfExplain(card, reviewId) {
+  return new Promise(resolve => {
+    selfExplain.value = { reviewId, front: card.front, back: card.back, resolve };
+    selfExplainText.value = '';
+  });
+}
+async function submitSelfExplain() {
+  const se = selfExplain.value;
+  const t = selfExplainText.value.trim();
+  if (t && se) {
+    try { await attachSelfExplanation(se.reviewId, t); toast('已记录自我解释，下次更容易想起', 'success'); } catch { /* 落盘失败不阻塞 */ }
+  }
+  const resolve = se?.resolve;
+  selfExplain.value = null;
+  resolve?.();
+}
+function skipSelfExplain() {
+  const resolve = selfExplain.value?.resolve;
+  selfExplain.value = null;
+  resolve?.();
+}
+function toggleSelfExplain() {
+  selfExplainOn.value = !selfExplainOn.value;
+  localStorage.setItem('sxy_self_explain', selfExplainOn.value ? '1' : '0');
+}
+function toggleDelayed() {
+  delayedOn.value = !delayedOn.value;
+  localStorage.setItem('sxy_delayed', delayedOn.value ? '1' : '0');
 }
 
 function checkComplete() {
@@ -604,6 +649,8 @@ async function recordDuelWrong(idA, idB) {
         <button class="chip" :class="{ on: smartMode }" @click="toggleSmart" title="综合到期+薄弱+精力曲线+交错混科+变式分散的智能排程（本地算法，零 LLM 开销）">🎯 今日最优序列</button>
         <button class="chip" :class="{ on: graphMode }" @click="toggleGraph" title="按知识图谱的前置/依赖关系编排复习顺序：基础知识卡在前，易混卡挨着复习">图驱动复习</button>
         <button class="chip" :class="{ on: adaptiveOn }" @click="toggleAdaptive" title="自适应节奏：按这张卡的历史错误率微调复习间隔">自适应节奏</button>
+        <button class="chip" :class="{ on: selfExplainOn }" @click="toggleSelfExplain" title="自我解释：答错后弹反思卡，写一句「为什么错/正确理解」，加深理解">✍️ 自我解释</button>
+        <button class="chip" :class="{ on: delayedOn }" @click="toggleDelayed" title="延迟反馈：答错后停留 3 秒再看一眼答案（间隔揭示效应）">⏳ 延迟反馈</button>
         <button class="chip" :class="{ on: sessionOn }" @click="toggleSession">{{ sessionOn ? `会话中 ${fmtClock(sessionLeft)}` : '25 分钟会话' }}</button>
         <button class="chip" @click="startDuel">易混对决</button>
         <button v-if="sessionDone" class="chip" style="color:var(--green);border-color:var(--green)" @click="router.push('/pomodoro')">去番茄钟休息 →</button>
@@ -748,6 +795,29 @@ async function recordDuelWrong(idA, idB) {
 
     <CardModal v-model="editOpen" :card="editing" @saved="onSaved" />
 
+    <!-- 自我解释反思卡：答错后停留，写一句「为什么错/正确理解」，加深理解（延迟反馈） -->
+    <teleport to="body">
+      <div v-if="selfExplain" class="modal-mask" @click.self="skipSelfExplain">
+        <div class="modal" style="max-width:520px">
+          <h3 style="margin-top:0">✍️ 自我解释</h3>
+          <p class="hint" style="margin:0 0 10px">答错了没关系——用一句话说清「为什么错 / 正确的理解是什么」，能显著加深记忆。</p>
+          <div class="se-question">
+            <div class="hint" style="margin-bottom:4px;font-weight:600">问题</div>
+            <div class="se-text">{{ selfExplain.front }}</div>
+            <div class="hint" style="margin:10px 0 4px;font-weight:600">答案</div>
+            <div class="se-text">{{ selfExplain.back }}</div>
+          </div>
+          <textarea v-model="selfExplainText" class="input" rows="3" style="width:100%;margin-top:12px"
+            placeholder="例：我把「死锁」和「饥饿」搞混了——死锁是互相等待，饥饿是永远得不到资源…"
+            @keydown.ctrl.enter="submitSelfExplain"></textarea>
+          <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+            <button class="btn" @click="skipSelfExplain">跳过</button>
+            <button class="btn primary" @click="submitSelfExplain">记录反思（Ctrl+Enter）</button>
+          </div>
+        </div>
+      </div>
+    </teleport>
+
     <!-- 完成弹窗 -->
     <teleport to="body">
       <div v-if="showComplete" class="modal-mask" @click.self="showComplete = false">
@@ -879,6 +949,10 @@ async function recordDuelWrong(idA, idB) {
 .kb.bad { color: var(--red); border-color: #fecaca; background: #fff1f2; }
 .kb.mid { color: #b45309; border-color: #fcd34d; background: #fffbeb; }
 .kb.good { color: var(--green); border-color: #86efac; background: #f0fdf4; }
+
+/* 自我解释反思卡 */
+.se-question { background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.se-text { font-size: 14px; color: var(--ink); white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow-y: auto; }
 
 @media (max-width: 720px) {
   .review-kb-spacer { height: 98px; }

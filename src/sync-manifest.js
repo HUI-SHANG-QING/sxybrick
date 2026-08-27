@@ -22,7 +22,7 @@ export const PRIVACY_SYNC_TABLES = [
 
 export const SYNC_TABLES = [
   { table: 'cards', kind: 'card', merge: 'card' },
-  { table: 'reviews', kind: 'review', merge: 'idOnly' },
+  { table: 'reviews', kind: 'review', merge: 'review' },
   { table: 'images', kind: 'image', merge: 'idOnly' },
   { table: 'aiChats', kind: 'chat', merge: 'updatedAt' },
   { table: 'aiMemories', kind: 'memory', merge: 'updatedAt' },
@@ -92,6 +92,16 @@ export function mergeRows(base, incoming, strategy) {
     const cur = m.get(x.id);
     if (!cur) { m.set(x.id, x); continue; }
     if (strategy === 'card') { m.set(x.id, mergeCardPair(cur, x)); continue; }
+    if (strategy === 'review') {
+      // 复习记录主体不可变（idOnly 语义），但 selfExplanation 是错题后补充的反思，
+      // 按 selfExplainAt 谁新听谁做字段级合并（否则跨设备只同步到主体、丢失反思）
+      if (x.selfExplanation !== undefined && (x.selfExplainAt ?? 0) >= (cur.selfExplainAt ?? 0)) {
+        cur.selfExplanation = x.selfExplanation;
+        if (x.selfExplainAt) cur.selfExplainAt = x.selfExplainAt;
+      }
+      m.set(x.id, cur);
+      continue;
+    }
     if (strategy === 'updatedAt') {
       const a = cur.updatedAt ?? cur.createdAt ?? 0;
       const b = x.updatedAt ?? x.createdAt ?? 0;

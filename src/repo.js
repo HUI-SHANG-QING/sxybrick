@@ -269,15 +269,26 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
     ? Number(retrievability(card.fsrs.s, (nowTs - card.fsrs.last) / 86400000).toFixed(4))
     : null;
   await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: next.fsrs ?? card.fsrs, wrongReason, wrongReasonAt: nowTs, reviewedAt: nowTs });
+  const reviewId = uid();
   await db.reviews.put({
-    id: uid(), cardId, reviewedAt: now(), rating,
+    id: reviewId, cardId, reviewedAt: now(), rating,
     predR,
     levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason,
     retrievalStrength: opts.retrievalStrength || '',
     responseMs: opts.responseMs || 0,
     grade: grade.level, gradeScore: grade.score,
   });
-  return { ...next, dueText: formatDue(next.dueAt) };
+  return { ...next, dueText: formatDue(next.dueAt), reviewId };
+}
+
+// 自我解释钩子（学习科学：错题后一句话反思「为什么错 / 正确理解」），
+// 落盘到对应复习记录。selfExplainAt 独立时间戳供跨设备按新取新。
+export async function attachSelfExplanation(reviewId, text) {
+  const r = await db.reviews.get(reviewId);
+  if (!r) return null;
+  const selfExplanation = String(text || '').trim().slice(0, 500);
+  await db.reviews.put({ ...r, selfExplanation, selfExplainAt: Date.now() });
+  return true;
 }
 
 // formatDue 已抽至 repo-core.js（上方 re-export 保持 API 不变）

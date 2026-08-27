@@ -8,7 +8,7 @@ import './_env.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { db } from '../src/db.js';
-import { createCard, review, reviewQueue, deleteCard, getStats } from '../src/repo.js';
+import { createCard, review, reviewQueue, deleteCard, getStats, attachSelfExplanation } from '../src/repo.js';
 import { getCalibration } from '../src/agent/analytics.js';
 import { buildBackup, importBackup } from '../src/sync.js';
 
@@ -127,4 +127,28 @@ test('黄金路径3：删除→墓碑→另一设备导入后级联删除', asyn
   assert.equal(await db.cards.get(c.id), undefined, '墓碑传播：卡片被删除');
   assert.equal((await db.reviews.where('cardId').equals(c.id).toArray()).length, 0, '墓碑传播：复习记录级联删除');
   assert.ok(st2.deleted >= 1, '导入统计应记录删除数');
+});
+
+// ---------- 黄金路径 4：自我解释落盘 + 跨设备同步 ----------
+test('黄金路径4：自我解释钩子落盘 + 跨设备同步合并', async () => {
+  const c = await createCard({ front: '什么是死锁？', back: '互相等待资源', subject: '操作系统' });
+  const r = await review(c.id, 0); // 答错
+  assert.ok(r.reviewId, 'review 应返回 reviewId');
+
+  // 落盘自我解释
+  await attachSelfExplanation(r.reviewId, '死锁是互相等待，不是饥饿');
+  const row = await db.reviews.get(r.reviewId);
+  assert.equal(row.selfExplanation, '死锁是互相等待，不是饥饿');
+  assert.ok(row.selfExplainAt > 0, 'selfExplainAt 应落盘');
+
+  // 导出备份应携带 selfExplanation
+  const backup = await buildBackup();
+  const inBackup = backup.reviews.find(x => x.id === r.reviewId);
+  assert.equal(inBackup.selfExplanation, '死锁是互相等待，不是饥饿');
+
+  // 模拟设备 B：清空 reviews 再导入，反思应随之恢复（review 策略字段级合并）
+  await db.reviews.clear();
+  await importBackup(backup);
+  const imported = await db.reviews.get(r.reviewId);
+  assert.equal(imported.selfExplanation, '死锁是互相等待，不是饥饿');
 });

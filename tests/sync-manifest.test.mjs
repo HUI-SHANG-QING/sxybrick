@@ -21,7 +21,7 @@ test('清单：16 张表全部登记且策略合法', () => {
     assert.ok(names.includes(need), `缺少表 ${need}`);
   }
   for (const t of SYNC_TABLES) {
-    assert.ok(['card', 'updatedAt', 'idOnly'].includes(t.merge), `${t.table} 策略非法`);
+    assert.ok(['card', 'updatedAt', 'idOnly', 'review'].includes(t.merge), `${t.table} 策略非法`);
     assert.ok(t.kind, `${t.table} 缺 kind`);
   }
 });
@@ -109,6 +109,24 @@ test('mergeRows：updatedAt 谁新听谁 / idOnly 幂等', () => {
   const r2 = mergeRows([{ id: 'a', unlockedAt: 1 }], [{ id: 'a', unlockedAt: 2 }], 'idOnly');
   assert.equal(r2.length, 1);
   assert.equal(r2[0].unlockedAt, 1); // 已存在即保留
+});
+
+test('mergeRows：review 策略——主体不可变、selfExplanation 按 selfExplainAt 取新', () => {
+  // 本地已有复习记录（无反思）；远端来了同一 id、带更新的反思
+  const local = [{ id: 'r1', rating: 0, reviewedAt: 1000 }];
+  const incoming = [{ id: 'r1', rating: 0, reviewedAt: 1000, selfExplanation: '我把死锁和饥饿搞混了', selfExplainAt: 2000 }];
+  const m = mergeRows(local, incoming, 'review');
+  assert.equal(m[0].rating, 0); // 主体字段不变
+  assert.equal(m[0].selfExplanation, '我把死锁和饥饿搞混了'); // 反思合并进来
+  assert.equal(m[0].selfExplainAt, 2000);
+});
+
+test('mergeRows：review 策略——反思谁新听谁（旧反思不被覆盖）', () => {
+  const local = [{ id: 'r1', selfExplanation: '旧反思', selfExplainAt: 5000 }];
+  const incoming = [{ id: 'r1', selfExplanation: '旧反思(远端)', selfExplainAt: 3000 }];
+  const m = mergeRows(local, incoming, 'review');
+  assert.equal(m[0].selfExplanation, '旧反思'); // 本地反思更新，保留
+  assert.equal(m[0].selfExplainAt, 5000);
 });
 
 test('墓碑：kind 泛化 + deletedAt 谁新听谁 + 缺省 kind=card', () => {
