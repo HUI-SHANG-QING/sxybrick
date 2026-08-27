@@ -7,9 +7,32 @@ import { mergeUserWeights } from './fsrs.js';
 import { extractImageIds } from './images.js';
 import { initialStabilityForCard } from './algorithms/pretest.js';
 import { buildReviewSession, retrievalGrading } from './algorithms/session.js';
+// N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
+import {
+  DEFAULT_SUBJECTS,
+  validateCard as _validateCard,
+  tagFilter,
+  gradeCard as _gradeCard,
+  WRONG_REASON_MAP as _WRONG_REASON_MAP,
+  WRONG_REASONS as _WRONG_REASONS,
+  wrongReasonToCode as _wrongReasonToCode,
+  formatDue as _formatDue,
+  filterReviewCandidates,
+  rankWeakCards,
+  selectZombieIds,
+  buildReviewSuggestion,
+  computeStats,
+  groupUserOps,
+} from './repo-core.js';
 
-export const DEFAULT_SUBJECTS = ['计算机网络', '操作系统', '数据结构', '计算机组成原理', '高等数学', '线性代数', '概率论'];
-const MAX_CHARS = 8000;
+export { DEFAULT_SUBJECTS };
+export const validateCard = _validateCard;
+export const gradeCard = _gradeCard;
+export const WRONG_REASON_MAP = _WRONG_REASON_MAP;
+export const WRONG_REASONS = _WRONG_REASONS;
+export const wrongReasonToCode = _wrongReasonToCode;
+export const formatDue = (ts) => _formatDue(ts);
+
 
 const now = () => Date.now();
 
@@ -30,27 +53,7 @@ export function refreshSchedConfig() { _schedCache = null; }
 // 剥离 Vue 响应式代理：Dexie put 前转纯对象，避免 reactive proxy 触发 IndexedDB 结构化克隆失败（思维导图等含嵌套对象的表曾因此保存失败）
 const plain = (x) => JSON.parse(JSON.stringify(x));
 
-export function validateCard(body) {
-  const front = String(body.front ?? '').trim();
-  const back = String(body.back ?? '').trim();
-  const subject = String(body.subject ?? '').trim().slice(0, 30);
-  const tags = (Array.isArray(body.tags) ? body.tags : [])
-    .map(t => String(t).trim().slice(0, 20)).filter(Boolean).slice(0, 16);
-  const source = String(body.source ?? '').trim().slice(0, 60);
-  const type = ['basic', 'cloze', 'choice', 'writing'].includes(body.type) ? body.type : 'basic';
-  const marked = !!body.marked;
-  const mnemonic = String(body.mnemonic ?? '').trim().slice(0, 200);
-  const wrongReason = String(body.wrongReason ?? '').trim().slice(0, 20);
-  // 变式卡溯源：记录原卡 ID，便于"同知识点不同情境"复习混排与追溯
-  const sourceCardId = body.sourceCardId ? String(body.sourceCardId).slice(0, 60) : '';
-  // 渐进式复杂度（P3-E）：基础 / 应用 / 挑战 三级，便于脚手架式复习编排
-  const difficulty = ['basic', 'applied', 'challenge'].includes(body.difficulty) ? body.difficulty : 'basic';
-  if (!front) return { error: '正面内容不能为空' };
-  if (type !== 'cloze' && !back) return { error: '背面内容不能为空' };
-  if ([...front].length > MAX_CHARS) return { error: `正面内容不能超过 ${MAX_CHARS} 字` };
-  if ([...back].length > MAX_CHARS) return { error: `背面内容不能超过 ${MAX_CHARS} 字` };
-  return { value: { front, back, subject, tags, source, type, marked, mnemonic, wrongReason, sourceCardId, difficulty } };
-}
+// validateCard 已抽至 repo-core.js（上方 re-export 保持 API 不变）
 
 // 导出供 intelligence.js 等模块复用（避免重复实现全量读取）
 export async function allCards() {
@@ -78,13 +81,7 @@ export async function getTags(subject = '') {
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-// 多标签 AND/OR/NOT 过滤
-function tagFilter(cards, tags, logic) {
-  if (!tags.length) return cards;
-  if (logic === 'AND') return cards.filter(c => tags.every(t => (c.tags || []).includes(t)));
-  if (logic === 'OR') return cards.filter(c => tags.some(t => (c.tags || []).includes(t)));
-  return cards.filter(c => !tags.some(t => (c.tags || []).includes(t))); // NOT
-}
+// tagFilter 已抽至 repo-core.js（validateCard 同批）
 
 // ---------- 卡片列表 ----------
 export async function listCards({ q = '', subject = '', tags = [], logic = 'AND', mode = 'all', sortBy = 'updated' } = {}) {
@@ -101,14 +98,7 @@ export async function listCards({ q = '', subject = '', tags = [], logic = 'AND'
   return { items: cards, total: cards.length, dueCount };
 }
 
-export function gradeCard(card) {
-  const level = card.level || 0;
-  if (card.marked) return { label: '错题', cls: 'g-weak' };
-  if (level >= 4) return { label: '已掌握', cls: 'g-master' };
-  if (level >= 2) return { label: '巩固中', cls: 'g-good' };
-  if (level >= 1) return { label: '学习中', cls: 'g-learning' };
-  return { label: '未开始', cls: 'g-new' };
-}
+// gradeCard 已抽至 repo-core.js（上方 re-export 保持 API 不变）
 
 export async function getCard(id) {
   return (await db.cards.get(id)) || null;
@@ -180,30 +170,7 @@ export async function setMarked(id, marked) {
 }
 
 // ---------- 错因 ----------
-// 统一错因选项（新建卡片 + 背诵页共用）；「自定义」由 UI 层追加
-// 枚举码 → 中文展示标签映射；存储用 code，展示用 label
-export const WRONG_REASON_MAP = {
-  CONCEPT_MIS: '概念混淆',
-  MEMORY_WEAK: '记忆不牢',
-  REVIEW_ERROR: '审题偏差',
-  MEMORY_VAGUE: '记忆模糊',
-  CALC_ERROR: '计算失误',
-  CARELESS: '粗心',
-  OTHER: '其他',
-};
-// 向后兼容：旧数据可能存的是中文字符串，用此函数转为 code
-export function wrongReasonToCode(reason) {
-  if (!reason) return '';
-  // 已是 code
-  if (WRONG_REASON_MAP[reason]) return reason;
-  // 中文 → code
-  for (const [code, label] of Object.entries(WRONG_REASON_MAP)) {
-    if (reason === label || reason.includes(label)) return code;
-  }
-  return 'OTHER';
-}
-// UI 用的数组：[{code, label}]，自定义项由 UI 追加
-export const WRONG_REASONS = Object.entries(WRONG_REASON_MAP).map(([code, label]) => ({ code, label }));
+// WRONG_REASON_MAP / wrongReasonToCode / WRONG_REASONS 已抽至 repo-core.js（上方 re-export 保持 API 不变）
 
 // 取候选卡的复习历史（单条 anyOf 索引查询，非 N 查询），供 buildReviewSession 做检索分级。
 // 返回 Map<cardId, review[]>，每条 review 含 { rating, guessed, responseMs, retrievalStrength }，
@@ -224,19 +191,8 @@ async function buildReviewsByCard(cards) {
 // filter: { subjects:[], tags:[], logic:'AND'|'OR'|'NOT', wrongReasons:[], includeDueOnly:true }
 // 自由组合背诵：按科目/标签/错因并集·交集·差集筛选到期队列（默认全量到期，遵循复习曲线）
 export async function reviewQueue(limit = 100, interleave = false, filter = {}) {
-  let cards = (await allCards());
-  const f = filter || {};
-  if (f.subjects?.length) cards = cards.filter(c => f.subjects.includes(c.subject || '未分类'));
-  if (f.tags?.length) {
-    const ts = f.tags, logic = f.logic || 'OR';
-    if (logic === 'AND') cards = cards.filter(c => ts.every(t => (c.tags || []).includes(t)));
-    else if (logic === 'NOT') cards = cards.filter(c => !ts.some(t => (c.tags || []).includes(t)));
-    else cards = cards.filter(c => ts.some(t => (c.tags || []).includes(t)));
-  }
-  if (f.wrongReasons?.length) cards = cards.filter(c => f.wrongReasons.includes(c.wrongReason || ''));
-  // 默认只背到期卡（遵循复习曲线）；includeDueOnly=false 时可背全部（重复复习场景）
-  if (f.includeDueOnly !== false) cards = cards.filter(c => c.dueAt <= now());
-  cards.sort((a, b) => a.dueAt - b.dueAt || (a.id < b.id ? -1 : 1));
+  // 筛选 + 排序核心已抽至 repo-core.filterReviewCandidates（N9）
+  let cards = filterReviewCandidates(await allCards(), filter, now());
   // 三维交错（P1-2 + 2026-08-27 抽取为 algorithms/session.js 的 interleaveQueue）：
   // 科目 + 题型 + 难度，避免相邻卡片"过于相似"
   // 认知科学：交错练习（Interleaving）比集中练习（Blocked）提升远迁移 40%+；
@@ -318,14 +274,7 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   return { ...next, dueText: formatDue(next.dueAt) };
 }
 
-export function formatDue(ts) {
-  const diff = ts - now();
-  if (diff < 60 * 60 * 1000) return `${Math.max(1, Math.round(diff / 60000))} 分钟后`;
-  if (diff < 24 * 3600 * 1000) return `${Math.round(diff / 3600000)} 小时后`;
-  const d = new Date(ts);
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+// formatDue 已抽至 repo-core.js（上方 re-export 保持 API 不变）
 
 // 学习行为回写 SRS：语音评测得分 / 费曼练习加成（不改 updatedAt，仅 ease/dueAt）
 export async function applyCardFeedback(cardId, signal = {}) {
@@ -368,139 +317,23 @@ export async function getCardHistory(id) {
 
 // ---------- 错题集 / 薄弱卡片 ----------
 export async function weakCards(limit = 100, minFail = 2) {
-  const cards = await allCards();
-  const reviews = await db.reviews.toArray();
-  const fail = new Map();
-  for (const r of reviews) if (r.rating === 0) fail.set(r.cardId, (fail.get(r.cardId) || 0) + 1);
-  return cards
-    .filter(c => (fail.get(c.id) || 0) >= minFail || c.marked)
-    .map(c => ({ ...c, failCount: fail.get(c.id) || 0 }))
-    .sort((a, b) => (b.failCount - a.failCount) || (b.updatedAt - a.updatedAt))
-    .slice(0, limit);
+  // 排名核心已抽至 repo-core.rankWeakCards（N9）
+  const [cards, reviews] = await Promise.all([allCards(), db.reviews.toArray()]);
+  return rankWeakCards(cards, reviews, { limit, minFail });
 }
 
 // ---------- 复习提醒建议 ----------
 export async function getReviewSuggestion() {
-  const cards = await allCards();
-  const reviews = await db.reviews.toArray();
-  const nowTs = now();
-  const due = cards.filter(c => c.dueAt <= nowTs);
-
-  // 今天待背按科目分组
-  const bySubject = new Map();
-  for (const c of due) { const k = c.subject || '未分类'; bySubject.set(k, (bySubject.get(k) || 0) + 1); }
-
-  // 每张卡最近一次复习时间（无记录用创建时间）
-  const lastReview = new Map();
-  for (const r of reviews) {
-    const cur = lastReview.get(r.cardId);
-    if (cur === undefined || r.reviewedAt > cur) lastReview.set(r.cardId, r.reviewedAt);
-  }
-  // 每科最久未复习（取该科内最久未复习的那张卡）
-  const subjOldest = new Map();
-  for (const c of cards) {
-    const k = c.subject || '未分类';
-    const t = lastReview.get(c.id) ?? c.createdAt ?? nowTs;
-    const cur = subjOldest.get(k);
-    if (cur === undefined || t < cur) subjOldest.set(k, t);
-  }
-  const staleSubjects = [...subjOldest.entries()]
-    .map(([name, ts]) => ({ name, days: Math.max(0, Math.floor((nowTs - ts) / 86400000)) }))
-    .sort((a, b) => b.days - a.days)
-    .slice(0, 5);
-
-  return {
-    dueCount: due.length,
-    dueBySubject: [...bySubject.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 6),
-    markedCount: cards.filter(c => c.marked).length,
-    staleSubjects,
-  };
+  // 建议核心已抽至 repo-core.buildReviewSuggestion（N9）
+  const [cards, reviews] = await Promise.all([allCards(), db.reviews.toArray()]);
+  return buildReviewSuggestion(cards, reviews, now());
 }
 
 // ---------- 统计 ----------
 export async function getStats() {
-  const cards = await allCards();
-  const reviews = await db.reviews.toArray();
-  const totalCards = cards.length;
-  const totalReviews = reviews.length;
-
-  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  // 今日复习 = 去重卡片数（同一张卡今天复习多次只算 1 张）
-  const todaySet = new Set();
-  for (const r of reviews) if (r.reviewedAt >= dayStart.getTime()) todaySet.add(r.cardId);
-  const todayReviews = todaySet.size;
-  const dueToday = cards.filter(c => c.dueAt <= now()).length;
-
-  // 热力图：近 365 天
-  const since = now() - 365 * 86400000;
-  const heat = {};
-  for (const r of reviews) {
-    if (r.reviewedAt < since) continue;
-    const d = new Date(r.reviewedAt);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    heat[key] = (heat[key] || 0) + 1;
-  }
-
-  // 各科掌握度：近 90 天自评均分 / 2 * 100
-  const cardMap = new Map(cards.map(c => [c.id, c]));
-  const since90 = now() - 90 * 86400000;
-  const agg = {};
-  for (const c of cards) { const k = c.subject || '未分类'; if (!agg[k]) agg[k] = { sum: 0, n: 0 }; }
-  for (const r of reviews) {
-    if (r.reviewedAt < since90) continue;
-    const c = cardMap.get(r.cardId);
-    const key = c?.subject || '未分类';
-    if (!agg[key]) agg[key] = { sum: 0, n: 0 };
-    agg[key].sum += r.rating; agg[key].n += 1;
-  }
-  const mastery = Object.entries(agg).map(([subject, v]) => ({
-    subject, mastery: v.n ? Math.round((v.sum / (2 * v.n)) * 100) : 0, reviews: v.n,
-  }));
-  const avgMastery = mastery.length ? Math.round(mastery.reduce((s, m) => s + m.mastery, 0) / mastery.length) : 0;
-
-  // 近 14 天趋势
-  const trend = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
-    const start = d.getTime(), end = start + 86400000;
-    const n = reviews.filter(r => r.reviewedAt >= start && r.reviewedAt < end).length;
-    trend.push({ date: `${d.getMonth() + 1}-${d.getDate()}`, count: n });
-  }
-
-  // 各科卡片数 + 自评分布
-  const subjectCards = {};
-  for (const c of cards) { const k = c.subject || '未分类'; subjectCards[k] = (subjectCards[k] || 0) + 1; }
-  const ratingDist = { 0: 0, 1: 0, 2: 0 };
-  for (const r of reviews) if (ratingDist[r.rating] !== undefined) ratingDist[r.rating]++;
-
-  // 24 小时复习时间分布
-  const hourly = new Array(24).fill(0);
-  for (const r of reviews) hourly[new Date(r.reviewedAt).getHours()]++;
-
-  // 近 30 天遗忘率（没记住占比 %）
-  const forgotTrend = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
-    const s = d.getTime(), e = s + 86400000;
-    const dayRs = reviews.filter(r => r.reviewedAt >= s && r.reviewedAt < e);
-    const forgot = dayRs.filter(r => r.rating === 0).length;
-    forgotTrend.push({ date: `${d.getMonth() + 1}-${d.getDate()}`, rate: dayRs.length ? Math.round(forgot / dayRs.length * 100) : 0 });
-  }
-
-  // 能力四维（掌握度/正确率/稳定度/覆盖率）
-  const total = totalReviews || 1;
-  const correct = Math.round((reviews.filter(r => r.rating === 2).length / total) * 100);
-  const stable = Math.round((1 - reviews.filter(r => r.rating === 0).length / total) * 100);
-  const reviewedCount = new Set(reviews.map(r => r.cardId)).size;
-  const coverage = totalCards ? Math.round((reviewedCount / totalCards) * 100) : 0;
-  const ability = { mastery: avgMastery, correct, stable, coverage };
-
-  // 标签 Top 10
-  const tagMap = new Map();
-  for (const c of cards) for (const t of (c.tags || [])) tagMap.set(t, (tagMap.get(t) || 0) + 1);
-  const tagCounts = [...tagMap.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10);
-
-  return { totalCards, totalReviews, todayReviews, dueToday, avgMastery, heatmap: heat, mastery, trend, subjectCards, ratingDist, hourly, forgotTrend, ability, tagCounts };
+  // 统计核心已抽至 repo-core.computeStats（N9）
+  const [cards, reviews] = await Promise.all([allCards(), db.reviews.toArray()]);
+  return computeStats(cards, reviews, now());
 }
 
 // ---------- 备忘录（四象限：重要/紧急） ----------
@@ -750,12 +583,12 @@ export async function updateExam(id, patch) {
 
 // 1) 僵尸卡 ID 集合（90 天到期且从未复习）
 export async function zombieCardIds() {
-  const threshold = Date.now() - 90 * 24 * 3600 * 1000;
-  const cards = await db.cards.toArray();
-  const reviewed = new Set((await db.reviews.toArray()).map(r => r.cardId));
-  return cards
-    .filter(c => (c.createdAt || 0) <= threshold && !reviewed.has(c.id))
-    .map(c => c.id);
+  // 判定核心已抽至 repo-core.selectZombieIds（N9）
+  const [cards, reviewed] = await Promise.all([
+    db.cards.toArray(),
+    db.reviews.toArray().then(rs => rs.map(r => r.cardId)),
+  ]);
+  return selectZombieIds(cards, reviewed, Date.now());
 }
 
 // 2) 埋点写入（同步到 telemetry A 级），返回立即 flush 的 Promise
@@ -780,37 +613,8 @@ export async function queryUserOps(opts = {}) {
     arr = (await db.userOps.toArray()).filter(o => (o.t || 0) <= to);
   }
   if (!groupBy) return arr;
-  const fmt = (ts) => {
-    const d = new Date(ts);
-    const p = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
-  };
-  if (groupBy === 'day') {
-    const m = new Map();
-    for (const o of arr) { const k = fmt(o.t); m.set(k, (m.get(k)||0) + 1); }
-    return [...m.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([d,c])=>({date:d,count:c}));
-  }
-  if (groupBy === 'hour') {
-    const m = new Map();
-    for (let i=0;i<24;i++) m.set(i, 0);
-    for (const o of arr) { const k = new Date(o.t).getHours(); m.set(k, (m.get(k)||0) + 1); }
-    return [...m.entries()].sort(([a],[b])=>a-b).map(([h,c])=>({hour:h,count:c}));
-  }
-  if (groupBy === 'dayHour') {
-    // 7*24 heatmap matrix key = YYYY-MM-DD-HH
-    const m = new Map();
-    for (const o of arr) {
-      const k = `${fmt(o.t)}-${String(new Date(o.t).getHours()).padStart(2,'0')}`;
-      m.set(k, (m.get(k)||0) + 1);
-    }
-    return m; // Map<String, count>
-  }
-  if (groupBy === 'module' || groupBy === 'type' || groupBy === 'category') {
-    const m = new Map();
-    for (const o of arr) { const k = String(o[groupBy] || '（空）'); m.set(k, (m.get(k)||0) + 1); }
-    return [...m.entries()].sort((a,b)=>b[1]-a[1]).map(([k,c])=>({key:k,count:c}));
-  }
-  return arr;
+  // 分组聚合核心已抽至 repo-core.groupUserOps（N9）
+  return groupUserOps(arr, groupBy);
 }
 
 // 4) 最佳 / 最坏拍档（A/B/C/D 四类 + 近期/长期 + 正/反 共 16 种组合）
