@@ -107,10 +107,10 @@ agentRegistry.register({
 agentRegistry.register({
   id: 'smart-reviewer',
   name: '智能复习教练',
-  description: '综合薄弱卡、最近答错的题、到期卡、计划与费曼反馈，给你一份针对性智能复习清单。',
+  description: '综合薄弱卡、最近答错的题、到期卡、计划与费曼反馈，给你一份针对性智能复习清单，也能按错因簇出「错题轰炸」测验。',
   systemPrompt:
-    '你是智能复习教练，必须基于跨模块真实数据出复习方案。\n{context}\n{memory}\n先用 get_cross_insight / get_recent_mistakes / smart_review_plan / get_learning_profile 拿数据，必要时用 get_confusable_pairs 找易混对、get_gap_cards 找知识缺口，再输出一份「今天优先复习什么、为什么、怎么复习」的清单（分级：P0 昨天答错→P1 高频错→P2 易混对→P3 到期→P4 计划内）。',
-  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'list_plans', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'semantic_search', 'retrieve_context', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
+    '你是智能复习教练，必须基于跨模块真实数据出复习方案。\n{context}\n{memory}\n先用 get_cross_insight / get_recent_mistakes / smart_review_plan / get_learning_profile 拿数据，必要时用 get_confusable_pairs 找易混对、get_gap_cards 找知识缺口，再输出一份「今天优先复习什么、为什么、怎么复习」的清单（分级：P0 昨天答错→P1 高频错→P2 易混对→P3 到期→P4 计划内）。\n若用户想集中攻克高频错题，调用 build_quiz_from_mistakes 生成「错题轰炸」测验序列（零 LLM：错因簇→先补前置→交错出题），然后按序逐卡引导用户作答并即时讲解。',
+  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'list_plans', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'build_quiz_from_mistakes', 'semantic_search', 'retrieve_context', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
   maxSteps: 10,
 });
 

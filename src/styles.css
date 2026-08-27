@@ -175,9 +175,27 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* ===================== 界面风格（游戏级：强调色 + 场景背景；配色模式见 data-theme） ===================== */
-:root[data-style='card'] { --accent: #c8a44e; --radius: 10px; }
-:root[data-style='moba'] { --accent: #d4af37; --radius: 12px; }
-:root[data-style='space'] { --accent: #00e5ff; --radius: 8px; }
+:root[data-style='card'] {
+  --accent: #f0c46a; --accent-2: #b9862f; --radius: 14px;
+  --bg: #18110a; --panel: #2a1d12; --panel-2: #34281a;
+  --ink: #f7ecd8; --ink-2: #c9b295; --line: #5e4326;
+  --code-bg: #34281a; --code-inline: #3f2f1c; --tag-bg: #3a2a18; --tag-ink: #f0c46a;
+  --red: #e2724f; --green: #7bbf6a; --amber: #e0a93b; --blue: #6ea8e0; --toast-bg:  #2a1d12;
+}
+:root[data-style='moba'] {
+  --accent: #f0c84a; --accent-2: #d4af37; --radius: 14px;
+  --bg: #0c1430; --panel: #16204a; --panel-2: #1d2c5e;
+  --ink: #eaf0ff; --ink-2: #9fb3dd; --line: #2f447f;
+  --code-bg: #16204a; --code-inline: #1d2c5e; --tag-bg: #1d2c5e; --tag-ink: #f0c84a;
+  --red: #ff6f6f; --green: #4fd6b0; --amber: #f0c84a; --blue: #5aa0ff; --toast-bg: #16204a;
+}
+:root[data-style='space'] {
+  --accent: #00e5ff; --accent-2: #ff2e88; --radius: 10px;
+  --bg: #04070f; --panel: #0a1424; --panel-2: #0f1d33;
+  --ink: #dff6ff; --ink-2: #7fa8c9; --line: #1b3866;
+  --code-bg: #0a1424; --code-inline: #0f1d33; --tag-bg: #0f1d33; --tag-ink: #00e5ff;
+  --red: #ff5a7a; --green: #36e0c0; --amber: #ffd166; --blue: #00e5ff; --toast-bg: #0a1424;
+}
 :root[data-style='adventure'] { --accent: #d4a33a; --radius: 14px; }
 
 /* 各游戏风格的全屏场景背景（场景固定氛围，内容配色仍随 data-theme 全局切换） */
@@ -201,6 +219,190 @@ input, select, textarea { font: inherit; color: inherit; }
   [data-style='moba'] .app-main { padding-left: 260px; }
   [data-style='space'] .app-main { padding-bottom: 140px; }
   [data-style='adventure'] .app-main { padding-bottom: 410px; }
+}
+
+/* ============================================================
+   三大游戏风格 · 组件级皮肤与交互（卡牌 / 王者 / 星际）
+   目标：让三者风格强烈区分 + 游戏级视觉体验 + 轻交互发光
+   - card  ：炉石·羊皮卷卡牌（暖金描边 + 翻卡微旋 + 暖光晕）
+   - moba  ：王者·能量晶板（蓝金角切 + 能量脉冲 + 描边流光）
+   - space ：星际·全息 HUD（青粉边角括号 + 扫描线 + 霓虹辉光）
+   ============================================================ */
+
+/* ---------- ① 卡牌 card：羊皮卷游戏卡 ---------- */
+:root[data-style='card'] .panel {
+  background: linear-gradient(160deg, #34281a 0%, #271c10 100%);
+  border: 1px solid #6e5326;
+  box-shadow: 0 6px 18px rgba(0,0,0,.45), inset 0 1px 0 rgba(240,196,106,.12);
+}
+:root[data-style='card'] .card-item {
+  background: linear-gradient(165deg, #3a2a18 0%, #271a0e 70%, #21160c 100%);
+  border: 1.5px solid #7a5a2e;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 14px rgba(0,0,0,.5), inset 0 1px 0 rgba(240,196,106,.18);
+  position: relative; overflow: hidden;
+}
+:root[data-style='card'] .card-item::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit;
+  background: radial-gradient(120% 60% at 50% 0%, rgba(240,196,106,.10), transparent 60%);
+  pointer-events: none;
+}
+:root[data-style='card'] .card-item::after {
+  content: ''; position: absolute; top: 0; left: -60%;
+  width: 40%; height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(240,196,106,.22), transparent);
+  transform: skewX(-18deg); pointer-events: none;
+  transition: left .6s ease;
+}
+:root[data-style='card'] .card-item:hover {
+  transform: translateY(-4px) scale(1.012);
+  border-color: #f0c46a;
+  box-shadow: 0 12px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(240,196,106,.45), 0 0 22px rgba(240,196,106,.25);
+}
+:root[data-style='card'] .card-item:hover::after { left: 120%; }
+:root[data-style='card'] .btn {
+  border: 1.5px solid #b9862f; border-radius: 10px; color: #f7ecd8;
+  background: linear-gradient(180deg, #4a3418, #2f2010);
+  transition: all .18s ease;
+}
+:root[data-style='card'] .btn:hover { border-color: #f0c46a; box-shadow: 0 0 14px rgba(240,196,106,.3); }
+:root[data-style='card'] .btn.primary {
+  background: linear-gradient(180deg, #f0c46a, #b9862f); color: #2a1a09; border-color: #f0c46a; font-weight: 700;
+}
+:root[data-style='card'] .btn.primary:hover { box-shadow: 0 0 18px rgba(240,196,106,.5); }
+:root[data-style='card'] .chip {
+  border: 1px solid #7a5a2e; border-radius: 10px;
+  background: linear-gradient(180deg, #34281a, #271c10); color: #c9b295;
+}
+:root[data-style='card'] .chip.on { background: linear-gradient(180deg, #f0c46a, #b9862f); color: #2a1a09; border-color: #f0c46a; }
+:root[data-style='card'] .tag-pill { background: #3a2a18; color: #f0c46a; border: 1px solid #6e5326; }
+:root[data-style='card'] .input:focus { border-color: #f0c46a; box-shadow: 0 0 0 3px rgba(240,196,106,.15); }
+:root[data-style='card'] :focus-visible { outline: 2px solid #f0c46a; outline-offset: 2px; border-radius: 4px; }
+:root[data-style='card'] .flip-inner { transition: transform .55s cubic-bezier(.2,.75,.25,1); }
+
+/* ---------- ② 王者 moba：能量晶板 ---------- */
+:root[data-style='moba'] .panel {
+  background: linear-gradient(160deg, #1d2c5e 0%, #121a3c 100%);
+  border: 1px solid #2f447f;
+  box-shadow: 0 6px 18px rgba(0,0,0,.45), inset 0 1px 0 rgba(240,200,74,.12);
+}
+:root[data-style='moba'] .card-item {
+  background: linear-gradient(155deg, #21336e 0%, #15203f 70%, #0f1730 100%);
+  border: 1.5px solid #3f5fa6;
+  border-radius: var(--radius);
+  clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
+  box-shadow: 0 4px 14px rgba(0,0,0,.5), inset 0 1px 0 rgba(240,200,74,.15);
+  position: relative; overflow: hidden;
+}
+:root[data-style='moba'] .card-item::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(120% 70% at 100% 0%, rgba(240,200,74,.12), transparent 55%);
+  pointer-events: none;
+}
+:root[data-style='moba'] .card-item::after {
+  content: ''; position: absolute; inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(120deg, transparent 30%, rgba(90,160,255,.0), rgba(240,200,74,.0), transparent 70%);
+  background-size: 200% 100%;
+  opacity: 0; transition: opacity .3s ease;
+  pointer-events: none;
+}
+:root[data-style='moba'] .card-item:hover {
+  transform: translateY(-4px);
+  border-color: #f0c84a;
+  box-shadow: 0 12px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(240,200,74,.5), 0 0 24px rgba(90,160,255,.28);
+}
+:root[data-style='moba'] .card-item:hover::after { opacity: 1; animation: moba-energy 1.6s linear infinite; }
+@keyframes moba-energy { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+:root[data-style='moba'] .btn {
+  border: 1.5px solid #3f5fa6; border-radius: 10px; color: #eaf0ff;
+  background: linear-gradient(180deg, #21336e, #15203f); transition: all .18s ease;
+}
+:root[data-style='moba'] .btn:hover { border-color: #f0c84a; box-shadow: 0 0 14px rgba(90,160,255,.35); }
+:root[data-style='moba'] .btn.primary {
+  background: linear-gradient(180deg, #f0c84a, #d4af37); color: #14224a; border-color: #f0c84a; font-weight: 700;
+  box-shadow: 0 0 16px rgba(240,200,74,.35);
+}
+:root[data-style='moba'] .btn.primary:hover { box-shadow: 0 0 22px rgba(240,200,74,.6); }
+:root[data-style='moba'] .chip {
+  border: 1px solid #3f5fa6; border-radius: 10px;
+  background: linear-gradient(180deg, #1d2c5e, #15203f); color: #9fb3dd;
+}
+:root[data-style='moba'] .chip.on { background: linear-gradient(180deg, #f0c84a, #d4af37); color: #14224a; border-color: #f0c84a; }
+:root[data-style='moba'] .tag-pill { background: #1d2c5e; color: #f0c84a; border: 1px solid #3f5fa6; }
+:root[data-style='moba'] .input:focus { border-color: #f0c84a; box-shadow: 0 0 0 3px rgba(90,160,255,.18); }
+:root[data-style='moba'] :focus-visible { outline: 2px solid #f0c84a; outline-offset: 2px; border-radius: 4px; }
+:root[data-style='moba'] .flip-inner { transition: transform .55s cubic-bezier(.2,.75,.25,1); }
+
+/* ---------- ③ 星际 space：全息 HUD ---------- */
+:root[data-style='space'] .panel {
+  background: linear-gradient(160deg, rgba(15,29,51,.92), rgba(10,20,36,.92));
+  border: 1px solid #1b3866;
+  box-shadow: 0 6px 22px rgba(0,0,0,.5), inset 0 0 0 1px rgba(0,229,255,.06);
+  backdrop-filter: blur(2px);
+}
+:root[data-style='space'] .card-item {
+  background: linear-gradient(160deg, rgba(15,29,51,.95), rgba(8,16,30,.95));
+  border: 1px solid #2a5a86;
+  border-radius: var(--radius);
+  position: relative; overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,229,255,.10);
+}
+/* HUD 角括号 */
+:root[data-style='space'] .card-item::before,
+:root[data-style='space'] .card-item::after {
+  content: ''; position: absolute; width: 16px; height: 16px; pointer-events: none;
+  border-color: #00e5ff; border-style: solid; opacity: .8;
+}
+:root[data-style='space'] .card-item::before {
+  top: 8px; left: 8px;
+  border-width: 2px 0 0 2px; border-top-left-radius: 4px;
+}
+:root[data-style='space'] .card-item::after {
+  bottom: 8px; right: 8px;
+  border-width: 0 2px 2px 0; border-bottom-right-radius: 4px;
+}
+:root[data-style='space'] .card-item:hover {
+  transform: translateY(-4px);
+  border-color: #00e5ff;
+  animation: space-glow 1.6s ease-in-out infinite;
+}
+@keyframes space-glow {
+  0%, 100% { box-shadow: 0 12px 32px rgba(0,0,0,.6), 0 0 0 1px rgba(0,229,255,.4), 0 0 18px rgba(0,229,255,.25); }
+  50% { box-shadow: 0 12px 32px rgba(0,0,0,.6), 0 0 0 1px rgba(0,229,255,.7), 0 0 34px rgba(0,229,255,.45); }
+}
+:root[data-style='space'] .btn {
+  border: 1.5px solid #2a5a86; border-radius: 10px; color: #dff6ff;
+  background: linear-gradient(180deg, rgba(15,29,51,.9), rgba(8,16,30,.9)); transition: all .18s ease;
+}
+:root[data-style='space'] .btn:hover { border-color: #00e5ff; box-shadow: 0 0 14px rgba(0,229,255,.4); color: #fff; }
+:root[data-style='space'] .btn.primary {
+  background: linear-gradient(180deg, #00e5ff, #00a6c4); color: #021016; border-color: #00e5ff; font-weight: 700;
+  box-shadow: 0 0 16px rgba(0,229,255,.45);
+}
+:root[data-style='space'] .btn.primary:hover { box-shadow: 0 0 24px rgba(0,229,255,.7); }
+:root[data-style='space'] .chip {
+  border: 1px solid #2a5a86; border-radius: 10px;
+  background: linear-gradient(180deg, rgba(15,29,51,.9), rgba(8,16,30,.9)); color: #7fa8c9;
+}
+:root[data-style='space'] .chip.on { background: linear-gradient(180deg, #00e5ff, #00a6c4); color: #021016; border-color: #00e5ff; }
+:root[data-style='space'] .tag-pill { background: #0f1d33; color: #00e5ff; border: 1px solid #2a5a86; }
+:root[data-style='space'] .input:focus { border-color: #00e5ff; box-shadow: 0 0 0 3px rgba(0,229,255,.16); }
+:root[data-style='space'] :focus-visible { outline: 2px solid #00e5ff; outline-offset: 2px; border-radius: 4px; }
+:root[data-style='space'] .flip-inner { transition: transform .55s cubic-bezier(.2,.75,.25,1); }
+
+/* 三主题复用：FlipCard 卡片接缝自适应圆角 */
+:root[data-style='card'] .flip-scene .flip-inner > div,
+:root[data-style='moba'] .flip-scene .flip-inner > div,
+:root[data-style='space'] .flip-scene .flip-inner > div {
+  border-radius: var(--radius);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style='card'] .card-item::after,
+  :root[data-style='moba'] .card-item::after { animation: none !important; }
+  :root[data-style='moba'] .card-item:hover::after { opacity: 0; }
+  :root[data-style='space'] .card-item:hover { animation: none !important; }
 }
 
 /* 复习专注模式：隐藏导航与浮动助手，沉浸式背题 */

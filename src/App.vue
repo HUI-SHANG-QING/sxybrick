@@ -88,6 +88,7 @@ const navItems = [
   { path: '/privacy', label: '隐私', icon: '🧾' },
   // P3-4 插件 / MCP 接入：本地扩展机制（工具调用 + 事件钩子）
   { path: '/plugins', label: '插件', icon: '🔌' },
+  { path: '/insight', label: '卡片洞察', icon: '🔍' },
 ];
 
 // 功能精简：用户自定义核心导航项（始终显示）；未勾选的折叠到 NavBar 的「更多 ▼」

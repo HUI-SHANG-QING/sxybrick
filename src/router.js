@@ -31,6 +31,8 @@ const routes = [
   { path: '/privacy', component: () => import('./views/PrivacyData.vue') },
   // P3-4 插件 / MCP 接入：本地插件管理与工具调用（MCP 兼容 schema）
   { path: '/plugins', component: () => import('./views/Plugins.vue') },
+  // 智能层：单卡遗忘曲线 + 知识图谱洞察
+  { path: '/insight', component: () => import('./views/CardInsight.vue') },
 ];
 
 export const router = createRouter({

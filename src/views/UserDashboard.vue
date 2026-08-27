@@ -43,19 +43,33 @@ function onPartnerItemClick(item) {
 }
 
 // 12 图表容器 ref 与 chart 对象
+// 注意：Vue 模板 ref 只认顶层绑定名，不能用 "obj.x.el" 这种点路径，否则 el.value 永远为 null → 图表空白。
+// 因此为每个图表声明独立的顶层 ref，再挂到 chartHolders 注册表。
+const heatmapEl = ref(null);
+const hourLineEl = ref(null);
+const modulePieEl = ref(null);
+const typeBarEl = ref(null);
+const actionDotEl = ref(null);
+const weekRadarEl = ref(null);
+const weekHeat168El = ref(null);
+const rateDistEl = ref(null);
+const cardCrudEl = ref(null);
+const syncExportEl = ref(null);
+const aiCloudEl = ref(null);
+const mixTrendEl = ref(null);
 const chartHolders = {
-  heatmap:    { el: ref(null), c: null },
-  hourLine:   { el: ref(null), c: null },
-  modulePie:  { el: ref(null), c: null },
-  typeBar:    { el: ref(null), c: null },
-  actionDot:  { el: ref(null), c: null },
-  weekRadar:  { el: ref(null), c: null },
-  weekHeat168:{ el: ref(null), c: null },
-  rateDist:   { el: ref(null), c: null },
-  cardCrud:   { el: ref(null), c: null },
-  syncExport: { el: ref(null), c: null },
-  aiCloud:    { el: ref(null), c: null },
-  mixTrend:   { el: ref(null), c: null },
+  heatmap:    { el: heatmapEl, c: null },
+  hourLine:   { el: hourLineEl, c: null },
+  modulePie:  { el: modulePieEl, c: null },
+  typeBar:    { el: typeBarEl, c: null },
+  actionDot:  { el: actionDotEl, c: null },
+  weekRadar:  { el: weekRadarEl, c: null },
+  weekHeat168:{ el: weekHeat168El, c: null },
+  rateDist:   { el: rateDistEl, c: null },
+  cardCrud:   { el: cardCrudEl, c: null },
+  syncExport: { el: syncExportEl, c: null },
+  aiCloud:    { el: aiCloudEl, c: null },
+  mixTrend:   { el: mixTrendEl, c: null },
 };
 const heatmapCells = ref([]); // GitHub 式 365 天格子（CSS 绘制，ECharts 可选冗余）
 
@@ -619,20 +633,20 @@ const countsBanner = computed(() => {
 
     <!-- 12 图表网格：2 列自适应 -->
     <section class="panel chart-panel">
-      <div ref="chartHolders.heatmap.el" class="chart-box tall"></div>
+      <div ref="heatmapEl" class="chart-box tall" :class="{ 'is-loading': busy }"></div>
     </section>
     <section class="chart-grid">
-      <div class="panel chart-panel"><div ref="chartHolders.hourLine.el" class="chart-box"></div></div>
-      <div class="panel chart-panel"><div ref="chartHolders.modulePie.el" class="chart-box"></div></div>
-      <div class="panel chart-panel"><div ref="chartHolders.typeBar.el" class="chart-box tall"></div></div>
-      <div class="panel chart-panel"><div ref="chartHolders.actionDot.el" class="chart-box tall"></div></div>
-      <div class="panel chart-panel"><div ref="chartHolders.weekRadar.el" class="chart-box"></div></div>
-      <div class="panel chart-panel"><div ref="chartHolders.weekHeat168.el" class="chart-box"></div></div>
-      <div class="panel chart-panel"><div ref="chartHolders.rateDist.el" class="chart-box"></div></div>
-      <div class="panel chart-panel"><div ref="chartHolders.cardCrud.el" class="chart-box"></div></div>
-      <div class="panel chart-panel wide2"><div ref="chartHolders.syncExport.el" class="chart-box"></div></div>
-      <div class="panel chart-panel wide2"><div ref="chartHolders.mixTrend.el" class="chart-box"></div></div>
-      <div class="panel chart-panel wide2"><div ref="chartHolders.aiCloud.el" class="chart-box"></div></div>
+      <div class="panel chart-panel"><div ref="hourLineEl" class="chart-box" :class="{ 'is-loading': busy }"></div></div>
+      <div class="panel chart-panel"><div ref="modulePieEl" class="chart-box" :class="{ 'is-loading': busy }"></div></div>
+      <div class="panel chart-panel"><div ref="typeBarEl" class="chart-box tall" :class="{ 'is-loading': busy }"></div></div>
+      <div class="panel chart-panel"><div ref="actionDotEl" class="chart-box tall" :class="{ 'is-loading': busy }"></div></div>
+      <div class="panel chart-panel"><div ref="weekRadarEl" class="chart-box" :class="{ 'is-loading': busy }"></div></div>
+      <div class="panel chart-panel"><div ref="weekHeat168El" class="chart-box" :class="{ 'is-loading': busy }"></div></div>
+      <div class="panel chart-panel"><div ref="rateDistEl" class="chart-box" :class="{ 'is-loading': busy }"></div></div>
+      <div class="panel chart-panel"><div ref="cardCrudEl" class="chart-box" :class="{ 'is-loading': busy }"></div></div>
+      <div class="panel chart-panel wide2"><div ref="syncExportEl" class="chart-box" :class="{ 'is-loading': busy }"></div></div>
+      <div class="panel chart-panel wide2"><div ref="mixTrendEl" class="chart-box" :class="{ 'is-loading': busy }"></div></div>
+      <div class="panel chart-panel wide2"><div ref="aiCloudEl" class="chart-box" :class="{ 'is-loading': busy }"></div></div>
     </section>
 
     <!-- 最佳 / 最坏 拍档 16 组合 -->
@@ -725,8 +739,18 @@ const countsBanner = computed(() => {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
 }
 .chart-panel { margin-bottom: 0; }
-.chart-box { width: 100%; height: 300px; }
+.chart-box { width: 100%; height: 300px; position: relative; }
 .chart-box.tall { height: 380px; }
+/* 加载骨架：数据返回前显示 shimmer 占位，避免图表空白观感 */
+.chart-box.is-loading::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--code-bg) 25%, var(--line) 37%, var(--code-bg) 63%);
+  background-size: 400% 100%;
+  animation: udb-shimmer 1.4s ease infinite;
+}
+@keyframes udb-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 .wide2 { grid-column: span 2; }
 @media (max-width: 900px) {
   .chart-grid { grid-template-columns: 1fr; }
