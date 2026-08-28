@@ -43,6 +43,8 @@ export const SYNC_TABLES = [
   //   原文件（OPFS）与解析全文（docTexts 本地表）不同步，跨设备可见清单但不可预览原文
   { table: 'docFiles', kind: 'docFile', merge: 'updatedAt' },
   // privacyRecords 默认不入同步（PIPL 敏感数据），见 PRIVACY_SYNC_TABLES + includePrivacySync()
+  // v18 新增：笔记（双向链接跨设备打通；合并策略按 updatedAt，谁新听谁）
+  { table: 'notes', kind: 'note', merge: 'updatedAt' },
 ];
 
 // 卡片字段级合并分组：

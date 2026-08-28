@@ -10,6 +10,8 @@ import { mergeUserWeights, retrievability } from './fsrs.js';
 import { extractImageIds } from './images.js';
 import { initialStabilityForCard } from './algorithms/pretest.js';
 import { buildReviewSession, retrievalGrading } from './algorithms/session.js';
+// D3.1 笔记解析纯函数（双向链接 + 标签抽取 + 归一化）
+import { normalizeNotePayload, validateNote, recognizeWikiLinks } from './utils/note-parser.js';
 // N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
 import {
   DEFAULT_SUBJECTS,
@@ -380,6 +382,90 @@ export async function addMemo(payload) {
 export async function deleteMemo(id) {
   await db.memos.delete(id);
   await db.tombstones.put({ id, kind: 'memo', deletedAt: now() }); // 墓碑：跨设备同步删除
+}
+
+// ───────────── 笔记（D3.1：完整笔记系统，区别于 memos 四象限短备忘） ─────────────
+
+/**
+ * 列表（按 updatedAt 倒序），支持 q 关键词、category、tags 过滤
+ */
+export async function listNotes({ q = '', category = '', tags = [] } = {}) {
+  let rows = await db.notes.orderBy('updatedAt').reverse().toArray();
+  if (category) rows = rows.filter(n => (n.category || '') === category);
+  if (Array.isArray(tags) && tags.length) {
+    const setLower = new Set(tags.map(t => String(t).toLowerCase()));
+    rows = rows.filter(n => Array.isArray(n.tags) && n.tags.some(t => setLower.has(String(t).toLowerCase())));
+  }
+  if (q) {
+    const ql = q.toLowerCase();
+    rows = rows.filter(n =>
+      (n.title || '').toLowerCase().includes(ql)
+      || (n.content || '').toLowerCase().includes(ql)
+      || (n.category || '').toLowerCase().includes(ql)
+      || (Array.isArray(n.tags) && n.tags.some(t => String(t).toLowerCase().includes(ql)))
+    );
+  }
+  return rows;
+}
+
+export async function getNote(id) {
+  return db.notes.get(id);
+}
+
+/** 创建笔记（自动从 content/tags 抽取双向链接与 #标签） */
+export async function createNote(payload) {
+  const norm = normalizeNotePayload(payload);
+  const check = validateNote(norm);
+  if (!check.valid) throw new Error('笔记无效：' + check.errors.join('；'));
+  const t = now();
+  const note = { id: uid(), ...norm, createdAt: t, updatedAt: t };
+  await db.notes.put(note);
+  fireHook('onNoteSaved', note);
+  return note;
+}
+
+/** 更新笔记（重新抽取链接 + 标签；只要传入的字段就以传入为准，未传字段保留原值） */
+export async function updateNote(id, payload) {
+  const cur = await db.notes.get(id);
+  if (!cur) return null;
+  const norm = normalizeNotePayload({ ...cur, ...payload, createdAt: cur.createdAt });
+  const check = validateNote(norm);
+  if (!check.valid) throw new Error('笔记无效：' + check.errors.join('；'));
+  const t = now();
+  const out = { ...cur, ...norm, id, updatedAt: t };
+  await db.notes.put(out);
+  fireHook('onNoteSaved', out);
+  return out;
+}
+
+export async function deleteNote(id) {
+  await db.notes.delete(id);
+  await db.tombstones.put({ id, kind: 'note', deletedAt: now() }); // 墓碑：跨设备同步删除
+}
+
+/** 反向链接：哪些笔记的 content 里有 [[id]]？ */
+export async function findNotesLinkingTo(targetId) {
+  const notes = await db.notes.toArray();
+  return notes.filter(n => (n?.content || '') && recognizeWikiLinks(n.content).some(l => l.id === targetId));
+}
+
+/** 取得所有 notes 的分类（去重，按字母序） */
+export async function getNoteCategories() {
+  const rows = await db.notes.toArray();
+  const set = new Set();
+  for (const n of rows) {
+    const c = (n.category || '').trim();
+    if (c) set.add(c);
+  }
+  return [...set].sort();
+}
+
+/** 取得所有 notes 用过的标签集合（去重） */
+export async function getNoteTags() {
+  const rows = await db.notes.toArray();
+  const set = new Set();
+  for (const n of rows) if (Array.isArray(n.tags)) for (const t of n.tags) if (t) set.add(String(t).toLowerCase());
+  return [...set].sort();
 }
 
 // ---------- 学习计划（可持久化、随数据包同步） ----------

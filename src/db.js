@@ -135,6 +135,16 @@ db.version(17).stores({
   docTexts: 'id, updatedAt',
 });
 
+// v18：新增笔记表（D3.1，用户明示弱项补救）
+//   notes：完整笔记（区别于 memos：memos 是四象限短备忘；notes 是 title+content+tags+双向链接的厚笔记）
+//     id, title, content(Markdown正文，支持[[card-id]][[doc-id]]双向链接),
+//     category(分类), tags(数组), linkedCardIds(双向关联卡片),
+//     linkedDocId(关联资料), linkedPlanIds(关联每日规划任务，为 D8 预留),
+//     updatedAt, createdAt
+db.version(18).stores({
+  notes: 'id, category, updatedAt, createdAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }
