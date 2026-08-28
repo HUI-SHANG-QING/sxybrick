@@ -31,6 +31,7 @@
 | 学习科学 | **每科自适应目标保持率** + **黄金时段推荐** | `src/algorithms/adaptive-retention.js` `golden-hours.js` | 10 |
 
 **测试总量：89 → 181 项（全绿）**，`vite build` 每次通过（约 2500+ 模块）。
+**Phase 4 插件系统后：181 → 223 项（全绿）**，构建通过。
 
 ---
 
@@ -52,9 +53,13 @@
 - ✅ **Anki .apkg 真解析导入**：jszip 解压 + sql.js 解析 SQLite，本地零服务端。
 - ✅ **源→卡→数据全血缘**：`source-trace.js` 来源归一 + 每来源聚合 + 单卡变式链/同源追溯，Health.vue「来源资产」面板。
 
-### Phase 4 —— 平台化跃迁（二次开发）
-- ⏳ **用户脚本插件系统**：把已有的 `registerTool/registerAgent` 扩展点声明式暴露给用户脚本（ES Module 字符串 + Blob URL 动态 import，`db.plugins` 表已就绪）。
-- ⏳ **Agent 工具市场**：卡组/插件/主题的分发与一键安装。
+### Phase 4 —— 平台化跃迁（主体完成，云端市场留待后续）
+- ✅ **用户脚本插件系统**：ES Module 字符串存 `db.plugins`，Blob URL 动态 import；`install/toggle/uninstall/invokeTool/triggerHook/warmup` 全生命周期。
+  - ✅ **插件 → Agent 编排器桥接**（平台化关键一跳）：`src/plugins/agent-bridge.js` 纯函数层（MCP inputSchema→参数说明、工具描述、Agent 定义归一、钩子映射、冲突检测）+ `plugins/registry.js` 激活/反激活——安装插件后其工具自动注册进 `toolRegistry`、导出 `agents` 自动注册进 `agentRegistry`，Agent 工作台/多 Agent 流水线直接可用；注册表支持 `unregister` 与 `plugin` 来源标记。
+  - ✅ **业务钩子触发点**：repo.js 在 createCard/updateCard（onCardSaved）、deleteCard（onCardDeleted）、review（onReviewRated）后 fire-and-forget 分发。
+  - ✅ **插件包分发**：`src/plugins/package.js` 序列化/解析 + 导出/导入 .json 单文件（工具市场最小落地形态）。
+  - ✅ 内置示例插件 `word-count`：2 工具 + 1 钩子 + 1 自定义 Agent。
+  - ⏳ **云端工具市场**：插件/卡组/主题的远程目录与一键安装，需托管服务 + 来源校验，留待后续。
 
 ### Phase 5 —— 项目拓展与传播
 - ✅ **仓库结构重组 + README**：确认 git 仓库根即主项目，README 重写（价值主张 + 快速上手 + 架构 + 测试）。
@@ -78,5 +83,6 @@
 ---
 
 ## 五、下一步（按质量杠杆）
-1. **用户脚本插件系统**（Phase 4）：把 `registerTool/registerAgent` 扩展点声明式暴露给用户脚本（ES Module 字符串 + Blob URL 动态 import，`db.plugins` 表已就绪）——从产品跃迁到平台。
-2. **Agent 工具市场**（Phase 4）：卡组/插件/主题的分发与一键安装。
+1. **云端 Agent 工具市场**（Phase 4 余项）：插件/卡组/主题的远程目录与一键安装——需要托管服务 + 来源校验/签名，成本较高，等插件生态有实际需求后再动。
+2. **插件生态打磨**：更多官方示例插件（错题周报、番茄统计、间隔提醒……）、钩子事件扩展（onMemoSaved/onPlanCompleted 等）。
+3. **数据安全拓展**（用户明确暂缓，可随时重启）：PIPL 合规、本地加密、导出脱敏。

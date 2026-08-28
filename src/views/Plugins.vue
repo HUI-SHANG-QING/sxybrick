@@ -10,8 +10,9 @@ import { ref, onMounted, computed } from 'vue';
 import { toast } from '../utils/toast.js';
 import {
   listPlugins, installPlugin, togglePlugin, uninstallPlugin,
-  invokeTool, listTools, triggerHook,
+  invokeTool, listTools, triggerHook, getAgentIntegration,
 } from '../plugins/registry.js';
+import { downloadPluginPackage, importPluginPackageFile } from '../plugins/package.js';
 import { SUPPORTED_HOOKS } from '../plugins/manifest.js';
 // 用 ?raw 把示例插件源码作为字符串注入（Vite 原生支持）
 import exampleCode from '../plugins/example-plugin.js?raw';
@@ -35,7 +36,14 @@ const installBusy = ref(false);
 
 async function load() {
   loading.value = true;
-  try { plugins.value = await listPlugins(); }
+  try {
+    const rows = await listPlugins();
+    // 并行补充「Agent 编排器集成」状态（已注册工具/Agent）
+    plugins.value = await Promise.all(rows.map(async (p) => ({
+      ...p,
+      integration: await getAgentIntegration(p.id),
+    })));
+  }
   catch (e) { toast('加载插件列表失败：' + (e?.message || e), 'error'); }
   finally { loading.value = false; }
 }
@@ -99,6 +107,26 @@ async function onUninstall(id) {
     await load();
     toast('插件已卸载', 'success');
   } catch (e) { toast('卸载失败：' + (e?.message || e), 'error'); }
+}
+
+function onExport(id) {
+  const p = plugins.value.find(x => x.id === id);
+  if (!p) return;
+  try {
+    downloadPluginPackage(p);
+    toast('插件包已导出（.json 文件，可分享或备份）', 'success');
+  } catch (e) { toast('导出失败：' + (e?.message || e), 'error'); }
+}
+
+async function onImportPackage(e) {
+  const f = e.target.files?.[0];
+  e.target.value = '';
+  if (!f) return;
+  try {
+    const r = await importPluginPackageFile(f);
+    await load();
+    toast(`插件包导入成功：${r.id} v${r.version}`, 'success');
+  } catch (e) { toast('导入失败：' + (e?.message || e), 'error'); }
 }
 
 function openInstall() {
@@ -180,6 +208,12 @@ onMounted(load);
               <span>{{ (p.tools || []).length }} 个工具</span>
               <span v-if="p.author"> · 作者 {{ p.author }}</span>
               <span> · 安装于 {{ fmtTime(p.installedAt) }}</span>
+              <span v-if="p.enabled && p.integration" class="agent-chip" :class="{ on: p.integration.activated }">
+                {{ p.integration.activated ? '已接入 Agent 编排器' : '未接入' }}
+                <template v-if="p.integration.tools.length || p.integration.agents.length">
+                  （{{ p.integration.tools.length }} 工具 · {{ p.integration.agents.length }} Agent）
+                </template>
+              </span>
             </div>
             <div v-if="p.lastError" class="plugin-err" :title="p.lastError">⚠ {{ p.lastError }}</div>
           </div>
@@ -188,6 +222,7 @@ onMounted(load);
               <input type="checkbox" :checked="!!p.enabled" @change="onToggle(p.id, $event.target.checked)" />
               <span>{{ p.enabled ? '启用' : '禁用' }}</span>
             </label>
+            <button class="btn small" @click="onExport(p.id)" :title="'导出插件包（.json）'">导出</button>
             <button class="btn small danger" @click="onUninstall(p.id)">卸载</button>
           </div>
         </div>
@@ -197,6 +232,10 @@ onMounted(load);
     <!-- 工具调用面板 -->
     <div v-if="currentPlugin" class="panel" style="margin-top:16px">
       <div class="panel-title">工具调用：{{ currentPlugin.id }}</div>
+      <p v-if="currentPlugin.enabled && currentPlugin.integration?.activated" class="hint" style="margin-top:0">
+        ✅ 已注册到 Agent 编排器——在「Agent 工作台」或 AI 助手中，模型可以直接调用该插件的工具；
+        插件若导出 <code>agents</code>，对应 Agent 也会出现在 Agent 列表。
+      </p>
       <div v-if="!tools.length" class="hint">该插件没有声明工具。</div>
       <template v-else>
         <div class="row">
@@ -232,8 +271,11 @@ onMounted(load);
         <div class="row" style="margin-bottom:8px">
           <button class="btn small" @click="loadExample">填入示例</button>
           <button class="btn small" @click="$refs.fileInput.click()">从 .js 文件读取</button>
+          <button class="btn small" @click="$refs.pkgInput.click()">导入插件包 (.json)</button>
+          <input ref="pkgInput" type="file" accept=".json,application/json" style="display:none" @change="onImportPackage" />
           <input ref="fileInput" type="file" accept=".js,.mjs,text/javascript" style="display:none" @change="onFile" />
         </div>
+        <p class="hint" style="margin-top:0">插件包：单文件分发（manifest + 源码），可用右上「导出」生成，适合备份与分享。</p>
         <textarea v-model="installCode" class="input code" rows="12" placeholder="export const manifest = { name: '...', version: '1.0.0', tools: [...] };&#10;export async function toolName(args) { ... }"></textarea>
         <div class="row" style="margin-top:8px">
           <input v-model="installAuthor" class="input" style="max-width:200px" placeholder="作者（选填）" />
@@ -266,6 +308,8 @@ onMounted(load);
 .plugin-desc { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
 .plugin-meta { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
 .plugin-err { font-size: 11px; color: var(--red); margin-top: 4px; }
+.agent-chip { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 10px; font-size: 11px; border: 1px solid var(--line); color: var(--ink-2); }
+.agent-chip.on { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .plugin-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
 .switch { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer; }
 .switch input { accent-color: var(--accent); }

@@ -14,6 +14,12 @@ export class ToolRegistry {
     this.map.set(tool.name, tool);
     return tool;
   }
+  /** 反注册：插件禁用/卸载时移出注册表；内置工具不在此列 */
+  unregister(name) {
+    const existed = this.map.has(name);
+    this.map.delete(name);
+    return existed;
+  }
   get(name) {
     return this.map.get(name) || null;
   }
@@ -44,6 +50,12 @@ export class AgentRegistry {
     const agent = defineAgent(spec);
     this.map.set(agent.id, agent);
     return agent;
+  }
+  /** 反注册：插件禁用/卸载时移出注册表；内置 Agent 不在此列 */
+  unregister(id) {
+    const existed = this.map.has(id);
+    this.map.delete(id);
+    return existed;
   }
   get(id) {
     return this.map.get(id) || null;

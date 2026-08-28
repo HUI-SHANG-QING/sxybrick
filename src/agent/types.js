@@ -36,6 +36,8 @@ export function defineTool(spec) {
     readsData: !!spec.readsData,
     // 可选：该工具是否会修改本地数据（如建卡），用于 UI 提示
     writesData: !!spec.writesData,
+    // 来源标记：内置为 null；插件工具为插件 id（便于卸载时反注册 / UI 区分）
+    plugin: spec.plugin || null,
   };
 }
 
@@ -61,6 +63,8 @@ export function defineAgent(spec) {
     // 是否允许用户数据上下文注入
     injectContext: spec.injectContext !== false,
     injectMemory: spec.injectMemory !== false,
+    // 来源标记：内置为 null；插件 Agent 为插件 id
+    plugin: spec.plugin || null,
   };
 }
 

@@ -1,6 +1,9 @@
 // 数据访问层：把原版 Express 后端的业务逻辑，改写成对本地 IndexedDB 的读写
 import { db, uid } from './db.js';
 import { computeNext, applyFeedback, scheduleReview, RETRIEVAL_STRENGTH_OPTIONS } from './srs.js';
+// P3-4 插件事件钩子：业务动作后向已启用插件分发（fire-and-forget，不阻塞也不抛错）
+// 静态导入无循环依赖：plugins/registry 只依赖 db.js 与 agent/registry.js，不依赖 repo.js
+import { triggerHook } from './plugins/registry.js';
 // P1-3 检索强度分级选项：供 Review.vue 等 UI 直接渲染选择器
 export { RETRIEVAL_STRENGTH_OPTIONS };
 import { mergeUserWeights, retrievability } from './fsrs.js';
@@ -35,6 +38,11 @@ export const formatDue = (ts) => _formatDue(ts);
 
 
 const now = () => Date.now();
+
+// P3-4 插件钩子触发：fire-and-forget（插件抛错/慢执行绝不影响主流程）
+function fireHook(event, ...args) {
+  triggerHook(event, ...args).catch(() => {});
+}
 
 // P1-1 FSRS 调度配置缓存：避免每次复习都查 db.meta（scheduler/fsrsWeights）
 let _schedCache = null;
@@ -120,6 +128,7 @@ export async function createCard(payload) {
     ease: 2.5, level: 0, intervalDays: 0, dueAt: t, createdAt: t, updatedAt: t,
   };
   await db.cards.put(card);
+  fireHook('onCardSaved', card);
   return card;
 }
 
@@ -139,6 +148,7 @@ export async function updateCard(id, payload) {
     frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
   };
   await db.cards.put(card);
+  fireHook('onCardSaved', card);
   return card;
 }
 
@@ -150,6 +160,7 @@ export async function deleteCard(id) {
   await db.tombstones.put({ id, kind: 'card', deletedAt: now() });
   await db.reviews.where('cardId').equals(id).delete();
   await cleanupOrphanImages(imgIds);
+  fireHook('onCardDeleted', { id });
 }
 
 // 删除卡片后，清理不再被任何卡片引用的图片
@@ -278,6 +289,7 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
     responseMs: opts.responseMs || 0,
     grade: grade.level, gradeScore: grade.score,
   });
+  fireHook('onReviewRated', { cardId, rating, reviewId, guessed: !!guessed });
   return { ...next, dueText: formatDue(next.dueAt), reviewId };
 }
 

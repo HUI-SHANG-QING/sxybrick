@@ -5,6 +5,7 @@
 //   - manifest 声明工具与钩子
 //   - 工具函数接收 args、返回结果
 //   - 钩子函数在卡片保存时被调用（写日志到 console）
+//   - agents 导出：注册一个自定义 Agent（安装后自动出现在「Agent 工作台」）
 //
 // 你可以基于本文件修改后用「粘贴代码安装」体验完整流程。
 
@@ -41,6 +42,23 @@ export const manifest = {
     onCardSaved: 'onCardSaved',
   },
 };
+
+// 插件自定义 Agent：安装后自动注册进全局 Agent 注册表（agentRegistry），
+// 在「Agent 工作台」即可看到并对话。tools 引用本插件的工具名。
+export const agents = [
+  {
+    id: 'word-count-assistant',
+    name: '字数助手',
+    description: '统计卡片正反面字数，输出简洁报告（由 word-count 插件提供）',
+    systemPrompt:
+      '你是 SxyBrick 里的字数统计助手。用户要求统计字数时，调用 count 工具统计文本' +
+      '（中文按字、英文按词），调用 summarize 工具查看卡片摘要，最后用一两行给出结论。' +
+      '只做统计，不做其他事，不要寒暄。',
+    tools: ['count', 'summarize'],
+    useReAct: true,
+    maxSteps: 4,
+  },
+];
 
 export async function count(args) {
   const text = String(args?.text || '');

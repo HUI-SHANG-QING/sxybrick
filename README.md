@@ -78,13 +78,56 @@ new_card/
 - **校准闭环**：复习落盘预测 R → 分桶对比实际正确率 → 偏差自动反馈到目标保持率，调度器自我校正。
 - **知识资产化**：每张卡有价值（内容权重 × 记忆保持度），净值 = 资产原值 − 遗忘折旧，Health 页看「知识资产负债表」。
 
+## 插件系统（Phase 4：平台化）
+
+插件是「把 Agent 能力交还给用户」的扩展机制——用户粘贴一段 ES Module 代码即可给应用添加**工具**（Agent 可调用的能力）、**Agent**（自定义角色）与**事件钩子**（响应卡片保存/删除、复习评分等动作）：
+
+- 工具定义与 **MCP 协议** 兼容（`name/description/inputSchema`），未来可桥接真正的 MCP server。
+- 安装后插件工具自动注册进全局 Agent 注册表，在「Agent 工作台」与 AI 助手中模型可直接调用；导出 `agents` 可注册自定义 Agent。
+- 插件包（`.json` 单文件，含 manifest + 源码）可导出/导入，用于备份与分享。
+- 插件存本地 IndexedDB（`db.plugins`，不同步），仅安装你信任的来源——插件代码在本应用上下文中执行。
+
+示例（`src/plugins/example-plugin.js`，插件页一键安装）：
+
+```js
+export const manifest = {
+  name: 'word-count',
+  version: '1.0.0',
+  description: '统计卡片正反面字数',
+  tools: [{
+    name: 'count',
+    description: '统计给定文本的字符数（中文按 1 字、英文按单词）',
+    inputSchema: {
+      type: 'object',
+      properties: { text: { type: 'string' } },
+      required: ['text'],
+    },
+  }],
+  hooks: { onCardSaved: 'onCardSaved' },   // 卡片保存时被调用
+};
+
+export async function count(args) {
+  const text = String(args?.text || '');
+  return { chars: text.length };
+}
+
+// 可选：自定义 Agent，安装后出现在 Agent 工作台
+export const agents = [{
+  id: 'word-count-assistant',
+  name: '字数助手',
+  description: '统计卡片正反面字数，输出简洁报告',
+  systemPrompt: '你是简洁的统计助手。用户要求统计字数时调用 count 工具。',
+  tools: ['count'],
+}];
+```
+
 ## 测试
 
 ```bash
 npm test
 ```
 
-覆盖 FSRS 调度、同步合并语义、校准、预测、净值、apkg 解析、自我解释同步等 190+ 项断言，含 fake-indexeddb 的三条黄金路径集成测试（建卡→复习→到期闭环 / 备份冲突合并 / 删除→墓碑跨设备级联）。CI 中 `npm test` 作为发布门禁，失败则不构建不发布。
+覆盖 FSRS 调度、同步合并语义、校准、预测、净值、apkg 解析、自我解释同步、插件系统（manifest 校验 / Agent 桥接 / 钩子映射 / 插件包）等 220+ 项断言，含 fake-indexeddb 的三条黄金路径集成测试（建卡→复习→到期闭环 / 备份冲突合并 / 删除→墓碑跨设备级联）。CI 中 `npm test` 作为发布门禁，失败则不构建不发布。
 
 ## 部署
 

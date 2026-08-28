@@ -16,11 +16,66 @@
 import { db } from '../db.js';
 import { validateManifest, validateModuleExports } from './manifest.js';
 import { loadPluginModule, unloadPluginModule, previewPluginCode } from './loader.js';
+import { buildToolSpec, parseAgentDefs, pluginActivationSummary } from './agent-bridge.js';
+import { toolRegistry, agentRegistry } from '../agent/registry.js';
 
 const TOOL_TIMEOUT_MS = 8000; // 工具调用超时：8s，避免插件死循环卡死 UI
 
 // 已加载的插件实例缓存（仅 enabled 插件）：id → { mod, manifest, blobUrl }
 const instances = new Map();
+// 已激活（注册进 agentSystem）的插件 id 集合，保证幂等
+const activated = new Set();
+
+/**
+ * 激活插件：把 manifest.tools 注册为全局 Agent 工具、agents 注册为全局 Agent。
+ * 名冲突时跳过冲突项并记入 lastError（不覆盖现有注册）。
+ * @param {object} row db.plugins 行
+ * @param {object} mod 已编译模块对象
+ */
+function activatePlugin(row, mod) {
+  if (activated.has(row.id)) return;
+  // 把已编译模块放入实例缓存，invokeTool 无需二次编译
+  if (mod && !instances.has(row.id)) {
+    instances.set(row.id, { mod, manifest: { name: row.id, version: row.version, tools: row.tools, hooks: row.hooks }, blobUrl: null });
+  }
+  const { tools, agents } = pluginActivationSummary(row, mod);
+  const conflicts = [];
+  for (const t of row.tools || []) {
+    const existing = toolRegistry.get(t.name);
+    if (existing && existing.plugin !== row.id) {
+      conflicts.push(`工具 ${t.name} 已被占用（${existing.plugin || '内置'}）`);
+      continue;
+    }
+    toolRegistry.register(buildToolSpec(row.id, t, (args) => invokeTool(row.id, t.name, args)));
+  }
+  const agentDefs = parseAgentDefs(mod);
+  for (const a of agentDefs) {
+    const existing = agentRegistry.get(a.id);
+    if (existing && existing.plugin !== row.id) {
+      conflicts.push(`Agent ${a.id} 已被占用（${existing.plugin || '内置'}）`);
+      continue;
+    }
+    agentRegistry.register(a);
+  }
+  if (conflicts.length) {
+    db.plugins.update(row.id, { lastError: '部分注册被跳过：' + conflicts.join('；') }).catch(() => {});
+  }
+  activated.add(row.id);
+  return { tools: tools.length, agents: agentDefs.length };
+}
+
+/**
+ * 反激活插件：从全局注册表移出该插件注册的所有工具与 Agent。
+ */
+function deactivatePlugin(id) {
+  for (const t of toolRegistry.list()) {
+    if (t.plugin === id) toolRegistry.unregister(t.name);
+  }
+  for (const a of agentRegistry.list()) {
+    if (a.plugin === id) agentRegistry.unregister(a.id);
+  }
+  activated.delete(id);
+}
 
 /**
  * 列出所有插件（不加载模块，仅元数据）
@@ -69,7 +124,9 @@ export async function installPlugin(code, meta = {}) {
     lastError: null,
   };
   await db.plugins.put(row);
-  return { id: row.id, version: row.version };
+  // 安装后立即激活（模块已编译，直接复用 preview.mod，无需二次加载）
+  const active = activatePlugin(row, preview.mod);
+  return { id: row.id, version: row.version, activated: active || null };
 }
 
 /**
@@ -80,16 +137,21 @@ export async function togglePlugin(id, enabled) {
   if (!row) throw new Error('插件不存在');
   await db.plugins.update(id, { enabled: enabled ? 1 : 0 });
   if (!enabled) {
+    deactivatePlugin(id);
     unloadPluginModule(id);
     instances.delete(id);
+  } else {
+    const inst = await ensureLoaded(id);
+    if (inst) activatePlugin(row, inst.mod);
   }
 }
 
 /**
- * 卸载插件：从 db 删除 + 释放 Blob URL + 清实例缓存
+ * 卸载插件：从 db 删除 + 反注册 + 释放 Blob URL + 清实例缓存
  */
 export async function uninstallPlugin(id) {
   await db.plugins.delete(id);
+  deactivatePlugin(id);
   unloadPluginModule(id);
   instances.delete(id);
 }
@@ -183,8 +245,24 @@ async function ensureLoaded(id) {
 export async function warmupPlugins() {
   try {
     const rows = await db.plugins.where('enabled').equals(1).toArray();
-    await Promise.all(rows.map(r => ensureLoaded(r.id)));
+    await Promise.all(rows.map(async (r) => {
+      const inst = await ensureLoaded(r.id);
+      if (inst) activatePlugin(r, inst.mod);
+    }));
   } catch (e) {
     console.warn('[plugins] 预热失败（不阻断启动）:', e?.message || e);
   }
+}
+
+/**
+ * 查询插件与 Agent 编排器的集成状态（UI 展示用）：
+ * @param {string} id 插件 id
+ * @returns {Promise<{ tools: string[], agents: string[], activated: boolean }>}
+ */
+export async function getAgentIntegration(id) {
+  const row = await db.plugins.get(id);
+  if (!row) return { tools: [], agents: [], activated: false };
+  const inst = activated.has(id) ? instances.get(id) : null;
+  const { tools, agents } = pluginActivationSummary(row, inst?.mod || null);
+  return { tools, agents, activated: activated.has(id) };
 }
