@@ -45,6 +45,9 @@ export const SYNC_TABLES = [
   // privacyRecords 默认不入同步（PIPL 敏感数据），见 PRIVACY_SYNC_TABLES + includePrivacySync()
   // v18 新增：笔记（双向链接跨设备打通；合并策略按 updatedAt，谁新听谁）
   { table: 'notes', kind: 'note', merge: 'updatedAt' },
+  // v19 新增：每日规划/打卡（D8）——计划头 + 任务明细，均按 updatedAt 合并
+  { table: 'dailyPlans', kind: 'dailyPlan', merge: 'updatedAt' },
+  { table: 'dailyTasks', kind: 'dailyTask', merge: 'updatedAt' },
 ];
 
 // 卡片字段级合并分组：

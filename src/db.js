@@ -145,6 +145,20 @@ db.version(18).stores({
   notes: 'id, category, updatedAt, createdAt',
 });
 
+// v19：新增每日规划/打卡表（D8 每日规划/打卡模块）
+//   dailyPlans：每日计划头（口述文本的容器）
+//     id, date(YYYY-MM-DD 索引，便于按天聚合), rawInput(用户原始口述),
+//     status(active|archived), createdAt, updatedAt
+//   dailyTasks：任务明细（一计划多任务；四象限 + 打卡状态）
+//     id, planId(关联 dailyPlans.id), date(YYYY-MM-DD), title, type(review/pomodoro/doc/exam/note/other),
+//     important(0/1), urgent(0/1), quadrant(Q1~Q4), estimatedMinutes, subject, targetCount,
+//     status(pending|done|partial|skipped), completedAt, completionNote,
+//     createdAt, updatedAt
+db.version(19).stores({
+  dailyPlans: 'id, date, status, updatedAt',
+  dailyTasks: 'id, planId, date, status, updatedAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

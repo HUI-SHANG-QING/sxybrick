@@ -384,6 +384,144 @@ export async function deleteMemo(id) {
   await db.tombstones.put({ id, kind: 'memo', deletedAt: now() }); // 墓碑：跨设备同步删除
 }
 
+// ───────────── 每日规划/打卡（D8：口述→任务→四象限→打卡→早晚对比） ─────────────
+
+/**
+ * 创建每日计划：口述文本 → 解析任务 → 入库（计划头 + 任务明细）。
+ * @param {object} payload { rawInput, date? }
+ * @returns {{ plan, tasks }}
+ */
+export async function createDailyPlan(payload) {
+  const rawInput = String(payload?.rawInput || '').trim();
+  if (!rawInput) throw new Error('请输入今日规划内容');
+  const date = payload?.date || localDateStr();
+  const t = now();
+  const plan = {
+    id: uid(),
+    date,
+    rawInput,
+    status: 'active',
+    createdAt: t, updatedAt: t,
+  };
+  await db.dailyPlans.put(plan);
+
+  const { parsePlan } = await import('./utils/plan-parser.js');
+  const parsed = parsePlan(rawInput);
+  const tasks = parsed.map(task => ({
+    id: uid(),
+    planId: plan.id,
+    date,
+    ...task,
+    status: 'pending',
+    completedAt: null,
+    completionNote: '',
+    createdAt: t, updatedAt: t,
+  }));
+  await db.dailyTasks.bulkPut(tasks);
+  fireHook('onDailyPlanSaved', { plan, tasks });
+  return { plan, tasks };
+}
+
+/** 今天的日期串 YYYY-MM-DD（本地时区） */
+function localDateStr(d = new Date()) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** 列出某天的计划（默认今天），含任务明细 */
+export async function listDailyPlan(date = localDateStr()) {
+  const plan = await db.dailyPlans.where('date').equals(date).first();
+  if (!plan) return null;
+  const tasks = await db.dailyTasks.where('planId').equals(plan.id).toArray();
+  return { plan, tasks };
+}
+
+/** 列出最近 N 天的计划头（历史趋势用） */
+export async function listDailyPlans(limit = 30) {
+  return db.dailyPlans.orderBy('date').reverse().limit(limit).toArray();
+}
+
+/** 更新任务（中途调整：加/删/改象限/打卡） */
+export async function updateDailyTask(id, patch) {
+  const old = await db.dailyTasks.get(id);
+  if (!old) throw new Error('任务不存在');
+  const task = { ...old, ...(patch || {}), updatedAt: now() };
+  await db.dailyTasks.put(task);
+  return task;
+}
+
+/** 删除任务 */
+export async function deleteDailyTask(id) {
+  await db.dailyTasks.delete(id);
+  await db.tombstones.put({ id, kind: 'dailyTask', deletedAt: now() });
+}
+
+/** 删除整日计划 + 其任务（联级） */
+export async function deleteDailyPlan(planId) {
+  await db.dailyPlans.delete(planId);
+  await db.dailyTasks.where('planId').equals(planId).delete();
+  await db.tombstones.put({ id: planId, kind: 'dailyPlan', deletedAt: now() });
+}
+
+/**
+ * 任务打卡：设置状态 + 完成时间 + 备注。
+ * @param {string} taskId
+ * @param {'done'|'partial'|'skipped'|'pending'} status
+ * @param {string} note 备注
+ */
+export async function checkinDailyTask(taskId, status = 'done', note = '') {
+  const old = await db.dailyTasks.get(taskId);
+  if (!old) throw new Error('任务不存在');
+  const valid = ['done', 'partial', 'skipped', 'pending'];
+  if (!valid.includes(status)) throw new Error('非法打卡状态');
+  const task = {
+    ...old,
+    status,
+    completedAt: status === 'done' ? now() : null,
+    completionNote: note,
+    updatedAt: now(),
+  };
+  await db.dailyTasks.put(task);
+  fireHook('onDailyTaskCheckin', task);
+  return task;
+}
+
+// ───────────── 跨模块协同（D8.4）：打卡时拉真实数据 ─────────────
+
+/**
+ * 拉取某天的真实学习数据，用于任务打卡时对比。
+ * @returns {{
+ *   reviewsToday: number,          // 今日复习次数
+ *   pomodoroMinutes: number,       // 今日番茄分钟
+ *   docsToday: number,             // 今日新建/阅读资料数
+ * }}
+ */
+export async function getDailyReality(date = localDateStr()) {
+  const dayStart = new Date(date + 'T00:00:00').getTime();
+  const dayEnd = dayStart + 86400000;
+
+  // 今日复习数（reviews 表）
+  let reviewsToday = 0;
+  try {
+    reviewsToday = await db.reviews.where('reviewedAt').between(dayStart, dayEnd, true, true).count();
+  } catch { reviewsToday = 0; }
+
+  // 今日番茄分钟（pomoSessions 表）
+  let pomodoroMinutes = 0;
+  try {
+    const sessions = await db.pomoSessions.where('startedAt').between(dayStart, dayEnd, true, true).toArray();
+    pomodoroMinutes = Math.round(sessions.reduce((s, x) => s + (x?.durationMs || 0), 0) / 60000);
+  } catch { pomodoroMinutes = 0; }
+
+  // 今日新建资料（docFiles 表，createdAt）
+  let docsToday = 0;
+  try {
+    docsToday = await db.docFiles.where('createdAt').between(dayStart, dayEnd, true, true).count();
+  } catch { docsToday = 0; }
+
+  return { reviewsToday, pomodoroMinutes, docsToday };
+}
+
 // ───────────── 笔记（D3.1：完整笔记系统，区别于 memos 四象限短备忘） ─────────────
 
 /**
