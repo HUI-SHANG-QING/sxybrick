@@ -79,7 +79,7 @@ export async function loadParser(parserId) {
 export async function parseFile(ext, source, opts = {}) {
   const parserId = routeParser(ext);
   if (!parserId) throw new Error(`暂不支持 ${ext || '未知'} 格式`);
-  if (parserId === 'image') throw new Error('图片解析需 OCR 能力（Phase 6.5），暂未启用');
+  if (parserId === 'image') throw new Error('图片需 OCR 识别——在资料库点「🔍 OCR 识别」按钮');
   const fn = await loadParser(parserId);
   return fn(source, opts || {});
 }

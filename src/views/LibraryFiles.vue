@@ -8,7 +8,9 @@ import { toast } from '../utils/toast.js';
 import {
   uploadFile, listDocFiles, deleteDocFile, retryParse,
   getDocText, getStorageInfo, ensurePersist, confirmDrafts, getFileBlob,
+  ocrDoc, getOcrSettings, saveOcrSettings,
 } from '../docs-lib.js';
+import { OCR_LANG_OPTIONS } from '../utils/ocr.js';
 import { textToCardDrafts } from '../utils/card-drafts.js';
 import { askDoc } from '../utils/docs-qa.js';
 
@@ -37,6 +39,54 @@ const qa = ref({ docId: null, question: '', answer: '', citations: [], busy: fal
 // 建卡弹窗（用户选择制）
 const draftModal = ref(null);
 const draftBusy = ref(false);
+
+// OCR（6.5b）：本地 Tesseract 优先，可选云端
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'];
+const isImage = (ext) => IMAGE_EXTS.includes(String(ext || '').toLowerCase());
+const needsOcr = (f) => f.status === 'failed' && (isImage(f.ext) || /ocr/i.test(f.error || ''));
+const ocr = ref({ busy: false, name: '', pct: 0, page: 0, pages: 0 });
+const ocrLangOptions = OCR_LANG_OPTIONS;
+const showOcrCfg = ref(false);
+const ocrSettings = ref({ lang: 'chi_sim+eng', langPath: '', cloud: { enabled: false, endpoint: '', apiKey: '', model: 'gpt-4o-mini' } });
+
+function loadOcrSettings() {
+  const s = getOcrSettings();
+  ocrSettings.value = {
+    lang: 'chi_sim+eng', langPath: '',
+    cloud: { enabled: false, endpoint: '', apiKey: '', model: 'gpt-4o-mini' },
+    ...s,
+    cloud: { enabled: false, endpoint: '', apiKey: '', model: 'gpt-4o-mini', ...(s.cloud || {}) },
+  };
+}
+
+function saveOcr() {
+  saveOcrSettings({
+    lang: ocrSettings.value.lang,
+    langPath: ocrSettings.value.langPath,
+    cloud: ocrSettings.value.cloud,
+  });
+  toast('OCR 设置已保存', 'success');
+  showOcrCfg.value = false;
+}
+
+async function runOcr(f) {
+  if (ocr.value.busy) return;
+  ocr.value = { busy: true, name: f.name, pct: 0, page: 0, pages: 0 };
+  try {
+    const r = await ocrDoc(f.id, {
+      lang: ocrSettings.value.lang,
+      onPage: (i, total) => { ocr.value.page = i; ocr.value.pages = total; },
+      onProgress: (p) => { ocr.value.pct = Math.round((p || 0) * 100); },
+    });
+    if (r.ok) toast(`OCR 完成：${f.name}（${r.textLen} 字）`, 'success');
+    else toast(`OCR 失败：${r.error}`, 'error');
+  } catch (e) {
+    toast('OCR 出错：' + (e?.message || e), 'error');
+  } finally {
+    ocr.value.busy = false;
+    await load();
+  }
+}
 
 const fmtBytes = (n) => {
   if (!n && n !== 0) return '—';
@@ -221,6 +271,7 @@ async function doImport() {
 
 onMounted(async () => {
   subjects.value = await getSubjects();
+  loadOcrSettings();
   await load();
 });
 </script>
@@ -241,16 +292,60 @@ onMounted(async () => {
           <option v-for="s in subjects" :key="s" :value="s">{{ s }}</option>
         </select>
         <button class="btn" @click="$refs.fileInput.click()">📤 上传资料</button>
+        <button class="btn" style="margin-left:8px" @click="showOcrCfg = !showOcrCfg">⚙️ OCR 设置</button>
         <span v-if="storage" class="hint" style="margin-left:12px">
           存储：{{ fmtBytes(storage.usage) }} / {{ fmtBytes(storage.quota) }}
           <span v-if="persisted" class="ok"> · 已持久化</span>
         </span>
+      </div>
+      <!-- OCR 设置面板（本地 Tesseract 优先，云端可选） -->
+      <div v-if="showOcrCfg" class="ocr-cfg">
+        <div class="ocr-cfg-row">
+          <label>识别语言</label>
+          <select v-model="ocrSettings.lang">
+            <option v-for="o in ocrLangOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+          <span class="hint">本地 Tesseract（数据不出浏览器，离线可用）；首次识别自动下载语言包并缓存</span>
+        </div>
+        <div class="ocr-cfg-row">
+          <label>语言数据目录</label>
+          <input v-model="ocrSettings.langPath" placeholder="留空 = jsdelivr CDN（可填本地/自建 tessdata 目录 URL）" />
+        </div>
+        <div class="ocr-cfg-row">
+          <label><input type="checkbox" v-model="ocrSettings.cloud.enabled" /> 使用云端 OCR（OpenAI 兼容视觉，需 API Key）</label>
+        </div>
+        <template v-if="ocrSettings.cloud.enabled">
+          <div class="ocr-cfg-row">
+            <label>云端端点</label>
+            <input v-model="ocrSettings.cloud.endpoint" placeholder="https://api.openai.com/v1/chat/completions" />
+          </div>
+          <div class="ocr-cfg-row">
+            <label>API Key</label>
+            <input v-model="ocrSettings.cloud.apiKey" type="password" placeholder="sk-…" />
+          </div>
+          <div class="ocr-cfg-row">
+            <label>模型</label>
+            <input v-model="ocrSettings.cloud.model" placeholder="gpt-4o-mini" />
+          </div>
+        </template>
+        <div class="ocr-cfg-row" style="margin-top:10px">
+          <button class="btn accent" @click="saveOcr">保存设置</button>
+          <button class="btn" style="margin-left:8px" @click="showOcrCfg = false">取消</button>
+        </div>
       </div>
       <div v-if="uploading.length" class="up-list">
         <div v-for="u in uploading" :key="u.name" class="up-item">
           <span class="up-name">{{ u.name }}</span>
           <div class="bar"><div class="bar-in" :style="{ width: u.pct + '%' }"></div></div>
           <span class="up-pct">{{ u.pct }}%</span>
+        </div>
+      </div>
+      <div v-if="ocr.busy" class="up-list">
+        <div class="up-item">
+          <span class="up-name">🔍 OCR：{{ ocr.name }}</span>
+          <div class="bar"><div class="bar-in" :style="{ width: ocr.pct + '%' }"></div></div>
+          <span class="up-pct">{{ ocr.pct }}%</span>
+          <span v-if="ocr.pages" class="hint" style="margin-left:8px">{{ ocr.page }}/{{ ocr.pages }} 页</span>
         </div>
       </div>
     </div>
@@ -280,6 +375,7 @@ onMounted(async () => {
             <button class="btn small accent" @click="openDrafts(f)">生成卡片</button>
           </template>
           <button v-else-if="f.status === 'failed'" class="btn small" @click="retry(f.id)">重试</button>
+          <button v-if="needsOcr(f)" class="btn small accent" :disabled="ocr.busy" @click="runOcr(f)">🔍 OCR 识别</button>
           <button class="btn small danger" @click="onDelete(f)">删除</button>
         </div>
       </div>
@@ -382,6 +478,12 @@ onMounted(async () => {
 .bar-in { height: 100%; background: var(--accent); border-radius: 99px; transition: width .2s; }
 .up-pct { width: 40px; text-align: right; color: var(--ink-2); }
 .ok { color: var(--green, #2a9d5f); }
+.ocr-cfg { margin-top: 12px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--code-bg); }
+.ocr-cfg-row { display: flex; align-items: center; gap: 10px; font-size: 13px; flex-wrap: wrap; }
+.ocr-cfg-row label { min-width: 96px; color: var(--ink-2); }
+.ocr-cfg-row select, .ocr-cfg-row input { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font-size: 13px; }
+.ocr-cfg-row input { flex: 1; min-width: 200px; }
+.ocr-cfg-row .hint { color: var(--ink-3); font-size: 12px; }
 .mat-section { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; }
 .mat-title { font-weight: 700; margin-bottom: 12px; font-size: 15px; display: flex; align-items: center; }
 .mat-row { display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px dashed var(--line); }

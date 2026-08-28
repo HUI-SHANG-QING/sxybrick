@@ -3,7 +3,8 @@
 
 let pdfjsPromise = null;
 
-async function getPdfjs() {
+/** 加载 pdfjs（浏览器 worker / Node legacy），供文本提取与 OCR 渲染共用 */
+export function getPdfjs() {
   if (!pdfjsPromise) {
     pdfjsPromise = (async () => {
       const isBrowser = typeof window !== 'undefined' && !!window?.document;

@@ -110,6 +110,9 @@ export default defineConfig({
           if (id.includes('node_modules/highlight.js')) return 'hljs';
           if (id.includes('node_modules/element-plus')) return 'element-plus';
           if (id.includes('node_modules/marked')) return 'marked';
+          // tesseract.js 仅 CJS 入口，commonjs 插件会把动态 import 内联进主 bundle——
+          // 强制拆独立 chunk，确保 OCR 引擎懒加载不进首屏
+          if (id.includes('node_modules/tesseract.js')) return 'tesseract';
         },
       },
     },

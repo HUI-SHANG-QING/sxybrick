@@ -10,6 +10,10 @@ import {
   deleteFileFromOpfs, statOpfs, requestPersist, assertDocTransition, routeParser,
 } from './utils/opfs.js';
 import { parseFile, assertParsedOk } from './utils/parsers.js';
+import {
+  cleanOcrText, isOcrEmpty, fitCanvasSize, normalizeOcrLang,
+  buildOcrAssets, buildCloudOcrRequest, parseCloudOcrResponse,
+} from './utils/ocr.js';
 import { indexDoc } from './agent/retrieval.js';
 import { createCard } from './repo.js';
 import { draftToCardPayload, validateDraft } from './utils/card-drafts.js';
@@ -183,4 +187,154 @@ export async function confirmDrafts(drafts, opts = {}) {
     created.push(await createCard(draftToCardPayload(d, opts)));
   }
   return created;
+}
+
+// ---------- OCR（6.5b：本地 Tesseract 优先，可选云端） ----------
+
+const OCR_SETTINGS_KEY = 'sxybrick_ocr_settings';
+
+/** OCR 设置读写（本机偏好 localStorage，不进同步）：
+ *  { lang, langPath, cloud: { enabled, endpoint, apiKey, model } } */
+export function getOcrSettings() {
+  if (typeof localStorage === 'undefined') return {};
+  try { return JSON.parse(localStorage.getItem(OCR_SETTINGS_KEY)) || {}; }
+  catch { return {}; }
+}
+
+export function saveOcrSettings(patch) {
+  const next = { ...getOcrSettings(), ...patch };
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(OCR_SETTINGS_KEY, JSON.stringify(next));
+  }
+  return next;
+}
+
+function getBaseUrl() {
+  return (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || '/';
+}
+
+// 全局单 worker 复用（tesseract.js 官方建议：一个 worker 多次 recognize，最后 terminate）
+let ocrWorker = null;
+let ocrWorkerLang = '';
+
+/** 本地识别：懒加载 tesseract.js（独立分包），worker+core 本地化，语言数据 CDN（可配 langPath） */
+async function recognizeLocal(image, lang, onProgress) {
+  const cfg = getOcrSettings();
+  const langId = normalizeOcrLang(lang || cfg.lang);
+  if (ocrWorker && ocrWorkerLang !== langId) {
+    try { await ocrWorker.terminate(); } catch { /* ignore */ }
+    ocrWorker = null;
+  }
+  if (!ocrWorker) {
+    const tesseract = await import('tesseract.js');
+    ocrWorker = await tesseract.createWorker(langId, 1, {
+      ...buildOcrAssets(getBaseUrl(), cfg.langPath),
+      logger: (m) => onProgress?.(m.progress || 0),
+    });
+    ocrWorkerLang = langId;
+  }
+  const { data } = await ocrWorker.recognize(image);
+  return data.text;
+}
+
+/** 默认识别入口：配置了云端（OpenAI 兼容视觉）走云端，否则本地 Tesseract */
+async function defaultRecognize(image, { lang, onProgress } = {}) {
+  const cloud = getOcrSettings().cloud;
+  if (cloud?.enabled && cloud.endpoint && cloud.apiKey) {
+    const req = buildCloudOcrRequest(image, cloud);
+    const res = await fetch(req.url, {
+      method: 'POST', headers: req.headers, body: JSON.stringify(req.body),
+    });
+    if (!res.ok) throw new Error(`云端 OCR 失败 HTTP ${res.status}`);
+    return parseCloudOcrResponse(await res.json());
+  }
+  return recognizeLocal(image, lang, onProgress);
+}
+
+/** 图片识别：createImageBitmap 取尺寸 → 长边压 2000px 画 canvas → dataURL 交识别（防大图爆内存） */
+async function ocrImageBlob(blob, { recognize, lang, onProgress, signal }) {
+  let source = blob;
+  if (typeof createImageBitmap === 'function' && typeof document !== 'undefined' && document.createElement) {
+    try {
+      const bmp = await createImageBitmap(blob);
+      const { width, height } = fitCanvasSize(bmp.width, bmp.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(bmp, 0, 0, width, height);
+      bmp.close?.();
+      source = canvas.toDataURL('image/jpeg', 0.85);
+    } catch { /* 原样交给识别器内部处理 */ }
+  }
+  if (signal?.aborted) throw new DOMException('OCR 已取消', 'AbortError');
+  return recognize(source, { lang, onProgress });
+}
+
+/** 扫描版 PDF 识别：pdfjs 逐页渲染（2x 缩放）canvas → 逐页识别 → 全文拼接（内存受控、可取消） */
+async function ocrPdf(blob, { recognize, lang, onPage, onProgress, signal }) {
+  // 动态 import：pdfjs-dist 保持懒加载分包，不进首屏/主 bundle
+  const { getPdfjs } = await import('./utils/parsers-pdf.js');
+  const pdfjs = await getPdfjs();
+  const doc = await pdfjs.getDocument({ data: await blob.arrayBuffer() }).promise;
+  const total = doc.numPages;
+  const pages = [];
+  try {
+    for (let i = 1; i <= total; i++) {
+      if (signal?.aborted) throw new DOMException('OCR 已取消', 'AbortError');
+      const page = await doc.getPage(i);
+      const vp = page.getViewport({ scale: 2 }); // 2x 提升小字号识别质量
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.floor(vp.width);
+      canvas.height = Math.floor(vp.height);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      onPage?.(i, total);
+      const text = await recognize(dataUrl, { lang, onProgress: (p) => onProgress?.((i - 1 + p) / total) });
+      pages.push(text);
+      page.cleanup();
+    }
+  } finally {
+    try { await doc.destroy?.(); } catch { /* ignore */ }
+  }
+  return pages.join('\n\n');
+}
+
+/**
+ * OCR 识别单个文件：状态机 →parsing→ready/failed。
+ * 图片直接识别；PDF 逐页渲染识别（扫描版）。成功自动 indexDoc（失败不阻塞 ready）。
+ * @param {string} docId
+ * @param {object} opts { lang?, onPage?, onProgress?, signal?, recognize? }
+ *   recognize 为内部测试注入（默认 defaultRecognize）
+ * @returns {Promise<{ok:boolean, textLen?:number, error?:string}>}
+ */
+export async function ocrDoc(docId, opts = {}) {
+  const row = await db.docFiles.get(docId);
+  if (!row) return { ok: false, error: '资料不存在' };
+  try { assertDocTransition(row.status, 'parsing'); }
+  catch (e) { return { ok: false, error: e.message }; }
+  const t = Date.now();
+  await db.docFiles.update(docId, { status: 'parsing', error: null, updatedAt: t });
+  try {
+    const blob = await getFileBlob(row);
+    if (!blob) throw new Error('本机无原文件（跨设备同步的元数据无法 OCR）');
+    const recognize = opts.recognize || defaultRecognize;
+    const lang = opts.lang || getOcrSettings().lang;
+    const isPdf = String(row.ext || '').toLowerCase() === 'pdf';
+    const text = isPdf
+      ? await ocrPdf(blob, { recognize, lang, onPage: opts.onPage, onProgress: opts.onProgress, signal: opts.signal })
+      : await ocrImageBlob(blob, { recognize, lang, onProgress: opts.onProgress, signal: opts.signal });
+    const clean = cleanOcrText(text);
+    if (isOcrEmpty(clean)) throw new Error('OCR 未识别到文字：图片可能过暗/过糊，或语言不匹配，可换语言重试');
+    await db.docTexts.put({ id: docId, text: clean, textLen: clean.length, updatedAt: Date.now() });
+    await db.docFiles.update(docId, {
+      status: 'ready', textLen: clean.length, error: null, updatedAt: Date.now(), ocr: true,
+    });
+    try { await indexDoc({ id: docId, text: clean, subject: row.name }); }
+    catch (e) { console.warn('[docs-lib] 向量索引失败（可稍后重建）:', e?.message || e); }
+    return { ok: true, textLen: clean.length };
+  } catch (e) {
+    const msg = String(e?.message || e);
+    await db.docFiles.update(docId, { status: 'failed', error: msg, updatedAt: Date.now() });
+    return { ok: false, error: msg };
+  }
 }
