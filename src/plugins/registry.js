@@ -21,6 +21,47 @@ import { toolRegistry, agentRegistry } from '../agent/registry.js';
 
 const TOOL_TIMEOUT_MS = 8000; // 工具调用超时：8s，避免插件死循环卡死 UI
 
+// 插件运行时上下文依赖：惰性动态 import，避免 registry → analytics → repo → registry 静态循环
+let _ctxModules = null;
+function getCtxModules() {
+  if (!_ctxModules) {
+    _ctxModules = Promise.all([import('../agent/analytics.js'), import('../repo.js')]);
+  }
+  return _ctxModules;
+}
+
+/**
+ * 构造插件运行时上下文（只读数据 + 通知，不给写权限，保证插件安全隔离）。
+ * 作为工具/钩子函数的第二个参数传入：fn(args, ctx)。旧插件只用一个参数，完全兼容。
+ * @param {string} pluginId 插件 id
+ * @param {string} scope 调用场景（工具名或事件名）
+ * @returns {Promise<object>} ctx
+ */
+export async function createPluginCtx(pluginId, scope) {
+  const [analytics, repo] = await getCtxModules();
+  return {
+    pluginId,
+    scope,
+    analytics, // 统一只读数据层（单卡画像/近N天错题/全局洞察/到期预测/净值等）
+    data: {
+      listMemos: repo.listMemos,
+      listPomoSessions: repo.listPomoSessions,
+      countPomoToday: repo.countPomoToday,
+      listPlans: repo.listPlans,
+      getStats: repo.getStats,
+    },
+    notify(text) {
+      try {
+        if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+          new Notification('SxyBrick 插件', { body: String(text) });
+        }
+      } catch (e) { /* 通知失败不影响主流程 */ }
+      console.log(`[plugin:${pluginId}]`, String(text));
+    },
+    log(...args) { console.log(`[plugin:${pluginId}]`, ...args); },
+  };
+}
+
 // 已加载的插件实例缓存（仅 enabled 插件）：id → { mod, manifest, blobUrl }
 const instances = new Map();
 // 已激活（注册进 agentSystem）的插件 id 集合，保证幂等
@@ -172,9 +213,10 @@ export async function invokeTool(pluginId, toolName, args = {}) {
   if (!toolDef) throw new Error(`插件 ${pluginId} 没有工具 ${toolName}`);
   const fn = mod[toolName];
   if (typeof fn !== 'function') throw new Error(`插件 ${pluginId} 未导出工具函数 ${toolName}`);
+  const ctx = await createPluginCtx(pluginId, toolName);
   // 带超时调用：避免插件死循环
   const result = await Promise.race([
-    Promise.resolve().then(() => fn(structuredClone(args))),
+    Promise.resolve().then(() => fn(structuredClone(args), ctx)),
     new Promise((_, reject) => setTimeout(() => reject(new Error(`工具 ${toolName} 执行超时（${TOOL_TIMEOUT_MS}ms）`)), TOOL_TIMEOUT_MS)),
   ]);
   // 清除上次错误
@@ -208,7 +250,8 @@ export async function triggerHook(event, ...args) {
         if (!inst) return;
         const fn = inst.mod[fnName];
         if (typeof fn !== 'function') return;
-        await fn(...structuredClone(args));
+        const ctx = await createPluginCtx(row.id, event);
+        await fn(...structuredClone(args), ctx);
       } catch (e) {
         await db.plugins.update(row.id, { lastError: `[${event}] ${e?.message || e}` }).catch(() => {});
       }

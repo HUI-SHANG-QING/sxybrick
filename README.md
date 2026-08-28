@@ -84,8 +84,20 @@ new_card/
 
 - 工具定义与 **MCP 协议** 兼容（`name/description/inputSchema`），未来可桥接真正的 MCP server。
 - 安装后插件工具自动注册进全局 Agent 注册表，在「Agent 工作台」与 AI 助手中模型可直接调用；导出 `agents` 可注册自定义 Agent。
+- 工具/钩子函数可接收第二个参数 **运行时上下文 ctx**（只读）：`ctx.analytics`（统一数据层：错题/到期预测/净值/科目诊断等）+ `ctx.data`（备忘录/番茄/计划只读查询）+ `ctx.notify()`（系统通知）——插件可读应用数据但无写权限，安全隔离。
 - 插件包（`.json` 单文件，含 manifest + 源码）可导出/导入，用于备份与分享。
 - 插件存本地 IndexedDB（`db.plugins`，不同步），仅安装你信任的来源——插件代码在本应用上下文中执行。
+
+**官方示例库**（插件页一键安装，源码在 `src/plugins/examples/`，可作开发模板）：
+
+| 插件 | 能力 | 演示点 |
+|---|---|---|
+| `word-count`（基础） | 字数统计 + 卡片摘要 | manifest/工具/钩子最小形态 |
+| `weekly-review`（错题周报） | 近 7 天错题/正确率/科目分布 + 周报 Agent | ctx.analytics 只读数据 + Agent 注册 |
+| `pomo-stats`（番茄统计） | 今日/本周专注时长、按标签拆解 + Agent | ctx.data 只读查询 |
+| `due-alert`（到期提醒） | 到期洪峰分布 + 复习后超阈值浏览器通知 | ctx.analytics + ctx.notify + onReviewRated 钩子 |
+
+事件钩子（`SUPPORTED_HOOKS`）：`onCardSaved` / `onCardDeleted` / `onReviewRated` / `onMemoSaved` / `onExamFinished` / `onSyncCompleted`，由 repo.js 与 sync.js 在业务动作后 fire-and-forget 分发，插件异常不影响主流程。
 
 示例（`src/plugins/example-plugin.js`，插件页一键安装）：
 
@@ -127,7 +139,7 @@ export const agents = [{
 npm test
 ```
 
-覆盖 FSRS 调度、同步合并语义、校准、预测、净值、apkg 解析、自我解释同步、插件系统（manifest 校验 / Agent 桥接 / 钩子映射 / 插件包）等 220+ 项断言，含 fake-indexeddb 的三条黄金路径集成测试（建卡→复习→到期闭环 / 备份冲突合并 / 删除→墓碑跨设备级联）。CI 中 `npm test` 作为发布门禁，失败则不构建不发布。
+覆盖 FSRS 调度、同步合并语义、校准、预测、净值、apkg 解析、自我解释同步、插件系统（manifest 校验 / Agent 桥接 / 钩子映射 / 插件包 / 官方示例）等 230+ 项断言，含 fake-indexeddb 的三条黄金路径集成测试（建卡→复习→到期闭环 / 备份冲突合并 / 删除→墓碑跨设备级联）。CI 中 `npm test` 作为发布门禁，失败则不构建不发布。
 
 ## 部署
 

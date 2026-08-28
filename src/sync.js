@@ -8,6 +8,7 @@
 //   · 增量同步：buildIncrementalBackup(lastSyncAt) 只导出 updatedAt > lastSyncAt 的行
 import { db, uid } from './db.js';
 import { base64ToBlob, blobToBase64, extractImageIds } from './images.js';
+import { triggerHook } from './plugins/registry.js';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES, EXCLUDED_FROM_SYNC,
   CARD_CONTENT_FIELDS, CARD_SRS_FIELDS,
@@ -296,7 +297,10 @@ export async function syncWithHub(hubUrl, token) {
   if (!res.ok) throw new Error(`同步失败（${res.status}），请确认电脑端中枢已启动`);
   const merged = await res.json();
   if (!merged || merged.app !== 'sxybrick') throw new Error('中枢返回的数据无效');
-  return importBackup(merged);
+  const stats = await importBackup(merged);
+  // 插件钩子：同步完成后分发（fire-and-forget，插件异常不阻断）
+  triggerHook('onSyncCompleted', stats).catch(() => {});
+  return stats;
 }
 
 // 各表合并 + 墓碑应用（与中枢 hub.js 的 merge 使用同一套 sync-manifest 纯函数，保证两端一致）

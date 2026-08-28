@@ -374,6 +374,7 @@ export async function addMemo(payload) {
   if (!text) return null;
   const m = { id: uid(), text, important: !!payload.important, urgent: !!payload.urgent, at: Date.now(), createdAt: Date.now() };
   await db.memos.put(m);
+  fireHook('onMemoSaved', m);
   return m;
 }
 export async function deleteMemo(id) {
@@ -592,6 +593,7 @@ export async function saveExam(payload) {
     createdAt: t, updatedAt: t,
   };
   await db.exams.put(e);
+  fireHook('onExamFinished', e);
   return e;
 }
 export async function deleteExam(id) {

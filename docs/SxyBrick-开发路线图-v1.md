@@ -32,6 +32,7 @@
 
 **测试总量：89 → 181 项（全绿）**，`vite build` 每次通过（约 2500+ 模块）。
 **Phase 4 插件系统后：181 → 223 项（全绿）**，构建通过。
+**Phase 4 生态打磨后：223 → 233 项（全绿）**，构建通过。
 
 ---
 
@@ -56,9 +57,10 @@
 ### Phase 4 —— 平台化跃迁（主体完成，云端市场留待后续）
 - ✅ **用户脚本插件系统**：ES Module 字符串存 `db.plugins`，Blob URL 动态 import；`install/toggle/uninstall/invokeTool/triggerHook/warmup` 全生命周期。
   - ✅ **插件 → Agent 编排器桥接**（平台化关键一跳）：`src/plugins/agent-bridge.js` 纯函数层（MCP inputSchema→参数说明、工具描述、Agent 定义归一、钩子映射、冲突检测）+ `plugins/registry.js` 激活/反激活——安装插件后其工具自动注册进 `toolRegistry`、导出 `agents` 自动注册进 `agentRegistry`，Agent 工作台/多 Agent 流水线直接可用；注册表支持 `unregister` 与 `plugin` 来源标记。
-  - ✅ **业务钩子触发点**：repo.js 在 createCard/updateCard（onCardSaved）、deleteCard（onCardDeleted）、review（onReviewRated）后 fire-and-forget 分发。
+  - ✅ **业务钩子触发点**：repo.js 在 createCard/updateCard（onCardSaved）、deleteCard（onCardDeleted）、review（onReviewRated）、addMemo（onMemoSaved）、saveExam（onExamFinished）后 fire-and-forget 分发；sync.js 在 syncWithHub 成功后分发 onSyncCompleted——`SUPPORTED_HOOKS` 声明与触发点全对齐。
+  - ✅ **插件运行时上下文（ctx 只读注入）**：`createPluginCtx` 惰性动态 import 统一数据层（避免 registry→analytics→repo→registry 静态循环）——工具/钩子函数第二参数 `ctx` 含 `ctx.analytics`（错题/到期预测/净值/科目诊断等）、`ctx.data`（备忘录/番茄/计划只读）、`ctx.notify()`（系统通知）；只读无写权限，安全隔离，旧插件单参数完全兼容。
   - ✅ **插件包分发**：`src/plugins/package.js` 序列化/解析 + 导出/导入 .json 单文件（工具市场最小落地形态）。
-  - ✅ 内置示例插件 `word-count`：2 工具 + 1 钩子 + 1 自定义 Agent。
+  - ✅ **官方示例库 ×3**（`src/plugins/examples/`，插件页一键安装，可作开发模板）：`weekly-review`（错题周报：ctx.analytics 聚合 + 周报 Agent）、`pomo-stats`（番茄统计：ctx.data + Agent）、`due-alert`（到期提醒：onReviewRated 钩子 + ctx.notify 超阈值浏览器通知）。
   - ⏳ **云端工具市场**：插件/卡组/主题的远程目录与一键安装，需托管服务 + 来源校验，留待后续。
 
 ### Phase 5 —— 项目拓展与传播
