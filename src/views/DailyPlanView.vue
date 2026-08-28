@@ -1,45 +1,70 @@
 <script setup>
-// 每日规划 · 打卡 · 多维图表视图（P4 重构版）
-// 口述输入 → 智能解析(LLM 优先/离线回退) → 四象限 + 雷达 + 热力矩阵 + 风险 + 时间轴 + 完成对比
+// 每日规划 · 打卡 · 多维图表视图
+// 口述输入 → 智能解析(LLM 优先/离线回退) → 四象限 + 雷达 + 热力矩阵 + 风险 + 日程表 + 完成对比
+// 交互：点击条目弹确认框，「确定」才标记完成；已完成条目绿色区分；可按日期回溯历史存档。
 import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
 import {
-  createDailyPlan, listDailyPlan, updateDailyTask, deleteDailyTask,
+  createDailyPlan, listDailyPlan, listDailyPlans, updateDailyTask, deleteDailyTask,
   checkinDailyTask, deleteDailyPlan, addDailyTask, appendDailyTasksByText,
 } from '../repo.js';
 import { parsePlanSmart } from '../utils/plan-parser.js';
 import { getDailySynergy, getCompletionHeatmap } from '../utils/planSynergy.js';
 import {
-  quadrantOption, radarOption, heatmapOption, riskOption, scheduleOption,
-  typeBreakdownOption, compareBarOption, emptyOption,
+  quadrantOption, radarOption, heatmapOption, riskOption,
+  typeBreakdownOption, compareBarOption, trendOption, gaugeOption, checkinTimelineOption,
+  buildScheduleBoard, emptyOption,
 } from '../utils/planCharts.js';
 
 // ──────────────── 常量 ────────────────
-
+const STATUS_COLOR = { done: '#7ba87b', partial: '#d4a853', skipped: '#c9c4bd', pending: '#e07b3c' };
 const TYPE_LABEL = { review: '复习', pomodoro: '番茄', doc: '资料', exam: '做题', note: '笔记', write: '写作', other: '其他' };
 const QUADRANT_LABEL = { Q1: '重要×紧急', Q2: '重要×非紧急', Q3: '非重要×紧急', Q4: '非重要×非紧急' };
 const STATUS_LABEL = { pending: '待办', done: '已完成', partial: '部分完成', skipped: '已跳过' };
 const TYPE_ICON = { review: '📖', pomodoro: '🍅', doc: '📚', exam: '📝', note: '📓', write: '✍️', other: '📌' };
 
-// ──────────────── 状态 ────────────────
+function dateStr(d = new Date()) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function shiftDate(d, deltaDays) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + deltaDays);
+  return dateStr(x);
+}
+function relativeLabel(date) {
+  const today = dateStr();
+  if (date === today) return '今天';
+  if (date === shiftDate(new Date(), -1)) return '昨天';
+  if (date === shiftDate(new Date(), -2)) return '前天';
+  if (date === shiftDate(new Date(), -3)) return '大前天';
+  return date;
+}
 
+// ──────────────── 状态 ────────────────
+const today = dateStr();
+const selectedDate = ref(today);
 const rawInput = ref('');
 const parsing = ref(false);
 const busy = ref(false);
 const plan = ref(null);          // { plan, tasks }
 const synergy = ref(null);       // 跨模块真实数据 + 完成度 + 风险
 const heat = ref([]);            // 84 天热力矩阵
-const preview = ref(null);       // 解析预览（未入库） { text, tasks, summary, source }
+const preview = ref(null);       // 解析预览（未入库）
 const showAddTask = ref(false);
 const addInput = ref('');
+const historyList = ref([]);     // [{ date, total, done }]
+const pendingTask = ref(null);   // 待确认的任务（弹窗）
+const confirmStatus = ref('done');
 
-// 智能解析开关（持久化）
 const useLLM = ref(localStorage.getItem('sxy_plan_use_llm') !== '0');
 watch(useLLM, v => localStorage.setItem('sxy_plan_use_llm', v ? '1' : '0'));
 
-// ──────────────── 计算属性 ────────────────
+const isToday = computed(() => selectedDate.value === today);
+const canEdit = computed(() => isToday.value);
 
+// ──────────────── 计算属性 ────────────────
 const summary = computed(() => {
   if (!plan.value?.tasks?.length) return null;
   const byQuadrant = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 };
@@ -62,10 +87,18 @@ const overallRate = computed(() => {
   return planned ? Math.min(100, Math.round((actual / planned) * 100)) : 0;
 });
 
-// ──────────────── 生命周期 ────────────────
+const timelineHeight = computed(() => {
+  const n = (plan.value?.tasks || []).filter(t => t.scheduledHour != null || t.completedAt).length;
+  return Math.max(120, (n || 1) * 26 + 50) + 'px';
+});
 
-onMounted(() => {
-  loadToday();
+// 课程表风格日程表数据（按小时网格排布）
+const board = computed(() => buildScheduleBoard(plan.value?.tasks || []));
+
+// ──────────────── 生命周期 ────────────────
+onMounted(async () => {
+  await loadPlan(today);
+  loadHistoryList();
   window.addEventListener('resize', handleResize);
 });
 onBeforeUnmount(() => {
@@ -74,26 +107,57 @@ onBeforeUnmount(() => {
 });
 
 // ──────────────── 数据加载 ────────────────
-
-async function loadToday() {
-  const r = await listDailyPlan();
-  if (r) { plan.value = r; await refreshAll(); }
-  await refreshSynergy();
+async function loadPlan(date) {
+  selectedDate.value = date;
+  const r = await listDailyPlan(date);
+  plan.value = r;
+  if (r) {
+    await refreshAll();
+    await refreshSynergy();
+  } else {
+    // 无计划：清空图表实例内容但保留空占位
+    await nextTick();
+    renderHeatEmpty();
+  }
   heat.value = await getCompletionHeatmap(84).catch(() => []);
   await nextTick();
   renderHeat();
 }
 
+async function loadHistoryList() {
+  const plans = await listDailyPlans(60);
+  const dates = [];
+  for (const p of plans) {
+    const tasks = await dbTasksOf(p.id);
+    const done = tasks.filter(t => t.status === 'done').length;
+    dates.push({ date: p.date, total: tasks.length, done });
+  }
+  historyList.value = dates;
+}
+
+async function dbTasksOf(planId) {
+  const { db } = await import('../db.js');
+  return db.dailyTasks.where('planId').equals(planId).toArray();
+}
+
 async function refreshSynergy() {
   try {
-    synergy.value = await getDailySynergy(undefined, plan.value?.tasks || null);
+    synergy.value = await getDailySynergy(selectedDate.value, plan.value?.tasks || null);
   } catch (e) {
     console.warn('[plan] synergy failed', e);
     synergy.value = null;
   }
 }
 
+async function selectDate(d) {
+  pendingTask.value = null;
+  await loadPlan(d);
+}
+
 // ──────────────── 口述 → 解析预览 ────────────────
+function fillExample() {
+  rawInput.value = '09:00 复习线代30张 重要\n14:00 做10道408题 计组\n16:30 看数据结构讲义\n19:00 背英语单词50个 重要';
+}
 
 async function submitPlan() {
   const text = rawInput.value.trim();
@@ -117,12 +181,13 @@ async function confirmPlan() {
   if (!preview.value) return;
   busy.value = true;
   try {
-    const { plan: p, tasks } = await createDailyPlan({ rawInput: preview.value.text });
+    const { plan: p, tasks } = await createDailyPlan({ rawInput: preview.value.text, date: selectedDate.value });
     plan.value = { plan: p, tasks };
     rawInput.value = '';
     preview.value = null;
     await refreshAll();
     await refreshSynergy();
+    await loadHistoryList();
     toast(`已入库 ${tasks.length} 个任务`, 'success');
   } catch (e) {
     toast('入库失败：' + (e?.message || e), 'error');
@@ -134,7 +199,6 @@ async function confirmPlan() {
 function cancelPreview() { preview.value = null; disposePreviewQuad(); }
 
 // ──────────────── 中途加任务 ────────────────
-
 async function appendTasks() {
   const text = addInput.value.trim();
   if (!text || !plan.value?.plan?.id) { toast('请输入任务描述', 'warning'); return; }
@@ -146,10 +210,12 @@ async function appendTasks() {
     showAddTask.value = false;
     await refreshAll();
     await refreshSynergy();
+    await loadHistoryList();
     toast(`追加 ${rows.length} 个任务`, 'success');
   } catch (e) {
     toast('追加失败：' + (e?.message || e), 'error');
-  } finally {
+  } 
+  finally {
     busy.value = false;
   }
 }
@@ -159,7 +225,6 @@ async function addManualTask() {
   if (!text || !plan.value?.plan?.id) return;
   busy.value = true;
   try {
-    // 简单单任务手动加：用解析器抽字段
     const { parsePlan } = await import('../utils/plan-parser.js');
     const parsed = parsePlan(text);
     const rows = [];
@@ -169,6 +234,7 @@ async function addManualTask() {
     showAddTask.value = false;
     await refreshAll();
     await refreshSynergy();
+    await loadHistoryList();
     toast(`已加 ${rows.length} 个任务`, 'success');
   } catch (e) {
     toast('添加失败：' + (e?.message || e), 'error');
@@ -178,15 +244,26 @@ async function addManualTask() {
 }
 
 // ──────────────── 打卡 / 调整 ────────────────
+// 点击条目 → 弹出确认框，点击「确定」才标记完成；历史模式禁止编辑
+function openConfirm(task, status = 'done') {
+  if (!canEdit.value) { toast('历史记录为只读，不可修改', 'warning'); return; }
+  pendingTask.value = task;
+  confirmStatus.value = status;
+}
 
-async function doCheckin(task, status) {
+async function confirmAction() {
+  const task = pendingTask.value;
+  const status = confirmStatus.value;
+  if (!task) return;
   busy.value = true;
   try {
     const note = status === 'done' ? '' : (prompt(`备注（${STATUS_LABEL[status]}原因，可留空）：`) || '');
     await checkinDailyTask(task.id, status, note);
     task.status = status;
+    pendingTask.value = null;
     await refreshAll();
     await refreshSynergy();
+    await loadHistoryList();
     toast(`已${STATUS_LABEL[status]}：${task.title.slice(0, 20)}`, 'success');
   } catch (e) {
     toast('打卡失败：' + (e?.message || e), 'error');
@@ -196,6 +273,7 @@ async function doCheckin(task, status) {
 }
 
 async function toggleQuadrant(task) {
+  if (!canEdit.value) return;
   const order = ['Q1', 'Q2', 'Q3', 'Q4'];
   const idx = order.indexOf(task.quadrant);
   const next = order[(idx + 1) % 4];
@@ -205,36 +283,40 @@ async function toggleQuadrant(task) {
 }
 
 async function removeTask(task) {
+  if (!canEdit.value) { toast('历史记录为只读，不可修改', 'warning'); return; }
   if (!confirm('删除这个任务？')) return;
   await deleteDailyTask(task.id);
   plan.value.tasks = plan.value.tasks.filter(t => t.id !== task.id);
   await refreshAll();
   await refreshSynergy();
+  await loadHistoryList();
 }
 
 async function clearToday() {
+  if (!canEdit.value) { toast('历史记录为只读，不可修改', 'warning'); return; }
   if (!plan.value?.plan?.id) return;
-  if (!confirm('删除今天整份规划及所有任务？')) return;
+  if (!confirm('删除这份规划及所有任务？')) return;
   await deleteDailyPlan(plan.value.plan.id);
   plan.value = null;
   synergy.value = null;
+  await loadHistoryList();
 }
 
 // ──────────────── 图表渲染 ────────────────
-
-// DOM refs
 const quadEl = ref(null);
 const previewQuadEl = ref(null);
 const radarEl = ref(null);
 const heatEl = ref(null);
 const riskEl = ref(null);
-const scheduleEl = ref(null);
 const typeEl = ref(null);
 const compareEl = ref(null);
+const trendEl = ref(null);
+const gaugeEl = ref(null);
+const timelineEl = ref(null);
 
-// 图表实例
 let quadChart = null, previewQuadChart = null, radarChart = null, heatChart = null;
-let riskChart = null, scheduleChart = null, typeChart = null, compareChart = null;
+let riskChart = null, typeChart = null, compareChart = null;
+let trendChart = null, gaugeChart = null, timelineChart = null;
 
 function initChart(refEl, old) {
   if (!refEl?.value) return null;
@@ -247,15 +329,17 @@ async function refreshAll() {
   renderQuadrant();
   renderRadar();
   renderRisk();
-  renderSchedule();
   renderType();
   renderCompare();
+  renderTrend();
+  renderGauge();
+  renderTimeline();
 }
 
 function renderQuadrant() {
   if (!quadEl.value || !plan.value?.tasks?.length) return;
   quadChart = initChart(quadEl, quadChart);
-  quadChart.setOption(quadrantOption(plan.value.tasks));
+  quadChart.setOption(quadrantOption(  (plan.value.tasks)));
 }
 
 function renderPreviewQuad() {
@@ -276,13 +360,6 @@ function renderRisk() {
   riskChart.setOption(risks.value.length ? riskOption(risks.value) : emptyOption('暂无风险任务 🎉'));
 }
 
-function renderSchedule() {
-  if (!scheduleEl.value) return;
-  scheduleChart = initChart(scheduleEl, scheduleChart);
-  const tasks = plan.value?.tasks || [];
-  scheduleChart.setOption(tasks.length ? scheduleOption(tasks) : emptyOption('暂无日程'));
-}
-
 function renderType() {
   if (!typeEl.value) return;
   typeChart = initChart(typeEl, typeChart);
@@ -296,33 +373,86 @@ function renderCompare() {
   compareChart.setOption(completion.value.length ? compareBarOption(completion.value) : emptyOption('暂无对比数据'));
 }
 
+function renderTrend() {
+  if (!trendEl.value) return;
+  trendChart = initChart(trendEl, trendChart);
+  const trend = (heat.value || []).slice(-30);
+  trendChart.setOption(trend.length ? trendOption(trend) : emptyOption('暂无趋势数据'));
+}
+
+function renderGauge() {
+  if (!gaugeEl.value) return;
+  gaugeChart = initChart(gaugeEl, gaugeChart);
+  gaugeChart.setOption(gaugeOption(overallRate.value, '数字资产利用率'));
+}
+
+function renderTimeline() {
+  if (!timelineEl.value) return;
+  timelineChart = initChart(timelineEl, timelineChart);
+  timelineChart.setOption(plan.value?.tasks?.length ? checkinTimelineOption(plan.value.tasks) : emptyOption('暂无排程/打卡数据'));
+}
+
 function renderHeat() {
   if (!heatEl.value || !heat.value.length) return;
   heatChart = initChart(heatEl, heatChart);
   heatChart.setOption(heatmapOption(heat.value));
 }
+function renderHeatEmpty() {
+  if (!heatEl.value) return;
+  heatChart = initChart(heatEl, heatChart);
+  heatChart.setOption(emptyOption('暂无数据'));
+}
 
 function disposePreviewQuad() { previewQuadChart?.dispose(); previewQuadChart = null; }
 function disposeAllCharts() {
-  [quadChart, previewQuadChart, radarChart, heatChart, riskChart, scheduleChart, typeChart, compareChart].forEach(c => c?.dispose());
+  [quadChart, previewQuadChart, radarChart, heatChart, riskChart, typeChart, compareChart, trendChart, gaugeChart, timelineChart].forEach(c => c?.dispose());
 }
 
 // 响应式 resize
 function handleResize() {
-  [quadChart, previewQuadChart, radarChart, heatChart, riskChart, scheduleChart, typeChart, compareChart].forEach(c => c?.resize());
+  [quadChart, previewQuadChart, radarChart, heatChart, riskChart, typeChart, compareChart, trendChart, gaugeChart, timelineChart].forEach(c => c?.resize());
 }
 </script>
 
 <template>
   <div class="dp-page">
-    <h2 style="margin:0 0 4px">📅 每日规划 · 打卡 · 多维分析</h2>
-    <p class="hint" style="margin:0 0 16px">
-      口述今日规划（如「复习 30 张卡片，最优先；下午 3 点做 10 道线代题；番茄钟 25 分钟」），
-      智能解析为结构化任务 + 四象限，多维图表追踪，打卡后看「规划 vs 实绩」对比。
-    </p>
+    <header class="dp-header">
+      <div class="dp-title-row">
+        <h2 style="margin:0">📅 每日规划 · 打卡 · 多维分析</h2>
+        <span class="dp-mode" :class="canEdit ? 'm-edit' : 'm-history'">{{ canEdit ? '✏️ 编辑中' : '📖 历史只读' }}</span>
+      </div>
 
-    <!-- 输入区 -->
-    <div v-if="!plan" class="dp-input">
+      <!-- 日期导航：今天 / 昨天 / 前天 / 大前天 / 任意日期 -->
+      <div class="dp-datebar">
+        <button class="dp-day-chip" :class="{ active: selectedDate === today }" @click="selectDate(today)">今天</button>
+        <button class="dp-day-chip" :class="{ active: selectedDate === shiftDate(new Date(),-1) }" @click="selectDate(shiftDate(new Date(),-1))">昨天</button>
+        <button class="dp-day-chip" :class="{ active: selectedDate === shiftDate(new Date(),-2) }" @click="selectDate(shiftDate(new Date(),-2))">前天</button>
+        <button class="dp-day-chip" :class="{ active: selectedDate === shiftDate(new Date(),-3) }" @click="selectDate(shiftDate(new Date(),-3))">大前天</button>
+        <span class="dp-date-sep"></span>
+        <input type="date" class="dp-date-input" :value="selectedDate" :max="today" @change="e => selectDate(e.target.value)" />
+        <span v-if="!canEdit" class="dp-date-label">查看：{{ selectedDate }}</span>
+      </div>
+
+      <!-- 历史存档列表 -->
+      <div v-if="historyList.length" class="dp-history">
+        <span class="dp-history-title">📚 历史存档（点击回溯）：</span>
+        <div class="dp-history-row">
+          <button
+            v-for="h in historyList" :key="h.date"
+            class="dp-history-item"
+            :class="{ active: h.date === selectedDate }"
+            :title="`${relativeLabel(h.date)} · ${h.done}/${h.total} 完成`"
+            @click="selectDate(h.date)"
+          >
+            <span class="dp-history-date">{{ relativeLabel(h.date) }}</span>
+            <span class="dp-history-rate">{{ h.total ? Math.round((h.done / h.total) * 100) + '%' : '—' }}</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 输入区（仅今天且无计划时） -->
+    <div v-if="!plan && canEdit" class="dp-input">
       <textarea
         v-model="rawInput"
         class="input dp-textarea"
@@ -333,10 +463,16 @@ function handleResize() {
         <label class="dp-llm-toggle" title="勾选后优先用 AI 解析（更准确），失败自动回退离线">
           <input type="checkbox" v-model="useLLM" /> ✨ AI 智能解析
         </label>
+        <button class="btn" :disabled="parsing" @click="fillExample">✨ 载入示例</button>
         <button class="btn primary" :disabled="parsing" @click="submitPlan">
           {{ parsing ? '解析中…' : '🔍 解析规划' }}
         </button>
       </div>
+    </div>
+
+    <!-- 历史无记录提示 -->
+    <div v-else-if="!plan && !canEdit" class="dp-empty">
+      📭 {{ selectedDate }} 暂无规划记录。仅「今天」可新建规划。
     </div>
 
     <!-- 解析预览 -->
@@ -359,23 +495,23 @@ function handleResize() {
       <div ref="previewQuadEl" class="dp-quad" style="height:300px"></div>
     </div>
 
-    <!-- 今日计划 -->
+    <!-- 计划区 -->
     <div v-else-if="plan" class="dp-plan">
       <div class="dp-plan-head">
         <div>
-          <span class="dp-date">{{ plan.plan.date }}</span>
+          <span class="dp-date">{{ relativeLabel(selectedDate) }} · {{ selectedDate }}</span>
           <span class="hint">共 {{ summary.total }} 个任务 · 完成率 {{ summary.doneRate }}% · 总达成 {{ overallRate }}%</span>
         </div>
-        <div style="display:flex;gap:8px">
+        <div v-if="canEdit" style="display:flex;gap:8px">
           <button class="btn" @click="showAddTask = !showAddTask">➕ 中途加任务</button>
           <button class="btn" @click="rawInput=''; plan=null">重新规划</button>
-          <button class="btn" @click="clearToday">删除今天</button>
+          <button class="btn danger" @click="clearToday">删除</button>
         </div>
       </div>
 
       <!-- 中途加任务 -->
-      <div v-if="showAddTask" class="dp-add">
-        <input v-model="addInput" class="input" placeholder="例：背 20 个英语单词，重要；下午 4 点整理笔记" @keyup.enter="appendTasks" />
+      <div v-if="showAddTask && canEdit" class="dp-add">
+        <input v-model="addInput" class="input" placeholder="例：背 20 个英语单词，重要；下午   4 点整理笔记" @keyup.enter="appendTasks" />
         <button class="btn primary" :disabled="busy" @click="appendTasks">追加</button>
         <button class="btn" :disabled="busy" @click="addManualTask">单任务</button>
       </div>
@@ -388,6 +524,66 @@ function handleResize() {
         <span class="dp-reality-item">❌ 今日错题 <b>{{ synergy.totals.wrongToday }}</b> 道</span>
         <span class="dp-reality-item">📝 今日模考 <b>{{ synergy.totals.exams }}</b> 套{{ synergy.totals.exams ? `·均分 ${synergy.totals.examAvg}` : '' }}</span>
       </div>
+
+      <!-- 今日日程表（课程表风格 · 居中） -->
+      <section class="dp-board-section">
+        <div class="dp-board-head">
+          <div class="dp-chart-title">📚 今日课程表（点击条目 → 弹窗确认打卡）</div>
+          <div class="dp-legend">
+            <span class="lg lg-done">✓ 已完成</span>
+            <span class="lg lg-q1">Q1 重要紧急</span>
+            <span class="lg lg-q2">Q2 重要</span>
+            <span class="lg lg-q3">Q3 紧急</span>
+            <span class="lg lg-q4">Q4 其他</span>
+          </div>
+        </div>
+        <div class="dp-board-wrap">
+          <div class="dp-board">
+            <div class="dp-board-track" :style="{ height: board.totalHeight + 'px' }">
+              <div class="dp-board-hours">
+                <div v-for="h in board.hours" :key="h" class="dp-board-hour" :style="{ height: board.rowH + 'px' }">{{ h }}:00</div>
+              </div>
+              <div class="dp-board-body">
+                <div
+                  v-for="b in board.placed" :key="b.task.id"
+                  class="dp-board-block"
+                  :class="['st-' + b.task.status, { editable: canEdit }]"
+                  :style="{ top: b.top + 'px', height: b.height + 'px', left: b.left, width: b.width, '--c': b.color }"
+                  :title="b.task.title + (canEdit ? '（点击标记完成）' : '（历史只读）')"
+                  @click="openConfirm(b.task, 'done')"
+                >
+                  <div class="dp-board-block-head">
+                    <span class="dp-board-time">{{ b.label }}</span>
+                    <span class="dp-board-type">{{ TYPE_ICON[b.task.type] }}</span>
+                  </div>
+                  <div class="dp-board-title">
+                    <span v-if="b.task.status === 'done'" class="dp-check">✓ </span>{{ b.task.title }}
+                  </div>
+                  <div class="dp-board-sub">
+                    <span>{{ TYPE_LABEL[b.task.type] }}</span>
+                    <span v-if="b.task.subject">· {{ b.task.subject }}</span>
+                    <span v-if="b.task.targetCount">· {{ b.task.targetCount }} 项</span>
+                    <span v-if="b.task.status !== 'done'" class="dp-board-status">待办</span>
+                    <span v-else class="dp-board-status done">已完成</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-if="board.unscheduled.length" class="dp-board-unscheduled">
+              <div class="dp-board-sub-title">⏳ 未排程（{{ board.unscheduled.length }}）</div>
+              <div class="dp-unsched-chips">
+                <span
+                  v-for="t in board.unscheduled" :key="t.id"
+                  class="dp-unsched-chip"
+                  :class="['st-' + t.status, { editable: canEdit }]"
+                  :title="t.title + (canEdit ? '（点击标记完成）' : '（历史只读）')"
+                  @click="openConfirm(t, 'done')"
+                ><span v-if="t.status==='done'" class="dp-check">✓ </span>{{ TYPE_ICON[t.type] }} {{ t.title }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- 多维图表网格 -->
       <div class="dp-charts-grid">
@@ -412,9 +608,19 @@ function handleResize() {
           <div ref="riskEl" class="dp-chart" style="height:340px"></div>
         </div>
         <div class="dp-chart-card">
-          <div class="dp-chart-title">⏰ 日程时间轴</div>
-          <div ref="scheduleEl" class="dp-chart" style="height:340px"></div>
+          <div class="dp-chart-title">📈 30 天完成率趋势</div>
+          <div ref="trendEl" class="dp-chart" style="height:340px"></div>
         </div>
+        <div class="dp-chart-card">
+          <div class="dp-chart-title">🧭 数字资产利用率</div>
+          <div ref="gaugeEl" class="dp-chart" style="height:340px"></div>
+        </div>
+      </div>
+
+      <!-- 完成时序：计划时刻 vs 实际完成（是否按时间顺序） -->
+      <div class="dp-chart-card" style="margin-top:12px">
+        <div class="dp-chart-title">⏱️ 计划时刻 vs 实际完成（绿=准时，橙=滞后，红=未完成）</div>
+        <div ref="timelineEl" class="dp-chart" :style="{ height: timelineHeight }"></div>
       </div>
 
       <!-- 84 天热力矩阵 -->
@@ -435,7 +641,7 @@ function handleResize() {
         </div>
       </div>
 
-      <!-- 任务列表 + 打卡 -->
+      <!-- 任务清单 -->
       <div class="dp-tasks">
         <div class="dp-chart-title">📋 任务清单</div>
         <div v-for="t in plan.tasks" :key="t.id" class="dp-task" :class="'st-' + t.status">
@@ -443,11 +649,11 @@ function handleResize() {
             <span class="dp-type">{{ TYPE_ICON[t.type] }} {{ TYPE_LABEL[t.type] }}</span>
             <div class="dp-task-body">
               <div class="dp-title">
-                {{ t.title }}
+                <span v-if="t.status==='done'" class="dp-check">✓ </span>{{ t.title }}
                 <span v-if="t.scheduledHour != null" class="dp-meta-item">⏰ {{ t.scheduledHour }}:00</span>
               </div>
               <div class="dp-meta">
-                <span class="dp-tag q-{{ t.quadrant }}" @click="toggleQuadrant(t)" title="点击切换象限">{{ t.quadrant }} {{ QUADRANT_LABEL[t.quadrant] }}</span>
+                <span class="dp-tag q-{{ t.quadrant }}" @click="canEdit && toggleQuadrant(t)" title="点击切换象限">{{ t.quadrant }} {{ QUADRANT_LABEL[t.quadrant] }}</span>
                 <span v-if="t.targetCount" class="dp-meta-item">🎯 {{ t.targetCount }} 项</span>
                 <span v-if="t.estimatedMinutes" class="dp-meta-item">⏱ {{ t.estimatedMinutes }} 分钟</span>
                 <span v-if="t.subject" class="dp-meta-item">📚 {{ t.subject }}</span>
@@ -455,25 +661,74 @@ function handleResize() {
               <div v-if="t.completionNote" class="dp-note">💬 {{ t.completionNote }}</div>
             </div>
           </div>
-          <div class="dp-task-actions">
-            <button v-if="t.status !== 'done'" class="btn small primary" @click="doCheckin(t, 'done')">✓ 完成</button>
-            <button v-if="t.status !== 'partial' && t.status !== 'done'" class="btn small" @click="doCheckin(t, 'partial')">◐ 部分</button>
-            <button v-if="t.status !== 'skipped' && t.status !== 'done'" class="btn small" @click="doCheckin(t, 'skipped')">✗ 跳过</button>
-            <button v-if="t.status !== 'pending'" class="btn small" @click="doCheckin(t, 'pending')">↩ 恢复</button>
+          <div v-if="canEdit" class="dp-task-actions">
+            <button v-if="t.status !== 'done'" class="btn small primary" @click="openConfirm(t, 'done')">✓ 完成</button>
+            <button v-if="t.status !== 'partial' && t.status !== 'done'" class="btn small" @click="openConfirm(t, 'partial')">◐ 部分</button>
+            <button v-if="t.status !== 'skipped' && t.status !== 'done'" class="btn small" @click="openConfirm(t, 'skipped')">✗ 跳过</button>
+            <button v-if="t.status !== 'pending'" class="btn small" @click="openConfirm(t, 'pending')">↩ 恢复</button>
             <button class="btn small" @click="removeTask(t)">🗑</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- 确认弹窗：点击条目后弹出，点「确定」才标记完成 -->
+    <div v-if="pendingTask" class="dp-modal-mask" @click.self="pendingTask = null">
+      <div class="dp-modal">
+        <div class="dp-modal-title">确认打卡</div>
+        <div class="dp-modal-task">
+          <span class="dp-modal-type">{{ TYPE_ICON[pendingTask.type] }} {{ TYPE_LABEL[pendingTask.type] }}</span>
+          <div class="dp-modal-name">{{ pendingTask.title }}</div>
+          <div class="dp-modal-meta">
+            <span class="dp-tag q-{{ pendingTask.quadrant }}">{{ pendingTask.quadrant }}</span>
+            <span v-if="pendingTask.scheduledHour != null" class="dp-meta-item">⏰ {{ pendingTask.scheduledHour }}:00</span>
+          </div>
+        </div>
+        <div class="dp-modal-actions">
+          <button class="btn" :class="{ 'sel': confirmStatus==='done' }" :disabled="busy" @click="confirmStatus='done'">✓ 完成</button>
+          <button class="btn" :class="{ 'sel': confirmStatus==='partial' }" :disabled="busy" @click="confirmStatus='partial'">◐ 部分完成</button>
+          <button class="btn" :class="{ 'sel': confirmStatus==='skipped' }" :disabled="busy" @click="confirmStatus='skipped'">✗ 跳过</button>
+          <span style="flex:1"></span>
+          <button class="btn ghost" @click="pendingTask = null">取消</button>
+          <button class="btn primary" :disabled="busy" @click="confirmAction">确定</button>
+        </div>
+        <div class="dp-modal-hint">选择上方状态后点「确定」生效（默认：完成）</div>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.dp-page { max-width: 1100px; margin: 0 auto; }
+.dp-page { max-width: 1080px; margin: 0 auto; padding-bottom: 40px; }
+.dp-header { margin-bottom: 16px; }
+.dp-title-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.dp-title-row h2 { font-size: 20px; }
+.dp-mode { font-size: 12px; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
+.dp-mode.m-edit { background: #e6f2e6; color: #2e7d32; }
+.dp-mode.m-history { background: #eef0f3; color: #5b6470; }
+
+.dp-datebar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dp-day-chip { padding: 6px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); cursor: pointer; font-size: 13px; color: var(--ink-2); transition: all .15s; }
+.dp-day-chip:hover { border-color: var(--accent); }
+.dp-day-chip.active { background: var(--accent, #3a7afe); color: #fff; border-color: transparent; }
+.dp-date-sep { flex: 1; border-bottom: 1px dashed var(--line); }
+.dp-date-input { padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
+.dp-date-label { font-size: 13px; color: var(--ink-2); }
+
+.dp-history { margin-top: 10px; display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.dp-history-title { font-size: 12px; color: var(--ink-2); margin-top: 4px; }
+.dp-history-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.dp-history-item { display: flex; flex-direction: column; align-items: center; padding: 4px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; min-width: 64px; transition: all .15s; }
+.dp-history-item:hover { border-color: var(--accent); }
+.dp-history-item.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+.dp-history-date { font-size: 12px; font-weight: 600; }
+.dp-history-rate { font-size: 11px; color: #2e7d32; }
+
 .dp-input { display: flex; flex-direction: column; gap: 10px; }
 .dp-textarea { resize: vertical; min-height: 90px; }
 .dp-input-actions { display: flex; align-items: center; gap: 12px; justify-content: flex-end; }
-.dp-llm-toggle { font-size: 12px; color: var(--ink-2); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.dp-llm-toggle { font-size: 13px; color: var(--ink-2); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.dp-empty { padding: 30px; text-align: center; color: var(--ink-2); border: 1px dashed var(--line); border-radius: 12px; background: var(--panel); }
 
 .dp-preview, .dp-plan { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 16px; }
 .dp-preview-head, .dp-plan-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -513,7 +768,7 @@ function handleResize() {
 
 .dp-tasks { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .dp-task { display: flex; align-items: flex-start; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; transition: all .15s; }
-.dp-task.st-done { border-left: 3px solid #7ba87b; opacity: 0.7; }
+.dp-task.st-done { border-left: 3px solid #7ba87b; opacity: 0.78; background: rgba(123,168,123,.06); }
 .dp-task.st-partial { border-left: 3px solid #d4a853; }
 .dp-task.st-skipped { border-left: 3px solid #c9c4bd; opacity: 0.55; }
 .dp-task.st-pending { border-left: 3px solid #e07b3c; }
@@ -522,6 +777,7 @@ function handleResize() {
 .dp-type { font-size: 12px; color: var(--ink-2); flex-shrink: 0; }
 .dp-task-body { flex: 1; min-width: 0; }
 .dp-title { font-weight: 500; }
+.dp-check { color: #2e7d32; font-weight: 700; }
 .dp-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; font-size: 12px; color: var(--ink-2); }
 .dp-meta-item { background: var(--code-inline); padding: 1px 6px; border-radius: 4px; }
 .dp-note { font-size: 12px; color: var(--ink-2); margin-top: 4px; font-style: italic; }
@@ -534,9 +790,59 @@ function handleResize() {
 .dp-tag.q-Q4 { background: #f0efed; color: #6b5e50; }
 .dp-meta .dp-tag { cursor: pointer; }
 
+/* ── 今日日程表（课程表风格 · 居中）── */
+.dp-board-section { margin: 16px 0; }
+.dp-board-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.dp-legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; }
+.lg { padding: 2px 8px; border-radius: 8px; border-left: 3px solid; }
+.lg-done { background: rgba(123,168,123,.14); border-color: #7ba87b; }
+.lg-q1 { background: #fde8e8; border-color: #e8735a; }
+.lg-q2 { background: #fef3c7; border-color: #d4a853; }
+.lg-q3 { background: #e6f2e6; border-color: #7ba87b; }
+.lg-q4 { background: #f0efed; border-color: #9a8c7e; }
+.dp-board-wrap { display: flex; justify-content: center; }
+.dp-board { width: 100%; max-width: 720px; }
+.dp-board-track { display: flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--panel); box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+.dp-board-hours { width: 56px; flex-shrink: 0; border-right: 1px solid var(--line); background: var(--panel-2, #f7f7f9); }
+.dp-board-hour { display: flex; align-items: flex-start; justify-content: flex-end; padding: 2px 6px; font-size: 11px; color: var(--ink-2); border-bottom: 1px dashed var(--line); box-sizing: border-box; }
+.dp-board-body { position: relative; flex: 1; height: 100%; align-self: stretch; background-image: repeating-linear-gradient(to bottom, var(--line) 0, var(--line) 1px, transparent 1px, 56px); }
+.dp-board-block { position: absolute; border-radius: 10px; border: 1.5px solid var(--c, #9a8c7e); background: color-mix(in srgb, var(--c, #9a8c7e) 15%, var(--panel)); box-shadow: 0 1px 4px rgba(0,0,0,.08); padding: 6px 12px; box-sizing: border-box; overflow: hidden; transition: transform .12s, box-shadow .12s; }
+.dp-board-block.editable { cursor: pointer; }
+.dp-board-block.editable:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.15); }
+.dp-board-block.st-done { border-color: #2e7d32; background: rgba(46,125,50,.16); color: #1e5631; }
+.dp-board-block.st-skipped { opacity: 0.5; }
+.dp-board-block-head { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-2); }
+.dp-board-time { font-weight: 600; }
+.dp-board-title { font-weight: 600; font-size: 13px; margin: 2px 0; line-height: 1.25; }
+.dp-board-sub { font-size: 11px; color: var(--ink-2); display: flex; gap: 4px; flex-wrap: wrap; }
+.dp-board-status { padding: 0 6px; border-radius: 6px; background: rgba(0,0,0,.05); }
+.dp-board-status.done { background: rgba(46,125,50,.14); color: #2e7d32; }
+.dp-board-unscheduled { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--panel-2, #f7f7f9); }
+.dp-board-sub-title { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.dp-unsched-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dp-unsched-chip { padding: 4px 10px; border-radius: 14px; background: #ffffff; border: 1px solid var(--line); font-size: 12px; }
+.dp-unsched-chip.editable { cursor: pointer; }
+.dp-unsched-chip.editable:hover { border-color: var(--accent); }
+.dp-unsched-chip.st-done { background: rgba(123,168,123,.14); border-color: #2e7d32; }
+.dp-unsched-chip.st-skipped { opacity: 0.5; }
+
+/* ── 确认弹窗 ── */
+.dp-modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.dp-modal { background: var(--panel); border-radius: 14px; padding: 20px; width: min(380px, 92vw); box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+.dp-modal-title { font-weight: 700; font-size: 16px; margin-bottom: 12px; }
+.dp-modal-task { padding: 12px 14px; background: var(--panel-2, #f7f7f9); border-radius: 10px; margin-bottom: 14px; }
+.dp-modal-type { font-size: 12px; color: var(--ink-2); }
+.dp-modal-name { font-weight: 600; font-size: 15px; margin: 4px 0; }
+.dp-modal-meta { display: flex; gap: 8px; }
+.dp-modal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn.sel { outline: 2px solid var(--accent, #3a7afe); }
+.btn.ghost { background: var(--panel-2, #f0f0f0); }
+.dp-modal-hint { margin-top: 10px; font-size: 12px; color: var(--ink-2); }
+
 @media (max-width: 720px) {
   .dp-charts-grid { grid-template-columns: 1fr; }
   .dp-task { flex-direction: column; }
   .dp-task-actions { width: 100%; flex-wrap: wrap; }
+  .dp-board-hours { width: 44px; }
 }
 </style>

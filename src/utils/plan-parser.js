@@ -330,11 +330,21 @@ function normalizeLLMTasks(reply) {
       : (t.important && t.urgent ? 'Q1' : t.important && !t.urgent ? 'Q2' : !t.important && t.urgent ? 'Q3' : 'Q4');
     const important = t.quadrant === 'Q1' || t.quadrant === 'Q2' || !!t.important;
     const urgent = t.quadrant === 'Q1' || t.quadrant === 'Q3' || !!t.urgent;
-    const targetCount = Number.isFinite(t.targetCount) ? Number(t.targetCount) : null;
     const estimatedMinutes = Number.isFinite(t.estimatedMinutes) ? Number(t.estimatedMinutes) : null;
-    const scheduledHour = Number.isFinite(t.scheduledHour) && t.scheduledHour >= 0 && t.scheduledHour <= 23
+    let scheduledHour = Number.isFinite(t.scheduledHour) && t.scheduledHour >= 0 && t.scheduledHour <= 23
       ? Math.floor(t.scheduledHour) : null;
-    const subject = typeof t.subject === 'string' ? t.subject : '';
+    // LLM 常漏掉口述里的「几点」时间，用离线规则从标题再抽取兜底
+    if (scheduledHour == null) {
+      const oh = extractHour(t.title);
+      if (oh != null) scheduledHour = oh;
+    }
+    let subject = (typeof t.subject === 'string' && t.subject) ? t.subject : '';
+    if (!subject) subject = inferSubject(t.title);
+    let targetCount = Number.isFinite(t.targetCount) ? Number(t.targetCount) : null;
+    if (targetCount == null) {
+      const q = extractQuantity(t.title);
+      if (q.targetCount != null) targetCount = q.targetCount;
+    }
     const title = String(t.title || t.text || `任务${i + 1}`).slice(0, 120);
     return { title, type, important, urgent, quadrant, targetCount, estimatedMinutes, subject, scheduledHour };
   });

@@ -269,6 +269,152 @@ export function compareBarOption(completion = []) {
   };
 }
 
+// ──────────────── 9. 完成时序图（计划时刻 vs 实际完成时刻） ────────────────
+//
+// 回答「是否按时间顺序完成」：每条任务一行，横轴为一天 0~24 小时；
+// 圆点 = 计划时刻（scheduledHour），菱形 = 实际完成时刻（completedAt 的 HH:MM）。
+// 两者越贴近 / 顺序一致 → 执行越贴合规划；滞后者一目了然。
+
+export function checkinTimelineOption(tasks = []) {
+  const rows = tasks.filter(t => t.scheduledHour != null || t.completedAt);
+  if (!rows.length) return emptyOption('暂无排程/打卡数据');
+  const cats = rows.map(t => t.title.slice(0, 14));
+  const planned = [];
+  const actual = [];
+  rows.forEach((t, i) => {
+    const y = i;
+    if (t.scheduledHour != null) {
+      planned.push({ value: [t.scheduledHour, y], name: t.title, itemStyle: { color: '#d4a853' } });
+    }
+    if (t.completedAt) {
+      const d = new Date(t.completedAt);
+      const h = d.getHours() + d.getMinutes() / 60;
+      const late = t.scheduledHour != null && h > t.scheduledHour + 1; // 晚于计划 1h 算滞后
+      actual.push({
+        value: [h, y],
+        name: t.title,
+        itemStyle: { color: t.status === 'done' ? (late ? '#e07b3c' : '#7ba87b') : '#e8735a' },
+        late,
+      });
+    }
+  });
+  return {
+    tooltip: {
+      formatter: p => {
+        const t = rows[p.dataIndex];
+        let s = `${t.title}<br/>`;
+        if (t.scheduledHour != null) s += `计划：${t.scheduledHour}:00<br/>`;
+        if (t.completedAt) s += `完成：${new Date(t.completedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
+        else s += '完成：未打卡';
+        return s;
+      },
+    },
+    legend: { bottom: 0, data: ['计划时刻', '实际完成'] },
+    grid: { left: 130, right: 24, top: 16, bottom: 34 },
+    xAxis: { type: 'value', min: 0, max: 24, name: '时刻', nameGap: 18, axisLabel: { formatter: '{value}:00', fontSize: 10 }, splitLine: { lineStyle: { color: '#eee' } } },
+    yAxis: { type: 'category', data: cats, inverse: true, axisLabel: { fontSize: 10 }, axisLine: { lineStyle: { color: '#ccc' } } },
+    series: [
+      { name: '计划时刻', type: 'scatter', symbolSize: 14, data: planned, symbol: 'circle' },
+      { name: '实际完成', type: 'scatter', symbolSize: 14, data: actual, symbol: 'diamond' },
+    ],
+  };
+}
+
+// ──────────────── 10. 完成度仪表盘（数字资产利用率） ────────────────
+
+export function gaugeOption(rate = 0, label = '数字资产利用率') {
+  const color = rate >= 80 ? '#7ba87b' : rate >= 50 ? '#d4a853' : '#e07b3c';
+  return {
+    series: [{
+      type: 'gauge',
+      startAngle: 220, endAngle: -40,
+      min: 0, max: 100,
+      progress: { show: true, width: 16, itemStyle: { color } },
+      axisLine: { lineStyle: { width: 16, color: [[1, '#eee']] } },
+      pointer: { width: 4, itemStyle: { color } },
+      axisTick: { show: false },
+      splitLine: { length: 10, lineStyle: { color: '#ccc' } },
+      axisLabel: { distance: 12, color: '#666', fontSize: 10 },
+      detail: { valueAnimation: true, formatter: '{value}%', fontSize: 26, color },
+      title: { offsetCenter: [0, '70%'], color: '#666', fontSize: 12 },
+      data: [{ value: Math.round(rate), name: label }],
+    }],
+  };
+}
+
+// ──────────────── 10. 课程表风格「今日日程表」数据模型 ────────────────
+//
+// 把任务按 scheduledHour 落到 06:00–23:00 的小时网格里，生成「课程表」格子数据：
+//   - 逐小时为一格（背景横线由 CSS 绘制），任务以整格填充形式嵌入对应时间段；
+//   - 同一时段多个任务自动分列并排（像课表不同课程），不互相遮挡；
+//   - 无时间段 / 超出范围的任务进入 unscheduled。纯函数，可在 Node 单测。
+
+/**
+ * @param {Array} tasks 任务数组（含 scheduledHour/estimatedMinutes/quadrant/title/type/status）
+ * @param {object} [opts] { startHour=6, endHour=23, rowH=56, defaultDur=60 }
+ * @returns {{ startHour, endHour, hours:number[], rowH, laneCount, totalHeight:number, placed:[], unscheduled:[] }}
+ */
+export function buildScheduleBoard(tasks = [], opts = {}) {
+  const startHour = opts.startHour ?? 6;
+  const endHour = opts.endHour ?? 23;
+  const rowH = opts.rowH ?? 56;
+  const defaultDur = opts.defaultDur ?? 60;
+
+  const hours = [];
+  for (let h = startHour; h <= endHour; h++) hours.push(h);
+
+  // 1) 计算每个任务的矩形区间
+  const items = [];
+  const unscheduled = [];
+  for (const t of (tasks || [])) {
+    const sh = t.scheduledHour;
+    if (sh == null || sh < startHour || sh > endHour) {
+      unscheduled.push(t);
+      continue;
+    }
+    const durMin = t.estimatedMinutes || defaultDur;
+    const top = (sh - startHour) * rowH;
+    const height = Math.max(34, Math.round((durMin / 60) * rowH));
+    items.push({ task: t, top, height, bottom: top + height });
+  }
+  // 按开始时间排序，便于贪心分配列
+  items.sort((a, b) => a.top - b.top);
+
+  // 2) 贪心分配列（lane）：每个 lane 维护末尾 bottom，重叠则开新列 —— 像课表并排
+  const laneEndAt = [];
+  for (const it of items) {
+    let lane = 0;
+    while (lane < laneEndAt.length && laneEndAt[lane] > it.top) lane++;
+    if (lane === laneEndAt.length) laneEndAt.push(0);
+    laneEndAt[lane] = it.bottom;
+    it.lane = lane;
+  }
+  const laneCount = Math.max(1, laneEndAt.length);
+
+  const placed = items.map(it => ({
+    task: it.task,
+    top: it.top,
+    height: it.height,
+    lane: it.lane,
+    left: `calc(${it.lane} * (100% / ${laneCount}) + 5px)`,
+    width: `calc(100% / ${laneCount} - 10px)`,
+    color: QUAD_COLOR[it.task.quadrant] || QUAD_COLOR.Q4,
+    label: `${fmtHour(it.task.scheduledHour)}–${fmtHour(it.task.scheduledHour + (it.task.estimatedMinutes || defaultDur) / 60)}`,
+  }));
+
+  return {
+    startHour, endHour, hours, rowH, laneCount,
+    totalHeight: (endHour - startHour + 1) * rowH,
+    placed, unscheduled,
+  };
+}
+
+function fmtHour(h) {
+  const hh = Math.floor(h);
+  const mm = Math.round((h - hh) * 60);
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
 // ──────────────── 工具：空图占位 ────────────────
 
 export function emptyOption(msg = '暂无数据') {
