@@ -11,7 +11,7 @@ import ExportButton from '../components/ExportButton.vue';
 import { exportCardsToJSON, exportCardsToCSV, exportCardsToMarkdown } from '../utils/exporters.js';
 import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { genVariants } from '../utils/genVariants.js';
@@ -88,6 +88,7 @@ const modalOpen = ref(false);
 const editing = ref(null);
 // 预览模式：点击卡片体打开 FlipCard 预览层，再决定是否编辑
 const previewCard = ref(null);
+const linkedNotes = ref([]); // D3.3 关联笔记（反链面板）
 const showPreview = ref(false);
 const weakMode = ref(localStorage.getItem('sxy_card_weak') === '1');
 const suggestion = ref(null);
@@ -177,8 +178,28 @@ function openPreview(item, e) {
   if (e && e.target.closest('button')) return;
   previewCard.value = item;
   showPreview.value = true;
+  if (item?.id) loadLinkedNotes(item.id);
 }
-function closePreview() { showPreview.value = false; previewCard.value = null; }
+function closePreview() { showPreview.value = false; previewCard.value = null; linkedNotes.value = []; }
+
+// D3.3 加载关联笔记：notes 内容里含 [[c<id>]] 的所有笔记
+async function loadLinkedNotes(cardId) {
+  const list = await findNotesLinkingTo(cardId);
+  linkedNotes.value = list.map(n => ({ id: n.id, title: n.title, category: n.category }));
+}
+
+// 一键复制 wikilink 文本到剪贴板（D3.3 配 ID 习惯养成）
+async function copyLinkAsWiki() {
+  const c = previewCard.value;
+  if (!c?.id) return;
+  const text = `[[c${c.id}]]`;
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('已复制 ' + text + ' 到剪贴板', 'success');
+  } catch {
+    toast('复制失败，请手动选中', 'error');
+  }
+}
 function previewEdit() {
   const card = previewCard.value;
   showPreview.value = false;
@@ -824,6 +845,27 @@ async function rescueAll() {
           </div>
           <div class="preview-body">
             <FlipCard :card="previewCard" @edit="previewEdit" />
+            <!-- D3.3 相关笔记（反链面板）：所有笔记中正文含 [[c<id>]] 的笔记列在此 -->
+            <div v-if="linkedNotes.length" class="linked-notes">
+              <div class="linked-notes-title">
+                <span class="soft-pulse" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:8px"></span>
+                关联笔记（{{ linkedNotes.length }}）
+              </div>
+              <div
+                v-for="n in linkedNotes"
+                :key="n.id"
+                class="linked-notes-item"
+                @click="$router.push({ path: '/notes', query: { id: n.id } })"
+              >
+                <span class="ln-icon">📓</span>
+                <span class="ln-title">{{ n.title || '（无标题）' }}</span>
+                <span class="ln-cat" v-if="n.category">📁 {{ n.category }}</span>
+              </div>
+            </div>
+            <!-- D3.3 双链入口：当前卡片的 front 也能在笔记中作为 [[c<id>]] 被引用 -->
+            <div class="linked-notes-foot">
+              <button class="btn small" @click="copyLinkAsWiki">📋 复制 [[c{{ previewCard.id }}]] 引用</button>
+            </div>
           </div>
         </div>
       </div>
@@ -970,4 +1012,14 @@ async function rescueAll() {
 .ai-deck-front { font-weight: 600; font-size: 13px; line-height: 1.5; }
 .ai-deck-back { font-size: 12px; color: var(--ink-2); margin-top: 4px; line-height: 1.5; white-space: pre-wrap; }
 .ai-deck-tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--code-inline); color: var(--ink-2); margin-right: 6px; }
+
+/* D3.3 关联笔记面板（卡片预览底部） */
+.linked-notes { margin-top: 14px; padding: 10px 12px; background: var(--bg, #fafafb); border: 1px solid var(--line); border-radius: 8px; }
+.linked-notes-title { display: flex; align-items: center; font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--ink); }
+.linked-notes-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: background .15s; font-size: 13px; }
+.linked-notes-item:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.ln-icon { color: #d4a853; }
+.ln-title { flex: 1; font-weight: 500; }
+.ln-cat { font-size: 11px; color: var(--ink-2); background: rgba(217, 119, 6, 0.12); color: #b45309; padding: 1px 6px; border-radius: 4px; }
+.linked-notes-foot { margin-top: 8px; display: flex; justify-content: flex-end; }
 </style>
