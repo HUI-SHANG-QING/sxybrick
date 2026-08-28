@@ -1,27 +1,44 @@
 <script setup>
-// 每日规划/打卡视图（D8.2）：口述输入 → 自动解析 → 四象限图 → 任务打卡
-import { ref, computed, onMounted, nextTick, onBeforeUnmount } from 'vue';
+// 每日规划 · 打卡 · 多维图表视图（P4 重构版）
+// 口述输入 → 智能解析(LLM 优先/离线回退) → 四象限 + 雷达 + 热力矩阵 + 风险 + 时间轴 + 完成对比
+import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
 import {
   createDailyPlan, listDailyPlan, updateDailyTask, deleteDailyTask,
-  checkinDailyTask, getDailyReality, deleteDailyPlan,
+  checkinDailyTask, deleteDailyPlan, addDailyTask, appendDailyTasksByText,
 } from '../repo.js';
-import { parsePlanWithSummary } from '../utils/plan-parser.js';
+import { parsePlanSmart } from '../utils/plan-parser.js';
+import { getDailySynergy, getCompletionHeatmap } from '../utils/planSynergy.js';
+import {
+  quadrantOption, radarOption, heatmapOption, riskOption, scheduleOption,
+  typeBreakdownOption, compareBarOption, emptyOption,
+} from '../utils/planCharts.js';
+
+// ──────────────── 常量 ────────────────
+
+const TYPE_LABEL = { review: '复习', pomodoro: '番茄', doc: '资料', exam: '做题', note: '笔记', write: '写作', other: '其他' };
+const QUADRANT_LABEL = { Q1: '重要×紧急', Q2: '重要×非紧急', Q3: '非重要×紧急', Q4: '非重要×非紧急' };
+const STATUS_LABEL = { pending: '待办', done: '已完成', partial: '部分完成', skipped: '已跳过' };
+const TYPE_ICON = { review: '📖', pomodoro: '🍅', doc: '📚', exam: '📝', note: '📓', write: '✍️', other: '📌' };
+
+// ──────────────── 状态 ────────────────
 
 const rawInput = ref('');
 const parsing = ref(false);
-const plan = ref(null);          // { plan, tasks }
-const reality = ref(null);       // 跨模块真实数据
 const busy = ref(false);
+const plan = ref(null);          // { plan, tasks }
+const synergy = ref(null);       // 跨模块真实数据 + 完成度 + 风险
+const heat = ref([]);            // 84 天热力矩阵
+const preview = ref(null);       // 解析预览（未入库） { text, tasks, summary, source }
+const showAddTask = ref(false);
+const addInput = ref('');
 
-const quadEl = ref(null);
-let quadChart = null;
+// 智能解析开关（持久化）
+const useLLM = ref(localStorage.getItem('sxy_plan_use_llm') !== '0');
+watch(useLLM, v => localStorage.setItem('sxy_plan_use_llm', v ? '1' : '0'));
 
-const TYPE_LABEL = { review: '复习', pomodoro: '番茄', doc: '资料', exam: '做题', note: '笔记', other: '其他' };
-const QUADRANT_LABEL = { Q1: '重要×紧急', Q2: '重要×非紧急', Q3: '非重要×紧急', Q4: '非重要×非紧急' };
-const STATUS_LABEL = { pending: '待办', done: '已完成', partial: '部分完成', skipped: '已跳过' };
-const TYPE_ICON = { review: '📖', pomodoro: '🍅', doc: '📚', exam: '📝', note: '📓', other: '📌' };
+// ──────────────── 计算属性 ────────────────
 
 const summary = computed(() => {
   if (!plan.value?.tasks?.length) return null;
@@ -36,29 +53,59 @@ const summary = computed(() => {
   return { total, byQuadrant, byStatus, doneRate };
 });
 
-onMounted(async () => {
-  await loadToday();
+const completion = computed(() => synergy.value?.completion || []);
+const risks = computed(() => synergy.value?.risks || []);
+const overallRate = computed(() => {
+  if (!completion.value.length) return 0;
+  const planned = completion.value.reduce((s, c) => s + c.plan, 0);
+  const actual = completion.value.reduce((s, c) => s + c.actual, 0);
+  return planned ? Math.min(100, Math.round((actual / planned) * 100)) : 0;
 });
-onBeforeUnmount(() => { quadChart?.dispose(); });
+
+// ──────────────── 生命周期 ────────────────
+
+onMounted(() => {
+  loadToday();
+  window.addEventListener('resize', handleResize);
+});
+onBeforeUnmount(() => {
+  disposeAllCharts();
+  window.removeEventListener('resize', handleResize);
+});
+
+// ──────────────── 数据加载 ────────────────
 
 async function loadToday() {
   const r = await listDailyPlan();
-  if (r) { plan.value = r; await refreshCharts(); }
-  reality.value = await getDailyReality();
+  if (r) { plan.value = r; await refreshAll(); }
+  await refreshSynergy();
+  heat.value = await getCompletionHeatmap(84).catch(() => []);
+  await nextTick();
+  renderHeat();
 }
 
-/** 口述 → 解析预览 → 入库 */
+async function refreshSynergy() {
+  try {
+    synergy.value = await getDailySynergy(undefined, plan.value?.tasks || null);
+  } catch (e) {
+    console.warn('[plan] synergy failed', e);
+    synergy.value = null;
+  }
+}
+
+// ──────────────── 口述 → 解析预览 ────────────────
+
 async function submitPlan() {
   const text = rawInput.value.trim();
   if (!text) { toast('先写下今天的规划', 'warning'); return; }
   parsing.value = true;
   try {
-    // 先预览解析结果（用户可编辑），不立即入库
-    const { tasks, summary: sum } = parsePlanWithSummary(text);
-    preview.value = { text, tasks, summary: sum };
+    const result = await parsePlanSmart(text, { useLLM: useLLM.value });
+    preview.value = { text, ...result };
     await nextTick();
-    renderPreviewQuadrant();
-    toast(`解析出 ${tasks.length} 个任务`, 'success');
+    renderPreviewQuad();
+    const src = result.source === 'llm' ? '✨ AI 解析' : '⚡ 离线解析';
+    toast(`${src}出 ${result.tasks.length} 个任务`, 'success');
   } catch (e) {
     toast('解析失败：' + (e?.message || e), 'error');
   } finally {
@@ -66,101 +113,6 @@ async function submitPlan() {
   }
 }
 
-const preview = ref(null);       // 解析预览（未入库）
-const previewQuadEl = ref(null);
-let previewQuadChart = null;
-
-// ──────────────── D8.3 早晚对比 + 完成率 ────────────────
-
-const summaryEl = ref(null);
-let summaryChart = null;
-
-/** 规划目标汇总：按任务类型聚合 targetCount / estimatedMinutes */
-const planTargets = computed(() => {
-  if (!plan.value?.tasks?.length) return { reviewCount: 0, pomodoroMinutes: 0, docCount: 0 };
-  let reviewCount = 0, pomodoroMinutes = 0, docCount = 0;
-  for (const t of plan.value.tasks) {
-    if (t.type === 'review' && t.targetCount) reviewCount += t.targetCount;
-    if (t.type === 'pomodoro' && t.estimatedMinutes) pomodoroMinutes += t.estimatedMinutes;
-    if (t.type === 'doc' && t.targetCount) docCount += t.targetCount;
-  }
-  return { reviewCount, pomodoroMinutes, docCount };
-});
-
-/** 早晚对比数据：规划目标 vs 实际完成 */
-const compareRows = computed(() => {
-  const p = planTargets.value;
-  const r = reality.value || { reviewsToday: 0, pomodoroMinutes: 0, docsToday: 0 };
-  return [
-    { label: '复习', icon: '📖', plan: p.reviewCount, actual: r.reviewsToday, unit: '次' },
-    { label: '专注', icon: '🍅', plan: p.pomodoroMinutes, actual: r.pomodoroMinutes, unit: '分钟' },
-    { label: '资料', icon: '📚', plan: p.docCount, actual: r.docsToday, unit: '份' },
-  ];
-});
-
-const compareRate = computed(() => {
-  const p = planTargets.value;
-  const r = reality.value || { reviewsToday: 0, pomodoroMinutes: 0, docsToday: 0 };
-  const items = [
-    { plan: p.reviewCount, actual: r.reviewsToday },
-    { plan: p.pomodoroMinutes, actual: r.pomodoroMinutes },
-    { plan: p.docCount, actual: r.docsToday },
-  ];
-  const totalPlan = items.reduce((s, x) => s + x.plan, 0);
-  const totalActual = items.reduce((s, x) => s + x.actual, 0);
-  return totalPlan ? Math.round((totalActual / totalPlan) * 100) : 0;
-});
-
-/** 对比条形宽度（相对最大值归一化到 100%） */
-function barWidth(v) {
-  const max = Math.max(
-    ...compareRows.value.map(r => Math.max(r.plan, r.actual)),
-    1,
-  );
-  return Math.min(100, Math.round((v / max) * 100)) + '%';
-}
-
-function renderSummaryChart() {
-  if (!summaryEl.value || !plan.value?.tasks?.length) return;
-  summaryChart?.dispose();
-  summaryChart = echarts.init(summaryEl.value);
-  const done = plan.value.tasks.filter(t => t.status === 'done').length;
-  const partial = plan.value.tasks.filter(t => t.status === 'partial').length;
-  const skipped = plan.value.tasks.filter(t => t.status === 'skipped').length;
-  const pending = plan.value.tasks.filter(t => t.status === 'pending').length;
-  summaryChart.setOption({
-    tooltip: { trigger: 'item' },
-    legend: { bottom: 0 },
-    series: [{
-      type: 'pie',
-      radius: ['42%', '70%'],
-      avoidLabelOverlap: false,
-      label: { show: true, formatter: '{b}: {c}' },
-      data: [
-        { value: done, name: '已完成', itemStyle: { color: '#7ba87b' } },
-        { value: partial, name: '部分完成', itemStyle: { color: '#d4a853' } },
-        { value: skipped, name: '已跳过', itemStyle: { color: '#c9c4bd' } },
-        { value: pending, name: '待办', itemStyle: { color: '#e07b3c' } },
-      ].filter(x => x.value > 0),
-    }],
-  });
-}
-
-async function refreshCharts() {
-  await nextTick();
-  renderQuadrant();
-  renderSummaryChart();
-}
-
-
-function renderPreviewQuadrant() {
-  if (!previewQuadEl.value || !preview.value) return;
-  previewQuadChart?.dispose();
-  previewQuadChart = echarts.init(previewQuadEl.value);
-  previewQuadChart.setOption(quadrantOption(preview.value.tasks));
-}
-
-/** 确认入库 */
 async function confirmPlan() {
   if (!preview.value) return;
   busy.value = true;
@@ -169,7 +121,8 @@ async function confirmPlan() {
     plan.value = { plan: p, tasks };
     rawInput.value = '';
     preview.value = null;
-    await refreshCharts();
+    await refreshAll();
+    await refreshSynergy();
     toast(`已入库 ${tasks.length} 个任务`, 'success');
   } catch (e) {
     toast('入库失败：' + (e?.message || e), 'error');
@@ -178,62 +131,53 @@ async function confirmPlan() {
   }
 }
 
-function cancelPreview() { preview.value = null; previewQuadChart?.dispose(); }
+function cancelPreview() { preview.value = null; disposePreviewQuad(); }
 
-// ──────────────── 四象限图（ECharts scatter） ────────────────
+// ──────────────── 中途加任务 ────────────────
 
-function quadrantOption(tasks) {
-  const data = tasks.map(t => ({
-    value: [t.important ? 1 : 0, t.urgent ? 1 : 0, t.title, t.status],
-    name: t.title,
-    itemStyle: { color: statusColor(t.status) },
-  }));
-  return {
-    grid: { left: 50, right: 20, top: 30, bottom: 50 },
-    xAxis: {
-      min: -0.5, max: 1.5, name: '重要', nameLocation: 'middle', nameGap: 30,
-      axisLine: { lineStyle: { color: '#ccc' } },
-      splitLine: { show: false },
-      axisLabel: { show: false },
-    },
-    yAxis: {
-      min: -0.5, max: 1.5, name: '紧急', nameLocation: 'middle', nameGap: 30,
-      axisLine: { lineStyle: { color: '#ccc' } },
-      splitLine: { show: false },
-      axisLabel: { show: false },
-    },
-    series: [{
-      type: 'scatter',
-      symbolSize: 28,
-      data,
-      label: { show: false },
-      tooltip: {
-        formatter: p => `${p.data.value[2]}<br/>状态：${STATUS_LABEL[p.data.value[3]] || '待办'}`,
-      },
-    }],
-    // 四象限标注
-    graphic: [
-      { type: 'text', left: '25%', top: '10%', style: { text: 'Q2 重要非紧急', fill: '#d4a853', fontSize: 12 } },
-      { type: 'text', left: '75%', top: '10%', style: { text: 'Q1 重要紧急', fill: '#e8735a', fontSize: 12, align: 'right' } },
-      { type: 'text', left: '25%', top: '88%', style: { text: 'Q4 不重要不紧急', fill: '#9a8c7e', fontSize: 12 } },
-      { type: 'text', left: '75%', top: '88%', style: { text: 'Q3 紧急不重要', fill: '#7ba87b', fontSize: 12, align: 'right' } },
-    ],
-  };
+async function appendTasks() {
+  const text = addInput.value.trim();
+  if (!text || !plan.value?.plan?.id) { toast('请输入任务描述', 'warning'); return; }
+  busy.value = true;
+  try {
+    const rows = await appendDailyTasksByText(plan.value.plan.id, text);
+    plan.value.tasks = [...(plan.value.tasks || []), ...rows];
+    addInput.value = '';
+    showAddTask.value = false;
+    await refreshAll();
+    await refreshSynergy();
+    toast(`追加 ${rows.length} 个任务`, 'success');
+  } catch (e) {
+    toast('追加失败：' + (e?.message || e), 'error');
+  } finally {
+    busy.value = false;
+  }
 }
 
-function statusColor(status) {
-  return { done: '#7ba87b', partial: '#d4a853', skipped: '#c9c4bd', pending: '#e07b3c' }[status] || '#e07b3c';
+async function addManualTask() {
+  const text = addInput.value.trim();
+  if (!text || !plan.value?.plan?.id) return;
+  busy.value = true;
+  try {
+    // 简单单任务手动加：用解析器抽字段
+    const { parsePlan } = await import('../utils/plan-parser.js');
+    const parsed = parsePlan(text);
+    const rows = [];
+    for (const p of parsed) rows.push(await addDailyTask(plan.value.plan.id, p));
+    plan.value.tasks = [...(plan.value.tasks || []), ...rows];
+    addInput.value = '';
+    showAddTask.value = false;
+    await refreshAll();
+    await refreshSynergy();
+    toast(`已加 ${rows.length} 个任务`, 'success');
+  } catch (e) {
+    toast('添加失败：' + (e?.message || e), 'error');
+  } finally {
+    busy.value = false;
+  }
 }
 
-async function renderQuadrant() {
-  await nextTick();
-  if (!quadEl.value || !plan.value?.tasks?.length) return;
-  quadChart?.dispose();
-  quadChart = echarts.init(quadEl.value);
-  quadChart.setOption(quadrantOption(plan.value.tasks));
-}
-
-// ──────────────── 打卡 ────────────────
+// ──────────────── 打卡 / 调整 ────────────────
 
 async function doCheckin(task, status) {
   busy.value = true;
@@ -241,7 +185,8 @@ async function doCheckin(task, status) {
     const note = status === 'done' ? '' : (prompt(`备注（${STATUS_LABEL[status]}原因，可留空）：`) || '');
     await checkinDailyTask(task.id, status, note);
     task.status = status;
-    await refreshCharts();
+    await refreshAll();
+    await refreshSynergy();
     toast(`已${STATUS_LABEL[status]}：${task.title.slice(0, 20)}`, 'success');
   } catch (e) {
     toast('打卡失败：' + (e?.message || e), 'error');
@@ -250,22 +195,21 @@ async function doCheckin(task, status) {
   }
 }
 
-// ──────────────── 中途调整 ────────────────
-
 async function toggleQuadrant(task) {
   const order = ['Q1', 'Q2', 'Q3', 'Q4'];
   const idx = order.indexOf(task.quadrant);
   const next = order[(idx + 1) % 4];
   await updateDailyTask(task.id, { quadrant: next, important: next === 'Q1' || next === 'Q2', urgent: next === 'Q1' || next === 'Q3' });
   task.quadrant = next;
-  await refreshCharts();
+  await refreshAll();
 }
 
 async function removeTask(task) {
   if (!confirm('删除这个任务？')) return;
   await deleteDailyTask(task.id);
   plan.value.tasks = plan.value.tasks.filter(t => t.id !== task.id);
-  await refreshCharts();
+  await refreshAll();
+  await refreshSynergy();
 }
 
 async function clearToday() {
@@ -273,15 +217,108 @@ async function clearToday() {
   if (!confirm('删除今天整份规划及所有任务？')) return;
   await deleteDailyPlan(plan.value.plan.id);
   plan.value = null;
+  synergy.value = null;
+}
+
+// ──────────────── 图表渲染 ────────────────
+
+// DOM refs
+const quadEl = ref(null);
+const previewQuadEl = ref(null);
+const radarEl = ref(null);
+const heatEl = ref(null);
+const riskEl = ref(null);
+const scheduleEl = ref(null);
+const typeEl = ref(null);
+const compareEl = ref(null);
+
+// 图表实例
+let quadChart = null, previewQuadChart = null, radarChart = null, heatChart = null;
+let riskChart = null, scheduleChart = null, typeChart = null, compareChart = null;
+
+function initChart(refEl, old) {
+  if (!refEl?.value) return null;
+  old?.dispose();
+  return echarts.init(refEl.value);
+}
+
+async function refreshAll() {
+  await nextTick();
+  renderQuadrant();
+  renderRadar();
+  renderRisk();
+  renderSchedule();
+  renderType();
+  renderCompare();
+}
+
+function renderQuadrant() {
+  if (!quadEl.value || !plan.value?.tasks?.length) return;
+  quadChart = initChart(quadEl, quadChart);
+  quadChart.setOption(quadrantOption(plan.value.tasks));
+}
+
+function renderPreviewQuad() {
+  if (!previewQuadEl.value || !preview.value) return;
+  previewQuadChart = initChart(previewQuadEl, previewQuadChart);
+  previewQuadChart.setOption(quadrantOption(preview.value.tasks));
+}
+
+function renderRadar() {
+  if (!radarEl.value) return;
+  radarChart = initChart(radarEl, radarChart);
+  radarChart.setOption(completion.value.length ? radarOption(completion.value) : emptyOption('暂无完成数据'));
+}
+
+function renderRisk() {
+  if (!riskEl.value) return;
+  riskChart = initChart(riskEl, riskChart);
+  riskChart.setOption(risks.value.length ? riskOption(risks.value) : emptyOption('暂无风险任务 🎉'));
+}
+
+function renderSchedule() {
+  if (!scheduleEl.value) return;
+  scheduleChart = initChart(scheduleEl, scheduleChart);
+  const tasks = plan.value?.tasks || [];
+  scheduleChart.setOption(tasks.length ? scheduleOption(tasks) : emptyOption('暂无日程'));
+}
+
+function renderType() {
+  if (!typeEl.value) return;
+  typeChart = initChart(typeEl, typeChart);
+  const tasks = plan.value?.tasks || [];
+  typeChart.setOption(tasks.length ? typeBreakdownOption(tasks) : emptyOption('暂无任务'));
+}
+
+function renderCompare() {
+  if (!compareEl.value) return;
+  compareChart = initChart(compareEl, compareChart);
+  compareChart.setOption(completion.value.length ? compareBarOption(completion.value) : emptyOption('暂无对比数据'));
+}
+
+function renderHeat() {
+  if (!heatEl.value || !heat.value.length) return;
+  heatChart = initChart(heatEl, heatChart);
+  heatChart.setOption(heatmapOption(heat.value));
+}
+
+function disposePreviewQuad() { previewQuadChart?.dispose(); previewQuadChart = null; }
+function disposeAllCharts() {
+  [quadChart, previewQuadChart, radarChart, heatChart, riskChart, scheduleChart, typeChart, compareChart].forEach(c => c?.dispose());
+}
+
+// 响应式 resize
+function handleResize() {
+  [quadChart, previewQuadChart, radarChart, heatChart, riskChart, scheduleChart, typeChart, compareChart].forEach(c => c?.resize());
 }
 </script>
 
 <template>
   <div class="dp-page">
-    <h2 style="margin:0 0 4px">📅 每日规划 · 打卡</h2>
+    <h2 style="margin:0 0 4px">📅 每日规划 · 打卡 · 多维分析</h2>
     <p class="hint" style="margin:0 0 16px">
-      口述你今天的规划（如「复习 30 张卡片，最优先；番茄钟 25 分钟；看线代讲义，重要」），
-      自动解析成任务 + 四象限，逐个打卡，晚上看「规划 vs 实绩」对比。
+      口述今日规划（如「复习 30 张卡片，最优先；下午 3 点做 10 道线代题；番茄钟 25 分钟」），
+      智能解析为结构化任务 + 四象限，多维图表追踪，打卡后看「规划 vs 实绩」对比。
     </p>
 
     <!-- 输入区 -->
@@ -290,9 +327,12 @@ async function clearToday() {
         v-model="rawInput"
         class="input dp-textarea"
         rows="4"
-        placeholder="例：复习 30 张卡片，最优先；番茄钟 25 分钟；看线代第三章讲义，重要；做 10 道题；刷手机"
+        placeholder="例：复习 30 张卡片，最优先；下午 3 点做 10 道线代题；番茄钟 25 分钟；看第三章讲义，重要；整理错题本"
       />
       <div class="dp-input-actions">
+        <label class="dp-llm-toggle" title="勾选后优先用 AI 解析（更准确），失败自动回退离线">
+          <input type="checkbox" v-model="useLLM" /> ✨ AI 智能解析
+        </label>
         <button class="btn primary" :disabled="parsing" @click="submitPlan">
           {{ parsing ? '解析中…' : '🔍 解析规划' }}
         </button>
@@ -303,6 +343,9 @@ async function clearToday() {
     <div v-if="preview" class="dp-preview">
       <div class="dp-preview-head">
         <span>解析预览（确认后入库，可编辑）</span>
+        <span class="dp-source" :class="'src-' + preview.source">
+          {{ preview.source === 'llm' ? '✨ AI' : '⚡ 离线' }}
+        </span>
         <span style="flex:1"></span>
         <button class="btn primary" :disabled="busy" @click="confirmPlan">确认入库</button>
         <button class="btn" @click="cancelPreview">取消</button>
@@ -310,6 +353,7 @@ async function clearToday() {
       <div v-for="(t, i) in preview.tasks" :key="i" class="dp-task-row">
         <span class="dp-type">{{ TYPE_ICON[t.type] }} {{ TYPE_LABEL[t.type] }}</span>
         <span class="dp-title">{{ t.title }}</span>
+        <span v-if="t.scheduledHour != null" class="dp-meta-item">⏰ {{ t.scheduledHour }}:00</span>
         <span class="dp-tag q-{{ t.quadrant }}">{{ t.quadrant }}</span>
       </div>
       <div ref="previewQuadEl" class="dp-quad" style="height:300px"></div>
@@ -320,60 +364,88 @@ async function clearToday() {
       <div class="dp-plan-head">
         <div>
           <span class="dp-date">{{ plan.plan.date }}</span>
-          <span class="hint">共 {{ summary.total }} 个任务 · 完成率 {{ summary.doneRate }}%</span>
+          <span class="hint">共 {{ summary.total }} 个任务 · 完成率 {{ summary.doneRate }}% · 总达成 {{ overallRate }}%</span>
         </div>
         <div style="display:flex;gap:8px">
+          <button class="btn" @click="showAddTask = !showAddTask">➕ 中途加任务</button>
           <button class="btn" @click="rawInput=''; plan=null">重新规划</button>
           <button class="btn" @click="clearToday">删除今天</button>
         </div>
       </div>
 
-      <!-- 跨模块真实数据 -->
-      <div v-if="reality" class="dp-reality">
-        <span class="dp-reality-item">📖 今日已复习 <b>{{ reality.reviewsToday }}</b> 次</span>
-        <span class="dp-reality-item">🍅 今日专注 <b>{{ reality.pomodoroMinutes }}</b> 分钟</span>
-        <span class="dp-reality-item">📚 今日资料 <b>{{ reality.docsToday }}</b> 份</span>
+      <!-- 中途加任务 -->
+      <div v-if="showAddTask" class="dp-add">
+        <input v-model="addInput" class="input" placeholder="例：背 20 个英语单词，重要；下午 4 点整理笔记" @keyup.enter="appendTasks" />
+        <button class="btn primary" :disabled="busy" @click="appendTasks">追加</button>
+        <button class="btn" :disabled="busy" @click="addManualTask">单任务</button>
       </div>
 
-      <!-- 四象限图 -->
-      <div ref="quadEl" class="dp-quad" style="height:360px"></div>
+      <!-- 跨模块真实数据 -->
+      <div v-if="synergy" class="dp-reality">
+        <span class="dp-reality-item">📖 今日复习 <b>{{ synergy.totals.reviews }}</b> 次</span>
+        <span class="dp-reality-item">🍅 今日专注 <b>{{ synergy.totals.focusMinutes }}</b> 分</span>
+        <span class="dp-reality-item">🃏 今日新建卡 <b>{{ synergy.totals.newCards }}</b> 张</span>
+        <span class="dp-reality-item">❌ 今日错题 <b>{{ synergy.totals.wrongToday }}</b> 道</span>
+        <span class="dp-reality-item">📝 今日模考 <b>{{ synergy.totals.exams }}</b> 套{{ synergy.totals.exams ? `·均分 ${synergy.totals.examAvg}` : '' }}</span>
+      </div>
 
-      <!-- D8.3 早晚对比 + 完成率 -->
-      <div class="dp-compare">
-        <div class="dp-compare-title">🌗 早晚对比 · 规划 vs 实绩（达成率 {{ compareRate }}%）</div>
-        <div class="dp-compare-grid">
-          <!-- 完成率环形图 -->
-          <div ref="summaryEl" class="dp-compare-chart" style="height:240px"></div>
-          <!-- 对比条形 -->
-          <div class="dp-compare-bars">
-            <div v-for="row in compareRows" :key="row.label" class="dp-compare-row">
-              <span class="dp-compare-label">{{ row.icon }} {{ row.label }}</span>
-              <div class="dp-compare-bar-wrap">
-                <div class="dp-compare-bar">
-                  <div class="dp-bar-plan" :style="{ width: barWidth(row.plan) }" :title="`规划 ${row.plan}${row.unit}`"></div>
-                </div>
-                <div class="dp-compare-bar">
-                  <div class="dp-bar-actual" :style="{ width: barWidth(row.actual) }" :title="`实际 ${row.actual}${row.unit}`"></div>
-                </div>
-              </div>
-              <span class="dp-compare-num">
-                <b class="c-plan">{{ row.plan }}</b> / <b class="c-actual">{{ row.actual }}</b> {{ row.unit }}
-              </span>
-            </div>
-            <div class="dp-compare-legend">
-              <span class="lg-plan">■ 规划</span><span class="lg-actual">■ 实际</span>
-            </div>
-          </div>
+      <!-- 多维图表网格 -->
+      <div class="dp-charts-grid">
+        <div class="dp-chart-card">
+          <div class="dp-chart-title">🎯 四象限（艾森豪威尔）</div>
+          <div ref="quadEl" class="dp-chart" style="height:340px"></div>
+        </div>
+        <div class="dp-chart-card">
+          <div class="dp-chart-title">🛰️ 多维完成率雷达</div>
+          <div ref="radarEl" class="dp-chart" style="height:340px"></div>
+        </div>
+        <div class="dp-chart-card">
+          <div class="dp-chart-title">📊 规划 vs 实际</div>
+          <div ref="compareEl" class="dp-chart" style="height:340px"></div>
+        </div>
+        <div class="dp-chart-card">
+          <div class="dp-chart-title">🥧 任务类型分布</div>
+          <div ref="typeEl" class="dp-chart" style="height:340px"></div>
+        </div>
+        <div class="dp-chart-card">
+          <div class="dp-chart-title">⚠️ 风险任务（{{ risks.length }}）</div>
+          <div ref="riskEl" class="dp-chart" style="height:340px"></div>
+        </div>
+        <div class="dp-chart-card">
+          <div class="dp-chart-title">⏰ 日程时间轴</div>
+          <div ref="scheduleEl" class="dp-chart" style="height:340px"></div>
+        </div>
+      </div>
+
+      <!-- 84 天热力矩阵 -->
+      <div class="dp-chart-card" style="margin-top:12px">
+        <div class="dp-chart-title">🔥 最近 84 天完成率热力图（GitHub 风格）</div>
+        <div ref="heatEl" class="dp-chart" style="height:200px"></div>
+      </div>
+
+      <!-- 风险任务详情 -->
+      <div v-if="risks.length" class="dp-risk-list">
+        <div class="dp-chart-title">⚠️ 今日风险任务清单</div>
+        <div v-for="(r, i) in risks" :key="i" class="dp-risk-row" :class="'sev-' + r.severity">
+          <span class="dp-risk-badge sev-{{ r.severity }}">{{ r.severity.toUpperCase() }}</span>
+          <span class="dp-type">{{ TYPE_ICON[r.task.type] }}</span>
+          <span class="dp-title">{{ r.task.title }}</span>
+          <span class="dp-risk-reason">{{ r.reason }}</span>
+          <span class="dp-tag q-{{ r.task.quadrant }}">{{ r.task.quadrant }}</span>
         </div>
       </div>
 
       <!-- 任务列表 + 打卡 -->
       <div class="dp-tasks">
+        <div class="dp-chart-title">📋 任务清单</div>
         <div v-for="t in plan.tasks" :key="t.id" class="dp-task" :class="'st-' + t.status">
           <div class="dp-task-main">
             <span class="dp-type">{{ TYPE_ICON[t.type] }} {{ TYPE_LABEL[t.type] }}</span>
             <div class="dp-task-body">
-              <div class="dp-title">{{ t.title }}</div>
+              <div class="dp-title">
+                {{ t.title }}
+                <span v-if="t.scheduledHour != null" class="dp-meta-item">⏰ {{ t.scheduledHour }}:00</span>
+              </div>
               <div class="dp-meta">
                 <span class="dp-tag q-{{ t.quadrant }}" @click="toggleQuadrant(t)" title="点击切换象限">{{ t.quadrant }} {{ QUADRANT_LABEL[t.quadrant] }}</span>
                 <span v-if="t.targetCount" class="dp-meta-item">🎯 {{ t.targetCount }} 项</span>
@@ -397,40 +469,42 @@ async function clearToday() {
 </template>
 
 <style scoped>
-.dp-page { max-width: 960px; margin: 0 auto; }
+.dp-page { max-width: 1100px; margin: 0 auto; }
 .dp-input { display: flex; flex-direction: column; gap: 10px; }
 .dp-textarea { resize: vertical; min-height: 90px; }
-.dp-input-actions { display: flex; justify-content: flex-end; }
+.dp-input-actions { display: flex; align-items: center; gap: 12px; justify-content: flex-end; }
+.dp-llm-toggle { font-size: 12px; color: var(--ink-2); display: flex; align-items: center; gap: 4px; cursor: pointer; }
 
 .dp-preview, .dp-plan { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 16px; }
 .dp-preview-head, .dp-plan-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .dp-date { font-weight: 700; font-size: 15px; margin-right: 10px; }
 
+.dp-source { padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.dp-source.src-llm { background: #e6f2ff; color: #1e40af; }
+.dp-source.src-offline { background: #f0efed; color: #6b5e50; }
+
+.dp-add { display: flex; gap: 8px; margin-bottom: 12px; }
+.dp-add .input { flex: 1; }
+
 .dp-reality { display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: color-mix(in srgb, var(--accent) 5%, transparent); border-radius: 8px; margin-bottom: 14px; }
 .dp-reality-item { font-size: 13px; }
 .dp-reality-item b { font-size: 15px; }
 
-/* D8.3 早晚对比 */
-.dp-compare { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 14px; }
-.dp-compare-title { font-weight: 700; font-size: 14px; margin-bottom: 10px; }
-.dp-compare-grid { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
-.dp-compare-chart { min-height: 200px; }
-.dp-compare-bars { display: flex; flex-direction: column; gap: 10px; }
-.dp-compare-row { display: flex; align-items: center; gap: 10px; }
-.dp-compare-label { width: 70px; flex-shrink: 0; font-size: 13px; }
-.dp-compare-bar-wrap { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-.dp-compare-bar { height: 10px; background: var(--panel-2, #f0efed); border-radius: 5px; overflow: hidden; }
-.dp-bar-plan { height: 100%; background: #d4a853; border-radius: 5px; transition: width .5s; }
-.dp-bar-actual { height: 100%; background: #7ba87b; border-radius: 5px; transition: width .5s; }
-.dp-compare-num { width: 120px; flex-shrink: 0; font-size: 12px; color: var(--ink-2); text-align: right; }
-.dp-compare-num .c-plan { color: #b45309; }
-.dp-compare-num .c-actual { color: #2e7d32; }
-.dp-compare-legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin-left: 80px; }
-.lg-plan { color: #d4a853; }
-.lg-actual { color: #7ba87b; }
-@media (max-width: 720px) {
-  .dp-compare-grid { grid-template-columns: 1fr; }
-}
+.dp-charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px; }
+.dp-chart-card { border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2, var(--panel)); padding: 12px; }
+.dp-chart-title { font-weight: 700; font-size: 13px; margin-bottom: 8px; color: var(--ink-2); }
+.dp-chart { width: 100%; }
+
+.dp-risk-list { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin: 12px 0; background: color-mix(in srgb, #e8735a 4%, var(--panel)); }
+.dp-risk-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 13px; }
+.dp-risk-row.sev-high { background: #fde8e8; }
+.dp-risk-row.sev-medium { background: #fef3c7; }
+.dp-risk-row.sev-low { background: #e6f2e6; }
+.dp-risk-badge { padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; color: #fff; }
+.dp-risk-badge.sev-high { background: #e8735a; }
+.dp-risk-badge.sev-medium { background: #d4a853; }
+.dp-risk-badge.sev-low { background: #7ba87b; }
+.dp-risk-reason { flex: 1; color: var(--ink-2); font-style: italic; font-size: 12px; }
 
 .dp-quad { width: 100%; margin: 10px 0; }
 
@@ -461,6 +535,7 @@ async function clearToday() {
 .dp-meta .dp-tag { cursor: pointer; }
 
 @media (max-width: 720px) {
+  .dp-charts-grid { grid-template-columns: 1fr; }
   .dp-task { flex-direction: column; }
   .dp-task-actions { width: 100%; flex-wrap: wrap; }
 }

@@ -456,6 +456,51 @@ export async function deleteDailyTask(id) {
   await db.tombstones.put({ id, kind: 'dailyTask', deletedAt: now() });
 }
 
+/**
+ * 中途追加任务到现有当日计划（口述/手动添加均可）。
+ * @param {string} planId 关联的 dailyPlans.id
+ * @param {object} task 任务字段（title/type/quadrant/...），缺省字段会被填默认值
+ */
+export async function addDailyTask(planId, task = {}) {
+  const plan = await db.dailyPlans.get(planId);
+  if (!plan) throw new Error('当日计划不存在，请先创建计划');
+  const t = now();
+  const row = {
+    id: uid(),
+    planId,
+    date: plan.date,
+    title: String(task.title || '新任务').slice(0, 200),
+    type: task.type || 'other',
+    important: !!task.important,
+    urgent: !!task.urgent,
+    quadrant: task.quadrant || 'Q4',
+    targetCount: Number.isFinite(task.targetCount) ? Number(task.targetCount) : null,
+    estimatedMinutes: Number.isFinite(task.estimatedMinutes) ? Number(task.estimatedMinutes) : null,
+    subject: task.subject || '',
+    scheduledHour: Number.isFinite(task.scheduledHour) ? Math.floor(task.scheduledHour) : null,
+    status: 'pending',
+    completedAt: null,
+    completionNote: '',
+    createdAt: t, updatedAt: t,
+  };
+  await db.dailyTasks.put(row);
+  // 同步更新计划头的 updatedAt（便于跨设备同步）
+  await db.dailyPlans.put({ ...plan, updatedAt: t });
+  fireHook('onDailyTaskAdded', row);
+  return row;
+}
+
+/** 把口述文本解析后批量追加到现有当日计划（中途补充） */
+export async function appendDailyTasksByText(planId, text) {
+  const raw = String(text || '').trim();
+  if (!raw) return [];
+  const { parsePlan } = await import('./utils/plan-parser.js');
+  const parsed = parsePlan(raw);
+  const rows = [];
+  for (const p of parsed) rows.push(await addDailyTask(planId, p));
+  return rows;
+}
+
 /** 删除整日计划 + 其任务（联级） */
 export async function deleteDailyPlan(planId) {
   await db.dailyPlans.delete(planId);
