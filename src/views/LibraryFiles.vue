@@ -13,6 +13,8 @@ import {
 import { OCR_LANG_OPTIONS } from '../utils/ocr.js';
 import { textToCardDrafts } from '../utils/card-drafts.js';
 import { askDoc } from '../utils/docs-qa.js';
+import ExportButton from '../components/ExportButton.vue';
+import { exportLibraryToJSON, exportLibraryToMarkdown } from '../utils/exporters.js';
 
 const ACCEPT = '.pdf,.xlsx,.xls,.csv,.docx,.doc,.txt,.md,.tex,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg';
 
@@ -122,6 +124,19 @@ async function load() {
   storage.value = await getStorageInfo();
   persisted.value = !!(await ensurePersist());
 }
+
+/** 取资料全文长度（docTexts 表），N 通常不大，可接受 N+1 读 */
+async function getTextLen(id) {
+  const t = await getDocText(id);
+  return t?.text?.length || 0;
+}
+
+const libraryExportFormats = [
+  { key: 'md', label: 'Markdown', hint: '人类可读', mime: 'text/markdown', ext: 'md',
+    build: async (rows) => exportLibraryToMarkdown(rows, getTextLen) },
+  { key: 'json', label: 'JSON', hint: '可备份恢复', mime: 'application/json', ext: 'json',
+    build: async (rows) => exportLibraryToJSON(rows, getTextLen) },
+];
 
 async function onPick(e) {
   const list = Array.from(e.target.files || []);
@@ -292,7 +307,17 @@ onMounted(async () => {
   <div style="max-width:1100px;margin:0 auto">
     <!-- Hero / 上传 -->
     <div class="mat-hero">
-      <h2 style="margin:0 0 6px">📚 学习资料中枢</h2>
+      <div class="lib-title-row">
+        <h2 style="margin:0 0 6px">📚 学习资料中枢</h2>
+        <ExportButton
+          v-if="files.length"
+          :data="files"
+          :count="files.length"
+          filename-prefix="library"
+          label="导出清单"
+          :formats="libraryExportFormats"
+        />
+      </div>
       <p class="hint" style="margin:0 0 14px;line-height:1.8">
         上传真题 / 讲义 / 笔记 → 全量解析（几百 MB 大文件不切片）→ 在线预览 → 对资料提问 → 一键生成卡片（<b>需你确认后才入库</b>）。<br>
         原文件存本机（OPFS 专属大仓库），元数据可跨设备同步；解析全文与问答索引本地保存。
@@ -483,6 +508,7 @@ onMounted(async () => {
 <style scoped>
 .mat-hero { background: linear-gradient(135deg, var(--panel), var(--code-bg)); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; margin-bottom: 16px; }
 .mat-upload { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lib-title-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
 .subject-sel { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font-size: 13px; }
 .up-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .up-item { display: flex; align-items: center; gap: 10px; font-size: 12px; }

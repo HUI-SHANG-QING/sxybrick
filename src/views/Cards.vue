@@ -7,6 +7,8 @@ import CardModal from '../components/CardModal.vue';
 import FlipCard from '../components/FlipCard.vue';
 import EmptyState from '../components/EmptyState.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+import ExportButton from '../components/ExportButton.vue';
+import { exportCardsToJSON, exportCardsToCSV, exportCardsToMarkdown } from '../utils/exporters.js';
 import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
 import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard } from '../repo.js';
@@ -19,6 +21,20 @@ import { getForgetRisk, getAssetHealth } from '../agent/analytics.js';
 import { T } from '../utils/telemetry.js';
 
 const router = useRouter();
+
+/** 卡片列表导出选项：当前筛选条件（filters）会作为 meta 写入 JSON / Markdown 头部，便于溯源 */
+const cardsExportFormats = computed(() => {
+  const meta = {};
+  if (filters.subject) meta.subject = filters.subject;
+  if (filters.tags?.length) meta.tags = filters.tags.join(',');
+  if (filters.q) meta.query = filters.q;
+  if (weakMode.value) meta.filter = 'weak-only';
+  return [
+    { key: 'md', label: 'Markdown', hint: '人类可读', mime: 'text/markdown', ext: 'md', build: rows => exportCardsToMarkdown(rows, meta) },
+    { key: 'csv', label: 'CSV', hint: 'Excel 可打开', mime: 'text/csv', ext: 'csv', build: rows => exportCardsToCSV(rows) },
+    { key: 'json', label: 'JSON', hint: '可备份恢复', mime: 'application/json', ext: 'json', build: rows => exportCardsToJSON(rows, meta) },
+  ];
+});
 const route = useRoute();
 
 const viewMode = ref(localStorage.getItem('sxy_view') || 'scroll');
@@ -561,6 +577,14 @@ async function rescueAll() {
       <button v-if="dueCount > 0" class="btn primary" @click="router.push('/review')">专注背诵（{{ dueCount }}）→</button>
       <button class="chip" :class="{ on: weakMode }" @click="toggleWeak">错题集</button>
       <button class="btn" @click="openBatch">批量建卡</button>
+      <ExportButton
+        v-if="total > 0"
+        :data="items"
+        :count="items.length"
+        filename-prefix="cards"
+        :type="'default'"
+        :formats="cardsExportFormats"
+      />
       <button class="btn primary" @click="openCreate">＋ 新建卡</button>
     </div>
 

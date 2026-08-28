@@ -12,6 +12,10 @@ import { listGraphEdges, createGraphEdge, deleteGraphEdge } from '../repo.js';
 import { agentSystem } from '../agent/index.js';
 import { recommendGraphEdges } from '../intelligence.js';
 import { T } from '../utils/telemetry.js';
+import ExportButton from '../components/ExportButton.vue';
+import {
+  exportGraphToJSON, exportGraphToGraphML, exportGraphToMarkdown,
+} from '../utils/exporters.js';
 
 const generatedNodes = ref([]);
 const generatedEdges = ref([]);
@@ -23,6 +27,12 @@ const activeLabel = ref('');
 const activeSubject = ref('');
 const mode = ref('generated');
 const router = useRouter();
+
+const graphExportFormats = [
+  { key: 'md', label: 'Markdown', hint: '人类可读', mime: 'text/markdown', ext: 'md', build: exportGraphToMarkdown },
+  { key: 'json', label: 'JSON', hint: '节点+边', mime: 'application/json', ext: 'json', build: exportGraphToJSON },
+  { key: 'graphml', label: 'GraphML', hint: '可导入 Gephi/Cytoscape', mime: 'application/xml', ext: 'graphml', build: exportGraphToGraphML },
+];
 // 节点跳转：根据 label+subject 精确匹配卡片；1:1 命中直接带 id 打开弹窗，N:1 命中则用关键字搜索跳转
 // Phase 6.6：资料节点（type=doc-card 边的 from，label 带 📄 前缀）跳转到资料库，而非卡片
 const docNodeIds = computed(() => {
@@ -448,7 +458,16 @@ onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value
     </div>
 
     <div v-if="mode === 'saved' && savedEdges.length" class="saved-box">
-      <div class="saved-title">已保存的知识图谱（{{ savedEdges.length }} 条关联 · {{ clusters.length }} 个章节，可跨设备同步）</div>
+      <div class="saved-title-row">
+        <span class="saved-title">已保存的知识图谱（{{ savedEdges.length }} 条关联 · {{ clusters.length }} 个章节，可跨设备同步）</span>
+        <ExportButton
+          :data="savedEdges"
+          :count="savedEdges.length"
+          filename-prefix="knowledge-graph"
+          label="导出图谱"
+          :formats="graphExportFormats"
+        />
+      </div>
       <div v-for="c in clusters" :key="c.subject" class="cluster">
         <div class="cluster-title">{{ c.subject }}<span class="cluster-count">{{ c.edges.length }} 条</span></div>
         <div v-for="e in c.edges" :key="e.id" class="saved-edge">
@@ -484,7 +503,8 @@ onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value
 .graph-box { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 8px; }
 .chip { font-size: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
 .saved-box { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 12px; margin-top: 14px; }
-.saved-title { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
+.saved-title-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.saved-title { font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .saved-edge { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
 .saved-edge:last-child { border-bottom: none; }
 .saved-rel { color: var(--accent); font-size: 12px; }

@@ -5,6 +5,10 @@ import { useRoute } from 'vue-router';
 import { toast } from '../utils/toast.js';
 import { listMemos, addMemo, deleteMemo } from '../repo.js';
 import VoiceInput from '../components/VoiceInput.vue';
+import ExportButton from '../components/ExportButton.vue';
+import {
+  exportMemosToJSON, exportMemosToMarkdown, exportMemosToCSV,
+} from '../utils/exporters.js';
 
 const route = useRoute();
 const memos = ref([]);
@@ -23,6 +27,12 @@ async function add() {
   await load();
 }
 async function remove(id) { await deleteMemo(id); await load(); }
+
+const memoExportFormats = [
+  { key: 'md', label: 'Markdown', hint: '人类可读', mime: 'text/markdown', ext: 'md', build: exportMemosToMarkdown },
+  { key: 'json', label: 'JSON', hint: '可备份恢复', mime: 'application/json', ext: 'json', build: exportMemosToJSON },
+  { key: 'csv', label: 'CSV', hint: 'Excel 可打开', mime: 'text/csv', ext: 'csv', build: exportMemosToCSV },
+];
 
 const quadrants = computed(() => {
   const g = { q1: [], q2: [], q3: [], q4: [] };
@@ -49,7 +59,16 @@ onMounted(applyRouteId);
 
 <template>
   <div style="max-width:900px;margin:0 auto">
-    <h2 style="margin:0 0 4px">备忘录 · 四象限</h2>
+    <div class="page-header-row">
+      <h2 style="margin:0 0 4px">备忘录 · 四象限</h2>
+      <ExportButton
+        :data="memos"
+        :count="memos.length"
+        filename-prefix="memos"
+        label="导出备忘"
+        :formats="memoExportFormats"
+      />
+    </div>
     <p class="hint" style="margin:0 0 16px">按「重要 / 紧急」给事项分类：先做重要且紧急的。数据可随数据包同步。</p>
 
     <div class="panel">
@@ -97,6 +116,7 @@ onMounted(applyRouteId);
 
 <style scoped>
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px; }
+.page-header-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
 .input-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .input-row .input { flex: 1; min-width: 160px; }
 .mini-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer; user-select: none; }
