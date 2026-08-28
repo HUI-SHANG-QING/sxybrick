@@ -8,7 +8,7 @@ import { toast } from '../utils/toast.js';
 import {
   uploadFile, listDocFiles, deleteDocFile, retryParse,
   getDocText, getStorageInfo, ensurePersist, confirmDrafts, getFileBlob,
-  ocrDoc, getOcrSettings, saveOcrSettings,
+  ocrDoc, getOcrSettings, saveOcrSettings, linkDocToCards,
 } from '../docs-lib.js';
 import { OCR_LANG_OPTIONS } from '../utils/ocr.js';
 import { textToCardDrafts } from '../utils/card-drafts.js';
@@ -85,6 +85,18 @@ async function runOcr(f) {
   } finally {
     ocr.value.busy = false;
     await load();
+  }
+}
+
+// 知识图谱联动：把资料与它覆盖的卡片建「涵盖」边
+async function runLink(f) {
+  try {
+    const r = await linkDocToCards(f.id);
+    toast(r.created
+      ? `已关联 ${r.created} 张卡片（${r.skipped ? `跳过 ${r.skipped} 条重复` : ''}），可在「知识图谱」查看`
+      : '未找到可关联的卡片（需同科目且卡片内容出自该资料）', r.created ? 'success' : 'info');
+  } catch (e) {
+    toast('关联失败：' + (e?.message || e), 'error');
   }
 }
 
@@ -373,6 +385,7 @@ onMounted(async () => {
             <button class="btn small" @click="openPreview(f)">预览</button>
             <button class="btn small" @click="openQA(f)">问答</button>
             <button class="btn small accent" @click="openDrafts(f)">生成卡片</button>
+            <button class="btn small" @click="runLink(f)" title="把资料与它覆盖的卡片建立知识图谱关联">🔗 关联卡片</button>
           </template>
           <button v-else-if="f.status === 'failed'" class="btn small" @click="retry(f.id)">重试</button>
           <button v-if="needsOcr(f)" class="btn small accent" :disabled="ocr.busy" @click="runOcr(f)">🔍 OCR 识别</button>

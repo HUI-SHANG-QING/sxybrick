@@ -424,9 +424,13 @@ export async function createGraphEdge(payload) {
   // from/to 仍保留（兼容遗留数据 + 图谱节点显示用 label）；fromCardId/toCardId 为稳定连接键
   const fromCardId = payload?.fromCardId ? String(payload.fromCardId) : '';
   const toCardId = payload?.toCardId ? String(payload.toCardId) : '';
-  // 去重：双方都有 cardId 时按 cardId 去重（精准）；否则回退 label 去重（遗留兼容）
+  // Phase 6.6：资料边（资料 → 卡片「涵盖」）用 docId 标识来源资料 + type 区分
+  const docId = String(payload?.docId || '');
+  const type = String(payload?.type || '');
+  // 去重优先级：docId（资料边）> cardId（卡片边）> label（遗留兼容）
   const exists = await db.graphEdges.filter(e => {
     const sameLabel = (e.label || '相关') === label;
+    if (docId) return e.docId === docId && e.to === to && sameLabel;
     if (fromCardId && toCardId) return e.fromCardId === fromCardId && e.toCardId === toCardId && sameLabel;
     return e.from === from && e.to === to && sameLabel;
   }).first();
@@ -436,6 +440,8 @@ export async function createGraphEdge(payload) {
     id: uid(), from, to, fromCardId, toCardId,
     label,
     subject,
+    docId,
+    type,
     createdAt: t, updatedAt: t,
   };
   await db.graphEdges.put(e);

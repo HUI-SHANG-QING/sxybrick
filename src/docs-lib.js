@@ -15,8 +15,9 @@ import {
   buildOcrAssets, buildCloudOcrRequest, parseCloudOcrResponse,
 } from './utils/ocr.js';
 import { indexDoc } from './agent/retrieval.js';
-import { createCard } from './repo.js';
+import { createCard, createGraphEdge } from './repo.js';
 import { draftToCardPayload, validateDraft } from './utils/card-drafts.js';
+import { cardInDoc, buildDocCardEdges, excerptAround, traceCardDocId } from './utils/doc-graph.js';
 
 const IDB_FALLBACK_MAX = 10 * 1024 * 1024; // OPFS 不可用时 ≤10MB 文件降级 IndexedDB
 
@@ -119,6 +120,8 @@ export async function parseDoc(docId, opts = {}) {
     } catch (e) {
       console.warn('[docs-lib] 向量索引失败（可稍后重建）:', e?.message || e);
     }
+    // 知识图谱联动（fire-and-forget：资料 → 覆盖卡片建「涵盖」边）
+    void linkDocToCards(docId).catch((e) => console.warn('[docs-lib] 自动关联卡片失败:', e?.message || e));
     return { ok: true, textLen: text.length, pageCount: result.pageCount };
   } catch (e) {
     const msg = String(e?.message || e);
@@ -147,7 +150,7 @@ export async function getDocText(id) {
   return (await db.docTexts.get(id))?.text || '';
 }
 
-/** 删除：原文件（OPFS）→ docFiles → docTexts → embeddings → 墓碑 */
+/** 删除：原文件（OPFS）→ docFiles → docTexts → embeddings → 图谱边 → 墓碑 */
 export async function deleteDocFile(id) {
   const row = await db.docFiles.get(id);
   if (!row) return;
@@ -155,6 +158,7 @@ export async function deleteDocFile(id) {
   await db.docFiles.delete(id);
   await db.docTexts.delete(id);
   await db.embeddings.where('sourceId').equals(id).delete();
+  await db.graphEdges.filter((e) => e.docId === id).delete(); // 清理资料 → 卡片图谱边
   await db.tombstones.put({ id, kind: 'docFile', deletedAt: Date.now() });
 }
 
@@ -331,10 +335,62 @@ export async function ocrDoc(docId, opts = {}) {
     });
     try { await indexDoc({ id: docId, text: clean, subject: row.name }); }
     catch (e) { console.warn('[docs-lib] 向量索引失败（可稍后重建）:', e?.message || e); }
+    void linkDocToCards(docId).catch((e) => console.warn('[docs-lib] 自动关联卡片失败:', e?.message || e));
     return { ok: true, textLen: clean.length };
   } catch (e) {
     const msg = String(e?.message || e);
     await db.docFiles.update(docId, { status: 'failed', error: msg, updatedAt: Date.now() });
     return { ok: false, error: msg };
   }
+}
+
+// ---------- 知识图谱联动（Phase 6.6：资料 → 覆盖卡片「涵盖」边） ----------
+
+/**
+ * 把资料与它覆盖的卡片建「涵盖」边（资料成为图谱节点）。
+ * 匹配：同 subject 卡片，且卡片 front 核心是资料全文子串（零 LLM/零新索引）。
+ * 幂等：createGraphEdge 按 docId+to+label 去重。
+ * @param {string} docId
+ * @param {object} opts { limit=50 }
+ * @returns {Promise<{created:number, skipped:number}>}
+ */
+export async function linkDocToCards(docId, opts = {}) {
+  const doc = await db.docFiles.get(docId);
+  if (!doc) return { created: 0, skipped: 0 };
+  const text = await getDocText(docId);
+  if (!text?.trim()) return { created: 0, skipped: 0 };
+  const all = await db.cards.toArray();
+  const subject = String(doc.subject || '');
+  const pool = subject ? all.filter((c) => (c.subject || '') === subject) : all;
+  const hits = pool.filter((c) => cardInDoc(c, text));
+  const edges = buildDocCardEdges(doc, hits.slice(0, opts.limit ?? 50));
+  let created = 0;
+  let skipped = 0;
+  for (const e of edges) {
+    const r = await createGraphEdge({
+      from: e.from, to: e.to, label: e.label, subject: e.subject, docId: e.docId, type: e.type,
+    });
+    if (r) created++; else skipped++;
+  }
+  return { created, skipped };
+}
+
+/**
+ * 错题溯源：卡片 → 来源资料 + 原文上下文片段。
+ * 优先走血缘（card.source = docFiles.id）；无血缘返回 null。
+ * @param {string} cardId
+ * @returns {Promise<{doc:{id,name,subject}, excerpt:string}|null>}
+ */
+export async function traceCardSource(cardId) {
+  const card = await db.cards.get(cardId);
+  if (!card) return null;
+  const docId = traceCardDocId(card);
+  if (!docId) return null;
+  const doc = await db.docFiles.get(docId);
+  if (!doc) return null;
+  const text = await getDocText(docId);
+  return {
+    doc: { id: doc.id, name: doc.name, subject: String(doc.subject || '') },
+    excerpt: excerptAround(text, card.front),
+  };
 }

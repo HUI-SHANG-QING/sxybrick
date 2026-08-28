@@ -24,8 +24,22 @@ const activeSubject = ref('');
 const mode = ref('generated');
 const router = useRouter();
 // 节点跳转：根据 label+subject 精确匹配卡片；1:1 命中直接带 id 打开弹窗，N:1 命中则用关键字搜索跳转
+// Phase 6.6：资料节点（type=doc-card 边的 from，label 带 📄 前缀）跳转到资料库，而非卡片
+const docNodeIds = computed(() => {
+  const m = new Map();
+  for (const e of savedEdges.value) {
+    if (e.type === 'doc-card') m.set(e.from, e.docId || '');
+  }
+  return m;
+});
+
 async function jumpToNodeCard(label, subject) {
   if (!label) return;
+  if (docNodeIds.value.has(label)) {
+    toast(`已跳转到资料库「${String(label).replace(/^📄\s*/, '')}」`, 'info');
+    router.push('/materials');
+    return;
+  }
   const q = String(label).trim();
   const sub = String(subject || '').trim();
   try {
@@ -319,7 +333,7 @@ async function loadSaved() {
   const labelSet = new Set();
   list.forEach(e => { labelSet.add(e.from); labelSet.add(e.to); });
   savedNodes.value = [...labelSet].map(label => ({ id: label, label, subject: '' }));
-  savedEdges.value = list.map(e => ({ id: e.id, from: e.from, to: e.to, label: e.label || '', subject: e.subject || '' }));
+  savedEdges.value = list.map(e => ({ id: e.id, from: e.from, to: e.to, label: e.label || '', subject: e.subject || '', docId: e.docId || '', type: e.type || '' }));
   if (list.length) mode.value = 'saved';
   nextTick(() => { if (chart && savedNodes.value.length) render(); });
 }
