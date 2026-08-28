@@ -3,7 +3,7 @@
 // 所有删除走 deleteCard（墓碑跨设备传播）+ 图片直接清理，保证多端一致
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { getAssetHealth, getNetWorth } from '../agent/analytics.js';
+import { getAssetHealth, getNetWorth, getSourceOverview } from '../agent/analytics.js';
 import { deleteCard } from '../repo.js';
 import { db } from '../db.js';
 import { toast } from '../utils/toast.js';
@@ -12,6 +12,7 @@ import { T } from '../utils/telemetry.js';
 const router = useRouter();
 const health = ref(null);
 const networth = ref(null);
+const sources = ref(null); // { bySource, variantCount, untraced, totalSources }
 const busy = ref(false);
 
 // 跳转到 /cards + 指定筛选参数；默认全展开（背诵效果页，用户先预览再决定是否编辑）
@@ -27,8 +28,8 @@ function openOrphans() { jumpCards({ orphan: '1', expandAll: '1' }); }
 async function load() {
   busy.value = true;
   try {
-    const [h, nw] = await Promise.all([getAssetHealth(), getNetWorth()]);
-    health.value = h; networth.value = nw;
+    const [h, nw, src] = await Promise.all([getAssetHealth(), getNetWorth(), getSourceOverview()]);
+    health.value = h; networth.value = nw; sources.value = src;
     try { T.healthScan(); } catch {}
   }
   catch (e) { toast(e.message, 'error'); }
@@ -113,6 +114,22 @@ onMounted(load);
           <span class="hint" style="min-width:150px;text-align:right">净值 {{ s.value }} / 原值 {{ s.ideal }} · {{ s.retentionRate }}%</span>
         </div>
       </div>
+    </div>
+
+    <!-- 来源资产（源→卡→数据全血缘） -->
+    <div v-if="sources" class="panel" style="margin-top:14px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="field-label" style="margin:0">来源资产</span>
+        <span class="hint">卡片按「来源」聚合的资产视图（{{ sources.totalSources }} 个来源{{ sources.variantCount ? ` · ${sources.variantCount} 张变式卡` : '' }}{{ sources.untraced ? ` · ${sources.untraced} 张无来源` : '' }}）</span>
+      </div>
+      <div v-if="sources.bySource.length" style="margin-top:10px">
+        <div v-for="s in sources.bySource" :key="s.source" class="health-row">
+          <span class="hint" style="flex:1;min-width:150px">{{ s.source }} <span style="color:var(--ink-2)">（{{ s.cards }} 张）</span></span>
+          <div class="nw-track"><div class="nw-bar" :style="{ width: Math.max(4, s.mastery) + '%' }"></div></div>
+          <span class="hint" style="min-width:200px;text-align:right">净值 {{ s.value }} · 已复习 {{ s.reviewed }}{{ s.due ? ` · 待背 ${s.due}` : '' }}{{ s.marked ? ` · 错题 ${s.marked}` : '' }}</span>
+        </div>
+      </div>
+      <div v-else class="hint" style="margin-top:8px">暂无卡片来源数据。</div>
     </div>
 
     <!-- 重复卡 -->

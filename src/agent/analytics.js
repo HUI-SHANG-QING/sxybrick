@@ -679,3 +679,11 @@ export async function getSubjectRetentionMap() {
   const base = calibrateFromStats(0.9, calib);
   return subjectRetentionMap(s.mastery, base);
 }
+
+// ---------- 源→卡→数据全血缘（source lineage）----------
+// 来源聚合 + 单卡血缘追溯；纯函数在 algorithms/source-trace.js，这里只做 IO。
+import { sourceOverview } from '../algorithms/source-trace.js';
+export async function getSourceOverview() {
+  const cards = await db.cards.toArray();
+  return sourceOverview(cards);
+}
