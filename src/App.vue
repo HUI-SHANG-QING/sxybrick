@@ -17,6 +17,9 @@ const InkLandscape = defineAsyncComponent(() => import('./components/InkLandscap
 import { useThemeStore, STYLES, MODES } from './stores/theme.js';
 import { getProactiveScheduler } from './agent/proactive.js';
 import { getAIConfig } from './ai.js';
+// 日程表到点提醒：全局调度 + 视觉浮层（桌面/平板/手机同一逻辑，默认静音）
+import PlanReminderLayer from './components/PlanReminderLayer.vue';
+import { startReminderScheduler } from './utils/plan-reminder.js';
 // P3-2 PWA 离线优化：离线指示 / 新版本提示 / 配额告警
 import {
   isOnline, subscribeOnline, subscribeSwUpdate, subscribeOfflineReady,
@@ -247,6 +250,8 @@ onMounted(() => {
   window.addEventListener('beforeinstallprompt', onBeforeInstall);
   if (!localStorage.getItem('sxy_onboarding_done')) beginOnboarding();
   startReminderLoop();
+  // 日程表到点提醒（全局调度，任何路由打开都生效）
+  stopPlanReminder = startReminderScheduler();
   // 主动智能体：后台轮询学习数据，主动推送建议到通知中心
   getProactiveScheduler().start({ cfgGetter: () => getAIConfig() });
 
@@ -276,6 +281,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('beforeinstallprompt', onBeforeInstall);
   clearInterval(reminderTimer);
+  stopPlanReminder?.();
   getProactiveScheduler().stop();
   unsubOnline?.(); unsubSwUpdate?.(); unsubOfflineReady?.(); unsubQuotaWarn?.();
 });
@@ -285,6 +291,7 @@ onBeforeUnmount(() => {
 // 每个条件当日只触发一次；当日达标也只发一次庆祝
 const remindTime = ref(localStorage.getItem('sxy_remind_time') || '');
 let reminderTimer = null;
+let stopPlanReminder = null;   // 日程表到点提醒调度器的 stop 函数
 const REMINDER_KEYS = { time: 'sxy_remind_today_time', idle: 'sxy_remind_today_idle', pile: 'sxy_remind_today_pile' };
 const IDLE_HOURS = 3;
 const PILE_THRESHOLD = 15;
@@ -385,6 +392,8 @@ async function enableReminder() {
     <div v-if="degraded" class="hint" style="position:fixed;bottom:8px;right:12px;z-index:200">已启用性能优化模式</div>
     <FloatAssistant />
     <NotificationBell />
+    <!-- 日程表到点提醒视觉浮层（全局，任何路由生效） -->
+    <PlanReminderLayer />
     <Intro v-if="showIntro" @done="onIntroEnd" />
     <Guide v-if="showGuide" @done="onGuideEnd" />
 

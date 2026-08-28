@@ -11,6 +11,7 @@ import {
 } from '../repo.js';
 import { parsePlanSmart } from '../utils/plan-parser.js';
 import { formatLunarDate } from '../utils/lunar.js';
+import { getReminderSettings, saveReminderSettings, requestNotifyPermission } from '../utils/plan-reminder.js';
 import { getDailySynergy, getCompletionHeatmap } from '../utils/planSynergy.js';
 import {
   quadrantOption, radarOption, heatmapOption, riskOption,
@@ -61,6 +62,31 @@ const confirmStatus = ref('done');
 const hoverTask = ref(null);     // 悬停放大的任务（屏幕中央完整内容卡）
 const now = ref(new Date());     // 实时时钟（秒级刷新）
 let clockTimer = null;
+
+// 到点提醒设置（默认：视觉提醒开、声音/语音关——图书馆友好）
+const remindSet = ref(getReminderSettings());
+const notifyState = ref(typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported');
+const notifyLabel = computed(() => {
+  const s = notifyState.value;
+  if (s === 'granted') return '✅ 系统通知已开启';
+  if (s === 'denied') return '⚠️ 通知被拒（浏览器设置开启）';
+  if (s === 'unsupported') return '🔕 系统通知不可用';
+  return '🔔 开启系统通知';
+});
+function patchRemind(patch) {
+  remindSet.value = saveReminderSettings(patch);
+  toast('提醒设置已保存', 'success');
+}
+async function grantNotify() {
+  const p = await requestNotifyPermission();
+  notifyState.value = p;
+  toast(
+    p === 'granted' ? '系统通知已开启，到点会弹系统提醒 ✓'
+      : p === 'denied' ? '通知被拒绝，请在浏览器地址栏左侧的权限设置中允许'
+        : '浏览器不支持或未授权',
+    p === 'granted' ? 'success' : 'warning',
+  );
+}
 
 const useLLM = ref(localStorage.getItem('sxy_plan_use_llm') !== '0');
 watch(useLLM, v => localStorage.setItem('sxy_plan_use_llm', v ? '1' : '0'));
@@ -556,6 +582,26 @@ function handleResize() {
             <div class="dp-di-clock-label">实时时间</div>
           </div>
         </div>
+        <!-- 到点提醒设置（默认静音：视觉提醒开、声音/语音关） -->
+        <div class="dp-remind-bar">
+          <span class="dp-remind-title">⏰ 到点提醒</span>
+          <label class="dp-llm-toggle" title="总开关：到点弹出视觉提醒">
+            <input type="checkbox" :checked="remindSet.enabled" @change="patchRemind({ enabled: $event.target.checked })" /> 开启
+          </label>
+          <button class="dp-remind-btn" :class="{ on: notifyState === 'granted' }" @click="grantNotify">{{ notifyLabel }}</button>
+          <label class="dp-llm-toggle" title="默认关闭（图书馆友好）">
+            <input type="checkbox" :checked="remindSet.sound" @change="patchRemind({ sound: $event.target.checked })" /> 🔊 提示音
+          </label>
+          <label class="dp-llm-toggle" title="默认关闭，开启后语音播报任务名">
+            <input type="checkbox" :checked="remindSet.voice" @change="patchRemind({ voice: $event.target.checked })" /> 🗣️ 语音播报
+          </label>
+          <select class="dp-remind-select" :value="remindSet.advanceMin" title="提前提醒时间" @change="patchRemind({ advanceMin: Number($event.target.value) })">
+            <option :value="0">到点提醒</option>
+            <option :value="5">提前 5 分钟</option>
+            <option :value="10">提前 10 分钟</option>
+          </select>
+          <span class="dp-remind-hint">🔕 默认静音 · 视觉提醒始终弹出</span>
+        </div>
         <div class="dp-board-head">
           <div class="dp-chart-title">📚 今日课程表（点击条目 → 弹窗确认打卡）</div>
           <div class="dp-legend">
@@ -840,6 +886,27 @@ function handleResize() {
 .dp-tag.q-Q3 { background: #e6f2e6; color: #2e7d32; }
 .dp-tag.q-Q4 { background: #f0efed; color: #6b5e50; }
 .dp-meta .dp-tag { cursor: pointer; }
+
+/* ── 到点提醒设置条 ── */
+.dp-remind-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  max-width: 720px; margin: 0 auto 10px; padding: 8px 14px;
+  border: 1px dashed var(--line); border-radius: 10px; background: var(--panel-2, #f7f7f9);
+  font-size: 13px;
+}
+.dp-remind-title { font-weight: 700; }
+.dp-remind-btn {
+  padding: 3px 12px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink-2); font-size: 12px; cursor: pointer;
+  transition: all .15s;
+}
+.dp-remind-btn:hover { border-color: var(--accent); }
+.dp-remind-btn.on { background: rgba(46,125,50,.14); border-color: #2e7d32; color: #2e7d32; }
+.dp-remind-select {
+  padding: 3px 8px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); font-size: 12px;
+}
+.dp-remind-hint { font-size: 11px; color: var(--ink-2); opacity: .75; }
 
 /* ── 今日日程表（课程表风格 · 居中）── */
 .dp-board-section { margin: 16px 0; }
