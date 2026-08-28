@@ -13,6 +13,8 @@ export const STYLES = [
   { id: 'paper', name: '纸墨', desc: '静学纸墨 · 朱印 · 反焦虑', icon: '📜' },
   // —— 2026-08-26 新增：琥珀主题（1:1 复刻 localhost:3000 + 专属暖光动效）——
   { id: 'amber', name: '琥珀', desc: '暖光琥珀 · 简洁扁平 · 流光按钮', icon: '🔥' },
+  // —— 2026-08-28 新增：progress 主题（1:1 复刻 Progress AI 全套：暖琥珀配色 + 3D 倾斜 + gradient-text + dot-grid + ambient-layer）——
+  { id: 'progress', name: 'Progress', desc: '暖琥珀 3D · 鼠标跟踪 · Inter 字体 · 流光按钮', icon: '✨' },
   // —— 2026-08-26 新增：国风主题（真水墨山水画交互 · 致敬宋元名家）——
   { id: 'guofeng', name: '国风', desc: '水墨山水 · 飞鸟涟漪 · 朱印题款', icon: '🏔️' },
 ];
