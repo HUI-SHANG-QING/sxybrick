@@ -43,7 +43,7 @@ onBeforeUnmount(() => { quadChart?.dispose(); });
 
 async function loadToday() {
   const r = await listDailyPlan();
-  if (r) { plan.value = r; renderQuadrant(); }
+  if (r) { plan.value = r; await refreshCharts(); }
   reality.value = await getDailyReality();
 }
 
@@ -70,6 +70,89 @@ const preview = ref(null);       // 解析预览（未入库）
 const previewQuadEl = ref(null);
 let previewQuadChart = null;
 
+// ──────────────── D8.3 早晚对比 + 完成率 ────────────────
+
+const summaryEl = ref(null);
+let summaryChart = null;
+
+/** 规划目标汇总：按任务类型聚合 targetCount / estimatedMinutes */
+const planTargets = computed(() => {
+  if (!plan.value?.tasks?.length) return { reviewCount: 0, pomodoroMinutes: 0, docCount: 0 };
+  let reviewCount = 0, pomodoroMinutes = 0, docCount = 0;
+  for (const t of plan.value.tasks) {
+    if (t.type === 'review' && t.targetCount) reviewCount += t.targetCount;
+    if (t.type === 'pomodoro' && t.estimatedMinutes) pomodoroMinutes += t.estimatedMinutes;
+    if (t.type === 'doc' && t.targetCount) docCount += t.targetCount;
+  }
+  return { reviewCount, pomodoroMinutes, docCount };
+});
+
+/** 早晚对比数据：规划目标 vs 实际完成 */
+const compareRows = computed(() => {
+  const p = planTargets.value;
+  const r = reality.value || { reviewsToday: 0, pomodoroMinutes: 0, docsToday: 0 };
+  return [
+    { label: '复习', icon: '📖', plan: p.reviewCount, actual: r.reviewsToday, unit: '次' },
+    { label: '专注', icon: '🍅', plan: p.pomodoroMinutes, actual: r.pomodoroMinutes, unit: '分钟' },
+    { label: '资料', icon: '📚', plan: p.docCount, actual: r.docsToday, unit: '份' },
+  ];
+});
+
+const compareRate = computed(() => {
+  const p = planTargets.value;
+  const r = reality.value || { reviewsToday: 0, pomodoroMinutes: 0, docsToday: 0 };
+  const items = [
+    { plan: p.reviewCount, actual: r.reviewsToday },
+    { plan: p.pomodoroMinutes, actual: r.pomodoroMinutes },
+    { plan: p.docCount, actual: r.docsToday },
+  ];
+  const totalPlan = items.reduce((s, x) => s + x.plan, 0);
+  const totalActual = items.reduce((s, x) => s + x.actual, 0);
+  return totalPlan ? Math.round((totalActual / totalPlan) * 100) : 0;
+});
+
+/** 对比条形宽度（相对最大值归一化到 100%） */
+function barWidth(v) {
+  const max = Math.max(
+    ...compareRows.value.map(r => Math.max(r.plan, r.actual)),
+    1,
+  );
+  return Math.min(100, Math.round((v / max) * 100)) + '%';
+}
+
+function renderSummaryChart() {
+  if (!summaryEl.value || !plan.value?.tasks?.length) return;
+  summaryChart?.dispose();
+  summaryChart = echarts.init(summaryEl.value);
+  const done = plan.value.tasks.filter(t => t.status === 'done').length;
+  const partial = plan.value.tasks.filter(t => t.status === 'partial').length;
+  const skipped = plan.value.tasks.filter(t => t.status === 'skipped').length;
+  const pending = plan.value.tasks.filter(t => t.status === 'pending').length;
+  summaryChart.setOption({
+    tooltip: { trigger: 'item' },
+    legend: { bottom: 0 },
+    series: [{
+      type: 'pie',
+      radius: ['42%', '70%'],
+      avoidLabelOverlap: false,
+      label: { show: true, formatter: '{b}: {c}' },
+      data: [
+        { value: done, name: '已完成', itemStyle: { color: '#7ba87b' } },
+        { value: partial, name: '部分完成', itemStyle: { color: '#d4a853' } },
+        { value: skipped, name: '已跳过', itemStyle: { color: '#c9c4bd' } },
+        { value: pending, name: '待办', itemStyle: { color: '#e07b3c' } },
+      ].filter(x => x.value > 0),
+    }],
+  });
+}
+
+async function refreshCharts() {
+  await nextTick();
+  renderQuadrant();
+  renderSummaryChart();
+}
+
+
 function renderPreviewQuadrant() {
   if (!previewQuadEl.value || !preview.value) return;
   previewQuadChart?.dispose();
@@ -86,7 +169,7 @@ async function confirmPlan() {
     plan.value = { plan: p, tasks };
     rawInput.value = '';
     preview.value = null;
-    await renderQuadrant();
+    await refreshCharts();
     toast(`已入库 ${tasks.length} 个任务`, 'success');
   } catch (e) {
     toast('入库失败：' + (e?.message || e), 'error');
@@ -158,7 +241,7 @@ async function doCheckin(task, status) {
     const note = status === 'done' ? '' : (prompt(`备注（${STATUS_LABEL[status]}原因，可留空）：`) || '');
     await checkinDailyTask(task.id, status, note);
     task.status = status;
-    await renderQuadrant();
+    await refreshCharts();
     toast(`已${STATUS_LABEL[status]}：${task.title.slice(0, 20)}`, 'success');
   } catch (e) {
     toast('打卡失败：' + (e?.message || e), 'error');
@@ -175,14 +258,14 @@ async function toggleQuadrant(task) {
   const next = order[(idx + 1) % 4];
   await updateDailyTask(task.id, { quadrant: next, important: next === 'Q1' || next === 'Q2', urgent: next === 'Q1' || next === 'Q3' });
   task.quadrant = next;
-  await renderQuadrant();
+  await refreshCharts();
 }
 
 async function removeTask(task) {
   if (!confirm('删除这个任务？')) return;
   await deleteDailyTask(task.id);
   plan.value.tasks = plan.value.tasks.filter(t => t.id !== task.id);
-  await renderQuadrant();
+  await refreshCharts();
 }
 
 async function clearToday() {
@@ -255,6 +338,35 @@ async function clearToday() {
       <!-- 四象限图 -->
       <div ref="quadEl" class="dp-quad" style="height:360px"></div>
 
+      <!-- D8.3 早晚对比 + 完成率 -->
+      <div class="dp-compare">
+        <div class="dp-compare-title">🌗 早晚对比 · 规划 vs 实绩（达成率 {{ compareRate }}%）</div>
+        <div class="dp-compare-grid">
+          <!-- 完成率环形图 -->
+          <div ref="summaryEl" class="dp-compare-chart" style="height:240px"></div>
+          <!-- 对比条形 -->
+          <div class="dp-compare-bars">
+            <div v-for="row in compareRows" :key="row.label" class="dp-compare-row">
+              <span class="dp-compare-label">{{ row.icon }} {{ row.label }}</span>
+              <div class="dp-compare-bar-wrap">
+                <div class="dp-compare-bar">
+                  <div class="dp-bar-plan" :style="{ width: barWidth(row.plan) }" :title="`规划 ${row.plan}${row.unit}`"></div>
+                </div>
+                <div class="dp-compare-bar">
+                  <div class="dp-bar-actual" :style="{ width: barWidth(row.actual) }" :title="`实际 ${row.actual}${row.unit}`"></div>
+                </div>
+              </div>
+              <span class="dp-compare-num">
+                <b class="c-plan">{{ row.plan }}</b> / <b class="c-actual">{{ row.actual }}</b> {{ row.unit }}
+              </span>
+            </div>
+            <div class="dp-compare-legend">
+              <span class="lg-plan">■ 规划</span><span class="lg-actual">■ 实际</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 任务列表 + 打卡 -->
       <div class="dp-tasks">
         <div v-for="t in plan.tasks" :key="t.id" class="dp-task" :class="'st-' + t.status">
@@ -297,6 +409,28 @@ async function clearToday() {
 .dp-reality { display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 14px; background: color-mix(in srgb, var(--accent) 5%, transparent); border-radius: 8px; margin-bottom: 14px; }
 .dp-reality-item { font-size: 13px; }
 .dp-reality-item b { font-size: 15px; }
+
+/* D8.3 早晚对比 */
+.dp-compare { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 14px; }
+.dp-compare-title { font-weight: 700; font-size: 14px; margin-bottom: 10px; }
+.dp-compare-grid { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+.dp-compare-chart { min-height: 200px; }
+.dp-compare-bars { display: flex; flex-direction: column; gap: 10px; }
+.dp-compare-row { display: flex; align-items: center; gap: 10px; }
+.dp-compare-label { width: 70px; flex-shrink: 0; font-size: 13px; }
+.dp-compare-bar-wrap { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.dp-compare-bar { height: 10px; background: var(--panel-2, #f0efed); border-radius: 5px; overflow: hidden; }
+.dp-bar-plan { height: 100%; background: #d4a853; border-radius: 5px; transition: width .5s; }
+.dp-bar-actual { height: 100%; background: #7ba87b; border-radius: 5px; transition: width .5s; }
+.dp-compare-num { width: 120px; flex-shrink: 0; font-size: 12px; color: var(--ink-2); text-align: right; }
+.dp-compare-num .c-plan { color: #b45309; }
+.dp-compare-num .c-actual { color: #2e7d32; }
+.dp-compare-legend { display: flex; gap: 16px; font-size: 12px; color: var(--ink-2); margin-left: 80px; }
+.lg-plan { color: #d4a853; }
+.lg-actual { color: #7ba87b; }
+@media (max-width: 720px) {
+  .dp-compare-grid { grid-template-columns: 1fr; }
+}
 
 .dp-quad { width: 100%; margin: 10px 0; }
 
