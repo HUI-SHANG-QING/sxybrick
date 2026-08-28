@@ -58,6 +58,7 @@ const addInput = ref('');
 const historyList = ref([]);     // [{ date, total, done }]
 const pendingTask = ref(null);   // 待确认的任务（弹窗）
 const confirmStatus = ref('done');
+const hoverTask = ref(null);     // 悬停放大的任务（屏幕中央完整内容卡）
 const now = ref(new Date());     // 实时时钟（秒级刷新）
 let clockTimer = null;
 
@@ -260,6 +261,7 @@ async function addManualTask() {
 // 点击条目 → 弹出确认框，点击「确定」才标记完成；历史模式禁止编辑
 function openConfirm(task, status = 'done') {
   if (!canEdit.value) { toast('历史记录为只读，不可修改', 'warning'); return; }
+  hoverTask.value = null;          // 打开确认弹窗前先收起悬停放大卡
   pendingTask.value = task;
   confirmStatus.value = status;
 }
@@ -503,7 +505,7 @@ function handleResize() {
         <span class="dp-type">{{ TYPE_ICON[t.type] }} {{ TYPE_LABEL[t.type] }}</span>
         <span class="dp-title">{{ t.title }}</span>
         <span v-if="t.scheduledHour != null" class="dp-meta-item">⏰ {{ t.scheduledHour }}:00</span>
-        <span class="dp-tag q-{{ t.quadrant }}">{{ t.quadrant }}</span>
+        <span :class="'dp-tag q-' + t.quadrant">{{ t.quadrant }}</span>
       </div>
       <div ref="previewQuadEl" class="dp-quad" style="height:300px"></div>
     </div>
@@ -574,10 +576,12 @@ function handleResize() {
                 <div
                   v-for="b in board.placed" :key="b.task.id"
                   class="dp-board-block"
-                  :class="['st-' + b.task.status, { editable: canEdit }]"
+                  :class="['st-' + b.task.status, { editable: canEdit, hovering: hoverTask?.id === b.task.id }]"
                   :style="{ top: b.top + 'px', height: b.height + 'px', left: b.left, width: b.width, '--c': b.color }"
-                  :title="b.task.title + (canEdit ? '（点击标记完成）' : '（历史只读）')"
+                  :title="b.task.title + (canEdit ? '（悬停看完整内容 / 点击标记完成）' : '（历史只读）')"
                   @click="openConfirm(b.task, 'done')"
+                  @mouseenter="hoverTask = b.task"
+                  @mouseleave="hoverTask = null"
                 >
                   <div class="dp-board-block-head">
                     <span class="dp-board-time">{{ b.label }}</span>
@@ -602,9 +606,11 @@ function handleResize() {
                 <span
                   v-for="t in board.unscheduled" :key="t.id"
                   class="dp-unsched-chip"
-                  :class="['st-' + t.status, { editable: canEdit }]"
-                  :title="t.title + (canEdit ? '（点击标记完成）' : '（历史只读）')"
+                  :class="['st-' + t.status, { editable: canEdit, hovering: hoverTask?.id === t.id }]"
+                  :title="t.title + (canEdit ? '（悬停看完整内容 / 点击标记完成）' : '（历史只读）')"
                   @click="openConfirm(t, 'done')"
+                  @mouseenter="hoverTask = t"
+                  @mouseleave="hoverTask = null"
                 ><span v-if="t.status==='done'" class="dp-check">✓ </span>{{ TYPE_ICON[t.type] }} {{ t.title }}</span>
               </div>
             </div>
@@ -660,11 +666,11 @@ function handleResize() {
       <div v-if="risks.length" class="dp-risk-list">
         <div class="dp-chart-title">⚠️ 今日风险任务清单</div>
         <div v-for="(r, i) in risks" :key="i" class="dp-risk-row" :class="'sev-' + r.severity">
-          <span class="dp-risk-badge sev-{{ r.severity }}">{{ r.severity.toUpperCase() }}</span>
+          <span :class="'dp-risk-badge sev-' + r.severity">{{ r.severity.toUpperCase() }}</span>
           <span class="dp-type">{{ TYPE_ICON[r.task.type] }}</span>
           <span class="dp-title">{{ r.task.title }}</span>
           <span class="dp-risk-reason">{{ r.reason }}</span>
-          <span class="dp-tag q-{{ r.task.quadrant }}">{{ r.task.quadrant }}</span>
+          <span :class="'dp-tag q-' + r.task.quadrant">{{ r.task.quadrant }}</span>
         </div>
       </div>
 
@@ -680,7 +686,7 @@ function handleResize() {
                 <span v-if="t.scheduledHour != null" class="dp-meta-item">⏰ {{ t.scheduledHour }}:00</span>
               </div>
               <div class="dp-meta">
-                <span class="dp-tag q-{{ t.quadrant }}" @click="canEdit && toggleQuadrant(t)" title="点击切换象限">{{ t.quadrant }} {{ QUADRANT_LABEL[t.quadrant] }}</span>
+                <span :class="'dp-tag q-' + t.quadrant" @click="canEdit && toggleQuadrant(t)" title="点击切换象限">{{ t.quadrant }} {{ QUADRANT_LABEL[t.quadrant] }}</span>
                 <span v-if="t.targetCount" class="dp-meta-item">🎯 {{ t.targetCount }} 项</span>
                 <span v-if="t.estimatedMinutes" class="dp-meta-item">⏱ {{ t.estimatedMinutes }} 分钟</span>
                 <span v-if="t.subject" class="dp-meta-item">📚 {{ t.subject }}</span>
@@ -699,6 +705,24 @@ function handleResize() {
       </div>
     </div>
 
+    <!-- 悬停放大卡：任务文字过多时，鼠标悬停 → 屏幕中央完整显示；移开恢复 -->
+    <div v-if="hoverTask" class="dp-zoom-pop">
+      <div class="dp-zoom-head">
+        <span class="dp-zoom-type">{{ TYPE_ICON[hoverTask.type] }} {{ TYPE_LABEL[hoverTask.type] }}</span>
+        <span :class="'dp-tag q-' + hoverTask.quadrant">{{ hoverTask.quadrant }} {{ QUADRANT_LABEL[hoverTask.quadrant] }}</span>
+        <span class="dp-zoom-status" :class="'st-' + hoverTask.status">{{ STATUS_LABEL[hoverTask.status] }}</span>
+      </div>
+      <div class="dp-zoom-title">{{ hoverTask.title }}</div>
+      <div class="dp-zoom-meta">
+        <span v-if="hoverTask.scheduledHour != null" class="dp-meta-item">⏰ {{ hoverTask.scheduledHour }}:00</span>
+        <span v-if="hoverTask.targetCount" class="dp-meta-item">🎯 {{ hoverTask.targetCount }} 项</span>
+        <span v-if="hoverTask.estimatedMinutes" class="dp-meta-item">⏱ {{ hoverTask.estimatedMinutes }} 分钟</span>
+        <span v-if="hoverTask.subject" class="dp-meta-item">📚 {{ hoverTask.subject }}</span>
+      </div>
+      <div v-if="hoverTask.completionNote" class="dp-zoom-note">💬 {{ hoverTask.completionNote }}</div>
+      <div class="dp-zoom-hint">移开鼠标恢复 · 点击可打卡</div>
+    </div>
+
     <!-- 确认弹窗：点击条目后弹出，点「确定」才标记完成 -->
     <div v-if="pendingTask" class="dp-modal-mask" @click.self="pendingTask = null">
       <div class="dp-modal">
@@ -707,7 +731,7 @@ function handleResize() {
           <span class="dp-modal-type">{{ TYPE_ICON[pendingTask.type] }} {{ TYPE_LABEL[pendingTask.type] }}</span>
           <div class="dp-modal-name">{{ pendingTask.title }}</div>
           <div class="dp-modal-meta">
-            <span class="dp-tag q-{{ pendingTask.quadrant }}">{{ pendingTask.quadrant }}</span>
+            <span :class="'dp-tag q-' + pendingTask.quadrant">{{ pendingTask.quadrant }}</span>
             <span v-if="pendingTask.scheduledHour != null" class="dp-meta-item">⏰ {{ pendingTask.scheduledHour }}:00</span>
           </div>
         </div>
@@ -875,6 +899,38 @@ function handleResize() {
 .dp-unsched-chip.editable:hover { border-color: var(--accent); }
 .dp-unsched-chip.st-done { background: rgba(123,168,123,.14); border-color: #2e7d32; }
 .dp-unsched-chip.st-skipped { opacity: 0.5; }
+
+/* ── 悬停放大卡（屏幕中央完整内容）── */
+.dp-zoom-pop {
+  position: fixed; left: 50%; top: 46%; z-index: 900;
+  transform: translate(-50%, -50%);
+  width: min(480px, 90vw); max-height: 70vh; overflow: auto;
+  padding: 18px 20px; border-radius: 16px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 50px rgba(0,0,0,.28);
+  animation: dpZoomIn .16s ease-out;
+  pointer-events: none; /* 纯展示，不拦截点击，保持原有交互 */
+}
+@keyframes dpZoomIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(.92); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+.dp-zoom-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.dp-zoom-type { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.dp-zoom-status { margin-left: auto; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.dp-zoom-status.st-done { background: rgba(46,125,50,.14); color: #2e7d32; }
+.dp-zoom-status.st-partial { background: rgba(212,168,83,.18); color: #92400e; }
+.dp-zoom-status.st-skipped { background: #f0efed; color: #6b5e50; }
+.dp-zoom-status.st-pending { background: rgba(224,123,60,.14); color: #b45309; }
+.dp-zoom-title { font-size: 17px; font-weight: 700; line-height: 1.5; word-break: break-word; margin-bottom: 10px; }
+.dp-zoom-meta { display: flex; gap: 6px; flex-wrap: wrap; }
+.dp-zoom-note { margin-top: 10px; padding: 8px 10px; background: var(--panel-2, #f7f7f9); border-radius: 8px; font-size: 13px; color: var(--ink-2); font-style: italic; }
+.dp-zoom-hint { margin-top: 12px; font-size: 11px; color: var(--ink-2); opacity: .7; text-align: center; }
+
+/* 悬停时任务块高亮（聚焦反馈） */
+.dp-board-block.hovering { box-shadow: 0 6px 20px rgba(0,0,0,.22); border-color: var(--accent, #3a7afe); }
+.dp-unsched-chip.hovering { border-color: var(--accent, #3a7afe); box-shadow: 0 2px 10px rgba(0,0,0,.15); }
 
 /* ── 确认弹窗 ── */
 .dp-modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; z-index: 1000; }
