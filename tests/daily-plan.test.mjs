@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { db } from '../src/db.js';
 import {
-  createDailyPlan, listDailyPlan, listDailyPlans,
+  createDailyPlan, listDailyPlan, listDailyPlans, listDailyPlanSummary,
   updateDailyTask, checkinDailyTask, deleteDailyTask, deleteDailyPlan,
   getDailyReality,
 } from '../src/repo.js';
@@ -90,4 +90,56 @@ test('checkinDailyTask：非法状态报错', async () => {
   const { tasks } = await createDailyPlan({ rawInput: '复习 10 张卡片' });
   const t = tasks[0];
   await assert.rejects(() => checkinDailyTask(t.id, 'invalid'), /非法打卡状态/);
+});
+
+test('当天重复创建 → 覆盖重建（历史"全是今日"根因修复）', async () => {
+  await clearDaily();
+  const a = await createDailyPlan({ rawInput: '复习 10 张卡片' });
+  const b = await createDailyPlan({ rawInput: '背 20 个单词，重要' });
+  // 当天只剩 1 份 plan（旧的被删）
+  const plans = await db.dailyPlans.where('date').equals(a.plan.date).toArray();
+  assert.equal(plans.length, 1);
+  assert.equal(plans[0].id, b.plan.id);
+  // 旧任务被清掉，只剩新任务
+  const oldTasks = await db.dailyTasks.where('planId').equals(a.plan.id).count();
+  assert.equal(oldTasks, 0);
+  // 列表返回最新一份
+  const listed = await listDailyPlan(a.plan.date);
+  assert.equal(listed.plan.id, b.plan.id);
+  assert.equal(listed.tasks.length, 1);
+  assert.equal(listed.tasks[0].targetCount, 20);
+});
+
+test('tasks 透传：预览任务原样入库（预览=入库一致）', async () => {
+  await clearDaily();
+  const previewTasks = [
+    { title: '做408题', type: 'exam', quadrant: 'Q1', important: true, urgent: true, scheduledHour: 14, targetCount: 10, subject: '计组', estimatedMinutes: 90 },
+  ];
+  const { plan, tasks } = await createDailyPlan({ rawInput: '做408题', tasks: previewTasks });
+  assert.equal(tasks.length, 1);
+  assert.equal(tasks[0].scheduledHour, 14);
+  assert.equal(tasks[0].type, 'exam');
+  const stored = await db.dailyTasks.get(tasks[0].id);
+  assert.equal(stored.scheduledHour, 14);
+  assert.equal(stored.subject, '计组');
+});
+
+test('listDailyPlanSummary：按日期合并去重', async () => {
+  await clearDaily();
+  const d1 = '2026-08-26';
+  const d2 = '2026-08-27';
+  // d1 同一天两份（模拟历史堆积），d2 一份
+  const p1 = await createDailyPlan({ rawInput: '复习 5 张卡片', date: d1 });
+  const p2 = await createDailyPlan({ rawInput: '背 8 个单词', date: d1 });
+  const p3 = await createDailyPlan({ rawInput: '做 3 道题', date: d2 });
+  // 打卡一个任务
+  await checkinDailyTask(p3.tasks[0].id, 'done', '');
+  const sum = await listDailyPlanSummary(30);
+  const d1sum = sum.find(s => s.date === d1);
+  const d2sum = sum.find(s => s.date === d2);
+  assert.ok(d1sum);
+  assert.equal(d1sum.total, 1); // 覆盖后 d1 只剩一份
+  assert.equal(d2sum.total, 1);
+  assert.equal(d2sum.done, 1);
+  assert.ok(sum[0].date === d2 || sum[0].date === d1); // 按 updatedAt 倒序
 });

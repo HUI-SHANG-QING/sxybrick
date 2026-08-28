@@ -388,7 +388,9 @@ export async function deleteMemo(id) {
 
 /**
  * 创建每日计划：口述文本 → 解析任务 → 入库（计划头 + 任务明细）。
- * @param {object} payload { rawInput, date? }
+ * - 当天已有计划 → 覆盖重建（删旧+写墓碑），避免多 plan 堆积（历史列表"全是今日"根因）
+ * - 支持直接传入解析好的 tasks（前端预览结果原样入库，保证 预览=入库 一致）
+ * @param {object} payload { rawInput, date?, tasks? }
  * @returns {{ plan, tasks }}
  */
 export async function createDailyPlan(payload) {
@@ -396,6 +398,15 @@ export async function createDailyPlan(payload) {
   if (!rawInput) throw new Error('请输入今日规划内容');
   const date = payload?.date || localDateStr();
   const t = now();
+
+  // 覆盖重建：删除当天已有的全部旧计划（含任务），保证每天只有一份最新计划
+  const existing = await db.dailyPlans.where('date').equals(date).toArray();
+  for (const p of existing) {
+    await db.dailyTasks.where('planId').equals(p.id).delete();
+    await db.dailyPlans.delete(p.id);
+    await db.tombstones.put({ id: p.id, kind: 'dailyPlan', deletedAt: t });
+  }
+
   const plan = {
     id: uid(),
     date,
@@ -405,8 +416,12 @@ export async function createDailyPlan(payload) {
   };
   await db.dailyPlans.put(plan);
 
-  const { parsePlan } = await import('./utils/plan-parser.js');
-  const parsed = parsePlan(rawInput);
+  // 优先使用调用方解析好的任务（预览一致），否则离线解析
+  let parsed = Array.isArray(payload.tasks) && payload.tasks.length ? payload.tasks : null;
+  if (!parsed) {
+    const { parsePlan } = await import('./utils/plan-parser.js');
+    parsed = parsePlan(rawInput);
+  }
   const tasks = parsed.map(task => ({
     id: uid(),
     planId: plan.id,
@@ -428,17 +443,41 @@ function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** 列出某天的计划（默认今天），含任务明细 */
+/** 列出某天的计划（默认今天），含任务明细；当天多份时取 updatedAt 最新的一份 */
 export async function listDailyPlan(date = localDateStr()) {
-  const plan = await db.dailyPlans.where('date').equals(date).first();
-  if (!plan) return null;
+  const plans = await db.dailyPlans.where('date').equals(date).toArray();
+  if (!plans.length) return null;
+  plans.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  const plan = plans[0];
   const tasks = await db.dailyTasks.where('planId').equals(plan.id).toArray();
   return { plan, tasks };
 }
 
-/** 列出最近 N 天的计划头（历史趋势用） */
+/** 列出最近 N 天（含今天）的计划头（历史趋势用） */
 export async function listDailyPlans(limit = 30) {
   return db.dailyPlans.orderBy('date').reverse().limit(limit).toArray();
+}
+
+/**
+ * 最近 N 天计划摘要（按日期合并去重，历史回溯/热力图用）。
+ * 同一天多份计划合并 total/done，取最新 updatedAt 排序。
+ * @param {number} [days=30]
+ * @returns {Array<{ date, total, done, updatedAt }>}
+ */
+export async function listDailyPlanSummary(days = 30) {
+  const plans = await db.dailyPlans.orderBy('date').reverse().limit(days * 3).toArray();
+  const byDate = new Map();
+  for (const p of plans) {
+    const tasks = await db.dailyTasks.where('planId').equals(p.id).toArray();
+    const cur = byDate.get(p.date) || { date: p.date, total: 0, done: 0, updatedAt: 0 };
+    cur.total += tasks.length;
+    cur.done += tasks.filter(t => t.status === 'done').length;
+    cur.updatedAt = Math.max(cur.updatedAt, p.updatedAt || 0);
+    byDate.set(p.date, cur);
+  }
+  return [...byDate.values()]
+    .sort((a, b) => (b.updatedAt - a.updatedAt) || (a.date < b.date ? 1 : -1))
+    .slice(0, days);
 }
 
 /** 更新任务（中途调整：加/删/改象限/打卡） */

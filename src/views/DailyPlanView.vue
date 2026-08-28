@@ -6,7 +6,7 @@ import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue'
 import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
 import {
-  createDailyPlan, listDailyPlan, listDailyPlans, updateDailyTask, deleteDailyTask,
+  createDailyPlan, listDailyPlan, listDailyPlanSummary, updateDailyTask, deleteDailyTask,
   checkinDailyTask, deleteDailyPlan, addDailyTask, appendDailyTasksByText,
 } from '../repo.js';
 import { parsePlanSmart } from '../utils/plan-parser.js';
@@ -149,15 +149,22 @@ onBeforeUnmount(() => {
 // ──────────────── 数据加载 ────────────────
 async function loadPlan(date) {
   selectedDate.value = date;
-  const r = await listDailyPlan(date);
-  plan.value = r;
-  if (r) {
-    await refreshAll();
-    await refreshSynergy();
-  } else {
-    // 无计划：清空图表实例内容但保留空占位
-    await nextTick();
-    renderHeatEmpty();
+  try {
+    const r = await listDailyPlan(date);
+    plan.value = r;
+    if (r) {
+      await refreshAll();
+      await refreshSynergy();
+    } else {
+      // 无计划：清空图表实例内容但保留空占位
+      await nextTick();
+      renderHeatEmpty();
+    }
+  } catch (e) {
+    // 数据库异常兜底：提示而不是静默显示"没有内容"
+    console.error('[plan] loadPlan failed', e);
+    toast('加载计划失败：' + (e?.message || e), 'error');
+    plan.value = null;
   }
   heat.value = await getCompletionHeatmap(84).catch(() => []);
   await nextTick();
@@ -165,19 +172,8 @@ async function loadPlan(date) {
 }
 
 async function loadHistoryList() {
-  const plans = await listDailyPlans(60);
-  const dates = [];
-  for (const p of plans) {
-    const tasks = await dbTasksOf(p.id);
-    const done = tasks.filter(t => t.status === 'done').length;
-    dates.push({ date: p.date, total: tasks.length, done });
-  }
-  historyList.value = dates;
-}
-
-async function dbTasksOf(planId) {
-  const { db } = await import('../db.js');
-  return db.dailyTasks.where('planId').equals(planId).toArray();
+  // 按日期合并去重（同一天多份计划合并 total/done），避免"全是今日"
+  historyList.value = await listDailyPlanSummary(60).catch(() => []);
 }
 
 async function refreshSynergy() {
@@ -221,7 +217,12 @@ async function confirmPlan() {
   if (!preview.value) return;
   busy.value = true;
   try {
-    const { plan: p, tasks } = await createDailyPlan({ rawInput: preview.value.text, date: selectedDate.value });
+    // 直接把预览（LLM/离线解析）结果原样入库，保证 预览=入库 一致，刷新后内容不"缩水"
+    const { plan: p, tasks } = await createDailyPlan({
+      rawInput: preview.value.text,
+      date: selectedDate.value,
+      tasks: preview.value.tasks,
+    });
     plan.value = { plan: p, tasks };
     rawInput.value = '';
     preview.value = null;
