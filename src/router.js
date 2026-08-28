@@ -16,6 +16,8 @@ const routes = [
   { path: '/notes', component: () => import('./views/NotesView.vue') },
   // D4.2 自动分类（TF-IDF 本地归类，卡片/资料/笔记三类实体）
   { path: '/categories', component: () => import('./views/CategoryView.vue') },
+  // D8 每日规划/打卡（口述→任务→四象限→打卡→早晚对比）
+  { path: '/daily', component: () => import('./views/DailyPlanView.vue') },
   { path: '/wrong', component: () => import('./views/WrongBook.vue') },
   { path: '/pomodoro', component: () => import('./views/Pomodoro.vue') },
   { path: '/graph', component: () => import('./views/KnowledgeGraph.vue') },

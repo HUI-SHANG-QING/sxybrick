@@ -73,6 +73,8 @@ const navItems = [
   { path: '/notes', label: '笔记', icon: '📓' },
   // D4.2 自动分类
   { path: '/categories', label: '分类', icon: '🏷️' },
+  // D8 每日规划/打卡
+  { path: '/daily', label: '每日规划', icon: '📅' },
   { path: '/wrong', label: '错题', icon: '❌' },
   { path: '/pomodoro', label: '番茄', icon: '🍅' },
   { path: '/graph', label: '图谱', icon: '🕸️' },
