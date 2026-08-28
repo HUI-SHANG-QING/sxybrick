@@ -1,5 +1,5 @@
 // 同步清单与合并语义回归测试（node --test）
-// 覆盖：16 表登记（含 embeddings，不含 privacyRecords 默认）、
+// 覆盖：17 表登记（含 embeddings + docFiles，不含 privacyRecords 默认）、
 //   卡片双时间戳字段级合并、consolidation(R2) / wrongReasonAt(R1) 跨设备保留、
 //   三种 merge 策略、墓碑 kind 传播与复活
 import { test } from 'node:test';
@@ -11,13 +11,13 @@ import {
   mergeCardPair, mergeRows, mergeTombstones, applyTombstones, kindOf,
 } from '../src/sync-manifest.js';
 
-test('清单：16 张表全部登记且策略合法', () => {
-  assert.equal(SYNC_TABLES.length, 16);
+test('清单：17 张表全部登记且策略合法', () => {
+  assert.equal(SYNC_TABLES.length, 17);
   assert.equal(BACKUP_VERSION, 5);
   const names = SYNC_TABLES.map(t => t.table);
   // privacyRecords 不在默认同步清单
   assert.ok(!names.includes('privacyRecords'), 'privacyRecords 不应默认入同步');
-  for (const need of ['cards', 'reviews', 'images', 'aiChats', 'aiMemories', 'memos', 'plans', 'graphEdges', 'docs', 'pomoSessions', 'mindmaps', 'weeklyReports', 'achievements', 'exams', 'embeddings', 'userOps']) {
+  for (const need of ['cards', 'reviews', 'images', 'aiChats', 'aiMemories', 'memos', 'plans', 'graphEdges', 'docs', 'docFiles', 'pomoSessions', 'mindmaps', 'weeklyReports', 'achievements', 'exams', 'embeddings', 'userOps']) {
     assert.ok(names.includes(need), `缺少表 ${need}`);
   }
   for (const t of SYNC_TABLES) {

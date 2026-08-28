@@ -182,6 +182,8 @@ async function loadEmbeddingRows(opts = {}) {
   const subject = opts.subject && String(opts.subject).trim();
   if (subject) return db.embeddings.where('subject').equals(subject).toArray();
   if (opts.sourceType) return db.embeddings.where('sourceType').equals(opts.sourceType).toArray();
+  // 单文件问答：限定 sourceId（Phase 6.4 资料问答——embeddings 已建 sourceId 索引）
+  if (opts.sourceId) return db.embeddings.where('sourceId').equals(opts.sourceId).toArray();
   return db.embeddings.toArray();
 }
 

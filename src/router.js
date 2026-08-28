@@ -33,6 +33,8 @@ const routes = [
   { path: '/plugins', component: () => import('./views/Plugins.vue') },
   // 智能层：单卡遗忘曲线 + 知识图谱洞察
   { path: '/insight', component: () => import('./views/CardInsight.vue') },
+  // Phase 6 学习资料中枢：上传 → 全量解析 → 预览 → 问答 → 生成卡片（用户选择制）
+  { path: '/materials', component: () => import('./views/LibraryFiles.vue') },
 ];
 
 export const router = createRouter({

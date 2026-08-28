@@ -121,6 +121,20 @@ db.version(16).stores({
   plugins: 'id, enabled, installedAt',
 });
 
+// v17：新增资料库表（Phase 6 学习资料中枢）
+//   docFiles：上传的资料文件元数据（进入同步——跨设备可见文件清单）
+//     id, name(原始文件名含扩展名), ext(小写扩展名), size(字节), mime,
+//     subject(所属科目，联动过滤用), status(uploading|parsing|ready|failed),
+//     storage('opfs'|'idb' 小文件降级), opfsPath(OPFS 内相对路径),
+//     pageCount(PDF 页数), ocrUsed(是否走 OCR), error(失败原因), createdAt, updatedAt
+//   docTexts：解析全文（本地表，不同步——大字段不进同步链路；id 与 docFiles.id 一一对应）
+//     id, text(全文，字符不丢), textLen, updatedAt
+//   原文件存 OPFS（几百 MB 大文件），跨设备仅同步元数据（点开提示本机无原文）
+db.version(17).stores({
+  docFiles: 'id, name, status, subject, createdAt, updatedAt',
+  docTexts: 'id, updatedAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

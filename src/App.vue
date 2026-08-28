@@ -82,6 +82,8 @@ const navItems = [
   { path: '/search', label: '搜索', icon: '🔍' },
   { path: '/health', label: '体检', icon: '🩺' },
   { path: '/library', label: '书房', icon: '📚' },
+  // Phase 6 学习资料中枢：上传 → 全量解析 → 预览 → 问答 → 生成卡片（用户选择制）
+  { path: '/materials', label: '资料库', icon: '🗃️' },
   { path: '/achievements', label: '成就', icon: '🏆' },
   // P2·10 + P3·11：用户仪表盘（恐怖监控图表）与隐私人生数据（超级监控）
   { path: '/user-dashboard', label: '仪表盘', icon: '🛰️' },

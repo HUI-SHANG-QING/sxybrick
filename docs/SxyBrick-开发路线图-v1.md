@@ -67,11 +67,18 @@
 - ✅ **仓库结构重组 + README**：确认 git 仓库根即主项目，README 重写（价值主张 + 快速上手 + 架构 + 测试）。
 - ✅ **可复现的评测基准**：`fsrs-benchmark.js` + `scripts/benchmark.mjs`，校准质量/训练改善回归门槛纳入 CI。
 
-### Phase 6 —— 资料中心（学习资料中枢，规划已确认 ⏳ 待开发）
+### Phase 6 —— 资料中心（学习资料中枢，6.1-6.5 主体完成 ⏳ 余 OCR/图谱）
 > 详细设计见 `docs/SxyBrick-资料中心规划-v1.md`。从「记忆卡片系统」升级为「学习资料中枢」：上传（PDF/Excel/图片/Word/TXT）→ 全量解析（几百 MB 扫描 PDF 不切片丢内容）→ 原样预览 → 文件问答 → 模块联动（知识图谱第一优先）。
 > 已确认决策：**OPFS 存原文件 + IndexedDB 元数据/解析文本**、**本地 OCR 优先可切云端**、**本地检索默认 + 语义 key 开关**、**原文件不跨设备同步（元数据/文本/索引同步）**。
 > 关键复用：RAG 全链路（`retrieval.js` chunkText/indexDoc/hybridSearch 现成）、`embeddings` 表（`sourceType:'doc'` 概念已预留）、graph-builder/cardsmith/source-trace 联动地基。
-> 阶段：6.1 存储与上传 → 6.2 解析管线（文字类优先）→ 6.3 索引与预览 → 6.4 文件问答 → 6.5 OCR → 6.6 联动（图谱优先）。
+> 阶段进度：
+> - ✅ **6.1 存储与上传**：db v17 建 `docFiles`（同步元数据）/`docTexts`（本地全文）两表；`src/utils/opfs.js`（分块写、进度、持久化申请、≤10MB 降级 IndexedDB）；`src/docs-lib.js` 上传编排；`LibraryFiles.vue`（路由 `/materials`，导航「资料库」）+ 存储用量展示。
+> - ✅ **6.2 解析管线**：`parsers.js` 纯函数路由 + `parsers-pdf.js`（pdfjs-dist 逐页流式）/`parsers-sheet.js`（SheetJS 全表文本化）/`parsers-docx.js`（mammoth）/txt 直读；串行解析队列 + 进度 + 失败重试；**全量解析不切片**（分块仅是问答检索标签）。
+> - ✅ **6.3 索引与预览**：解析完成自动 `indexDoc`（subject=文件名，`retrieveContext` 天然兼容）；预览面板：PDF canvas 翻页（懒加载）/ Excel 表格 / Word 近似 HTML（标注）/ 图片 / 全文文本。
+> - ✅ **6.4 文件问答**：`docs-qa.js` 纯函数（prompt 拼装/引用格式化）+ `askDoc`（`hybridSearch` 新增 `sourceId` 限定单文件）+ chatAI 离线兜底；问答面板带引用片段。
+> - ✅ **6.5 自动建卡（用户选择制）**：`card-drafts.js` 纯函数（真题 QA 分卡 + 段落要点分卡）；**默认绝不自动建卡**——用户点「生成卡片」→ 预览弹窗 → 逐卡编辑/删除 → 必须「确认导入」才入库（source 记 docFiles.id 血缘可反查原文）。
+> - ⏳ **6.5b OCR**：扫描版 PDF 图片提取（本地 Tesseract 优先 + 云端开关）。
+> - ⏳ **6.6 联动**：知识图谱抽概念（graph-builder 接解析文本）→ 错题溯源（卡片血缘反查原文段落）→ 复习上下文增强。
 
 ---
 
@@ -91,6 +98,6 @@
 ---
 
 ## 五、下一步（按质量杠杆）
-1. **资料中心 Phase 6**（规划已确认，待开发）：6.1 存储与上传（OPFS + docs 表 + Library.vue）→ 6.2 解析管线 → 6.3 索引与预览 → 6.4 文件问答 → 6.5 OCR → 6.6 联动（知识图谱优先）。RAG 骨架与联动 Agent 均现成，杠杆最高。
+1. **资料中心 Phase 6 余项**：6.5b OCR（扫描版 PDF 图片提取，本地 Tesseract 优先 + 云端开关）→ 6.6 联动（知识图谱抽概念 → 错题溯源 → 复习上下文增强）。主线（上传→解析→预览→问答→建卡）已闭环。
 2. **云端 Agent 工具市场**（Phase 4 余项）：插件/卡组/主题的远程目录与一键安装——需要托管服务 + 来源校验/签名，成本较高，等插件生态有实际需求后再动。
 3. **数据安全拓展**（用户明确暂缓，可随时重启）：PIPL 合规、本地加密、导出脱敏。

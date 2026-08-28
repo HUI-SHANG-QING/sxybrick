@@ -39,6 +39,9 @@ export const SYNC_TABLES = [
   { table: 'embeddings', kind: 'embedding', merge: 'idOnly' },
   // v13 新增：用户全操作埋点（量大：导出时默认提供"仅导出聚合"选项以缩小包体积）
   { table: 'userOps', kind: 'userOp', merge: 'idOnly' },
+  // v17 新增：资料库文件元数据（Phase 6）——只同步元数据（文件名/大小/状态/科目），
+  //   原文件（OPFS）与解析全文（docTexts 本地表）不同步，跨设备可见清单但不可预览原文
+  { table: 'docFiles', kind: 'docFile', merge: 'updatedAt' },
   // privacyRecords 默认不入同步（PIPL 敏感数据），见 PRIVACY_SYNC_TABLES + includePrivacySync()
 ];
 
