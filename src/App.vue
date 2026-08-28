@@ -69,6 +69,8 @@ const navItems = [
   { path: '/agent', label: 'Agent', icon: '🧠' },
   { path: '/feynman', label: '费曼', icon: '👨‍🏫' },
   { path: '/memo', label: '备忘', icon: '📝' },
+  // D3.2 笔记（厚笔记 / 双向链接 / 富文本，区别于 /memo 短备忘）
+  { path: '/notes', label: '笔记', icon: '📓' },
   { path: '/wrong', label: '错题', icon: '❌' },
   { path: '/pomodoro', label: '番茄', icon: '🍅' },
   { path: '/graph', label: '图谱', icon: '🕸️' },

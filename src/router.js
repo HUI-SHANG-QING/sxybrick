@@ -12,6 +12,8 @@ const routes = [
   { path: '/agent', component: () => import('./views/AgentWorkbench.vue') },
   { path: '/feynman', component: () => import('./views/Feynman.vue') },
   { path: '/memo', component: () => import('./views/Memo.vue') },
+  // D3.2 笔记（区别于 /memo 短备忘：notes 是 title+content+tags+双向链接的厚笔记）
+  { path: '/notes', component: () => import('./views/NotesView.vue') },
   { path: '/wrong', component: () => import('./views/WrongBook.vue') },
   { path: '/pomodoro', component: () => import('./views/Pomodoro.vue') },
   { path: '/graph', component: () => import('./views/KnowledgeGraph.vue') },

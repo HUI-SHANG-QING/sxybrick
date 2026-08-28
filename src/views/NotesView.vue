@@ -1,0 +1,340 @@
+<script setup>
+// 笔记视图（D3.2）：双栏布局，左列表 + 右详情/编辑，支持双向链接 [[id]] 自动跳转 + ExportButton
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+import EmptyState from '../components/EmptyState.vue';
+import ExportButton from '../components/ExportButton.vue';
+import { toast } from '../utils/toast.js';
+import {
+  listNotes, createNote, updateNote, deleteNote,
+  getNoteCategories, getNoteTags, findNotesLinkingTo,
+} from '../repo.js';
+import {
+  exportNotesToJSON, exportNotesToMarkdown,
+} from '../utils/exporters.js';
+import {
+  recognizeWikiLinks, renderWikiLinks, countChars,
+} from '../utils/note-parser.js';
+
+const router = useRouter();
+const route = useRoute();
+const notes = ref([]);
+const categories = ref([]);
+const tags = ref([]);
+const filter = ref({ q: '', category: '', tags: [] });
+const editingId = ref(null);          // 当前编辑的笔记 id（null 表示新建）
+const draft = ref(null);                // 编辑中的草稿（null 表示查看模式）
+const isDirty = ref(false);
+const backlinks = ref([]);              // 反向链接列表
+
+async function load() {
+  notes.value = await listNotes(filter.value);
+  categories.value = await getNoteCategories();
+  tags.value = await getNoteTags();
+}
+async function reload() { await load(); }
+
+onMounted(async () => {
+  await load();
+  // URL ?id=xxx 自动打开
+  const id = route.query.id;
+  if (id) {
+    const n = notes.value.find(x => x.id === id);
+    if (n) openNote(n);
+  }
+});
+watch(filter, () => load(), { deep: true });
+
+function openNote(n) {
+  editingId.value = n.id;
+  draft.value = JSON.parse(JSON.stringify(n));
+  isDirty.value = false;
+  loadBacklinks(n.id);
+}
+function startCreate() {
+  editingId.value = null;
+  draft.value = { title: '', content: '', category: '', tags: [], linkedCardIds: [] };
+  isDirty.value = true; // 新建模式直接可保存
+  nextTick(() => titleInput.value?.focus());
+}
+async function loadBacklinks(targetId) {
+  const list = await findNotesLinkingTo(targetId);
+  backlinks.value = list.map(n => ({ id: n.id, title: n.title }));
+}
+async function save() {
+  if (!draft.value) return;
+  if (!draft.value.title?.trim()) { toast('标题不能为空', 'error'); return; }
+  try {
+    let saved;
+    if (editingId.value) {
+      saved = await updateNote(editingId.value, draft.value);
+      toast('已保存', 'success');
+    } else {
+      saved = await createNote(draft.value);
+      editingId.value = saved.id;
+      toast('已新建', 'success');
+    }
+    isDirty.value = false;
+    await reload();
+    // 选中新建/更新后的笔记
+    const cur = notes.value.find(n => n.id === saved.id);
+    if (cur) await loadBacklinks(cur.id);
+    // 保持选中
+    selectedId.value = saved.id;
+  } catch (e) {
+    toast('保存失败：' + (e?.message || e), 'error');
+  }
+}
+async function remove() {
+  if (!editingId.value) {
+    // 新建但未保存 → 退出即可
+    draft.value = null; editingId.value = null; selectedId.value = null;
+    return;
+  }
+  if (!confirm('删除笔记不可撤销（其他笔记的双向链接会变红），确定？')) return;
+  await deleteNote(editingId.value);
+  toast('已删除', 'success');
+  editingId.value = null; draft.value = null; selectedId.value = null;
+  await reload();
+}
+
+const selectedId = ref(null);
+watch(selectedId, async (id) => {
+  if (!id) return;
+  const n = notes.value.find(x => x.id === id);
+  if (n && (!draft.value || draft.value.id !== id)) openNote(n);
+});
+
+function onWikiLinkClick(e) {
+  // 拦截渲染产物里的 a.wiki-link 跳转
+  const a = e.target.closest('a.wiki-link');
+  if (!a) return;
+  e.preventDefault();
+  const id = a.dataset.id;
+  const type = a.dataset.type;
+  if (type === 'card') router.push({ path: '/cards', query: { id } });
+  else if (type === 'doc') router.push({ path: '/library', query: { id } });
+  else if (type === 'note') {
+    const n = notes.value.find(x => x.id === id);
+    if (n) openNote(n);
+  }
+}
+
+const draftLinks = computed(() => draft.value ? recognizeWikiLinks(draft.value.content || '') : []);
+const draftStats = computed(() => {
+  if (!draft.value) return { chars: 0, links: 0 };
+  return { chars: countChars(draft.value.content), links: draftLinks.value.length };
+});
+
+function addTag(t) {
+  const v = String(t || '').toLowerCase().trim();
+  if (!v || draft.value.tags.includes(v)) return;
+  draft.value.tags.push(v);
+}
+function removeTag(t) { draft.value.tags = draft.value.tags.filter(x => x !== t); }
+
+const titleInput = ref(null);
+
+const noteExportFormats = computed(() => [
+  { key: 'md', label: 'Markdown', hint: '人类可读', mime: 'text/markdown', ext: 'md', build: rows => exportNotesToMarkdown(rows) },
+  { key: 'json', label: 'JSON', hint: '可备份恢复', mime: 'application/json', ext: 'json', build: rows => exportNotesToJSON(rows) },
+]);
+
+// 渲染产物：把双向链接 [[id]] 转成 <a class="wiki-link">，再喂给 MarkdownRenderer
+const renderedContent = computed(() => {
+  if (!draft.value?.content) return '';
+  return renderWikiLinks(draft.value.content, (id, type) => {
+    if (type === 'card') return `#/cards?id=${encodeURIComponent(id)}`;
+    if (type === 'doc') return `#/library?id=${encodeURIComponent(id)}`;
+    if (type === 'note') return `#/notes?id=${encodeURIComponent(id)}`;
+    return '#';
+  });
+});
+
+const filteredNotes = computed(() => notes.value);
+</script>
+
+<template>
+  <div class="notes-page">
+    <!-- 左栏：列表 -->
+    <div class="notes-list">
+      <div class="notes-toolbar">
+        <input v-model="filter.q" class="input" placeholder="搜索标题/正文/标签…" />
+        <select v-model="filter.category" class="input">
+          <option value="">全部分类</option>
+          <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+        </select>
+        <button class="btn primary" @click="startCreate">+ 新建笔记</button>
+      </div>
+      <div v-if="tags.length" class="notes-tagbar">
+        <button
+          v-for="t in tags" :key="t"
+          class="chip" :class="{ on: filter.tags.includes(t) }"
+          @click="filter.tags.includes(t) ? filter.tags = filter.tags.filter(x => x !== t) : filter.tags.push(t)"
+        >{{ t }}</button>
+      </div>
+      <div class="notes-list-items">
+        <div v-if="!notes.length" class="hint" style="padding:20px;text-align:center">还没有笔记</div>
+        <div
+          v-for="n in notes"
+          :key="n.id"
+          class="notes-item"
+          :class="{ active: selectedId === n.id }"
+          @click="selectedId = n.id"
+        >
+          <div class="notes-item-title">{{ n.title || '（无标题）' }}</div>
+          <div class="notes-item-meta">
+            <span class="notes-cat" v-if="n.category">📁 {{ n.category }}</span>
+            <span class="notes-tag" v-for="t in (n.tags || []).slice(0, 3)" :key="t">#{{ t }}</span>
+            <span class="notes-time">{{ new Date(n.updatedAt).toLocaleDateString('zh-CN') }}</span>
+          </div>
+          <div class="notes-item-excerpt">{{ (n.content || '').replace(/\s+/g, ' ').slice(0, 60) }}{{ (n.content || '').length > 60 ? '…' : '' }}</div>
+        </div>
+      </div>
+      <div v-if="notes.length" class="notes-export">
+        <ExportButton
+          :data="notes"
+          :count="notes.length"
+          filename-prefix="notes"
+          label="导出全部"
+          :formats="noteExportFormats"
+        />
+      </div>
+    </div>
+
+    <!-- 右栏：详情 / 编辑 -->
+    <div class="notes-detail" @click="onWikiLinkClick">
+      <EmptyState
+        v-if="!draft"
+        icon="📓"
+        title="选择一篇笔记"
+        desc="或点 + 新建笔记 开始写"
+      />
+      <div v-else class="notes-edit">
+        <div class="notes-edit-head">
+          <input
+            ref="titleInput"
+            v-model="draft.title"
+            class="input title-input"
+            placeholder="笔记标题…"
+            @input="isDirty = true"
+          />
+          <div class="notes-edit-actions">
+            <button class="btn primary" @click="save">💾 保存</button>
+            <button v-if="editingId" class="btn" @click="remove">🗑 删除</button>
+          </div>
+        </div>
+
+        <div class="notes-edit-meta">
+          <input
+            v-model="draft.category"
+            class="input"
+            placeholder="分类（例：线代 / 计组 / 算法）"
+            list="note-cat-list"
+            @input="isDirty = true"
+          />
+          <datalist id="note-cat-list">
+            <option v-for="c in categories" :key="c" :value="c" />
+          </datalist>
+
+          <div class="tag-input-wrap">
+            <div class="tag-list">
+              <span v-for="t in draft.tags" :key="t" class="tag-pill" @click="removeTag(t)">#{{ t }} ×</span>
+            </div>
+            <input
+              class="input"
+              placeholder="+ 加标签（回车）"
+              @keydown.enter.prevent="(e) => { addTag(e.target.value); e.target.value=''; }"
+            />
+          </div>
+        </div>
+
+        <div class="notes-split">
+          <textarea
+            v-model="draft.content"
+            class="input notes-content"
+            placeholder="写点什么…用 [[c-card-id]] 双向链接卡片，[[d-doc-id]] 关联资料，#标签 自动归类"
+            rows="16"
+            @input="isDirty = true"
+          />
+          <div class="notes-preview">
+            <div class="hint notes-preview-head">预览</div>
+            <MarkdownRenderer :content="renderedContent" v-if="draft.content" />
+            <div v-else class="hint">（无内容）</div>
+          </div>
+        </div>
+
+        <div class="notes-footer">
+          <span class="hint">字数 {{ draftStats.chars }} · 双向链接 {{ draftStats.links }} · {{ isDirty ? '● 未保存' : '✓ 已同步' }}</span>
+          <span v-if="backlinks.length" class="hint">
+            被引用：
+            <a v-for="b in backlinks" :key="b.id" class="wiki-link" @click="openNote(notes.find(n => n.id === b.id))">{{ b.title }}</a>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.notes-page { display: grid; grid-template-columns: 360px 1fr; gap: 16px; max-width: 1200px; margin: 0 auto; }
+.notes-list { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.notes-toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.notes-toolbar .input { flex: 1; min-width: 140px; }
+.notes-tagbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.notes-tagbar .chip { font-size: 12px; padding: 4px 10px; }
+
+.notes-list-items { display: flex; flex-direction: column; gap: 4px; max-height: calc(100vh - 280px); overflow-y: auto; }
+.notes-item { padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: background .15s; border: 1px solid transparent; }
+.notes-item:hover { background: var(--panel-2, #f7f7f9); }
+.notes-item.active { background: color-mix(in srgb, var(--accent) 8%, transparent); border-color: var(--accent); }
+.notes-item-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.notes-item-meta { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--ink-2); margin-bottom: 4px; }
+.notes-cat { background: rgba(217, 119, 6, 0.12); color: #b45309; padding: 2px 6px; border-radius: 4px; }
+.notes-tag { background: var(--tag-bg, #eef2ff); color: var(--tag-ink, #4338ca); padding: 2px 6px; border-radius: 4px; }
+.notes-time { margin-left: auto; color: var(--ink-2); opacity: 0.7; }
+.notes-item-excerpt { font-size: 12px; color: var(--ink-2); line-height: 1.5; opacity: 0.8; }
+.notes-export { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+.notes-detail { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; min-height: 600px; }
+.notes-edit { display: flex; flex-direction: column; gap: 12px; }
+.notes-edit-head { display: flex; gap: 8px; align-items: center; }
+.title-input { font-size: 18px; font-weight: 700; flex: 1; }
+.notes-edit-actions { display: flex; gap: 6px; }
+
+.notes-edit-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.notes-edit-meta .input { flex: 1; min-width: 160px; }
+.tag-input-wrap { flex: 1; min-width: 200px; }
+.tag-list { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 4px; }
+.tag-pill { background: var(--tag-bg, #eef2ff); color: var(--tag-ink, #4338ca); padding: 2px 8px; border-radius: 12px; font-size: 12px; cursor: pointer; }
+
+.notes-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-height: 320px; }
+.notes-content { min-height: 320px; resize: vertical; font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 13.5px; line-height: 1.65; }
+.notes-preview { padding: 12px; background: var(--bg, #fafafb); border: 1px solid var(--line); border-radius: 8px; min-height: 320px; max-height: 600px; overflow-y: auto; }
+.notes-preview-head { margin-bottom: 8px; font-weight: 600; }
+
+.notes-footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-top: 8px; border-top: 1px dashed var(--line); }
+
+/* 双向链接样式 */
+:deep(.wiki-link) {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 1px 6px; border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent); text-decoration: none;
+  font-size: 0.95em;
+  cursor: pointer; transition: background .15s;
+}
+:deep(.wiki-link):hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  text-decoration: underline;
+}
+:deep(.wiki-link[data-type="doc"]) { background: color-mix(in srgb, #7ba87b 14%, transparent); color: #4c8352; }
+:deep(.wiki-link[data-type="note"]) { background: color-mix(in srgb, #d4a853 14%, transparent); color: #a0801e; }
+:deep(.wiki-link[data-type="unknown"]) { background: rgba(220, 38, 38, 0.1); color: #dc2626; } /* 未识别红色警示 */
+
+@media (max-width: 880px) {
+  .notes-page { grid-template-columns: 1fr; }
+  .notes-split { grid-template-columns: 1fr; }
+}
+</style>
