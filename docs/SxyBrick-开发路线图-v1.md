@@ -47,10 +47,10 @@
 - ✅ **自我解释钩子**：错题后（rating=0）弹反思卡写一句话自我解释，落盘 `reviews.selfExplanation`（按 selfExplainAt 跨设备同步）。
 - ✅ **校准闭环**：用校准偏差（ECE/Brier）自动微调每科 desiredRetention。
 
-### Phase 3 —— 资产化增强（核心已做，获客入口待做）
+### Phase 3 —— 资产化增强（✅ 全部完成）
 - ✅ 知识净值仪表盘（Health.vue 顶部）。
 - ✅ **Anki .apkg 真解析导入**：jszip 解压 + sql.js 解析 SQLite，本地零服务端。
-- ⏳ **源→卡→数据全血缘**：卡片 `source` 字段升级为可追溯实体，支持「同一来源」聚合复习。
+- ✅ **源→卡→数据全血缘**：`source-trace.js` 来源归一 + 每来源聚合 + 单卡变式链/同源追溯，Health.vue「来源资产」面板。
 
 ### Phase 4 —— 平台化跃迁（二次开发）
 - ⏳ **用户脚本插件系统**：把已有的 `registerTool/registerAgent` 扩展点声明式暴露给用户脚本（ES Module 字符串 + Blob URL 动态 import，`db.plugins` 表已就绪）。
@@ -78,6 +78,5 @@
 ---
 
 ## 五、下一步（按质量杠杆）
-1. **源→卡→数据全血缘**（Phase 3 末项）：`source` 字段升级为可追溯实体，支持「同一来源」聚合复习与血缘追溯，深化资产化。
-2. **用户脚本插件系统**（Phase 4）：把 `registerTool/registerAgent` 扩展点声明式暴露，从产品跃迁到平台（成本较高，建议先做 1 再启动）。
-3. **Agent 工具市场**（Phase 4）：卡组/插件/主题分发与一键安装。
+1. **用户脚本插件系统**（Phase 4）：把 `registerTool/registerAgent` 扩展点声明式暴露给用户脚本（ES Module 字符串 + Blob URL 动态 import，`db.plugins` 表已就绪）——从产品跃迁到平台。
+2. **Agent 工具市场**（Phase 4）：卡组/插件/主题的分发与一键安装。
