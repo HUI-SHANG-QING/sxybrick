@@ -10,6 +10,9 @@ import { toast } from '../utils/toast.js';
 import { db } from '../db.js';
 import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS, applyCardFeedback, RETRIEVAL_STRENGTH_OPTIONS, attachSelfExplanation } from '../repo.js';
 import { getGoal, getTodayCount } from '../utils/streak.js';
+import LossBar from '../components/LossBar.vue';
+import { computeLoss, daysSince } from '../utils/loss-math.js';
+import { getInterventionCfg } from '../utils/interventions.js';
 import { startSpeech, isSpeechSupported } from '../utils/speech.js';
 import { mdToSpeech, speak } from '../utils/tts.js';
 import { getConfusablePairs, getGraphDrivenReviewPlan, getSubjectRetentionMap } from '../agent/analytics.js';
@@ -444,6 +447,17 @@ function fmtFocus(s) {
   return m > 0 ? `${m} 分 ${sec} 秒` : `${sec} 秒`;
 }
 
+/** D2 监督力：损失条 + 紧迫感弹窗 —— 统计与显隐 */
+const interventionCfg = ref(getInterventionCfg());
+const showLossBar = computed(() => interventionCfg.value.enabled && interventionCfg.value.lossBar && queue.value.length > 0);
+const lossStats = computed(() => ({
+  dueCount: queue.value.length,
+  overdueCount: 0,                                   // 不可达：从 queue 不知道
+  daysSinceStudy: 0,                                  // 暂未接历史，留 0 避免误报
+  weekGoal: interventionCfg.value.weekGoal,
+  daysToExam: interventionCfg.value.daysToExam,
+}));
+
 onMounted(async () => {
   goal.value = await getGoal();
   todayCount.value = await getTodayCount();
@@ -635,6 +649,11 @@ async function recordDuelWrong(idA, idB) {
 
 <template>
   <div style="max-width:760px;margin:0 auto">
+    <LossBar
+      v-if="showLossBar"
+      :stats="lossStats"
+      :dismissible="true"
+    />
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <h2 style="margin:0">专注背诵</h2>
       <span class="hint">今日 {{ todayCount }} / {{ goal }} 张</span>
