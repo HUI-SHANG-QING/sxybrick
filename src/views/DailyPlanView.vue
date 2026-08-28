@@ -10,6 +10,7 @@ import {
   checkinDailyTask, deleteDailyPlan, addDailyTask, appendDailyTasksByText,
 } from '../repo.js';
 import { parsePlanSmart } from '../utils/plan-parser.js';
+import { formatLunarDate } from '../utils/lunar.js';
 import { getDailySynergy, getCompletionHeatmap } from '../utils/planSynergy.js';
 import {
   quadrantOption, radarOption, heatmapOption, riskOption,
@@ -57,6 +58,8 @@ const addInput = ref('');
 const historyList = ref([]);     // [{ date, total, done }]
 const pendingTask = ref(null);   // 待确认的任务（弹窗）
 const confirmStatus = ref('done');
+const now = ref(new Date());     // 实时时钟（秒级刷新）
+let clockTimer = null;
 
 const useLLM = ref(localStorage.getItem('sxy_plan_use_llm') !== '0');
 watch(useLLM, v => localStorage.setItem('sxy_plan_use_llm', v ? '1' : '0'));
@@ -95,13 +98,23 @@ const timelineHeight = computed(() => {
 // 课程表风格日程表数据（按小时网格排布）
 const board = computed(() => buildScheduleBoard(plan.value?.tasks || []));
 
+// 选中日期的公历/农历/星期信息（历史日期同样生效）
+const dateInfo = computed(() => formatLunarDate(selectedDate.value + 'T00:00:00'));
+// 实时时钟（HH:MM:SS，秒级跳动）
+const timeText = computed(() => {
+  const n = now.value;
+  return [n.getHours(), n.getMinutes(), n.getSeconds()].map(x => String(x).padStart(2, '0')).join(':');
+});
+
 // ──────────────── 生命周期 ────────────────
 onMounted(async () => {
   await loadPlan(today);
   loadHistoryList();
+  clockTimer = setInterval(() => { now.value = new Date(); }, 1000);
   window.addEventListener('resize', handleResize);
 });
 onBeforeUnmount(() => {
+  clearInterval(clockTimer);
   disposeAllCharts();
   window.removeEventListener('resize', handleResize);
 });
@@ -156,7 +169,7 @@ async function selectDate(d) {
 
 // ──────────────── 口述 → 解析预览 ────────────────
 function fillExample() {
-  rawInput.value = '09:00 复习线代30张 重要\n14:00 做10道408题 计组\n16:30 看数据结构讲义\n19:00 背英语单词50个 重要';
+  rawInput.value = '09:00 复习线性代数第四章方程组基础解系与非齐次通解全部30张卡片 重要\n14:00 做10道408计算机组成原理存储系统真题大题 计组\n16:30 看数据结构二叉树遍历与哈夫曼树讲义并整理笔记\n19:00 背英语单词50个 重要';
 }
 
 async function submitPlan() {
@@ -527,6 +540,20 @@ function handleResize() {
 
       <!-- 今日日程表（课程表风格 · 居中） -->
       <section class="dp-board-section">
+        <!-- 日期信息栏：公历 + 农历 + 星期 + 实时时钟（秒级） -->
+        <div class="dp-date-info" :title="isToday ? '今天' : '查看 ' + selectedDate">
+          <div class="dp-date-info-main">
+            <span class="dp-di-solar">📅 {{ dateInfo.solarText }}</span>
+            <span class="dp-di-sub">
+              <span class="dp-di-week">{{ dateInfo.weekdayText }}</span>
+              <span class="dp-di-lunar">🌙 {{ dateInfo.lunarText }} · {{ dateInfo.ganzhiText }}</span>
+            </span>
+          </div>
+          <div class="dp-di-clock-wrap">
+            <div class="dp-di-clock">{{ timeText }}</div>
+            <div class="dp-di-clock-label">实时时间</div>
+          </div>
+        </div>
         <div class="dp-board-head">
           <div class="dp-chart-title">📚 今日课程表（点击条目 → 弹窗确认打卡）</div>
           <div class="dp-legend">
@@ -556,7 +583,7 @@ function handleResize() {
                     <span class="dp-board-time">{{ b.label }}</span>
                     <span class="dp-board-type">{{ TYPE_ICON[b.task.type] }}</span>
                   </div>
-                  <div class="dp-board-title">
+                  <div class="dp-board-title" :style="{ '-webkit-line-clamp': b.clamp }">
                     <span v-if="b.task.status === 'done'" class="dp-check">✓ </span>{{ b.task.title }}
                   </div>
                   <div class="dp-board-sub">
@@ -792,6 +819,29 @@ function handleResize() {
 
 /* ── 今日日程表（课程表风格 · 居中）── */
 .dp-board-section { margin: 16px 0; }
+/* 日期信息栏：公历 + 农历 + 星期 + 实时时钟 */
+.dp-date-info {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  max-width: 720px; margin: 0 auto 10px; padding: 12px 18px;
+  border-radius: 12px; border: 1px solid var(--line);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--panel)), var(--panel));
+  box-shadow: 0 1px 6px rgba(0,0,0,.04);
+}
+.dp-date-info-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dp-di-solar { font-size: 16px; font-weight: 700; color: var(--ink); }
+.dp-di-sub { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); }
+.dp-di-week { font-weight: 600; color: var(--accent, #3a7afe); }
+.dp-di-clock-wrap { text-align: right; flex-shrink: 0; }
+.dp-di-clock {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 30px; font-weight: 700; letter-spacing: 2px;
+  color: var(--accent, #3a7afe); font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.dp-di-clock-label { font-size: 10px; color: var(--ink-2); margin-top: 2px; }
+@media (max-width: 480px) {
+  .dp-di-clock { font-size: 24px; }
+  .dp-di-solar { font-size: 14px; }
+}
 .dp-board-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .dp-legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; }
 .lg { padding: 2px 8px; border-radius: 8px; border-left: 3px solid; }
@@ -813,14 +863,14 @@ function handleResize() {
 .dp-board-block.st-skipped { opacity: 0.5; }
 .dp-board-block-head { display: flex; justify-content: space-between; font-size: 11px; color: var(--ink-2); }
 .dp-board-time { font-weight: 600; }
-.dp-board-title { font-weight: 600; font-size: 13px; margin: 2px 0; line-height: 1.25; }
-.dp-board-sub { font-size: 11px; color: var(--ink-2); display: flex; gap: 4px; flex-wrap: wrap; }
+.dp-board-title { font-weight: 600; font-size: 13px; margin: 2px 0; line-height: 1.25; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
+.dp-board-sub { font-size: 11px; color: var(--ink-2); display: flex; gap: 4px; flex-wrap: wrap; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .dp-board-status { padding: 0 6px; border-radius: 6px; background: rgba(0,0,0,.05); }
 .dp-board-status.done { background: rgba(46,125,50,.14); color: #2e7d32; }
 .dp-board-unscheduled { margin-top: 12px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--panel-2, #f7f7f9); }
 .dp-board-sub-title { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
 .dp-unsched-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.dp-unsched-chip { padding: 4px 10px; border-radius: 14px; background: #ffffff; border: 1px solid var(--line); font-size: 12px; }
+.dp-unsched-chip { padding: 4px 10px; border-radius: 14px; background: #ffffff; border: 1px solid var(--line); font-size: 12px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle; }
 .dp-unsched-chip.editable { cursor: pointer; }
 .dp-unsched-chip.editable:hover { border-color: var(--accent); }
 .dp-unsched-chip.st-done { background: rgba(123,168,123,.14); border-color: #2e7d32; }

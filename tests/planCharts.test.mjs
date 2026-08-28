@@ -46,3 +46,36 @@ test('象限色映射', () => {
   const b = buildScheduleBoard([t]);
   assert.equal(b.placed[0].color, '#d4a853');
 });
+
+test('left/width 为纯百分比加减（不依赖 calc 乘除，兼容所有浏览器）', () => {
+  // 3 个同时段任务 → 3 列并排
+  const ts = [0, 1, 2].map(() => task({ scheduledHour: 10, estimatedMinutes: 90 }));
+  const b = buildScheduleBoard(ts);
+  assert.equal(b.laneCount, 3);
+  const l0 = b.placed[0].left, w0 = b.placed[0].width;
+  assert.ok(!l0.includes('*') && !l0.includes('/'), 'left 不应含乘除: ' + l0);
+  assert.ok(!w0.includes('*') && !w0.includes('/'), 'width 不应含乘除: ' + w0);
+  assert.ok(l0.startsWith('calc(') && l0.includes('%'));
+  assert.equal(b.placed[1].left, 'calc(33.33% + 5px)');
+  assert.equal(b.placed[1].width, 'calc(33.33% - 10px)');
+});
+
+test('clamp 随块高自适应（矮块 1 行 / 中块 2 行 / 高块 3 行）', () => {
+  const small = task({ scheduledHour: 10, estimatedMinutes: 30 });  // 34px
+  const mid = task({ scheduledHour: 11, estimatedMinutes: 90 });    // 84px
+  const tall = task({ scheduledHour: 13, estimatedMinutes: 180 });  // 168px
+  const b = buildScheduleBoard([small, mid, tall]);
+  const byTop = Object.fromEntries(b.placed.map(p => [p.top, p.clamp]));
+  assert.equal(byTop[(10 - 6) * 56], 1);   // 34px → 1 行
+  assert.equal(byTop[(11 - 6) * 56], 2);   // 84px → 2 行
+  assert.equal(byTop[(13 - 6) * 56], 3);   // 168px → 3 行
+});
+
+test('跨午夜时长 label 标注「次日」，且高度截断到网格底部', () => {
+  const t = task({ scheduledHour: 23, estimatedMinutes: 90 });
+  const b = buildScheduleBoard([t]);
+  assert.equal(b.placed[0].label, '23:00–次日00:30');
+  // 23:00 起 top=952，网格底 1008；90min=84px 截断为 56px
+  assert.equal(b.placed[0].height, 56);
+  assert.equal(b.placed[0].top + b.placed[0].height, b.totalHeight);
+});

@@ -362,6 +362,7 @@ export function buildScheduleBoard(tasks = [], opts = {}) {
 
   const hours = [];
   for (let h = startHour; h <= endHour; h++) hours.push(h);
+  const maxBottom = (endHour - startHour + 1) * rowH;
 
   // 1) 计算每个任务的矩形区间
   const items = [];
@@ -374,7 +375,8 @@ export function buildScheduleBoard(tasks = [], opts = {}) {
     }
     const durMin = t.estimatedMinutes || defaultDur;
     const top = (sh - startHour) * rowH;
-    const height = Math.max(34, Math.round((durMin / 60) * rowH));
+    // 高度按分钟折算，但截断到网格底部（如 23:00 开始的 90min 任务只显示到 24:00）
+    const height = Math.min(Math.max(34, Math.round((durMin / 60) * rowH)), Math.max(34, maxBottom - top));
     items.push({ task: t, top, height, bottom: top + height });
   }
   // 按开始时间排序，便于贪心分配列
@@ -396,10 +398,13 @@ export function buildScheduleBoard(tasks = [], opts = {}) {
     top: it.top,
     height: it.height,
     lane: it.lane,
-    left: `calc(${it.lane} * (100% / ${laneCount}) + 5px)`,
-    width: `calc(100% / ${laneCount} - 10px)`,
+    // 注意：CSS calc 不支持乘法/除法（兼容性差），必须展开成纯百分比 + 加减
+    left: `calc(${Math.round((it.lane / laneCount) * 10000) / 100}% + 5px)`,
+    width: `calc(${Math.round((1 / laneCount) * 10000) / 100}% - 10px)`,
     color: QUAD_COLOR[it.task.quadrant] || QUAD_COLOR.Q4,
     label: `${fmtHour(it.task.scheduledHour)}–${fmtHour(it.task.scheduledHour + (it.task.estimatedMinutes || defaultDur) / 60)}`,
+    // 标题显示行数随块高自适应（防长文字溢出）
+    clamp: it.height <= 72 ? 1 : it.height <= 144 ? 2 : 3,
   }));
 
   return {
@@ -409,10 +414,13 @@ export function buildScheduleBoard(tasks = [], opts = {}) {
   };
 }
 
+/** 小时 → HH:MM；跨午夜（≥24）时标注"次日" */
 function fmtHour(h) {
-  const hh = Math.floor(h);
-  const mm = Math.round((h - hh) * 60);
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  const next = h >= 24;
+  const hh = Math.floor(next ? h - 24 : h);
+  const mm = Math.round(((next ? h - 24 : h) - hh) * 60);
+  if (mm === 60) return fmtHour(hh + 1);
+  return `${next ? '次日' : ''}${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
 // ──────────────── 工具：空图占位 ────────────────
