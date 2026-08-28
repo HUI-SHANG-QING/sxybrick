@@ -67,7 +67,7 @@
 - ✅ **仓库结构重组 + README**：确认 git 仓库根即主项目，README 重写（价值主张 + 快速上手 + 架构 + 测试）。
 - ✅ **可复现的评测基准**：`fsrs-benchmark.js` + `scripts/benchmark.mjs`，校准质量/训练改善回归门槛纳入 CI。
 
-### Phase 6 —— 资料中心（学习资料中枢，6.1-6.5b 完成 ⏳ 余 6.6 图谱联动）
+### Phase 6 —— 资料中心（学习资料中枢，全部完成 ✅）
 > 详细设计见 `docs/SxyBrick-资料中心规划-v1.md`。从「记忆卡片系统」升级为「学习资料中枢」：上传（PDF/Excel/图片/Word/TXT）→ 全量解析（几百 MB 扫描 PDF 不切片丢内容）→ 原样预览 → 文件问答 → 模块联动（知识图谱第一优先）。
 > 已确认决策：**OPFS 存原文件 + IndexedDB 元数据/解析文本**、**本地 OCR 优先可切云端**、**本地检索默认 + 语义 key 开关**、**原文件不跨设备同步（元数据/文本/索引同步）**。
 > 关键复用：RAG 全链路（`retrieval.js` chunkText/indexDoc/hybridSearch 现成）、`embeddings` 表（`sourceType:'doc'` 概念已预留）、graph-builder/cardsmith/source-trace 联动地基。
@@ -81,7 +81,7 @@
 > - ⏳ **6.6 联动**：知识图谱抽概念（graph-builder 接解析文本）→ 错题溯源（卡片血缘反查原文段落）→ 复习上下文增强。
 >   - ✅ **6.6.1 知识图谱联动（资料入图）**：`src/utils/doc-graph.js` 纯函数（cardInDoc 前缀缩尾匹配 / buildDocCardEdges / excerptAround）；`docs-lib.linkDocToCards`（同科目卡片题干命中原文 → 建「涵盖」边，parseDoc/ocrDoc 成功后自动触发 + 手动按钮）；`repo.createGraphEdge` 扩展 `docId`/`type`（资料边去重）；图谱视图识别资料节点跳 `/materials`。
 >   - ✅ **6.6.2 错题溯源（血缘反查）**：`docs-lib.traceCardSource`（card.source → 资料 + 原文片段）；`deleteDocFile` 联动清理图谱边。
->   - ⏳ **6.6.3 复习上下文增强**：复习卡片时注入来源资料片段（UI 入口，服务层已就绪）。
+>   - ✅ **6.6.3 复习上下文增强**：`Review.vue` 背诵时翻转卡片后展示来源资料名 + 原文片段（watch 当前卡片调 traceCardSource，未翻面不剧透，点来源名跳资料库）。
 
 ---
 
@@ -101,6 +101,6 @@
 ---
 
 ## 五、下一步（按质量杠杆）
-1. **资料中心 Phase 6 余项**：6.6.3 复习上下文增强（复习时注入来源资料片段，服务层 `traceCardSource` 已就绪，缺 Review 视图 UI 入口）。主线（上传→解析→预览→问答→建卡→OCR→图谱联动）已闭环。
+1. **Phase 6 资料中心已全部完成 ✅**：上传→解析→预览→问答→用户选择制建卡→OCR→知识图谱联动（资料入图 + 错题溯源 + 复习上下文）全链路闭环。
 2. **云端 Agent 工具市场**（Phase 4 余项）：插件/卡组/主题的远程目录与一键安装——需要托管服务 + 来源校验/签名，成本较高，等插件生态有实际需求后再动。
 3. **数据安全拓展**（用户明确暂缓，可随时重启）：PIPL 合规、本地加密、导出脱敏。

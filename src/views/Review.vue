@@ -13,6 +13,7 @@ import { getGoal, getTodayCount } from '../utils/streak.js';
 import { startSpeech, isSpeechSupported } from '../utils/speech.js';
 import { mdToSpeech, speak } from '../utils/tts.js';
 import { getConfusablePairs, getGraphDrivenReviewPlan, getSubjectRetentionMap } from '../agent/analytics.js';
+import { traceCardSource } from '../docs-lib.js';
 import { retentionFor } from '../algorithms/adaptive-retention.js';
 import { getQuickCheckDue, recordQuickCheck } from '../utils/quickCheck.js';
 import { recommendTodaySequence, syncReviewToPlan } from '../intelligence.js';
@@ -98,6 +99,17 @@ const quickCurrent = computed(() => quickQueue.value[quickIdx.value] || null);
 
 const current = () => queue.value[idx.value] || null;
 const hasMore = computed(() => idx.value < queue.value.length);
+
+// 复习上下文增强（Phase 6.6.3）：当前卡片有来源资料血缘时，翻转后展示原文片段（避免未翻面剧透）
+const sourceDoc = ref(null);
+watch(() => current()?.id, async (id) => {
+  sourceDoc.value = null;
+  if (!id) return;
+  try {
+    const r = await traceCardSource(id);
+    if (current()?.id === id) sourceDoc.value = r; // 卡片已切走则丢弃
+  } catch { sourceDoc.value = null; }
+});
 
 // 卡片导航：上一张/下一张（不重置翻转状态，FlipCard 会 watch card.id 自动重置）
 function prevCard() {
@@ -733,6 +745,12 @@ async function recordDuelWrong(idA, idB) {
         <div v-if="consolidationHint" class="consolidation-hint">{{ consolidationHint }}</div>
         <div v-if="confusableHint" class="confusable-hint">{{ confusableHint }}</div>
 
+        <!-- 复习上下文增强：来源资料原文片段（翻转后才显示，避免剧透） -->
+        <div v-if="flipRef?.flipped && sourceDoc" class="source-doc-bar">
+          <span class="source-doc-title">📄 来源：<a class="source-doc-link" @click="router.push('/materials')">{{ sourceDoc.doc.name }}</a></span>
+          <div class="source-doc-excerpt">{{ sourceDoc.excerpt }}</div>
+        </div>
+
         <!-- 底部占位：高度等于底部 sticky 快捷键条，避免被遮挡 -->
         <div class="review-kb-spacer" aria-hidden="true"></div>
       </template>
@@ -909,6 +927,12 @@ async function recordDuelWrong(idA, idB) {
 .history-detail { border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 4px; }
 .confusable-hint { margin-top: 12px; padding: 10px 14px; border: 1px solid #fcd34d; background: #fef3c7; color: #92400e; border-radius: 8px; font-size: 13px; }
 .consolidation-hint { margin-top: 12px; padding: 10px 14px; border: 1px solid var(--blue, #2563eb); background: color-mix(in srgb, var(--blue, #2563eb) 8%, var(--panel, #fff)); color: var(--blue, #2563eb); border-radius: 8px; font-size: 13px; text-align: center; }
+/* 复习上下文增强：来源资料原文片段 */
+.source-doc-bar { margin-top: 12px; padding: 10px 14px; border: 1px solid var(--line); background: var(--code-bg, #f6f7f9); border-radius: 8px; font-size: 12px; line-height: 1.7; }
+.source-doc-title { font-weight: 600; color: var(--ink-2); }
+.source-doc-link { color: var(--accent); cursor: pointer; }
+.source-doc-link:hover { text-decoration: underline; }
+.source-doc-excerpt { margin-top: 4px; color: var(--ink-2); white-space: pre-wrap; }
 /* 短期提取巩固 */
 .quick-check { border-left: 3px solid var(--amber) !important; }
 .quick-front { cursor: pointer; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); transition: background .15s; }
