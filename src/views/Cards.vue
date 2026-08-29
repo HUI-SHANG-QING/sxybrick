@@ -18,6 +18,7 @@ import { chatAI, hasAIKey } from '../ai.js';
 import { genVariants } from '../utils/genVariants.js';
 // P2-3 AI 智能卡组生成：从纯笔记用 LLM 自动拆成 front/back 卡片（与手动分隔的批量建卡并存）
 import { genCardDeck } from '../utils/genCardDeck.js';
+import { highlight as hlKw } from '../search/search-service.js';
 import { getForgetRisk, getAssetHealth } from '../agent/analytics.js';
 import { T } from '../utils/telemetry.js';
 
@@ -139,6 +140,11 @@ function saveCardFilters() { localStorage.setItem('sxy_card_filters', JSON.strin
 watch(() => [filters.subject, filters.logic], saveCardFilters);
 watch(() => filters.tags, saveCardFilters, { deep: true });
 
+// M4：列表关键词高亮（有搜索词时启用 v-html，highlight 内部先转义防 XSS；无搜索词走普通插值）
+function hlFront(item) {
+  const t = plain(item.front).slice(0, 160) || '（空）';
+  return filters.q ? hlKw(t, filters.q) : t;
+}
 function plain(md) {
   return String(md || '')
     .replace(/```[\s\S]*?```/g, ' [代码] ')
@@ -807,7 +813,8 @@ async function rescueAll() {
             </div>
           </template>
           <template v-else>
-            <div class="front-preview">{{ plain(item.front).slice(0, 160) || '（空）' }}</div>
+            <div v-if="filters.q" class="front-preview" v-html="hlFront(item)"></div>
+            <div v-else class="front-preview">{{ plain(item.front).slice(0, 160) || '（空）' }}</div>
           </template>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
             <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
@@ -840,7 +847,8 @@ async function rescueAll() {
           </div>
         </template>
         <template v-else>
-          <div class="front-preview">{{ plain(item.front).slice(0, 160) || '（空）' }}</div>
+          <div v-if="filters.q" class="front-preview" v-html="hlFront(item)"></div>
+          <div v-else class="front-preview">{{ plain(item.front).slice(0, 160) || '（空）' }}</div>
         </template>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
           <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
@@ -968,6 +976,7 @@ async function rescueAll() {
 .filter-bar .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .filter-bar .row:last-child { margin-bottom: 0; }
 .front-preview { color: var(--ink); }
+.front-preview :deep(mark) { background: #ffe58f; color: inherit; border-radius: 3px; padding: 0 1px; }
 .suggest-bar { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--blue); border-radius: var(--radius); padding: 12px 16px; margin: 12px 0; display: flex; flex-direction: column; gap: 2px; }
 .streak-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
 .streak-badge {

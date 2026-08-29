@@ -99,7 +99,18 @@ export async function getTags(subject = '') {
 export async function listCards({ q = '', subject = '', tags = [], logic = 'AND', mode = 'all', sortBy = 'updated' } = {}) {
   let cards = await allCards();
   if (subject) cards = cards.filter(c => c.subject === subject);
-  if (q) cards = cards.filter(c => c.front.includes(q) || c.back.includes(q));
+  // M4 搜索扩展：q 覆盖 标题/正面/背面/标签/科目/来源/助记（大小写不敏感），
+  // 原「仅 front/back 子串」行为是它的子集，向后兼容
+  if (q) {
+    const kw = q.toLowerCase();
+    cards = cards.filter(c =>
+      String(c.front || '').toLowerCase().includes(kw) ||
+      String(c.back || '').toLowerCase().includes(kw) ||
+      (c.tags || []).some(t => String(t).toLowerCase().includes(kw)) ||
+      String(c.subject || '').toLowerCase().includes(kw) ||
+      String(c.source || '').toLowerCase().includes(kw) ||
+      String(c.mnemonic || '').toLowerCase().includes(kw));
+  }
   cards = tagFilter(cards, tags, logic);
   if (mode === 'due') cards = cards.filter(c => c.dueAt <= now());
   if (sortBy === 'created') cards.sort((a, b) => (b.createdAt - a.createdAt) || (b.id > a.id ? 1 : -1));
