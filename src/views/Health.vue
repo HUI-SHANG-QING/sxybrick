@@ -2,7 +2,7 @@
 // 资产体检（E1 数字资产保值批）：重复卡 / 僵尸卡 / 孤儿图片 / 无标签卡 检测与清理
 // 所有删除走 deleteCard（墓碑跨设备传播）+ 图片直接清理，保证多端一致
 import { confirmDialog } from '../utils/confirm.js';
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAssetHealth, getNetWorth, getSourceOverview } from '../agent/analytics.js';
 import { deleteCard } from '../repo.js';
@@ -15,6 +15,12 @@ const health = ref(null);
 const networth = ref(null);
 const sources = ref(null); // { bySource, variantCount, untraced, totalSources }
 const busy = ref(false);
+
+// P2-24 一键修复：统计可安全自动清理的项数（重复/僵尸/孤儿图片），用于按钮可用性
+const fixableCount = computed(() => {
+  const h = health.value; if (!h) return 0;
+  return h.duplicates.reduce((s, g) => s + g.n - 1, 0) + (h.zombieCount || 0) + (h.orphanImageCount || 0);
+});
 
 // 跳转到 /cards + 指定筛选参数；默认全展开（背诵效果页，用户先预览再决定是否编辑）
 function jumpCards(query) {
@@ -73,6 +79,31 @@ async function cleanOrphanImages() {
   await load();
 }
 
+// P2-24 一键修复：串联可安全自动化的清理项（重复卡每组留最新 1 张 + 僵尸卡 + 孤儿图片），合并为单次确认
+async function fixAll() {
+  const h = health.value; if (!h) return;
+  const dupTotal = h.duplicates.reduce((s, g) => s + g.n - 1, 0);
+  const zombN = h.zombieCount || 0;
+  const orphanN = h.orphanImageCount || 0;
+  if (!dupTotal && !zombN && !orphanN) { toast('资产已健康，无需修复', 'success'); return; }
+  const detail = `删除 ${dupTotal} 张重复卡（每组保留最新 1 张）、清理 ${zombN} 张僵尸卡、清理 ${orphanN} 张孤儿图片` +
+    `（无标签卡 ${h.untaggedCount || 0} 张需手动补标签，不在自动列）`;
+  if (!(await confirmDialog(`一键修复将：${detail}。确认执行？`))) return;
+  busy.value = true;
+  try {
+    let n = 0;
+    for (const g of h.duplicates) {
+      const sorted = [...g.cards].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      for (const c of sorted.slice(1)) { await deleteCard(c.id); n++; }
+    }
+    for (const z of h.zombies) await deleteCard(z.id);
+    for (const i of h.orphanImages) await db.images.delete(i.id);
+    toast(`一键修复完成：清理 ${n} 张重复卡、${zombN} 张僵尸卡、${orphanN} 张孤儿图片`, 'success');
+    await load();
+  } catch (e) { toast(e.message || '修复失败', 'error'); }
+  finally { busy.value = false; }
+}
+
 onMounted(load);
 </script>
 
@@ -83,6 +114,7 @@ onMounted(load);
       <span class="hint">数字资产健康度：重复 · 僵尸 · 断链 · 缺标签</span>
       <span style="flex:1"></span>
       <button class="btn small" :disabled="busy" @click="load">重新体检</button>
+      <button class="btn small primary" :disabled="busy || !fixableCount" @click="fixAll">一键修复{{ fixableCount ? `（${fixableCount}）` : '' }}</button>
     </div>
 
     <div v-if="health" class="stat-cards" style="margin-top:14px">
