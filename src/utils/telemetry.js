@@ -49,8 +49,18 @@ export function setCurrentPage(path) { _currentPage = path || '/'; }
 export function getCurrentPage() { return _currentPage; }
 
 // 设备/会话标识（本地生成，永不离设备；仅用于跨天聚合时区分同一用户多浏览器）
-let _deviceId = localStorage.getItem('sxy_device_id') || '';
-if (!_deviceId) { _deviceId = uid(); localStorage.setItem('sxy_device_id', _deviceId); }
+// 2026-08-29 加固：改为惰性初始化，避免模块顶层访问 localStorage——
+// 模块若被无 window 的上下文（如 SW/worker）加载会抛 ReferenceError，整条 import 链中断。
+let _deviceId = null;
+export function getDeviceId() {
+  if (_deviceId == null) {
+    try {
+      _deviceId = localStorage.getItem('sxy_device_id') || '';
+      if (!_deviceId) { _deviceId = uid(); localStorage.setItem('sxy_device_id', _deviceId); }
+    } catch { _deviceId = uid(); }
+  }
+  return _deviceId;
+}
 let _sessionId = uid(); // 每次打开新标签页 = 新 session
 
 // ---- 批量写入层（节流 + 去重 + 空闲回调） ----
@@ -113,7 +123,7 @@ export function trackAction(type, payload = null, extra = {}) {
     page: extra.page || getCurrentPage(),
     module: extra.module || moduleOf(extra.page || getCurrentPage()),
     payload,
-    _meta: { deviceId: _deviceId, sessionId: _sessionId },
+    _meta: { deviceId: getDeviceId(), sessionId: _sessionId },
     _payloadSig: '',
   };
   // 计算 payload 签名供去重用（只对简单字段做签名，避免大 JSON 拖慢）

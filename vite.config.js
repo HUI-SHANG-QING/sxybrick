@@ -76,8 +76,10 @@ export default defineConfig({
         ],
       },
       devOptions: {
-        // 开发态也启用 SW，方便在 dev 下验证离线缓存策略（生产 build 仍按上面 workbox 配置走）
-        enabled: true,
+        // 开发态不注册 SW（2026-08-29 修复白屏）：dev SW 会用 SWR 缓存 dev server 的非 hash 资源，
+        // dev server 重启 / 依赖重新优化后，SW 仍返回旧模块 → import 失败 → 整页白屏。
+        // 生产 build 的 workbox 离线缓存完全不受影响（build 时按上方配置生成 sw.js）。
+        enabled: false,
         type: 'autoUpdate',
       },
     }),
