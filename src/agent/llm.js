@@ -4,6 +4,9 @@
 //  1) 仅做“聊天”，不耦合任何业务；配置由调用方传入，避免与 ai.js 形成循环依赖。
 //  2) 支持流式（onToken）与非流式两种模式，UI 可实时展示思考过程。
 //  3) 不依赖原生 function calling —— 工具调用交由上层用“文本协议”解析，保证任意兼容端点都能跑通。
+//  4) P2-27 用量账本：每次调用记录 token/耗时（API usage 优先，缺失时估算），写入本地 db.aiUsage。
+
+import { recordUsage, estimateTokens } from '../utils/ai-usage.js';
 
 /**
  * 发起一次聊天补全。
@@ -17,6 +20,19 @@ export async function chat(messages, cfg, opts = {}) {
   if (!apiKey) throw new Error('请先在「AI 设置」里填入 API 密钥');
   const base = String(cfg.baseUrl || 'https://api.deepseek.com').replace(/\/+$/, '');
   const model = cfg.model || 'deepseek-v4-flash';
+
+  // P2-27：用量记录（fire-and-forget，绝不影响主流程）
+  const t0 = Date.now();
+  const source = String(opts.source || 'chat');
+  const reportUsage = (usage, reply, ok) => {
+    const promptTokens = usage?.prompt_tokens ?? messages.reduce((n, m) => n + estimateTokens(m?.content ?? ''), 0);
+    const completionTokens = usage?.completion_tokens ?? estimateTokens(reply);
+    recordUsage({
+      source, model, promptTokens, completionTokens,
+      durationMs: Date.now() - t0, ok,
+      est: usage?.prompt_tokens == null ? 1 : 0,
+    }).catch(() => {});
+  };
 
   const body = {
     model,
@@ -52,7 +68,9 @@ export async function chat(messages, cfg, opts = {}) {
 
   if (!opts.stream) {
     const data = await res.json();
-    return data?.choices?.[0]?.message?.content || '';
+    const text = data?.choices?.[0]?.message?.content || '';
+    reportUsage(data?.usage, text, true);
+    return text;
   }
 
   // 流式解析 SSE
@@ -81,8 +99,10 @@ export async function chat(messages, cfg, opts = {}) {
       } catch { /* 忽略非 JSON 行 */ }
     }
   }
+  reportUsage(null, full, true);
   return full;
   } catch (e) {
+    reportUsage(null, '', false);
     // P1-9：超时 / 用户取消统一归类为 AbortError，给出可读错误码便于上层降级
     if (e?.name === 'AbortError') {
       const err = new Error(timeoutMs ? `AI 请求超时（>${Math.round(timeoutMs / 1000)}s 未响应）` : 'AI 请求已取消');

@@ -164,6 +164,14 @@ db.version(20).stores({
   trash: 'id, kind, deletedAt',
 });
 
+// v21：AI 用量账本（P2-27）——本地记账，不进同步（已入 EXCLUDED_FROM_SYNC）；
+//   用量属于本设备计费上下文，跨设备合并无意义
+//   id, t(ms 主索引), source(调用方标签：chat/agent:xxx/pipeline:xxx/docqa/genDeck/mindmap/embedding...)
+//   model, promptTokens, completionTokens, totalTokens, durationMs, ok(0/1), est(0/1 是否估算值)
+db.version(21).stores({
+  aiUsage: 'id, t, source',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

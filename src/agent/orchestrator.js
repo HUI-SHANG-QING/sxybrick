@@ -91,7 +91,7 @@ export async function runTask(opt) {
     cfg,
     studyContext,
     memoryText,
-    chat: (messages, opts = {}) => chatWithFallback(messages, cfg, { ...opts, signal }),
+    chat: (messages, opts = {}) => chatWithFallback(messages, cfg, { ...opts, signal, source: `agent:${agent.id}` }),
   };
 
   // 3) 拼接对话（保留最近若干轮历史，控制 token）

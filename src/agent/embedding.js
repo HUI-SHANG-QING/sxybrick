@@ -5,6 +5,9 @@
 //   2) 无 API Key 或离线时降级到本地：中文双字 bigram + 英文词 + TF 哈希到 256 维向量
 //   3) 本地降级虽不如语义 embedding 精准，但零依赖、离线可用、能捕捉关键词重叠
 //   4) 余弦相似度检索由 retrieval.js 负责，本模块只管「把文本变成向量」
+//   5) P2-27：远程 embedding 调用记录用量到本地 db.aiUsage（本地降级不计费不记录）
+
+import { recordUsage } from '../utils/ai-usage.js';
 
 const CFG_KEY = 'sxy_ai_config';
 const LOCAL_DIM = 256; // 本地降级向量维度
@@ -33,6 +36,7 @@ function hasKey() {
 
 // ---------- 远程 embedding：调用 OpenAI 兼容 /v1/embeddings ----------
 async function remoteEmbed(texts) {
+  const t0 = Date.now();
   const cfg = getCfg();
   const base = String(cfg.baseUrl || 'https://api.deepseek.com').replace(/\/+$/, '');
   const model = cfg.embeddingModel || 'text-embedding-3-small';
@@ -48,6 +52,14 @@ async function remoteEmbed(texts) {
   const data = await res.json();
   // OpenAI 兼容格式：data.data = [{ index, embedding: [...] }, ...]
   const arr = (data?.data || []).slice().sort((a, b) => (a.index || 0) - (b.index || 0));
+  // P2-27：记录 embedding 用量（usage.total_tokens 优先，缺失时按字符估算）
+  recordUsage({
+    source: 'embedding', model,
+    promptTokens: data?.usage?.total_tokens ?? texts.join(' ').length,
+    completionTokens: 0,
+    durationMs: Date.now() - t0,
+    est: data?.usage?.total_tokens == null ? 1 : 0,
+  }).catch(() => {});
   return arr.map((d) => d.embedding);
 }
 

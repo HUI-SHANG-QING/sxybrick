@@ -5,6 +5,7 @@ import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { runAgentTurn, hasAIKey, saveChat, listChats, deleteChat } from '../ai.js';
 import { agentSystem } from '../ai.js';
+import { aggregateUsage, clearUsage } from '../utils/ai-usage.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import { TraceKind } from '../agent/types.js';
@@ -18,9 +19,25 @@ const loading = ref(false);
 const messages = ref([]); // 当前会话消息 {role, content}
 const traceNodes = ref([]); // 编排轨迹
 const showTools = ref(false);
+const showUsage = ref(false);
 const streamBox = ref(null);
 const sessions = ref([]); // Agent 会话历史（持久化到 aiChats，随数据包同步）
 const currentId = ref('');
+
+// ---- P2-27 AI 用量面板（本地记账，不同步） ----
+const usage = ref(null); // aggregateUsage 结果
+const usageDays = ref(30);
+async function loadUsage() {
+  try { usage.value = await aggregateUsage(usageDays.value); } catch { usage.value = null; }
+}
+async function resetUsage() {
+  if (!(await confirmDialog('清空全部 AI 用量记录？（不影响卡片等数据）'))) return;
+  await clearUsage();
+  await loadUsage();
+  toast('已清空用量记录', 'success');
+}
+function fmtCost(c) { return c >= 0.01 ? '¥' + c.toFixed(2) : '¥' + c.toFixed(4); }
+function fmtTokens(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n); }
 
 const traceMeta = {
   [TraceKind.ROUTE]: { label: '路由', cls: 't-route', icon: '➤' },
@@ -121,6 +138,7 @@ const counts = computed(() => {
 
 onMounted(async () => {
   await loadSessions();
+  await loadUsage();
 });
 </script>
 
@@ -145,13 +163,37 @@ onMounted(async () => {
         <button class="chip" @click="showTools = !showTools">工具接口 ({{ tools.length }})</button>
         <button class="chip" @click="demoExtend">＋运行时扩展</button>
         <button class="chip" @click="clearChat">清空对话</button>
+        <button class="chip" @click="showUsage = !showUsage">📊 用量</button>
       </div>
     </div>
 
     <div class="wb-body">
       <!-- 左：Agent 与工具 -->
       <aside class="wb-side no-print">
-        <div class="side-title">可用 Agent（{{ agents.length }}）</div>
+        <div v-if="showUsage" class="usage-panel">
+          <div class="side-title">
+            AI 用量（近 {{ usageDays }} 天）
+            <a style="float:right;color:var(--red);cursor:pointer" @click="resetUsage">清空</a>
+          </div>
+          <div v-if="!usage || !usage.calls" class="hint" style="padding:4px 0">
+            暂无记录。使用 AI 功能（对话/Agent/导图/建卡/向量化）后，这里会显示 token、耗时与估算费用。
+          </div>
+          <template v-else>
+            <div class="usage-grid">
+              <div class="usage-cell"><div class="usage-num">{{ usage.calls }}</div><div class="usage-label">调用</div></div>
+              <div class="usage-cell"><div class="usage-num">{{ fmtTokens(usage.totalTokens) }}</div><div class="usage-label">Token</div></div>
+              <div class="usage-cell"><div class="usage-num">{{ (usage.durationMs / 1000).toFixed(1) }}s</div><div class="usage-label">累计耗时</div></div>
+              <div class="usage-cell"><div class="usage-num">{{ fmtCost(usage.costCny) }}</div><div class="usage-label">估算费用</div></div>
+            </div>
+            <div class="usage-row" v-for="s in usage.bySource.slice(0, 6)" :key="s.source">
+              <span class="usage-name">{{ s.source }}</span>
+              <span class="usage-nums">{{ s.calls }} 次 · {{ fmtTokens(s.totalTokens) }} · {{ fmtCost(s.costCny) }}</span>
+            </div>
+            <div class="hint" style="margin-top:6px">费用按内置费率估算，实际以 API 服务商账单为准。</div>
+          </template>
+        </div>
+
+        <div class="side-title" style="margin-top:{{ showUsage ? '14px' : '0' }}">可用 Agent（{{ agents.length }}）</div>
         <div
           v-for="a in agents"
           :key="a.id"
@@ -264,6 +306,14 @@ onMounted(async () => {
 .t-final { border-left-color: #22c55e; }
 .t-error { border-left-color: #ef4444; }
 .mini { font-size: 11px; background: var(--code-inline); border-radius: 4px; padding: 0 5px; margin-left: 4px; color: var(--ink-2); }
+.usage-panel { border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin-bottom: 10px; background: var(--code-bg); }
+.usage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+.usage-cell { background: var(--panel); border-radius: 8px; padding: 6px; text-align: center; }
+.usage-num { font-size: 14px; font-weight: 700; }
+.usage-label { font-size: 10px; color: var(--ink-2); }
+.usage-row { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; padding: 3px 0; border-top: 1px dashed var(--line); }
+.usage-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.usage-nums { color: var(--ink-2); white-space: nowrap; }
 .chip { font-size: 12px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
 .chip:hover { border-color: var(--accent); }
 @media (max-width: 980px) {

@@ -13,7 +13,8 @@ export const BACKUP_VERSION = 5;
 // 本地日志/通知表——设备本地诊断数据，故意不同步（跨设备无意义且增大包体积）
 // snapshots：同步快照仅本机回滚用，跨设备无意义且增大包体积
 // plugins：插件为本机扩展，跨设备无意义且可能含敏感配置（API Key 等）
-export const EXCLUDED_FROM_SYNC = ['notifications', 'errors', 'snapshots', 'plugins'];
+// aiUsage：AI 用量账本（P2-27），本设备计费上下文，不同步
+export const EXCLUDED_FROM_SYNC = ['notifications', 'errors', 'snapshots', 'plugins', 'aiUsage'];
 
 // 隐私敏感表——默认不入同步/全量导出，需用户显式 opt-in（PIPL 合规）
 export const PRIVACY_SYNC_TABLES = [

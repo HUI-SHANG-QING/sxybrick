@@ -149,11 +149,13 @@ export async function runPipeline(opt) {
   }
 
   // 2) 构建基础上下文
+  const makeChat = (tag) => (messages, opts = {}) =>
+    chatWithFallback(messages, cfg, { ...opts, signal, source: `pipeline:${tag || pipelineName || 'auto'}` });
   const ctx = {
     cfg,
     studyContext: '',
     memoryText: await buildMemoryText(),
-    chat: (messages, opts = {}) => chatWithFallback(messages, cfg, { ...opts, signal }),
+    chat: makeChat('main'),
   };
 
   // 3) 无预设匹配 → LLM 自动分解
