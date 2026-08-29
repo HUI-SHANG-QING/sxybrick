@@ -3,7 +3,8 @@
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
-import { downloadBackup, importBackup, previewImport, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup } from '../sync.js';
+import { downloadBackup, importBackup, previewImport, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup, backupScope } from '../sync.js';
+import { useAppModeStore } from '../stores/appMode.js';
 import { getSubjects, createCard } from '../repo.js';
 import { getErrors, clearErrors } from '../utils/errorLog.js';
 import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from '../utils/gistBackup.js';
@@ -79,15 +80,19 @@ function winnerLabel(w) {
 }
 
 // ---------- P3·#2 Gist 云备份 ----------
+// M3：gist token 共用（同一 GitHub 账户），但 gistId 按数据域分开——
+// real/test 各自独立 Gist，备份文件也在各自 Gist 内按 scope 命名，互不覆盖
+const appMode = useAppModeStore();
 const ghToken = ref(localStorage.getItem('sxy_gist_token') || '');
-const gistId = ref(localStorage.getItem('sxy_gist_id') || '');
+const gistIdKey = () => (backupScope() === 'test' ? 'sxy_gist_id_test' : 'sxy_gist_id');
+const gistId = ref(localStorage.getItem(gistIdKey()) || '');
 const ghLogin = ref(localStorage.getItem('sxy_gist_login') || '');
 const gistBusy = ref(false);
 const gistOpen = ref(false);
 
 function saveGistCfg() {
   localStorage.setItem('sxy_gist_token', ghToken.value);
-  localStorage.setItem('sxy_gist_id', gistId.value);
+  localStorage.setItem(gistIdKey(), gistId.value);
   localStorage.setItem('sxy_gist_login', ghLogin.value);
 }
 
@@ -111,15 +116,15 @@ async function uploadToGist() {
   try {
     const payload = await buildBackup();
     if (gistId.value) {
-      // 已有 gist：PATCH 更新
+      // 已有 gist：PATCH 更新（payload.scope 决定写入哪个文件名）
       const r = await updateGistBackup(ghToken.value, gistId.value, payload);
-      toast(`✅ 已更新 Gist 备份（${counts.value.cards} 张卡 · 更新于 ${new Date(r.updatedAt).toLocaleString()}）`, 'success');
+      toast(`✅ 已更新 Gist 备份（${counts.value.cards} 张卡 · ${appMode.isTest ? '演示数据' : '真实数据'} · 更新于 ${new Date(r.updatedAt).toLocaleString()}）`, 'success');
     } else {
       // 首次：创建新 secret gist
       const r = await createGistBackup(ghToken.value, payload);
       gistId.value = r.gistId;
       saveGistCfg();
-      toast(`✅ 首次云备份完成（${counts.value.cards} 张卡 · Gist ID 已保存）`, 'success');
+      toast(`✅ 首次云备份完成（${counts.value.cards} 张卡 · ${appMode.isTest ? '演示数据' : '真实数据'} · Gist ID 已保存）`, 'success');
     }
   } catch (e) { toast('上传失败：' + e.message, 'error'); }
   finally { gistBusy.value = false; }
@@ -131,7 +136,12 @@ async function pullFromGist() {
   if (!(await confirmDialog('将从 Gist 拉取备份并合并到本地库（保留本地较新内容）。继续？'))) return;
   gistBusy.value = true;
   try {
-    const payload = await fetchGistBackup(ghToken.value, gistId.value);
+    const payload = await fetchGistBackup(ghToken.value, gistId.value, { scope: backupScope() });
+    // M3 scope 校验：包内 scope 必须与当前数据域一致，防止演示包混入真实数据（反之亦然）
+    if (payload.scope && payload.scope !== backupScope()) {
+      toast(`数据域不匹配：该 Gist 存的是「${payload.scope === 'test' ? '演示' : '真实'}」数据，当前是「${backupScope() === 'test' ? '演示' : '真实'}」模式`, 'error');
+      return;
+    }
     const stats = await importBackup(payload, 'merge');
     saveReport('gist-pull', stats);
     await loadCounts();
@@ -144,7 +154,8 @@ async function resetGist() {
   if (!(await confirmDialog('清空本机的 Gist 配置（不影响云端 Gist）？'))) return;
   ghToken.value = ''; gistId.value = ''; ghLogin.value = '';
   localStorage.removeItem('sxy_gist_token');
-  localStorage.removeItem('sxy_gist_id');
+  localStorage.removeItem(gistIdKey());
+  localStorage.removeItem(gistIdKey() === 'sxy_gist_id' ? 'sxy_gist_id_test' : 'sxy_gist_id');
   localStorage.removeItem('sxy_gist_login');
   toast('已清空 Gist 配置', 'info');
 }
@@ -277,11 +288,13 @@ async function testHub() {
     const j = await res.json();
     const tips = j.tips || [];
     // 再验证密码：用 HMAC 挑战-响应，密码本身不上网；挑战一次性且有有效期
+    // M3：探测路径按数据域走 /backup/{scope}（与 doSync 同路径，中枢独立数据文件）
+    const scopePath = `/backup/${backupScope()}`;
     let tokenOk = null; // null = 未验证（没填密码或协议不支持）
     if (hubToken.value) {
-      const authHeaders = await buildAuthHeaders({ hub, token: hubToken.value, method: 'GET', path: '/backup' })
+      const authHeaders = await buildAuthHeaders({ hub, token: hubToken.value, method: 'GET', path: scopePath })
         || { 'x-sync-token': hubToken.value };
-      const vr = await fetch(`${hub}/backup`, { method: 'GET', headers: { ...authHeaders } });
+      const vr = await fetch(`${hub}${scopePath}`, { method: 'GET', headers: { ...authHeaders } });
       tokenOk = vr.ok;
       if (vr.status === 401) {
         const d = await vr.json().catch(() => ({}));

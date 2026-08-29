@@ -1,10 +1,27 @@
 // 本地数据库（IndexedDB，浏览器内置，离线可用）
 // 与原版 node:sqlite 的差异：id 改用 UUID（全局唯一），保证多设备合并时不冲突
+//
+// M3 演示模式（双实例隔离）：
+//   真实数据 → Dexie('sxybrick')；测试数据 → Dexie('sxybrick-test')。
+//   两实例 schema 完全相同（defineSchema 各执行一遍），物理上不同 IndexedDB 数据库，
+//   测试数据永远读写不到真实表。
+//   `export let db` 是 ESM live binding：setDbInstance() 重赋值后，
+//   全项目所有 `import { db }` 自动跟随当前实例，业务层零改动。
+//   模式切换走整页 reload（stores/appMode.js 负责），保证所有视图重新查询。
 import Dexie from 'dexie';
 
-export const db = new Dexie('sxybrick');
+const REAL_DB_NAME = 'sxybrick';
+const TEST_DB_NAME = 'sxybrick-test';
+export const MODE_KEY = 'sxy_app_mode';
 
-db.version(1).stores({
+const instances = {
+  real: new Dexie(REAL_DB_NAME),
+  test: new Dexie(TEST_DB_NAME),
+};
+
+// ---------- 全量 schema（v1~v23）：两个实例共用同一份定义 ----------
+function defineSchema(d) {
+d.version(1).stores({
   cards: 'id, subject, dueAt, updatedAt, createdAt',
   reviews: 'id, cardId, reviewedAt',
   images: 'id',
@@ -13,65 +30,65 @@ db.version(1).stores({
 });
 
 // v2：新增 AI 对话历史表（随数据包一起同步）
-db.version(2).stores({
+d.version(2).stores({
   aiChats: 'id, updatedAt',
 });
 
 // v3：新增 Agent 记忆库表（分层记忆：core核心/preference偏好/fact事实）
-db.version(3).stores({
+d.version(3).stores({
   aiMemories: 'id, updatedAt, category',
 });
 
 // v4：新增备忘录表（四象限：重要/紧急）
-db.version(4).stores({
+d.version(4).stores({
   memos: 'id, at, updatedAt',
 });
 
 // v5：新增学习计划表 + 知识图谱关系表（均随数据包同步）
-db.version(5).stores({
+d.version(5).stores({
   plans: 'id, status, updatedAt',
   graphEdges: 'id, from, to, updatedAt',
 });
 
 // v6：新增 AI 文档表 + 番茄专注记录表（均随数据包同步）
-db.version(6).stores({
+d.version(6).stores({
   docs: 'id, type, updatedAt',
   pomoSessions: 'id, startedAt',
 });
 
 // v7：新增思维导图 / 每周学习报告 / 成就解锁表（借鉴 Progress AI，均随数据包同步）
-db.version(7).stores({
+d.version(7).stores({
   mindmaps: 'id, updatedAt',
   weeklyReports: 'id, weekStart, updatedAt',
   achievements: 'id, unlockedAt',
 });
 
 // v8：新增模考成绩存档表（组卷模考，随数据包同步）
-db.version(8).stores({
+d.version(8).stores({
   exams: 'id, createdAt',
 });
 
 // v9：新增向量嵌入表（RAG 检索增强：卡片/文档 chunk 的 embedding 向量）
 // sourceType: 'card' | 'doc'；sourceId: 卡片/文档 id；chunkIdx: 分块序号
 // vector: Float32Array（或普通数组）；modelSig: 模型签名，模型变更时需重建索引
-db.version(9).stores({
+d.version(9).stores({
   embeddings: 'id, sourceType, sourceId, subject, updatedAt, modelSig',
 });
 
 // v10：新增主动智能体通知表（随数据包同步）
 // read 用 0/1 整数以支持 IndexedDB 索引（boolean 不可索引）
-db.version(10).stores({
+d.version(10).stores({
   notifications: 'id, read, createdAt',
 });
 
 // v11：新增本地错误日志表（#16 错误边界+日志，便于排查看不见的崩溃）
 // severity: 'error'|'warn'；ctx: 组件/路由名；stack: 错误堆栈
-db.version(11).stores({
+d.version(11).stores({
   errors: 'id, createdAt, severity',
 });
 
 // v12：cards 新增 difficulty 索引（P3-E 渐进式复杂度，便于按难度梯度编排复习）
-db.version(12).stores({
+d.version(12).stores({
   cards: 'id, subject, dueAt, updatedAt, createdAt, difficulty',
 });
 
@@ -86,7 +103,7 @@ db.version(12).stores({
 //   module:   模块（学习/复习/错题/整理/AI/计划/健康/图谱/导图/周报/模考/备忘/同步/导出/书房/成就/仪表盘/隐私）
 //   payload:  自由 JSON 对象（任意附加信息，如卡片 front 摘要、背诵评分、AI token 数、导出格式、同步结果）
 //   _meta:    内部字段（设备 id、会话 id、是否批量合并等）
-db.version(13).stores({
+d.version(13).stores({
   userOps: 'id, t, type, category, page, module',
 });
 
@@ -101,14 +118,14 @@ db.version(13).stores({
 //   mental: Markdown 字符串
 //   customTags(数组), customKV(JSON)
 //   createdAt, updatedAt: 毫秒
-db.version(14).stores({
+d.version(14).stores({
   privacyRecords: 'id, date, startTime, endTime, type, mood, updatedAt',
 });
 
 // v15：新增同步快照表（P3-3 多设备同步增强）
 //   每次 importBackup 前自动 saveSnapshot，支持历史回滚；snapshots 本身不同步（设备本地诊断数据）
 //   id, label(快照名/来源), kind(backup-before-import | manual | auto-before-sync), createdAt, rows(JSON), sizeBytes
-db.version(15).stores({
+d.version(15).stores({
   snapshots: 'id, createdAt, kind',
 });
 
@@ -117,7 +134,7 @@ db.version(15).stores({
 //   id(插件 name 作主键), version, description, author, code(JS 字符串), enabled(0/1),
 //   installedAt, updatedAt, lastError(上次调用失败的错误信息，便于排查)
 //   plugins 本身不同步（设备本地扩展，跨设备无意义且可能含敏感配置）
-db.version(16).stores({
+d.version(16).stores({
   plugins: 'id, enabled, installedAt',
 });
 
@@ -130,7 +147,7 @@ db.version(16).stores({
 //   docTexts：解析全文（本地表，不同步——大字段不进同步链路；id 与 docFiles.id 一一对应）
 //     id, text(全文，字符不丢), textLen, updatedAt
 //   原文件存 OPFS（几百 MB 大文件），跨设备仅同步元数据（点开提示本机无原文）
-db.version(17).stores({
+d.version(17).stores({
   docFiles: 'id, name, status, subject, createdAt, updatedAt',
   docTexts: 'id, updatedAt',
 });
@@ -141,7 +158,7 @@ db.version(17).stores({
 //     category(分类), tags(数组), linkedCardIds(双向关联卡片),
 //     linkedDocId(关联资料), linkedPlanIds(关联每日规划任务，为 D8 预留),
 //     updatedAt, createdAt
-db.version(18).stores({
+d.version(18).stores({
   notes: 'id, category, updatedAt, createdAt',
 });
 
@@ -154,13 +171,13 @@ db.version(18).stores({
 //     important(0/1), urgent(0/1), quadrant(Q1~Q4), estimatedMinutes, subject, targetCount,
 //     status(pending|done|partial|skipped), completedAt, completionNote,
 //     createdAt, updatedAt
-db.version(19).stores({
+d.version(19).stores({
   dailyPlans: 'id, date, status, updatedAt',
   dailyTasks: 'id, planId, date, status, updatedAt',
 });
 
 // v20：回收站（P2-22）——仅本地，不进同步/备份；删除内容前快照写入，30 天内可恢复
-db.version(20).stores({
+d.version(20).stores({
   trash: 'id, kind, deletedAt',
 });
 
@@ -168,7 +185,7 @@ db.version(20).stores({
 //   用量属于本设备计费上下文，跨设备合并无意义
 //   id, t(ms 主索引), source(调用方标签：chat/agent:xxx/pipeline:xxx/docqa/genDeck/mindmap/embedding...)
 //   model, promptTokens, completionTokens, totalTokens, durationMs, ok(0/1), est(0/1 是否估算值)
-db.version(21).stores({
+d.version(21).stores({
   aiUsage: 'id, t, source',
 });
 
@@ -177,7 +194,7 @@ db.version(21).stores({
 //     status('active' 背诵中 | 'archived' 备用/暂停), sortOrder(手动排序), createdAt, updatedAt
 //   cardGroupLinks：卡片-卡组关联（多对多）。id, cardId, groupId, addedAt；
 //     删除即移出（无墓碑：移出操作按 updatedAt 谁新听谁合并，见 sync-manifest）
-db.version(22).stores({
+d.version(22).stores({
   cardGroups: 'id, name, status, sortOrder, createdAt, updatedAt',
   cardGroupLinks: 'id, cardId, groupId, addedAt',
 });
@@ -191,10 +208,40 @@ db.version(22).stores({
 //     resultType('graph' | 'list' | 'text' | 'timeline'), resultData(JSON 串),
 //     engine('local' | 'ai' | 'fallback'), t(毫秒时间戳主索引)
 //   同步：两表均按 updatedAt/t 合并（见 sync-manifest v23 条目）
-db.version(23).stores({
+d.version(23).stores({
   analysisSessions: 'id, createdAt, updatedAt',
   analysisMessages: 'id, sessionId, t',
 });
+} // end defineSchema
+
+// 两个实例各自应用全量 schema（惰性 open：首次访问才真正连接 IndexedDB）
+defineSchema(instances.real);
+defineSchema(instances.test);
+
+// ---------- 当前实例（ESM live binding：重赋值后所有 import { db } 自动跟随） ----------
+let _mode = (typeof localStorage !== 'undefined' && localStorage.getItem(MODE_KEY) === 'test') ? 'test' : 'real';
+export let db = instances[_mode] || instances.real;
+
+/** 切换数据库实例（演示模式）。返回新实例。 */
+export function setDbInstance(mode) {
+  _mode = mode === 'test' ? 'test' : 'real';
+  db = instances[_mode] || instances.real;
+  return db;
+}
+
+/** 当前模式（'real' | 'test'） */
+export function currentDbMode() {
+  return _mode;
+}
+
+/**
+ * 取当前实例（函数形式）——测试里 `const { db } = await import()` 解构拿到的是值快照，
+ * 不会跟随 setDbInstance 切换；需要「切换后再取最新实例」时用 getDb()。
+ * 业务代码直接用 `import { db }`（ESM live binding）即可，无需本函数。
+ */
+export function getDb() {
+  return db;
+}
 
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);

@@ -6,7 +6,7 @@
 //   · 自动快照：importBackup 前自动 saveSnapshot，支持历史回滚
 //   · 冲突可视化：importBackup 返回 stats.conflicts，列出哪些卡片字段被覆盖
 //   · 增量同步：buildIncrementalBackup(lastSyncAt) 只导出 updatedAt > lastSyncAt 的行
-import { db, uid } from './db.js';
+import { db, uid, currentDbMode } from './db.js';
 import { base64ToBlob, blobToBase64, extractImageIds } from './images.js';
 import { triggerHook } from './plugins/registry.js';
 import {
@@ -21,6 +21,12 @@ import { pad2 } from './utils/format.js';
 export { BACKUP_VERSION, EXCLUDED_FROM_SYNC };
 
 const MAX_SNAPSHOTS = 12; // 快照保留上限：超过则自动删除最旧的，避免 IndexedDB 无限膨胀
+
+// M3 演示模式：数据包带 scope 标记（real/test），各同步通道按 scope 隔离
+//   文件 → 文件名后缀；Hub → /backup/{scope} 独立数据文件；Gist → 独立文件名 + 独立 gist 配置
+export function backupScope() {
+  return currentDbMode() === 'test' ? 'test' : 'real';
+}
 
 // 隐私数据 opt-in：默认 false，用户在设置面板显式开启后隐私表才入同步/导出
 export function isPrivacySyncEnabled() {
@@ -77,7 +83,7 @@ export async function buildBackup(subject) {
   const goalMeta = subject ? null : await db.meta.get('goal');
   const streakMeta = goalMeta ? { goal: goalMeta.value, updatedAt: goalMeta.updatedAt || 0 } : null;
 
-  return { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), tombstones, images, streakMeta, ...parts };
+  return { version: BACKUP_VERSION, app: 'sxybrick', scope: backupScope(), exportedAt: Date.now(), tombstones, images, streakMeta, ...parts };
 }
 
 // P3-3 增量同步：只导出 updatedAt > lastSyncAt 的行（卡片按 max(updatedAt, reviewedAt, wrongReasonAt) 判定）
@@ -123,7 +129,7 @@ export async function buildIncrementalBackup(lastSyncAt = 0) {
   const streakMeta = goalMeta ? { goal: goalMeta.value, updatedAt: goalMeta.updatedAt || 0 } : null;
 
   return {
-    version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(),
+    version: BACKUP_VERSION, app: 'sxybrick', scope: backupScope(), exportedAt: Date.now(),
     incremental: true, since, tombstones, images, streakMeta, ...parts,
   };
 }
@@ -202,7 +208,9 @@ export async function downloadBackup() {
   const a = document.createElement('a');
   const d = new Date();
   a.href = url;
-  a.download = `sxybrick-备份-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}.json`;
+  // M3：演示模式导出文件名带 -test 后缀，避免与真实备份混淆/误导入
+  const scopeTag = backupScope() === 'test' ? '-test' : '';
+  a.download = `sxybrick-备份${scopeTag}-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -224,7 +232,9 @@ export async function downloadSubjectBackup(subject, meta = {}) {
   const a = document.createElement('a');
   const d = new Date();
   a.href = url;
-  a.download = `sxybrick-卡组-${subject}-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}.json`;
+  // M3：演示模式分享包同样带 -test 标记
+  const scopeTag = backupScope() === 'test' ? '-test' : '';
+  a.download = `sxybrick-卡组${scopeTag}-${subject}-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -293,11 +303,15 @@ export function parseAnkiLines(text) {
 // 局域网一键同步：把本地数据包 PUT 给电脑端中枢（hub），hub 合并后返回全量数据，再本地导入
 // 增量优化：用 buildIncrementalBackup 仅上传「上次同步后变更」的行，千卡场景包体从全量降到几十行；
 // 首次（无 lastSyncAt）退化为全量。中枢侧按同一 sync-manifest 合并，增量包结构兼容全量合并。
-const HUB_LAST_SYNC_KEY = 'sxy_hub_last_sync';
+// M3：增量水位按 scope 分开（real/test 各自维护，互不干扰）
+const hubLastSyncKey = () => backupScope() === 'test' ? 'sxy_hub_last_sync_test' : 'sxy_hub_last_sync';
+const HUB_LAST_SYNC_KEY = 'sxy_hub_last_sync'; // 保留旧键兼容（real 域）
 export async function syncWithHub(hubUrl, token) {
   const hub = String(hubUrl || '').replace(/\/+$/, '');
   if (!hub) throw new Error('请先填写电脑端同步中枢地址');
-  const lastRaw = Number(localStorage.getItem(HUB_LAST_SYNC_KEY) || 0) || 0;
+  // M3：hub 端点按 scope 路由（/backup/real | /backup/test），中枢侧独立数据文件
+  const hubPath = `/backup/${backupScope()}`;
+  const lastRaw = Number(localStorage.getItem(hubLastSyncKey()) || 0) || 0;
   // 水位基准必须在「建快照之前」取时刻（2026-08-29 修复）：
   //   若用同步完成时刻推进，则快照(T0)→完成(T2) 之间用户的编辑/复习其时间戳 ≤ T2，
   //   会被下次 `> since` 过滤掉，且 since 只增不减 → 这部分变更永久静默丢失。
@@ -306,9 +320,9 @@ export async function syncWithHub(hubUrl, token) {
   const backup = await buildIncrementalBackup(lastRaw);
   const body = JSON.stringify(backup);
   // 鉴权 v2：优先 HMAC 挑战-响应（同步密码不上网）；老版 Hub 或不支持 WebCrypto 时退回明文 token
-  const authHeaders = await buildAuthHeaders({ hub, token, method: 'PUT', path: '/backup', body })
+  const authHeaders = await buildAuthHeaders({ hub, token, method: 'PUT', path: hubPath, body })
     || { 'x-sync-token': String(token || '') };
-  const res = await fetch(`${hub}/backup`, {
+  const res = await fetch(`${hub}${hubPath}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
     body,
@@ -317,7 +331,11 @@ export async function syncWithHub(hubUrl, token) {
     const detail = await res.json().catch(() => ({}));
     throw new Error(detail?.error || '同步密码错误，请检查 App「同步」页填写的密码');
   }
-  if (!res.ok) throw new Error(`同步失败（${res.status}），请确认电脑端中枢已启动`);
+  if (res.status === 409) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail?.error || '数据域不匹配：请先退出演示模式再同步真实数据');
+  }
+  if (!res.ok) throw new Error(`同步失败（${res.status}），请确认电脑端中枢已启动（演示模式需要新版中枢）`);
   const merged = await res.json();
   if (!merged || merged.app !== 'sxybrick') throw new Error('中枢返回的数据无效');
   const stats = await importBackup(merged);
@@ -326,7 +344,7 @@ export async function syncWithHub(hubUrl, token) {
   // 否则会把「快照建立 → 数据导入完成」这段时间内产生的本地变更永久跳过。
   try {
     const watermark = Math.min(startedAt, backup.exportedAt || startedAt);
-    localStorage.setItem(HUB_LAST_SYNC_KEY, String(watermark));
+    localStorage.setItem(hubLastSyncKey(), String(watermark));
   } catch {}
   // 插件钩子：同步完成后分发（fire-and-forget，插件异常不阻断）
   triggerHook('onSyncCompleted', stats).catch(() => {});

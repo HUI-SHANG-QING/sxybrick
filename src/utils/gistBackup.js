@@ -13,7 +13,13 @@
 //   - 公开 Gist 会暴露你的卡片内容，建议设为 secret（默认）
 
 const API = 'https://api.github.com';
+// M3 演示模式：备份文件名按数据域区分（real 原名兼容 | test 独立文件），
+// 同一 Gist 账户下两个 scope 各占一个文件，互不覆盖
 const FILENAME = 'sxybrick-backup.json';
+const TEST_FILENAME = 'sxybrick-backup-test.json';
+function fileNameFor(scope) {
+  return scope === 'test' ? TEST_FILENAME : FILENAME;
+}
 
 async function gh(path, token, method = 'GET', body = null) {
   const res = await fetch(`${API}${path}`, {
@@ -54,14 +60,16 @@ export async function verifyToken(token) {
  * 创建一个新的 secret Gist，写入备份 JSON。
  * @param {string} token
  * @param {object} backupPayload buildBackup() 返回的对象
- * @param {string} description 描述（可选）
+ * @param {object} opts { description, scope: 'real'|'test' }
  * @returns {Promise<{gistId, htmlUrl}>}
  */
-export async function createGistBackup(token, backupPayload, description = 'SxyBrick 卡片库云备份') {
+export async function createGistBackup(token, backupPayload, opts = {}) {
+  const description = opts.description || 'SxyBrick 卡片库云备份';
+  const fname = fileNameFor(backupPayload?.scope || opts.scope);
   const body = {
-    description,
+    description: backupPayload?.scope === 'test' ? `${description}（演示数据）` : description,
     public: false, // secret gist，仅自己可见
-    files: { [FILENAME]: { content: JSON.stringify(backupPayload) } },
+    files: { [fname]: { content: JSON.stringify(backupPayload) } },
   };
   const r = await gh('/gists', token, 'POST', body);
   return { gistId: r.id, htmlUrl: r.html_url };
@@ -72,12 +80,14 @@ export async function createGistBackup(token, backupPayload, description = 'SxyB
  * @param {string} token
  * @param {string} gistId
  * @param {object} backupPayload
+ * @param {object} opts { scope: 'real'|'test' }
  * @returns {Promise<{htmlUrl, updatedAt}>}
  */
-export async function updateGistBackup(token, gistId, backupPayload) {
+export async function updateGistBackup(token, gistId, backupPayload, opts = {}) {
   if (!gistId) throw new Error('缺少 gistId');
+  const fname = fileNameFor(backupPayload?.scope || opts.scope);
   const body = {
-    files: { [FILENAME]: { content: JSON.stringify(backupPayload) } },
+    files: { [fname]: { content: JSON.stringify(backupPayload) } },
   };
   const r = await gh(`/gists/${gistId}`, token, 'PATCH', body);
   return { htmlUrl: r.html_url, updatedAt: r.updated_at };
@@ -87,13 +97,16 @@ export async function updateGistBackup(token, gistId, backupPayload) {
  * 拉取 Gist 备份内容（GET，解析为 JSON 对象）。
  * @param {string} token
  * @param {string} gistId
+ * @param {object} opts { scope: 'real'|'test' }
  * @returns {Promise<object>} backupPayload
  */
-export async function fetchGistBackup(token, gistId) {
+export async function fetchGistBackup(token, gistId, opts = {}) {
   if (!gistId) throw new Error('缺少 gistId');
   const r = await gh(`/gists/${gistId}`, token);
-  const f = r.files?.[FILENAME];
-  if (!f) throw new Error(`Gist 中未找到文件 ${FILENAME}`);
+  // 优先按 scope 找文件；找不到时回退到另一 scope（兼容手动操作），但包内 scope 由调用方校验
+  const wanted = fileNameFor(opts.scope);
+  let f = r.files?.[wanted] || r.files?.[FILENAME] || r.files?.[TEST_FILENAME];
+  if (!f) throw new Error(`Gist 中未找到备份文件（${wanted}）`);
   const content = f.content || '';
   if (!content.trim()) throw new Error('Gist 内容为空');
   try {

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, defineAsyncComponent, watch, nextTick } from 'vue';
 import { toast } from './utils/toast.js';
+import { confirmDialog } from './utils/confirm.js';
 import { degraded } from './utils/perf.js';
 import { ensureNotifyPermission, sendNotify } from './utils/notify.js';
 import { getGoal, getTodayCount, getDueCount, getLastReviewTs, getDueBySubject } from './utils/streak.js';
@@ -15,6 +16,8 @@ const Intro = defineAsyncComponent(() => import('./components/Intro.vue'));
 const Guide = defineAsyncComponent(() => import('./components/Guide.vue'));
 const InkLandscape = defineAsyncComponent(() => import('./components/InkLandscape.vue'));
 import { useThemeStore, STYLES, MODES, FONTS } from './stores/theme.js';
+// M3 演示模式：顶部横幅 + 设置面板入口（real/test 双数据库物理隔离）
+import { useAppModeStore } from './stores/appMode.js';
 import { getProactiveScheduler } from './agent/proactive.js';
 import { getAIConfig } from './ai.js';
 // 日程表到点提醒：全局调度 + 视觉浮层（桌面/平板/手机同一逻辑，默认静音）
@@ -35,7 +38,23 @@ import { serializeUserWeights } from './fsrs.js';
 import { parseHm, hasReached } from './utils/time.js';
 
 const theme = useThemeStore();
+const appMode = useAppModeStore();
 const showSettings = ref(false);
+
+// M3 演示模式：进入/退出走整页 reload（store 内已处理），确保所有视图重查对应库
+function enterDemoMode() {
+  appMode.enterTestMode();
+}
+function exitDemoMode() {
+  appMode.exitTestMode();
+}
+async function resetDemoData() {
+  if (!(await confirmDialog('清空演示数据并重新填充示例？（不影响真实数据）'))) return;
+  try {
+    await appMode.clearTestData();
+    location.reload();
+  } catch (e) { toast('重置失败：' + (e?.message || e), 'error'); }
+}
 // P2-29 / P1-15：设置弹窗无障碍 —— 焦点管理
 const settingsModal = ref(null);
 let lastFocusedEl = null;
@@ -409,6 +428,16 @@ async function enableReminder() {
         <span>💾</span><span>本地存储已用 {{ quotaWarn.usagePercent }}%</span>
       </div>
     </div>
+    <!-- M3 演示模式横幅：测试数据与真实数据完全隔离，退出后回到真实数据 -->
+    <div v-if="appMode.isTest" class="demo-banner no-print" role="status">
+      <span>🧪 演示模式：当前操作的是示例测试数据，与真实数据完全隔离</span>
+      <button class="pwa-act" @click="resetDemoData">重置示例数据</button>
+      <button class="pwa-act pwa-act-primary" @click="exitDemoMode">退出演示模式</button>
+    </div>
+    <div v-else class="demo-banner demo-banner-off no-print" role="status">
+      <span>🧪 想试试功能？</span>
+      <button class="pwa-act" @click="enterDemoMode">进入演示模式（加载示例数据，不影响真实数据）</button>
+    </div>
     <NavBar :variant="theme.style === 'custom' ? 'focus' : theme.style" :navItems="navItems" :coreNavs="coreNavs" :hasCoreSetting="hasCoreSetting" />
 
     <main class="app-main">
@@ -568,6 +597,15 @@ async function enableReminder() {
 .pwa-act:hover { background: rgba(255,255,255,.34); }
 .pwa-dismiss { margin-left: 2px; width: 18px; height: 18px; border: none; border-radius: 50%; background: rgba(255,255,255,.22); color: #fff; font-size: 14px; line-height: 1; cursor: pointer; }
 .pwa-dismiss:hover { background: rgba(255,255,255,.4); }
+/* M3 演示模式横幅：醒目但轻量，移动端单行可换行 */
+.demo-banner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 5px 12px; font-size: 13px; }
+.demo-banner span { flex: 1; min-width: 0; }
+.demo-banner:not(.demo-banner-off) { background: #fff7e6; color: #874d00; border-bottom: 1px solid #ffd591; }
+.demo-banner-off { background: var(--panel); color: var(--ink-2); border-bottom: 1px solid var(--line); font-size: 12px; }
+.demo-banner .pwa-act { margin-left: 0; background: rgba(0,0,0,.06); color: inherit; }
+.demo-banner .pwa-act:hover { background: rgba(0,0,0,.12); }
+.demo-banner .pwa-act-primary { background: #1677ff; color: #fff; }
+.demo-banner .pwa-act-primary:hover { background: #0958d9; }
 /* 设置面板：存储占用条 */
 .storage-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .storage-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }

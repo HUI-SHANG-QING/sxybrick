@@ -90,6 +90,27 @@ function saveData(data) {
   renameSync(tmp, DATA_FILE);
 }
 
+// M3：按 scope 加载/保存独立数据文件（real → 原文件；test → hub-data-test.json）
+function scopedFile(scope) {
+  return scope === 'test' ? DATA_FILE.replace(/\.json$/, '-test.json') : DATA_FILE;
+}
+function loadScopedData(scope) {
+  const f = scopedFile(scope);
+  if (!existsSync(f)) return emptyData();
+  try {
+    const raw = JSON.parse(readFileSync(f, 'utf8'));
+    return { ...emptyData(), ...raw };
+  } catch {
+    return emptyData();
+  }
+}
+function saveScopedData(scope, data) {
+  const f = scopedFile(scope);
+  const tmp = f + '.tmp';
+  writeFileSync(tmp, JSON.stringify(data));
+  renameSync(tmp, f);
+}
+
 // 提取正文中的 sxy-img:// 图片 id（hub 运行于 Node，不能 import 浏览器模块，此处内联同款正则）
 function imageIdsOf(card) {
   const ids = [];
@@ -300,7 +321,11 @@ const server = createServer(async (req, res) => {
     });
   }
 
-  if (pathname === '/backup') {
+  // M3 演示模式：/backup/{scope} 按数据域隔离（real 默认 | test 独立数据文件），
+  // 演示数据与真实数据在中枢侧也物理分开，互不合并
+  const scopeMatch = pathname.match(/^\/backup\/(real|test)$/) || (pathname === '/backup' ? [null, 'real'] : null);
+  if (scopeMatch) {
+    const scope = scopeMatch[1];
     // PUT 需要先读原始体（签名绑定了请求体摘要）；GET 无体
     let raw = '';
     if (req.method === 'PUT') {
@@ -315,15 +340,19 @@ const server = createServer(async (req, res) => {
     if (!auth.ok) return unauthorized(req, res, auth);
 
     if (req.method === 'GET') {
-      return json(req, res, 200, { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), ...loadData() });
+      return json(req, res, 200, { version: BACKUP_VERSION, app: 'sxybrick', scope, exportedAt: Date.now(), ...loadScopedData(scope) });
     }
     if (req.method === 'PUT') {
       try {
         const incoming = JSON.parse(raw || 'null');
         if (!incoming || incoming.app !== 'sxybrick') return json(req, res, 400, { error: '无效数据包' });
-        const merged = merge(loadData(), incoming);
-        saveData(merged);
-        return json(req, res, 200, { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), ...merged });
+        // scope 校验：数据包声明的 scope 必须与请求路径一致，防止测试包混入真实域（反之亦然）
+        if (incoming.scope && incoming.scope !== scope) {
+          return json(req, res, 409, { error: `数据域不匹配：包内 scope=${incoming.scope}，端点 scope=${scope}` });
+        }
+        const merged = merge(loadScopedData(scope), incoming);
+        saveScopedData(scope, merged);
+        return json(req, res, 200, { version: BACKUP_VERSION, app: 'sxybrick', scope, exportedAt: Date.now(), ...merged });
       } catch (e) { return json(req, res, 400, { error: e.message }); }
     }
     return json(req, res, 405, { error: 'method not allowed' });

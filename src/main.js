@@ -2,6 +2,8 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import { router } from './router.js';
+// M3 演示模式：启动时对齐数据库实例（real/test 双 Dexie 隔离）+ 测试库空时自动播种
+import { useAppModeStore } from './stores/appMode.js';
 import { startPerfMonitor } from './utils/perf.js';
 import { logError } from './utils/errorLog.js';
 // P3-2 PWA 离线优化：SW 注册 / 在线状态 / 配额监控
@@ -41,6 +43,11 @@ import './styles/element-bridge.css';
 
 const app = createApp(App);
 const pinia = createPinia();
+
+// M3：数据库实例在 db.js 模块加载时已按 MODE_KEY 同步对齐（import 即生效，先于视图挂载）；
+// 此处只补「测试库为空时自动播种」（fire-and-forget）。不能用顶层 await——
+// 构建目标 es2020（chrome87/safari14）不支持 top-level await。
+useAppModeStore(pinia).init().catch(() => {});
 
 app.use(pinia);
 app.use(router);
