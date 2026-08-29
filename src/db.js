@@ -159,6 +159,11 @@ db.version(19).stores({
   dailyTasks: 'id, planId, date, status, updatedAt',
 });
 
+// v20：回收站（P2-22）——仅本地，不进同步/备份；删除内容前快照写入，30 天内可恢复
+db.version(20).stores({
+  trash: 'id, kind, deletedAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

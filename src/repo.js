@@ -156,10 +156,30 @@ export async function updateCard(id, payload) {
   return card;
 }
 
+// P2-22 回收站：删除内容前把快照写入本地 trash 表（不进同步/备份），供 30 天内恢复
+async function trashItem(id, kind, data) {
+  if (!id || !data) return;
+  try { await db.trash.put({ id, kind, deletedAt: now(), data }); } catch { /* trash 不可用不阻塞删除 */ }
+}
+
+// P2-22 回收站：从 trash 恢复一条。重新插入行并 bump updatedAt（> 墓碑 deletedAt → 下次同步判定复活），
+// 同时清掉本地墓碑与 trash 记录。仅覆盖写入 trash 时快照的主类型。
+export async function restoreFromTrash(t) {
+  if (!t || !t.data) return false;
+  const table = { card: 'cards', memo: 'memos', note: 'notes', plan: 'plans', doc: 'docs', mindmap: 'mindmaps' }[t.kind];
+  if (!table) return false;
+  const row = { ...t.data, id: t.id, updatedAt: Date.now() };
+  await db[table].put(row);
+  await db.tombstones.delete(t.id);
+  await db.trash.delete(t.id);
+  return true;
+}
+
 export async function deleteCard(id) {
   const old = await db.cards.get(id);
   if (!old) return;
   const imgIds = [...extractImageIds((old.front || '') + '\n' + (old.back || ''))];
+  await trashItem(id, 'card', old);
   await db.cards.delete(id);
   await db.tombstones.put({ id, kind: 'card', deletedAt: now() });
   await db.reviews.where('cardId').equals(id).delete();
@@ -389,6 +409,9 @@ export async function addMemo(payload) {
   return m;
 }
 export async function deleteMemo(id) {
+  const old = await db.memos.get(id);
+  if (!old) return;
+  await trashItem(id, 'memo', old);
   await db.memos.delete(id);
   await db.tombstones.put({ id, kind: 'memo', deletedAt: now() }); // 墓碑：跨设备同步删除
 }
@@ -670,6 +693,9 @@ export async function updateNote(id, payload) {
 }
 
 export async function deleteNote(id) {
+  const old = await db.notes.get(id);
+  if (!old) return;
+  await trashItem(id, 'note', old);
   await db.notes.delete(id);
   await db.tombstones.put({ id, kind: 'note', deletedAt: now() }); // 墓碑：跨设备同步删除
 }
@@ -723,6 +749,9 @@ export async function updatePlan(id, patch) {
   return p;
 }
 export async function deletePlan(id) {
+  const old = await db.plans.get(id);
+  if (!old) return;
+  await trashItem(id, 'plan', old);
   await db.plans.delete(id);
   await db.tombstones.put({ id, kind: 'plan', deletedAt: now() }); // 墓碑：跨设备同步删除
 }
@@ -798,6 +827,9 @@ export async function updateDoc(id, patch) {
   return d;
 }
 export async function deleteDoc(id) {
+  const old = await db.docs.get(id);
+  if (!old) return;
+  await trashItem(id, 'doc', old);
   await db.docs.delete(id);
   await db.tombstones.put({ id, kind: 'doc', deletedAt: now() }); // 墓碑：跨设备同步删除
 }
@@ -849,6 +881,9 @@ export async function updateMindmap(id, patch) {
   return m;
 }
 export async function deleteMindmap(id) {
+  const old = await db.mindmaps.get(id);
+  if (!old) return;
+  await trashItem(id, 'mindmap', old);
   await db.mindmaps.delete(id);
   await db.tombstones.put({ id, kind: 'mindmap', deletedAt: now() }); // 墓碑：跨设备同步删除
 }

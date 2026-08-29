@@ -8,7 +8,7 @@ import './_env.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { db } from '../src/db.js';
-import { createCard, review, reviewQueue, deleteCard, getStats, attachSelfExplanation } from '../src/repo.js';
+import { createCard, review, reviewQueue, deleteCard, getStats, attachSelfExplanation, restoreFromTrash } from '../src/repo.js';
 import { getCalibration } from '../src/agent/analytics.js';
 import { buildBackup, importBackup } from '../src/sync.js';
 
@@ -152,3 +152,35 @@ test('黄金路径4：自我解释钩子落盘 + 跨设备同步合并', async (
   const imported = await db.reviews.get(r.reviewId);
   assert.equal(imported.selfExplanation, '死锁是互相等待，不是饥饿');
 });
+
+// ---------- 黄金路径 5（P2-22）：删除写入回收站 + 30 天恢复 ----------
+test('黄金路径5（P2-22）：deleteCard 写入 trash，restoreFromTrash 可本地恢复且清墓碑', async () => {
+  const c = await createCard({ front: '回收站测试正面', back: '背面内容', subject: '测试科目', tags: ['trash'] });
+  const cid = c.id;
+
+  // 删除：卡片移除、墓碑写入、trash 应有一条本卡快照（保留内容）
+  await deleteCard(cid);
+  assert.equal(await db.cards.get(cid), undefined, '删除后卡片不在 cards 表');
+  const trashed = await db.trash.toArray();
+  const myTrash = trashed.filter(t => t.id === cid);
+  assert.equal(myTrash.length, 1, 'trash 应有一条本卡记录');
+  assert.equal(myTrash[0].id, cid);
+  assert.equal(myTrash[0].kind, 'card');
+  assert.ok(myTrash[0].data && myTrash[0].data.front === '回收站测试正面', 'trash 快照应保留卡片内容');
+
+  // 恢复：重新插入、清墓碑、清 trash，updatedAt bump 到墓碑之后（跨设备同步判定复活）
+  const ok = await restoreFromTrash(myTrash[0]);
+  assert.equal(ok, true, 'restoreFromTrash 应返回 true');
+  const back = await db.cards.get(cid);
+  assert.ok(back, '恢复后卡片回到 cards 表');
+  assert.equal(back.front, '回收站测试正面');
+  assert.equal(await db.trash.get(cid), undefined, 'trash 记录已清除');
+  assert.equal(await db.tombstones.get(cid), undefined, '本地墓碑已清除');
+  assert.ok((back.updatedAt || 0) > (myTrash[0].deletedAt || 0), '恢复时 updatedAt 应 bump 到墓碑之后');
+
+  // 清理
+  await deleteCard(cid);
+  await db.trash.delete(cid);
+  await db.tombstones.delete(cid);
+});
+

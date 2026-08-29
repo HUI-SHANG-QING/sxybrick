@@ -98,6 +98,8 @@ const navItems = [
   { path: '/genquiz', label: '生成测验', icon: '🔬' },
   { path: '/search', label: '搜索', icon: '🔍' },
   { path: '/health', label: '体检', icon: '🩺' },
+  // P2-22 回收站：被删内容 30 天内可恢复（本地 trash 表，不进同步/备份）
+  { path: '/trash', label: '回收站', icon: '🗑️' },
   { path: '/library', label: '书房', icon: '📚' },
   // Phase 6 学习资料中枢：上传 → 全量解析 → 预览 → 问答 → 生成卡片（用户选择制）
   { path: '/materials', label: '资料库', icon: '🗃️' },

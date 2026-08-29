@@ -31,6 +31,8 @@ const routes = [
   // P2-1 生成式测验：从卡片/知识点用 LLM 自动生成选择/填空/简答题（测试效应）
   { path: '/genquiz', component: () => import('./views/GenQuiz.vue') },
   { path: '/health', component: () => import('./views/Health.vue') },
+  // P2-22 回收站：墓碑对用户可见化 + 30 天恢复（本地 trash 表）
+  { path: '/trash', component: () => import('./views/RecycleBin.vue') },
   { path: '/search', component: () => import('./views/Search.vue') },
   { path: '/library', component: () => import('./views/Library.vue') },
   // P2·10 + P3·11 新增：用户仪表盘（恐怖监控图表）+ 隐私人生数据模块
