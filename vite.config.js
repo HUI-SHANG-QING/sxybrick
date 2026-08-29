@@ -1,6 +1,59 @@
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { VitePWA } from 'vite-plugin-pwa';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DIST_DIR = join(__dirname, 'dist');
+const BASE = '/sxybrick/';
+
+// 预缓存中「单个文件」的体积上限（字节）。
+// 超过它的非首屏产物不进预缓存，改由 runtimeCaching 首次用到时再缓存。
+const PRECACHE_MAX_FILE_BYTES = 600 * 1024;
+
+/**
+ * 从 dist/index.html 解析首屏直接引用的资源（脚本 + 样式 + modulepreload）。
+ * 这些是打开应用就必须下载的，必须留在预缓存里以保证离线可启动。
+ */
+function readCriticalUrls() {
+  const set = new Set(['index.html']);
+  try {
+    const html = readFileSync(join(DIST_DIR, 'index.html'), 'utf8');
+    for (const m of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
+      const u = m[1];
+      if (!u.startsWith('/')) continue;              // 跳过外链
+      set.add(u.replace(BASE, '').replace(/^\//, '')); // 去掉 base 前缀，与 manifest 的 url 对齐
+    }
+  } catch { /* 构建首次生成时 index.html 可能还没落盘，忽略即可 */ }
+  return set;
+}
+
+/**
+ * 预缓存清单裁剪：首屏资源无条件保留，其余按体积阈值过滤。
+ *
+ * 为什么不用 globIgnores 写死文件名：动态 import 产生的 chunk 会被 Rollup
+ * 自动命名为 index-<hash>.js（如 highlight.js 的分片），与库名无关，
+ * 写死 hljs-*.js 这类规则会在下一次构建悄悄失效。改为按「首屏清单 + 体积」
+ * 判定，规则与文件名、hash 无关，长期自维护。
+ */
+function trimPrecacheManifest(entries) {
+  const critical = readCriticalUrls();
+  let dropped = 0;
+  const manifest = entries.filter((e) => {
+    if (critical.has(e.url)) return true;                    // 首屏必需
+    const p = join(DIST_DIR, e.url);
+    if (!existsSync(p)) return true;                          // 非文件条目（如外链）原样保留
+    if (statSync(p).size <= PRECACHE_MAX_FILE_BYTES) return true;
+    dropped++;
+    return false;                                             // 重型按需库 → 交给 runtimeCaching
+  });
+  const warnings = dropped
+    ? [`${dropped} 个超过 ${Math.round(PRECACHE_MAX_FILE_BYTES / 1024)}KB 的非首屏产物已移出预缓存，改由运行时按需缓存`]
+    : [];
+  return { manifest, warnings };
+}
 
 export default defineConfig({
   base: '/sxybrick/',
@@ -45,7 +98,66 @@ export default defineConfig({
         ],
         // 静态资源带 hash，maxAge 拉长到 30 天不会拿到陈旧版本；上限提到 100 条避免被清
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // ---- 预缓存瘦身（P0，2026-08-29）----
+        // 旧配置把 dist 下全部产物一股脑塞进预缓存：123 条 / 14.81 MB，
+        // 其中仅 OCR 模型就占 6.57 MB（44.3%），而绝大多数用户从不使用 OCR，
+        // 却被迫在首次安装时下载全部内容，弱网下数十秒不可用。
+        //
+        // 策略改为「预缓存只留应用外壳 + 轻量路由分片，重型按需库走运行时缓存」：
+        //   · 保留：index.html、入口 chunk、Element Plus、各路由分片（合计约 4 MB）
+        //   · 剔除：OCR 引擎与模型、pdf.js 及其 worker、sql.js wasm、three.js、
+        //          echarts、highlight.js、katex、xlsx、mammoth —— 均改为首次用到时
+        //          由下方 runtimeCaching 按需缓存（CacheFirst，30 天）
+        // 效果：预缓存 14.81 MB → 约 4 MB，首次安装耗时大幅下降。
+        globIgnores: [
+          'ocr/**',                        // 6.57 MB：tesseract 引擎 + wasm 模型
+          'assets/tesseract-*.js',
+          'assets/pdf.worker.min-*.mjs',   // 1.23 MB：pdf.js 自行按需拉取
+          'assets/pdf-*.js',
+          'assets/sql-wasm-*.wasm',        // 0.64 MB：仅 apkg 导入使用
+          'assets/three-*.js',             // 0.58 MB：3D 装饰角色
+          'assets/echarts-*.js',           // 1.03 MB：图表，统计页按需
+          'assets/hljs-*.js',              // 0.96 MB：代码高亮，含代码块才加载
+          'assets/katex-*.js',             // 0.26 MB：公式，含公式才加载
+          'assets/xlsx-*.js',              // 0.42 MB：Excel 解析，导入才用
+          'assets/parsers-docx-*.js',      // 0.40 MB：Word 解析，导入才用
+          'assets/mammoth-*.js',
+        ],
+        // 兜底裁剪：按「是否首屏 + 单文件体积」过滤，覆盖 globIgnores 按名字
+        // 匹配不到的动态分片（自动命名为 index-<hash>.js 的那些）
+        manifestTransforms: [trimPrecacheManifest],
         runtimeCaching: [
+          {
+            // OCR 引擎与模型：体积巨大且极少使用，首次用到时缓存，30 天内复用
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && /\/ocr\/|tesseract/i.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'sxybrick-ocr',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // WASM（sql.js 等）：内容寻址、永不变动，CacheFirst 最合适
+            urlPattern: ({ url }) => url.pathname.endsWith('.wasm'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'sxybrick-wasm',
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // 重型按需库（echarts/hljs/katex/pdf/xlsx/docx/three）：
+            // 构建产物带 hash，CacheFirst 命中即秒开，且不会拿到陈旧版本
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && /\/(echarts|echarts-wordcloud|hljs|katex|pdf|pdf\.worker\.min|xlsx|parsers-docx|mammoth|three|tesseract)[-.]?[^/]*\.m?js$/i.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'sxybrick-heavy-libs',
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             // 图床 / 图标源：StaleWhileRevalidate（先返回缓存秒级可用，后台异步拉新版）
             urlPattern: ({ url, request }) => request.destination === 'image',
@@ -98,9 +210,13 @@ export default defineConfig({
           if (id.includes('node_modules/three')) return 'three';
           if (id.includes('node_modules/echarts')) return 'echarts';
           if (id.includes('node_modules/echarts-wordcloud')) return 'echarts';
-          if (id.includes('node_modules/katex')) return 'katex';
-          if (id.includes('node_modules/highlight.js')) return 'hljs';
           if (id.includes('node_modules/marked')) return 'marked';
+          // ⚠ 不要再手动分 katex / highlight.js（2026-08-29 修正）：
+          //   MarkdownRenderer.vue 对二者写的是 `await import(...)` 按需加载，
+          //   但 manualChunks 会强行把它们提升为入口 chunk 的**静态**依赖，
+          //   于是 Vite 给 dist/index.html 注入 modulepreload，首屏无条件多下载
+          //   1.21 MB（gzip 383 KB，占首屏 40.5%），按需加载被完全抵消。
+          //   交给 Rollup 按动态边界自动切分即可真正懒加载。
           // Element Plus 全量注册：拆成独立 chunk 做长期缓存。
           // ⚠ 铁律：icons-vue 必须与 element-plus 同 chunk（2026-08-29 修复）——
           //   EP 内部组件 import icons，icons 的 rollup 产物又反向引用 EP 模块，
