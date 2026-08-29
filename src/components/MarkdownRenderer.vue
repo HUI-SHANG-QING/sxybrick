@@ -5,6 +5,7 @@
 import { ref, watch } from 'vue';
 import { marked } from 'marked';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
+import { sanitizeHtml } from '../utils/sanitize.js';
 
 const props = defineProps({ content: { type: String, default: '' } });
 
@@ -29,6 +30,13 @@ async function loadHljs() {
     catch (e) { console.warn('[MarkdownRenderer] highlight.js 加载失败', e); hljsMod = false; }
   }
   return hljsMod;
+}
+
+/** HTML 属性值转义（防闭合属性注入） */
+function escapeAttr(v) {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function render(src) {
@@ -59,8 +67,9 @@ function render(src) {
     put(`<code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code>`));
 
   // 3) 本地图片：![alt](sxy-img://id) → <img src="blobURL">
+  // alt 来自用户输入，必须转义后再拼进属性，否则 `x" onerror="alert(1)` 可闭合标签注入
   text = text.replace(/!\[([^\]]*)\]\(sxy-img:\/\/([0-9a-fA-F-]+)\)/g, (m, alt, id) =>
-    put(`<img src="${imgUrl(id) || ''}" alt="${alt}" class="md-img" />`));
+    put(`<img src="${escapeAttr(imgUrl(id) || '')}" alt="${escapeAttr(alt)}" class="md-img" />`));
 
   // 4) 公式保护（仅当 katex 已加载时才渲染，否则保留原始 $$..$$ / $..$）
   text = text.replace(/\$\$([\s\S]+?)\$\$/g, (m, tex) => {
@@ -82,8 +91,12 @@ function render(src) {
   let html = marked.parse(text);
 
   // 6) 还原占位符
-  html = html.replace(/@@MDS(\d+)@@/g, (m, i) => stash[Number(i)]);
-  return html;
+  html = html.replace(/@@MDS(\d+)@@/g, (m, i) => stash[Number(i)] ?? '');
+
+  // 7) 净化（P0 安全）：本组件是 v-html 出口，marked@4 已无内置 sanitize，
+  //    而卡片内容可来自 apkg 导入 / AI 生成 / 资料解析，必须净化后再交给 v-html。
+  //    放在占位符还原之后，可同时覆盖 marked 产物与自建模板（图片 alt 等）。
+  return sanitizeHtml(html);
 }
 
 const html = ref('');

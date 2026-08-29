@@ -15,6 +15,7 @@ import { textToCardDrafts } from '../utils/card-drafts.js';
 import { askDoc } from '../utils/docs-qa.js';
 import ExportButton from '../components/ExportButton.vue';
 import { exportLibraryToJSON, exportLibraryToMarkdown } from '../utils/exporters.js';
+import { sanitizeHtml } from '../utils/sanitize.js';
 
 const ACCEPT = '.pdf,.xlsx,.xls,.csv,.docx,.doc,.txt,.md,.tex,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg';
 
@@ -185,6 +186,13 @@ async function retry(id) {
 
 // ---------- 预览 ----------
 
+/** HTML 文本/属性转义（外部文件名与单元格内容拼进模板前必须转义） */
+function escHtml(v) {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 async function openPreview(f) {
   preview.value = { row: f };
   sheetHtml.value = ''; docxHtml.value = ''; imgUrl.value = ''; textPreview.value = '';
@@ -200,13 +208,16 @@ async function openPreview(f) {
       const parts = [];
       for (const name of wb.SheetNames) {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '' });
-        parts.push(`<h4>${name}</h4><table><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${String(c).replace(/</g, '&lt;')}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
+        // 工作表名来自外部文件，必须转义后再拼进标签（否则可闭合 <h4> 注入）
+        parts.push(`<h4>${escHtml(name)}</h4><table><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${escHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
       }
-      sheetHtml.value = parts.join('');
+      // P0 安全：表格内容出自外部文件，净化后再交给 v-html
+      sheetHtml.value = sanitizeHtml(parts.join(''));
     } else if (f.ext === 'docx' || f.ext === 'doc') {
       const { docxToHtml } = await import('../utils/parsers-docx.js');
       const r = await docxToHtml(blob);
-      docxHtml.value = r.html;
+      // P0 安全：mammoth 输出源于外部 Word 文档，净化后再交给 v-html
+      docxHtml.value = sanitizeHtml(r.html);
     } else if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(f.ext)) {
       imgUrl.value = URL.createObjectURL(blob);
     } else {
