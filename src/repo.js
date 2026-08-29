@@ -12,6 +12,8 @@ import { initialStabilityForCard } from './algorithms/pretest.js';
 import { buildReviewSession, retrievalGrading } from './algorithms/session.js';
 // D3.1 笔记解析纯函数（双向链接 + 标签抽取 + 归一化）
 import { normalizeNotePayload, validateNote, recognizeWikiLinks } from './utils/note-parser.js';
+// P1-18 统一格式化（日期补零 / 字节）收口到 format.js，消除全局重复实现
+import { pad2 } from './utils/format.js';
 // N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
 import {
   DEFAULT_SUBJECTS,
@@ -1141,8 +1143,7 @@ export async function savePrivacyRecord(record) {
   } else {
     const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     const today = new Date();
-    const p = n => String(n).padStart(2, '0');
-    const dateKey = record?.date || `${today.getFullYear()}-${p(today.getMonth()+1)}-${p(today.getDate())}`;
+    const dateKey = record?.date || `${today.getFullYear()}-${pad2(today.getMonth()+1)}-${pad2(today.getDate())}`;
     payload = plain({
       id,
       date: dateKey,

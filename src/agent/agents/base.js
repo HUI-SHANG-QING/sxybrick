@@ -92,7 +92,11 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
   const systemPrompt = buildSystemPrompt(agent, ctx);
   const convo = [{ role: 'system', content: systemPrompt }, ...userMessages];
 
-  for (let step = 0; step < (agent.maxSteps || 8); step++) {
+  // P1-9：step 上限同时取「agent 声明值」与「硬上限 12」的最小值，
+  // 防止插件在 manifest 里自报 9999 导致单轮近万次 LLM 调用（费用爆炸 / 长时间无响应）。
+  const MAX_STEPS = 12;
+  const maxSteps = Math.min(Number.isFinite(agent.maxSteps) ? agent.maxSteps : 8, MAX_STEPS);
+  for (let step = 0; step < maxSteps; step++) {
     const raw = await ctx.chat(convo);
     const toolCall = parseToolCall(raw);
 

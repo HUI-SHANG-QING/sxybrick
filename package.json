@@ -10,7 +10,10 @@
     "preview": "vite preview --host",
     "hub": "node sync-hub/hub.js",
     "test": "node --test --test-force-exit \"tests/*.test.mjs\"",
-    "benchmark": "node scripts/benchmark.mjs"
+    "benchmark": "node scripts/benchmark.mjs",
+    "lint": "eslint . --ext .js,.vue --ignore-path .gitignore",
+    "lint:fix": "eslint . --ext .js,.vue --fix --ignore-path .gitignore",
+    "format": "prettier --write \"src/**/*.{js,vue}\""
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
@@ -36,8 +39,12 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/eslint-config-prettier": "^10.2.0",
+    "eslint": "^9.18.0",
+    "eslint-plugin-vue": "^9.32.0",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^30.0.1",
+    "prettier": "^3.4.2",
     "sharp": "^0.35.3",
     "vite": "^6.0.3",
     "vite-plugin-pwa": "^0.21.1"

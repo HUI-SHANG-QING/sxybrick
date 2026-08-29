@@ -3,6 +3,7 @@
 // 可在 Node 单测中直接覆盖（repo.js 因依赖 Dexie 无法在 Node 下 import）。
 // 编排层（repo.js）只做 IO，行为与本模块此前内联实现完全一致。
 
+import { formatDate } from './utils/format.js';
 export const DEFAULT_SUBJECTS = ['计算机网络', '操作系统', '数据结构', '计算机组成原理', '高等数学', '线性代数', '概率论'];
 const MAX_CHARS = 8000;
 
@@ -256,11 +257,7 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
 
 // ---------- userOps 分组聚合（queryUserOps 核心） ----------
 export function groupUserOps(arr, groupBy) {
-  const fmt = (ts) => {
-    const d = new Date(ts);
-    const p = n => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  };
+  const fmt = (ts) => formatDate(ts);
   if (groupBy === 'day') {
     const m = new Map();
     for (const o of arr) { const k = fmt(o.t); m.set(k, (m.get(k) || 0) + 1); }

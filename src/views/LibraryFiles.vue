@@ -1,7 +1,8 @@
 <script setup>
 // 学习资料中枢（Phase 6）：上传 → 全量解析 → 预览 → 问答 → 生成卡片（用户选择制）
 // ⚠️ 建卡原则：默认绝不自动建卡——用户点「生成卡片」→ 预览草稿 → 逐卡编辑/删除 → 确认才入库
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+import { ElMessageBox } from 'element-plus';
 import { db } from '../db.js';
 import { getSubjects } from '../repo.js';
 import { toast } from '../utils/toast.js';
@@ -161,16 +162,26 @@ async function onPick(e) {
   }
   // 等待解析队列消化后刷新列表（轮询）
   const t0 = Date.now();
-  const timer = setInterval(async () => {
-    if (Date.now() - t0 > 30000) { clearInterval(timer); return; }
+  // P1-12：轮询定时器必须在组件卸载时清除，否则离开页面后继续跑且向已卸载组件写 files.value
+  pollTimer = setInterval(async () => {
+    if (Date.now() - t0 > 30000) { clearInterval(pollTimer); return; }
     const rows = await listDocFiles();
     files.value = rows;
-    if (rows.every((r) => r.status !== 'uploading' && r.status !== 'parsing')) clearInterval(timer);
+    if (rows.every((r) => r.status !== 'uploading' && r.status !== 'parsing')) clearInterval(pollTimer);
   }, 1200);
 }
 
+let pollTimer = null;
+onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); });
+
 async function onDelete(f) {
-  if (!confirm(`删除「${f.name}」？将同时删除解析全文与索引（不可恢复）。`)) return;
+  try {
+    await ElMessageBox.confirm(
+      `将同时删除「${f.name}」的解析全文与索引（不可恢复）。确定删除？`,
+      '删除资料',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+    );
+  } catch { return; }
   try {
     await deleteDocFile(f.id);
     toast('已删除', 'success');

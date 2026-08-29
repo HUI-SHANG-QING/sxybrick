@@ -86,7 +86,8 @@ export function parseAgentDefs(mod) {
       systemPrompt: a.systemPrompt || '',
       tools: Array.isArray(a.tools) ? a.tools.map(String) : [],
       useReAct: a.useReAct !== false,
-      maxSteps: a.maxSteps || 8,
+      // P1-9：钳制插件声明的步数上限，避免恶意/异常 manifest 自报极大值导致费用爆炸
+      maxSteps: Math.min(Number.isFinite(a.maxSteps) ? a.maxSteps : 8, 12),
       injectContext: a.injectContext !== false,
       injectMemory: a.injectMemory !== false,
       plugin: a.plugin || null,

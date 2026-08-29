@@ -108,7 +108,10 @@ async function decomposeTask(query, ctx) {
   if (!arrMatch) return null;
   try {
     const steps = JSON.parse(arrMatch[0]);
-    if (Array.isArray(steps) && steps.length) return steps;
+    // P1-9：LLM 可能分解出任意多个子步骤，必须设上限——否则每个 step 又跑一轮 ReAct
+    // （最大 12 次 LLM 调用），N 步 × 12 次调用全无界，既烧 token 又可能长时间无响应。
+    // 这里硬性截断到 4 步（覆盖绝大多数「拆解→并行执行」场景，超出部分丢弃并提示）。
+    if (Array.isArray(steps) && steps.length) return steps.slice(0, 4);
   } catch { /* noop */ }
   return null;
 }

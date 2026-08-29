@@ -9,7 +9,7 @@
  * 发起一次聊天补全。
  * @param {Array<{role:string,content:string}>} messages
  * @param {object} cfg  { baseUrl, apiKey, model }
- * @param {object} opts { temperature, maxTokens, stream, onToken, signal }
+ * @param {object} opts { temperature, maxTokens, stream, onToken, signal, timeoutMs }
  * @returns {Promise<string>} 模型回复文本
  */
 export async function chat(messages, cfg, opts = {}) {
@@ -26,17 +26,29 @@ export async function chat(messages, cfg, opts = {}) {
     stream: !!opts.stream,
   };
 
-  const res = await fetch(`${base}/chat/completions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify(body),
-    signal: opts.signal,
-  });
+  // P1-9 超时控制：调用方未传入 signal 时自建 AbortController（默认 60s，可被 opts.timeoutMs 覆盖）。
+  // 这样即便上层忘了传 signal，单次 LLM 调用也不会永久挂起。
+  let ctrl;
+  let timeoutId;
+  const external = opts.signal;
+  const signal = external || (ctrl = new AbortController()).signal;
+  const timeoutMs = opts.timeoutMs ?? 60000;
+  if (!external) timeoutId = setTimeout(() => ctrl.abort(), timeoutMs);
 
-  if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    throw new Error(`AI 请求失败(${res.status})：${t.slice(0, 300)}`);
-  }
+  try {
+    const res = await fetch(`${base}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(body),
+      signal,
+    });
+
+    if (!res.ok) {
+      const t = await res.text().catch(() => '');
+      const err = new Error(`AI 请求失败(${res.status}${httpHint(res.status)})：${t.slice(0, 300)}`);
+      err.status = res.status;
+      throw err;
+    }
 
   if (!opts.stream) {
     const data = await res.json();
@@ -70,6 +82,30 @@ export async function chat(messages, cfg, opts = {}) {
     }
   }
   return full;
+  } catch (e) {
+    // P1-9：超时 / 用户取消统一归类为 AbortError，给出可读错误码便于上层降级
+    if (e?.name === 'AbortError') {
+      const err = new Error(timeoutMs ? `AI 请求超时（>${Math.round(timeoutMs / 1000)}s 未响应）` : 'AI 请求已取消');
+      err.code = 'TIMEOUT';
+      err.aborted = true;
+      throw err;
+    }
+    throw e;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+/**
+ * HTTP 状态码 → 用户可读的失败原因（P1-9：区分 401/429/超时/网络，便于上层优雅降级）。
+ */
+function httpHint(status) {
+  if (status === 401) return '：API 密钥无效或已过期';
+  if (status === 403) return '：无权限访问该模型';
+  if (status === 404) return '：接口或模型不存在（检查 baseUrl / model）';
+  if (status === 429) return '：请求过于频繁，稍后重试';
+  if (status >= 500) return '：服务暂时不可用（稍后重试）';
+  return '';
 }
 
 /**

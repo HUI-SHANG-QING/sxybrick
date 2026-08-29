@@ -16,6 +16,7 @@ import {
 } from './sync-manifest.js';
 import { dedupeIncomingCards } from './sync-dedup.js';
 import { buildAuthHeaders } from './utils/hub-auth.js';
+import { pad2 } from './utils/format.js';
 
 export { BACKUP_VERSION, EXCLUDED_FROM_SYNC };
 
@@ -200,9 +201,8 @@ export async function downloadBackup() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const d = new Date();
-  const p = n => String(n).padStart(2, '0');
   a.href = url;
-  a.download = `sxybrick-备份-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.json`;
+  a.download = `sxybrick-备份-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -223,9 +223,8 @@ export async function downloadSubjectBackup(subject, meta = {}) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const d = new Date();
-  const p = n => String(n).padStart(2, '0');
   a.href = url;
-  a.download = `sxybrick-卡组-${subject}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.json`;
+  a.download = `sxybrick-卡组-${subject}-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -242,9 +241,8 @@ export async function downloadCsv() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const d = new Date();
-  const p = n => String(n).padStart(2, '0');
   a.href = url;
-  a.download = `sxybrick-导出-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.tsv`;
+  a.download = `sxybrick-导出-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}.tsv`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -269,9 +267,8 @@ export async function downloadAnkiText(cards) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const d = new Date();
-  const p = n => String(n).padStart(2, '0');
   a.href = url;
-  a.download = `sxybrick-anki-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.txt`;
+  a.download = `sxybrick-anki-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}.txt`;
   document.body.appendChild(a);
   a.click();
   a.remove();
