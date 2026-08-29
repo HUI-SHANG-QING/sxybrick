@@ -7,6 +7,8 @@ const routes = [
   { path: '/cards', component: () => import('./views/Cards.vue') },
   // M1 卡组管理：自定义分组（多对多）+ active/archived 状态（备用卡组不进默认复习队列）
   { path: '/groups', component: () => import('./views/CardGroups.vue') },
+  // M2 卡片智能联动分析工作台：预设快捷功能 + 自由问答（本地/AI 双模式，失败自动降级）
+  { path: '/analysis/card-link', component: () => import('./views/CardLinkAnalysis.vue') },
   { path: '/review', component: () => import('./views/Review.vue') },
   { path: '/stats', component: () => import('./views/Stats.vue') },
   { path: '/export', component: () => import('./views/Export.vue') },

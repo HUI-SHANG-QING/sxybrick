@@ -182,6 +182,20 @@ db.version(22).stores({
   cardGroupLinks: 'id, cardId, groupId, addedAt',
 });
 
+// v23：卡片智能联动分析（M2）——工作台对话历史与分析结果，参与同步（跨设备可回看）
+//   analysisSessions：一次分析会话（选定卡片集合 + 多轮对话）。
+//     id, title(自动摘要或用户命名), cardIds(JSON 数组，会话创建时的卡片快照),
+//     mode('local' | 'ai' | 'mixed'), createdAt, updatedAt
+//   analysisMessages：会话内的消息（问题 + 结构化结果）。
+//     id, sessionId, role('user' | 'assistant'), question,
+//     resultType('graph' | 'list' | 'text' | 'timeline'), resultData(JSON 串),
+//     engine('local' | 'ai' | 'fallback'), t(毫秒时间戳主索引)
+//   同步：两表均按 updatedAt/t 合并（见 sync-manifest v23 条目）
+db.version(23).stores({
+  analysisSessions: 'id, createdAt, updatedAt',
+  analysisMessages: 'id, sessionId, t',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

@@ -115,6 +115,12 @@ async function bulkRemoveGroup(gid) {
   const r = await setCardGroups([...selectedIds.value], [], [gid]);
   toast(`已移出卡组：解除 ${r.removed} 张关联`, 'success');
 }
+// M2：选中卡片 → 联动分析工作台
+function goLinkAnalysis() {
+  if (selectedIds.value.size < 2) return toast('联动分析至少需要 2 张卡片', 'info');
+  exitSelect();
+  router.push({ path: '/analysis/card-link', query: { cardIds: [...selectedIds.value].join(',') } });
+}
 const suggestion = ref(null);
 const goal = ref(20);
 const todayCount = ref(0);
@@ -772,6 +778,7 @@ async function rescueAll() {
         <span class="hint">移出：</span>
         <button v-for="g in groupList" :key="'r' + g.id" class="chip mini" @click="bulkRemoveGroup(g.id)">{{ g.name }}</button>
       </template>
+      <button class="chip mini" :disabled="selectedIds.size < 2" @click="goLinkAnalysis" title="联动分析选中卡片（关系图谱/拓扑/关键路径/自由问答）">🔗 联动分析</button>
       <button class="chip mini" @click="exitSelect">完成</button>
     </div>
 

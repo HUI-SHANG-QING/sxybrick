@@ -3,7 +3,7 @@
 // 新增数据表时只需在此登记，导出/导入/中枢合并便自动覆盖，避免多处遗漏。
 // 注意：本文件必须保持"无浏览器依赖"，因为 hub.js 会直接在 Node 里 import 它。
 
-export const BACKUP_VERSION = 6;
+export const BACKUP_VERSION = 7;
 
 // merge 策略：
 //   card      卡片专属：内容字段按 updatedAt、SRS 字段按 reviewedAt、错因按 wrongReasonAt 字段级合并
@@ -56,6 +56,10 @@ export const SYNC_TABLES = [
   //   （sync.js 通用墓碑合并已支持任意 kind，link 行 id 全局唯一即可）
   { table: 'cardGroups', kind: 'cardGroup', merge: 'updatedAt' },
   { table: 'cardGroupLinks', kind: 'groupLink', merge: 'idOnly' },
+  // v23（M2）新增：联动分析会话 + 消息（对话历史跨设备回看）
+  //   会话按 updatedAt 合并（标题/卡片集更新）；消息不可变（append-only）→ idOnly 幂等
+  { table: 'analysisSessions', kind: 'analysisSession', merge: 'updatedAt' },
+  { table: 'analysisMessages', kind: 'analysisMessage', merge: 'idOnly' },
 ];
 
 // 卡片字段级合并分组：
