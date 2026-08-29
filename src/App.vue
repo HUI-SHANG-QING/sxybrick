@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, defineAsyncComponent, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, defineAsyncComponent, watch, nextTick } from 'vue';
 import { toast } from './utils/toast.js';
 import { degraded } from './utils/perf.js';
 import { ensureNotifyPermission, sendNotify } from './utils/notify.js';
@@ -36,6 +36,9 @@ import { parseHm, hasReached } from './utils/time.js';
 
 const theme = useThemeStore();
 const showSettings = ref(false);
+// P2-29 / P1-15：设置弹窗无障碍 —— 焦点管理
+const settingsModal = ref(null);
+let lastFocusedEl = null;
 // 设置面板标签页（外观 / 提醒与监控 / 学习引擎 / 导航 / 存储）
 const settingsTab = ref('appearance');
 
@@ -148,11 +151,31 @@ function onToggleTelB(v) {
 }
 watch(showSettings, (open) => {
   if (open) {
+    lastFocusedEl = document.activeElement;
     telA.value = isAEnabled(); telB.value = isBEnabled(); loadScheduler();
     // P3-2 打开设置面板时刷新存储占用，让用户看到实时数据
     getStorageEstimate().then(e => { storageEstimate.value = e; });
+    // 焦点移入弹窗（键盘 / 读屏用户可达），关闭时还原到触发元素
+    nextTick(() => settingsModal.value?.focus());
+  } else if (lastFocusedEl && lastFocusedEl.focus) {
+    lastFocusedEl.focus();
   }
 });
+
+// P2-29 / P1-15：设置弹窗键盘可达 —— Esc 关闭 + Tab 焦点陷阱
+function onSettingsKeydown(e) {
+  if (e.key === 'Escape') { e.stopPropagation(); showSettings.value = false; return; }
+  if (e.key !== 'Tab') return;
+  const m = settingsModal.value;
+  if (!m) return;
+  const sel = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const list = Array.from(m.querySelectorAll(sel)).filter(el => el.offsetParent !== null);
+  if (!list.length) return;
+  const first = list[0];
+  const last = list[list.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
 
 // ---------- P1-1 FSRS 调度器 opt-in ----------
 // scheduler: 'sm2'(默认，类 SM-2 变体，含短巩固/错因惩罚) | 'fsrs'(FSRS-4.5，ML 拟合每用户遗忘曲线)
@@ -408,8 +431,8 @@ async function enableReminder() {
     <!-- 设置面板：标签页组织（外观 / 提醒与监控 / 学习引擎 / 导航 / 存储） -->
     <teleport to="body">
       <div v-if="showSettings" class="modal-mask" @click.self="showSettings = false">
-        <div class="modal settings-modal">
-          <h3 style="margin-top:0">设置中心</h3>
+        <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1" ref="settingsModal" @keydown="onSettingsKeydown">
+          <h3 id="settings-title" style="margin-top:0">设置中心</h3>
           <el-tabs v-model="settingsTab">
             <el-tab-pane label="🎨 外观" name="appearance">
               <div class="field-label">配色模式（全局通用，适用于每一种风格）</div>

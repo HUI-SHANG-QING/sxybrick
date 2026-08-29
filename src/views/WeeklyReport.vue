@@ -10,6 +10,7 @@ import { toast } from '../utils/toast.js';
 
 const DAY = 86400000;
 const reports = ref([]);
+const loading = ref(true); // P2-30 初始加载态
 const weekStart = ref(0);
 const data = ref(null);
 const summary = ref('');
@@ -121,13 +122,16 @@ function openReport(r) {
 }
 
 onMounted(async () => {
-  await loadHistory();
-  await selectWeek(mondayOf(Date.now()));
+  loading.value = true;
+  try {
+    await loadHistory();
+    await selectWeek(mondayOf(Date.now()));
+  } finally { loading.value = false; }
 });
 </script>
 
 <template>
-  <div class="wr-wrap">
+  <div class="wr-wrap" v-loading="loading" element-loading-text="加载中…">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <h2 style="margin:0">每周报告</h2>
       <span style="flex:1"></span>

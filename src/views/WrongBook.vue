@@ -35,6 +35,7 @@ watch(filterSubject, v => localStorage.setItem('sxy_wrong_subject', v));
 watch(filterStage, v => localStorage.setItem('sxy_wrong_stage', v));
 const genBusy = ref(new Set()); // 正在生成变式的卡 id 集合
 const batchBusy = ref(false);
+const loading = ref(true); // P2-30 初始加载态
 
 // P2·#11 错题闭环：智能补救结果面板
 const remediation = ref(null); // { card, diagnosis, feynmanHint, variantCards, graphLinks }
@@ -174,11 +175,11 @@ async function genTop5() {
   await load();
 }
 
-onMounted(() => { load(); loadSubjects(); });
+onMounted(async () => { loading.value = true; try { await Promise.all([load(), loadSubjects()]); } finally { loading.value = false; } });
 </script>
 
 <template>
-  <div style="max-width:820px;margin:0 auto">
+  <div style="max-width:820px;margin:0 auto" v-loading="loading" element-loading-text="加载中…">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <h2 style="margin:0">错题集</h2>
       <span class="hint">共 {{ filteredItems.length }} 道错题</span>

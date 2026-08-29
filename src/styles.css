@@ -174,6 +174,35 @@ input, select, textarea { font: inherit; color: inherit; }
   .modal-mask { padding: 16px 10px; }
 }
 
+/* P2-28 移动端触控目标 ≥ 44px（触屏设备，Apple/Android 人因建议下限） */
+@media (hover: none) and (pointer: coarse) {
+  .btn, .chip, .el-button, button, .core-nav-item, .style-card, .settings-fab {
+    min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .chip { min-height: 44px; padding: 6px 16px; }
+  .settings-fab { width: 44px; height: 44px; }
+  /* 列表项 / 卡片内可点击区也加高，避免误触 */
+  .card-item, .list-row, .core-nav-item { min-height: 44px; }
+}
+
+/* P2-21 响应式增强：768px 以下核心布局适配（补充原有 720px 一档） */
+@media (max-width: 768px) {
+  .app-main { padding: 14px 10px 88px; }
+  .toolbar, .list-toolbar, .filter-row { flex-wrap: wrap; gap: 8px; }
+  .toolbar > *, .list-toolbar > * { margin-bottom: 4px; }
+  /* 通用多列网格在窄屏退化为单列 */
+  .stat-grid, .grid-2, .grid-3, .core-nav-grid, .style-grid,
+  [class*='grid'] { grid-template-columns: 1fr !important; }
+  .modal { max-width: 100% !important; width: 100%; padding: 16px 14px; }
+  .modal-mask { padding: 12px 8px; }
+  /* 表格横向滚动，避免窄屏溢出 */
+  table { display: block; width: 100%; overflow-x: auto; white-space: nowrap; }
+  .el-table { width: 100%; overflow-x: auto; }
+  .review-shell, .card-stage { padding: 12px 8px !important; }
+  .settings-fab { top: 10px; right: 10px; }
+}
+
 /* ===================== 界面风格（游戏级：强调色 + 场景背景；配色模式见 data-theme） ===================== */
 :root[data-style='card'] {
   --accent: #f0c46a; --accent-2: #b9862f; --radius: 14px;

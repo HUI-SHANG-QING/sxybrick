@@ -294,6 +294,7 @@ async function delRec(id) {
 // —— 列表筛选 ——
 const list = ref([]);
 const listBusy = ref(false);
+const loading = ref(true); // P2-30 初始加载态
 const qFrom = ref('');
 const qTo = ref('');
 const qType = ref('');
@@ -391,7 +392,7 @@ function fillNow1h() {
   form.endTime = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-onMounted(() => { refreshList(); });
+onMounted(async () => { loading.value = true; try { await refreshList(); } finally { loading.value = false; } });
 
 // 列表分组（按日期）
 const listGrouped = computed(() => {
@@ -431,7 +432,7 @@ function ScoreRow({ label, model, modelKey, max = 5, low, high }) {}
 </script>
 
 <template>
-  <div class="pv-root">
+  <div class="pv-root" v-loading="loading" element-loading-text="加载中…">
     <header class="pv-head">
       <div>
         <h2 style="margin:0">🧾 人生隐私数据 · 超级监控（B档详尽版）</h2>

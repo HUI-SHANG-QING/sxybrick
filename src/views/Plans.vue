@@ -12,6 +12,7 @@ import { toast } from '../utils/toast.js';
 
 const route = useRoute();
 const plans = ref([]);
+const loading = ref(true); // P2-30 初始加载态
 const showForm = ref(false);
 const editing = ref(null);
 const title = ref('');
@@ -145,11 +146,11 @@ async function applyRouteId() {
   const hit = plans.value.find(p => p.id === id);
   if (hit) activeId.value = hit.id;
 }
-onMounted(applyRouteId);
+onMounted(async () => { loading.value = true; try { await applyRouteId(); } finally { loading.value = false; } });
 </script>
 
 <template>
-  <div class="plans-wrap">
+  <div class="plans-wrap" v-loading="loading" element-loading-text="加载中…">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <h2 style="margin:0">学习计划</h2>
       <span style="flex:1"></span>

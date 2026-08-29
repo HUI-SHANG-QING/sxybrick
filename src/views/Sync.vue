@@ -22,6 +22,7 @@ const hubToken = ref(localStorage.getItem('sxy_hub_token') || '');
 const fileInput = ref(null);
 const syncing = ref(false);
 const testingHub = ref(false);
+const loading = ref(true); // P2-30 初始数据加载态（避免界面假死）
 const hubStatus = ref(null); // { ok, tips, tokenOk, error }
 const importing = ref(false);
 const lastBackup = ref(null);
@@ -337,11 +338,15 @@ async function onAnkiFile(e) {
   finally { ankiBusy.value = false; }
 }
 
-onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); loadSnapshots(); });
+onMounted(async () => {
+  loading.value = true;
+  try { await Promise.all([loadCounts(), loadLastBackup(), loadSubjects(), loadErrors(), loadSnapshots()]); }
+  finally { loading.value = false; }
+});
 </script>
 
 <template>
-  <div style="max-width:720px;margin:0 auto">
+  <div style="max-width:720px;margin:0 auto" v-loading="loading" element-loading-text="加载中…">
     <h2 style="margin:0 0 4px">数据同步</h2>
     <div class="hint" style="margin-bottom:16px">
       本机数据：{{ counts.cards }} 卡片 · {{ counts.reviews }} 复习 · {{ counts.images }} 图片 · {{ counts.aiChats }} 对话 · {{ counts.aiMemories }} 记忆 · {{ counts.memos }} 备忘 · {{ counts.plans }} 计划 · {{ counts.graphEdges }} 图谱边 · {{ counts.docs }} 文档 · {{ counts.pomoSessions }} 专注 · {{ counts.mindmaps }} 导图 · {{ counts.weeklyReports }} 周报 · {{ counts.achievements }} 成就 · {{ counts.exams }} 模考

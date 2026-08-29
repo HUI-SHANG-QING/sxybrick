@@ -21,6 +21,7 @@ import {
 const router = useRouter();
 const route = useRoute();
 const notes = ref([]);
+const loading = ref(true); // P2-30 初始加载态
 const categories = ref([]);
 const tags = ref([]);
 const filter = ref({ q: '', category: '', tags: [] });
@@ -37,13 +38,16 @@ async function load() {
 async function reload() { await load(); }
 
 onMounted(async () => {
-  await load();
-  // URL ?id=xxx 自动打开
-  const id = route.query.id;
-  if (id) {
-    const n = notes.value.find(x => x.id === id);
-    if (n) openNote(n);
-  }
+  loading.value = true;
+  try {
+    await load();
+    // URL ?id=xxx 自动打开
+    const id = route.query.id;
+    if (id) {
+      const n = notes.value.find(x => x.id === id);
+      if (n) openNote(n);
+    }
+  } finally { loading.value = false; }
 });
 watch(filter, () => load(), { deep: true });
 
@@ -157,7 +161,7 @@ const filteredNotes = computed(() => notes.value);
 </script>
 
 <template>
-  <div class="notes-page">
+  <div class="notes-page" v-loading="loading" element-loading-text="加载中…">
     <!-- 左栏：列表 -->
     <div class="notes-list">
       <div class="notes-toolbar">

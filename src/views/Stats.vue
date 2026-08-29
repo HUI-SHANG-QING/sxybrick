@@ -11,6 +11,7 @@ import { degraded } from '../utils/perf.js';
 import { goldenHours } from '../algorithms/golden-hours.js';
 
 const stats = ref(null);
+const loading = ref(true); // P2-30 初始加载态
 const profile = ref(null);
 const heatEl = ref(null);
 const radarEl = ref(null);
@@ -370,7 +371,9 @@ function onResize() { charts.forEach(c => c.resize()); }
 
 let themeObserver = null;
 onMounted(() => {
-  load(); window.addEventListener('resize', onResize);
+  loading.value = true;
+  load().finally(() => { loading.value = false; });
+  window.addEventListener('resize', onResize);
   themeObserver = new MutationObserver(() => { if (stats.value) buildCharts(); });
   themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-style'] });
 });
@@ -378,7 +381,7 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
 </script>
 
 <template>
-  <div>
+  <div v-loading="loading" element-loading-text="加载中…">
     <h2>复习数据</h2>
 
     <div class="stat-cards">
