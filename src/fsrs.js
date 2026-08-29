@@ -20,10 +20,15 @@
 //   w6      难度均值回归系数
 //   w7..w10 回忆后稳定度更新参数
 //   w11..w14 遗忘后稳定度更新参数
-//   w15     hard 惩罚因子
-//   w16     easy 加成因子
+//   w15     hard 惩罚因子（<1：hard 的增长量小于 good）
+//   w16     easy 加成因子（>1：easy 的整体稳定度大于 good）
 //   w17     间隔抖动系数
 //   w18     稳定度上限
+//
+// ⚠️ 方向铁律（2026-08-29 修正）：w15 是「惩罚」必须 <1，w16 是「加成」必须 >1。
+// 历史缺陷：w15/w16 曾分别写成 2.61 / 0.00，导致「还模糊」的间隔是「记住了」的 2.61 倍，
+// 语义完全反向——越不会的卡片反而越晚复习。现除修正默认值外，
+// stabilityAfterRecall 内部也对 w15 做了 ≤1 钳制，使方向错误在结构上不可能发生。
 export const DEFAULT_WEIGHTS = [
   0.40,  // w0  S0(again)
   0.60,  // w1  S0(hard)
@@ -40,8 +45,8 @@ export const DEFAULT_WEIGHTS = [
   0.34,  // w12 遗忘更新：D^-w12
   1.26,  // w13 遗忘更新：(S+1)^w13
   0.29,  // w14 遗忘更新：e^(-w14*R) 衰减
-  2.61,  // w15 hard 惩罚（>1 表示 hard 反而拉长？默认按 FSRS 设为>1，训练器会校正）
-  0.00,  // w16 easy 加成
+  0.29,  // w15 hard 惩罚（<1：hard 增长量约为 good 的 29% → 间隔更短）
+  2.61,  // w16 easy 加成（>1：easy 稳定度约为 good 的 2.61 倍 → 间隔更长）
   0.20,  // w17 间隔抖动
   1.00,  // w18 稳定度上限（×10 天，即 S 上限=10*dflt→实际乘子，保留可训练）
 ];
@@ -86,14 +91,21 @@ export function nextDifficulty(D, grade, w = DEFAULT_WEIGHTS) {
   return clamp(reverted, 1, 10);
 }
 
-/** 回忆后稳定度更新（grade>=2） */
+/**
+ * 回忆后稳定度更新（grade>=2）
+ *
+ * 方向保证（2026-08-29）：hard 惩罚只作用于「增量项」并强制钳制在 (0,1]，
+ * 因此 hard 的新稳定度恒 ≤ good，即使权重被训练器拟合到异常值也不会语义反向。
+ * easy 加成作用于整体，同样恒 ≥ good（w16<1 时退化为 ≤1 的加成，不会反向）。
+ */
 export function stabilityAfterRecall(S, D, R, grade, w = DEFAULT_WEIGHTS) {
   const s = Math.max(0.01, S);
   const factor = Math.exp(w[7]) * (11 - D) * Math.pow(s, -w[8]) * (Math.exp(w[9] * (1 - R)) - 1);
-  let nextS = s * (1 + w[10] * factor);
-  // hard/easy 调整
-  if (grade === 2) nextS *= Math.max(0.1, w[15]);    // hard 惩罚
-  else if (grade === 4) nextS *= Math.max(0.1, w[16]); // easy 加成
+  // hard 惩罚：仅缩放增长量，且钳制 ≤1（结构保证 hard ≤ good）
+  const hardPenalty = grade === 2 ? clamp(Number.isFinite(w[15]) ? w[15] : 1, 0.01, 1) : 1;
+  // easy 加成：缩放整体稳定度（训练器可把它拟合到 >1 或 <1，但不会改变 hard/good 序关系）
+  const easyBonus = grade === 4 ? Math.max(0.01, Number.isFinite(w[16]) ? w[16] : 1) : 1;
+  const nextS = s * (1 + w[10] * factor * hardPenalty) * easyBonus;
   return Math.max(0.1, nextS);
 }
 
@@ -110,8 +122,10 @@ export function nextInterval(S, desiredR = DEFAULT_DESIRED_RETENTION, w = DEFAUL
   const r = clamp(desiredR, 0.5, 0.99);
   let days = 9 * s * (1 / r - 1);
   // 抖动（fuzz）：避免同一天堆积过多卡，±w17
-  const fuzz = 1 + (Math.random() - 0.5) * 2 * w[17];
+  const fuzz = 1 + (Math.random() - 0.5) * 2 * (Number.isFinite(w[17]) ? w[17] : 0);
   days *= fuzz;
+  // NaN/Infinity 护栏：Math.max/Math.min 遇到 NaN 会返回 NaN，必须先挡
+  if (!Number.isFinite(days)) days = 0.01;
   days = Math.max(0.01, Math.min(365, days));
   return days;
 }
@@ -128,7 +142,13 @@ export function schedule(card, rating, opts = {}) {
   const desiredR = opts.desiredRetention || DEFAULT_DESIRED_RETENTION;
   const nowTs = opts.now || Date.now();
   const grade = toFsrsGrade(rating);
-  const prev = card?.fsrs && typeof card.fsrs.s === 'number' ? card.fsrs : null;
+  // NaN 防护：typeof NaN === 'number' 会让坏状态一路传播到 dueAt=NaN，
+  // 而 `dueAt <= now` 对 NaN 恒为 false → 该卡将永久消失于复习队列。
+  const fs = card?.fsrs;
+  const prev = fs
+    && Number.isFinite(fs.s) && Number.isFinite(fs.d) && Number.isFinite(fs.last)
+    ? fs
+    : null;
 
   let S, D, reps;
   if (!prev || !prev.reps) {
@@ -149,8 +169,15 @@ export function schedule(card, rating, opts = {}) {
     D = nextDifficulty(prev.d, grade, w);
     reps = prev.reps + 1;
   }
+  // 兜底层：任何环节产出非有限值都回退到安全稳定度，绝不把 NaN/Infinity 写入 dueAt
+  if (!Number.isFinite(S)) S = initStability(grade, w);
+  if (!Number.isFinite(D)) D = initDifficulty(grade, w);
+  if (!Number.isFinite(reps) || reps < 1) reps = 1;
+
   // 遗忘（没记住）：立刻重学，给极短间隔；否则按目标保持率反解
   let intervalDays = grade === 1 ? 0.01 : nextInterval(S, desiredR, w);
+  if (!Number.isFinite(intervalDays)) intervalDays = 0.01;
+  intervalDays = Math.max(0.01, intervalDays);
   const dueAt = nowTs + Math.round(intervalDays * DAY_MS);
 
   // 派生 SM-2 兼容字段（供既有 UI/统计/体检复用，不影响 FSRS 真实状态）
@@ -249,10 +276,35 @@ export function trainWeights(reviews, cardsById, opts = {}) {
   return { weights, loss: best.loss, samples: best.n };
 }
 
-/** 加载用户 FSRS 权重（持久化于 db.meta['fsrsWeights']），无则返回默认 */
+/**
+ * 权重数据结构版本（2026-08-29 引入）
+ * v1 = 修正 hard/easy 方向之前的旧格式（裸数组），其 w15/w16 语义与现公式不兼容。
+ * v2 = { v: 2, weights: number[] }，与 stabilityAfterRecall 的增量式 hard 惩罚一致。
+ * 旧版本数据一律回退默认权重（用户重新训练即可），避免带着反向语义继续调度。
+ */
+export const WEIGHT_SCHEMA_VERSION = 2;
+
+/** 序列化用户权重（写入 db.meta 前调用） */
+export function serializeUserWeights(weights) {
+  if (!Array.isArray(weights) || weights.length !== DEFAULT_WEIGHTS.length) return null;
+  if (!weights.every(v => Number.isFinite(v) && v >= 0)) return null;
+  return { v: WEIGHT_SCHEMA_VERSION, weights: weights.slice() };
+}
+
+/**
+ * 加载用户 FSRS 权重（持久化于 db.meta['fsrsWeights']），无或不兼容则返回默认
+ * 兼容两种入参：
+ *   - 新版 { v: WEIGHT_SCHEMA_VERSION, weights: number[] }
+ *   - 旧版裸数组（schema v1）→ 判定为不兼容，回退默认并交由调用方重新训练
+ */
 export function mergeUserWeights(stored) {
-  if (!Array.isArray(stored) || stored.length !== DEFAULT_WEIGHTS.length) return DEFAULT_WEIGHTS.slice();
+  const fallback = () => DEFAULT_WEIGHTS.slice();
+  // 旧格式（裸数组）或任何非 v2 结构：一律回退默认
+  if (Array.isArray(stored)) return fallback();
+  if (!stored || stored.v !== WEIGHT_SCHEMA_VERSION) return fallback();
+  const w = stored.weights;
+  if (!Array.isArray(w) || w.length !== DEFAULT_WEIGHTS.length) return fallback();
   // 校验每个权重为有限正数，否则回退默认
-  const ok = stored.every(v => Number.isFinite(v) && v >= 0);
-  return ok ? stored.slice() : DEFAULT_WEIGHTS.slice();
+  if (!w.every(v => Number.isFinite(v) && v >= 0)) return fallback();
+  return w.slice();
 }

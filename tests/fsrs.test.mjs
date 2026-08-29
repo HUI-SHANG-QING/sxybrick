@@ -17,6 +17,8 @@ import {
   schedule,
   trainWeights,
   mergeUserWeights,
+  serializeUserWeights,
+  WEIGHT_SCHEMA_VERSION,
 } from '../src/fsrs.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -229,18 +231,106 @@ test('trainWeights: 足量样本 → 19 维有限权重与有限损失', () => {
 
 // ---------- 持久化权重合并 ----------
 
-test('mergeUserWeights: 合法数组原样返回副本', () => {
-  const stored = DEFAULT_WEIGHTS.map((v, i) => v + i * 0.01);
+test('mergeUserWeights: v2 结构合法 → 原样返回副本', () => {
+  const weights = DEFAULT_WEIGHTS.map((v, i) => v + i * 0.01);
+  const stored = { v: WEIGHT_SCHEMA_VERSION, weights };
   const merged = mergeUserWeights(stored);
-  assert.deepEqual(merged, stored);
-  assert.notEqual(merged, stored, '返回副本而非引用');
+  assert.deepEqual(merged, weights);
+  assert.notEqual(merged, weights, '返回副本而非引用');
 });
 
-test('mergeUserWeights: 长度不符 / 含负值 / 含 NaN / 非数组 → 回退默认', () => {
+test('mergeUserWeights: 长度不符 / 含负值 / 含 NaN / 非 v2 → 回退默认', () => {
   assert.deepEqual(mergeUserWeights(null), DEFAULT_WEIGHTS);
   assert.deepEqual(mergeUserWeights([1, 2, 3]), DEFAULT_WEIGHTS, '长度不是 19');
   const withNeg = DEFAULT_WEIGHTS.slice(); withNeg[7] = -0.5;
-  assert.deepEqual(mergeUserWeights(withNeg), DEFAULT_WEIGHTS, '含负值');
+  assert.deepEqual(mergeUserWeights(withNeg), DEFAULT_WEIGHTS, '含负值（裸数组，schema 不符）');
   const withNaN = DEFAULT_WEIGHTS.slice(); withNaN[3] = NaN;
   assert.deepEqual(mergeUserWeights(withNaN), DEFAULT_WEIGHTS, '含 NaN');
+  // v2 结构但内容非法
+  assert.deepEqual(
+    mergeUserWeights({ v: WEIGHT_SCHEMA_VERSION, weights: DEFAULT_WEIGHTS.slice(0, 5) }),
+    DEFAULT_WEIGHTS, 'v2 但长度不足');
+  const v2NaN = DEFAULT_WEIGHTS.slice(); v2NaN[3] = NaN;
+  assert.deepEqual(
+    mergeUserWeights({ v: WEIGHT_SCHEMA_VERSION, weights: v2NaN }),
+    DEFAULT_WEIGHTS, 'v2 但含 NaN');
+  // 未来/未知版本
+  assert.deepEqual(
+    mergeUserWeights({ v: 999, weights: DEFAULT_WEIGHTS.slice() }),
+    DEFAULT_WEIGHTS, '版本不匹配');
+});
+
+test('serializeUserWeights ↔ mergeUserWeights: 往返一致', () => {
+  const w = DEFAULT_WEIGHTS.map((v, i) => v * (1 + i * 0.001));
+  const packed = serializeUserWeights(w);
+  assert.ok(packed && packed.v === WEIGHT_SCHEMA_VERSION);
+  assert.deepEqual(mergeUserWeights(packed), w);
+  // 非法输入返回 null（调用方据此跳过写入）
+  assert.equal(serializeUserWeights(null), null);
+  assert.equal(serializeUserWeights([1, 2, 3]), null);
+  assert.equal(serializeUserWeights(DEFAULT_WEIGHTS.map(() => NaN)), null);
+});
+
+// ---------- P0 回归：hard/easy 方向 ----------
+// 历史缺陷：w15=2.61 作"hard 惩罚"、w16=0.00 作"easy 加成"，导致
+// 「还模糊」的下次间隔是「记住了」的 2.61 倍 —— 越不会的卡反而越晚复习。
+test('P0 回归: hard 的间隔必须短于 good，good 短于 easy', () => {
+  withStableFuzz(() => {
+    const base = { fsrs: { s: 5, d: 5, reps: 3, last: T - 5 * DAY } };
+    const hard = schedule(base, 1, { now: T }); // 还模糊 → grade 2
+    const good = schedule(base, 2, { now: T }); // 记住了 → grade 3
+    assert.ok(hard.intervalDays < good.intervalDays,
+      `hard(${hard.intervalDays}) 必须 < good(${good.intervalDays})`);
+    assert.ok(hard.fsrs.s < good.fsrs.s,
+      `hard 稳定度(${hard.fsrs.s}) 必须 < good(${good.fsrs.s})`);
+    // easy(grade 4) 由 schedule 内部不可达，直接验证稳定度更新函数
+    const sHard = stabilityAfterRecall(5, 5, 0.9, 2);
+    const sGood = stabilityAfterRecall(5, 5, 0.9, 3);
+    const sEasy = stabilityAfterRecall(5, 5, 0.9, 4);
+    assert.ok(sHard < sGood, `stabilityAfterRecall hard(${sHard}) < good(${sGood})`);
+    assert.ok(sEasy > sGood, `stabilityAfterRecall easy(${sEasy}) > good(${sGood})`);
+  });
+});
+
+test('P0 回归: 即便权重被拟合到异常值，hard 也不得反超 good（结构保证）', () => {
+  // 模拟训练器把 w15 推到 5.0（远超 1）——钳制后 hard 仍应 ≤ good
+  const bad = DEFAULT_WEIGHTS.slice();
+  bad[15] = 5.0;
+  bad[16] = 0.01; // easy 加成也被压到 <1
+  const sHard = stabilityAfterRecall(5, 5, 0.9, 2, bad);
+  const sGood = stabilityAfterRecall(5, 5, 0.9, 3, bad);
+  assert.ok(sHard <= sGood + 1e-9, `w15=5 被钳制后 hard(${sHard}) 仍应 ≤ good(${sGood})`);
+  // 权重为 NaN/Infinity 时不得污染结果
+  const nan = DEFAULT_WEIGHTS.slice();
+  nan[15] = NaN;
+  assert.ok(Number.isFinite(stabilityAfterRecall(5, 5, 0.9, 2, nan)), 'w15=NaN 不产生 NaN');
+});
+
+// ---------- P0 回归：NaN 防护 ----------
+// 历史缺陷：fsrs 状态含 NaN 时 typeof NaN === 'number' 通过校验，
+// 一路传播到 dueAt=NaN，而 `dueAt <= now` 对 NaN 恒为 false → 卡片永久消失于复习队列。
+test('P0 回归: 坏 fsrs 状态不得产生 NaN 的 dueAt', () => {
+  withStableFuzz(() => {
+    const cases = [
+      { fsrs: { s: NaN, d: 5, reps: 3, last: T - DAY } },
+      { fsrs: { s: 5, d: NaN, reps: 3, last: T - DAY } },
+      { fsrs: { s: 5, d: 5, reps: 3, last: NaN } },
+      { fsrs: { s: Infinity, d: 5, reps: 3, last: T - DAY } },
+      { fsrs: { s: 5, d: 5, reps: NaN, last: T - DAY } },
+    ];
+    for (const c of cases) {
+      for (const rating of [0, 1, 2]) {
+        const r = schedule(c, rating, { now: T });
+        assert.ok(Number.isFinite(r.dueAt), `dueAt 必须有限（${JSON.stringify(c.fsrs)}, rating=${rating}）`);
+        assert.ok(Number.isFinite(r.intervalDays) && r.intervalDays > 0, 'intervalDays 必须为正有限值');
+        assert.ok(Number.isFinite(r.fsrs.s), '新稳定度必须有限');
+        assert.ok(Number.isFinite(r.fsrs.d), '新难度必须有限');
+      }
+    }
+  });
+});
+
+test('P0 回归: 默认权重方向正确（w15<1 惩罚 / w16>1 加成）', () => {
+  assert.ok(DEFAULT_WEIGHTS[15] < 1, `w15(${DEFAULT_WEIGHTS[15]}) 是 hard 惩罚，必须 <1`);
+  assert.ok(DEFAULT_WEIGHTS[16] > 1, `w16(${DEFAULT_WEIGHTS[16]}) 是 easy 加成，必须 >1`);
 });

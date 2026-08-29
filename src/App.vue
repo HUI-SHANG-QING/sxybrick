@@ -31,6 +31,7 @@ import { isAEnabled, isBEnabled, setAEnabled, setBEnabled } from './utils/teleme
 import { db } from './db.js';
 import { refreshSchedConfig } from './repo.js';
 import { trainFsrsModel } from './agent/analytics.js';
+import { serializeUserWeights } from './fsrs.js';
 
 const theme = useThemeStore();
 const showSettings = ref(false);
@@ -188,7 +189,7 @@ async function trainFsrs() {
       return;
     }
     await Promise.all([
-      db.meta.put({ key: 'fsrsWeights', value: r.weights }),
+      db.meta.put({ key: 'fsrsWeights', value: serializeUserWeights(r.weights) }),
       db.meta.put({ key: 'fsrsInfo', value: { samples: r.samples, loss: r.loss, trainedAt: Date.now() } }),
     ]);
     fsrsInfo.value = { samples: r.samples, loss: r.loss, trainedAt: Date.now() };
