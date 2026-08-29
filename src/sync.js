@@ -15,6 +15,7 @@ import {
   mergeRows, mergeTombstones, applyTombstones, kindOf,
 } from './sync-manifest.js';
 import { dedupeIncomingCards } from './sync-dedup.js';
+import { buildAuthHeaders } from './utils/hub-auth.js';
 
 export { BACKUP_VERSION, EXCLUDED_FROM_SYNC };
 
@@ -293,11 +294,19 @@ export async function syncWithHub(hubUrl, token) {
   if (!hub) throw new Error('请先填写电脑端同步中枢地址');
   const lastRaw = Number(localStorage.getItem(HUB_LAST_SYNC_KEY) || 0) || 0;
   const backup = await buildIncrementalBackup(lastRaw);
+  const body = JSON.stringify(backup);
+  // 鉴权 v2：优先 HMAC 挑战-响应（同步密码不上网）；老版 Hub 或不支持 WebCrypto 时退回明文 token
+  const authHeaders = await buildAuthHeaders({ hub, token, method: 'PUT', path: '/backup', body })
+    || { 'x-sync-token': String(token || '') };
   const res = await fetch(`${hub}/backup`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'x-sync-token': String(token || '') },
-    body: JSON.stringify(backup),
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body,
   });
+  if (res.status === 401) {
+    const detail = await res.json().catch(() => ({}));
+    throw new Error(detail?.error || '同步密码错误，请检查 App「同步」页填写的密码');
+  }
   if (!res.ok) throw new Error(`同步失败（${res.status}），请确认电脑端中枢已启动`);
   const merged = await res.json();
   if (!merged || merged.app !== 'sxybrick') throw new Error('中枢返回的数据无效');

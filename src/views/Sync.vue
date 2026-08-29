@@ -7,6 +7,7 @@ import { getSubjects, createCard } from '../repo.js';
 import { getErrors, clearErrors } from '../utils/errorLog.js';
 import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from '../utils/gistBackup.js';
 import { T } from '../utils/telemetry.js';
+import { buildAuthHeaders } from '../utils/hub-auth.js';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 // GH Pages 上 location.origin 是 https://xxx.github.io 且没有 /backup 接口，不能作为 Hub 默认地址。
@@ -240,14 +241,28 @@ async function testHub() {
   testingHub.value = true;
   hubStatus.value = null;
   try {
-    const res = await fetch(`${hub}/health`, {
-      method: 'GET',
-      headers: hubToken.value ? { 'x-sync-token': hubToken.value } : {},
-    });
+    // 先探活（/health 不含任何口令信息，无法被用作穷举预言机）
+    const res = await fetch(`${hub}/health`, { method: 'GET' });
     if (!res.ok) throw new Error(`Hub 返回 HTTP ${res.status}`);
     const j = await res.json();
-    hubStatus.value = { ok: true, tokenOk: !!j.tokenOk, tips: j.tips || [] };
-    toast(j.tokenOk ? '✅ 已连接，密码正确，可以同步' : '✅ 连接成功，但密码校验未通过，请检查同步密码', j.tokenOk ? 'success' : 'warn');
+    const tips = j.tips || [];
+    // 再验证密码：用 HMAC 挑战-响应，密码本身不上网；挑战一次性且有有效期
+    let tokenOk = null; // null = 未验证（没填密码或协议不支持）
+    if (hubToken.value) {
+      const authHeaders = await buildAuthHeaders({ hub, token: hubToken.value, method: 'GET', path: '/backup' })
+        || { 'x-sync-token': hubToken.value };
+      const vr = await fetch(`${hub}/backup`, { method: 'GET', headers: { ...authHeaders } });
+      tokenOk = vr.ok;
+      if (vr.status === 401) {
+        const d = await vr.json().catch(() => ({}));
+        tips.unshift(`密码校验未通过：${d?.error || '请检查同步密码'}`);
+      }
+    }
+    hubStatus.value = { ok: true, tokenOk, tips };
+    const msg = tokenOk === null
+      ? '✅ 已连接到 Hub（未填密码，未做校验）'
+      : tokenOk ? '✅ 已连接，密码正确，可以同步' : '⚠ 连接成功，但密码校验未通过，请检查同步密码';
+    toast(msg, tokenOk === false ? 'warn' : 'success');
   } catch (e) {
     const hints = diagnoseFetchError(e.message, hub);
     hubStatus.value = { ok: false, error: String(e.message || e), hints };
@@ -503,7 +518,11 @@ onMounted(() => { loadCounts(); loadLastBackup(); loadSubjects(); loadErrors(); 
 
       <div v-if="hubStatus" class="hub-status" :class="hubStatus.ok ? 'ok' : 'bad'">
         <template v-if="hubStatus.ok">
-          ✅ Hub 可达。{{ hubStatus.tokenOk ? '密码校验通过。' : '⚠ 密码未通过，请检查同步密码。' }}
+          ✅ Hub 可达。{{
+            hubStatus.tokenOk === null ? '未填密码，未做校验。'
+            : hubStatus.tokenOk ? '密码校验通过。'
+            : '⚠ 密码未通过，请检查同步密码。'
+          }}
           <ul v-if="hubStatus.tips?.length" style="margin:6px 0 0 18px;padding:0"><li v-for="(t,i) in hubStatus.tips" :key="i" class="hint" style="font-size:12px">{{ t }}</li></ul>
         </template>
         <template v-else>

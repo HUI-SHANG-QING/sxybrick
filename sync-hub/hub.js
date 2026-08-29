@@ -7,22 +7,42 @@
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, extname, normalize } from 'node:path';
+import { dirname, join, extname, normalize, sep, resolve } from 'node:path';
 import { networkInterfaces } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES,
   mergeRows, mergeTombstones, applyTombstones,
 } from '../src/sync-manifest.js';
+import {
+  AUTH_VERSION, signPayload, safeEqual, createChallengeStore,
+  createRateLimiter, normalizeIp, corsHeaders, isOriginAllowed,
+} from './auth-core.js';
 
 // 中枢同时处理标准表和隐私表（仅当客户端 opt-in 发送时才包含隐私数据）
 const ALL_TABLES = [...SYNC_TABLES, ...PRIVACY_SYNC_TABLES];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST = join(__dirname, '..', 'dist');
-const DATA_FILE = join(__dirname, 'hub-data.json');
-const TOKEN_FILE = join(__dirname, 'hub-token.txt');
+// 数据文件与令牌文件路径可用环境变量覆盖（集成测试需要隔离，避免污染仓库目录）
+const DATA_FILE = process.env.HUB_DATA_FILE
+  ? resolve(process.env.HUB_DATA_FILE) : join(__dirname, 'hub-data.json');
+const TOKEN_FILE = process.env.HUB_TOKEN_FILE
+  ? resolve(process.env.HUB_TOKEN_FILE) : join(__dirname, 'hub-token.txt');
 const PORT = Number(process.env.PORT || process.argv[2] || 4780);
+// 监听地址：Hub 的用途就是让同网段设备访问，默认 0.0.0.0。
+// 若只想让某张网卡可达（如在不可信网络下），用 HUB_HOST=192.168.1.5 指定。
+const HOST = String(process.env.HUB_HOST || '0.0.0.0');
+// 跨域白名单：默认仅同源 + localhost。需要额外来源时用 HUB_ALLOW_ORIGIN 逗号分隔配置。
+const ALLOW_ORIGIN = String(process.env.HUB_ALLOW_ORIGIN || '')
+  .split(',').map(s => s.trim()).filter(Boolean);
+
+// ---------- 鉴权基础设施（P0 重做） ----------
+const challenges = createChallengeStore();
+// 挑战签发限流：防止被无限刷
+const challengeLimiter = createRateLimiter({ windowMs: 60_000, max: 60, baseLockMs: 1_000, maxLockMs: 5 * 60_000 });
+// 鉴权失败限流：口令猜测是高危行为，失败即指数退避锁定（1s→2s→4s…上限 15min）
+const authLimiter = createRateLimiter({ windowMs: 60_000, max: 20, baseLockMs: 1_000, maxLockMs: 15 * 60_000 });
 
 // 同步密码：首次启动自动生成并保存，之后每次启动复用；打印给用户填到手机端
 function loadToken() {
@@ -116,22 +136,89 @@ function merge(base, incoming) {
   return out;
 }
 
-function readBody(req) {
+/**
+ * 读取请求体。同时返回原始字符串——HMAC 签名是对原始字节做的，
+ * 若先 JSON.parse 再 stringify，键序变化会导致摘要不一致。
+ */
+function readBody(req, limitBytes = 200 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', c => chunks.push(c));
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > limitBytes) { reject(new Error('请求体过大')); req.destroy(); return; }
+      chunks.push(c);
+    });
     req.on('end', () => {
-      if (!chunks.length) return resolve(null);
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+      const raw = Buffer.concat(chunks).toString('utf8');
+      if (!raw) return resolve({ raw: '', json: null });
+      try { resolve({ raw, json: JSON.parse(raw) }); }
       catch (e) { reject(e); }
     });
     req.on('error', reject);
   });
 }
 
-function json(res, code, obj) {
-  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+function json(req, res, code, obj, extraHeaders = {}) {
+  const origin = req?.headers?.origin;
+  const cors = corsHeaders(origin, { host: req?.headers?.host, allowList: ALLOW_ORIGIN });
+  res.writeHead(code, {
+    'Content-Type': 'application/json; charset=utf-8',
+    ...cors,
+    ...extraHeaders,
+  });
   res.end(JSON.stringify(obj));
+}
+
+/**
+ * 校验请求鉴权。
+ * 优先走 v2 HMAC 挑战-响应（密钥不上网）；老客户端可退回 x-sync-token 明文。
+ * @returns {{ok:boolean, mode:'hmac'|'token'|'none', retryAfterMs?:number}}
+ */
+function authenticate(req, rawBody) {
+  const ip = normalizeIp(req.socket?.remoteAddress);
+  const locked = authLimiter.lockedFor(ip);
+  if (locked > 0) return { ok: false, mode: 'none', retryAfterMs: locked };
+
+  const path = new URL(req.url, `http://${req.headers.host}`).pathname;
+  const challenge = req.headers['x-sync-challenge'];
+  const sig = req.headers['x-sync-sig'];
+
+  if (challenge && sig) {
+    // v2：一次性挑战 + HMAC 签名（绑定方法/路径/请求体摘要）
+    if (!challenges.consume(challenge)) {
+      authLimiter.fail(ip);
+      return { ok: false, mode: 'hmac' };
+    }
+    const expect = signPayload(TOKEN, {
+      challenge: String(challenge), method: req.method, path, body: rawBody,
+    });
+    if (!safeEqual(String(sig), expect)) {
+      authLimiter.fail(ip);
+      return { ok: false, mode: 'hmac' };
+    }
+    authLimiter.reset(ip);
+    return { ok: true, mode: 'hmac' };
+  }
+
+  // 兼容旧客户端：明文 token（恒定时间比较 + 同一套失败退避）
+  const given = req.headers['x-sync-token'];
+  if (given != null && safeEqual(String(given), TOKEN)) {
+    authLimiter.reset(ip);
+    return { ok: true, mode: 'token' };
+  }
+  authLimiter.fail(ip);
+  return { ok: false, mode: 'token' };
+}
+
+function unauthorized(req, res, info) {
+  const headers = info?.retryAfterMs ? { 'Retry-After': String(Math.ceil(info.retryAfterMs / 1000)) } : {};
+  return json(req, res, 401, {
+    error: info?.retryAfterMs
+      ? `鉴权失败次数过多，请 ${Math.ceil(info.retryAfterMs / 1000)} 秒后重试`
+      : '同步密码错误，请在 App「同步」页填写正确密码',
+    authVersion: AUTH_VERSION,
+  }, headers);
 }
 
 function usbHints(name) {
@@ -143,16 +230,21 @@ function usbHints(name) {
   return '';
 }
 
-function serveStatic(res, pathname) {
+function serveStatic(req, res, pathname) {
   // 防目录穿越，归档到 dist 目录内。
   const rel = pathname.replace(/^\/sxybrick\b/, '');
   let p = normalize(join(DIST, (!rel || rel === '/') ? 'index.html' : rel));
-  if (!p.startsWith(DIST)) p = join(DIST, 'index.html');
+  // 前缀比较必须带分隔符，否则 ../dist-evil 这类同级目录会被判为合法
+  if (p !== DIST && !p.startsWith(DIST + sep)) p = join(DIST, 'index.html');
   if (!existsSync(p) || extname(p) === '') p = join(DIST, 'index.html'); // SPA 回退
   const body = readFileSync(p);
+  const origin = req?.headers?.origin;
+  const cors = isOriginAllowed(origin, { host: req?.headers?.host, allowList: ALLOW_ORIGIN })
+    ? { 'Access-Control-Allow-Origin': origin || '*', Vary: 'Origin' }
+    : {};
   res.writeHead(200, {
     'Content-Type': MIME[extname(p)] || 'application/octet-stream',
-    'Access-Control-Allow-Origin': '*',
+    ...cors,
     'Cache-Control': 'no-cache',
   });
   res.end(body);
@@ -162,22 +254,42 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
 
-  // CORS 预检：必须放行 x-sync-token 请求头，否则浏览器会拦截真实的 PUT/GET 请求
+  // CORS 预检：仅对白名单来源放行（默认同源 + localhost）。
+  // 旧实现一律回 *，等于允许任意网站跨域调用 Hub 并读取响应。
   if (req.method === 'OPTIONS') {
+    const origin = req.headers.origin;
+    if (!isOriginAllowed(origin, { host: req.headers.host, allowList: ALLOW_ORIGIN })) {
+      res.writeHead(204, { Vary: 'Origin' });
+      return res.end();
+    }
     res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': origin || '*',
       'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS,HEAD',
-      'Access-Control-Allow-Headers': 'Content-Type, x-sync-token',
+      'Access-Control-Allow-Headers': 'Content-Type, x-sync-token, x-sync-challenge, x-sync-sig',
       'Access-Control-Max-Age': '3600',
+      Vary: 'Origin',
     });
     return res.end();
   }
 
-  // 健康检查端点：用于同步页「测试连接」快速判断能否访问 Hub，也用于 CORS 预检后的探活
+  // 签发一次性挑战（限流）。客户端据此用同步密码做 HMAC 签名，密钥本身不上网。
+  if (pathname === '/auth/challenge') {
+    const ip = normalizeIp(req.socket?.remoteAddress);
+    const gate = challengeLimiter.hit(ip);
+    if (!gate.allowed) {
+      return json(req, res, 429, { error: '请求过于频繁，请稍后再试', retryAfterMs: gate.retryAfterMs },
+        { 'Retry-After': String(Math.ceil(gate.retryAfterMs / 1000)) });
+    }
+    return json(req, res, 200, { ...challenges.issue(), app: 'sxybrick-hub' });
+  }
+
+  // 健康检查端点：仅回可达性与版本，绝不包含任何口令校验结果。
+  // 旧实现免鉴权返回 tokenOk，配合 CORS * 构成公开的口令穷举预言机。
   if (pathname === '/health' || pathname === '/healthz') {
-    return json(res, 200, {
+    return json(req, res, 200, {
       ok: true, app: 'sxybrick-hub', version: BACKUP_VERSION,
-      tokenOk: req.headers['x-sync-token'] === TOKEN,
+      authVersion: AUTH_VERSION,
+      authModes: ['hmac', 'token'],
       time: Date.now(),
       tips: [
         '如手机端浏览器显示无法访问：',
@@ -189,30 +301,46 @@ const server = createServer(async (req, res) => {
   }
 
   if (pathname === '/backup') {
-    if (req.headers['x-sync-token'] !== TOKEN) {
-      return json(res, 401, { error: '同步密码错误，请在 App「同步」页填写正确密码' });
+    // PUT 需要先读原始体（签名绑定了请求体摘要）；GET 无体
+    let raw = '';
+    if (req.method === 'PUT') {
+      try {
+        const r = await readBody(req);
+        raw = r.raw;
+      } catch (e) {
+        return json(req, res, 400, { error: '请求体解析失败：' + e.message });
+      }
     }
+    const auth = authenticate(req, raw);
+    if (!auth.ok) return unauthorized(req, res, auth);
+
     if (req.method === 'GET') {
-      return json(res, 200, { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), ...loadData() });
+      return json(req, res, 200, { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), ...loadData() });
     }
     if (req.method === 'PUT') {
       try {
-        const incoming = await readBody(req);
-        if (!incoming || incoming.app !== 'sxybrick') return json(res, 400, { error: '无效数据包' });
+        const incoming = JSON.parse(raw || 'null');
+        if (!incoming || incoming.app !== 'sxybrick') return json(req, res, 400, { error: '无效数据包' });
         const merged = merge(loadData(), incoming);
         saveData(merged);
-        return json(res, 200, { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), ...merged });
-      } catch (e) { return json(res, 400, { error: e.message }); }
+        return json(req, res, 200, { version: BACKUP_VERSION, app: 'sxybrick', exportedAt: Date.now(), ...merged });
+      } catch (e) { return json(req, res, 400, { error: e.message }); }
     }
-    return json(res, 405, { error: 'method not allowed' });
+    return json(req, res, 405, { error: 'method not allowed' });
   }
 
-  return serveStatic(res, pathname);
+  return serveStatic(req, res, pathname);
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, HOST, () => {
   console.log('\n✅ SxyBrick 局域网同步中枢已启动');
-  console.log(`   端口：${PORT}（监听 0.0.0.0，允许同一网段全部设备访问）`);
+  console.log(`   端口：${PORT}　监听地址：${HOST}`);
+  if (HOST === '0.0.0.0') {
+    console.log('   ⚠ 监听全部网卡：同网段设备均可访问。在不可信网络（公共 WiFi）下');
+    console.log('     建议用 HUB_HOST=<内网IP> 只绑一张网卡，或确认防火墙已勾选「专用网络」。');
+  }
+  console.log(`   鉴权：HMAC-SHA256 挑战-响应（v${AUTH_VERSION}，同步密码不上网）＋ 失败指数退避锁定`);
+  console.log(`   跨域：仅允许同源与 localhost${ALLOW_ORIGIN.length ? `，另加白名单 ${ALLOW_ORIGIN.join(', ')}` : ''}`);
   console.log('   下面列了本机全部 IPv4 网卡，请选与你手机/平板同一网段的地址。\n');
   const ifaces = networkInterfaces();
   let any = false;
