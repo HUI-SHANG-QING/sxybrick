@@ -1,6 +1,6 @@
 <script setup>
 // 学习数字孪生 Dashboard：聚合卡片/复习/计划/导图/图谱/番茄/成就为一幅总览，最大化数字资产价值
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import { getStats, weakCards, listPlans, listMindmaps, listGraphEdges, countPomoToday, listAchievements, listDocs, listExams } from '../repo.js';
@@ -52,6 +52,14 @@ function renderTrend() {
     series: [{ type: 'bar', data: t.map(x => x.count), itemStyle: { color: '#4a9eff', borderRadius: [3, 3, 0, 0] } }],
   });
 }
+
+// 图表实例必须随组件销毁（2026-08-29 修复）：
+//   Dashboard 是根路由，此前全程只 init 不 dispose → 每次进出首页泄漏一个 ECharts 实例
+//   （canvas + zrender 状态，约 3~5MB），反复进出会耗尽浏览器 canvas 配额导致整页崩溃。
+onBeforeUnmount(() => {
+  try { trendChart?.dispose(); } catch { /* 容器已先卸载时忽略 */ }
+  trendChart = null;
+});
 
 // 365 天热力图（GitHub 式）
 const heatCells = computed(() => {

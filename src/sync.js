@@ -82,23 +82,6 @@ export async function buildBackup(subject) {
 // P3-3 增量同步：只导出 updatedAt > lastSyncAt 的行（卡片按 max(updatedAt, reviewedAt, wrongReasonAt) 判定）
 //   用途：hub 同步场景下，减少每次同步的包体积（从「全量 N 万行」降到「本次变更的几十行」）
 //   注意：墓碑始终全量带（删除传播不可遗漏），图片仍按被引用打包
-// 增量判定的时间字段集合（2026-08-29 修复）：
-//   各表时间语义不同——cards 用 updatedAt/reviewedAt、reviews 只有 reviewedAt、
-//   pomoSessions 用 createdAt/startedAt、achievements 用 unlockedAt、userOps 用 t、
-//   embeddings 用 updatedAt。此前按固定顺序取「第一个存在的值」，reviews 与 embeddings
-//   的字段都不在链上 → 判定值恒为 0 → `0 > since` 恒假 → 这两张表永不上传。
-//   改为取全部已知时间字段的最大值：任一表只要带其中一个字段即可正确判定，
-//   且未来新增表无需再改这里。
-const TS_FIELDS = ['updatedAt', 'reviewedAt', 'wrongReasonAt', 'createdAt', 'startedAt', 'unlockedAt', 't'];
-function rowTs(r) {
-  let m = 0;
-  for (const k of TS_FIELDS) {
-    const v = Number(r?.[k]);
-    if (Number.isFinite(v) && v > m) m = v;
-  }
-  return m;
-}
-
 //   返回结构与 buildBackup 一致，但多一个 incremental: true + since 字段，hub 端可据此识别
 export async function buildIncrementalBackup(lastSyncAt = 0) {
   const since = Number(lastSyncAt) || 0;
@@ -114,10 +97,14 @@ export async function buildIncrementalBackup(lastSyncAt = 0) {
   for (const t of getEffectiveSyncTables()) {
     if (t.table === 'cards') { parts.cards = cards; continue; }
     if (t.table === 'images') continue; // 图片单独打包
-    // idOnly（不可变记录：番茄/成就/嵌入/userOps）与 updatedAt 策略统一用 rowTs 判定，
-    // 覆盖各表不同的时间字段名（见 TS_FIELDS 注释）
+    // idOnly（不可变记录：番茄/成就/嵌入/userOps）与 updatedAt 策略统一用
+    // sync-manifest 的 livenessTs 判定（2026-08-29 修复）：
+    //   此前按固定顺序取「第一个存在的值」（createdAt ?? startedAt ?? unlockedAt ?? t ?? 0），
+    //   reviews（只有 reviewedAt）与 embeddings（只有 updatedAt）的字段都不在链上
+    //   → 判定值恒为 0 → `0 > since` 恒假 → 这两张表永不上传。
+    //   livenessTs 取全部已知时间字段的最大值，任一表只要带其中一个字段即可正确判定。
     const rows = await db[t.table].toArray();
-    parts[t.table] = rows.filter(r => rowTs(r) > since);
+    parts[t.table] = rows.filter(r => livenessTs(r) > since);
   }
   // 增量包仍带全量墓碑（删除传播不可遗漏）
   const tombstones = await db.tombstones.toArray();
@@ -305,6 +292,11 @@ export async function syncWithHub(hubUrl, token) {
   const hub = String(hubUrl || '').replace(/\/+$/, '');
   if (!hub) throw new Error('请先填写电脑端同步中枢地址');
   const lastRaw = Number(localStorage.getItem(HUB_LAST_SYNC_KEY) || 0) || 0;
+  // 水位基准必须在「建快照之前」取时刻（2026-08-29 修复）：
+  //   若用同步完成时刻推进，则快照(T0)→完成(T2) 之间用户的编辑/复习其时间戳 ≤ T2，
+  //   会被下次 `> since` 过滤掉，且 since 只增不减 → 这部分变更永久静默丢失。
+  //   取快照前的时刻会让边界数据重传一次（合并幂等，安全），但绝不漏传。
+  const startedAt = Date.now();
   const backup = await buildIncrementalBackup(lastRaw);
   const body = JSON.stringify(backup);
   // 鉴权 v2：优先 HMAC 挑战-响应（同步密码不上网）；老版 Hub 或不支持 WebCrypto 时退回明文 token
@@ -323,8 +315,13 @@ export async function syncWithHub(hubUrl, token) {
   const merged = await res.json();
   if (!merged || merged.app !== 'sxybrick') throw new Error('中枢返回的数据无效');
   const stats = await importBackup(merged);
-  // 仅在成功（中枢返回合法数据）后推进 lastSyncAt，避免「上传失败却推进」导致后续漏传
-  try { localStorage.setItem(HUB_LAST_SYNC_KEY, String(Date.now())); } catch {}
+  // 仅在成功（中枢返回合法数据）后推进 lastSyncAt，避免「上传失败却推进」导致后续漏传。
+  // 推进值取快照时刻（startedAt / exportedAt 的较早者），而非此处调用时的 Date.now()，
+  // 否则会把「快照建立 → 数据导入完成」这段时间内产生的本地变更永久跳过。
+  try {
+    const watermark = Math.min(startedAt, backup.exportedAt || startedAt);
+    localStorage.setItem(HUB_LAST_SYNC_KEY, String(watermark));
+  } catch {}
   // 插件钩子：同步完成后分发（fire-and-forget，插件异常不阻断）
   triggerHook('onSyncCompleted', stats).catch(() => {});
   return stats;

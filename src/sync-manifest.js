@@ -148,7 +148,15 @@ export function mergeTombstones(base, incoming) {
 //   A 机删卡（deletedAt=100，卡片 updatedAt 仍为 50）
 //   B 机此前复习过（reviewedAt=200，updatedAt 仍为 50）
 //   → 复活判定 50 <= 100 → 判定「已删除」→ B 机的卡片连同复习进度一起被抹掉。
-const LIVENESS_FIELDS = ['updatedAt', 'reviewedAt', 'wrongReasonAt', 'selfExplainAt', 'createdAt'];
+// 字段覆盖各表的不同时间语义（2026-08-29 补全 unlockedAt / t）：
+//   updatedAt/reviewedAt/wrongReasonAt/selfExplainAt/createdAt —— 卡片与按 updatedAt 合并的表
+//   reviewedAt —— reviews 只有它（此前缺失 → 复习记录判定值恒 0，永不进增量包）
+//   unlockedAt —— achievements 只有它；t —— userOps 只有它（缺则这两表同样永不上传）
+//   createdAt/startedAt —— pomoSessions 等
+const LIVENESS_FIELDS = [
+  'updatedAt', 'reviewedAt', 'wrongReasonAt', 'selfExplainAt',
+  'createdAt', 'startedAt', 'unlockedAt', 't',
+];
 
 /**
  * 行的最新活跃时间戳（取所有已知时间字段的最大值）。

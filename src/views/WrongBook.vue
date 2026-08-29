@@ -121,7 +121,11 @@ async function unmark(card) {
 }
 async function dueNow(card) {
   // 用 db.cards.update 局部更新（而非 put 整对象）：避免 Vue reactive Proxy 写入 IDB 失败 + 不覆盖其他字段
-  await db.cards.update(card.id, { dueAt: Date.now(), updatedAt: Date.now() });
+  // ⚠ 只 bump reviewedAt，绝不 bump updatedAt（2026-08-29 修复）：
+  //   内容字段按 updatedAt 合并决胜，此处只是调度调整（dueAt 属 SRS 侧），
+  //   若推高 updatedAt 会让本机这份「旧内容」成为 winner，把其他设备对卡面的
+  //   文字编辑整段覆盖掉。与 Cards.vue 的 rescueCard 保持一致。
+  await db.cards.update(card.id, { dueAt: Date.now(), reviewedAt: Date.now() });
   toast('已加入今日复习，去「背诵」页练习', 'success');
 }
 function reason(c) {

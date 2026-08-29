@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   BACKUP_VERSION,
-  mergeCardPair, mergeRows, mergeTombstones, applyTombstones,
+  mergeCardPair, mergeRows, mergeTombstones, applyTombstones, livenessTs,
 } from '../src/sync-manifest.js';
 
 test('BACKUP_VERSION = 5（导出包版本固定）', () => {
@@ -144,4 +144,45 @@ test('mergeTombstones + applyTombstones：对卡片与 embeddings 的影响', ()
   assert.deepEqual(res2.removed, []);
   assert.deepEqual(res2.stale, ['c3']);
   assert.equal(res2.rows.length, 1); // 行保留
+});
+
+// ---------- 增量同步时间判定（2026-08-29 修复回归）----------
+// 背景：buildIncrementalBackup 按 livenessTs(row) > since 过滤增量。
+// 此前按固定顺序取首个存在值（createdAt ?? startedAt ?? unlockedAt ?? t ?? 0），
+// 而 reviews 只有 reviewedAt、embeddings 只有 updatedAt → 判定值恒为 0 →
+// `0 > since` 恒假 → 这两张表永远不会进入增量包（复习历史跨设备全量丢失）。
+
+test('增量判定：reviews 行（只有 reviewedAt）能被 since 正确过滤', () => {
+  // 真实 reviews 行结构，见 repo.js 的 db.reviews.put
+  const review = { id: 'r1', cardId: 'c1', reviewedAt: 5000, rating: 4, levelAfter: 3 };
+  assert.ok(livenessTs(review) > 0, 'reviews 必须能取出非零时间戳，否则永不上传');
+  assert.equal(livenessTs(review), 5000);
+  assert.ok(livenessTs(review) > 4000, 'since=4000 时应判定为「有变更」');
+  assert.ok(!(livenessTs(review) > 6000), 'since=6000 时应判定为「无变更」');
+});
+
+test('增量判定：embeddings 行（只有 updatedAt）能被 since 正确过滤', () => {
+  const emb = { id: 'e1', sourceType: 'card', sourceId: 'c1', vector: [0.1], updatedAt: 8000 };
+  assert.equal(livenessTs(emb), 8000);
+  assert.ok(livenessTs(emb) > 7000);
+});
+
+test('增量判定：achievements（unlockedAt）与 userOps（t）不回归', () => {
+  // 这两张表原本能被旧逻辑判定，补全字段后必须仍然正确
+  assert.equal(livenessTs({ id: 'ach-x', key: 'x', unlockedAt: 3000 }), 3000);
+  assert.equal(livenessTs({ id: 'op1', type: 'click', t: 9000 }), 9000);
+});
+
+test('增量判定：pomoSessions（createdAt/startedAt）、卡片（updatedAt/reviewedAt）取最大值', () => {
+  assert.equal(livenessTs({ id: 'p1', startedAt: 100, createdAt: 200 }), 200);
+  // 卡片：复习时间晚于编辑时间 → 取 max（复习后也应进入增量包）
+  assert.equal(livenessTs({ id: 'c1', updatedAt: 1000, reviewedAt: 5000 }), 5000);
+});
+
+test('增量判定：空行与非法值一律返回 0，不污染比较', () => {
+  assert.equal(livenessTs(null), 0);
+  assert.equal(livenessTs(undefined), 0);
+  assert.equal(livenessTs({}), 0);
+  assert.equal(livenessTs({ updatedAt: NaN, reviewedAt: 'abc', t: null }), 0);
+  assert.equal(livenessTs({ updatedAt: -100 }), 0, '负数时间戳应被忽略');
 });

@@ -8,10 +8,14 @@ const route = useRoute();
 const hasError = ref(false);
 const errorMsg = ref('');
 
-onErrorCaptured(async (err, instance, info) => {
+// ⚠ 这里绝不能写成 async（2026-08-29 修复）：
+//   Vue 的判定是 `if (hook(err, ...) === false) return;`，async 函数返回的是 Promise，
+//   `Promise === false` 为假 → 错误继续冒泡到根组件 → 错误边界形同虚设（只多写一条日志）。
+//   写日志改为 fire-and-forget，保证同步 return false 真正拦住冒泡。
+onErrorCaptured((err, instance, info) => {
   hasError.value = true;
   errorMsg.value = String(err?.message || err);
-  await logError(err, { component: instance?.$options?.__name || instance?.type?.name, route: route?.path, info });
+  void logError(err, { component: instance?.$options?.__name || instance?.type?.name, route: route?.path, info });
   return false; // 阻止错误继续向上传播（不让整页白屏）
 });
 
