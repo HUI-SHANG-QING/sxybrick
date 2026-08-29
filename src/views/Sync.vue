@@ -407,6 +407,9 @@ onMounted(async () => {
           重复跳过 {{ importPreview.totalDuplicated }} ·
           <b style="color:var(--red)">删除（墓碑）{{ importPreview.totalDeleted }}</b>
         </p>
+        <p v-if="importPreview.deckMeta" class="hint deck-meta">
+          🏷️ 卡组署名：<b>{{ importPreview.deckMeta.author || '匿名' }}</b><template v-if="importPreview.deckMeta.description"> · {{ importPreview.deckMeta.description }}</template>
+        </p>
         <div class="preview-list">
           <div v-for="t in previewTables" :key="t.table" class="preview-item">
             <div class="preview-label">{{ t.label }}</div>
@@ -701,4 +704,5 @@ onMounted(async () => {
 .ps { font-size: 11px; padding: 2px 7px; border-radius: 5px; background: var(--code-bg); color: var(--ink-2); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ps-new { border-left: 3px solid #10b981; }
 .ps-overwrite { border-left: 3px solid #f59e0b; }
+.deck-meta { margin-top: 6px !important; padding: 6px 10px; border-radius: 7px; background: color-mix(in srgb, var(--amber) 14%, var(--panel)); border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--line)); }
 </style>

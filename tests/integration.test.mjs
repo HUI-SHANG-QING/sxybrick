@@ -231,3 +231,40 @@ test('黄金路径6（P2-23）：previewImport 分类新增/覆盖/跳过且不�
   await deleteCard(lid);
 });
 
+// ---------- 黄金路径 7（P2-26）：分享包 deckMeta 透传到导入预览 ----------
+test('黄金路径7（P2-26）：分享包 deckMeta 透传 previewImport，导入者确认前可见署名', async () => {
+  const subject = '分享包测试科目-' + Date.now();
+  const c = await createCard({ front: '分享包卡正面', back: 'b', subject, tags: ['share'] });
+  assert.ok(await db.cards.get(c.id), '分享卡应存在');
+
+  // 模拟导出方：按科目打包 + 署名片（downloadSubjectBackup 的做法）
+  const backup = await buildBackup(subject);
+  backup.deckMeta = { author: '考研老王', description: '408 计网高频考点合集' };
+  assert.ok(backup.cards.every(x => x.subject === subject), '科目包只含该科目卡片');
+  assert.ok(backup.tombstones.length === 0, '科目包不携带墓碑（同学设备删除历史无关）');
+
+  // 模拟导入方：预览应透传 deckMeta，且 dry-run 不写库
+  const pv = await previewImport(backup);
+  assert.equal(pv.valid, true, '合法分享包应 valid');
+  assert.ok(pv.deckMeta, '预览应带 deckMeta');
+  assert.equal(pv.deckMeta.author, '考研老王', '作者署名应透传');
+  assert.equal(pv.deckMeta.description, '408 计网高频考点合集', '卡组说明应透传');
+
+  // 真正导入（本地已有该卡 → 应为幂等 skip，不重复新增；stats.cards=0 但卡片仍在）
+  const before = await db.cards.count();
+  const stats = await importBackup(backup);
+  assert.equal(stats.cards, 0, '重导自己的卡组不应重复新增');
+  assert.equal(await db.cards.count(), before, '重导后卡数不变（幂等合并）');
+  const imported = await db.cards.get(c.id);
+  assert.ok(imported, '导入后该卡仍在库');
+  assert.equal(imported.subject, subject, '导入卡片科目保持一致');
+
+  // 无 deckMeta 的包预览应为 null
+  const plain = await buildBackup();
+  const pvPlain = await previewImport(plain);
+  assert.equal(pvPlain.deckMeta, null, '无署名包 deckMeta 应为 null');
+
+  // 清理
+  await deleteCard(c.id);
+});
+

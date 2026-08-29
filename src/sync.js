@@ -496,6 +496,11 @@ export async function previewImport(backup) {
   const tombstones = backup.tombstones || [];
   const tables = [];
   let totalAdded = 0, totalOverwritten = 0, totalSkipped = 0, totalDuplicated = 0, totalDeleted = 0;
+  // P2-26：分享包署名（deckMeta）透传给预览，导入者在确认前即可看到卡组作者/说明
+  const dm = backup.deckMeta;
+  const deckMeta = dm && (dm.author || dm.description)
+    ? { author: String(dm.author || '').trim().slice(0, 30), description: String(dm.description || '').trim().slice(0, 200) }
+    : null;
 
   for (const t of effTables) {
     if (t.table === 'images') {
@@ -535,7 +540,7 @@ export async function previewImport(backup) {
       totalAdded += added; totalOverwritten += overwritten; totalSkipped += skipped; totalDuplicated += duplicated; totalDeleted += deleted;
     }
   }
-  return { valid: true, tables, totalAdded, totalOverwritten, totalSkipped, totalDuplicated, totalDeleted };
+  return { valid: true, deckMeta, tables, totalAdded, totalOverwritten, totalSkipped, totalDuplicated, totalDeleted };
 }
 
 // P3-3 卡片冲突收集器：比对本地 / incoming / 合并后三者，找出哪些字段被覆盖、谁赢
