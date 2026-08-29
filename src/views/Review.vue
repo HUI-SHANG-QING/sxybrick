@@ -8,7 +8,7 @@ import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { db } from '../db.js';
-import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS, applyCardFeedback, RETRIEVAL_STRENGTH_OPTIONS, attachSelfExplanation } from '../repo.js';
+import { reviewQueue, review, reviewHistory, getSubjects, getTags, WRONG_REASONS, applyCardFeedback, RETRIEVAL_STRENGTH_OPTIONS, attachSelfExplanation, listCardGroups } from '../repo.js';
 import { getGoal, getTodayCount } from '../utils/streak.js';
 import LossBar from '../components/LossBar.vue';
 import { computeLoss, daysSince } from '../utils/loss-math.js';
@@ -61,8 +61,16 @@ const fSubjects = ref(JSON.parse(localStorage.getItem('sxy_rv_fsubs') || '[]'));
 const fTags = ref(JSON.parse(localStorage.getItem('sxy_rv_ftags') || '[]'));
 const fLogic = ref(localStorage.getItem('sxy_rv_flogic') || 'OR');
 const fWrongReasons = ref(JSON.parse(localStorage.getItem('sxy_rv_fwrong') || '[]'));
+// M1 卡组筛选：'all'=全部(默认，含备用停车) | 'archived-only'=仅备用组 | [groupId,...]=指定组
+const fGroups = ref(JSON.parse(localStorage.getItem('sxy_rv_fgroups') || '[]'));
+const parkArchived = ref(localStorage.getItem('sxy_rv_park') !== '0');
+const cardGroups = ref([]);
 const subjects = ref([]);
 const allTags = ref([]);
+function toggleFGroup(id) {
+  const i = fGroups.value.indexOf(id);
+  if (i >= 0) fGroups.value.splice(i, 1); else fGroups.value.push(id);
+}
 
 // 完成弹窗
 const showComplete = ref(false);
@@ -147,8 +155,10 @@ const graphHint = computed(() => {
 });
 
 const filterActive = computed(() =>
-  fSubjects.value.length + fTags.value.length + fWrongReasons.value.length > 0,
+  fSubjects.value.length + fTags.value.length + fWrongReasons.value.length +
+  (fGroups.value.length ? 1 : 0) + (fArchivedOnly.value ? 1 : 0),
 );
+const fArchivedOnly = ref(localStorage.getItem('sxy_rv_farch') === '1');
 
 function filterObj() {
   return {
@@ -159,6 +169,9 @@ function filterObj() {
     includeDueOnly: !repeatMode,
     // P1-A：把考试窗口透传给 reviewQueue → buildReviewSession，启用「临考卡靠前」的间隔效应排序
     examAt: examAtTs.value || 0,
+    // M1 卡组：指定组 > 仅备用组 > 默认全部（含备用停车）
+    groupFilter: fGroups.value.length ? fGroups.value : (fArchivedOnly.value ? 'archived-only' : 'all'),
+    parkArchived: parkArchived.value,
   };
 }
 
@@ -389,13 +402,17 @@ function saveFilter() {
   localStorage.setItem('sxy_rv_ftags', JSON.stringify(fTags.value));
   localStorage.setItem('sxy_rv_flogic', fLogic.value);
   localStorage.setItem('sxy_rv_fwrong', JSON.stringify(fWrongReasons.value));
+  localStorage.setItem('sxy_rv_fgroups', JSON.stringify(fGroups.value));
+  localStorage.setItem('sxy_rv_farch', fArchivedOnly.value ? '1' : '0');
+  localStorage.setItem('sxy_rv_park', parkArchived.value ? '1' : '0');
 }
 function applyFilter() { filterOpen.value = false; repeatMode = false; saveFilter(); loadQueue(); }
-function clearFilter() { fSubjects.value = []; fTags.value = []; fWrongReasons.value = []; fLogic.value = 'OR'; repeatMode = false; saveFilter(); loadQueue(); }
+function clearFilter() { fSubjects.value = []; fTags.value = []; fWrongReasons.value = []; fLogic.value = 'OR'; fGroups.value = []; fArchivedOnly.value = false; repeatMode = false; saveFilter(); loadQueue(); }
 
 async function loadMeta() {
   subjects.value = await getSubjects();
   allTags.value = await getTags();
+  try { cardGroups.value = await listCardGroups(); } catch { cardGroups.value = []; }
 }
 
 async function loadHistory() {
@@ -718,6 +735,21 @@ async function recordDuelWrong(idA, idB) {
         <div class="row">
           <button v-for="r in WRONG_REASONS" :key="r.code" class="chip" :class="{ on: fWrongReasons.includes(r.code) }" @click="toggleFWrong(r.code)">{{ r.label }}</button>
         </div>
+        <!-- M1 卡组筛选：选卡组 = 只复习组内卡；不选 = 全部（含备用停车规则） -->
+        <div class="field-label">卡组（多选；不选 = 全部）</div>
+        <div class="row">
+          <button v-if="!cardGroups.length" class="chip" disabled>还没有卡组（「卡组」页创建）</button>
+          <button v-for="g in cardGroups" :key="g.id" class="chip" :class="{ on: fGroups.includes(g.id) }" @click="toggleFGroup(g.id)"
+                  :title="g.status === 'archived' ? '备用卡组' : '背诵中'">
+            <span v-if="g.color" class="g-dot" :style="{ background: g.color }"></span>{{ g.name }}<span v-if="g.status === 'archived'" class="n">备</span>
+          </button>
+        </div>
+        <div class="row">
+          <button class="chip" :class="{ on: fArchivedOnly }" :disabled="!!fGroups.length" @click="fArchivedOnly = !fArchivedOnly"
+                  title="只看「仅属于备用卡组」的卡片（不选卡组时生效）">🅱 仅备用组卡片</button>
+          <button class="chip" :class="{ on: parkArchived }" :disabled="!!fGroups.length || fArchivedOnly" @click="parkArchived = !parkArchived"
+                  title="开：只属于备用组的卡不进队列（未分组卡照常）；关：备用组的卡也参与">{{ parkArchived ? '✓ 备用组停车' : '备用组也参与' }}</button>
+        </div>
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn primary" @click="applyFilter">应用筛选</button>
           <button class="btn" @click="clearFilter">清除全部</button>
@@ -725,6 +757,7 @@ async function recordDuelWrong(idA, idB) {
       </div>
 
       <div v-if="loading" class="hint" style="text-align:center;padding:60px">加载中…</div>
+      <!-- M1 卡组小样式 -->
 
       <!-- 短期提取巩固：新卡快速校验（不计 SRS） -->
       <template v-else-if="quickMode && quickCurrent">
@@ -920,6 +953,7 @@ async function recordDuelWrong(idA, idB) {
 </template>
 
 <style scoped>
+.g-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
 .empty { text-align: center; padding: 60px 0; }

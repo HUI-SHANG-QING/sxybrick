@@ -3,7 +3,7 @@
 // 新增数据表时只需在此登记，导出/导入/中枢合并便自动覆盖，避免多处遗漏。
 // 注意：本文件必须保持"无浏览器依赖"，因为 hub.js 会直接在 Node 里 import 它。
 
-export const BACKUP_VERSION = 5;
+export const BACKUP_VERSION = 6;
 
 // merge 策略：
 //   card      卡片专属：内容字段按 updatedAt、SRS 字段按 reviewedAt、错因按 wrongReasonAt 字段级合并
@@ -49,6 +49,13 @@ export const SYNC_TABLES = [
   // v19 新增：每日规划/打卡（D8）——计划头 + 任务明细，均按 updatedAt 合并
   { table: 'dailyPlans', kind: 'dailyPlan', merge: 'updatedAt' },
   { table: 'dailyTasks', kind: 'dailyTask', merge: 'updatedAt' },
+  // v22（M1）新增：卡组 + 卡片-卡组关联
+  //   cardGroups 按 updatedAt 合并（重命名/状态/颜色，谁新听谁）
+  //   cardGroupLinks：加入按 addedAt 记录；「移出」= 本端删行（墓碑 kind=groupLink）。
+  //   冲突口径：设备1 移入 / 设备2 移出，按「加入时间 vs 墓碑删除时间」谁新听谁
+  //   （sync.js 通用墓碑合并已支持任意 kind，link 行 id 全局唯一即可）
+  { table: 'cardGroups', kind: 'cardGroup', merge: 'updatedAt' },
+  { table: 'cardGroupLinks', kind: 'groupLink', merge: 'idOnly' },
 ];
 
 // 卡片字段级合并分组：
@@ -157,6 +164,9 @@ export function mergeTombstones(base, incoming) {
 const LIVENESS_FIELDS = [
   'updatedAt', 'reviewedAt', 'wrongReasonAt', 'selfExplainAt',
   'createdAt', 'startedAt', 'unlockedAt', 't',
+  // addedAt —— cardGroupLinks（M1）：加入时间即该行的唯一活跃时间戳，
+  // 缺则关联行永不进增量包（墓碑判定值恒 0）
+  'addedAt',
 ];
 
 /**

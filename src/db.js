@@ -172,6 +172,16 @@ db.version(21).stores({
   aiUsage: 'id, t, source',
 });
 
+// v22：卡组（M1）——多对多分组，卡片全局唯一、学习数据不随分组隔离
+//   cardGroups：卡组元数据。id, name(名称), description(可选描述), color(可选颜色标签),
+//     status('active' 背诵中 | 'archived' 备用/暂停), sortOrder(手动排序), createdAt, updatedAt
+//   cardGroupLinks：卡片-卡组关联（多对多）。id, cardId, groupId, addedAt；
+//     删除即移出（无墓碑：移出操作按 updatedAt 谁新听谁合并，见 sync-manifest）
+db.version(22).stores({
+  cardGroups: 'id, name, status, sortOrder, createdAt, updatedAt',
+  cardGroupLinks: 'id, cardId, groupId, addedAt',
+});
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

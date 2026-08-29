@@ -5,6 +5,8 @@ const routes = [
   { path: '/', component: () => import('./views/Dashboard.vue') },
   { path: '/workspace', component: () => import('./views/Workspace.vue') },
   { path: '/cards', component: () => import('./views/Cards.vue') },
+  // M1 卡组管理：自定义分组（多对多）+ active/archived 状态（备用卡组不进默认复习队列）
+  { path: '/groups', component: () => import('./views/CardGroups.vue') },
   { path: '/review', component: () => import('./views/Review.vue') },
   { path: '/stats', component: () => import('./views/Stats.vue') },
   { path: '/export', component: () => import('./views/Export.vue') },

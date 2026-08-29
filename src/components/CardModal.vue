@@ -4,7 +4,8 @@
 import { ref, computed, watch } from 'vue';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
-import { getSubjects, getTags, createCard, updateCard, WRONG_REASONS, wrongReasonToCode } from '../repo.js';
+import { getSubjects, getTags, createCard, updateCard, WRONG_REASONS, wrongReasonToCode,
+  listCardGroups, cardGroupsOfCard, setCardGroups } from '../repo.js';
 import { T } from '../utils/telemetry.js';
 import { putImage } from '../images.js';
 import { uid } from '../db.js';
@@ -31,6 +32,20 @@ const mnemonic = ref('');
 const wrongReason = ref('');
 const customWrong = ref('');
 const showTagSuggest = ref(false);
+// M1 卡组：编辑时记录原分组，保存时按「新增/移除」差集同步
+const allGroups = ref([]);
+const groupFilter = ref('');
+const cardGroupIds = ref([]);
+const originalGroupIds = ref([]);
+const filteredGroups = computed(() => {
+  const kw = groupFilter.value.trim();
+  return allGroups.value.filter(g => !kw || g.name.includes(kw));
+});
+function toggleGroup(id) {
+  const i = cardGroupIds.value.indexOf(id);
+  if (i >= 0) cardGroupIds.value.splice(i, 1);
+  else cardGroupIds.value.push(id);
+}
 const front = ref('');
 const back = ref('');
 const preview = ref(true);
@@ -45,6 +60,10 @@ watch(() => props.modelValue, async (open) => {
   errors.value = {};
   subjects.value = await getSubjects();
   allTags.value = await getTags();
+  allGroups.value = await listCardGroups();
+  groupFilter.value = '';
+  cardGroupIds.value = [];
+  originalGroupIds.value = [];
   if (props.card) {
     front.value = props.card.front;
     back.value = props.card.back;
@@ -60,6 +79,9 @@ watch(() => props.modelValue, async (open) => {
     useCustomSubject.value = !!props.card.subject && !known;
     subject.value = known ? props.card.subject : '';
     customSubject.value = known ? '' : props.card.subject;
+    const groups = await cardGroupsOfCard(props.card.id);
+    cardGroupIds.value = groups.map(g => g.id);
+    originalGroupIds.value = [...cardGroupIds.value];
   } else {
     front.value = ''; back.value = ''; tags.value = []; source.value = ''; type.value = 'basic'; marked.value = false; mnemonic.value = ''; wrongReason.value = ''; customWrong.value = '';
     subject.value = ''; customSubject.value = ''; useCustomSubject.value = false;
@@ -150,13 +172,19 @@ async function save() {
         ? (wrongReason.value === '__custom__' ? customWrong.value.trim() : wrongReason.value)
         : '',
     };
+    let cardId = props.card?.id;
     if (props.card) {
-      await updateCard(props.card.id, payload);
-      try { T.cardEdit(props.card.id); } catch {}
+      await updateCard(cardId, payload);
+      try { T.cardEdit(cardId); } catch {}
     } else {
       const r = await createCard(payload);
-      try { T.cardNew(r?.id || r); } catch {}
+      cardId = r?.id || r;
+      try { T.cardNew(cardId); } catch {}
     }
+    // M1：卡组分组按差集更新（学习数据不随分组隔离，只动关联表）
+    const add = cardGroupIds.value.filter(id => !originalGroupIds.value.includes(id));
+    const remove = originalGroupIds.value.filter(id => !cardGroupIds.value.includes(id));
+    if (cardId && (add.length || remove.length)) await setCardGroups([cardId], add, remove);
     emit('saved');
     emit('update:modelValue', false);
     toast(props.card ? '已保存修改' : '卡片已创建', 'success');
@@ -197,6 +225,20 @@ function close() { emit('update:modelValue', false); }
 
         <div class="field-label">来源（可选）</div>
         <input v-model="source" class="input" placeholder="如：计算机网络 第3章 / 某教材 P123" maxlength="60" />
+
+        <div class="field-label">所属卡组（可多选，学习数据全局共享）</div>
+        <input v-model="groupFilter" class="input" style="max-width:240px" placeholder="搜索卡组…" />
+        <div v-if="allGroups.length" class="group-picker">
+          <button v-for="g in filteredGroups" :key="g.id" type="button" class="chip"
+                  :class="{ on: cardGroupIds.includes(g.id) }"
+                  :style="cardGroupIds.includes(g.id) && g.color ? `border-color:${g.color};color:${g.color}` : {}"
+                  @click="toggleGroup(g.id)" :title="g.status === 'archived' ? '备用卡组（不进默认复习）' : '背诵中'">
+            <span v-if="g.color" class="g-dot" :style="{ background: g.color }"></span>
+            {{ g.name }}<span v-if="g.status === 'archived'" class="hint"> 备</span>
+          </button>
+          <div v-if="!filteredGroups.length" class="hint">无匹配卡组</div>
+        </div>
+        <div v-else class="hint">还没有卡组——到「卡组」页创建</div>
 
         <div class="field-label" style="display:flex;align-items:center;gap:8px;margin-top:12px">
           <input type="checkbox" v-model="marked" id="mk" />
@@ -280,6 +322,8 @@ function close() { emit('update:modelValue', false); }
 </template>
 
 <style scoped>
+.group-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.g-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 .tag-box { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .suggest {
   position: absolute; top: 100%; left: 0; right: 0; background: var(--panel); z-index: 10;

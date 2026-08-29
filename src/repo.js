@@ -228,6 +228,24 @@ async function buildReviewsByCard(cards) {
 export async function reviewQueue(limit = 100, interleave = false, filter = {}) {
   // 筛选 + 排序核心已抽至 repo-core.filterReviewCandidates（N9）
   let cards = filterReviewCandidates(await allCards(), filter, now());
+  // M1 卡组：
+  //  - groupFilter: 'all'(默认) | 'archived-only'(仅备用组) | [groupId,...](指定组)
+  //  - parkArchived: 默认 true——只属于备用组（archived）的卡不进队列（未分组卡照常）
+  const groupFilter = filter.groupFilter;
+  if (groupFilter && groupFilter !== 'all') {
+    const links = await db.cardGroupLinks.toArray();
+    if (Array.isArray(groupFilter) && groupFilter.length) {
+      const idSet = new Set(groupFilter);
+      cards = cards.filter(c => links.some(l => l.cardId === c.id && idSet.has(l.groupId)));
+    } else if (groupFilter === 'archived-only') {
+      const groups = await db.cardGroups.toArray();
+      const arch = new Set(groups.filter(g => g.status === 'archived').map(g => g.id));
+      cards = cards.filter(c => links.some(l => l.cardId === c.id && arch.has(l.groupId)));
+    }
+  } else if (filter.parkArchived !== false) {
+    const parked = await getParkedCardIds();
+    if (parked.size) cards = cards.filter(c => !parked.has(c.id));
+  }
   // 三维交错（P1-2 + 2026-08-27 抽取为 algorithms/session.js 的 interleaveQueue）：
   // 科目 + 题型 + 难度，避免相邻卡片"过于相似"
   // 认知科学：交错练习（Interleaving）比集中练习（Blocked）提升远迁移 40%+；
@@ -1318,4 +1336,140 @@ export async function privacyPersonaReport({ rangeDays = 7, includeUserOps = tru
     prediction: pred.join('\n'),
     stats: { N, rangeDays, avgSleep, avgMood, avgEnergy, avgStress },
   };
+}
+
+// ---------- M1 卡组（cardGroups + cardGroupLinks） ----------
+// 卡片全局唯一、学习数据不随分组隔离：卡组只是「视图筛选 + 停车标记」，
+// 复习动作始终写卡片的全局 SRS 字段。
+
+/** 卡组列表（按 sortOrder, createdAt 排序） */
+export async function listCardGroups() {
+  const groups = await db.cardGroups.orderBy('sortOrder').toArray();
+  return groups.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || a.createdAt - b.createdAt);
+}
+
+/** 新建卡组。返回卡组行 */
+export async function createCardGroup({ name, description = '', color = '', status = 'active' }) {
+  const n = String(name ?? '').trim();
+  if (!n) throw new Error('卡组名称不能为空');
+  const maxSort = (await db.cardGroups.toCollection().count()) || 0;
+  const row = {
+    id: uid(),
+    name: n,
+    description: String(description ?? ''),
+    color: String(color ?? ''),
+    status: status === 'archived' ? 'archived' : 'active',
+    sortOrder: maxSort,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  await db.cardGroups.add(row);
+  fireHook('cardGroup.created', row);
+  return row;
+}
+
+/** 更新卡组（重命名/描述/颜色/状态/排序）。只改传入字段，bump updatedAt */
+export async function updateCardGroup(id, patch) {
+  const cur = await db.cardGroups.get(id);
+  if (!cur) return null;
+  const next = { ...cur };
+  for (const k of ['name', 'description', 'color', 'status']) {
+    if (patch[k] !== undefined) next[k] = k === 'name' ? String(patch[k]).trim() : patch[k];
+  }
+  if (patch.sortOrder !== undefined) next.sortOrder = Number(patch.sortOrder) || 0;
+  if (!next.name) throw new Error('卡组名称不能为空');
+  next.updatedAt = Date.now();
+  await db.cardGroups.put(next);
+  fireHook('cardGroup.updated', next);
+  return next;
+}
+
+/** 删除卡组（级联删除其全部关联；卡片本身不受影响） */
+export async function deleteCardGroup(id) {
+  const g = await db.cardGroups.get(id);
+  if (!g) return false;
+  await db.transaction('rw', db.cardGroups, db.cardGroupLinks, async () => {
+    await db.cardGroupLinks.where('groupId').equals(id).delete();
+    await db.cardGroups.delete(id);
+  });
+  fireHook('cardGroup.deleted', g);
+  return true;
+}
+
+/** 某卡组内的卡片 id 列表 */
+export async function cardGroupCardIds(groupId) {
+  const links = await db.cardGroupLinks.where('groupId').equals(groupId).toArray();
+  return links.map(l => l.cardId);
+}
+
+/** 某卡片所属的卡组列表 */
+export async function cardGroupsOfCard(cardId) {
+  const links = await db.cardGroupLinks.where('cardId').equals(cardId).toArray();
+  const groups = await db.cardGroups.bulkGet(links.map(l => l.groupId));
+  return groups.filter(Boolean);
+}
+
+/**
+ * 把一组卡片移入/移出多个卡组。
+ * 移入：按 (cardId, groupId) 幂等（已存在不重复插入）；
+ * 移出：删行即操作（同步端按墓碑时间戳合并「移入 vs 移出」冲突，见 sync-manifest 注释）
+ */
+export async function setCardGroups(cardIds, addGroupIds = [], removeGroupIds = []) {
+  const t0 = Date.now();
+  let added = 0, removed = 0;
+  // 事务必须声明全部涉及表（cards/cardGroups/cardGroupLinks）：
+  // 漏声明的表在事务内访问会触发嵌套事务（fake-indexeddb 直接 NotFoundError，浏览器里死锁）
+  await db.transaction('rw', db.cards, db.cardGroups, db.cardGroupLinks, async () => {
+    const cards = (cardIds && cardIds.length) ? await db.cards.bulkGet(cardIds) : [];
+    const validIds = cards.filter(Boolean).map(c => c.id);
+    const validAdd = new Set((await db.cardGroups.bulkGet(addGroupIds || [])).filter(Boolean).map(g => g.id));
+    const validRemove = new Set((await db.cardGroups.bulkGet(removeGroupIds || [])).filter(Boolean).map(g => g.id));
+    if (validAdd.size) {
+      const existing = await db.cardGroupLinks.where('groupId').anyOf([...validAdd]).toArray();
+      const existSet = new Set(existing.map(l => `${l.cardId}|${l.groupId}`));
+      const toAdd = [];
+      for (const cid of validIds) for (const gid of validAdd) {
+        if (!existSet.has(`${cid}|${gid}`)) {
+          toAdd.push({ id: uid(), cardId: cid, groupId: gid, addedAt: t0 });
+          existSet.add(`${cid}|${gid}`);
+        }
+      }
+      if (toAdd.length) { added = toAdd.length; await db.cardGroupLinks.bulkAdd(toAdd); }
+    }
+    if (validRemove.size) {
+      const toDel = await db.cardGroupLinks.where('cardId').anyOf(validIds).toArray();
+      const ids = toDel.filter(l => validRemove.has(l.groupId)).map(l => l.id);
+      if (ids.length) { removed = ids.length; await db.cardGroupLinks.bulkDelete(ids); }
+    }
+  });
+  fireHook('cardGroup.linked', { cardIds, addGroupIds, removeGroupIds });
+  return { added, removed };
+}
+
+/**
+ * 复习候选卡组的「停车」判断（M1 核心规则）：
+ * 一张卡属于任意 active 卡组 → 可进入默认复习队列；
+ * 只属于 archived 卡组（或不属于任何卡组）→ 不进默认队列（「未分组的卡照旧参与」保持向后兼容）。
+ * 返回 { parked: 被停车的卡 id 集合 }，供 Review 构建队列时排除。
+ */
+export async function getParkedCardIds() {
+  const [links, groups, cards] = await Promise.all([
+    db.cardGroupLinks.toArray(),
+    db.cardGroups.toArray(),
+    db.cards.toArray(),
+  ]);
+  if (!groups.length || !links.length) return new Set();
+  const statusOf = new Map(groups.map(g => [g.id, g.status]));
+  const activeOf = new Map(); // cardId -> 是否有 active 卡组
+  const anyOf = new Set();     // cardId -> 是否属于任意卡组
+  for (const l of links) {
+    anyOf.add(l.cardId);
+    if (statusOf.get(l.groupId) === 'active') activeOf.set(l.cardId, true);
+  }
+  // 只把「显式分过组且全在备用组」的卡停车；未分组卡保持旧行为（照常复习）
+  const parked = new Set();
+  for (const c of cards) {
+    if (anyOf.has(c.id) && !activeOf.has(c.id)) parked.add(c.id);
+  }
+  return parked;
 }

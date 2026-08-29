@@ -12,7 +12,7 @@ import ExportButton from '../components/ExportButton.vue';
 import { exportCardsToJSON, exportCardsToCSV, exportCardsToMarkdown } from '../utils/exporters.js';
 import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { genVariants } from '../utils/genVariants.js';
@@ -92,6 +92,29 @@ const previewCard = ref(null);
 const linkedNotes = ref([]); // D3.3 关联笔记（反链面板）
 const showPreview = ref(false);
 const weakMode = ref(localStorage.getItem('sxy_card_weak') === '1');
+// M1 批量分组：多选卡片 → 移入/移出卡组（学习数据全局共享，仅动关联表）
+const selectMode = ref(false);
+const selectedIds = ref(new Set());
+const groupList = ref([]);
+function toggleSelect(id) {
+  const s = new Set(selectedIds.value);
+  if (s.has(id)) s.delete(id); else s.add(id);
+  selectedIds.value = s;
+}
+function toggleSelectAll() {
+  selectedIds.value = selectedIds.value.size === items.value.length ? new Set() : new Set(items.value.map(c => c.id));
+}
+function exitSelect() { selectMode.value = false; selectedIds.value = new Set(); }
+async function bulkGroup(gid) {
+  if (!selectedIds.value.size) return toast('请先勾选卡片', 'info');
+  const r = await setCardGroups([...selectedIds.value], [gid], []);
+  toast(`已移入卡组：${r.added} 张关联（${r.removed} 跳过）`, 'success');
+}
+async function bulkRemoveGroup(gid) {
+  if (!selectedIds.value.size) return toast('请先勾选卡片', 'info');
+  const r = await setCardGroups([...selectedIds.value], [], [gid]);
+  toast(`已移出卡组：解除 ${r.removed} 张关联`, 'success');
+}
 const suggestion = ref(null);
 const goal = ref(20);
 const todayCount = ref(0);
@@ -442,6 +465,7 @@ function dataUrlOf(img) {
 onMounted(async () => {
   await loadMeta();
   await loadCards();
+  try { groupList.value = await listCardGroups(); } catch { groupList.value = []; }
   await Promise.all([loadSuggestion(), loadStreak(), loadSmart(), loadRisk()]);
   await applyQueryParams();
 });
@@ -598,6 +622,7 @@ async function rescueAll() {
       <span style="flex:1"></span>
       <button v-if="dueCount > 0" class="btn primary" @click="router.push('/review')">专注背诵（{{ dueCount }}）→</button>
       <button class="chip" :class="{ on: weakMode }" @click="toggleWeak">错题集</button>
+      <button class="chip" :class="{ on: selectMode }" @click="selectMode ? exitSelect() : (selectMode = true)" :disabled="!total">🎴 批量分组</button>
       <button class="btn" @click="openBatch">批量建卡</button>
       <ExportButton
         v-if="total > 0"
@@ -736,9 +761,24 @@ async function rescueAll() {
       </div>
     </teleport>
 
+    <!-- M1 批量分组操作栏 -->
+    <div v-if="selectMode" class="bulk-bar">
+      <label class="chk"><input type="checkbox" :checked="selectedIds.size === items.length && items.length > 0" @change="toggleSelectAll" /> 全选</label>
+      <span class="hint">已选 {{ selectedIds.size }} 张</span>
+      <span v-if="!groupList.length" class="hint">（暂无卡组——到「卡组」页创建）</span>
+      <template v-else>
+        <span class="hint">移入：</span>
+        <button v-for="g in groupList" :key="'a' + g.id" class="chip mini" @click="bulkGroup(g.id)">{{ g.name }}</button>
+        <span class="hint">移出：</span>
+        <button v-for="g in groupList" :key="'r' + g.id" class="chip mini" @click="bulkRemoveGroup(g.id)">{{ g.name }}</button>
+      </template>
+      <button class="chip mini" @click="exitSelect">完成</button>
+    </div>
+
     <VirtualList v-if="viewMode === 'scroll'" :items="items">
       <template #default="{ item }">
         <div class="card-item" :class="{ highlight: highlightId === item.id }" @click="openPreview(item, $event)" style="cursor:pointer">
+          <label v-if="selectMode" class="chk" @click.stop><input type="checkbox" :checked="selectedIds.has(item.id)" @change="toggleSelect(item.id)" /></label>
           <div class="tags">
             <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
             <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
@@ -772,6 +812,7 @@ async function rescueAll() {
 
     <template v-else>
       <div v-for="item in items" :key="item.id" class="card-item" :class="{ highlight: highlightId === item.id }" @click="openPreview(item, $event)" style="cursor:pointer">
+        <label v-if="selectMode" class="chk" @click.stop><input type="checkbox" :checked="selectedIds.has(item.id)" @change="toggleSelect(item.id)" /></label>
         <div class="tags">
           <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
           <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
@@ -914,6 +955,8 @@ async function rescueAll() {
 </template>
 
 <style scoped>
+.bulk-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; margin: 16px 0 8px; }
+.chk { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none; }
 .filter-bar { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; margin: 16px 0; }
 .filter-bar .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
 .filter-bar .row:last-child { margin-bottom: 0; }

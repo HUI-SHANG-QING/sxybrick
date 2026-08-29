@@ -72,6 +72,7 @@ const navItems = [
   { path: '/', label: '总览', icon: '📊' },
   { path: '/workspace', label: '工作台', icon: '🧩' },
   { path: '/cards', label: '卡片', icon: '🗂️' },
+  { path: '/groups', label: '卡组', icon: '🎴' },
   { path: '/review', label: '背诵', icon: '📖' },
   { path: '/stats', label: '数据', icon: '📉' },
   { path: '/export', label: '导出', icon: '🖨️' },
