@@ -101,10 +101,13 @@ export default defineConfig({
           if (id.includes('node_modules/katex')) return 'katex';
           if (id.includes('node_modules/highlight.js')) return 'hljs';
           if (id.includes('node_modules/marked')) return 'marked';
-          // Element Plus 全量注册：拆成独立 chunk 做长期缓存（图标单独一分，
-          // 便于只用到少量图标的页面复用图标缓存、主组件包独立演进）
-          if (id.includes('node_modules/@element-plus/icons-vue')) return 'ep-icons';
-          if (id.includes('node_modules/element-plus')) return 'element-plus';
+          // Element Plus 全量注册：拆成独立 chunk 做长期缓存。
+          // ⚠ 铁律：icons-vue 必须与 element-plus 同 chunk（2026-08-29 修复）——
+          //   EP 内部组件 import icons，icons 的 rollup 产物又反向引用 EP 模块，
+          //   拆成两个 chunk 会形成跨 chunk 循环依赖，生产构建运行时抛
+          //   "Cannot access 'x' before initialization"(TDZ) → 整页白屏。
+          //   dev 模式无此问题（Vite 预构建 ESM live binding 可容忍循环）。
+          if (id.includes('node_modules/@element-plus/icons-vue') || id.includes('node_modules/element-plus')) return 'element-plus';
           // tesseract.js 仅 CJS 入口，commonjs 插件会把动态 import 内联进主 bundle——
           // 强制拆独立 chunk，确保 OCR 引擎懒加载不进首屏
           if (id.includes('node_modules/tesseract.js')) return 'tesseract';
