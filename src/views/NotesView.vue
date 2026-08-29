@@ -1,5 +1,6 @@
 <script setup>
 // 笔记视图（D3.2）：双栏布局，左列表 + 右详情/编辑，支持双向链接 [[id]] 自动跳转 + ExportButton
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
@@ -92,7 +93,7 @@ async function remove() {
     draft.value = null; editingId.value = null; selectedId.value = null;
     return;
   }
-  if (!confirm('删除笔记不可撤销（其他笔记的双向链接会变红），确定？')) return;
+  if (!(await confirmDialog('删除笔记不可撤销（其他笔记的双向链接会变红），确定？'))) return;
   await deleteNote(editingId.value);
   toast('已删除', 'success');
   editingId.value = null; draft.value = null; selectedId.value = null;

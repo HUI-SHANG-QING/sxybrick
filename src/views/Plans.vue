@@ -1,6 +1,7 @@
 <script setup>
 // 学习计划：可增删改、标状态（进行中/已完成/已归档），数据落 IndexedDB 并随数据包同步
 // 含"一键自动编排"：基于真实复习数据生成阶段化计划草稿（数据驱动，零 LLM 也能用）
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, onMounted, computed, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { listPlans, createPlan, updatePlan, deletePlan, getSubjects, listCards } from '../repo.js';
@@ -118,7 +119,7 @@ async function save() {
   } catch (e) { toast('保存失败：' + e.message, 'error'); }
 }
 async function setStatus(p, s) { await updatePlan(p.id, { status: s }); await load(); }
-async function remove(p) { if (!confirm('删除这个计划？')) return; await deletePlan(p.id); if (activeId.value === p.id) activeId.value = ''; await load(); }
+async function remove(p) { if (!(await confirmDialog('删除这个计划？'))) return; await deletePlan(p.id); if (activeId.value === p.id) activeId.value = ''; await load(); }
 
 // 一键自动编排：拉取跨模块数据，生成阶段化计划草稿，直接落库
 async function runAutoPlan() {

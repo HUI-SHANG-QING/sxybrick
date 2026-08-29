@@ -2,6 +2,7 @@
 // 每日规划 · 打卡 · 多维图表视图
 // 口述输入 → 智能解析(LLM 优先/离线回退) → 四象限 + 雷达 + 热力矩阵 + 风险 + 日程表 + 完成对比
 // 交互：点击条目弹确认框，「确定」才标记完成；已完成条目绿色区分；可按日期回溯历史存档。
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
@@ -326,7 +327,7 @@ async function toggleQuadrant(task) {
 
 async function removeTask(task) {
   if (!canEdit.value) { toast('历史记录为只读，不可修改', 'warning'); return; }
-  if (!confirm('删除这个任务？')) return;
+  if (!(await confirmDialog('删除这个任务？'))) return;
   await deleteDailyTask(task.id);
   plan.value.tasks = plan.value.tasks.filter(t => t.id !== task.id);
   await refreshAll();
@@ -337,7 +338,7 @@ async function removeTask(task) {
 async function clearToday() {
   if (!canEdit.value) { toast('历史记录为只读，不可修改', 'warning'); return; }
   if (!plan.value?.plan?.id) return;
-  if (!confirm('删除这份规划及所有任务？')) return;
+  if (!(await confirmDialog('删除这份规划及所有任务？'))) return;
   await deleteDailyPlan(plan.value.plan.id);
   plan.value = null;
   synergy.value = null;

@@ -1,6 +1,7 @@
 <script setup>
 // 每周学习报告（借鉴 Progress AI，纯本地聚合 + 可选 AI 总结）：按周统计学习数据，
 // 可生成 AI 点评并保存存档（按周 upsert），历史报告可回看/删除，全部随数据包同步
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../db.js';
 import { listWeeklyReports, getWeeklyReportByWeek, saveWeeklyReport, deleteWeeklyReport } from '../repo.js';
@@ -109,7 +110,7 @@ async function saveReport() {
 }
 
 async function removeReport(r) {
-  if (!confirm(`删除「${r.title}」？`)) return;
+  if (!(await confirmDialog(`删除「${r.title}」？`))) return;
   await deleteWeeklyReport(r.id);
   if (r.weekStart === existing.value?.weekStart) { existing.value = null; summary.value = ''; }
   await loadHistory();

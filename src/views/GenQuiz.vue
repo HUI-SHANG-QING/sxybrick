@@ -4,6 +4,7 @@
 //   生成效应（Generation Effect）—— 自己产出答案比再认更牢固。
 // 与 Exam.vue 模考的差异：Exam 从卡片原样抽题（再认级），本页用 LLM 重组全新题目（生成级）
 // 闭环：作答 → 批改 → 错题一键生成卡片入复习队列（P2-2 模考-错题-AI补卡闭环的生成式入口）
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../db.js';
 import { getSubjects, saveExam, listExams } from '../repo.js';
@@ -76,7 +77,7 @@ async function submit() {
     if (q.type === 'choice') return a === -1 || a === undefined;
     return !String(a).trim();
   }).length;
-  if (unanswered > 0 && !confirm(`还有 ${unanswered} 题未作答，确定交卷？`)) return;
+  if (unanswered > 0 && !(await confirmDialog(`还有 ${unanswered} 题未作答，确定交卷？`))) return;
   const g = graded.value;
   savedQuiz.value = await saveExam({
     title: quizTitle.value,

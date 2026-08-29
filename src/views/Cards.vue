@@ -1,5 +1,6 @@
 <script setup>
 // 卡片管理页：视图切换、科目/标签筛选、基础+高级搜索、虚拟列表（本地数据）
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import VirtualList from '../components/VirtualList.vue';
@@ -228,7 +229,7 @@ async function genVariantsFor(card) {
 }
 
 async function remove(card) {
-  if (!confirm(`确定删除这张卡片？\n${plain(card.front).slice(0, 40)}`)) return;
+  if (!(await confirmDialog(`确定删除这张卡片？\n${plain(card.front).slice(0, 40)}`))) return;
   try {
     await deleteCard(card.id);
     try { T.cardDelete(card.id); } catch {}
@@ -408,7 +409,7 @@ async function removeOrphan(id) {
 }
 async function removeAllOrphans() {
   if (!orphanImages.value.length) return;
-  if (!confirm(`一次性清理 ${orphanImages.value.length} 张孤儿图片？`)) return;
+  if (!(await confirmDialog(`一次性清理 ${orphanImages.value.length} 张孤儿图片？`))) return;
   try {
     for (const i of orphanImages.value) { await db.images.delete(i.id); _revokeObjUrl(i.id); }
     orphanImages.value = [];

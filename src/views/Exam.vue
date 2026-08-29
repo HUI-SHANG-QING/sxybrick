@@ -1,6 +1,7 @@
 <script setup>
 // 组卷模考（借鉴 Progress AI，纯本地实现）：从卡片库抽题组成简答式试卷，
 // 关键词覆盖判分，成绩自动存档（exams 表，随数据包同步），错题可一键加入错题本
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { db } from '../db.js';
@@ -67,7 +68,7 @@ const wrongList = computed(() => graded.value.filter(g => !g.correct));
 
 async function submit() {
   if (answers.value.some(a => !a.trim())) {
-    if (!confirm('还有题目未作答，确定交卷？')) return;
+    if (!(await confirmDialog('还有题目未作答，确定交卷？'))) return;
   }
   const g = graded.value;
   const saved = await saveExam({
@@ -149,7 +150,7 @@ async function supplementWrongToCards() {
 function viewExam(ex) { viewing.value = ex; }
 function closeView() { viewing.value = null; }
 async function removeExam(ex) {
-  if (!confirm(`删除「${ex.title}」（${ex.score}/${ex.total} 分）？`)) return;
+  if (!(await confirmDialog(`删除「${ex.title}」（${ex.score}/${ex.total} 分）？`))) return;
   await deleteExam(ex.id);
   if (viewing.value?.id === ex.id) viewing.value = null;
   await loadHistory();

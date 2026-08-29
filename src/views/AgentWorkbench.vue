@@ -1,6 +1,7 @@
 <script setup>
 // Agent 工作台：集中展示“专业 AI Agent 应用”的四大特征——
 // 模块化 Agent（可切换/自动路由）、可扩展工具接口（实时列出）、任务编排轨迹（思考→工具→观察）、以及可注册的扩展能力。
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { runAgentTurn, hasAIKey, saveChat, listChats, deleteChat } from '../ai.js';
 import { agentSystem } from '../ai.js';
@@ -89,7 +90,7 @@ async function persist() {
   await loadSessions();
 }
 async function removeSession(id) {
-  if (!confirm('删除这个 Agent 会话？')) return;
+  if (!(await confirmDialog('删除这个 Agent 会话？'))) return;
   await deleteChat(id);
   if (currentId.value === id) newSession();
   await loadSessions();

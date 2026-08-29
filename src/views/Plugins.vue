@@ -6,6 +6,7 @@
 //   3. 启用 / 禁用 / 卸载插件
 //   4. 调用插件工具：选择工具 → 填写参数(JSON) → 执行 → 查看结果
 //   5. 触发测试钩子：手动触发 onCardSaved 让用户感知钩子机制
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, onMounted, computed } from 'vue';
 import { toast } from '../utils/toast.js';
 import {
@@ -103,7 +104,7 @@ async function onToggle(id, enabled) {
 }
 
 async function onUninstall(id) {
-  if (!confirm('确定卸载该插件？卸载后无法恢复，需重新安装。')) return;
+  if (!(await confirmDialog('确定卸载该插件？卸载后无法恢复，需重新安装。'))) return;
   try {
     await uninstallPlugin(id);
     if (selected.value === id) { selected.value = null; tools.value = []; }

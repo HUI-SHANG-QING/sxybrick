@@ -1,5 +1,6 @@
 <script setup>
 // 数据同步：手动导出/导入（数据包文件）+ 局域网一键同步（电脑端中枢）
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
 import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup } from '../sync.js';
@@ -45,7 +46,7 @@ async function doManualSnapshot() {
   finally { snapshotBusy.value = false; }
 }
 async function doRestore(id, label) {
-  if (!confirm(`确定回滚到该快照吗？\n\n${label}\n\n回滚后当前所有非图片数据会被该快照覆盖，请谨慎操作。`)) return;
+  if (!(await confirmDialog(`确定回滚到该快照吗？\n\n${label}\n\n回滚后当前所有非图片数据会被该快照覆盖，请谨慎操作。`))) return;
   snapshotBusy.value = true;
   try {
     // 回滚前再保存一次「回滚前自动快照」，避免回滚动作本身不可逆
@@ -57,7 +58,7 @@ async function doRestore(id, label) {
   finally { snapshotBusy.value = false; }
 }
 async function doDeleteSnapshot(id) {
-  if (!confirm('确定删除该快照？删除后无法恢复。')) return;
+  if (!(await confirmDialog('确定删除该快照？删除后无法恢复。'))) return;
   try { await deleteSnapshot(id); await loadSnapshots(); toast('快照已删除', 'success'); }
   catch (e) { toast('删除失败：' + (e?.message || e), 'error'); }
 }
@@ -121,7 +122,7 @@ async function uploadToGist() {
 async function pullFromGist() {
   if (!ghToken.value || !gistId.value) { toast('请先填 Token 和 Gist ID', 'error'); return; }
   if (gistBusy.value) return;
-  if (!confirm('将从 Gist 拉取备份并合并到本地库（保留本地较新内容）。继续？')) return;
+  if (!(await confirmDialog('将从 Gist 拉取备份并合并到本地库（保留本地较新内容）。继续？'))) return;
   gistBusy.value = true;
   try {
     const payload = await fetchGistBackup(ghToken.value, gistId.value);
@@ -133,8 +134,8 @@ async function pullFromGist() {
   finally { gistBusy.value = false; }
 }
 
-function resetGist() {
-  if (!confirm('清空本机的 Gist 配置（不影响云端 Gist）？')) return;
+async function resetGist() {
+  if (!(await confirmDialog('清空本机的 Gist 配置（不影响云端 Gist）？'))) return;
   ghToken.value = ''; gistId.value = ''; ghLogin.value = '';
   localStorage.removeItem('sxy_gist_token');
   localStorage.removeItem('sxy_gist_id');

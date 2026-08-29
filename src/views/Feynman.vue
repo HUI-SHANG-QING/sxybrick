@@ -1,5 +1,6 @@
 <script setup>
 // 费曼学习法：Agent 基于选中的卡片范围，出题考用户，让用户"以教代学"
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
 import { db, uid } from '../db.js';
@@ -248,7 +249,7 @@ function fmtTime(ts) {
   return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 async function removeSession(id) {
-  if (!confirm('删除这个费曼会话？')) return;
+  if (!(await confirmDialog('删除这个费曼会话？'))) return;
   await deleteChat(id);
   if (currentId.value === id) newSession();
   await loadSessions();

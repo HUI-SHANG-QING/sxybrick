@@ -1,5 +1,6 @@
 <script setup>
 // AI 智能助手：对话历史（存 IndexedDB 并可同步）+ 快捷指令 + 智能组卡 + 数轴定位
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
 import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
@@ -53,7 +54,7 @@ async function createNew() {
 }
 
 async function removeChat(id) {
-  if (!confirm('删除这个对话？')) return;
+  if (!(await confirmDialog('删除这个对话？'))) return;
   await deleteChat(id);
   if (currentChat.value.id === id) currentChat.value = newChat();
   await loadChatList();

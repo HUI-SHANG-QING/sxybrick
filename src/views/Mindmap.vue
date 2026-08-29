@@ -1,6 +1,7 @@
 <script setup>
 // 思维导图（借鉴 Progress AI，纯本地化：ECharts 多风格 + IndexedDB 持久化，随数据包同步）
 // 支持：多风格切换（横向树/放射树/竖向树/桑基图/力导向）+ 手动建图 / 从知识图谱生成 / AI 从卡片生成 / 文字生成 / Agent 智能生成
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import * as echarts from 'echarts';
@@ -372,7 +373,7 @@ async function saveMap() {
   } catch (e) { toast('保存失败：' + e.message, 'error'); }
 }
 async function removeMap(m) {
-  if (!confirm(`删除导图「${m.title}」？`)) return;
+  if (!(await confirmDialog(`删除导图「${m.title}」？`))) return;
   await deleteMindmap(m.id);
   if (current.value?.id === m.id) { current.value = null; selId.value = ''; }
   await list();

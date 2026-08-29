@@ -1,6 +1,7 @@
 <script setup>
 // 资产体检（E1 数字资产保值批）：重复卡 / 僵尸卡 / 孤儿图片 / 无标签卡 检测与清理
 // 所有删除走 deleteCard（墓碑跨设备传播）+ 图片直接清理，保证多端一致
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAssetHealth, getNetWorth, getSourceOverview } from '../agent/analytics.js';
@@ -38,7 +39,7 @@ async function load() {
 
 // 合并重复组：保留最新编辑的一张，删除组内其余（复习记录随卡级联清理）
 async function dedupeGroup(g) {
-  if (!confirm(`这组有 ${g.n} 张重复卡，保留最新编辑的 1 张、删除其余 ${g.n - 1} 张？`)) return;
+  if (!(await confirmDialog(`这组有 ${g.n} 张重复卡，保留最新编辑的 1 张、删除其余 ${g.n - 1} 张？`))) return;
   const sorted = [...g.cards].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const remove = sorted.slice(1);
   for (const c of remove) await deleteCard(c.id);
@@ -48,7 +49,7 @@ async function dedupeGroup(g) {
 async function dedupeAll() {
   if (!health.value?.duplicates.length) return;
   const total = health.value.duplicates.reduce((s, g) => s + g.n - 1, 0);
-  if (!confirm(`共发现 ${total} 张重复卡（每组保留 1 张），全部清理？`)) return;
+  if (!(await confirmDialog(`共发现 ${total} 张重复卡（每组保留 1 张），全部清理？`))) return;
   let n = 0;
   for (const g of health.value.duplicates) {
     const sorted = [...g.cards].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
@@ -59,14 +60,14 @@ async function dedupeAll() {
 }
 async function removeZombies() {
   if (!health.value?.zombies.length) return;
-  if (!confirm(`删除 ${health.value.zombies.length} 张「僵尸卡」（90 天以上从未复习且早已到期）？如只是暂时不用可忽略`)) return;
+  if (!(await confirmDialog(`删除 ${health.value.zombies.length} 张「僵尸卡」（90 天以上从未复习且早已到期）？如只是暂时不用可忽略`))) return;
   for (const z of health.value.zombies) await deleteCard(z.id);
   toast('僵尸卡已清理', 'success');
   await load();
 }
 async function cleanOrphanImages() {
   if (!health.value?.orphanImages.length) return;
-  if (!confirm(`清理 ${health.value.orphanImages.length} 张无引用的孤儿图片（可释放本地空间）？`)) return;
+  if (!(await confirmDialog(`清理 ${health.value.orphanImages.length} 张无引用的孤儿图片（可释放本地空间）？`))) return;
   for (const i of health.value.orphanImages) await db.images.delete(i.id);
   toast('孤儿图片已清理', 'success');
   await load();

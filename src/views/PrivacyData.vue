@@ -5,6 +5,7 @@
 // 元信息：时间段(startTime/endTime 自动预填当前段)、地点/人物、心情/能量/专注/愉悦/压力/疼痛(含部位)
 // 自定义：customTags(标签输入框) + customKV(key-value 多组)
 // 额外：人物画像报告（本地启发式 + AI 增强按钮）、列表浏览/编辑/删除、搜索/标签/类型/日期范围
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, reactive, defineComponent, h } from 'vue';
 import { useRouter } from 'vue-router';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
@@ -284,7 +285,7 @@ async function editRec(id) {
   toast(`已载入 ${r.date} ${typeLabel(r.type)} 记录，可编辑后保存。`, 'info');
 }
 async function delRec(id) {
-  if (!confirm('确定删除这条人生记录？此删除会通过同步链传播到其他设备。')) return;
+  if (!(await confirmDialog('确定删除这条人生记录？此删除会通过同步链传播到其他设备。'))) return;
   await deletePrivacyRecord(id);
   toast('已删除', 'success');
   refreshList();

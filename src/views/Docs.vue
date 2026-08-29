@@ -1,5 +1,6 @@
 <script setup>
 // AI 文档：保存 AI 生成的总结/讲义/计划等长文，可增删改，数据落 IndexedDB 并随数据包同步
+import { confirmDialog } from '../utils/confirm.js';
 import { ref, onMounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { listDocs, createDoc, updateDoc, deleteDoc, createCard } from '../repo.js';
@@ -46,7 +47,7 @@ async function save() {
   showForm.value = false; await load();
   } catch (e) { toast('保存失败：' + e.message, 'error'); }
 }
-async function remove(d) { if (!confirm('删除这个文档？')) return; await deleteDoc(d.id); if (activeId.value === d.id) activeId.value = ''; await load(); }
+async function remove(d) { if (!(await confirmDialog('删除这个文档？'))) return; await deleteDoc(d.id); if (activeId.value === d.id) activeId.value = ''; await load(); }
 
 // 一键转卡片：把文档内容拆成记忆卡片（AI）
 async function toCards(d) {
