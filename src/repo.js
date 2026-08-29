@@ -275,21 +275,28 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   // consolidation 字段：短期巩固状态（null/1/2），跟随 SRS 一并写回
   // fsrs：FSRS 状态 {s,d,reps,last}；SM-2 路径 next.fsrs 为 undefined → 保留 card.fsrs（切换调度器后可无缝接续）
   // wrongReasonAt：错因独立时间戳，跨设备合并时按此取新者（不跟随 updatedAt 也不跟随 reviewedAt）
+  // P0 修正：仅当本次确有错因内容时才推进 wrongReasonAt，
+  // 否则「记住了」(空错因) 以新时间戳覆盖他机真实错因 → 跨设备错因丢失。
   const nowTs = now();
+  const wrongReasonAt = wrongReason ? nowTs : (card.wrongReasonAt ?? 0);
   // 校准回测（calibration）：用复习前的 fsrs 状态计算当时预测 R，落盘进复习记录。
   // 历史记录无 predR 由 calibration.js 回溯模拟补估；从这里起的新数据都是真实值。
   const predR = (card.fsrs && Number.isFinite(card.fsrs.s) && Number.isFinite(card.fsrs.last))
     ? Number(retrievability(card.fsrs.s, (nowTs - card.fsrs.last) / 86400000).toFixed(4))
     : null;
-  await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: next.fsrs ?? card.fsrs, wrongReason, wrongReasonAt: nowTs, reviewedAt: nowTs });
+  // P0 修正：卡片与复习记录的双写包裹在 Dexie 事务中，确保原子性——
+  // 任何一步失败都整体回滚，避免「卡片更新了但复习记录没写」的半残状态。
   const reviewId = uid();
-  await db.reviews.put({
-    id: reviewId, cardId, reviewedAt: now(), rating,
-    predR,
-    levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason,
-    retrievalStrength: opts.retrievalStrength || '',
-    responseMs: opts.responseMs || 0,
-    grade: grade.level, gradeScore: grade.score,
+  await db.transaction('rw', db.cards, db.reviews, async () => {
+    await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: next.fsrs ?? card.fsrs, wrongReason, wrongReasonAt, reviewedAt: nowTs });
+    await db.reviews.put({
+      id: reviewId, cardId, reviewedAt: now(), rating,
+      predR,
+      levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason,
+      retrievalStrength: opts.retrievalStrength || '',
+      responseMs: opts.responseMs || 0,
+      grade: grade.level, gradeScore: grade.score,
+    });
   });
   fireHook('onReviewRated', { cardId, rating, reviewId, guessed: !!guessed });
   return { ...next, dueText: formatDue(next.dueAt), reviewId };

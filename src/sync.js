@@ -165,19 +165,28 @@ export async function restoreSnapshot(id) {
   const snap = await db.snapshots.get(id);
   if (!snap) throw new Error('快照不存在或已被删除');
   const tables = getEffectiveSyncTables();
-  for (const t of tables) {
-    if (t.table === 'images') continue;
-    const rows = (snap.rows?.[t.table] || []);
-    await db[t.table].clear();
-    if (rows.length) await db[t.table].bulkPut(rows);
+  // P0 修正：整段回滚包裹在 Dexie 事务中，clear + bulkPut 中途中断时整体回滚，
+  // 避免「部分表已清空、部分未写」的不可逆全库半残。
+  const _seen = new Set();
+  const txTables = [];
+  for (const tb of [db.tombstones, db.meta, ...tables.map(t => db[t.table])]) {
+    if (!_seen.has(tb.name)) { _seen.add(tb.name); txTables.push(tb); }
   }
-  // 墓碑也回滚
-  await db.tombstones.clear();
-  if (snap.rows?.tombstones?.length) await db.tombstones.bulkPut(snap.rows.tombstones);
-  // 打卡目标回滚
-  if (snap.rows?.goal != null) {
-    await db.meta.put({ key: 'goal', value: snap.rows.goal, updatedAt: snap.createdAt });
-  }
+  await db.transaction('rw', ...txTables, async () => {
+    for (const t of tables) {
+      if (t.table === 'images') continue;
+      const rows = (snap.rows?.[t.table] || []);
+      await db[t.table].clear();
+      if (rows.length) await db[t.table].bulkPut(rows);
+    }
+    // 墓碑也回滚
+    await db.tombstones.clear();
+    if (snap.rows?.tombstones?.length) await db.tombstones.bulkPut(snap.rows.tombstones);
+    // 打卡目标回滚
+    if (snap.rows?.goal != null) {
+      await db.meta.put({ key: 'goal', value: snap.rows.goal, updatedAt: snap.createdAt });
+    }
+  });
   return { restoredAt: snap.createdAt, label: snap.label };
 }
 
@@ -345,6 +354,15 @@ export async function importBackup(backup) {
   } catch (e) { console.warn('[sync] 自动快照失败（不阻断导入）:', e?.message || e); }
 
   // 1) 墓碑：按 deletedAt 谁新听谁合并（kind 缺失的旧数据按 card 处理）
+  // P0 修正：整段合并包裹在 Dexie 事务中，任一子步骤失败整体回滚，
+  // 杜绝「部分表写入、部分未写」导致的数据不一致（尤其大批量导入中途中断）。
+  // 事务表集合 = 墓碑 + 图片 + meta + 全部有效同步表（按 name 去重）。
+  const _seen = new Set();
+  const txTables = [];
+  for (const tb of [db.tombstones, db.images, db.meta, ...effTables.map(t => db[t.table])]) {
+    if (!_seen.has(tb.name)) { _seen.add(tb.name); txTables.push(tb); }
+  }
+  await db.transaction('rw', ...txTables, async () => {
   const tombstones = mergeTombstones(await db.tombstones.toArray(), backup.tombstones || []);
   if (tombstones.length) await db.tombstones.bulkPut(tombstones);
 
@@ -453,6 +471,7 @@ export async function importBackup(backup) {
       await db.meta.put({ key: 'goal', value: backup.streakMeta.goal, updatedAt: backup.streakMeta.updatedAt || Date.now() });
     }
   }
+  }); // end db.transaction（P0：整段导入原子化）
 
   return stats;
 }
