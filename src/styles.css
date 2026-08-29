@@ -57,7 +57,7 @@ html, body { margin: 0; padding: 0; }
 body {
   background: var(--bg);
   color: var(--ink);
-  font: 15px/1.6 -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font: 15px/1.6 var(--app-font, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif);
 }
 button { font: inherit; cursor: pointer; }
 input, select, textarea { font: inherit; color: inherit; }

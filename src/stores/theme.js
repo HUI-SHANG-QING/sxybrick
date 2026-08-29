@@ -55,6 +55,16 @@ export const MODES = [
   { id: 'eye', name: '护眼' },
 ];
 
+// P2-25 字体自定义：可选字体栈（保存字体族关键字，apply 时落地为 --app-font）
+export const FONTS = [
+  { id: 'system', name: '系统默认', stack: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif' },
+  { id: 'sans', name: '无衬线', stack: '"Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif' },
+  { id: 'serif', name: '衬线', stack: 'Georgia, "Times New Roman", "Songti SC", "SimSun", "STSong", serif' },
+  { id: 'mono', name: '等宽', stack: 'ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", "Courier New", monospace' },
+  { id: 'round', name: '圆体', stack: '"PingFang SC", "Microsoft YaHei", "Yuanti SC", "Hiragino Sans GB", sans-serif' },
+];
+const VALID_FONTS = FONTS.map(f => f.id);
+
 const VALID_STYLES = [...STYLES.map(s => s.id), 'custom']; // custom = 个人主题生成器（色相自定义）
 const VALID_MODES = MODES.map(m => m.id);
 
@@ -63,6 +73,7 @@ export const useThemeStore = defineStore('theme', {
     style: VALID_STYLES.includes(localStorage.getItem('sxy_style')) ? localStorage.getItem('sxy_style') : 'classic',
     mode: VALID_MODES.includes(localStorage.getItem('sxy_mode')) ? localStorage.getItem('sxy_mode') : 'light',
     customHue: Number(localStorage.getItem('sxy_custom_hue')) || 220,
+    font: VALID_FONTS.includes(localStorage.getItem('sxy_font')) ? localStorage.getItem('sxy_font') : 'system',
   }),
   getters: {
     styleLabel: (s) => STYLES.find(x => x.id === s.style)?.name || (s.style === 'custom' ? '自定义' : '经典'),
@@ -76,6 +87,12 @@ export const useThemeStore = defineStore('theme', {
       localStorage.setItem('sxy_custom_hue', String(this.customHue));
       this.apply();
     },
+    setFont(v) {
+      if (!VALID_FONTS.includes(v)) return;
+      this.font = v;
+      localStorage.setItem('sxy_font', v);
+      this.apply();
+    },
     apply() {
       const root = document.documentElement;
       // 速赢区：主题切换过渡动画 —— 仅在"切换"时启用 0.32s 颜色淡入（初次加载跳过，避免 FOUC 闪烁）
@@ -83,6 +100,9 @@ export const useThemeStore = defineStore('theme', {
       if (isSwitch) root.classList.add('theme-switching');
       root.setAttribute('data-style', this.style);
       root.setAttribute('data-theme', this.mode);
+      // P2-25 字体自定义：落地 --app-font（body 消费），不随风格变化而被重置
+      const fontStack = FONTS.find(f => f.id === this.font)?.stack || FONTS[0].stack;
+      root.style.setProperty('--app-font', fontStack);
       // 个人主题：由色相生成强调色族（随配色模式微调亮度/饱和度），写入 CSS 变量供 [data-style='custom'] 消费
       if (this.style === 'custom') {
         const h = this.customHue;

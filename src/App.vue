@@ -14,7 +14,7 @@ import ErrorBoundary from './components/ErrorBoundary.vue';
 const Intro = defineAsyncComponent(() => import('./components/Intro.vue'));
 const Guide = defineAsyncComponent(() => import('./components/Guide.vue'));
 const InkLandscape = defineAsyncComponent(() => import('./components/InkLandscape.vue'));
-import { useThemeStore, STYLES, MODES } from './stores/theme.js';
+import { useThemeStore, STYLES, MODES, FONTS } from './stores/theme.js';
 import { getProactiveScheduler } from './agent/proactive.js';
 import { getAIConfig } from './ai.js';
 // 日程表到点提醒：全局调度 + 视觉浮层（桌面/平板/手机同一逻辑，默认静音）
@@ -458,6 +458,10 @@ async function enableReminder() {
               <div v-if="theme.style === 'custom'" style="display:flex;align-items:center;gap:14px">
                 <el-slider :model-value="theme.customHue" :min="0" :max="360" style="flex:1" @input="theme.setCustomHue($event)" />
                 <span class="hue-dot" :style="{ background: `hsl(${theme.customHue} 72% 45%)` }"></span>
+              </div>
+              <div class="field-label" style="margin-top:16px">界面字体</div>
+              <div class="mode-row">
+                <button v-for="f in FONTS" :key="f.id" class="chip" :class="{ on: theme.font === f.id }" @click="theme.setFont(f.id)">{{ f.name }}</button>
               </div>
             </el-tab-pane>
 
