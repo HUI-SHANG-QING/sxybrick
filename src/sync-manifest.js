@@ -80,15 +80,24 @@ export function mergeCardPair(local, incoming) {
     if (srs && srs[f] !== undefined) out[f] = srs[f];
   }
   // 错因用独立时间戳 wrongReasonAt 合并（不跟随 updatedAt 也不跟随 reviewedAt）
+  // 修复 P1：原 `>=` 在「两端时间戳相等（均为 0 或同一时刻）」时会无条件采纳 incoming，
+  // 若 incoming 未携带错因（空串）会把本地已有的错因覆盖为空 → 跨设备错因丢失。
+  // 改用严格 `>` 判定，并在时间戳相等时优先保留「有内容」的一方，杜绝空值覆盖。
   const incWRA = incoming.wrongReasonAt ?? 0;
   const locWRA = local.wrongReasonAt ?? 0;
-  if (incWRA >= locWRA) {
-    out.wrongReason = incoming.wrongReason ?? '';
-    if (incWRA) out.wrongReasonAt = incWRA;
-  } else {
-    out.wrongReason = local.wrongReason ?? '';
-    if (locWRA) out.wrongReasonAt = locWRA;
+  const incWR = incoming.wrongReason ?? '';
+  const locWR = local.wrongReason ?? '';
+  let chosen, chosenTs;
+  if (incWRA > locWRA) { chosen = incoming; chosenTs = incWRA; }
+  else if (locWRA > incWRA) { chosen = local; chosenTs = locWRA; }
+  else {
+    // 时间戳相等：优先保留有内容的一方，避免「一方改了错因但没 bump 时间戳」被空值覆盖
+    if (incWR && !locWR) { chosen = incoming; chosenTs = incWRA; }
+    else if (locWR && !incWR) { chosen = local; chosenTs = locWRA; }
+    else { chosen = incoming; chosenTs = incWRA; } // 都空或内容相同，取 incoming 无差别
   }
+  out.wrongReason = chosen.wrongReason ?? '';
+  if (chosenTs) out.wrongReasonAt = chosenTs;
   return out;
 }
 

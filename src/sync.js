@@ -285,10 +285,14 @@ export function parseAnkiLines(text) {
 }
 
 // 局域网一键同步：把本地数据包 PUT 给电脑端中枢（hub），hub 合并后返回全量数据，再本地导入
+// 增量优化：用 buildIncrementalBackup 仅上传「上次同步后变更」的行，千卡场景包体从全量降到几十行；
+// 首次（无 lastSyncAt）退化为全量。中枢侧按同一 sync-manifest 合并，增量包结构兼容全量合并。
+const HUB_LAST_SYNC_KEY = 'sxy_hub_last_sync';
 export async function syncWithHub(hubUrl, token) {
   const hub = String(hubUrl || '').replace(/\/+$/, '');
   if (!hub) throw new Error('请先填写电脑端同步中枢地址');
-  const backup = await buildBackup();
+  const lastRaw = Number(localStorage.getItem(HUB_LAST_SYNC_KEY) || 0) || 0;
+  const backup = await buildIncrementalBackup(lastRaw);
   const res = await fetch(`${hub}/backup`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'x-sync-token': String(token || '') },
@@ -298,6 +302,8 @@ export async function syncWithHub(hubUrl, token) {
   const merged = await res.json();
   if (!merged || merged.app !== 'sxybrick') throw new Error('中枢返回的数据无效');
   const stats = await importBackup(merged);
+  // 仅在成功（中枢返回合法数据）后推进 lastSyncAt，避免「上传失败却推进」导致后续漏传
+  try { localStorage.setItem(HUB_LAST_SYNC_KEY, String(Date.now())); } catch {}
   // 插件钩子：同步完成后分发（fire-and-forget，插件异常不阻断）
   triggerHook('onSyncCompleted', stats).catch(() => {});
   return stats;

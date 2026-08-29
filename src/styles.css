@@ -198,6 +198,55 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 :root[data-style='adventure'] { --accent: #d4a33a; --radius: 14px; }
 
+/* ---- 游戏风 × 配色模式联动（2026-08-28 修复）----
+   此前 card/moba/space 无条件覆盖基础 token，导致「白天/护眼」开关失效。
+   现按 data-theme 补 light/eye 两套浅色变体：组件皮肤已改为变量驱动（见下），
+   dark 模式保持原深色氛围，light/eye 下界面真正随模式切换。 */
+:root[data-style='card'][data-theme='light'] {
+  --accent: #8a5f1c; --accent-2: #b9862f; --radius: 14px;
+  --bg: #ede3cd; --panel: #f9f2e2; --panel-2: #efe3c6;
+  --ink: #3b2d16; --ink-2: #7c6a4a; --line: #d9c69a;
+  --code-bg: #f4ead3; --code-inline: #ead9b6; --tag-bg: #e9dcba; --tag-ink: #7d5413;
+  --red: #b5532f; --green: #3f7d47; --amber: #a06a16; --blue: #40639c; --toast-bg: #3b2d16;
+}
+:root[data-style='card'][data-theme='eye'] {
+  --accent: #5d7a2e; --accent-2: #6e8c3a; --radius: 14px;
+  --bg: #dce6d4; --panel: #eef4e8; --panel-2: #deead4;
+  --ink: #2f3a28; --ink-2: #5c6a52; --line: #c2d0b4;
+  --code-bg: #e4ecdc; --code-inline: #d5e2ca; --tag-bg: #d8e4cc; --tag-ink: #4a6628;
+  --red: #b34d33; --green: #2e7d32; --amber: #8a6a14; --blue: #3a70b0; --toast-bg: #2f3a28;
+}
+:root[data-style='moba'][data-theme='light'] {
+  --accent: #8f6f14; --accent-2: #c9a227; --radius: 14px;
+  --bg: #e6ebf7; --panel: #f4f7ff; --panel-2: #e2e9fa;
+  --ink: #1d2a4d; --ink-2: #5a6a94; --line: #c3cdea;
+  --code-bg: #edf1fc; --code-inline: #dde6fa; --tag-bg: #e0e7fa; --tag-ink: #3d54a0;
+  --red: #d64545; --green: #2e9e83; --amber: #c99910; --blue: #3d7dd6; --toast-bg: #16204a;
+}
+:root[data-style='moba'][data-theme='eye'] {
+  --accent: #77871f; --accent-2: #95a72e; --radius: 14px;
+  --bg: #d7e3d5; --panel: #eaf2e8; --panel-2: #d8e6d6;
+  --ink: #2c3a2c; --ink-2: #57694f; --line: #b9cdb5;
+  --code-bg: #dfeadd; --code-inline: #d0e0ce; --tag-bg: #d3e3d1; --tag-ink: #445f3c;
+  --red: #b04a35; --green: #2e7d32; --amber: #9c7a12; --blue: #3a70b0; --toast-bg: #2c3a2c;
+}
+:root[data-style='space'][data-theme='light'] {
+  --accent: #00839f; --accent-2: #d6337d; --radius: 10px;
+  --bg: #e8f2f7; --panel: #f5fafc; --panel-2: #e3eff5;
+  --ink: #0f2430; --ink-2: #55707e; --line: #c2d8e2;
+  --code-bg: #ecf4f8; --code-inline: #ddebf2; --tag-bg: #dceaf1; --tag-ink: #00768f;
+  --red: #d23f5e; --green: #1f9d87; --amber: #c78f1e; --blue: #00839f; --toast-bg: #0f2430;
+  --on-accent: #ffffff;
+}
+:root[data-style='space'][data-theme='eye'] {
+  --accent: #1f7d6d; --accent-2: #c25680; --radius: 10px;
+  --bg: #dbe7d9; --panel: #ecf3ea; --panel-2: #dae7d8;
+  --ink: #26352a; --ink-2: #51624e; --line: #bfd2bc;
+  --code-bg: #e0ebde; --code-inline: #d1e0cf; --tag-bg: #cfdfcd; --tag-ink: #2c6b58;
+  --red: #b04a35; --green: #2e7d32; --amber: #9c7a12; --blue: #2e6f7d; --toast-bg: #26352a;
+  --on-accent: #ffffff;
+}
+
 /* 各游戏风格的全屏场景背景（场景固定氛围，内容配色仍随 data-theme 全局切换） */
 [data-style='card'] .app-shell { background: radial-gradient(ellipse at 50% 18%, #3a2c18 0%, #20160d 55%, #0e0a06 100%); }
 [data-style='moba'] .app-shell { background: radial-gradient(ellipse at 50% 15%, #1a2340 0%, #0d1326 55%, #060a18 100%); }
@@ -212,6 +261,14 @@ input, select, textarea { font: inherit; color: inherit; }
     #04070f;
 }
 [data-style='adventure'] .app-shell { background: linear-gradient(#1f3a1f, #132313); }
+
+/* 游戏风场景背景 × 配色模式：light/eye 下调亮氛围（dark 保持上方深色氛围不变） */
+[data-style='card'][data-theme='light'] .app-shell { background: radial-gradient(ellipse at 50% 18%, #eadfc2 0%, #e3d5b3 55%, #d9c9a4 100%); }
+[data-style='card'][data-theme='eye'] .app-shell { background: radial-gradient(ellipse at 50% 18%, #d4e3cc 0%, #c9dcc1 55%, #bed2b6 100%); }
+[data-style='moba'][data-theme='light'] .app-shell { background: radial-gradient(ellipse at 50% 15%, #e0e7f8 0%, #d3ddf0 55%, #c7d3ea 100%); }
+[data-style='moba'][data-theme='eye'] .app-shell { background: radial-gradient(ellipse at 50% 15%, #d8e6d6 0%, #cadcc9 55%, #bdd2bd 100%); }
+[data-style='space'][data-theme='light'] .app-shell { background: radial-gradient(ellipse at 70% 30%, #d8edf6, transparent 60%), #e8f2f7; }
+[data-style='space'][data-theme='eye'] .app-shell { background: radial-gradient(ellipse at 70% 30%, #d6e7d5, transparent 60%), #dfe9dd; }
 
 /* 各风格内容区留白（避开固定导航/场景，桌面端） */
 @media (min-width: 721px) {
@@ -231,13 +288,13 @@ input, select, textarea { font: inherit; color: inherit; }
 
 /* ---------- ① 卡牌 card：羊皮卷游戏卡 ---------- */
 :root[data-style='card'] .panel {
-  background: linear-gradient(160deg, #34281a 0%, #271c10 100%);
-  border: 1px solid #6e5326;
+  background: linear-gradient(160deg, var(--panel-2) 0%, var(--panel) 100%);
+  border: 1px solid var(--line);
   box-shadow: 0 6px 18px rgba(0,0,0,.45), inset 0 1px 0 rgba(240,196,106,.12);
 }
 :root[data-style='card'] .card-item {
-  background: linear-gradient(165deg, #3a2a18 0%, #271a0e 70%, #21160c 100%);
-  border: 1.5px solid #7a5a2e;
+  background: linear-gradient(165deg, var(--code-bg) 0%, var(--panel) 70%, var(--panel) 100%);
+  border: 1.5px solid var(--line);
   border-radius: var(--radius);
   box-shadow: 0 4px 14px rgba(0,0,0,.5), inset 0 1px 0 rgba(240,196,106,.18);
   position: relative; overflow: hidden;
@@ -256,39 +313,39 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 :root[data-style='card'] .card-item:hover {
   transform: translateY(-4px) scale(1.012);
-  border-color: #f0c46a;
+  border-color: var(--accent);
   box-shadow: 0 12px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(240,196,106,.45), 0 0 22px rgba(240,196,106,.25);
 }
 :root[data-style='card'] .card-item:hover::after { left: 120%; }
 :root[data-style='card'] .btn {
-  border: 1.5px solid #b9862f; border-radius: 10px; color: #f7ecd8;
-  background: linear-gradient(180deg, #4a3418, #2f2010);
+  border: 1.5px solid var(--accent-2); border-radius: 10px; color: var(--ink);
+  background: linear-gradient(180deg, var(--code-inline), var(--panel));
   transition: all .18s ease;
 }
-:root[data-style='card'] .btn:hover { border-color: #f0c46a; box-shadow: 0 0 14px rgba(240,196,106,.3); }
+:root[data-style='card'] .btn:hover { border-color: var(--accent); box-shadow: 0 0 14px rgba(240,196,106,.3); }
 :root[data-style='card'] .btn.primary {
   background: linear-gradient(180deg, #f0c46a, #b9862f); color: #2a1a09; border-color: #f0c46a; font-weight: 700;
 }
 :root[data-style='card'] .btn.primary:hover { box-shadow: 0 0 18px rgba(240,196,106,.5); }
 :root[data-style='card'] .chip {
-  border: 1px solid #7a5a2e; border-radius: 10px;
-  background: linear-gradient(180deg, #34281a, #271c10); color: #c9b295;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel)); color: var(--ink-2);
 }
 :root[data-style='card'] .chip.on { background: linear-gradient(180deg, #f0c46a, #b9862f); color: #2a1a09; border-color: #f0c46a; }
-:root[data-style='card'] .tag-pill { background: #3a2a18; color: #f0c46a; border: 1px solid #6e5326; }
-:root[data-style='card'] .input:focus { border-color: #f0c46a; box-shadow: 0 0 0 3px rgba(240,196,106,.15); }
-:root[data-style='card'] :focus-visible { outline: 2px solid #f0c46a; outline-offset: 2px; border-radius: 4px; }
+:root[data-style='card'] .tag-pill { background: var(--tag-bg); color: var(--tag-ink); border: 1px solid var(--line); }
+:root[data-style='card'] .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(240,196,106,.15); }
+:root[data-style='card'] :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 :root[data-style='card'] .flip-inner { transition: transform .55s cubic-bezier(.2,.75,.25,1); }
 
 /* ---------- ② 王者 moba：能量晶板 ---------- */
 :root[data-style='moba'] .panel {
-  background: linear-gradient(160deg, #1d2c5e 0%, #121a3c 100%);
-  border: 1px solid #2f447f;
+  background: linear-gradient(160deg, var(--panel-2) 0%, var(--panel) 100%);
+  border: 1px solid var(--line);
   box-shadow: 0 6px 18px rgba(0,0,0,.45), inset 0 1px 0 rgba(240,200,74,.12);
 }
 :root[data-style='moba'] .card-item {
-  background: linear-gradient(155deg, #21336e 0%, #15203f 70%, #0f1730 100%);
-  border: 1.5px solid #3f5fa6;
+  background: linear-gradient(155deg, var(--code-bg) 0%, var(--panel) 70%, var(--panel) 100%);
+  border: 1.5px solid var(--line);
   border-radius: var(--radius);
   clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
   box-shadow: 0 4px 14px rgba(0,0,0,.5), inset 0 1px 0 rgba(240,200,74,.15);
@@ -309,41 +366,41 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 :root[data-style='moba'] .card-item:hover {
   transform: translateY(-4px);
-  border-color: #f0c84a;
+  border-color: var(--accent);
   box-shadow: 0 12px 30px rgba(0,0,0,.55), 0 0 0 1px rgba(240,200,74,.5), 0 0 24px rgba(90,160,255,.28);
 }
 :root[data-style='moba'] .card-item:hover::after { opacity: 1; animation: moba-energy 1.6s linear infinite; }
 @keyframes moba-energy { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 :root[data-style='moba'] .btn {
-  border: 1.5px solid #3f5fa6; border-radius: 10px; color: #eaf0ff;
-  background: linear-gradient(180deg, #21336e, #15203f); transition: all .18s ease;
+  border: 1.5px solid var(--blue); border-radius: 10px; color: var(--ink);
+  background: linear-gradient(180deg, var(--code-inline), var(--panel)); transition: all .18s ease;
 }
-:root[data-style='moba'] .btn:hover { border-color: #f0c84a; box-shadow: 0 0 14px rgba(90,160,255,.35); }
+:root[data-style='moba'] .btn:hover { border-color: var(--accent); box-shadow: 0 0 14px rgba(90,160,255,.35); }
 :root[data-style='moba'] .btn.primary {
   background: linear-gradient(180deg, #f0c84a, #d4af37); color: #14224a; border-color: #f0c84a; font-weight: 700;
   box-shadow: 0 0 16px rgba(240,200,74,.35);
 }
 :root[data-style='moba'] .btn.primary:hover { box-shadow: 0 0 22px rgba(240,200,74,.6); }
 :root[data-style='moba'] .chip {
-  border: 1px solid #3f5fa6; border-radius: 10px;
-  background: linear-gradient(180deg, #1d2c5e, #15203f); color: #9fb3dd;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel)); color: var(--ink-2);
 }
 :root[data-style='moba'] .chip.on { background: linear-gradient(180deg, #f0c84a, #d4af37); color: #14224a; border-color: #f0c84a; }
-:root[data-style='moba'] .tag-pill { background: #1d2c5e; color: #f0c84a; border: 1px solid #3f5fa6; }
-:root[data-style='moba'] .input:focus { border-color: #f0c84a; box-shadow: 0 0 0 3px rgba(90,160,255,.18); }
-:root[data-style='moba'] :focus-visible { outline: 2px solid #f0c84a; outline-offset: 2px; border-radius: 4px; }
+:root[data-style='moba'] .tag-pill { background: var(--tag-bg); color: var(--tag-ink); border: 1px solid var(--line); }
+:root[data-style='moba'] .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(90,160,255,.18); }
+:root[data-style='moba'] :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 :root[data-style='moba'] .flip-inner { transition: transform .55s cubic-bezier(.2,.75,.25,1); }
 
 /* ---------- ③ 星际 space：全息 HUD ---------- */
 :root[data-style='space'] .panel {
-  background: linear-gradient(160deg, rgba(15,29,51,.92), rgba(10,20,36,.92));
-  border: 1px solid #1b3866;
+  background: linear-gradient(160deg, var(--panel-2) 0%, var(--panel) 100%);
+  border: 1px solid var(--line);
   box-shadow: 0 6px 22px rgba(0,0,0,.5), inset 0 0 0 1px rgba(0,229,255,.06);
   backdrop-filter: blur(2px);
 }
 :root[data-style='space'] .card-item {
-  background: linear-gradient(160deg, rgba(15,29,51,.95), rgba(8,16,30,.95));
-  border: 1px solid #2a5a86;
+  background: linear-gradient(160deg, var(--code-bg) 0%, var(--panel) 100%);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   position: relative; overflow: hidden;
   box-shadow: 0 4px 16px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,229,255,.10);
@@ -352,7 +409,7 @@ input, select, textarea { font: inherit; color: inherit; }
 :root[data-style='space'] .card-item::before,
 :root[data-style='space'] .card-item::after {
   content: ''; position: absolute; width: 16px; height: 16px; pointer-events: none;
-  border-color: #00e5ff; border-style: solid; opacity: .8;
+  border-color: var(--accent); border-style: solid; opacity: .8;
 }
 :root[data-style='space'] .card-item::before {
   top: 8px; left: 8px;
@@ -364,7 +421,7 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 :root[data-style='space'] .card-item:hover {
   transform: translateY(-4px);
-  border-color: #00e5ff;
+  border-color: var(--accent);
   animation: space-glow 1.6s ease-in-out infinite;
 }
 @keyframes space-glow {
@@ -372,23 +429,23 @@ input, select, textarea { font: inherit; color: inherit; }
   50% { box-shadow: 0 12px 32px rgba(0,0,0,.6), 0 0 0 1px rgba(0,229,255,.7), 0 0 34px rgba(0,229,255,.45); }
 }
 :root[data-style='space'] .btn {
-  border: 1.5px solid #2a5a86; border-radius: 10px; color: #dff6ff;
-  background: linear-gradient(180deg, rgba(15,29,51,.9), rgba(8,16,30,.9)); transition: all .18s ease;
+  border: 1.5px solid var(--line); border-radius: 10px; color: var(--ink);
+  background: linear-gradient(180deg, var(--code-bg), var(--panel)); transition: all .18s ease;
 }
-:root[data-style='space'] .btn:hover { border-color: #00e5ff; box-shadow: 0 0 14px rgba(0,229,255,.4); color: #fff; }
+:root[data-style='space'] .btn:hover { border-color: var(--accent); box-shadow: 0 0 14px rgba(0,229,255,.4); color: var(--ink); }
 :root[data-style='space'] .btn.primary {
-  background: linear-gradient(180deg, #00e5ff, #00a6c4); color: #021016; border-color: #00e5ff; font-weight: 700;
+  background: linear-gradient(180deg, var(--accent), #00a6c4); color: var(--on-accent, #021016); border-color: var(--accent); font-weight: 700;
   box-shadow: 0 0 16px rgba(0,229,255,.45);
 }
 :root[data-style='space'] .btn.primary:hover { box-shadow: 0 0 24px rgba(0,229,255,.7); }
 :root[data-style='space'] .chip {
-  border: 1px solid #2a5a86; border-radius: 10px;
-  background: linear-gradient(180deg, rgba(15,29,51,.9), rgba(8,16,30,.9)); color: #7fa8c9;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: linear-gradient(180deg, var(--code-bg), var(--panel)); color: var(--ink-2);
 }
-:root[data-style='space'] .chip.on { background: linear-gradient(180deg, #00e5ff, #00a6c4); color: #021016; border-color: #00e5ff; }
-:root[data-style='space'] .tag-pill { background: #0f1d33; color: #00e5ff; border: 1px solid #2a5a86; }
-:root[data-style='space'] .input:focus { border-color: #00e5ff; box-shadow: 0 0 0 3px rgba(0,229,255,.16); }
-:root[data-style='space'] :focus-visible { outline: 2px solid #00e5ff; outline-offset: 2px; border-radius: 4px; }
+:root[data-style='space'] .chip.on { background: linear-gradient(180deg, var(--accent), #00a6c4); color: var(--on-accent, #021016); border-color: var(--accent); }
+:root[data-style='space'] .tag-pill { background: var(--tag-bg); color: var(--accent); border: 1px solid var(--line); }
+:root[data-style='space'] .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,229,255,.16); }
+:root[data-style='space'] :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 :root[data-style='space'] .flip-inner { transition: transform .55s cubic-bezier(.2,.75,.25,1); }
 
 /* 三主题复用：FlipCard 卡片接缝自适应圆角 */
@@ -788,9 +845,9 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
   100% { transform: translate(32px, 32px); }
 }
 
-/* ---------- 字体：Inter（首字）+ PingFang SC（中文） ---------- */
+/* ---------- 字体：Inter Variable（本地化 woff2，@fontsource-variable/inter）+ PingFang SC（中文） ---------- */
 :root[data-style='progress'] body {
-  font: 15px/1.55 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font: 15px/1.55 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   letter-spacing: -0.1px;
   -webkit-font-smoothing: antialiased;
 }

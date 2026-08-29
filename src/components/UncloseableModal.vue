@@ -1,13 +1,15 @@
 <template>
+  <!-- el-dialog 壳：不可遮罩关闭 / 不可 Esc / 无关闭按钮，保证"不能跳过"的监督语义 -->
   <el-dialog
-    v-model="visible"
+    :model-value="visible"
     :title="title"
-    :width="520"
+    :show-close="false"
     :close-on-click-modal="false"
     :close-on-press-escape="false"
-    :show-close="false"
-    :modal="true"
-    align-center
+    :align-center="true"
+    width="520px"
+    append-to-body
+    class="um-dialog-wrap"
   >
     <div class="um-content">
       <div v-if="severity" :class="['um-badge', `is-${severity}`]">
@@ -23,11 +25,12 @@
       </div>
       <div class="um-input" v-if="requireReflection">
         <label>请用一句话写下你今天的承诺（不少于 {{ minReflectionLen }} 字）：</label>
-        <textarea
+        <el-input
           v-model="reflection"
-          rows="3"
-          :placeholder="placeholder"
+          type="textarea"
+          :rows="3"
           maxlength="200"
+          :placeholder="placeholder"
           class="um-textarea"
         />
         <div class="um-counter" :class="{ low: reflection.length < minReflectionLen }">
@@ -42,8 +45,8 @@
           <span class="um-cd-label">秒后可关闭</span>
         </div>
         <el-button
-          :disabled="countdown > 0 || (requireReflection && reflection.length < minReflectionLen)"
           :type="severity === 'critical' ? 'danger' : 'primary'"
+          :disabled="countdown > 0 || (requireReflection && reflection.length < minReflectionLen)"
           @click="onConfirm"
         >
           {{ countdown > 0 ? `等待 ${countdown}s` : '我承诺，继续学' }}
@@ -55,7 +58,7 @@
 
 <script setup>
 import { ref, watch, onBeforeUnmount, computed } from 'vue';
-import { ElMessage } from 'element-plus';
+import { toast } from '../utils/toast.js';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -108,7 +111,7 @@ const recommendations = computed(() => props.data?.recommendations || []);
 function onConfirm() {
   if (countdown.value > 0) return;
   if (props.requireReflection && reflection.value.length < props.minReflectionLen) {
-    ElMessage.warning(`至少写 ${props.minReflectionLen} 字`);
+    toast.warning(`至少写 ${props.minReflectionLen} 字`);
     return;
   }
   emit('confirm', { reflection: reflection.value });
@@ -117,28 +120,34 @@ function onConfirm() {
 </script>
 
 <style scoped>
-.um-content { padding: 0 6px; }
+.um-dialog-wrap {
+  border-radius: 14px;
+}
+/* EP 弹窗默认白色背景会被桥接覆盖为 var(--panel)；这里再兜底一次圆角与溢出 */
+.um-dialog-wrap :deep(.el-dialog) {
+  overflow: hidden;
+}
+
+.um-content { padding: 0 2px; }
 .um-badge { display: inline-block; padding: 4px 12px; border-radius: 14px; font-size: 13px; font-weight: 600; margin-bottom: 14px; }
-.um-badge.is-info { background: #eff6ff; color: #1e40af; }
-.um-badge.is-warn { background: #fffbeb; color: #92400e; }
-.um-badge.is-critical { background: #fef2f2; color: #991b1b; }
+.um-badge.is-info { background: var(--el-color-info-light-9); color: var(--el-color-info-dark-2); }
+.um-badge.is-warn { background: var(--el-color-warning-light-9); color: var(--el-color-warning-dark-2); }
+.um-badge.is-critical { background: var(--el-color-danger-light-9); color: var(--el-color-danger-dark-2); }
 
 .um-headline { font-size: 16px; font-weight: 700; line-height: 1.6; margin-bottom: 12px; color: var(--ink); }
 .um-body { font-size: 14px; color: var(--ink-2); line-height: 1.7; margin-bottom: 14px; }
-.um-recs { background: var(--panel-2, #f7f7f9); border-radius: 8px; padding: 12px 14px; }
+.um-recs { background: var(--panel-2, var(--el-fill-color-light)); border-radius: 8px; padding: 12px 14px; }
 .um-rec { font-size: 13px; line-height: 1.7; color: var(--ink-2); }
 .um-rec-num { display: inline-block; min-width: 20px; font-weight: 700; color: var(--ink); }
 
 .um-input { margin-top: 16px; }
 .um-input > label { display: block; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
-.um-textarea { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; resize: vertical; box-sizing: border-box; }
+.um-textarea { width: 100%; }
 .um-counter { text-align: right; font-size: 12px; color: var(--ink-2); margin-top: 4px; }
-.um-counter.low { color: #f87171; font-weight: 600; }
+.um-counter.low { color: var(--el-color-danger); font-weight: 600; }
 
 .um-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .um-countdown { display: flex; align-items: baseline; gap: 4px; }
-.um-cd-num { font-size: 22px; font-weight: 700; color: #f87171; }
+.um-cd-num { font-size: 22px; font-weight: 700; color: var(--el-color-danger); }
 .um-cd-label { font-size: 13px; color: var(--ink-2); }
-
-:deep(.el-dialog) { border-radius: 12px; }
 </style>

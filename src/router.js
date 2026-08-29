@@ -3,6 +3,7 @@ import { pageView } from './utils/telemetry.js';
 
 const routes = [
   { path: '/', component: () => import('./views/Dashboard.vue') },
+  { path: '/workspace', component: () => import('./views/Workspace.vue') },
   { path: '/cards', component: () => import('./views/Cards.vue') },
   { path: '/review', component: () => import('./views/Review.vue') },
   { path: '/stats', component: () => import('./views/Stats.vue') },
@@ -41,6 +42,8 @@ const routes = [
   { path: '/insight', component: () => import('./views/CardInsight.vue') },
   // Phase 6 学习资料中枢：上传 → 全量解析 → 预览 → 问答 → 生成卡片（用户选择制）
   { path: '/materials', component: () => import('./views/LibraryFiles.vue') },
+  // UI 组件库：Element Plus × 主题桥接的活样本（验证 11 风格 × 3 模式跟随效果）
+  { path: '/uikit', component: () => import('./views/UIKit.vue') },
 ];
 
 export const router = createRouter({

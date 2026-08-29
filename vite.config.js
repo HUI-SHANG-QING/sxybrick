@@ -47,16 +47,6 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         runtimeCaching: [
           {
-            // Google Fonts CSS + woff2：长期稳定且带正确 long-term 缓存头，CacheFirst 最省请求
-            urlPattern: ({ url }) => url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com',
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'sxybrick-fonts',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 30 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
             // 图床 / 图标源：StaleWhileRevalidate（先返回缓存秒级可用，后台异步拉新版）
             urlPattern: ({ url, request }) => request.destination === 'image',
             handler: 'StaleWhileRevalidate',
@@ -108,8 +98,11 @@ export default defineConfig({
           if (id.includes('node_modules/echarts-wordcloud')) return 'echarts';
           if (id.includes('node_modules/katex')) return 'katex';
           if (id.includes('node_modules/highlight.js')) return 'hljs';
-          if (id.includes('node_modules/element-plus')) return 'element-plus';
           if (id.includes('node_modules/marked')) return 'marked';
+          // Element Plus 全量注册：拆成独立 chunk 做长期缓存（图标单独一分，
+          // 便于只用到少量图标的页面复用图标缓存、主组件包独立演进）
+          if (id.includes('node_modules/@element-plus/icons-vue')) return 'ep-icons';
+          if (id.includes('node_modules/element-plus')) return 'element-plus';
           // tesseract.js 仅 CJS 入口，commonjs 插件会把动态 import 内联进主 bundle——
           // 强制拆独立 chunk，确保 OCR 引擎懒加载不进首屏
           if (id.includes('node_modules/tesseract.js')) return 'tesseract';

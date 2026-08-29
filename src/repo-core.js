@@ -194,13 +194,19 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   }));
   const avgMastery = mastery.length ? Math.round(mastery.reduce((s, m) => s + m.mastery, 0) / mastery.length) : 0;
 
-  // 近 14 天趋势
+  // 近 14 天趋势（单趟扫描分桶，避免原「每天 filter 一次」的 O(14·N)）
+  const trendBucket = new Map(); // 当天 0 点时间戳 → 计数
+  for (const r of reviews) {
+    if (r.reviewedAt < nowTs - 14 * DAY) continue;
+    const d = new Date(r.reviewedAt);
+    const ds = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    trendBucket.set(ds, (trendBucket.get(ds) || 0) + 1);
+  }
   const trend = [];
   for (let i = 13; i >= 0; i--) {
     const d = new Date(nowTs); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
-    const start = d.getTime(), end = start + DAY;
-    const n = reviews.filter(r => r.reviewedAt >= start && r.reviewedAt < end).length;
-    trend.push({ date: `${d.getMonth() + 1}-${d.getDate()}`, count: n });
+    const start = d.getTime();
+    trend.push({ date: `${d.getMonth() + 1}-${d.getDate()}`, count: trendBucket.get(start) || 0 });
   }
 
   // 各科卡片数 + 自评分布
@@ -213,14 +219,23 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   const hourly = new Array(24).fill(0);
   for (const r of reviews) hourly[new Date(r.reviewedAt).getHours()]++;
 
-  // 近 30 天遗忘率（没记住占比 %）
+  // 近 30 天遗忘率（单趟扫描分桶，避免原「每天 filter 一次」的 O(30·N)）
+  const forgotBucket = new Map(); // 当天 0 点时间戳 → { total, forgot }
+  for (const r of reviews) {
+    if (r.reviewedAt < nowTs - 30 * DAY) continue;
+    const d = new Date(r.reviewedAt);
+    const ds = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const b = forgotBucket.get(ds) || { total: 0, forgot: 0 };
+    b.total += 1;
+    if (r.rating === 0) b.forgot += 1;
+    forgotBucket.set(ds, b);
+  }
   const forgotTrend = [];
   for (let i = 29; i >= 0; i--) {
     const d = new Date(nowTs); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - i);
-    const s = d.getTime(), e = s + DAY;
-    const dayRs = reviews.filter(r => r.reviewedAt >= s && r.reviewedAt < e);
-    const forgot = dayRs.filter(r => r.rating === 0).length;
-    forgotTrend.push({ date: `${d.getMonth() + 1}-${d.getDate()}`, rate: dayRs.length ? Math.round(forgot / dayRs.length * 100) : 0 });
+    const start = d.getTime();
+    const b = forgotBucket.get(start) || { total: 0, forgot: 0 };
+    forgotTrend.push({ date: `${d.getMonth() + 1}-${d.getDate()}`, rate: b.total ? Math.round(b.forgot / b.total * 100) : 0 });
   }
 
   // 能力四维（掌握度/正确率/稳定度/覆盖率）

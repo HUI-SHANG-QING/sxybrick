@@ -1,5 +1,34 @@
 import { defineStore } from 'pinia';
 
+/**
+ * 把任意合法 CSS 颜色（hex / hsl() / 颜色关键字 / rgb()）解析为 "r, g, b" 三元组。
+ * Element Plus 内部用 rgba(var(--el-color-primary-rgb), .1) 组合半透明主色，
+ * 而 CSS 无法从自定义属性反解出裸三元组，只能在主题切换时借浏览器解析一次。
+ * 做法：把颜色写到探针元素的 color 上，再读 getComputedStyle 返回的 rgb()。
+ * 见 src/styles/element-bridge.css。
+ */
+let _probe = null;
+function toRgbTriplet(color) {
+  if (typeof document === 'undefined' || !color || !document.body) return null;
+  try {
+    if (!_probe) {
+      _probe = document.createElement('span');
+      _probe.setAttribute('aria-hidden', 'true');
+      _probe.style.cssText = 'position:absolute;left:-9999px;top:0;width:0;height:0;pointer-events:none;';
+    }
+    document.body.appendChild(_probe);
+    _probe.style.color = '';
+    _probe.style.color = color;
+    const computed = getComputedStyle(_probe).color || '';
+    _probe.remove();
+    const m = /(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)\D+(\d+(?:\.\d+)?)/.exec(computed);
+    if (!m) return null;
+    return `${Math.round(Number(m[1]))}, ${Math.round(Number(m[2]))}, ${Math.round(Number(m[3]))}`;
+  } catch {
+    return null;
+  }
+}
+
 // 界面风格（游戏级，布局/交互/场景差异大）
 export const STYLES = [
   { id: 'classic', name: '经典', desc: '顶部导航 · 简洁扁平', icon: '☰' },
@@ -67,6 +96,13 @@ export const useThemeStore = defineStore('theme', {
         root.style.removeProperty('--cust-soft');
         root.style.removeProperty('--cust-tag-bg');
       }
+      // Element Plus 桥接：把当前强调色解析成 "r, g, b" 供 --el-color-primary-rgb 使用。
+      // 必须在 data-style / data-theme / --cust-* 全部落地之后再算，否则拿到的是上一主题的旧色。
+      try {
+        const accent = getComputedStyle(root).getPropertyValue('--accent').trim();
+        const triplet = toRgbTriplet(accent);
+        if (triplet) root.style.setProperty('--accent-rgb', triplet);
+      } catch { /* 解析失败时 element-bridge.css 里有 fallback，不影响渲染 */ }
       if (isSwitch) {
         clearTimeout(this._switchTimer);
         this._switchTimer = setTimeout(() => root.classList.remove('theme-switching'), 340);

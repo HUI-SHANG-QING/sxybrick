@@ -25,14 +25,18 @@ export function setAEnabled(v) { localStorage.setItem(LS_KEY_A, v ? '1' : '0'); 
 export function setBEnabled(v) { localStorage.setItem(LS_KEY_B, v ? '1' : '0'); }
 
 // 模块映射（page 路由 → 仪表盘分类 module）
+// 注意：key 必须与 src/router.js 的实际路由保持一致（含近期新增路由），
+// 否则埋点会被归入「其它」导致仪表盘按模块统计失真。
 const PAGE_MODULE_MAP = {
-  '/': '首页', '/review': '复习', '/cards': '卡片', '/library': '书房',
-  '/graph': '图谱', '/mindmap': '导图', '/wrongbook': '错题', '/feynman': '费曼',
-  '/stats': '统计', '/dashboard': '仪表盘', '/privacy': '隐私', '/plans': '计划',
-  '/memo': '备忘', '/pomodoro': '番茄', '/exam': '模考', '/weekly-report': '周报',
-  '/achievements': '成就', '/health': '健康', '/ai-assistant': 'AI',
+  '/': '首页', '/workspace': '工作台', '/review': '复习', '/cards': '卡片', '/library': '书房',
+  '/graph': '图谱', '/mindmap': '导图', '/wrong': '错题', '/feynman': '费曼',
+  '/stats': '统计', '/user-dashboard': '仪表盘', '/privacy': '隐私', '/plans': '计划',
+  '/memo': '备忘', '/notes': '笔记', '/categories': '分类', '/daily': '每日规划',
+  '/pomodoro': '番茄', '/exam': '模考', '/weekly': '周报',
+  '/achievements': '成就', '/health': '健康', '/ai': 'AI', '/agent': 'Agent',
   '/docs': '文档', '/sync': '同步', '/export': '导出', '/search': '搜索',
-  '/agent-workbench': 'Agent',
+  '/genquiz': '生成测验', '/plugins': '插件', '/insight': '卡片洞察', '/materials': '资料库',
+  '/uikit': '组件库',
 };
 export function moduleOf(path) {
   const p = (path || '').split('?')[0];

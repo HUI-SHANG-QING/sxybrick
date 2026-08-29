@@ -1,18 +1,20 @@
 <template>
   <el-dropdown trigger="click" @command="onPick">
-    <el-button :size="size" :type="type" plain>
-      📥 {{ label }}<span v-if="count != null"> ({{ count }})</span>
+    <el-button :type="btnType" :size="btnSize" class="eb-trigger">
+      <span>📥 {{ label }}<span v-if="count != null"> ({{ count }})</span></span>
     </el-button>
     <template #dropdown>
       <el-dropdown-menu>
         <el-dropdown-item
           v-for="f in formats"
           :key="f.key"
-          :disabled="f.disabled"
           :command="f.key"
+          :disabled="f.disabled"
         >
-          <span class="fmt-label">{{ f.label }}</span>
-          <span class="fmt-hint">{{ f.hint }}</span>
+          <div class="eb-item-inner">
+            <span class="fmt-label">{{ f.label }}</span>
+            <span v-if="f.hint" class="fmt-hint">{{ f.hint }}</span>
+          </div>
         </el-dropdown-item>
       </el-dropdown-menu>
     </template>
@@ -20,7 +22,8 @@
 </template>
 
 <script setup>
-import { ElMessage } from 'element-plus';
+import { computed } from 'vue';
+import { toast } from '../utils/toast.js';
 import {
   triggerDownload,
   defaultFilename,
@@ -35,17 +38,24 @@ const props = defineProps({
   filenamePrefix: { type: String, default: 'export' },
   /** 顶部按钮文案 */
   label: { type: String, default: '导出' },
-  /** Element Plus 按钮类型 */
+  /** 按钮类型（primary 高亮，default/text 朴素）——直接映射 el-button type */
   type: { type: String, default: 'primary' },
-  /** Element Plus 按钮尺寸 */
+  /** 按钮尺寸（small 更紧凑）——直接映射 el-button size */
   size: { type: String, default: 'small' },
   /** 数据条目数（用于按钮徽标） */
   count: { type: Number, default: null },
 });
 
+// 兼容旧传参：default → EP 无此 type，映射为 default 语义的朴素按钮
+const btnType = computed(() => {
+  if (props.type === 'default' || props.type === 'text') return 'default';
+  return 'primary';
+});
+const btnSize = computed(() => (props.size === 'small' ? 'small' : 'default'));
+
 function blobOf(text, mime) {
   if (typeof Blob === 'undefined') {
-    ElMessage.error('当前环境不支持下载');
+    toast.error('当前环境不支持下载');
     return null;
   }
   return new Blob([text], { type: `${mime};charset=utf-8` });
@@ -53,29 +63,40 @@ function blobOf(text, mime) {
 
 async function onPick(key) {
   const f = props.formats.find(x => x.key === key);
-  if (!f) return;
-  if (f.disabled) return;
+  if (!f || f.disabled) return;
   if (!props.data || (Array.isArray(props.data) && props.data.length === 0)) {
-    ElMessage.warning('没有可导出的数据');
+    toast.warning('没有可导出的数据');
     return;
   }
   let text = '';
   try {
     text = await f.build(props.data);
   } catch (e) {
-    ElMessage.error(`导出 ${f.label} 失败：${e?.message || e}`);
+    toast.error(`导出 ${f.label} 失败：${e?.message || e}`);
     return;
   }
   const blob = blobOf(text, f.mime || 'text/plain');
   if (!blob) return;
   const fn = f.filename || defaultFilename(props.filenamePrefix, f.ext || 'txt');
   triggerDownload(blob, fn);
-  ElMessage.success(`已下载 ${fn}`);
+  toast.success(`已下载 ${fn}`);
 }
 </script>
 
 <style scoped>
+/* 触发器按钮与项目 .btn 观感对齐（圆角胶囊） */
+.eb-trigger {
+  border-radius: 999px;
+  font-weight: 500;
+}
+.eb-item-inner {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 150px;
+}
 .fmt-label { font-weight: 600; }
-.fmt-hint  { margin-left: 8px; color: #888; font-size: 12px; }
-:deep(.el-dropdown-menu__item) { padding: 8px 14px; min-width: 180px; }
+.fmt-hint { color: var(--ink-2); font-size: 12px; white-space: nowrap; }
 </style>

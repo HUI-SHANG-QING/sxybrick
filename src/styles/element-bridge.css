@@ -1,0 +1,221 @@
+/* =============================================================================
+ * Element Plus 主题桥接层（2026-08-29）
+ * -----------------------------------------------------------------------------
+ * 目的：把 Element Plus 的 --el-* 设计变量全部桥接到 SxyBrick 自己的 token 上，
+ *       使 EP 组件自动跟随「11 种界面风格 × 3 种配色模式」，不需要 EP 的 html.dark
+ *       机制（那套机制只认识白天/深色两态，无法表达护眼模式与游戏风格）。
+ *
+ * 桥接思路（三条）：
+ *   1. 主色族 --el-color-primary* 全部由项目 --accent 派生，不写死任何色值。
+ *   2. 明度派生用 color-mix 混合「面板色 / 文字色」而不是固定黑白：
+ *        light-N 混 --panel → 白天模式越混越亮，深色模式越混越暗（符合各模式语义）
+ *        dark-2  混 --ink   → 白天模式越混越暗，深色模式越混越亮
+ *      一套公式自适应三模式，无需为每个主题单独维护色阶。
+ *   3. --el-color-primary-rgb 需要 "r, g, b" 裸三元组（EP 内部用于 rgba() 组合），
+ *      CSS 无法从自定义属性反解，改由 theme.js 在主题切换时计算写入 --accent-rgb。
+ *
+ * 引入顺序要求：必须在 element-plus/dist/index.css 与 styles.css 之后，
+ * 否则会被 EP 自身的变量声明覆盖。见 main.js。
+ * ========================================================================== */
+
+:root {
+  /* ---------- 品牌主色族：全部由 --accent 派生 ---------- */
+  --el-color-primary: var(--accent);
+  --el-color-primary-rgb: var(--accent-rgb, 22, 32, 44);
+  --el-color-primary-light-3: color-mix(in srgb, var(--accent) 70%, var(--panel));
+  --el-color-primary-light-5: color-mix(in srgb, var(--accent) 50%, var(--panel));
+  --el-color-primary-light-7: color-mix(in srgb, var(--accent) 30%, var(--panel));
+  --el-color-primary-light-8: color-mix(in srgb, var(--accent) 20%, var(--panel));
+  --el-color-primary-light-9: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  --el-color-primary-dark-2: color-mix(in srgb, var(--accent) 80%, var(--ink));
+
+  /* ---------- 语义色族：对接项目语义色 ---------- */
+  --el-color-success: var(--green);
+  --el-color-success-light-3: color-mix(in srgb, var(--green) 70%, var(--panel));
+  --el-color-success-light-5: color-mix(in srgb, var(--green) 50%, var(--panel));
+  --el-color-success-light-7: color-mix(in srgb, var(--green) 30%, var(--panel));
+  --el-color-success-light-8: color-mix(in srgb, var(--green) 20%, var(--panel));
+  --el-color-success-light-9: color-mix(in srgb, var(--green) 10%, var(--panel));
+  --el-color-success-dark-2: color-mix(in srgb, var(--green) 80%, var(--ink));
+
+  --el-color-warning: var(--amber);
+  --el-color-warning-light-3: color-mix(in srgb, var(--amber) 70%, var(--panel));
+  --el-color-warning-light-5: color-mix(in srgb, var(--amber) 50%, var(--panel));
+  --el-color-warning-light-7: color-mix(in srgb, var(--amber) 30%, var(--panel));
+  --el-color-warning-light-8: color-mix(in srgb, var(--amber) 20%, var(--panel));
+  --el-color-warning-light-9: color-mix(in srgb, var(--amber) 10%, var(--panel));
+  --el-color-warning-dark-2: color-mix(in srgb, var(--amber) 80%, var(--ink));
+
+  --el-color-danger: var(--red);
+  --el-color-danger-light-3: color-mix(in srgb, var(--red) 70%, var(--panel));
+  --el-color-danger-light-5: color-mix(in srgb, var(--red) 50%, var(--panel));
+  --el-color-danger-light-7: color-mix(in srgb, var(--red) 30%, var(--panel));
+  --el-color-danger-light-8: color-mix(in srgb, var(--red) 20%, var(--panel));
+  --el-color-danger-light-9: color-mix(in srgb, var(--red) 10%, var(--panel));
+  --el-color-danger-dark-2: color-mix(in srgb, var(--red) 80%, var(--ink));
+
+  --el-color-error: var(--red);
+  --el-color-error-light-3: color-mix(in srgb, var(--red) 70%, var(--panel));
+  --el-color-error-light-5: color-mix(in srgb, var(--red) 50%, var(--panel));
+  --el-color-error-light-7: color-mix(in srgb, var(--red) 30%, var(--panel));
+  --el-color-error-light-8: color-mix(in srgb, var(--red) 20%, var(--panel));
+  --el-color-error-light-9: color-mix(in srgb, var(--red) 10%, var(--panel));
+  --el-color-error-dark-2: color-mix(in srgb, var(--red) 80%, var(--ink));
+
+  --el-color-info: var(--ink-2);
+  --el-color-info-light-3: color-mix(in srgb, var(--ink-2) 70%, var(--panel));
+  --el-color-info-light-5: color-mix(in srgb, var(--ink-2) 50%, var(--panel));
+  --el-color-info-light-7: color-mix(in srgb, var(--ink-2) 30%, var(--panel));
+  --el-color-info-light-8: color-mix(in srgb, var(--ink-2) 20%, var(--panel));
+  --el-color-info-light-9: color-mix(in srgb, var(--ink-2) 10%, var(--panel));
+  --el-color-info-dark-2: color-mix(in srgb, var(--ink-2) 80%, var(--ink));
+
+  /* ---------- 中性：黑/白跟随面板与文字，保证主色按钮文字在任何模式都可读 ---------- */
+  --el-color-white: var(--panel);
+  --el-color-black: var(--ink);
+
+  /* ---------- 背景 ---------- */
+  --el-bg-color: var(--panel);
+  --el-bg-color-page: var(--bg);
+  --el-bg-color-overlay: var(--panel);
+
+  /* ---------- 文字 ---------- */
+  --el-text-color-primary: var(--ink);
+  --el-text-color-regular: var(--ink);
+  --el-text-color-secondary: var(--ink-2);
+  --el-text-color-placeholder: color-mix(in srgb, var(--ink-2) 75%, var(--panel));
+  --el-text-color-disabled: color-mix(in srgb, var(--ink-2) 55%, var(--panel));
+
+  /* ---------- 边框 ---------- */
+  --el-border-color: var(--line);
+  --el-border-color-light: var(--line);
+  --el-border-color-lighter: var(--line);
+  --el-border-color-extra-light: color-mix(in srgb, var(--line) 60%, var(--panel));
+  --el-border-color-dark: color-mix(in srgb, var(--line) 75%, var(--ink));
+  --el-border-color-darker: color-mix(in srgb, var(--line) 50%, var(--ink));
+
+  /* ---------- 填充（hover / 禁用 / 斑马纹等）---------- */
+  --el-fill-color: color-mix(in srgb, var(--ink) 8%, var(--panel));
+  --el-fill-color-light: color-mix(in srgb, var(--ink) 6%, var(--panel));
+  --el-fill-color-lighter: color-mix(in srgb, var(--ink) 4%, var(--panel));
+  --el-fill-color-extra-light: color-mix(in srgb, var(--ink) 2%, var(--panel));
+  --el-fill-color-dark: color-mix(in srgb, var(--ink) 12%, var(--panel));
+  --el-fill-color-darker: color-mix(in srgb, var(--ink) 16%, var(--panel));
+  --el-fill-color-blank: var(--panel);
+
+  /* ---------- 禁用态 ---------- */
+  --el-disabled-bg-color: color-mix(in srgb, var(--ink) 6%, var(--panel));
+  --el-disabled-text-color: color-mix(in srgb, var(--ink-2) 55%, var(--panel));
+  --el-disabled-border-color: color-mix(in srgb, var(--line) 70%, var(--panel));
+
+  /* ---------- 形状与排版：跟随项目圆角与字体 ---------- */
+  --el-border-radius-base: var(--radius, 10px);
+  --el-border-radius-small: calc(var(--radius, 10px) * 0.5);
+  --el-border-radius-round: 999px;
+  --el-font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --el-font-size-base: 14px;
+
+  /* ---------- 遮罩与阴影：弱化，避免与游戏风氛围背景打架 ---------- */
+  --el-mask-color: rgba(0, 0, 0, 0.45);
+  --el-mask-color-extra-light: rgba(0, 0, 0, 0.25);
+  --el-box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  --el-box-shadow-light: 0 4px 14px rgba(0, 0, 0, 0.08);
+  --el-box-shadow-lighter: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --el-box-shadow-dark: 0 8px 28px rgba(0, 0, 0, 0.16);
+}
+
+/* 主色按钮：文字色用 --on-accent（各主题可自定义），缺省时按模式推算对比色 */
+.el-button--primary {
+  color: var(--on-accent, var(--panel));
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.el-button--primary:hover,
+.el-button--primary:focus {
+  background: var(--el-color-primary-light-3);
+  border-color: var(--el-color-primary-light-3);
+  color: var(--on-accent, var(--panel));
+}
+.el-button--primary:active {
+  background: var(--el-color-primary-dark-2);
+  border-color: var(--el-color-primary-dark-2);
+}
+
+/* 卡片类容器（对话框 / 下拉 / 气泡卡片）：沿用项目面板观感，避免 EP 纯白"出戏" */
+.el-dialog,
+.el-drawer,
+.el-popper,
+.el-dropdown-menu,
+.el-picker__popper {
+  background: var(--panel);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.el-dialog__title,
+.el-drawer__title {
+  color: var(--ink);
+}
+.el-dropdown-menu__item {
+  color: var(--ink);
+}
+.el-dropdown-menu__item:not(.is-disabled):hover {
+  background: var(--el-fill-color-light);
+  color: var(--accent);
+}
+
+/* 表单控件：跟随项目 input 观感 */
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper {
+  background: var(--panel);
+  box-shadow: 0 0 0 1px var(--line) inset;
+}
+.el-input__inner,
+.el-textarea__inner {
+  color: var(--ink);
+}
+.el-input__wrapper:hover,
+.el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--el-border-color-dark) inset;
+}
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+/* 表格：与项目面板同底，表头弱化 */
+.el-table {
+  --el-table-bg-color: var(--panel);
+  --el-table-tr-bg-color: var(--panel);
+  --el-table-header-bg-color: color-mix(in srgb, var(--ink) 5%, var(--panel));
+  --el-table-header-text-color: var(--ink-2);
+  --el-table-text-color: var(--ink);
+  --el-table-border-color: var(--line);
+  --el-table-row-hover-bg-color: var(--el-fill-color-light);
+}
+
+/* 标签页 / 分页 / 进度条等次要控件跟随主色（--el-color-primary 已桥接，此处仅修细节） */
+.el-tabs__item.is-active,
+.el-tabs__item:hover {
+  color: var(--accent);
+}
+.el-tabs__active-bar {
+  background-color: var(--accent);
+}
+.el-pager li.is-active {
+  color: var(--accent);
+}
+.el-pager li:hover {
+  color: var(--accent);
+}
+
+/* 无障碍：尊重系统的"减少动效"偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .el-message,
+  .el-dialog,
+  .el-drawer,
+  .el-notification {
+    animation: none !important;
+    transition: none !important;
+  }
+}

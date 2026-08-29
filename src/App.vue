@@ -34,6 +34,8 @@ import { trainFsrsModel } from './agent/analytics.js';
 
 const theme = useThemeStore();
 const showSettings = ref(false);
+// 设置面板标签页（外观 / 提醒与监控 / 学习引擎 / 导航 / 存储）
+const settingsTab = ref('appearance');
 
 // ---------- P3-2 PWA 离线优化：响应式状态 ----------
 const online = ref(isOnline());           // 浏览器在线状态
@@ -63,9 +65,10 @@ function fmtBytes(n) {
 
 const navItems = [
   { path: '/', label: '总览', icon: '📊' },
+  { path: '/workspace', label: '工作台', icon: '🧩' },
   { path: '/cards', label: '卡片', icon: '🗂️' },
   { path: '/review', label: '背诵', icon: '📖' },
-  { path: '/stats', label: '数据', icon: '📊' },
+  { path: '/stats', label: '数据', icon: '📉' },
   { path: '/export', label: '导出', icon: '🖨️' },
   { path: '/sync', label: '同步', icon: '🔄' },
   { path: '/ai', label: 'AI', icon: '🤖' },
@@ -99,7 +102,9 @@ const navItems = [
   { path: '/privacy', label: '隐私', icon: '🧾' },
   // P3-4 插件 / MCP 接入：本地扩展机制（工具调用 + 事件钩子）
   { path: '/plugins', label: '插件', icon: '🔌' },
-  { path: '/insight', label: '卡片洞察', icon: '🔍' },
+  { path: '/insight', label: '卡片洞察', icon: '💡' },
+  // UI 组件库：Element Plus × 主题桥接活样本（风格 / 配色随主题联动）
+  { path: '/uikit', label: '组件库', icon: '🧰' },
 ];
 
 // 功能精简：用户自定义核心导航项（始终显示）；未勾选的折叠到 NavBar 的「更多 ▼」
@@ -397,108 +402,120 @@ async function enableReminder() {
     <Intro v-if="showIntro" @done="onIntroEnd" />
     <Guide v-if="showGuide" @done="onGuideEnd" />
 
-    <!-- 设置面板：风格 + 配色模式 -->
+    <!-- 设置面板：标签页组织（外观 / 提醒与监控 / 学习引擎 / 导航 / 存储） -->
     <teleport to="body">
       <div v-if="showSettings" class="modal-mask" @click.self="showSettings = false">
         <div class="modal settings-modal">
-          <h3 style="margin-top:0">界面风格与配色</h3>
-          <div class="field-label">配色模式（全局通用，适用于每一种风格）</div>
-          <div class="mode-row">
-            <button v-for="m in MODES" :key="m.id" class="chip" :class="{ on: theme.mode === m.id }" @click="theme.setMode(m.id)">{{ m.name }}</button>
-          </div>
+          <h3 style="margin-top:0">设置中心</h3>
+          <el-tabs v-model="settingsTab">
+            <el-tab-pane label="🎨 外观" name="appearance">
+              <div class="field-label">配色模式（全局通用，适用于每一种风格）</div>
+              <div class="mode-row">
+                <button v-for="m in MODES" :key="m.id" class="chip" :class="{ on: theme.mode === m.id }" @click="theme.setMode(m.id)">{{ m.name }}</button>
+              </div>
+              <div class="field-label" style="margin-top:12px">界面风格（布局 / 交互 / 质感差异）</div>
+              <div class="style-grid">
+                <div v-for="s in STYLES" :key="s.id" class="style-card" :class="{ on: theme.style === s.id }" @click="theme.setStyle(s.id)">
+                  <div class="style-icon">{{ s.icon }}</div>
+                  <div class="style-name">{{ s.name }}</div>
+                  <div class="style-desc">{{ s.desc }}</div>
+                </div>
+                <div class="style-card" :class="{ on: theme.style === 'custom' }" @click="theme.setStyle('custom')">
+                  <div class="style-icon">🎨</div>
+                  <div class="style-name">自定义</div>
+                  <div class="style-desc">选个专属色，生成我的主题</div>
+                </div>
+              </div>
+              <div v-if="theme.style === 'custom'" class="field-label" style="margin-top:12px">
+                专属色相（{{ theme.customHue }}°）· 三个配色模式都可用
+              </div>
+              <div v-if="theme.style === 'custom'" style="display:flex;align-items:center;gap:14px">
+                <el-slider :model-value="theme.customHue" :min="0" :max="360" style="flex:1" @input="theme.setCustomHue($event)" />
+                <span class="hue-dot" :style="{ background: `hsl(${theme.customHue} 72% 45%)` }"></span>
+              </div>
+            </el-tab-pane>
 
-          <div class="field-label">界面风格（布局 / 交互 / 质感差异）</div>
-          <div class="style-grid">
-            <div v-for="s in STYLES" :key="s.id" class="style-card" :class="{ on: theme.style === s.id }" @click="theme.setStyle(s.id)">
-              <div class="style-icon">{{ s.icon }}</div>
-              <div class="style-name">{{ s.name }}</div>
-              <div class="style-desc">{{ s.desc }}</div>
-            </div>
-            <div class="style-card" :class="{ on: theme.style === 'custom' }" @click="theme.setStyle('custom')">
-              <div class="style-icon">🎨</div>
-              <div class="style-name">自定义</div>
-              <div class="style-desc">选个专属色，生成我的主题</div>
-            </div>
-          </div>
+            <el-tab-pane label="⏰ 提醒与监控" name="remind">
+              <div class="field-label">复习提醒（应用打开时生效，当日只提醒一次）</div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <el-input v-model="remindTime" style="width:130px" placeholder="如 21:30" clearable />
+                <el-button type="primary" size="small" @click="enableReminder">开启提醒</el-button>
+                <span class="hint">提醒时未达标会通知你差几张</span>
+              </div>
+              <div class="field-label" style="margin-top:16px">🛰️ 操作监控（恐怖级埋点）</div>
+              <div class="hint" style="margin-bottom:8px">
+                A 级 = 业务大事件（背诵评分、导出、同步、AI 调用、番茄、模考等）；B 级 = DOM 级点击/选择（按钮、chip、卡片、选择框）。<br/>
+                数据仅存本地 IndexedDB，可跨设备同步；一键导出 / 一键清空都在「导出打印」页面的危险区。
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px;padding:4px 2px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                  <span>启用 A 级业务埋点</span>
+                  <el-switch :model-value="telA" @change="onToggleTelA" />
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+                  <span>启用 B 级 DOM 交互埋点</span>
+                  <el-switch :model-value="telB" @change="onToggleTelB" />
+                </div>
+              </div>
+            </el-tab-pane>
 
-          <div v-if="theme.style === 'custom'" class="field-label" style="margin-top:12px">
-            专属色相（{{ theme.customHue }}°）· 三个配色模式都可用
-          </div>
-          <div v-if="theme.style === 'custom'" style="display:flex;align-items:center;gap:10px">
-            <input type="range" min="0" max="360" :value="theme.customHue" class="hue-slider"
-              @input="theme.setCustomHue($event.target.value)" />
-            <span class="hue-dot" :style="{ background: `hsl(${theme.customHue} 72% 45%)` }"></span>
-          </div>
+            <el-tab-pane label="🧠 学习引擎" name="engine">
+              <div class="field-label">复习调度器（记忆曲线算法）</div>
+              <div class="hint" style="margin-bottom:8px">
+                SM-2（默认）= 含短期巩固与错因惩罚的变体；FSRS = 基于机器学习的遗忘曲线，实测可省 20~30% 复习时间达到同等保持率。<br/>
+                切到 FSRS 后建议点「训练权重」用你的真实评分历史拟合 19 个参数（样本 ≥8 次可用，越多越准）。
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
+                <span>启用 FSRS 调度（opt-in，默认 SM-2）</span>
+                <el-switch :model-value="scheduler === 'fsrs'" @change="onToggleScheduler" />
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <el-button size="small" :loading="fsrsTraining" @click="trainFsrs">
+                  {{ fsrsTraining ? '训练中…' : '训练权重' }}
+                </el-button>
+                <span v-if="fsrsInfo" class="hint">
+                  上次：{{ fsrsInfo.samples }} 样本{{ fsrsInfo.loss != null ? ' · 损失 ' + (+fsrsInfo.loss).toFixed(3) : '' }}
+                </span>
+              </div>
+            </el-tab-pane>
 
-          <div class="field-label">复习提醒（应用打开时生效，当日只提醒一次）</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <input v-model="remindTime" class="input" style="width:110px" placeholder="如 21:30" />
-            <button class="btn small primary" @click="enableReminder">开启提醒</button>
-            <span class="hint">提醒时未达标会通知你差几张</span>
-          </div>
+            <el-tab-pane label="🧭 导航" name="nav">
+              <div class="field-label">功能精简（自定义核心导航）</div>
+              <div class="hint" style="margin-bottom:8px">
+                勾选的项常驻导航栏；未勾选的折叠到「更多 ▼」展开菜单。<br/>
+                首次勾选后即生效并保存到本地；未设置时默认全部显示（向后兼容）。
+              </div>
+              <div class="core-nav-grid">
+                <label v-for="item in navItems" :key="item.path" class="core-nav-item" :class="{ on: isCoreNav(item.path) }">
+                  <input type="checkbox" :checked="isCoreNav(item.path)" @change="toggleCoreNav(item.path, $event.target.checked)" />
+                  <span class="core-nav-icon">{{ item.icon }}</span>
+                  <span>{{ item.label }}</span>
+                </label>
+              </div>
+            </el-tab-pane>
 
-          <div class="field-label" style="margin-top:16px">🛰️ 操作监控（恐怖级埋点）</div>
-          <div class="hint" style="margin-bottom:8px">
-            A 级 = 业务大事件（背诵评分、导出、同步、AI 调用、番茄、模考等）；B 级 = DOM 级点击/选择（按钮、chip、卡片、选择框）。<br/>
-            数据仅存本地 IndexedDB，可跨设备同步；一键导出 / 一键清空都在「导出打印」页面的危险区。
-          </div>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
-            <label style="display:flex;gap:6px;align-items:center;cursor:pointer">
-              <input type="checkbox" :checked="telA" @change="onToggleTelA($event.target.checked)" />
-              <span>启用 A 级业务埋点</span>
-            </label>
-            <label style="display:flex;gap:6px;align-items:center;cursor:pointer">
-              <input type="checkbox" :checked="telB" @change="onToggleTelB($event.target.checked)" />
-              <span>启用 B 级 DOM 交互埋点</span>
-            </label>
-          </div>
-
-          <div class="field-label" style="margin-top:16px">🧠 复习调度器（记忆曲线算法）</div>
-          <div class="hint" style="margin-bottom:8px">
-            SM-2（默认）= 含短期巩固与错因惩罚的变体；FSRS = 基于机器学习的遗忘曲线，实测可省 20~30% 复习时间达到同等保持率。<br/>
-            切到 FSRS 后建议点「训练权重」用你的真实评分历史拟合 19 个参数（样本 ≥8 次可用，越多越准）。
-          </div>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
-            <label style="display:flex;gap:6px;align-items:center;cursor:pointer">
-              <input type="checkbox" :checked="scheduler === 'fsrs'" @change="onToggleScheduler($event.target.checked)" />
-              <span>启用 FSRS 调度（opt-in，默认 SM-2）</span>
-            </label>
-            <button class="btn small" :disabled="fsrsTraining" @click="trainFsrs">
-              {{ fsrsTraining ? '训练中…' : '训练权重' }}
-            </button>
-            <span v-if="fsrsInfo" class="hint">
-              上次：{{ fsrsInfo.samples }} 样本{{ fsrsInfo.loss != null ? ' · 损失 ' + (+fsrsInfo.loss).toFixed(3) : '' }}
-            </span>
-          </div>
-
-          <div class="field-label" style="margin-top:16px">🧭 功能精简（自定义核心导航）</div>
-          <div class="hint" style="margin-bottom:8px">
-            勾选的项常驻导航栏；未勾选的折叠到「更多 ▼」展开菜单。<br/>
-            首次勾选后即生效并保存到本地；未设置时默认全部显示（向后兼容）。
-          </div>
-          <div class="core-nav-grid">
-            <label v-for="item in navItems" :key="item.path" class="core-nav-item" :class="{ on: isCoreNav(item.path) }">
-              <input type="checkbox" :checked="isCoreNav(item.path)" @change="toggleCoreNav(item.path, $event.target.checked)" />
-              <span class="core-nav-icon">{{ item.icon }}</span>
-              <span>{{ item.label }}</span>
-            </label>
-          </div>
+            <el-tab-pane label="💾 存储" name="storage">
+              <div class="field-label">离线与存储</div>
+              <div class="hint" style="margin-bottom:8px">应用已注册为 PWA，可「装到桌面」断网使用。本地数据保存在浏览器 IndexedDB。</div>
+              <div v-if="storageEstimate" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+                <el-progress
+                  :percentage="Math.round(storageEstimate.usagePercent)"
+                  :stroke-width="14"
+                  :status="storageEstimate.usagePercent >= 85 ? 'exception' : undefined"
+                  style="flex:1;min-width:180px"
+                />
+                <span class="storage-text" style="white-space:nowrap">{{ fmtBytes(storageEstimate.usage) }} / {{ fmtBytes(storageEstimate.quota) }} · {{ storageEstimate.usagePercent }}%</span>
+              </div>
+              <div v-else class="hint">当前浏览器不支持存储配额查询。</div>
+              <div class="hint" v-if="swOfflineReady" style="color:var(--accent)">✓ 离线缓存已就绪，断网可正常打开与复习</div>
+            </el-tab-pane>
+          </el-tabs>
 
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;gap:8px">
-            <button class="btn small" @click="replayOnboarding">新手指引</button>
-            <button v-if="installEvt" class="btn small primary" @click="install">装到桌面</button>
-            <button class="btn" @click="showSettings = false">关闭</button>
+            <el-button size="small" @click="replayOnboarding">新手指引</el-button>
+            <el-button v-if="installEvt" size="small" type="primary" @click="install">装到桌面</el-button>
+            <el-button @click="showSettings = false">关闭</el-button>
           </div>
-
-          <!-- P3-2 PWA：离线与存储状态（让用户随时查看本地数据占用，避免超 quota 丢数据） -->
-          <div class="field-label" style="margin-top:16px">💾 离线与存储</div>
-          <div class="hint" style="margin-bottom:6px">应用已注册为 PWA，可「装到桌面」断网使用。本地数据保存在浏览器 IndexedDB。</div>
-          <div v-if="storageEstimate" class="storage-row">
-            <div class="storage-bar"><div class="storage-bar-fill" :style="{ width: storageEstimate.usagePercent + '%' }" :class="{ warn: storageEstimate.usagePercent >= 85 }"></div></div>
-            <span class="storage-text">{{ fmtBytes(storageEstimate.usage) }} / {{ fmtBytes(storageEstimate.quota) }} · {{ storageEstimate.usagePercent }}%</span>
-          </div>
-          <div v-else class="hint">当前浏览器不支持存储配额查询。</div>
-          <div class="hint" v-if="swOfflineReady" style="color:var(--accent)">✓ 离线缓存已就绪，断网可正常打开与复习</div>
         </div>
       </div>
     </teleport>
