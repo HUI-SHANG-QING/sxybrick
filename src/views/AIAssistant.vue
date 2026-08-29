@@ -6,6 +6,7 @@ import { toast } from '../utils/toast.js';
 import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
 import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLATES } from '../utils/genDeck.js';
 import VoiceInput from '../components/VoiceInput.vue';
+import EmptyState from '../components/EmptyState.vue';
 import { speak } from '../utils/tts.js';
 import { T } from '../utils/telemetry.js';
 
@@ -253,7 +254,7 @@ onMounted(async () => {
       <!-- 左栏：历史对话 -->
       <div class="chat-side">
         <div class="side-title">历史对话</div>
-        <div v-if="!chats.length" class="hint" style="padding:8px">暂无历史对话</div>
+        <EmptyState v-if="!chats.length" compact icon="🤖" title="暂无历史对话" message="开始一段新对话，或点「智能组卡」试试" />
         <div v-for="c in chats" :key="c.id" class="chat-item" :class="{ active: c.id === currentChat.id }" @click="selectChat(c.id)">
           <div class="chat-item-title">{{ c.title || '新对话' }}</div>
           <div class="chat-item-meta">{{ c.messages?.length || 0 }} 条
@@ -276,7 +277,7 @@ onMounted(async () => {
       <!-- 右栏：数轴节点 -->
       <div class="timeline">
         <div class="side-title">提问节点</div>
-        <div v-if="!userNodes.length" class="hint" style="padding:8px">暂无提问</div>
+        <EmptyState v-if="!userNodes.length" compact icon="🤖" title="暂无提问" message="对话中向助手提问，会在这里形成时间轴节点" />
         <div v-for="n in userNodes" :key="n.index" class="tl-node" :title="n.text" @click="scrollToUser(n.index)">
           <span class="tl-dot"></span>
           <span class="tl-text">{{ n.text.slice(0, 12) }}</span>
@@ -401,7 +402,7 @@ onMounted(async () => {
             <button class="btn primary" @click="addMem">添加</button>
           </div>
           <div class="mem-list">
-            <div v-if="!memories.length" class="hint" style="text-align:center;padding:20px">暂无记忆，对话中 Agent 会自动提取，也可手动添加。</div>
+            <EmptyState v-if="!memories.length" icon="🤖" title="暂无记忆" message="对话中 Agent 会自动提取，也可手动添加" />
             <div v-for="m in memories" :key="m.id" class="mem-item">
               <span class="mem-cat" :class="'cat-' + m.category">{{ catName(m.category) }}</span>
               <span class="mem-content">{{ m.content }}</span>

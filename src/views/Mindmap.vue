@@ -12,6 +12,7 @@ import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
 import { agentSystem } from '../agent/index.js';
+import EmptyState from '../components/EmptyState.vue';
 import { T } from '../utils/telemetry.js';
 
 const route = useRoute();
@@ -412,7 +413,7 @@ onMounted(async () => {
 
     <div class="mm-body">
       <aside class="mm-list">
-        <div v-if="!maps.length" class="hint" style="padding:10px">还没有导图。点右上角「＋ 新建」开始。</div>
+        <EmptyState v-if="!maps.length" icon="🗺️" title="还没有导图" message="点右上角「＋ 新建」开始" />
         <div v-for="m in maps" :key="m.id" class="mm-item" :class="{ active: current?.id === m.id }">
           <div style="display:flex;align-items:center;gap:6px">
             <span class="mm-title" @click="openMap(m)">{{ m.title }}</span>
@@ -443,7 +444,7 @@ onMounted(async () => {
           </div>
           <p class="hint" style="margin:6px 0 0">提示：点节点选中后可编辑；切换上方风格按钮看不同呈现；修改后记得点「保存」。</p>
         </template>
-        <div v-else class="hint" style="text-align:center;padding:80px">从左侧选择导图，或新建一张。</div>
+        <EmptyState v-else icon="🗺️" title="从左侧选择导图" message="或新建一张开始绘制" />
       </section>
     </div>
 

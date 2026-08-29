@@ -9,6 +9,7 @@
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, onMounted, computed } from 'vue';
 import { toast } from '../utils/toast.js';
+import EmptyState from '../components/EmptyState.vue';
 import {
   listPlugins, installPlugin, togglePlugin, uninstallPlugin,
   invokeTool, listTools, triggerHook, getAgentIntegration,
@@ -238,11 +239,9 @@ onMounted(load);
       </p>
 
       <div v-if="loading" class="hint">加载中...</div>
-      <div v-else-if="!plugins.length" class="empty">
-        <div style="font-size:42px;margin-bottom:8px">🔌</div>
-        <div style="margin-bottom:12px">暂无插件</div>
+      <EmptyState v-else-if="!plugins.length" icon="🔌" title="暂无插件" message="安装插件可扩展卡片生成、知识图谱构建等能力">
         <button class="btn small" @click="openInstall">+ 安装第一个插件</button>
-      </div>
+      </EmptyState>
       <div v-else class="plugin-list">
         <div v-for="p in plugins" :key="p.id" class="plugin-item" :class="{ on: selected === p.id, disabled: !p.enabled }" @click="selectPlugin(p.id)">
           <div class="plugin-main">

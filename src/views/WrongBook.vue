@@ -9,6 +9,7 @@ import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import { smartRemediation } from '../intelligence.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+import EmptyState from '../components/EmptyState.vue';
 
 const expandedId = ref(localStorage.getItem('sxy_wb_expanded') || '');
 // 错题详情：默认全展开（与「背诵 → 已背记录」一致），collapsedIds 存储被用户手动收起的卡 id
@@ -204,7 +205,7 @@ onMounted(async () => { loading.value = true; try { await Promise.all([load(), l
       <button class="chip" @click="collapseAll">全部收起</button>
     </div>
 
-    <div v-if="!filteredItems.length" class="hint" style="text-align:center;padding:60px">该筛选下暂无错题，继续保持！</div>
+    <EmptyState v-if="!filteredItems.length" icon="❌" title="该筛选下暂无错题" message="继续保持，去复习页巩固薄弱点！" />
 
     <div v-for="c in filteredItems" :key="c.id" class="wb-item" :class="{ expanded: !collapsedIds.has(c.id) }">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;cursor:pointer" @click="toggleExpand(c.id)" title="点击展开/收起完整背诵详情（默认全展开，与「已背记录」一致）">

@@ -3,6 +3,7 @@
 // 预览采用 CodeBrick 式排版：导出头 + 按科目分组 + 编号卡片（Q/A 分区、虚线分隔）
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import {
   getSubjects, getTags, listCards, createCard,
@@ -561,9 +562,7 @@ async function doApkgImport() {
           <button class="chip" @click="checkClear">清空</button>
         </div>
       </div>
-      <div v-if="!candidates.length" class="hint" style="text-align:center;padding:24px 0">
-        暂无符合条件的卡片，请调整上方筛选条件。
-      </div>
+      <EmptyState v-if="!candidates.length" icon="🖨️" title="暂无符合条件的卡片" message="请调整上方筛选条件" />
       <div v-else class="pick-list">
         <label v-for="(c, i) in candidates" :key="c.id" class="pick-item"
                :class="{ on: checkedIds.includes(c.id) }">

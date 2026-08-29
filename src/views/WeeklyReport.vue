@@ -7,6 +7,7 @@ import { db } from '../db.js';
 import { listWeeklyReports, getWeeklyReportByWeek, saveWeeklyReport, deleteWeeklyReport } from '../repo.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { toast } from '../utils/toast.js';
+import EmptyState from '../components/EmptyState.vue';
 
 const DAY = 86400000;
 const reports = ref([]);
@@ -143,7 +144,7 @@ onMounted(async () => {
 
     <div class="wr-body">
       <aside class="wr-list">
-        <div v-if="!reports.length" class="hint" style="padding:10px">还没有存档。选好周、点「保存周报」即可归档。</div>
+        <EmptyState v-if="!reports.length" compact icon="📈" title="还没有周报存档" message="选好周、点「保存周报」即可归档" />
         <div v-for="r in reports" :key="r.id" class="wr-item" :class="{ active: existing?.id === r.id }" @click="openReport(r)">
           <div class="wr-title">{{ r.title }}</div>
           <div class="wr-meta">{{ new Date(r.updatedAt).toLocaleDateString() }} <a class="wr-del" @click.stop="removeReport(r)">删</a></div>
@@ -176,7 +177,7 @@ onMounted(async () => {
           <textarea v-model="summary" class="input" rows="8" placeholder="点「AI 生成总结」，或自己写一段本周复盘…"></textarea>
         </div>
 
-        <div v-if="!data?.reviews && data?.newCards === 0" class="hint" style="margin-top:10px">这一周还没有学习记录；前后翻周看看，或开始今天的学习。</div>
+        <EmptyState v-if="!data?.reviews && data?.newCards === 0" compact icon="📅" title="这一周还没有学习记录" message="前后翻周看看，或开始今天的学习" />
       </section>
     </div>
   </div>

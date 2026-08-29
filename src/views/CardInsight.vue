@@ -30,7 +30,7 @@
           <span class="front">{{ (c.front || '').slice(0, 30) }}</span>
           <span v-if="c.examUrgency!=null" class="urg" :style="{ background: urgencyColor(c.examUrgency) }">考 {{ (c.examUrgency*100).toFixed(0) }}</span>
         </div>
-        <div v-if="!filtered.length" class="empty">暂无卡片，先去添加。</div>
+        <EmptyState v-if="!filtered.length" icon="🗂️" title="暂无卡片" message="先去「我的卡片」添加，再回来看洞察" />
       </div>
 
       <div class="detail" v-if="sel">
@@ -43,9 +43,9 @@
           <h3>相关薄弱卡</h3>
           <div v-for="id in related" :key="id" class="chip" @click="jump(id)">{{ cardTitle(id) }}</div>
         </div>
-        <div class="sec" v-if="!prereq.length && !related.length">暂无图谱关联，点「重建知识图谱」生成。</div>
+        <EmptyState v-if="!prereq.length && !related.length" compact icon="🕸️" title="暂无图谱关联" message="点「重建知识图谱」自动生成" />
       </div>
-      <div class="detail empty" v-else>从左侧选择一张卡片查看遗忘曲线。</div>
+      <EmptyState v-else icon="🗂️" title="从左侧选择一张卡片" message="查看遗忘曲线与知识图谱关联" />
     </div>
   </div>
 </template>
@@ -54,6 +54,7 @@
 import { ref, computed, watch } from 'vue';
 import { db } from '../db.js';
 import ForgettingCurve from '../components/ForgettingCurve.vue';
+import EmptyState from '../components/EmptyState.vue';
 import { derivePrereqPlan, autoBuildGraph } from '../algorithms/graphAuto.js';
 import { prioritizeForExam } from '../algorithms/scheduling.js';
 import { estimateInitialStability } from '../algorithms/pretest.js';

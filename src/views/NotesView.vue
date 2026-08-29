@@ -180,7 +180,7 @@ const filteredNotes = computed(() => notes.value);
         >{{ t }}</button>
       </div>
       <div class="notes-list-items">
-        <div v-if="!notes.length" class="hint" style="padding:20px;text-align:center">还没有笔记</div>
+        <EmptyState v-if="!notes.length" icon="📝" title="还没有笔记" message="点「＋ 新建笔记」开始记录" />
         <div
           v-for="n in notes"
           :key="n.id"
@@ -214,7 +214,7 @@ const filteredNotes = computed(() => notes.value);
         v-if="!draft"
         icon="📓"
         title="选择一篇笔记"
-        desc="或点 + 新建笔记 开始写"
+        message="或点 + 新建笔记 开始写"
       />
       <div v-else class="notes-edit">
         <div class="notes-edit-head">

@@ -6,6 +6,7 @@ import { useRoute } from 'vue-router';
 import { listDocs, createDoc, updateDoc, deleteDoc, createCard } from '../repo.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 
 const route = useRoute();
@@ -95,7 +96,7 @@ onMounted(applyRouteId);
 
     <div class="docs-body">
       <aside class="docs-list no-print">
-        <div v-if="!docs.length" class="hint" style="padding:12px">还没有文档。可手动创建，或在「Agent 工作台」让 Agent 生成总结/讲义后保存到这里。</div>
+        <EmptyState v-if="!docs.length" icon="📄" title="还没有文档" message="可手动创建，或在「Agent 工作台」让 Agent 生成总结/讲义后保存到这里" />
         <div v-for="d in docs" :key="d.id" class="doc-item" :class="{ active: activeId === d.id }" @click="activeId = d.id">
           <div class="doc-title">{{ d.title }}</div>
           <div class="doc-meta">
@@ -106,7 +107,7 @@ onMounted(applyRouteId);
       </aside>
 
       <section class="docs-detail">
-        <div v-if="!activeId && !showForm" class="hint" style="text-align:center;padding:60px">选择左侧文档查看内容</div>
+        <EmptyState v-if="!activeId && !showForm" icon="📄" title="选择左侧文档" message="查看内容，或点「＋ 新建文档」开始写作" />
         <template v-for="d in docs" :key="'d' + d.id">
           <div v-if="activeId === d.id" class="detail-card">
             <div class="detail-head">

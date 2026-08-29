@@ -9,6 +9,7 @@ import { deleteCard } from '../repo.js';
 import { db } from '../db.js';
 import { toast } from '../utils/toast.js';
 import { T } from '../utils/telemetry.js';
+import EmptyState from '../components/EmptyState.vue';
 
 const router = useRouter();
 const health = ref(null);
@@ -162,7 +163,7 @@ onMounted(load);
           <span class="hint" style="min-width:200px;text-align:right">净值 {{ s.value }} · 已复习 {{ s.reviewed }}{{ s.due ? ` · 待背 ${s.due}` : '' }}{{ s.marked ? ` · 错题 ${s.marked}` : '' }}</span>
         </div>
       </div>
-      <div v-else class="hint" style="margin-top:8px">暂无卡片来源数据。</div>
+      <EmptyState v-else compact icon="🧾" title="暂无卡片来源数据" message="卡片标注来源后，这里会展示资产净值分布" />
     </div>
 
     <!-- 重复卡 -->

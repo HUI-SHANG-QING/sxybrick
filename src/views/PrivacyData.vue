@@ -9,6 +9,7 @@ import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, reactive, defineComponent, h } from 'vue';
 import { useRouter } from 'vue-router';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+import EmptyState from '../components/EmptyState.vue';
 import {
   savePrivacyRecord, listPrivacyRecords, getPrivacyRecord, deletePrivacyRecord,
   privacyPersonaReport, recordUserOp,
@@ -827,9 +828,7 @@ function ScoreRow({ label, model, modelKey, max = 5, low, high }) {}
       </div>
 
       <div v-if="listBusy" class="hint" style="padding:20px;text-align:center">载入中…</div>
-      <div v-else-if="!listGrouped.length" class="hint" style="padding:30px;text-align:center">
-        暂无记录。试试切换到「📝 记录」填第一段，或者放开日期筛选。
-      </div>
+      <EmptyState v-else-if="!listGrouped.length" icon="🧾" title="暂无记录" message="试试切换到「📝 记录」填第一段，或者放开日期筛选" />
       <div v-else class="days-list">
         <div v-for="g in listGrouped" :key="g.date" class="day-group">
           <div class="day-head">

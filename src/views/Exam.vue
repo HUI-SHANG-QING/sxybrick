@@ -12,6 +12,7 @@ import { wrongQuestionsToCards } from '../utils/wrongToCards.js';
 // P2-4 模考分析与预测：成绩趋势 + 薄弱科目 + 通过率预估
 import { getExamTrend, getWeakSubjects, predictPassRate } from '../agent/examAnalytics.js';
 import { mdToSpeech } from '../utils/tts.js';
+import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { T } from '../utils/telemetry.js';
 
@@ -263,7 +264,7 @@ onMounted(async () => {
     <!-- 历史 -->
     <div class="panel" style="margin-top:16px">
       <div class="field-label" style="margin-top:0">历史成绩（{{ history.length }} 场）</div>
-      <div v-if="!history.length" class="hint">还没有模考记录。</div>
+      <EmptyState v-if="!history.length" icon="🧪" title="还没有模考记录" message="去「我的卡片」组一套卷子，检验学习成果" />
 
       <!-- 纵向对比走势图 -->
       <div v-if="trendPoints.length" style="margin-bottom:14px">
@@ -306,7 +307,7 @@ onMounted(async () => {
             <div class="weak-stat">{{ w.wrong }}/{{ w.total }} · {{ w.wrongRate }}%</div>
           </div>
         </div>
-        <div v-else class="hint">暂无错题数据。</div>
+        <EmptyState v-else compact icon="🧪" title="暂无错题数据" message="模考成绩 ≥2 场后这里会分析薄弱科目" />
       </div>
 
       <div v-for="ex in history" :key="ex.id" class="exam-row">

@@ -9,6 +9,7 @@ import { generateAutoPlan } from '../agent/analytics.js';
 import { linkPlanToPomodoro, linkCardsToPlan, refreshPlanProgress, refreshAllPlanProgress } from '../intelligence.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
+import EmptyState from '../components/EmptyState.vue';
 
 const route = useRoute();
 const plans = ref([]);
@@ -175,7 +176,7 @@ onMounted(async () => { loading.value = true; try { await applyRouteId(); } fina
 
     <div class="plans-body">
       <aside class="plans-list no-print">
-        <div v-if="!plans.length" class="hint" style="padding:12px">还没有计划。可在此手动创建，或在「Agent 工作台」让「复习计划编排师」帮你生成并保存。</div>
+        <EmptyState v-if="!plans.length" icon="🎯" title="还没有计划" message="可在此手动创建，或在「Agent 工作台」让「复习计划编排师」帮你生成并保存" />
         <div v-for="p in plans" :key="p.id" class="plan-item" :class="{ active: activeId === p.id }" @click="activeId = p.id">
           <div class="plan-title">{{ p.title }}</div>
           <div class="plan-meta">
@@ -186,7 +187,7 @@ onMounted(async () => { loading.value = true; try { await applyRouteId(); } fina
       </aside>
 
       <section class="plans-detail">
-        <div v-if="!activeId && !showForm" class="hint" style="text-align:center;padding:60px">选择左侧计划查看详情</div>
+        <EmptyState v-if="!activeId && !showForm" icon="🎯" title="选择左侧计划" message="查看详情，或点「＋ 新建计划」开始制定" />
         <template v-for="p in plans" :key="'d' + p.id">
           <div v-if="activeId === p.id" class="detail-card">
             <div class="detail-head">

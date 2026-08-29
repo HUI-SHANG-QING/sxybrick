@@ -12,6 +12,7 @@ import {
   ocrDoc, getOcrSettings, saveOcrSettings, linkDocToCards,
 } from '../docs-lib.js';
 import { OCR_LANG_OPTIONS } from '../utils/ocr.js';
+import EmptyState from '../components/EmptyState.vue';
 import { textToCardDrafts } from '../utils/card-drafts.js';
 import { askDoc } from '../utils/docs-qa.js';
 import ExportButton from '../components/ExportButton.vue';
@@ -412,7 +413,7 @@ onMounted(async () => {
     <!-- 文件列表 -->
     <div class="mat-section">
       <div class="mat-title">资料库 <span class="hint">（{{ files.length }} 份）</span></div>
-      <div v-if="!files.length" class="hint" style="padding:18px 0;text-align:center">还没有资料。上传第一份真题或讲义，它会成为你复习系统的知识源头。</div>
+      <EmptyState v-if="!files.length" icon="📚" title="还没有资料" message="上传第一份真题或讲义，它会成为你复习系统的知识源头" />
       <div v-for="f in files" :key="f.id" class="mat-row">
         <div class="mat-ico">{{ iconOf(f.ext) }}</div>
         <div class="mat-info">

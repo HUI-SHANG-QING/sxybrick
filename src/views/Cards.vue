@@ -888,7 +888,7 @@ async function rescueAll() {
             </div>
             <div class="front-preview">{{ plain(historyData.card.front).slice(0, 80) || '（空）' }}</div>
           </div>
-          <div v-if="historyData && !historyData.history.length" class="hint" style="text-align:center;padding:20px">还没有复习记录</div>
+          <EmptyState v-if="historyData && !historyData.history.length" compact icon="🗂️" title="还没有复习记录" message="去「背诵」页复习后，这里会显示历史时间线" />
           <div v-else>
             <div v-for="(h, i) in historyData.history" :key="i" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line)">
               <span class="hint">{{ fmtTime(h.reviewedAt) }}</span>

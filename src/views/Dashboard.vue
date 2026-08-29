@@ -7,6 +7,7 @@ import { getStats, weakCards, listPlans, listMindmaps, listGraphEdges, countPomo
 import { db } from '../db.js';
 import { hasAIKey, getAIConfig, chatAI } from '../ai.js';
 import { toast } from '../utils/toast.js';
+import EmptyState from '../components/EmptyState.vue';
 
 const router = useRouter();
 const stats = ref(null);
@@ -195,7 +196,7 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
             <div class="ds-bar-track"><div class="ds-bar-fill" :style="{ width: m.mastery + '%' }"></div></div>
           </div>
         </div>
-        <div v-else class="hint" style="padding:20px;text-align:center">还没有复习数据</div>
+        <EmptyState v-else compact icon="📊" title="还没有复习数据" message="开始复习后这里会显示各科掌握度" />
       </div>
       <!-- 薄弱点 + 今日计划 -->
       <div class="ds-card">
@@ -206,7 +207,7 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
             <span class="ds-weak-fail">错 {{ w.failCount }} 次</span>
           </div>
         </div>
-        <div v-else class="hint" style="padding:12px;text-align:center">暂无薄弱点，继续保持</div>
+        <EmptyState v-else compact icon="📊" title="暂无薄弱点" message="保持节奏，薄弱点会自动出现在这里" />
         <h3 class="ds-sec">进行中计划</h3>
         <div v-if="plans.length">
           <div v-for="p in plans" :key="p.id" class="ds-weak" :title="`打开该计划`" @click.stop="goPlan(p)">
@@ -214,7 +215,7 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
             <span class="ds-weak-fail">{{ p.status }}</span>
           </div>
         </div>
-        <div v-else class="hint" style="padding:12px;text-align:center">无进行中计划</div>
+        <EmptyState v-else compact icon="📊" title="无进行中计划" message="去「计划」页制定今日学习目标" />
       </div>
     </div>
   </div>

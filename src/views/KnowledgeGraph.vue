@@ -12,6 +12,7 @@ import { listGraphEdges, createGraphEdge, deleteGraphEdge } from '../repo.js';
 import { agentSystem } from '../agent/index.js';
 import { recommendGraphEdges } from '../intelligence.js';
 import { T } from '../utils/telemetry.js';
+import EmptyState from '../components/EmptyState.vue';
 import ExportButton from '../components/ExportButton.vue';
 import {
   exportGraphToJSON, exportGraphToGraphML, exportGraphToMarkdown,
@@ -447,7 +448,7 @@ onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value
       </button>
     </div>
 
-    <div v-if="!nodes.length && !loading" class="hint" style="text-align:center;padding:60px">点右上角「AI 生成图谱」或「🤖 Agent 智能构建」，自动分析你的卡片。</div>
+    <EmptyState v-if="!nodes.length && !loading" icon="🕸️" title="还没有知识图谱" message="点右上角「AI 生成图谱」或「🤖 Agent 智能构建」，自动分析你的卡片" />
 
     <div v-if="nodes.length" class="graph-box">
       <div ref="chartEl" style="width:100%;height:58vh;min-height:400px"></div>

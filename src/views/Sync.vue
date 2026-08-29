@@ -9,6 +9,7 @@ import { getErrors, clearErrors } from '../utils/errorLog.js';
 import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from '../utils/gistBackup.js';
 import { T } from '../utils/telemetry.js';
 import { buildAuthHeaders } from '../utils/hub-auth.js';
+import EmptyState from '../components/EmptyState.vue';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 // GH Pages 上 location.origin 是 https://xxx.github.io 且没有 /backup 接口，不能作为 Hub 默认地址。
@@ -421,7 +422,7 @@ onMounted(async () => {
         <button class="btn small" :disabled="snapshotBusy" @click="doManualSnapshot">立即创建快照</button>
       </div>
       <p class="hint" style="margin-top:0">每次导入数据包前会自动创建快照（最多保留 12 份，超出自动删最旧）。回滚会把当前所有非图片数据覆盖为快照内容，回滚前会再自动保存一次「回滚前快照」。</p>
-      <div v-if="!snapshots.length" class="hint">暂无快照。导入数据包或点击「立即创建快照」即可生成。</div>
+      <EmptyState v-if="!snapshots.length" compact icon="🗑️" title="暂无快照" message="导入数据包或点击「立即创建快照」即可生成" />
       <div v-else class="snapshot-list">
         <div v-for="s in snapshots" :key="s.id" class="snapshot-item">
           <div class="snapshot-main">
@@ -566,7 +567,7 @@ onMounted(async () => {
         <button class="btn small" style="color:var(--red)" @click="clearErrs" v-if="errors.length">清空</button>
       </div>
       <p class="hint" style="margin:4px 0 8px">记录应用运行时的异常（看不见的崩溃），便于反馈排查。最多保留 200 条。</p>
-      <div v-if="!errors.length" class="hint" style="padding:12px;text-align:center">暂无错误记录</div>
+      <EmptyState v-if="!errors.length" compact icon="🐞" title="暂无错误记录" message="应用运行时的异常会记录在这里，便于反馈排查" />
       <div v-for="e in errors" :key="e.id" class="err-row">
         <div class="err-head">
           <span class="err-sev" :class="e.severity">{{ e.severity }}</span>

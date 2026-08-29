@@ -3,6 +3,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
 import 'echarts-wordcloud';
+import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { getStats } from '../repo.js';
 import { getLearningProfile, getSubjectDiagnosis, getCalibration, getDueForecast } from '../agent/analytics.js';
@@ -416,9 +417,7 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
         </div>
       </div>
       <div v-if="calibration && calibration.n" ref="calibEl" style="height:280px"></div>
-      <div v-else class="hint" style="text-align:center;padding:24px 0">
-        {{ calibration?.note || '暂无校准数据' }}
-      </div>
+      <EmptyState v-else compact icon="📊" title="暂无校准数据" :message="calibration?.note || '还没有可用的校准回测样本'" />
       <div v-if="calibration && calibration.n" class="hint" style="margin-top:6px">
         {{ calibration.verdict }} —— {{ calibration.note }}
       </div>
@@ -433,14 +432,14 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
         </div>
       </div>
       <div v-if="forecast && forecast.totalDue" ref="forecastEl" style="height:260px"></div>
-      <div v-else class="hint" style="text-align:center;padding:24px 0">暂无到期卡片</div>
+      <EmptyState v-else compact icon="📊" title="暂无到期卡片" message="未来 30 天没有到期卡片，保持节奏！" />
     </div>
 
     <div class="grid2">
       <div class="panel">
         <div class="hint" style="margin-bottom:8px">各科掌握度雷达图（近 90 天自评）</div>
         <div ref="radarEl" style="height:300px"></div>
-        <div v-if="stats && !stats.mastery.length" class="hint" style="text-align:center">暂无复习记录</div>
+        <EmptyState v-if="stats && !stats.mastery.length" compact icon="📊" title="暂无复习记录" message="开始复习后这里会显示各科掌握度雷达" />
       </div>
       <div class="panel">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
@@ -511,7 +510,7 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
     <!-- D1 单科诊断：每科体检 + 处方 -->
     <div class="panel">
       <div class="hint" style="margin-bottom:10px;font-weight:600">单科诊断（掌握度 · 待背 · 错题 · 易混 → 处置建议）</div>
-      <div v-if="!diagnosis.length" class="hint">暂无卡片数据。</div>
+      <EmptyState v-if="!diagnosis.length" compact icon="📊" title="暂无卡片数据" message="导入或新建卡片后，这里会生成单科诊断" />
       <div v-for="d in diagnosis" :key="d.subject" class="diag-row">
         <span class="diag-subj">{{ d.subject }}</span>
         <span class="hint">卡片 {{ d.cards }} · 待背 {{ d.due }} · 错题 {{ d.marked }} · 易混 {{ d.pairN }} 组 · 掌握度 {{ d.mastery }}%</span>
