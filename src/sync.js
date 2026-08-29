@@ -12,7 +12,7 @@ import { triggerHook } from './plugins/registry.js';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES, EXCLUDED_FROM_SYNC,
   CARD_CONTENT_FIELDS, CARD_SRS_FIELDS,
-  mergeRows, mergeTombstones, applyTombstones, kindOf,
+  mergeRows, mergeTombstones, applyTombstones, kindOf, livenessTs,
 } from './sync-manifest.js';
 import { dedupeIncomingCards } from './sync-dedup.js';
 import { buildAuthHeaders } from './utils/hub-auth.js';
@@ -82,6 +82,23 @@ export async function buildBackup(subject) {
 // P3-3 增量同步：只导出 updatedAt > lastSyncAt 的行（卡片按 max(updatedAt, reviewedAt, wrongReasonAt) 判定）
 //   用途：hub 同步场景下，减少每次同步的包体积（从「全量 N 万行」降到「本次变更的几十行」）
 //   注意：墓碑始终全量带（删除传播不可遗漏），图片仍按被引用打包
+// 增量判定的时间字段集合（2026-08-29 修复）：
+//   各表时间语义不同——cards 用 updatedAt/reviewedAt、reviews 只有 reviewedAt、
+//   pomoSessions 用 createdAt/startedAt、achievements 用 unlockedAt、userOps 用 t、
+//   embeddings 用 updatedAt。此前按固定顺序取「第一个存在的值」，reviews 与 embeddings
+//   的字段都不在链上 → 判定值恒为 0 → `0 > since` 恒假 → 这两张表永不上传。
+//   改为取全部已知时间字段的最大值：任一表只要带其中一个字段即可正确判定，
+//   且未来新增表无需再改这里。
+const TS_FIELDS = ['updatedAt', 'reviewedAt', 'wrongReasonAt', 'createdAt', 'startedAt', 'unlockedAt', 't'];
+function rowTs(r) {
+  let m = 0;
+  for (const k of TS_FIELDS) {
+    const v = Number(r?.[k]);
+    if (Number.isFinite(v) && v > m) m = v;
+  }
+  return m;
+}
+
 //   返回结构与 buildBackup 一致，但多一个 incremental: true + since 字段，hub 端可据此识别
 export async function buildIncrementalBackup(lastSyncAt = 0) {
   const since = Number(lastSyncAt) || 0;
@@ -97,15 +114,10 @@ export async function buildIncrementalBackup(lastSyncAt = 0) {
   for (const t of getEffectiveSyncTables()) {
     if (t.table === 'cards') { parts.cards = cards; continue; }
     if (t.table === 'images') continue; // 图片单独打包
-    if (t.merge === 'idOnly') {
-      // 不可变记录（复习/番茄/成就/嵌入/userOps）：idOnly 策略下用 createdAt 判定增量
-      const rows = await db[t.table].toArray();
-      parts[t.table] = rows.filter(r => (r.createdAt ?? r.startedAt ?? r.unlockedAt ?? r.t ?? 0) > since);
-    } else {
-      // updatedAt 策略：直接按 updatedAt 过滤
-      const rows = await db[t.table].toArray();
-      parts[t.table] = rows.filter(r => (r.updatedAt ?? r.createdAt ?? 0) > since);
-    }
+    // idOnly（不可变记录：番茄/成就/嵌入/userOps）与 updatedAt 策略统一用 rowTs 判定，
+    // 覆盖各表不同的时间字段名（见 TS_FIELDS 注释）
+    const rows = await db[t.table].toArray();
+    parts[t.table] = rows.filter(r => rowTs(r) > since);
   }
   // 增量包仍带全量墓碑（删除传播不可遗漏）
   const tombstones = await db.tombstones.toArray();
@@ -430,7 +442,9 @@ export async function importBackup(backup) {
     const toClear = [];
     for (const c of cardsNow) {
       const tb = cardTomb.get(c.id);
-      if (tb && (c.updatedAt ?? 0) > (tb.deletedAt ?? 0)) toClear.push(c.id);
+      // 与 applyTombstones 同口径：必须看全部活跃时间戳，
+      // 只看 updatedAt 会漏掉「复习（reviewedAt）后于删除」的复活场景
+      if (tb && livenessTs(c) > (tb.deletedAt ?? 0)) toClear.push(c.id);
     }
     if (toClear.length) await db.tombstones.bulkDelete(toClear);
   }

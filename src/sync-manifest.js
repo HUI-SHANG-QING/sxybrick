@@ -140,9 +140,33 @@ export function mergeTombstones(base, incoming) {
   return [...m.values()];
 }
 
+// 「活跃时间戳」字段集合：行在这些字段上的任意一次更新，都说明该行在删除之后仍被改动过。
+// 判定墓碑是否 stale 时必须全部纳入 —— 只看 updatedAt 会漏掉复习、错因、自我解释等路径。
+//
+// 历史缺陷（P0）：原实现仅用 `updatedAt ?? createdAt`，而卡片合并侧（mergeCardPair）
+// 的 SRS 字段是按 reviewedAt 取的。于是出现这样的竞态：
+//   A 机删卡（deletedAt=100，卡片 updatedAt 仍为 50）
+//   B 机此前复习过（reviewedAt=200，updatedAt 仍为 50）
+//   → 复活判定 50 <= 100 → 判定「已删除」→ B 机的卡片连同复习进度一起被抹掉。
+const LIVENESS_FIELDS = ['updatedAt', 'reviewedAt', 'wrongReasonAt', 'selfExplainAt', 'createdAt'];
+
+/**
+ * 行的最新活跃时间戳（取所有已知时间字段的最大值）。
+ * 非法值（NaN / 非数字 / 负数）一律忽略，避免污染比较结果。
+ */
+export function livenessTs(row) {
+  if (!row) return 0;
+  let max = 0;
+  for (const f of LIVENESS_FIELDS) {
+    const v = row[f];
+    if (typeof v === 'number' && Number.isFinite(v) && v > max) max = v;
+  }
+  return max;
+}
+
 // 对某一种类的行应用墓碑：
-//   行时间 <= 墓碑时间 → 删除，返回 removed；
-//   行时间 >  墓碑时间 → 该行已「复活」，标记墓碑为 stale（应清除）
+//   行的最新活跃时间 <= 墓碑时间 → 删除，返回 removed；
+//   行的最新活跃时间 >  墓碑时间 → 该行已「复活」，标记墓碑为 stale（应清除）
 export function applyTombstones(rows, tombstones, kind) {
   const map = new Map((rows || []).map(r => [r.id, r]));
   const removed = [];
@@ -151,7 +175,7 @@ export function applyTombstones(rows, tombstones, kind) {
     if (kindOf(t) !== kind) continue;
     const r = map.get(t.id);
     if (!r) continue;
-    const rTs = r.updatedAt ?? r.createdAt ?? 0;
+    const rTs = livenessTs(r);
     if (rTs <= (t.deletedAt ?? 0)) { map.delete(t.id); removed.push(t.id); }
     else stale.push(t.id);
   }

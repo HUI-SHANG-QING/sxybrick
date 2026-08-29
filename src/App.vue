@@ -32,6 +32,7 @@ import { db } from './db.js';
 import { refreshSchedConfig } from './repo.js';
 import { trainFsrsModel } from './agent/analytics.js';
 import { serializeUserWeights } from './fsrs.js';
+import { parseHm, hasReached } from './utils/time.js';
 
 const theme = useThemeStore();
 const showSettings = ref(false);
@@ -319,15 +320,15 @@ async function checkReminder() {
     const [goal, done, due, lastTs, bySubj] = await Promise.all([
       getGoal(), getTodayCount(), getDueCount(), getLastReviewTs(), getDueBySubject(5),
     ]);
-    const d = new Date();
-    const now = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
     const t = (localStorage.getItem('sxy_remind_time') || '').trim();
     const idleMs = Date.now() - lastTs;
     const idleEnough = lastTs === 0 || idleMs > IDLE_HOURS * 3600 * 1000;
     const pileEnough = due >= PILE_THRESHOLD;
 
     // 条件 1：到点提醒（需用户配置时间且未达标）
-    if (!alreadyFired('time') && t && /^\d{1,2}:\d{2}$/.test(t) && now >= t && done < goal) {
+    // 时刻比较必须走分钟级数值比较：原实现用字符串比较且小时未补零，
+    // 导致 "9:05" >= "21:30" 恒真 —— 21:30 的提醒早上 9 点就触发并占掉当日名额。
+    if (!alreadyFired('time') && hasReached(t) && done < goal) {
       sendNotify('SxyBrick 复习提醒', `今日 ${done}/${goal} 张，还差 ${goal - done} 张。${pickNudge(goal - done)}`);
       markFired('time');
       return;
@@ -356,6 +357,7 @@ async function checkReminder() {
 async function enableReminder() {
   const t = (remindTime.value || '').trim();
   if (!t) { toast('请先填写提醒时间（如 21:30）', 'error'); return; }
+  if (parseHm(t) == null) { toast('时间格式不正确，请填 24 小时制的 时:分（如 21:30）', 'error'); return; }
   const perm = await ensureNotifyPermission();
   if (perm !== 'granted') { toast('浏览器通知权限被拒绝，请在浏览器设置里允许本网站通知', 'error'); return; }
   localStorage.setItem('sxy_remind_time', t);
