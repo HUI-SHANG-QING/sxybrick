@@ -473,6 +473,71 @@ export async function importBackup(backup) {
   return stats;
 }
 
+// P2-23 导入去重预览：提交前 dry-run 分类（只读，不写库、不建快照、不应用墓碑）。
+// 复用与 importBackup 一致的去重/墓碑口径，返回每个同步表的 新增/覆盖/跳过/重复 计数与样例，
+// 以及墓碑将删除的本地记录数，供 Sync.vue 先预览再确认导入。
+const TABLE_LABEL = {
+  cards: '卡片', reviews: '复习记录', images: '图片', memos: '备忘', plans: '计划',
+  graphEdges: '图谱关系', docs: '文档', pomoSessions: '专注记录', mindmaps: '导图',
+  weeklyReports: '周报', achievements: '成就', exams: '模考', embeddings: '嵌入向量',
+  notes: '笔记', docFiles: '资料文件', dailyPlans: '每日计划', dailyTasks: '每日任务',
+  aiChats: 'AI对话', aiMemories: 'AI记忆', meta: '元数据', userOps: '用户操作', privacyRecords: '隐私记录',
+};
+function previewSample(t, row) {
+  if (t.table === 'cards') return (row.front || '(空卡)').slice(0, 48);
+  if (t.table === 'notes') return (row.title || '').slice(0, 48);
+  if (t.table === 'docs' || t.table === 'docFiles') return (row.name || row.title || '').slice(0, 48);
+  if (['mindmaps', 'weeklyReports', 'plans', 'dailyPlans'].includes(t.table)) return (row.title || '').slice(0, 48);
+  return String(row.id || '').slice(0, 24);
+}
+export async function previewImport(backup) {
+  if (!backup || backup.app !== 'sxybrick') return { valid: false, error: '不是有效的 SxyBrick 数据包', tables: [] };
+  const effTables = getEffectiveSyncTables();
+  const tombstones = backup.tombstones || [];
+  const tables = [];
+  let totalAdded = 0, totalOverwritten = 0, totalSkipped = 0, totalDuplicated = 0, totalDeleted = 0;
+
+  for (const t of effTables) {
+    if (t.table === 'images') {
+      const incoming = (backup.images || []).filter(img => img && img.id && img.data);
+      if (!incoming.length) continue;
+      const existing = await db.images.bulkGet(incoming.map(i => i.id));
+      let added = 0, skipped = 0;
+      incoming.forEach((img, i) => { if (existing[i]) skipped++; else added++; });
+      if (added || skipped) {
+        tables.push({ table: 'images', kind: 'image', label: TABLE_LABEL.images, total: incoming.length, added, overwritten: 0, skipped, duplicated: 0, deleted: 0, samples: [] });
+        totalAdded += added; totalSkipped += skipped;
+      }
+      continue;
+    }
+    let incoming = (backup[t.table] || []).filter(x => x && x.id);
+    if (!incoming.length) continue;
+    const base = await db[t.table].toArray();
+    const baseMap = new Map(base.map(x => [x.id, x]));
+    let duplicated = 0;
+    if (t.table === 'cards') {
+      const d = dedupeIncomingCards(incoming, baseMap, base);
+      duplicated = d.duplicated;
+      incoming = d.kept;
+    }
+    let added = 0, overwritten = 0, skipped = 0;
+    const samples = [];
+    for (const row of incoming) {
+      const old = baseMap.get(row.id);
+      if (!old) { added++; if (samples.length < 5) samples.push({ title: previewSample(t, row), status: 'new' }); }
+      else if (JSON.stringify(old) !== JSON.stringify(row)) { overwritten++; if (samples.length < 5) samples.push({ title: previewSample(t, row), status: 'overwrite' }); }
+      else { skipped++; }
+    }
+    let deleted = 0;
+    if (tombstones.length) { const { removed } = applyTombstones(base, tombstones, t.kind); deleted = removed.length; }
+    if (added || overwritten || skipped || duplicated || deleted) {
+      tables.push({ table: t.table, kind: t.kind, label: TABLE_LABEL[t.table] || t.table, total: incoming.length, added, overwritten, skipped, duplicated, deleted, samples });
+      totalAdded += added; totalOverwritten += overwritten; totalSkipped += skipped; totalDuplicated += duplicated; totalDeleted += deleted;
+    }
+  }
+  return { valid: true, tables, totalAdded, totalOverwritten, totalSkipped, totalDuplicated, totalDeleted };
+}
+
 // P3-3 卡片冲突收集器：比对本地 / incoming / 合并后三者，找出哪些字段被覆盖、谁赢
 //   返回 null 表示无字段级冲突（仅时间戳推进等无内容差异）
 //   winner: 'incoming'=导入方赢 / 'local'=本地赢 / 'mixed'=字段级混合（内容来自一边、SRS 来自另一边）

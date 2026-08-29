@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { db } from '../src/db.js';
 import { createCard, review, reviewQueue, deleteCard, getStats, attachSelfExplanation, restoreFromTrash } from '../src/repo.js';
 import { getCalibration } from '../src/agent/analytics.js';
-import { buildBackup, importBackup } from '../src/sync.js';
+import { buildBackup, importBackup, previewImport } from '../src/sync.js';
 
 const DAY = 86400000;
 
@@ -182,5 +182,52 @@ test('黄金路径5（P2-22）：deleteCard 写入 trash，restoreFromTrash 可�
   await deleteCard(cid);
   await db.trash.delete(cid);
   await db.tombstones.delete(cid);
+});
+
+// ---------- 黄金路径 6（P2-23）：previewImport dry-run 分类且绝不写库 ----------
+test('黄金路径6（P2-23）：previewImport 分类新增/覆盖/跳过且不写库', async () => {
+  const local = await createCard({ front: 'preview 本地卡正面', back: '本地背面', subject: '预览测试' });
+  const lid = local.id;
+  assert.ok(await db.cards.get(lid), '本地卡应存在');
+
+  const backup = await buildBackup();
+  assert.ok(backup.cards.some(x => x.id === lid), '备份应含本地卡');
+
+  // 1) 未改动的备份 → 该卡被判「跳过」，且 dry-run 不写库
+  const pv1 = await previewImport(backup);
+  assert.equal(pv1.valid, true, '合法 sxybrick 备份应 valid');
+  const t1 = pv1.tables.find(t => t.table === 'cards');
+  assert.ok(t1, '预览应含 cards 表');
+  assert.ok(t1.skipped >= 1, '未改动卡应被判跳过');
+  const before = await db.cards.count();
+  await previewImport(backup); // 再跑一次，确认无副作用
+  assert.equal(await db.cards.count(), before, 'previewImport 不写库：卡数不变');
+
+  // 2) 改动备份中该卡正面 → 判「覆盖」，新增为 0
+  const remote = JSON.parse(JSON.stringify(backup));
+  const rc = remote.cards.find(x => x.id === lid);
+  rc.front = '远端改过的正面';
+  rc.updatedAt = (rc.updatedAt || Date.now()) + 60000;
+  const pv2 = await previewImport(remote);
+  const t2 = pv2.tables.find(t => t.table === 'cards');
+  assert.ok(t2.overwritten >= 1, '改动卡应判覆盖');
+  assert.equal(t2.added, 0, '覆盖不应计为新增');
+  assert.equal(await db.cards.count(), before, '覆盖预览仍不写库');
+
+  // 3) 备份里塞一张库里没有的新卡 → 判「新增」，但未真正插入
+  const newId = 'preview-new-' + Date.now();
+  remote.cards.push({ id: newId, front: '全新卡正面', back: 'b', subject: '预览测试', updatedAt: Date.now() });
+  const pv3 = await previewImport(remote);
+  const t3 = pv3.tables.find(t => t.table === 'cards');
+  assert.ok(t3.added >= 1, '库里没有的卡应判新增');
+  assert.equal(await db.cards.get(newId), undefined, '新增预览仍不写库（未真正插入）');
+
+  // 4) 非法备份 → valid:false 且带错误信息
+  const bad = await previewImport({ foo: 1 });
+  assert.equal(bad.valid, false, '非 sxybrick 备份应判定无效');
+  assert.ok(bad.error, '应带错误信息');
+
+  // 清理
+  await deleteCard(lid);
 });
 

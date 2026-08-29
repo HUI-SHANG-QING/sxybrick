@@ -1,9 +1,9 @@
 <script setup>
 // 数据同步：手动导出/导入（数据包文件）+ 局域网一键同步（电脑端中枢）
 import { confirmDialog } from '../utils/confirm.js';
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
-import { downloadBackup, importBackup, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup } from '../sync.js';
+import { downloadBackup, importBackup, previewImport, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup } from '../sync.js';
 import { getSubjects, createCard } from '../repo.js';
 import { getErrors, clearErrors } from '../utils/errorLog.js';
 import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from '../utils/gistBackup.js';
@@ -26,6 +26,10 @@ const testingHub = ref(false);
 const loading = ref(true); // P2-30 初始数据加载态（避免界面假死）
 const hubStatus = ref(null); // { ok, tips, tokenOk, error }
 const importing = ref(false);
+// P2-23 导入去重预览：选文件后先算分类，确认后才真正写入
+const importPreview = ref(null);
+const pendingBackup = ref(null);
+const previewTables = computed(() => (importPreview.value?.tables || []).filter(t => t.added || t.overwritten || t.skipped || t.duplicated || t.deleted));
 const lastBackup = ref(null);
 const lastReport = ref(JSON.parse(localStorage.getItem('sxy_last_sync_report') || 'null'));
 const errors = ref([]);
@@ -193,6 +197,22 @@ async function onFile(e) {
   importing.value = true;
   try {
     const backup = JSON.parse(await f.text());
+    // P2-23：先 dry-run 预览（新增/覆盖/跳过/重复/墓碑删除），确认后再写库
+    const pv = await previewImport(backup);
+    if (!pv.valid) { toast(pv.error || '文件无效', 'error'); return; }
+    pendingBackup.value = backup;
+    importPreview.value = pv;
+  } catch (err) {
+    toast(err.message || '文件解析失败，请检查格式', 'error');
+  } finally { importing.value = false; }
+}
+
+// P2-23 确认导入：真正执行 importBackup（内部已自动建快照，可回滚）
+async function confirmImport() {
+  if (!pendingBackup.value) return;
+  importing.value = true;
+  try {
+    const backup = pendingBackup.value;
     const stats = await importBackup(backup);
     await loadCounts();
     await loadSnapshots(); // P3-3 导入会自动创建快照，刷新列表
@@ -205,9 +225,16 @@ async function onFile(e) {
     const conflictText = lastConflicts.value.length ? `，${lastConflicts.value.length} 张卡片有字段被覆盖` : '';
     const snapText = stats.snapshotId ? '（已自动创建导入前快照，可在下方回滚）' : '';
     toast(`导入完成：${fmtStats(stats)}${metaText}${conflictText}${snapText}`, 'success');
+    importPreview.value = null;
+    pendingBackup.value = null;
   } catch (err) {
     toast(err.message || '导入失败，请检查文件格式', 'error');
   } finally { importing.value = false; }
+}
+
+function cancelImport() {
+  importPreview.value = null;
+  pendingBackup.value = null;
 }
 
 function saveHub() {
@@ -369,6 +396,37 @@ onMounted(async () => {
         <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onFile" />
       </div>
       <div class="hint">合并规则：同 id 的记录按「最后修改时间」谁新听谁；删除会跨设备同步；图片按 id 自动去重；各模块（对话/记忆/计划/图谱/文档/专注）按 id 幂等合并。</div>
+
+      <!-- P2-23 导入去重预览：选文件后先预览，确认才写入 -->
+      <div v-if="importPreview && importPreview.valid" class="preview-box">
+        <div class="panel-title" style="margin-bottom:8px">导入预览（确认后再写入本地库）</div>
+        <p class="hint" style="margin-top:0">
+          将 <b style="color:var(--green)">新增 {{ importPreview.totalAdded }}</b> ·
+          <b style="color:var(--amber)">覆盖 {{ importPreview.totalOverwritten }}</b> ·
+          跳过（已相同）{{ importPreview.totalSkipped }} ·
+          重复跳过 {{ importPreview.totalDuplicated }} ·
+          <b style="color:var(--red)">删除（墓碑）{{ importPreview.totalDeleted }}</b>
+        </p>
+        <div class="preview-list">
+          <div v-for="t in previewTables" :key="t.table" class="preview-item">
+            <div class="preview-label">{{ t.label }}</div>
+            <div class="preview-nums">
+              <span v-if="t.added" class="pn add">+{{ t.added }}</span>
+              <span v-if="t.overwritten" class="pn ov">~{{ t.overwritten }}</span>
+              <span v-if="t.skipped" class="pn skip">={{ t.skipped }}</span>
+              <span v-if="t.duplicated" class="pn dup">⊘{{ t.duplicated }}</span>
+              <span v-if="t.deleted" class="pn del">-{{ t.deleted }}</span>
+            </div>
+            <div class="preview-samples">
+              <span v-for="(s, i) in t.samples" :key="i" class="ps" :class="'ps-' + s.status">{{ s.title }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px;margin-bottom:0">
+          <button class="btn primary" :disabled="importing" @click="confirmImport">确认导入</button>
+          <button class="btn" :disabled="importing" @click="cancelImport">取消</button>
+        </div>
+      </div>
     </div>
 
     <!-- 最近一次同步/导入明细（E1 数字资产对账） -->
@@ -627,4 +685,20 @@ onMounted(async () => {
 .snapshot-kind { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--code-inline); }
 .snapshot-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .btn.danger { border-color: color-mix(in srgb, var(--red) 40%, var(--line)); color: var(--red); }
+/* P2-23 导入去重预览 */
+.preview-box { margin-top: 14px; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.preview-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.preview-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.preview-label { font-size: 13px; font-weight: 600; color: var(--ink); min-width: 84px; }
+.preview-nums { display: flex; gap: 6px; flex-shrink: 0; }
+.pn { font-size: 12px; padding: 2px 7px; border-radius: 6px; font-weight: 600; font-family: monospace; }
+.pn.add { background: color-mix(in srgb, #10b981 16%, transparent); color: #047857; }
+.pn.ov { background: color-mix(in srgb, #f59e0b 16%, transparent); color: #b45309; }
+.pn.skip { background: var(--code-inline); color: var(--ink-2); }
+.pn.dup { background: color-mix(in srgb, var(--ink-2) 12%, transparent); color: var(--ink-2); }
+.pn.del { background: color-mix(in srgb, var(--red) 16%, transparent); color: #b91c1c; }
+.preview-samples { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; min-width: 160px; }
+.ps { font-size: 11px; padding: 2px 7px; border-radius: 5px; background: var(--code-bg); color: var(--ink-2); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-new { border-left: 3px solid #10b981; }
+.ps-overwrite { border-left: 3px solid #f59e0b; }
 </style>
