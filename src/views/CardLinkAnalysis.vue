@@ -19,7 +19,7 @@ const route = useRoute();
 const router = useRouter();
 
 // 写库前脱 reactive：Vue ref/reactive 的 proxy 不能被 IndexedDB 的 structuredClone 克隆，
-// 直接 put 会抛 DataCloneError（#<Object> could not be cloned）。见 tests/vue-clone.test.mjs。
+// 直接 put 会抛 DataCloneError（#<Object> could not be cloned）。见 tests/vue-clone-sankey.test.mjs。
 function dbRow(obj) { return JSON.parse(JSON.stringify(obj ?? {})); }
 
 // ---------- 已选卡片 ----------
@@ -181,11 +181,12 @@ async function pushResult(result, q) {
 
 // ---------- 结果 → 操作 ----------
 async function createGroupFromResult() {
-  // 把 timeline/list 结果按顺序建为卡组（临时复习卡组）
-  const m = messages.value.filter(x => x.role === 'assistant' && (x.resultType === 'timeline' || x.resultType === 'list')).pop();
+  // 把 timeline/list/拓扑序（graph.order）结果按顺序建为卡组（临时复习卡组）
+  const m = messages.value.filter(x => x.role === 'assistant' && (x.resultType === 'timeline' || x.resultType === 'list' || (x.resultType === 'graph' && x.resultData?.order)))
+    .pop();
   if (!m) return toast('当前没有可建组的顺序结果', 'info');
   const d = m.resultData;
-  const ids = (d.steps || d.items || d).map ? (d.steps || d.items || d).map(x => x.id) : [];
+  const ids = (d.steps || d.items || d.order || (Array.isArray(d) ? d : [])).map ? (d.steps || d.items || d.order || []).map(x => x.id ?? x) : [];
   const valid = ids.filter(id => cards.value.some(c => c.id === id));
   if (!valid.length) return toast('结果中没有可用卡片', 'info');
   const g = await createCardGroup({ name: `分析顺序 · ${new Date().toLocaleDateString()}`, status: 'active' });
@@ -231,7 +232,61 @@ function graphOption(d) {
   // ECharts 在节点带 id 时只按 id 匹配边，不归一化 → 边被静默丢弃，图变成一堆散点。
   const { edges: normEdges, dropped } = normalizeGraphEnds(rawNodes, d?.edges || []);
   if (dropped) console.warn(`[CardLinkAnalysis] ${dropped} 条边的端点定位不到节点，已丢弃`);
+  const layout = d?.layout || 'force';
 
+  // 拓扑排序：固定坐标（x=学习顺序，y=科目聚类），有向箭头链
+  if (layout === 'topo') {
+    const nodes = rawNodes.map(n => ({
+      id: n.id, name: n.name, x: n.x, y: n.y,
+      symbolSize: n.symbolSize || 16,
+      itemStyle: { color: groupColor(n.group) },
+      label: { show: true, fontSize: 10 },
+    }));
+    const edges = normEdges.map(e => ({
+      source: e.source, target: e.target, value: e.value,
+      symbol: ['none', 'arrow'],
+      lineStyle: { width: 2, opacity: 0.7, color: '#888', curveness: 0.04 },
+    }));
+    return {
+      tooltip: { formatter: p => p.dataType === 'edge' ? '学习顺序 →' : (p.data?.name || '') },
+      series: [{
+        type: 'graph', layout: 'none', roam: true, draggable: true,
+        data: nodes, links: edges,
+        emphasis: { focus: 'adjacency' },
+      }],
+    };
+  }
+
+  // 关键路径：力导向网络，核心卡（红大节点）高亮，与其相连的边加粗
+  if (layout === 'critical') {
+    const critSet = new Set(d?.criticalIds || []);
+    const nodes = rawNodes.map(n => ({
+      id: n.id, name: n.name, symbolSize: n.critical ? 32 : (n.symbolSize || 16),
+      itemStyle: { color: n.critical ? '#f56c6c' : groupColor(n.group) },
+      label: { show: true, fontSize: 10 },
+    }));
+    const edges = normEdges.map(e => {
+      const isCrit = critSet.has(e.source) && critSet.has(e.target);
+      return {
+        source: e.source, target: e.target, value: e.value,
+        label: e.label ? { show: true, formatter: e.label, fontSize: 9 } : { show: false },
+        lineStyle: { width: 1 + (e.value || 0) * 4, opacity: isCrit ? 0.9 : 0.32, color: isCrit ? '#f56c6c' : 'source', curveness: 0.1 },
+      };
+    });
+    return {
+      tooltip: { formatter: p => p.dataType === 'edge' ? `${p.data.value ?? ''}` : (p.data?.name || '') },
+      legend: { show: false },
+      series: [{
+        type: 'graph', layout: 'force', roam: true, draggable: true,
+        force: { repulsion: 140, edgeLength: 90 },
+        data: nodes, links: edges,
+        lineStyle: { curveness: 0.1 },
+        emphasis: { focus: 'adjacency' },
+      }],
+    };
+  }
+
+  // 默认：关系图谱（力导向）
   const nodes = rawNodes.map(n => ({
     id: n.id, name: n.name, symbolSize: n.symbolSize || 18,
     itemStyle: { color: groupColor(n.group) },
@@ -360,6 +415,7 @@ onBeforeUnmount(() => {
             <template v-else>
               <!-- graph -->
               <div v-if="m.resultType === 'graph'" class="al-graph" :ref="el => registerGraph(el)"></div>
+              <button v-if="m.resultType === 'graph' && m.resultData?.order" class="btn mini-btn" @click="createGroupFromResult">🎴 按此顺序创建复习卡组</button>
               <!-- timeline -->
               <div v-else-if="m.resultType === 'timeline'" class="timeline">
                 <div v-for="s in (m.resultData?.steps || [])" :key="s.step" class="tl-item">

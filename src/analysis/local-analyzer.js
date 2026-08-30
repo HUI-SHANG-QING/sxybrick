@@ -190,19 +190,37 @@ export function runPreset(preset, cards) {
     case 'topo': {
       const order = topoSort(cards, matrix);
       const byId = new Map(cards.map(c => [c.id, c]));
+      // 拓扑序 → 有向图：横轴=学习顺序，纵轴=科目聚类；相邻节点连边成「学习链」
+      const subjects = [...new Set(cards.map(c => c.subject || '其他'))];
+      const subjIdx = new Map(subjects.map((s, i) => [s, i]));
+      const nodes = order.map((id, i) => {
+        const c = byId.get(id);
+        const subj = c?.subject || '其他';
+        return {
+          id, name: (c?.front || '').slice(0, 18) || `卡${i + 1}`,
+          subject: subj, group: subj, order: i,
+          x: i * 90, y: (subjIdx.get(subj) || 0) * 90,
+          symbolSize: 16 + Math.min(20, (c?.ease || 2.5) * 3),
+        };
+      });
+      const edges = [];
+      for (let i = 1; i < order.length; i++) edges.push({ source: order[i - 1], target: order[i], value: 1 });
       return {
-        type: 'timeline', engine: 'local',
-        data: order.map((id, i) => ({ step: i + 1, id, front: (byId.get(id)?.front || '').slice(0, 40) })),
-        note: '本地启发式：按「同域相似度 + 掌握度」推断基础在前（AI 模式可给出真实依赖链）',
+        type: 'graph', engine: 'local', layout: 'topo',
+        data: { nodes, edges, layout: 'topo', order },
+        note: '本地启发式：按「同域相似度 + 掌握度」推断基础在前；横轴=学习顺序，纵轴=科目聚类（AI 模式可给出真实依赖链）',
       };
     }
     case 'critical': {
       const cp = criticalPath(cards, matrix, Math.min(3, cards.length));
-      const byId = new Map(cards.map(c => [c.id, c]));
+      const criticalIds = cp.map(x => x.id);
+      const rg = relationGraph(cards, matrix).data; // { nodes, edges }
+      const nodes = rg.nodes.map(n => ({ ...n, critical: criticalIds.includes(n.id) }));
+      const edges = rg.edges.map(e => ({ ...e, critical: criticalIds.includes(e.source) && criticalIds.includes(e.target) }));
       return {
-        type: 'list', engine: 'local',
-        data: cp.map((x, i) => ({ rank: i + 1, id: x.id, front: (byId.get(x.id)?.front || '').slice(0, 40), degree: x.degree })),
-        note: '关键路径 = 与最多其他卡强关联的核心卡（掌握它们收益最大）',
+        type: 'graph', engine: 'local', layout: 'critical',
+        data: { nodes, edges, layout: 'critical', criticalIds },
+        note: '关键路径 = 与最多其他卡强关联的核心卡（红大节点），掌握它们收益最大',
       };
     }
     case 'common': {
