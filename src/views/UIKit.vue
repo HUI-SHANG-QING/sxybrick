@@ -1,16 +1,15 @@
 <template>
   <div class="uikit">
     <div class="page-head">
-      <h2>🧩 UI 组件库</h2>
+      <h2>{{ t('views.uiKit.title') }}</h2>
       <p class="hint">
-        Element Plus × 主题桥接的活样本 —— 所有组件颜色均来自当前主题 token，切换到任意
-        「风格 × 配色模式」会自动跟随。本页也用于验证桥接层是否"出戏"。
+        {{ t('views.uiKit.titleHint') }}
       </p>
     </div>
 
     <!-- 基础控件 -->
     <section class="uikit-sec">
-      <h3>按钮 Button</h3>
+      <h3>{{ t('views.uiKit.secButton') }}</h3>
       <div class="uikit-row">
         <el-button>默认</el-button>
         <el-button type="primary">主要</el-button>
@@ -24,8 +23,8 @@
         <el-button type="primary" plain>主要朴素</el-button>
         <el-button type="danger" plain>危险朴素</el-button>
         <el-button round>圆角</el-button>
-        <el-button type="primary" circle aria-label="搜索"><el-icon><Search /></el-icon></el-button>
-        <el-button type="primary" :icon="Refresh" circle aria-label="刷新" />
+        <el-button type="primary" circle :aria-label="t('views.uiKit.ariaSearch')"><el-icon><Search /></el-icon></el-button>
+        <el-button type="primary" :icon="Refresh" circle :aria-label="t('views.uiKit.ariaRefresh')" />
         <el-button type="primary" disabled>禁用</el-button>
         <el-button type="primary" loading>加载中</el-button>
       </div>
@@ -44,46 +43,46 @@
 
     <!-- 表单控件 -->
     <section class="uikit-sec">
-      <h3>表单 Form</h3>
+      <h3>{{ t('views.uiKit.secForm') }}</h3>
       <div class="uikit-grid">
-        <div class="uikit-field"><label>输入框</label><el-input v-model="f.input" placeholder="请输入内容" clearable /></div>
-        <div class="uikit-field"><label>带图标</label><el-input v-model="f.input2" placeholder="搜索卡片" :prefix-icon="Search" clearable /></div>
-        <div class="uikit-field"><label>数字</label><el-input-number v-model="f.num" :min="0" :max="100" /></div>
-        <div class="uikit-field"><label>下拉选择</label>
-          <el-select v-model="f.select" placeholder="选择科目" clearable style="width:100%">
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldInput') }}</label><el-input v-model="f.input" :placeholder="t('views.uiKit.phInput')" clearable /></div>
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldInputIcon') }}</label><el-input v-model="f.input2" :placeholder="t('views.uiKit.phSearch')" :prefix-icon="Search" clearable /></div>
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldNumber') }}</label><el-input-number v-model="f.num" :min="0" :max="100" /></div>
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldSelect') }}</label>
+          <el-select v-model="f.select" :placeholder="t('views.uiKit.phSelect')" clearable style="width:100%">
             <el-option v-for="o in subjects" :key="o" :label="o" :value="o" />
           </el-select>
         </div>
-        <div class="uikit-field"><label>日期</label><el-date-picker v-model="f.date" type="date" placeholder="选择日期" style="width:100%" /></div>
-        <div class="uikit-field"><label>时间</label><el-time-picker v-model="f.time" placeholder="选择时间" style="width:100%" /></div>
-        <div class="uikit-field"><label>开关</label><div style="display:flex;gap:14px;padding-top:6px"><el-switch v-model="f.switch1" /><el-switch v-model="f.switch2" active-text="FSRS" inactive-text="SM-2" /></div></div>
-        <div class="uikit-field"><label>滑杆</label><el-slider v-model="f.slider" :max="100" /></div>
-        <div class="uikit-field"><label>单选</label>
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldDate') }}</label><el-date-picker v-model="f.date" type="date" :placeholder="t('views.uiKit.phDate')" style="width:100%" /></div>
+        <div class="uikit-field"><label>{{ t('views.uiKit.phTime') }}</label><el-time-picker v-model="f.time" :placeholder="t('views.uiKit.phTime')" style="width:100%" /></div>
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldSwitch') }}</label><div style="display:flex;gap:14px;padding-top:6px"><el-switch v-model="f.switch1" /><el-switch v-model="f.switch2" active-text="FSRS" inactive-text="SM-2" /></div></div>
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldSlider') }}</label><el-slider v-model="f.slider" :max="100" /></div>
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldRadio') }}</label>
           <el-radio-group v-model="f.radio">
             <el-radio value="easy">简单</el-radio>
             <el-radio value="hard">困难</el-radio>
             <el-radio value="again">重来</el-radio>
           </el-radio-group>
         </div>
-        <div class="uikit-field"><label>多选</label>
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldCheckbox') }}</label>
           <el-checkbox-group v-model="f.checks">
             <el-checkbox value="m1">背单词</el-checkbox>
             <el-checkbox value="m2">做真题</el-checkbox>
             <el-checkbox value="m3">看资料</el-checkbox>
           </el-checkbox-group>
         </div>
-        <div class="uikit-field"><label>评分</label><el-rate v-model="f.rate" /></div>
-        <div class="uikit-field"><label>标签输入</label><el-tag v-for="t in f.tags" :key="t" closable style="margin-right:6px" @close="f.tags = f.tags.filter(x => x !== t)">{{ t }}</el-tag></div>
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldRate') }}</label><el-rate v-model="f.rate" /></div>
+        <div class="uikit-field"><label>{{ t('views.uiKit.fldTag') }}</label><el-tag v-for="tag in f.tags" :key="tag" closable style="margin-right:6px" @close="f.tags = f.tags.filter(x => x !== tag)">{{ tag }}</el-tag></div>
       </div>
       <div class="uikit-row" style="margin-top:12px">
-        <el-input v-model="f.newTag" placeholder="添加标签" style="width:180px" @keyup.enter="addTag" />
+        <el-input v-model="f.newTag" :placeholder="t('views.uiKit.phAddTag')" style="width:180px" @keyup.enter="addTag" />
         <el-button type="primary" @click="addTag">添加</el-button>
       </div>
     </section>
 
     <!-- 反馈 -->
     <section class="uikit-sec">
-      <h3>反馈 Feedback</h3>
+      <h3>{{ t('views.uiKit.secFeedback') }}</h3>
       <div class="uikit-row" style="flex-wrap:wrap;gap:8px">
         <el-tag type="primary">主色</el-tag>
         <el-tag type="success">已掌握</el-tag>
@@ -108,33 +107,33 @@
       <div class="uikit-row">
         <el-badge :value="12" class="item"><el-button size="small">待复习</el-button></el-badge>
         <el-badge is-dot class="item"><el-button size="small">新消息</el-button></el-badge>
-        <el-button size="small" @click="showMsg('success')">成功提示</el-button>
-        <el-button size="small" type="warning" @click="showMsg('warning')">警告提示</el-button>
-        <el-button size="small" type="danger" @click="showMsg('error')">错误提示</el-button>
-        <el-button size="small" type="primary" @click="showNotify">系统通知</el-button>
+        <el-button size="small" @click="showMsg('success')">{{ t('views.uiKit.btnSuccess') }}</el-button>
+        <el-button size="small" type="warning" @click="showMsg('warning')">{{ t('views.uiKit.btnWarning') }}</el-button>
+        <el-button size="small" type="danger" @click="showMsg('error')">{{ t('views.uiKit.btnError') }}</el-button>
+        <el-button size="small" type="primary" @click="showNotify">{{ t('views.uiKit.btnNotify') }}</el-button>
       </div>
     </section>
 
     <!-- 数据展示 -->
     <section class="uikit-sec">
-      <h3>数据 Data</h3>
+      <h3>{{ t('views.uiKit.secData') }}</h3>
       <el-table :data="rows" style="width:100%">
-        <el-table-column prop="subject" label="科目" width="140" />
-        <el-table-column prop="cards" label="卡片数" width="90" sortable />
-        <el-table-column prop="due" label="待复习" width="90">
+        <el-table-column prop="subject" :label="t('views.uiKit.colSubject')" width="140" />
+        <el-table-column prop="cards" :label="t('views.uiKit.colCards')" width="90" sortable />
+        <el-table-column prop="due" :label="t('views.uiKit.colDue')" width="90">
           <template #default="{ row }">
             <el-tag :type="row.due > 10 ? 'danger' : 'success'" size="small">{{ row.due }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="retention" label="保持率" width="140">
+        <el-table-column prop="retention" :label="t('views.uiKit.colRetention')" width="140">
           <template #default="{ row }">
             <el-progress :percentage="row.retention" :stroke-width="8" :status="row.retention >= 85 ? 'success' : undefined" />
           </template>
         </el-table-column>
-        <el-table-column label="操作">
+        <el-table-column :label="t('views.uiKit.colAction')">
           <template #default="{ row }">
-            <el-button link type="primary" @click="toast(`开始复习「${row.subject}」`)">复习</el-button>
-            <el-button link type="danger" @click="toast(`已归档「${row.subject}」`,'error')">归档</el-button>
+            <el-button link type="primary" @click="toast(t('views.uiKit.toastReview', { subject: row.subject }))">{{ t('views.uiKit.actReview') }}</el-button>
+            <el-button link type="danger" @click="toast(t('views.uiKit.toastArchive', { subject: row.subject }), 'error')">{{ t('views.uiKit.actArchive') }}</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -145,7 +144,7 @@
 
     <!-- 导航与浮层 -->
     <section class="uikit-sec">
-      <h3>导航与浮层 Navigation / Overlay</h3>
+      <h3>{{ t('views.uiKit.secNav') }}</h3>
       <div class="uikit-row">
         <el-breadcrumb separator="/">
           <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
@@ -167,36 +166,36 @@
       </div>
       <div class="uikit-row">
         <el-tooltip content="Tooltip：间隔复习是最有效的记忆方式" placement="top">
-          <el-button size="small">悬浮提示</el-button>
+          <el-button size="small">{{ t('views.uiKit.btnTooltip') }}</el-button>
         </el-tooltip>
         <el-popover placement="bottom" :width="240" trigger="click">
-          <template #reference><el-button size="small">点击弹出</el-button></template>
+          <template #reference><el-button size="small">{{ t('views.uiKit.btnPopover') }}</el-button></template>
           <div>Popover 内容：可以放任何东西，比如快捷操作。</div>
-          <div style="margin-top:8px;text-align:right"><el-button size="small" type="primary">知道了</el-button></div>
+          <div style="margin-top:8px;text-align:right"><el-button size="small" type="primary">{{ t('views.uiKit.popoverOk') }}</el-button></div>
         </el-popover>
-        <el-button size="small" type="primary" @click="dialogOpen = true">对话框</el-button>
-        <el-button size="small" type="primary" @click="drawerOpen = true">抽屉</el-button>
-        <el-button size="small" @click="avatarOpen = true">头像弹出层</el-button>
+        <el-button size="small" type="primary" @click="dialogOpen = true">{{ t('views.uiKit.btnDialog') }}</el-button>
+        <el-button size="small" type="primary" @click="drawerOpen = true">{{ t('views.uiKit.btnDrawer') }}</el-button>
+        <el-button size="small" @click="avatarOpen = true">{{ t('views.uiKit.btnAvatar') }}</el-button>
       </div>
     </section>
 
     <!-- 对话框 -->
-    <el-dialog v-model="dialogOpen" title="主题桥接验证" width="440px">
-      <p>这个对话框的背景、文字、按钮颜色都来自当前主题 token。试试把风格切到「卡牌 / 王者 / 星际」，或切到「夜间 / 护眼」，再打开一次。</p>
+    <el-dialog v-model="dialogOpen" :title="t('views.uiKit.dialogTitle')" width="440px">
+      <p>{{ t('views.uiKit.dialogContent') }}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <el-tag type="primary">自动跟随</el-tag>
-        <el-tag type="success">无硬编码</el-tag>
+        <el-tag type="primary">{{ t('views.uiKit.tagAuto') }}</el-tag>
+        <el-tag type="success">{{ t('views.uiKit.tagNoHardcode') }}</el-tag>
       </div>
       <template #footer>
-        <el-button @click="dialogOpen = false">取消</el-button>
-        <el-button type="primary" @click="dialogOpen = false">确认</el-button>
+        <el-button @click="dialogOpen = false">{{ t('views.uiKit.btnCancel') }}</el-button>
+        <el-button type="primary" @click="dialogOpen = false">{{ t('views.uiKit.btnConfirm') }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 抽屉 -->
-    <el-drawer v-model="drawerOpen" title="复习抽屉" size="380px">
-      <p>抽屉同样跟随主题。里面可以放：今日待复习、错题 TOP、快捷入口。</p>
-      <el-empty description="今日已完成全部复习 🎉" :image-size="80" />
+    <el-drawer v-model="drawerOpen" :title="t('views.uiKit.drawerTitle')" size="380px">
+      <p>{{ t('views.uiKit.drawerContent') }}</p>
+      <el-empty :description="t('views.uiKit.emptyDone')" :image-size="80" />
     </el-drawer>
 
     <!-- 头像弹出层 -->
@@ -216,6 +215,7 @@
 import { ref, reactive } from 'vue';
 import { ElMessage, ElNotification } from 'element-plus';
 import { toast } from '../utils/toast.js';
+import { t } from '../i18n/index.js';
 import { Refresh, Search, ArrowLeft, ArrowRight } from '@element-plus/icons-vue';
 
 const subjects = ['计算机组成原理', '线性代数', '数据结构', '操作系统', '编译原理'];
@@ -237,9 +237,9 @@ const f = reactive({
   newTag: '',
 });
 function addTag() {
-  const t = f.newTag.trim();
-  if (!t) return;
-  if (!f.tags.includes(t)) f.tags.push(t);
+  const txt = f.newTag.trim();
+  if (!txt) return;
+  if (!f.tags.includes(txt)) f.tags.push(txt);
   f.newTag = '';
 }
 
@@ -260,9 +260,9 @@ const avatarUrl = 'data:image/svg+xml;utf8,' + encodeURIComponent(
 
 function showMsg(type) {
   const map = {
-    success: ['操作成功', '卡片已保存，下次复习已排期'],
-    warning: ['注意', '今日还有 8 张卡片待复习'],
-    error: ['操作失败', '同步中断，请检查网络后重试'],
+    success: [t('views.uiKit.msgSuccessTitle'), t('views.uiKit.msgSuccessBody')],
+    warning: [t('views.uiKit.msgWarningTitle'), t('views.uiKit.msgWarningBody')],
+    error: [t('views.uiKit.msgErrorTitle'), t('views.uiKit.msgErrorBody')],
   };
   const [title, message] = map[type] || [];
   if (type === 'success') toast(title + '：' + message);
@@ -270,8 +270,8 @@ function showMsg(type) {
 }
 function showNotify() {
   ElNotification({
-    title: '监督力提醒',
-    message: '你已连续 3 天未达复习目标，损失进度：+8 张累积待复习。',
+    title: t('views.uiKit.notifyTitle'),
+    message: t('views.uiKit.notifyBody'),
     type: 'warning',
     duration: 4000,
   });

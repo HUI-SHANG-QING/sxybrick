@@ -8,6 +8,7 @@ import { db } from '../db.js';
 import { hasAIKey, getAIConfig, chatAI } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import EmptyState from '../components/EmptyState.vue';
+import { t } from '../i18n/index.js';
 
 const router = useRouter();
 const stats = ref(null);
@@ -44,13 +45,13 @@ async function load() {
 function renderTrend() {
   if (!trendEl.value || !stats.value?.trend) return;
   if (!trendChart) trendChart = echarts.init(trendEl.value);
-  const t = stats.value.trend;
+  const trend = stats.value.trend;
   trendChart.setOption({
     grid: { left: 28, right: 8, top: 8, bottom: 20 },
-    tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/>复习 ${p[0].value} 张` },
-    xAxis: { type: 'category', data: t.map(x => x.date), axisLabel: { color: '#888', fontSize: 10 } },
+    tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/>${t('views.dashboard.trendTip', { v: p[0].value })}` },
+    xAxis: { type: 'category', data: trend.map(x => x.date), axisLabel: { color: '#888', fontSize: 10 } },
     yAxis: { type: 'value', axisLabel: { color: '#888', fontSize: 10 }, splitLine: { lineStyle: { color: 'var(--line)' } } },
-    series: [{ type: 'bar', data: t.map(x => x.count), itemStyle: { color: '#4a9eff', borderRadius: [3, 3, 0, 0] } }],
+    series: [{ type: 'bar', data: trend.map(x => x.count), itemStyle: { color: '#4a9eff', borderRadius: [3, 3, 0, 0] } }],
   });
 }
 
@@ -91,7 +92,7 @@ function heatColor(n) {
 
 // AI 教练每日总结
 async function askCoach() {
-  if (!hasAIKey()) { toast('请先在「AI 设置」填密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.dashboard.toastFillKey'), 'error'); return; }
   coachLoading.value = true;
   try {
     const s = stats.value;
@@ -99,7 +100,7 @@ async function askCoach() {
     const prompt = `你是学习教练。基于今日数据：总卡片${s.totalCards}，今日已复习${todayDone.value}张，今日到期${todayDue.value}张，平均掌握度${s.avgMastery}%，能力四维(掌握/正确/稳定/覆盖)=${s.ability.mastery}/${s.ability.correct}/${s.ability.stable}/${s.ability.coverage}。薄弱点：${weakList}。请用 2-3 句给出今日下一步建议（要具体、可执行）。`;
     const r = await chatAI([{ role: 'user', content: prompt }], getAIConfig());
     coachMsg.value = String(r).slice(0, 400);
-  } catch (e) { toast('教练建议获取失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.dashboard.coachFail') + e.message, 'error'); }
   finally { coachLoading.value = false; }
 }
 
@@ -113,10 +114,10 @@ function goWeak(w) { router.push(`/cards?id=${encodeURIComponent(w.id)}`); }
 // 点击具体计划 → 跳计划页定位该计划（?id=X）
 function goPlan(p) { router.push(`/plans?id=${encodeURIComponent(p.id)}`); }
 const abilityItems = computed(() => stats.value ? [
-  { label: '掌握度', v: stats.value.ability.mastery },
-  { label: '正确率', v: stats.value.ability.correct },
-  { label: '稳定度', v: stats.value.ability.stable },
-  { label: '覆盖率', v: stats.value.ability.coverage },
+  { label: t('views.dashboard.abilityMastery'), v: stats.value.ability.mastery },
+  { label: t('views.dashboard.abilityCorrect'), v: stats.value.ability.correct },
+  { label: t('views.dashboard.abilityStable'), v: stats.value.ability.stable },
+  { label: t('views.dashboard.abilityCoverage'), v: stats.value.ability.coverage },
 ] : []);
 
 onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
@@ -128,41 +129,41 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
     <div class="ds-hero">
       <div class="ds-hero-main">
         <div class="ds-due">{{ todayDue }}</div>
-        <div class="ds-due-label">今日待复习</div>
-        <button class="btn primary ds-go" @click="go('/review')">{{ todayDue ? '开始复习' : '今日无到期，去复习' }} →</button>
+        <div class="ds-due-label">{{ t('views.dashboard.dueLabel') }}</div>
+        <button class="btn primary ds-go" @click="go('/review')">{{ todayDue ? t('views.dashboard.startReview') : t('views.dashboard.startReviewNone') }} →</button>
       </div>
       <div class="ds-hero-side">
-        <div class="ds-mini"><span class="ds-mini-n">{{ todayDone }}</span><span class="ds-mini-l">今日已复习</span></div>
-        <div class="ds-mini"><span class="ds-mini-n">{{ avgMastery }}%</span><span class="ds-mini-l">平均掌握度</span></div>
-        <div class="ds-mini"><span class="ds-mini-n">{{ assets.pomoToday }}</span><span class="ds-mini-l">今日番茄</span></div>
+        <div class="ds-mini"><span class="ds-mini-n">{{ todayDone }}</span><span class="ds-mini-l">{{ t('views.dashboard.doneLabel') }}</span></div>
+        <div class="ds-mini"><span class="ds-mini-n">{{ avgMastery }}%</span><span class="ds-mini-l">{{ t('views.dashboard.masteryLabel') }}</span></div>
+        <div class="ds-mini"><span class="ds-mini-n">{{ assets.pomoToday }}</span><span class="ds-mini-l">{{ t('views.dashboard.pomoLabel') }}</span></div>
       </div>
     </div>
 
     <!-- AI 教练 -->
     <div class="ds-coach">
-      <span class="ds-coach-badge">🤖 AI 教练</span>
-      <span v-if="coachLoading" class="hint">分析中…</span>
+      <span class="ds-coach-badge">{{ t('views.dashboard.coachBadge') }}</span>
+      <span v-if="coachLoading" class="hint">{{ t('views.dashboard.coachAnalyzing') }}</span>
       <span v-else-if="coachMsg" class="ds-coach-msg">{{ coachMsg }}</span>
-      <button v-else class="chip" @click="askCoach">点此获取今日建议</button>
+      <button v-else class="chip" @click="askCoach">{{ t('views.dashboard.coachGet') }}</button>
     </div>
 
     <!-- 数字资产网格 -->
-    <h3 class="ds-sec">数字资产总览</h3>
+    <h3 class="ds-sec">{{ t('views.dashboard.assetsTitle') }}</h3>
     <div class="ds-grid">
-      <div class="ds-asset" @click="go('/cards')"><span class="ds-asset-n">{{ assets.cards }}</span><span class="ds-asset-l">🗂️ 卡片</span></div>
-      <div class="ds-asset" @click="go('/wrong')"><span class="ds-asset-n">{{ weak.length }}</span><span class="ds-asset-l">⚠️ 薄弱</span></div>
-      <div class="ds-asset" @click="go('/plans')"><span class="ds-asset-n">{{ assets.plans }}</span><span class="ds-asset-l">📋 计划</span></div>
-      <div class="ds-asset" @click="go('/mindmap')"><span class="ds-asset-n">{{ assets.mindmaps }}</span><span class="ds-asset-l">🗺️ 导图</span></div>
-      <div class="ds-asset" @click="go('/graph')"><span class="ds-asset-n">{{ assets.graphEdges }}</span><span class="ds-asset-l">🔗 图谱边</span></div>
-      <div class="ds-asset" @click="go('/docs')"><span class="ds-asset-n">{{ assets.docs }}</span><span class="ds-asset-l">📄 文档</span></div>
-      <div class="ds-asset" @click="go('/exam')"><span class="ds-asset-n">{{ assets.exams }}</span><span class="ds-asset-l">📝 模考</span></div>
-      <div class="ds-asset" @click="go('/achievements')"><span class="ds-asset-n">{{ assets.achievements }}</span><span class="ds-asset-l">🏆 成就</span></div>
+      <div class="ds-asset" @click="go('/cards')"><span class="ds-asset-n">{{ assets.cards }}</span><span class="ds-asset-l">{{ t('views.dashboard.assetCards') }}</span></div>
+      <div class="ds-asset" @click="go('/wrong')"><span class="ds-asset-n">{{ weak.length }}</span><span class="ds-asset-l">{{ t('views.dashboard.assetWeak') }}</span></div>
+      <div class="ds-asset" @click="go('/plans')"><span class="ds-asset-n">{{ assets.plans }}</span><span class="ds-asset-l">{{ t('views.dashboard.assetPlans') }}</span></div>
+      <div class="ds-asset" @click="go('/mindmap')"><span class="ds-asset-n">{{ assets.mindmaps }}</span><span class="ds-asset-l">{{ t('views.dashboard.assetMindmap') }}</span></div>
+      <div class="ds-asset" @click="go('/graph')"><span class="ds-asset-n">{{ assets.graphEdges }}</span><span class="ds-asset-l">{{ t('views.dashboard.assetGraph') }}</span></div>
+      <div class="ds-asset" @click="go('/docs')"><span class="ds-asset-n">{{ assets.docs }}</span><span class="ds-asset-l">{{ t('views.dashboard.assetDocs') }}</span></div>
+      <div class="ds-asset" @click="go('/exam')"><span class="ds-asset-n">{{ assets.exams }}</span><span class="ds-asset-l">{{ t('views.dashboard.assetExam') }}</span></div>
+      <div class="ds-asset" @click="go('/achievements')"><span class="ds-asset-n">{{ assets.achievements }}</span><span class="ds-asset-l">{{ t('views.dashboard.assetAch') }}</span></div>
     </div>
 
     <div class="ds-row">
       <!-- 能力四维 -->
       <div class="ds-card">
-        <h3 class="ds-sec" style="margin-top:0">能力四维</h3>
+        <h3 class="ds-sec" style="margin-top:0">{{ t('views.dashboard.abilityTitle') }}</h3>
         <div v-for="a in abilityItems" :key="a.label" class="ds-bar">
           <div class="ds-bar-head"><span>{{ a.label }}</span><span>{{ a.v }}%</span></div>
           <div class="ds-bar-track"><div class="ds-bar-fill" :style="{ width: a.v + '%' }"></div></div>
@@ -170,52 +171,52 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
       </div>
       <!-- 近 14 天趋势 -->
       <div class="ds-card">
-        <h3 class="ds-sec" style="margin-top:0">近 14 天复习趋势</h3>
+        <h3 class="ds-sec" style="margin-top:0">{{ t('views.dashboard.trendTitle') }}</h3>
         <div ref="trendEl" class="ds-trend"></div>
       </div>
     </div>
 
     <!-- 365 热力图 -->
     <div class="ds-card">
-      <h3 class="ds-sec" style="margin-top:0">复习热力图（近一年）</h3>
+      <h3 class="ds-sec" style="margin-top:0">{{ t('views.dashboard.heatTitle') }}</h3>
       <div class="ds-heat">
         <span v-for="c in heatCells" :key="c.key" class="ds-heat-cell"
           :style="{ background: c.future ? 'transparent' : heatColor(c.count) }"
-          :title="`${c.key}：复习 ${c.count} 张`"></span>
+          :title="t('views.dashboard.heatCellTitle', { key: c.key, count: c.count })"></span>
       </div>
-      <div class="ds-heat-legend"><span>少</span><span class="ds-heat-cell" style="background:var(--code-bg)"></span><span class="ds-heat-cell" style="background:#c6f0d0"></span><span class="ds-heat-cell" style="background:#94e8a8"></span><span class="ds-heat-cell" style="background:#5cd66a"></span><span class="ds-heat-cell" style="background:#2cbe4e"></span><span>多</span></div>
+      <div class="ds-heat-legend"><span>{{ t('views.dashboard.heatLess') }}</span><span class="ds-heat-cell" style="background:var(--code-bg)"></span><span class="ds-heat-cell" style="background:#c6f0d0"></span><span class="ds-heat-cell" style="background:#94e8a8"></span><span class="ds-heat-cell" style="background:#5cd66a"></span><span class="ds-heat-cell" style="background:#2cbe4e"></span><span>{{ t('views.dashboard.heatMore') }}</span></div>
     </div>
 
     <div class="ds-row">
       <!-- 各科掌握度 -->
       <div class="ds-card">
-        <h3 class="ds-sec" style="margin-top:0">各科掌握度</h3>
+        <h3 class="ds-sec" style="margin-top:0">{{ t('views.dashboard.masteryBySubject') }}</h3>
         <div v-if="stats?.mastery?.length">
-          <div v-for="m in stats.mastery" :key="m.subject" class="ds-bar" :title="`查看该科目所有卡片：${m.subject}`" @click="goSubject(m.subject)">
-            <div class="ds-bar-head"><span>{{ m.subject }}</span><span>{{ m.mastery }}% · {{ m.reviews }}次</span></div>
+          <div v-for="m in stats.mastery" :key="m.subject" class="ds-bar" :title="t('views.dashboard.subjectTitle', { subject: m.subject })" @click="goSubject(m.subject)">
+            <div class="ds-bar-head"><span>{{ m.subject }}</span><span>{{ m.mastery }}% · {{ m.reviews }}{{ t('views.dashboard.reviewsUnit') }}</span></div>
             <div class="ds-bar-track"><div class="ds-bar-fill" :style="{ width: m.mastery + '%' }"></div></div>
           </div>
         </div>
-        <EmptyState v-else compact icon="📊" title="还没有复习数据" message="开始复习后这里会显示各科掌握度" />
+        <EmptyState v-else compact icon="📊" :title="t('views.dashboard.emptyMasteryTitle')" :message="t('views.dashboard.emptyMasteryMsg')" />
       </div>
       <!-- 薄弱点 + 今日计划 -->
       <div class="ds-card">
-        <h3 class="ds-sec" style="margin-top:0">薄弱点 TOP3</h3>
+        <h3 class="ds-sec" style="margin-top:0">{{ t('views.dashboard.weakTitle') }}</h3>
         <div v-if="weak.length">
-          <div v-for="w in weak" :key="w.id" class="ds-weak" :title="`查看并编辑该卡`" @click.stop="goWeak(w)">
+          <div v-for="w in weak" :key="w.id" class="ds-weak" :title="t('views.dashboard.weakTitleTip')" @click.stop="goWeak(w)">
             <span class="ds-weak-front">{{ String(w.front).slice(0, 28) }}</span>
-            <span class="ds-weak-fail">错 {{ w.failCount }} 次</span>
+            <span class="ds-weak-fail">{{ t('views.dashboard.weakFail', { n: w.failCount }) }}</span>
           </div>
         </div>
-        <EmptyState v-else compact icon="📊" title="暂无薄弱点" message="保持节奏，薄弱点会自动出现在这里" />
-        <h3 class="ds-sec">进行中计划</h3>
+        <EmptyState v-else compact icon="📊" :title="t('views.dashboard.emptyWeakTitle')" :message="t('views.dashboard.emptyWeakMsg')" />
+        <h3 class="ds-sec">{{ t('views.dashboard.plansTitle') }}</h3>
         <div v-if="plans.length">
-          <div v-for="p in plans" :key="p.id" class="ds-weak" :title="`打开该计划`" @click.stop="goPlan(p)">
+          <div v-for="p in plans" :key="p.id" class="ds-weak" :title="t('views.dashboard.planTitleTip')" @click.stop="goPlan(p)">
             <span class="ds-weak-front">{{ String(p.title).slice(0, 24) }}</span>
             <span class="ds-weak-fail">{{ p.status }}</span>
           </div>
         </div>
-        <EmptyState v-else compact icon="📊" title="无进行中计划" message="去「计划」页制定今日学习目标" />
+        <EmptyState v-else compact icon="📊" :title="t('views.dashboard.emptyPlanTitle')" :message="t('views.dashboard.emptyPlanMsg')" />
       </div>
     </div>
   </div>

@@ -8,6 +8,7 @@ import { weakCards, setMarked, getSubjects, gradeCard, createCard } from '../rep
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import { smartRemediation } from '../intelligence.js';
+import { t } from '../i18n/index.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
 
@@ -54,12 +55,12 @@ async function startRemediation(c, withCards = false) {
     const r = await smartRemediation(c.id, opt);
     remediation.value = r;
     if (withCards && r.variantCards?.length) {
-      toast(`补救闭环完成：诊断 + ${r.variantCards.length} 张变式卡 + ${r.graphLinks.length} 条图谱关联`, 'success');
+      toast(t('views.wrongBook.remediationDoneCards', { n: r.variantCards.length, m: r.graphLinks.length }), 'success');
     } else {
-      toast(`补救闭环完成：诊断 + ${r.graphLinks.length} 条图谱关联（变式卡需 AI Key）`, 'success');
+      toast(t('views.wrongBook.remediationDoneLinks', { m: r.graphLinks.length }), 'success');
     }
     await load();
-  } catch (e) { toast('补救失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.wrongBook.remediationFail', { msg: e.message }), 'error'); }
   finally { remediationBusy.value.delete(c.id); }
 }
 
@@ -75,8 +76,8 @@ async function goFeynman() {
 
 function plain(md) {
   return String(md || '')
-    .replace(/```[\s\S]*?```/g, ' [代码] ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' [图片] ')
+    .replace(/```[\s\S]*?```/g, t('views.wrongBook.plainCode'))
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, t('views.wrongBook.plainImage'))
     .replace(/\$\$?([^$\n]+)\$\$?/g, ' $1 ')
     .replace(/[*_#>`~|-]/g, '')
     .replace(/\s+/g, ' ')
@@ -118,7 +119,7 @@ const filteredItems = computed(() => {
 
 async function unmark(card) {
   await setMarked(card.id, false);
-  toast('已取消错题标记', 'success');
+  toast(t('views.wrongBook.unmarkDone'), 'success');
   await load();
 }
 async function dueNow(card) {
@@ -128,17 +129,17 @@ async function dueNow(card) {
   //   若推高 updatedAt 会让本机这份「旧内容」成为 winner，把其他设备对卡面的
   //   文字编辑整段覆盖掉。与 Cards.vue 的 rescueCard 保持一致。
   await db.cards.update(card.id, { dueAt: Date.now(), reviewedAt: Date.now() });
-  toast('已加入今日复习，去「背诵」页练习', 'success');
+  toast(t('views.wrongBook.addedToReview'), 'success');
 }
 function reason(c) {
   if (c.wrongReason) return c.wrongReason;
-  if (c.marked) return '手动标记';
-  return `遗忘 ${c.failCount || 0} 次`;
+  if (c.marked) return t('views.wrongBook.reasonMarked');
+  return t('views.wrongBook.reasonForgotten', { n: c.failCount || 0 });
 }
 
 // AI 变式补卡：针对错题生成同考点变式，写入卡片库（错题→补卡闭环，smart-reviewer 思路的按钮化）
 async function genVariant(c) {
-  if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.wrongBook.noAiKey'), 'error'); return; }
   if (genBusy.value.has(c.id)) return;
   genBusy.value.add(c.id);
   try {
@@ -148,7 +149,7 @@ async function genVariant(c) {
     ]);
     const m = String(r).match(/\{[\s\S]*\}/);
     const obj = JSON.parse(m ? m[0] : r);
-    if (!obj?.front || !obj?.back) throw new Error('AI 返回格式异常');
+    if (!obj?.front || !obj?.back) throw new Error(t('views.wrongBook.genFormatError'));
     await createCard({
       front: String(obj.front).slice(0, 8000),
       back: String(obj.back).slice(0, 8000),
@@ -157,22 +158,22 @@ async function genVariant(c) {
       type: 'basic',
       source: '错题智能补卡',
     });
-    toast(`已生成变式卡：「${String(obj.front).slice(0, 24)}…」`, 'success');
-  } catch (e) { toast('生成失败：' + e.message, 'error'); }
+    toast(t('views.wrongBook.variantGenDone', { q: String(obj.front).slice(0, 24) }), 'success');
+  } catch (e) { toast(t('views.wrongBook.genFail', { msg: e.message }), 'error'); }
   finally { genBusy.value.delete(c.id); }
 }
 
 // 批量为最薄弱的 5 道错题生成变式卡
 async function genTop5() {
-  if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.wrongBook.noAiKey'), 'error'); return; }
   if (batchBusy.value) return;
   const targets = items.value.filter(c => !genBusy.value.has(c.id)).slice(0, 5);
-  if (!targets.length) { toast('暂无可用错题', 'error'); return; }
+  if (!targets.length) { toast(t('views.wrongBook.noWrongAvailable'), 'error'); return; }
   batchBusy.value = true;
   let n = 0;
   for (const c of targets) { await genVariant(c); n++; }
   batchBusy.value = false;
-  toast(`已为 ${n} 道错题生成变式卡（可在「我的卡片」查看）`, 'success');
+  toast(t('views.wrongBook.genTop5Done', { n }), 'success');
   await load();
 }
 
@@ -180,45 +181,45 @@ onMounted(async () => { loading.value = true; try { await Promise.all([load(), l
 </script>
 
 <template>
-  <div style="max-width:820px;margin:0 auto" v-loading="loading" element-loading-text="加载中…">
+  <div style="max-width:820px;margin:0 auto" v-loading="loading" :element-loading-text="t('views.wrongBook.loading')">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">错题集</h2>
-      <span class="hint">共 {{ filteredItems.length }} 道错题</span>
+      <h2 style="margin:0">{{ t('views.wrongBook.title') }}</h2>
+      <span class="hint">{{ t('views.wrongBook.countHint', { n: filteredItems.length }) }}</span>
       <span style="flex:1"></span>
-      <button class="btn small" :disabled="batchBusy" @click="genTop5">{{ batchBusy ? '正在生成…' : '为最薄弱 5 题生成变式卡' }}</button>
+      <button class="btn small" :disabled="batchBusy" @click="genTop5">{{ batchBusy ? t('views.wrongBook.genTop5Busy') : t('views.wrongBook.genTop5Btn') }}</button>
       <select v-model="filterSubject" class="input" style="width:auto" @change="load">
-        <option value="">全部科目</option>
+        <option value="">{{ t('views.wrongBook.subjectAll') }}</option>
         <option v-for="s in subjects" :key="s.name" :value="s.name">{{ s.name }}</option>
       </select>
     </div>
 
     <!-- 速赢区：SRS 阶段快捷过滤 -->
     <div class="stage-bar">
-      <button class="chip" :class="{ on: !filterStage }" @click="filterStage = ''">全部 <span class="n">{{ items.length }}</span></button>
-      <button class="chip" :class="{ on: filterStage === 'focus' }" @click="filterStage = 'focus'" :disabled="!stageCounts.focus">重点区 <span class="n">{{ stageCounts.focus }}</span></button>
-      <button class="chip" :class="{ on: filterStage === 'marked' }" @click="filterStage = 'marked'" :disabled="!stageCounts.marked">错题标记 <span class="n">{{ stageCounts.marked }}</span></button>
-      <button class="chip" :class="{ on: filterStage === 'learning' }" @click="filterStage = 'learning'" :disabled="!stageCounts.learning">学习中 <span class="n">{{ stageCounts.learning }}</span></button>
-      <button class="chip" :class="{ on: filterStage === 'growing' }" @click="filterStage = 'growing'" :disabled="!stageCounts.growing">巩固中 <span class="n">{{ stageCounts.growing }}</span></button>
-      <button class="chip" :class="{ on: filterStage === 'mastered' }" @click="filterStage = 'mastered'" :disabled="!stageCounts.mastered">已掌握 <span class="n">{{ stageCounts.mastered }}</span></button>
+      <button class="chip" :class="{ on: !filterStage }" @click="filterStage = ''">{{ t('views.wrongBook.stageAll') }} <span class="n">{{ items.length }}</span></button>
+      <button class="chip" :class="{ on: filterStage === 'focus' }" @click="filterStage = 'focus'" :disabled="!stageCounts.focus">{{ t('views.wrongBook.stageFocus') }} <span class="n">{{ stageCounts.focus }}</span></button>
+      <button class="chip" :class="{ on: filterStage === 'marked' }" @click="filterStage = 'marked'" :disabled="!stageCounts.marked">{{ t('views.wrongBook.stageMarked') }} <span class="n">{{ stageCounts.marked }}</span></button>
+      <button class="chip" :class="{ on: filterStage === 'learning' }" @click="filterStage = 'learning'" :disabled="!stageCounts.learning">{{ t('views.wrongBook.stageLearning') }} <span class="n">{{ stageCounts.learning }}</span></button>
+      <button class="chip" :class="{ on: filterStage === 'growing' }" @click="filterStage = 'growing'" :disabled="!stageCounts.growing">{{ t('views.wrongBook.stageGrowing') }} <span class="n">{{ stageCounts.growing }}</span></button>
+      <button class="chip" :class="{ on: filterStage === 'mastered' }" @click="filterStage = 'mastered'" :disabled="!stageCounts.mastered">{{ t('views.wrongBook.stageMastered') }} <span class="n">{{ stageCounts.mastered }}</span></button>
       <span style="flex:1"></span>
-      <button class="chip" @click="expandAll">全部展开</button>
-      <button class="chip" @click="collapseAll">全部收起</button>
+      <button class="chip" @click="expandAll">{{ t('views.wrongBook.expandAll') }}</button>
+      <button class="chip" @click="collapseAll">{{ t('views.wrongBook.collapseAll') }}</button>
     </div>
 
-    <EmptyState v-if="!filteredItems.length" icon="❌" title="该筛选下暂无错题" message="继续保持，去复习页巩固薄弱点！" />
+    <EmptyState v-if="!filteredItems.length" icon="❌" :title="t('views.wrongBook.emptyTitle')" :message="t('views.wrongBook.emptyMsg')" />
 
     <div v-for="c in filteredItems" :key="c.id" class="wb-item" :class="{ expanded: !collapsedIds.has(c.id) }">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;cursor:pointer" @click="toggleExpand(c.id)" title="点击展开/收起完整背诵详情（默认全展开，与「已背记录」一致）">
-        <span class="chip">{{ c.subject || '未分类' }}</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;cursor:pointer" @click="toggleExpand(c.id)" :title="t('views.wrongBook.expandTitle')">
+        <span class="chip">{{ c.subject || t('views.wrongBook.unclassified') }}</span>
         <span class="chip" style="color:var(--red);border-color:var(--red)">{{ reason(c) }}</span>
         <span class="hint" style="font-size:12px">{{ gradeCard(c).label }}</span>
         <span style="flex:1"></span>
-        <span class="hint" style="font-size:12px">{{ collapsedIds.has(c.id) ? '点击展开答案 ↓' : '点击收起 ↑' }}</span>
-        <button class="btn small" :disabled="remediationBusy.has(c.id)" @click.stop="startRemediation(c, false)" title="一键触发：诊断→费曼建议→图谱关联，零 LLM 开销">{{ remediationBusy.has(c.id) ? '补救中…' : '🧩 智能补救' }}</button>
-        <button v-if="hasAIKey()" class="btn small" :disabled="remediationBusy.has(c.id)" @click.stop="startRemediation(c, true)" title="智能补救 + AI 生成 2 张变式卡">{{ remediationBusy.has(c.id) ? '补救中…' : '🧩+卡片' }}</button>
-        <button class="btn small" :disabled="genBusy.has(c.id)" @click.stop="genVariant(c)">{{ genBusy.has(c.id) ? '生成中…' : 'AI 变式补卡' }}</button>
-        <button class="btn small" @click.stop="dueNow(c)">加入复习</button>
-        <button class="btn small danger" @click.stop="unmark(c)">取消标记</button>
+        <span class="hint" style="font-size:12px">{{ collapsedIds.has(c.id) ? t('views.wrongBook.expandAnswer') : t('views.wrongBook.collapseAnswer') }}</span>
+        <button class="btn small" :disabled="remediationBusy.has(c.id)" @click.stop="startRemediation(c, false)" :title="t('views.wrongBook.remediateTitleAttr')">{{ remediationBusy.has(c.id) ? t('views.wrongBook.remediating') : t('views.wrongBook.remediateBtn') }}</button>
+        <button v-if="hasAIKey()" class="btn small" :disabled="remediationBusy.has(c.id)" @click.stop="startRemediation(c, true)" :title="t('views.wrongBook.remediateCardsTitleAttr')">{{ remediationBusy.has(c.id) ? t('views.wrongBook.remediating') : t('views.wrongBook.remediateCardsBtn') }}</button>
+        <button class="btn small" :disabled="genBusy.has(c.id)" @click.stop="genVariant(c)">{{ genBusy.has(c.id) ? t('views.wrongBook.generating') : t('views.wrongBook.genVariantBtn') }}</button>
+        <button class="btn small" @click.stop="dueNow(c)">{{ t('views.wrongBook.addReviewBtn') }}</button>
+        <button class="btn small danger" @click.stop="unmark(c)">{{ t('views.wrongBook.unmarkBtn') }}</button>
       </div>
       <!-- 默认全展开（collapsedIds 里没有=显示详情）；手动收起的才显示 plain 预览 -->
       <template v-if="collapsedIds.has(c.id)">
@@ -227,9 +228,9 @@ onMounted(async () => { loading.value = true; try { await Promise.all([load(), l
       </template>
       <template v-else>
         <div class="wb-detail">
-          <div class="hint" style="margin:4px 0 4px">📖 正面 / 题目</div>
+          <div class="hint" style="margin:4px 0 4px">{{ t('views.wrongBook.frontLabel') }}</div>
           <MarkdownRenderer :content="c.front" />
-          <div class="hint" style="margin:14px 0 4px">💡 背面 / 答案（与「已背记录」一致，默认全展开）</div>
+          <div class="hint" style="margin:14px 0 4px">{{ t('views.wrongBook.backLabel') }}</div>
           <MarkdownRenderer :content="c.back" />
         </div>
       </template>
@@ -237,33 +238,32 @@ onMounted(async () => { loading.value = true; try { await Promise.all([load(), l
       <!-- P2·#11 智能补救结果面板 -->
       <div v-if="remediation && remediation.card?.id === c.id" class="remediation-box">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <b>🧩 智能补救闭环</b>
-          <span class="hint">诊断 → 费曼 → 补卡 → 图谱关联</span>
+          <b>{{ t('views.wrongBook.remediateTitle') }}</b>
+          <span class="hint">{{ t('views.wrongBook.remediateChain') }}</span>
           <span style="flex:1"></span>
-          <button class="btn small" @click="closeRemediation">关闭</button>
+          <button class="btn small" @click="closeRemediation">{{ t('views.wrongBook.closeBtn') }}</button>
         </div>
         <div class="rm-section">
-          <div class="rm-section-title">📋 诊断</div>
+          <div class="rm-section-title">{{ t('views.wrongBook.diagTitle') }}</div>
           <div>{{ remediation.diagnosis.summary }}</div>
           <div class="hint" style="margin-top:4px">
-            近 10 次复习：错误 {{ remediation.diagnosis.failCount }} 次 · 模糊 {{ remediation.diagnosis.fuzzyCount }} 次 · 错误率 {{ Math.round(remediation.diagnosis.failRate * 100) }}%
-            <span v-if="remediation.diagnosis.wrongReason"> · 错因：{{ remediation.diagnosis.wrongReason }}</span>
+            {{ t('views.wrongBook.recentReview', { fail: remediation.diagnosis.failCount, fuzzy: remediation.diagnosis.fuzzyCount, rate: Math.round(remediation.diagnosis.failRate * 100) }) }}<span v-if="remediation.diagnosis.wrongReason">{{ t('views.wrongBook.wrongReasonPrefix') }}{{ remediation.diagnosis.wrongReason }}</span>
           </div>
         </div>
         <div class="rm-section">
-          <div class="rm-section-title">🧠 费曼学习建议</div>
+          <div class="rm-section-title">{{ t('views.wrongBook.feynmanTitle') }}</div>
           <div class="hint" style="margin:4px 0">{{ remediation.feynmanHint.prompt }}</div>
-          <button class="btn small primary" @click="goFeynman">去费曼练习 →</button>
+          <button class="btn small primary" @click="goFeynman">{{ t('views.wrongBook.goFeynmanBtn') }}</button>
         </div>
         <div v-if="remediation.variantCards?.length" class="rm-section">
-          <div class="rm-section-title">📝 已生成变式卡（{{ remediation.variantCards.length }} 张）</div>
+          <div class="rm-section-title">{{ t('views.wrongBook.variantCardsTitle', { n: remediation.variantCards.length }) }}</div>
           <div v-for="(v, i) in remediation.variantCards" :key="i" class="rm-variant">
-            <div v-if="!v.error"><b>题：</b>{{ v.front }} <span class="hint">→ {{ v.subject }}</span></div>
+            <div v-if="!v.error"><b>{{ t('views.wrongBook.variantFront') }}</b>{{ v.front }} <span class="hint">→ {{ v.subject }}</span></div>
             <div v-else style="color:var(--red)">{{ v.error }}</div>
           </div>
         </div>
         <div v-if="remediation.graphLinks?.length" class="rm-section">
-          <div class="rm-section-title">🔗 已建立图谱关联（{{ remediation.graphLinks.length }} 条）</div>
+          <div class="rm-section-title">{{ t('views.wrongBook.graphLinksTitle', { n: remediation.graphLinks.length }) }}</div>
           <div v-for="(e, i) in remediation.graphLinks" :key="i" class="rm-edge">
             <span>{{ e.from }}</span>
             <span class="rm-rel">{{ e.label }}</span>

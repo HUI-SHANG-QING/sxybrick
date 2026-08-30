@@ -15,6 +15,7 @@ import { mdToSpeech } from '../utils/tts.js';
 import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { T } from '../utils/telemetry.js';
+import { t } from '../i18n/index.js';
 
 const route = useRoute();
 
@@ -44,8 +45,8 @@ function keywordCoverage(answerText, userText) {
 
 async function startExam() {
   let pool = await db.cards.toArray();
-  if (selSubjects.value.length) pool = pool.filter(c => selSubjects.value.includes(c.subject || '未分类'));
-  if (!pool.length) { toast('该范围内没有卡片', 'error'); return; }
+  if (selSubjects.value.length) pool = pool.filter(c => selSubjects.value.includes(c.subject || t('views.exam.uncategorized')));
+  if (!pool.length) { toast(t('views.exam.noCardsInRange'), 'error'); return; }
   // 随机抽题（Fisher-Yates）
   const shuffled = [...pool];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -53,9 +54,9 @@ async function startExam() {
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
   const n = Math.min(Number(count.value) || 10, shuffled.length);
-  questions.value = shuffled.slice(0, n).map(c => ({ cardId: c.id, front: c.front, back: c.back, subject: c.subject || '未分类' }));
+  questions.value = shuffled.slice(0, n).map(c => ({ cardId: c.id, front: c.front, back: c.back, subject: c.subject || t('views.exam.uncategorized') }));
   answers.value = new Array(n).fill('');
-  examTitle.value = `${selSubjects.value.join('+') || '综合'} 模考 ${new Date().toLocaleDateString()}`;
+  examTitle.value = t('views.exam.examTitle', { subject: selSubjects.value.join('+') || t('views.exam.subjectAll'), date: new Date().toLocaleDateString() });
   phase.value = 'doing';
 }
 
@@ -69,7 +70,7 @@ const wrongList = computed(() => graded.value.filter(g => !g.correct));
 
 async function submit() {
   if (answers.value.some(a => !a.trim())) {
-    if (!(await confirmDialog('还有题目未作答，确定交卷？'))) return;
+    if (!(await confirmDialog(t('views.exam.confirmSubmit')))) return;
   }
   const g = graded.value;
   const saved = await saveExam({
@@ -86,7 +87,7 @@ async function submit() {
   phase.value = 'result';
   await loadHistory();
   try { T.examEnd(score.value, g.length); } catch {}
-  toast(`交卷：${score.value}/${g.length} 分（已存档，可跨设备同步）`, score.value === g.length ? 'success' : 'info');
+  toast(t('views.exam.submitted', { score: score.value, total: g.length }), score.value === g.length ? 'success' : 'info');
 }
 
 // ---- D1 模考讲解：AI 逐题讲解错题（错因 + 关联知识点），讲解写回成绩存档 ----
@@ -94,14 +95,14 @@ const savedExam = ref(null);
 const explains = ref([]);
 const explainBusy = ref(false);
 async function aiExplain() {
-  if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.exam.needAiKey'), 'error'); return; }
   const wrongIdx = graded.value.map((g, i) => (g.correct ? -1 : i)).filter(i => i >= 0);
-  if (!wrongIdx.length) { toast('没有错题需要讲解，满分！', 'success'); return; }
+  if (!wrongIdx.length) { toast(t('views.exam.noWrongToExplain'), 'success'); return; }
   explainBusy.value = true;
   try {
     for (const i of wrongIdx) {
       const q = questions.value[i];
-      const my = answers.value[i] || '（未作答）';
+      const my = answers.value[i] || t('views.exam.notAnswered');
       const r = await chatAI([
         { role: 'system', content: '你是答疑老师。针对学生这道错题，讲清楚：1) 正确答案为什么对（≤60字）；2) 学生的答案错在哪（≤40字）；3) 关联知识点（短语列表）。输出纯文本，用「讲解：/错因：/关联：」三行格式。' },
         { role: 'user', content: `题目：${q.front}\n标准答案：${q.back}\n学生答案：${my}` },
@@ -115,15 +116,15 @@ async function aiExplain() {
       savedExam.value.questions = savedExam.value.questions.map((q, i) => ({ ...q, explain: explains.value[i] || '' }));
     }
     await loadHistory();
-    toast('错题讲解已生成并存入成绩记录', 'success');
-  } catch (e) { toast('讲解生成失败：' + e.message, 'error'); }
+    toast(t('views.exam.explainDone'), 'success');
+  } catch (e) { toast(t('views.exam.explainFail', { msg: e.message }), 'error'); }
   finally { explainBusy.value = false; }
 }
 
 async function markWrong() {
   let n = 0;
   for (const w of wrongList.value) { await setMarked(w.cardId, true); n++; }
-  toast(`已将 ${n} 道错题加入错题本`, 'success');
+  toast(t('views.exam.markedWrong', { n }), 'success');
 }
 
 // P2-2 模考-错题-AI补卡闭环：错题一键生成卡片入复习队列
@@ -134,15 +135,17 @@ async function supplementWrongToCards() {
   supplementBusy.value = true;
   try {
     const wrongs = wrongList.value;
-    if (!wrongs.length) { toast('没有错题需要补卡', 'info'); return; }
+    if (!wrongs.length) { toast(t('views.exam.noWrongToSupplement'), 'info'); return; }
     const r = await wrongQuestionsToCards(wrongs, { tag: '模考错题', source: '模考-错题补卡' });
     if (r.created > 0) {
-      toast(`已将 ${r.created} 道错题补卡入复习队列${r.failed ? `（${r.failed} 道失败）` : ''}`, 'success');
+      const failPart = r.failed ? t('views.exam.supplementFailCount', { n: r.failed }) : '';
+      toast(t('views.exam.supplemented', { n: r.created }) + failPart, 'success');
     } else {
-      toast('补卡失败：' + (r.failed ? `${r.failed} 道无法生成` : '未知错误'), 'error');
+      const reason = r.failed ? t('views.exam.supplementFailCount2', { n: r.failed }) : t('views.exam.unknownError');
+      toast(t('views.exam.supplementFailPrefix') + reason, 'error');
     }
   } catch (e) {
-    toast('错题补卡失败：' + (e?.message || e), 'error');
+    toast(t('views.exam.supplementError', { msg: e?.message || e }), 'error');
   } finally {
     supplementBusy.value = false;
   }
@@ -151,7 +154,7 @@ async function supplementWrongToCards() {
 function viewExam(ex) { viewing.value = ex; }
 function closeView() { viewing.value = null; }
 async function removeExam(ex) {
-  if (!(await confirmDialog(`删除「${ex.title}」（${ex.score}/${ex.total} 分）？`))) return;
+  if (!(await confirmDialog(t('views.exam.confirmDelete', { title: ex.title, score: ex.score, total: ex.total })))) return;
   await deleteExam(ex.id);
   if (viewing.value?.id === ex.id) viewing.value = null;
   await loadHistory();
@@ -167,7 +170,7 @@ const trendPoints = computed(() => {
   // 按科目分组，取最近 10 场（按创建时间升序）
   const groups = new Map();
   for (const ex of [...history.value].reverse()) {
-    const key = ex.subject || '综合';
+    const key = ex.subject || t('views.exam.subjectAll');
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(ex);
   }
@@ -209,95 +212,95 @@ onMounted(async () => {
 <template>
   <div style="max-width:860px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">组卷模考</h2>
-      <span class="hint">本地出卷 · 关键词判分 · 成绩可同步</span>
+      <h2 style="margin:0">{{ t('views.exam.title') }}</h2>
+      <span class="hint">{{ t('views.exam.subtitle') }}</span>
       <span style="flex:1"></span>
-      <button v-if="phase !== 'doing'" class="btn primary small" @click="phase = 'setup'">新模考</button>
+      <button v-if="phase !== 'doing'" class="btn primary small" @click="phase = 'setup'">{{ t('views.exam.newExam') }}</button>
     </div>
 
     <!-- 组卷设置 -->
     <div v-if="phase === 'setup'" class="panel" style="margin-top:14px">
-      <div class="field-label" style="margin-top:0">科目（不选 = 全部科目随机）</div>
+      <div class="field-label" style="margin-top:0">{{ t('views.exam.subjectLabel') }}</div>
       <div class="row">
         <button v-for="s in subjects" :key="s.name" class="chip" :class="{ on: selSubjects.includes(s.name) }" @click="toggleSubject(s.name)">{{ s.name }}<span class="n">{{ s.count }}</span></button>
       </div>
-      <div class="field-label">题目数量</div>
+      <div class="field-label">{{ t('views.exam.questionCount') }}</div>
       <div class="row">
-        <button v-for="n in [5, 10, 20, 50]" :key="n" class="chip" :class="{ on: count === n }" @click="count = n">{{ n }} 题</button>
+        <button v-for="n in [5, 10, 20, 50]" :key="n" class="chip" :class="{ on: count === n }" @click="count = n">{{ t('views.exam.nQuestions', { n }) }}</button>
       </div>
-      <button class="btn primary" @click="startExam">开始模考</button>
+      <button class="btn primary" @click="startExam">{{ t('views.exam.startExam') }}</button>
     </div>
 
     <!-- 答题中 -->
     <div v-if="phase === 'doing'" class="panel" style="margin-top:14px">
-      <div class="field-label" style="margin-top:0">{{ examTitle }}（共 {{ questions.length }} 题）</div>
+      <div class="field-label" style="margin-top:0">{{ examTitle }}{{ t('views.exam.qTotal', { n: questions.length }) }}</div>
       <div v-for="(q, i) in questions" :key="q.cardId" class="exam-q">
-        <div class="exam-num">第 {{ i + 1 }} 题 <span class="hint">（关键词覆盖 ≥60% 判对）</span></div>
+        <div class="exam-num">{{ t('views.exam.qNum', { n: i + 1 }) }} <span class="hint">{{ t('views.exam.qHint') }}</span></div>
         <div class="exam-front">{{ q.front }}</div>
-        <textarea v-model="answers[i]" class="input" rows="3" placeholder="用你自己的话作答…"></textarea>
+        <textarea v-model="answers[i]" class="input" rows="3" :placeholder="t('views.exam.answerPlaceholder')"></textarea>
       </div>
-      <button class="btn primary" @click="submit">交卷</button>
+      <button class="btn primary" @click="submit">{{ t('views.exam.submit') }}</button>
     </div>
 
     <!-- 成绩 -->
     <div v-if="phase === 'result' && graded.length" class="panel" style="margin-top:14px">
       <div class="result-head">
         <span class="result-score">{{ score }} / {{ graded.length }}</span>
-        <span class="hint" style="margin-left:10px">正确率 {{ Math.round((score / graded.length) * 100) }}%</span>
+        <span class="hint" style="margin-left:10px">{{ t('views.exam.accuracy', { n: Math.round((score / graded.length) * 100) }) }}</span>
         <span style="flex:1"></span>
-        <button class="btn small" :disabled="explainBusy || !wrongList.length" @click="aiExplain">{{ explainBusy ? '讲解中…' : `AI 逐题讲解错题（${wrongList.length}）` }}</button>
-        <button class="btn small" :disabled="!wrongList.length" @click="markWrong">错题加入错题本（{{ wrongList.length }}）</button>
-        <button class="btn small primary" :disabled="supplementBusy || !wrongList.length" @click="supplementWrongToCards" title="把错题生成新卡片入复习队列，形成模考→错题→补卡→复习闭环">
-          {{ supplementBusy ? '补卡中…' : `错题补卡入复习（${wrongList.length}）` }}
+        <button class="btn small" :disabled="explainBusy || !wrongList.length" @click="aiExplain">{{ explainBusy ? t('views.exam.explaining') : t('views.exam.aiExplainBtn', { n: wrongList.length }) }}</button>
+        <button class="btn small" :disabled="!wrongList.length" @click="markWrong">{{ t('views.exam.markWrongBtn', { n: wrongList.length }) }}</button>
+        <button class="btn small primary" :disabled="supplementBusy || !wrongList.length" @click="supplementWrongToCards" :title="t('views.exam.supplementTitle')">
+          {{ supplementBusy ? t('views.exam.supplementing') : t('views.exam.supplementBtn', { n: wrongList.length }) }}
         </button>
-        <button class="btn small" @click="backToSetup">再来一场</button>
+        <button class="btn small" @click="backToSetup">{{ t('views.exam.again') }}</button>
       </div>
       <div v-for="(g, i) in graded" :key="g.cardId" class="exam-q" :class="{ wrong: !g.correct }">
-        <div class="exam-num">{{ g.correct ? '✅' : '❌' }} 第 {{ i + 1 }} 题（覆盖 {{ g.cov }}%）</div>
+        <div class="exam-num">{{ g.correct ? '✅' : '❌' }} {{ t('views.exam.qNumCov', { n: i + 1, cov: g.cov }) }}</div>
         <div class="exam-front">{{ g.front }}</div>
-        <div class="hint">你的答案：{{ answers[i] || '（未作答）' }}</div>
-        <div class="exam-std">参考答案：{{ g.back }}</div>
+        <div class="hint">{{ t('views.exam.yourAnswer') }}{{ answers[i] || t('views.exam.notAnswered') }}</div>
+        <div class="exam-std">{{ t('views.exam.stdAnswer') }}{{ g.back }}</div>
         <div v-if="explains[i]" class="exam-explain">{{ explains[i] }}</div>
       </div>
     </div>
 
     <!-- 历史 -->
     <div class="panel" style="margin-top:16px">
-      <div class="field-label" style="margin-top:0">历史成绩（{{ history.length }} 场）</div>
-      <EmptyState v-if="!history.length" icon="🧪" title="还没有模考记录" message="去「我的卡片」组一套卷子，检验学习成果" />
+      <div class="field-label" style="margin-top:0">{{ t('views.exam.historyTitle', { n: history.length }) }}</div>
+      <EmptyState v-if="!history.length" icon="🧪" :title="t('views.exam.emptyTitle')" :message="t('views.exam.emptyMsg')" />
 
       <!-- 纵向对比走势图 -->
       <div v-if="trendPoints.length" style="margin-bottom:14px">
-        <div class="hint" style="font-weight:600;margin-bottom:8px">同科正确率走势（最近 10 场）</div>
-        <div v-for="t in trendPoints" :key="t.subject" class="trend-line">
-          <span class="hint" style="width:90px;flex:none">{{ t.subject }}</span>
+        <div class="hint" style="font-weight:600;margin-bottom:8px">{{ t('views.exam.trendTitle') }}</div>
+        <div v-for="tp in trendPoints" :key="tp.subject" class="trend-line">
+          <span class="hint" style="width:90px;flex:none">{{ tp.subject }}</span>
           <svg :viewBox="`0 0 ${svgW} ${svgH}`" width="100%" style="max-width:420px">
             <line :x1="padX" :y1="svgH - padY" :x2="svgW - padX" :y2="svgH - padY" :stroke="'var(--line)'" stroke-width="1" />
             <line :x1="padX" :y1="padY" :x2="padX" :y2="svgH - padY" :stroke="'var(--line)'" stroke-width="1" />
-            <polyline :points="linePath(t.pts).replace(/[ML]/g, '').split(' ').map(p => p).join(' ')" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-            <circle v-for="(p, i) in t.pts" :key="i" :cx="padX + (t.pts.length === 1 ? 0 : (i / (t.pts.length - 1)) * (svgW - padX * 2))" :cy="svgH - padY - (p.rate / 100) * (svgH - padY * 2)" r="3.5" fill="var(--accent)">
-              <title>{{ p.date }}：{{ p.rate }}%（{{ p.score }}/{{ p.total }}）</title>
+            <polyline :points="linePath(tp.pts).replace(/[ML]/g, '').split(' ').map(p => p).join(' ')" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+            <circle v-for="(p, i) in tp.pts" :key="i" :cx="padX + (tp.pts.length === 1 ? 0 : (i / (tp.pts.length - 1)) * (svgW - padX * 2))" :cy="svgH - padY - (p.rate / 100) * (svgH - padY * 2)" r="3.5" fill="var(--accent)">
+              <title>{{ t('views.exam.trendPoint', { date: p.date, rate: p.rate, score: p.score, total: p.total }) }}</title>
             </circle>
           </svg>
-          <span class="hint" style="flex:1">{{ t.pts.map(p => `${p.rate}%`).join(' → ') }}</span>
+          <span class="hint" style="flex:1">{{ tp.pts.map(p => `${p.rate}%`).join(' → ') }}</span>
         </div>
       </div>
 
       <!-- P2-4 模考分析与预测：通过率预估 + 薄弱科目 -->
       <div v-if="history.length >= 2" class="exam-analytics">
-        <div class="field-label">📊 通过率预估</div>
+        <div class="field-label">{{ t('views.exam.passRateTitle') }}</div>
         <div class="prediction-card" :class="{ pass: passPrediction.willPass, fail: !passPrediction.willPass }">
           <div class="prediction-main">
             <span class="prediction-rate">{{ passPrediction.predictedRate }}%</span>
-            <span class="prediction-verdict">{{ passPrediction.willPass ? '✓ 预估通过' : '✗ 预估不通过' }}</span>
-            <span class="hint">通过线 {{ passPrediction.passLine }}% · 置信度 {{ passPrediction.confidence }}%</span>
+            <span class="prediction-verdict">{{ passPrediction.willPass ? t('views.exam.passVerdict') : t('views.exam.failVerdict') }}</span>
+            <span class="hint">{{ t('views.exam.passLine', { n: passPrediction.passLine, m: passPrediction.confidence }) }}</span>
           </div>
           <div class="prediction-reasons">
             <span v-for="(r, i) in passPrediction.reasons" :key="i" class="reason-tag">{{ r }}</span>
           </div>
         </div>
 
-        <div class="field-label" style="margin-top:14px">⚠️ 薄弱科目（错题率 ≥40% 标红）</div>
+        <div class="field-label" style="margin-top:14px">{{ t('views.exam.weakTitle') }}</div>
         <div v-if="weakSubjects.length" class="weak-grid">
           <div v-for="w in weakSubjects" :key="w.subject" class="weak-item" :class="{ weak: w.weak }">
             <div class="weak-subject">{{ w.subject }}</div>
@@ -307,15 +310,15 @@ onMounted(async () => {
             <div class="weak-stat">{{ w.wrong }}/{{ w.total }} · {{ w.wrongRate }}%</div>
           </div>
         </div>
-        <EmptyState v-else compact icon="🧪" title="暂无错题数据" message="模考成绩 ≥2 场后这里会分析薄弱科目" />
+        <EmptyState v-else compact icon="🧪" :title="t('views.exam.weakEmptyTitle')" :message="t('views.exam.weakEmptyMsg')" />
       </div>
 
       <div v-for="ex in history" :key="ex.id" class="exam-row">
         <span class="chip" style="cursor:pointer" @click="viewExam(ex)">{{ ex.title }}</span>
         <span class="hint">{{ ex.score }}/{{ ex.total }} · {{ new Date(ex.createdAt).toLocaleDateString() }}</span>
         <span style="flex:1"></span>
-        <button class="btn small" @click="viewExam(ex)">查看</button>
-        <button class="btn small danger" @click="removeExam(ex)">删除</button>
+        <button class="btn small" @click="viewExam(ex)">{{ t('views.exam.view') }}</button>
+        <button class="btn small danger" @click="removeExam(ex)">{{ t('views.exam.delete') }}</button>
       </div>
     </div>
 
@@ -323,16 +326,16 @@ onMounted(async () => {
     <teleport to="body">
       <div v-if="viewing" class="modal-mask" @click.self="closeView">
         <div class="modal">
-          <h3 style="margin-top:0">{{ viewing.title }}（{{ viewing.score }}/{{ viewing.total }}）</h3>
+          <h3 style="margin-top:0">{{ viewing.title }}{{ t('views.exam.scoreSuffix', { score: viewing.score, total: viewing.total }) }}</h3>
           <div v-for="(q, i) in viewing.questions" :key="i" class="exam-q" :class="{ wrong: !q.correct }">
-            <div class="exam-num">{{ q.correct ? '✅' : '❌' }} 第 {{ i + 1 }} 题</div>
+            <div class="exam-num">{{ q.correct ? '✅' : '❌' }} {{ t('views.exam.qNumPlain', { n: i + 1 }) }}</div>
             <div class="exam-front">{{ q.front }}</div>
-            <div class="hint">你的答案：{{ q.user || '（未作答）' }}</div>
-            <div class="exam-std">参考答案：{{ q.back }}</div>
+            <div class="hint">{{ t('views.exam.yourAnswer') }}{{ q.user || t('views.exam.notAnswered') }}</div>
+            <div class="exam-std">{{ t('views.exam.stdAnswer') }}{{ q.back }}</div>
             <div v-if="q.explain" class="exam-explain">{{ q.explain }}</div>
           </div>
           <div style="display:flex;justify-content:flex-end;margin-top:14px">
-            <button class="btn" @click="closeView">关闭</button>
+            <button class="btn" @click="closeView">{{ t('views.exam.close') }}</button>
           </div>
         </div>
       </div>

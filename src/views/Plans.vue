@@ -1,6 +1,7 @@
 <script setup>
 // 学习计划：可增删改、标状态（进行中/已完成/已归档），数据落 IndexedDB 并随数据包同步
 // 含"一键自动编排"：基于真实复习数据生成阶段化计划草稿（数据驱动，零 LLM 也能用）
+import { t } from '../i18n/index.js';
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, onMounted, computed, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
@@ -32,9 +33,9 @@ const subjects = ref([]);
 const linkBusy = ref(false);
 
 const statusMeta = {
-  active: { label: '进行中', cls: 'st-active' },
-  done: { label: '已完成', cls: 'st-done' },
-  archived: { label: '已归档', cls: 'st-archived' },
+  active: { key: 'statusActive', cls: 'st-active' },
+  done: { key: 'statusDone', cls: 'st-done' },
+  archived: { key: 'statusArchived', cls: 'st-archived' },
 };
 
 async function load() {
@@ -58,17 +59,17 @@ async function openLinkPanel(p) {
 }
 
 async function linkBySubject() {
-  if (!linkTarget.value || !linkSubject.value) { toast('请选择科目', 'error'); return; }
+  if (!linkTarget.value || !linkSubject.value) { toast(t('views.plans.pleaseSelectSubject'), 'error'); return; }
   if (linkBusy.value) return;
   linkBusy.value = true;
   try {
     const all = await listCards({ subject: linkSubject.value });
     const ids = all.items.map(c => c.id);
-    if (!ids.length) { toast('该科目下没有卡片', 'error'); return; }
+    if (!ids.length) { toast(t('views.plans.noCardsInSubject'), 'error'); return; }
     const n = await linkCardsToPlan(linkTarget.value.id, ids);
-    toast(`已关联 ${n} 张卡片（${linkSubject.value}）`, 'success');
+    toast(t('views.plans.linkedCards', { n, subject: linkSubject.value }), 'success');
     await load();
-  } catch (e) { toast('关联失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.plans.linkFail', { msg: e.message }), 'error'); }
   finally { linkBusy.value = false; }
 }
 
@@ -79,25 +80,28 @@ async function linkDueCards() {
   try {
     const all = await listCards({ mode: 'due' });
     const ids = all.items.map(c => c.id);
-    if (!ids.length) { toast('当前没有到期卡片', 'error'); return; }
+    if (!ids.length) { toast(t('views.plans.noDueCards'), 'error'); return; }
     const n = await linkCardsToPlan(linkTarget.value.id, ids);
-    toast(`已关联 ${n} 张到期卡片（复习联动已开启）`, 'success');
+    toast(t('views.plans.linkedDueCards', { n }), 'success');
     await load();
-  } catch (e) { toast('关联失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.plans.linkFail', { msg: e.message }), 'error'); }
   finally { linkBusy.value = false; }
 }
 
 async function enablePomoLink() {
   if (!linkTarget.value) return;
   const tag = await linkPlanToPomodoro(linkTarget.value.id);
-  toast(`已开启番茄联动，tag: ${tag}（在番茄页选此 tag 即可联动）`, 'success');
+  toast(t('views.plans.pomoLinkOn', { tag }), 'success');
   await load();
 }
 
 async function refreshProgress() {
   if (!linkTarget.value) return;
   const p = await refreshPlanProgress(linkTarget.value.id);
-  if (p) toast(`进度刷新：复习 ${p.reviewed}/${p.total} 张${p.pomoMinutes ? `·专注 ${p.pomoMinutes} 分钟` : ''}`, 'info');
+  if (p) {
+    const pomo = p.pomoMinutes ? t('views.plans.pomoMinutes', { n: p.pomoMinutes }) : '';
+    toast(t('views.plans.refreshProgress', { reviewed: p.reviewed, total: p.total, pomo }), 'info');
+  }
   await load();
 }
 
@@ -108,20 +112,20 @@ function openEdit(p) {
   editing.value = p; title.value = p.title; content.value = p.content; status.value = p.status || 'active'; showForm.value = true;
 }
 async function save() {
-  if (!title.value.trim() && !content.value.trim()) { toast('标题或内容不能都为空', 'error'); return; }
+  if (!title.value.trim() && !content.value.trim()) { toast(t('views.plans.titleOrContentEmpty'), 'error'); return; }
   try {
   if (editing.value) {
     await updatePlan(editing.value.id, { title: title.value, content: content.value, status: status.value });
-    toast('计划已更新', 'success');
+    toast(t('views.plans.planUpdated'), 'success');
   } else {
     await createPlan({ title: title.value, content: content.value, status: status.value });
-    toast('计划已创建', 'success');
+    toast(t('views.plans.planCreated'), 'success');
   }
   showForm.value = false; await load();
-  } catch (e) { toast('保存失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.plans.saveFail', { msg: e.message }), 'error'); }
 }
 async function setStatus(p, s) { await updatePlan(p.id, { status: s }); await load(); }
-async function remove(p) { if (!(await confirmDialog('删除这个计划？'))) return; await deletePlan(p.id); if (activeId.value === p.id) activeId.value = ''; await load(); }
+async function remove(p) { if (!(await confirmDialog(t('views.plans.confirmDelete')))) return; await deletePlan(p.id); if (activeId.value === p.id) activeId.value = ''; await load(); }
 
 // 一键自动编排：拉取跨模块数据，生成阶段化计划草稿，直接落库
 async function runAutoPlan() {
@@ -132,9 +136,9 @@ async function runAutoPlan() {
     const p = await createPlan({ title: r.title, content: r.content, status: 'active' });
     autoMeta.value = r.meta;
     activeId.value = p.id;
-    toast(`已生成并保存「${r.title}」`, 'success');
+    toast(t('views.plans.autoPlanSaved', { title: r.title }), 'success');
     await load();
-  } catch (e) { toast('生成失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.plans.genFail', { msg: e.message }), 'error'); }
   finally { autoLoading.value = false; }
 }
 
@@ -151,68 +155,68 @@ onMounted(async () => { loading.value = true; try { await applyRouteId(); } fina
 </script>
 
 <template>
-  <div class="plans-wrap" v-loading="loading" element-loading-text="加载中…">
+  <div class="plans-wrap" v-loading="loading" :element-loading-text="t('views.plans.loading')">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">学习计划</h2>
+      <h2 style="margin:0">{{ t('views.plans.title') }}</h2>
       <span style="flex:1"></span>
       <div style="display:flex;align-items:center;gap:6px">
         <select v-model.number="autoDays" class="input" style="width:auto">
-          <option :value="3">3 天</option>
-          <option :value="7">7 天</option>
-          <option :value="14">14 天</option>
-          <option :value="30">30 天</option>
+          <option :value="3">{{ t('views.plans.optDays', { n: 3 }) }}</option>
+          <option :value="7">{{ t('views.plans.optDays', { n: 7 }) }}</option>
+          <option :value="14">{{ t('views.plans.optDays', { n: 14 }) }}</option>
+          <option :value="30">{{ t('views.plans.optDays', { n: 30 }) }}</option>
         </select>
-        <button class="btn small" :disabled="autoLoading" @click="runAutoPlan" title="基于你的复习数据自动生成阶段化计划草稿">{{ autoLoading ? '生成中…' : '一键自动编排' }}</button>
+        <button class="btn small" :disabled="autoLoading" @click="runAutoPlan" :title="t('views.plans.autoGenTitle')">{{ autoLoading ? t('views.plans.genLoading') : t('views.plans.autoGenerate') }}</button>
       </div>
-      <button class="btn primary small" @click="openNew">＋ 新建计划</button>
+      <button class="btn primary small" @click="openNew">{{ t('views.plans.newPlanBtn') }}</button>
     </div>
     <div v-if="autoMeta" class="auto-meta">
-      <span>重点：<b>{{ autoMeta.focusSubject || '综合' }}</b></span>
-      <span>每日负载：约 {{ autoMeta.dailyDue }} 张</span>
-      <span>遗忘风险：{{ autoMeta.riskCount }} 张</span>
-      <span>高频错题：{{ autoMeta.weakCount }} 张</span>
-      <span v-if="autoMeta.graphUsed">图驱动：用 {{ autoMeta.graphEdgesUsed }} 条边</span>
+      <span>{{ t('views.plans.focusPrefix') }}<b>{{ autoMeta.focusSubject || t('views.plans.focusAll') }}</b></span>
+      <span>{{ t('views.plans.dailyLoad', { n: autoMeta.dailyDue }) }}</span>
+      <span>{{ t('views.plans.riskCount', { n: autoMeta.riskCount }) }}</span>
+      <span>{{ t('views.plans.weakCount', { n: autoMeta.weakCount }) }}</span>
+      <span v-if="autoMeta.graphUsed">{{ t('views.plans.graphEdges', { n: autoMeta.graphEdgesUsed }) }}</span>
     </div>
 
     <div class="plans-body">
       <aside class="plans-list no-print">
-        <EmptyState v-if="!plans.length" icon="🎯" title="还没有计划" message="可在此手动创建，或在「Agent 工作台」让「复习计划编排师」帮你生成并保存" />
+        <EmptyState v-if="!plans.length" icon="🎯" :title="t('views.plans.emptyTitle')" :message="t('views.plans.emptyMsg')" />
         <div v-for="p in plans" :key="p.id" class="plan-item" :class="{ active: activeId === p.id }" @click="activeId = p.id">
           <div class="plan-title">{{ p.title }}</div>
           <div class="plan-meta">
-            <span class="plan-status" :class="(statusMeta[p.status] || statusMeta.active).cls">{{ (statusMeta[p.status] || statusMeta.active).label }}</span>
+            <span class="plan-status" :class="(statusMeta[p.status] || statusMeta.active).cls">{{ t('views.plans.' + (statusMeta[p.status] || statusMeta.active).key) }}</span>
             <span class="plan-date">{{ new Date(p.updatedAt).toLocaleDateString() }}</span>
           </div>
         </div>
       </aside>
 
       <section class="plans-detail">
-        <EmptyState v-if="!activeId && !showForm" icon="🎯" title="选择左侧计划" message="查看详情，或点「＋ 新建计划」开始制定" />
+        <EmptyState v-if="!activeId && !showForm" icon="🎯" :title="t('views.plans.selectPlanTitle')" :message="t('views.plans.selectPlanMsg')" />
         <template v-for="p in plans" :key="'d' + p.id">
           <div v-if="activeId === p.id" class="detail-card">
             <div class="detail-head">
               <h3 style="margin:0">{{ p.title }}</h3>
               <div style="display:flex;gap:8px">
-                <button class="chip" @click="setStatus(p, 'active')">进行中</button>
-                <button class="chip" @click="setStatus(p, 'done')">完成</button>
-                <button class="chip" @click="setStatus(p, 'archived')">归档</button>
-                <button class="btn small" @click="openLinkPanel(p)" title="关联卡片/番茄，开启自动进度">🔗 联动</button>
-                <button class="btn small" @click="openEdit(p)">编辑</button>
-                <button class="btn small" style="color:var(--red)" @click="remove(p)">删除</button>
+                <button class="chip" @click="setStatus(p, 'active')">{{ t('views.plans.statusActive') }}</button>
+                <button class="chip" @click="setStatus(p, 'done')">{{ t('views.plans.chipDone') }}</button>
+                <button class="chip" @click="setStatus(p, 'archived')">{{ t('views.plans.chipArchived') }}</button>
+                <button class="btn small" @click="openLinkPanel(p)" :title="t('views.plans.linkBtnTitle')">{{ t('views.plans.linkBtn') }}</button>
+                <button class="btn small" @click="openEdit(p)">{{ t('views.plans.editBtn') }}</button>
+                <button class="btn small" style="color:var(--red)" @click="remove(p)">{{ t('views.plans.deleteBtn') }}</button>
               </div>
             </div>
             <div v-if="p.autoProgress && p.progress" class="plan-progress-box">
               <div class="plan-progress-head">
-                <span class="hint">复习进度</span>
+                <span class="hint">{{ t('views.plans.reviewProgress') }}</span>
                 <span style="flex:1"></span>
-                <span class="hint">{{ p.progress.reviewed }} / {{ p.progress.total }} 张 · {{ p.progress.pct }}%</span>
-                <span v-if="p.progress.pomoMinutes" class="hint" style="margin-left:8px">· 番茄 {{ p.progress.pomoMinutes }} 分钟</span>
+                <span class="hint">{{ t('views.plans.progressCount', { reviewed: p.progress.reviewed, total: p.progress.total, pct: p.progress.pct }) }}</span>
+                <span v-if="p.progress.pomoMinutes" class="hint" style="margin-left:8px">{{ t('views.plans.pomoMinutes', { n: p.progress.pomoMinutes }) }}</span>
               </div>
               <div class="plan-progress-bar">
                 <div class="plan-progress-fill" :style="{ width: p.progress.pct + '%' }"></div>
               </div>
             </div>
-            <MarkdownRenderer :content="p.content || '（无内容）'" />
+            <MarkdownRenderer :content="p.content || t('views.plans.noContent')" />
           </div>
         </template>
       </section>
@@ -221,51 +225,51 @@ onMounted(async () => { loading.value = true; try { await applyRouteId(); } fina
     <teleport to="body">
       <div v-if="showForm" class="modal-mask" @click.self="showForm = false">
         <div class="modal">
-          <h3>{{ editing ? '编辑计划' : '新建计划' }}</h3>
-          <div class="field-label">标题</div>
-          <input v-model="title" class="input" placeholder="如：408 冲刺复习计划" />
-          <div class="field-label">内容（支持 Markdown）</div>
-          <textarea v-model="content" class="input" rows="8" placeholder="分阶段目标 / 每日任务 / 里程碑…"></textarea>
-          <div class="field-label">状态</div>
+          <h3>{{ editing ? t('views.plans.modalEditTitle') : t('views.plans.modalNewTitle') }}</h3>
+          <div class="field-label">{{ t('views.plans.fieldTitle') }}</div>
+          <input v-model="title" class="input" :placeholder="t('views.plans.titlePlaceholder')" />
+          <div class="field-label">{{ t('views.plans.fieldContent') }}</div>
+          <textarea v-model="content" class="input" rows="8" :placeholder="t('views.plans.contentPlaceholder')"></textarea>
+          <div class="field-label">{{ t('views.plans.fieldStatus') }}</div>
           <select v-model="status" class="input">
-            <option value="active">进行中</option>
-            <option value="done">已完成</option>
-            <option value="archived">已归档</option>
+            <option value="active">{{ t('views.plans.statusActive') }}</option>
+            <option value="done">{{ t('views.plans.statusDone') }}</option>
+            <option value="archived">{{ t('views.plans.statusArchived') }}</option>
           </select>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-            <button class="btn" @click="showForm = false">取消</button>
-            <button class="btn primary" @click="save">保存</button>
+            <button class="btn" @click="showForm = false">{{ t('views.plans.cancelBtn') }}</button>
+            <button class="btn primary" @click="save">{{ t('views.plans.saveBtn') }}</button>
           </div>
         </div>
       </div>
       <!-- P2·#12 联动面板 -->
       <div v-if="linkOpen && linkTarget" class="modal-mask" @click.self="linkOpen = false">
         <div class="modal">
-          <h3>🔗 计划联动设置</h3>
-          <p class="hint" style="margin:4px 0 12px">关联卡片后，复习该卡片时自动更新计划进度；关联番茄后，番茄会话也计入计划。</p>
+          <h3>{{ t('views.plans.linkTitle') }}</h3>
+          <p class="hint" style="margin:4px 0 12px">{{ t('views.plans.linkHint') }}</p>
           <div v-if="linkTarget.autoProgress" class="link-on-box">
-            <span>联动已开启</span>
+            <span>{{ t('views.plans.linkOn') }}</span>
             <span v-if="linkTarget.progress" class="hint">
-              · 复习 {{ linkTarget.progress.reviewed }}/{{ linkTarget.progress.total }} 张 · 番茄 {{ linkTarget.progress.pomoMinutes || 0 }} 分钟
+              {{ t('views.plans.linkOnProgress', { reviewed: linkTarget.progress.reviewed, total: linkTarget.progress.total, pomo: linkTarget.progress.pomoMinutes || 0 }) }}
             </span>
             <span style="flex:1"></span>
-            <button class="btn small" @click="refreshProgress">🔄 刷新进度</button>
+            <button class="btn small" @click="refreshProgress">🔄 {{ t('views.plans.refreshBtn') }}</button>
           </div>
-          <div class="field-label">按科目关联卡片</div>
+          <div class="field-label">{{ t('views.plans.linkSubjectLabel') }}</div>
           <div style="display:flex;gap:8px;align-items:center">
             <select v-model="linkSubject" class="input" style="width:auto;flex:1">
-              <option value="">选择科目</option>
-              <option v-for="s in subjects" :key="s.name" :value="s.name">{{ s.name }}（{{ s.count }} 张）</option>
+              <option value="">{{ t('views.plans.selectSubject') }}</option>
+              <option v-for="s in subjects" :key="s.name" :value="s.name">{{ t('views.plans.subjectCount', { name: s.name, count: s.count }) }}</option>
             </select>
-            <button class="btn small primary" :disabled="linkBusy || !linkSubject" @click="linkBySubject">关联</button>
+            <button class="btn small primary" :disabled="linkBusy || !linkSubject" @click="linkBySubject">{{ t('views.plans.linkBtn2') }}</button>
           </div>
-          <div class="field-label" style="margin-top:12px">快捷关联</div>
+          <div class="field-label" style="margin-top:12px">{{ t('views.plans.quickLinkLabel') }}</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn small" :disabled="linkBusy" @click="linkDueCards" title="把当前所有到期卡片关联到这个计划">关联今日到期卡</button>
-            <button class="btn small" :disabled="linkBusy" @click="enablePomoLink" title="开启番茄联动，在番茄页选此 tag 即可">🔗 番茄联动</button>
+            <button class="btn small" :disabled="linkBusy" @click="linkDueCards" :title="t('views.plans.linkDueTitle')">{{ t('views.plans.linkDueBtn') }}</button>
+            <button class="btn small" :disabled="linkBusy" @click="enablePomoLink" :title="t('views.plans.pomoLinkTitle')">{{ t('views.plans.pomoLinkBtn') }}</button>
           </div>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-            <button class="btn" @click="linkOpen = false">关闭</button>
+            <button class="btn" @click="linkOpen = false">{{ t('views.plans.closeBtn') }}</button>
           </div>
         </div>
       </div>
