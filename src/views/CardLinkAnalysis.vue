@@ -12,6 +12,7 @@ import { db, uid } from '../db.js';
 import { listCards, createCardGroup } from '../repo.js';
 import { getAIConfig, hasAIKey } from '../ai.js';
 import { runAnalysis } from '../analysis/link-engine.js';
+import { normalizeGraphEnds } from '../algorithms/graph-resolve.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 
 const route = useRoute();
@@ -221,12 +222,18 @@ function renderGraphs() {
 }
 
 function graphOption(d) {
-  const nodes = (d?.nodes || []).map(n => ({
+  const rawNodes = d?.nodes || [];
+  // 端点归一化：本地分析器（relationGraph）用卡片 id 建边，AI 却常常按语义返回节点名。
+  // ECharts 在节点带 id 时只按 id 匹配边，不归一化 → 边被静默丢弃，图变成一堆散点。
+  const { edges: normEdges, dropped } = normalizeGraphEnds(rawNodes, d?.edges || []);
+  if (dropped) console.warn(`[CardLinkAnalysis] ${dropped} 条边的端点定位不到节点，已丢弃`);
+
+  const nodes = rawNodes.map(n => ({
     id: n.id, name: n.name, symbolSize: n.symbolSize || 18,
     itemStyle: { color: groupColor(n.group) },
     label: { show: true, fontSize: 10 },
   }));
-  const edges = (d?.edges || []).map(e => ({
+  const edges = normEdges.map(e => ({
     source: e.source, target: e.target,
     value: e.value, label: e.label ? { show: true, formatter: e.label, fontSize: 9 } : { show: false },
     lineStyle: { width: 1 + (e.value || 0) * 4, opacity: 0.5 },

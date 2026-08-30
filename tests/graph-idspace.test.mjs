@@ -6,11 +6,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  cardLabel, looksLikeRawId, resolveEdgeEnds, resolveGraph, edgesToForest,
+  cardLabel, looksLikeRawId, resolveEdgeEnds, resolveGraph, edgesToForest, normalizeGraphEnds,
 } from '../src/algorithms/graph-resolve.js';
 import { treeToFlat, verifyLinks } from '../src/algorithms/mindmap-graph.js';
 import { resolvePrereqPlan, kindOfEdge } from '../src/algorithms/prereq.js';
 import { buildCandidates, nodeLabelOf } from '../src/algorithms/graphAuto.js';
+import { SYNC_TABLES, shouldExportRow } from '../src/sync-manifest.js';
 
 const C1 = { id: 'c33308d6-c106-48b9-a057-f39783ebf750', front: '死锁产生的四个必要条件', subject: '操作系统' };
 const C2 = { id: 'mt8j0q35qzd4wkyf', front: '银行家算法的安全性判定', subject: '操作系统' };
@@ -123,6 +124,48 @@ test('edgesToForest: 森林（多根）会包一层虚拟根', () => {
   assert.equal(root.children.length, 2);
 });
 
+// ---------- ECharts graph 端点归一化 ----------
+
+test('normalizeGraphEnds: AI 用节点名建边时，自动映射回 id（否则边会被 echarts 静默丢弃）', () => {
+  const nodes = [
+    { id: 'card-1', name: '死锁的四个必要条件' },
+    { id: 'card-2', name: '银行家算法' },
+  ];
+  // LLM 常常不按要求返回 id，而是返回语义名
+  const { edges, dropped } = normalizeGraphEnds(nodes, [
+    { source: '死锁的四个必要条件', target: '银行家算法', label: '相关' },
+  ]);
+  assert.equal(dropped, 0);
+  assert.equal(edges[0].source, 'card-1');
+  assert.equal(edges[0].target, 'card-2');
+  assert.equal(edges[0].label, '相关', '其余字段要保留');
+});
+
+test('normalizeGraphEnds: 本地分析器用 id 建边时原样通过', () => {
+  const nodes = [{ id: 'a', name: '甲' }, { id: 'b', name: '乙' }];
+  const { edges, dropped } = normalizeGraphEnds(nodes, [{ source: 'a', target: 'b' }]);
+  assert.equal(dropped, 0);
+  assert.deepEqual([edges[0].source, edges[0].target], ['a', 'b']);
+});
+
+test('normalizeGraphEnds: 定位不到的边被计数剔除，不产生悬空端点', () => {
+  const nodes = [{ id: 'a', name: '甲' }];
+  const { edges, dropped } = normalizeGraphEnds(nodes, [
+    { source: 'a', target: '不存在的节点' },
+    { source: '甲', target: 'a' },
+  ]);
+  assert.equal(dropped, 1);
+  assert.equal(edges.length, 1);
+  assert.deepEqual([edges[0].source, edges[0].target], ['a', 'a']);
+});
+
+test('normalizeGraphEnds: 节点只有 name 没有 id 时，退化为按 name 连接', () => {
+  const nodes = [{ name: '甲' }, { name: '乙' }];
+  const { edges, dropped } = normalizeGraphEnds(nodes, [{ source: '甲', target: '乙' }]);
+  assert.equal(dropped, 0);
+  assert.deepEqual([edges[0].source, edges[0].target], ['甲', '乙']);
+});
+
 // ---------- 导图建边：ECharts 的静默丢边坑 ----------
 
 test('treeToFlat: 每条 link 的两端都能按 id 在 nodes 里找到（ECharts 建图口径）', () => {
@@ -223,4 +266,24 @@ test('nodeLabelOf: 空卡片回退为空串（由调用方决定降级）', () =
   assert.equal(nodeLabelOf(C1), C1.front);
   assert.equal(nodeLabelOf(null), '');
   assert.equal(nodeLabelOf({ front: '   ' }), '');
+});
+
+// ---------- 同步侧：派生数据不得进入同步包 ----------
+
+test('shouldExportRow: kind=auto 的派生图谱边被排除，人工边照常同步', () => {
+  const entry = SYNC_TABLES.find(t => t.table === 'graphEdges');
+  assert.ok(entry, 'graphEdges 必须在同步清单里');
+  assert.ok(typeof entry.exportFilter === 'function', 'graphEdges 必须带 exportFilter');
+
+  assert.equal(shouldExportRow(entry, { kind: 'auto' }), false);
+  assert.equal(shouldExportRow(entry, { kind: 'auto', from: 'a', to: 'b' }), false);
+  assert.equal(shouldExportRow(entry, { from: 'a', to: 'b' }), true);
+  assert.equal(shouldExportRow(entry, { type: 'doc-card', docId: 'd1' }), true);
+});
+
+test('shouldExportRow: 未配置 exportFilter 的表全部放行；过滤器抛错时保守放行', () => {
+  assert.equal(shouldExportRow({ table: 'cards' }, { anything: 1 }), true);
+  assert.equal(shouldExportRow(null, { anything: 1 }), true);
+  const boom = { table: 'x', exportFilter: () => { throw new Error('boom'); } };
+  assert.equal(shouldExportRow(boom, { a: 1 }), true, '过滤器异常不应导致数据被静默丢弃');
 });

@@ -137,6 +137,47 @@ export function resolveGraph(rawEdges, cards, opts = {}) {
 }
 
 /**
+ * 归一化 ECharts graph 系列的 nodes/edges 端点。
+ *
+ * 用途：喂给 ECharts 之前把「按 id 写」和「按 name 写」两种来源统一成 **按 id**，
+ * 否则节点带了 id 而边写的是 name 时，边会被 addEdge() 静默丢弃（见文件头说明）。
+ *
+ * 典型场景：LLM 生成的图谱。prompt 里明确要求用卡片 id，但模型经常照着语义
+ * 返回节点名——本地分析器（relationGraph）用 id，AI 则可能用 name，
+ * 两者走同一个 graphOption()，不归一化就会「数据明明有，图却是散点」。
+ *
+ * @returns {{ edges:Array, dropped:number }} dropped = 两端都定位不到的边数
+ */
+export function normalizeGraphEnds(nodes, edges) {
+  const byId = new Map();
+  const byName = new Map();
+  for (const n of nodes || []) {
+    const id = n?.id == null ? '' : String(n.id).trim();
+    const name = n?.name == null ? '' : String(n.name).trim();
+    if (id) byId.set(id, n);
+    if (name && !byName.has(name)) byName.set(name, n);
+  }
+  const resolve = (v) => {
+    const k = String(v ?? '').trim();
+    if (!k) return null;
+    const hit = byId.get(k) || byName.get(k);
+    if (!hit) return null;
+    const id = hit.id == null ? '' : String(hit.id).trim();
+    return id || String(hit.name ?? '').trim() || null;
+  };
+
+  const out = [];
+  let dropped = 0;
+  for (const e of edges || []) {
+    const s = resolve(e?.source);
+    const t = resolve(e?.target);
+    if (s == null || t == null) { dropped++; continue; }
+    out.push({ ...e, source: s, target: t });
+  }
+  return { edges: out, dropped };
+}
+
+/**
  * 有向边 → 森林（防环），供「树状 / 导图」复用。
  * 与旧实现一致：入度为 0 的点都作为子树根，多个不连通子树包一层虚拟根。
  */
