@@ -8,6 +8,7 @@ import { agentSystem } from '../ai.js';
 import { aggregateUsage, clearUsage } from '../utils/ai-usage.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
+import { t } from '../i18n/index.js';
 import { TraceKind } from '../agent/types.js';
 import { uid } from '../db.js';
 
@@ -31,28 +32,28 @@ async function loadUsage() {
   try { usage.value = await aggregateUsage(usageDays.value); } catch { usage.value = null; }
 }
 async function resetUsage() {
-  if (!(await confirmDialog('清空全部 AI 用量记录？（不影响卡片等数据）'))) return;
+  if (!(await confirmDialog(t('views.agentWorkbench.confirmClearUsage')))) return;
   await clearUsage();
   await loadUsage();
-  toast('已清空用量记录', 'success');
+  toast(t('views.agentWorkbench.toastUsageCleared'), 'success');
 }
 function fmtCost(c) { return c >= 0.01 ? '¥' + c.toFixed(2) : '¥' + c.toFixed(4); }
 function fmtTokens(n) { return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n); }
 
-const traceMeta = {
-  [TraceKind.ROUTE]: { label: '路由', cls: 't-route', icon: '➤' },
-  [TraceKind.THOUGHT]: { label: '思考', cls: 't-thought', icon: '💡' },
-  [TraceKind.TOOL_CALL]: { label: '调用工具', cls: 't-call', icon: '🔧' },
-  [TraceKind.TOOL_RESULT]: { label: '工具返回', cls: 't-result', icon: '📦' },
-  [TraceKind.FINAL]: { label: '结论', cls: 't-final', icon: '✅' },
-  [TraceKind.ERROR]: { label: '异常', cls: 't-error', icon: '⚠️' },
-  [TraceKind.PLAN]: { label: '计划', cls: 't-plan', icon: '🗂️' },
-};
+const traceMeta = computed(() => ({
+  [TraceKind.ROUTE]: { label: t('views.agentWorkbench.tRoute'), cls: 't-route', icon: '➤' },
+  [TraceKind.THOUGHT]: { label: t('views.agentWorkbench.tThought'), cls: 't-thought', icon: '💡' },
+  [TraceKind.TOOL_CALL]: { label: t('views.agentWorkbench.tToolCall'), cls: 't-call', icon: '🔧' },
+  [TraceKind.TOOL_RESULT]: { label: t('views.agentWorkbench.tToolResult'), cls: 't-result', icon: '📦' },
+  [TraceKind.FINAL]: { label: t('views.agentWorkbench.tFinal'), cls: 't-final', icon: '✅' },
+  [TraceKind.ERROR]: { label: t('views.agentWorkbench.tError'), cls: 't-error', icon: '⚠️' },
+  [TraceKind.PLAN]: { label: t('views.agentWorkbench.tPlan'), cls: 't-plan', icon: '🗂️' },
+}));
 
 async function send() {
   const text = input.value.trim();
   if (!text || loading.value) return;
-  if (!hasAIKey()) { toast('请先在「AI 设置」里填入 API 密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.agentWorkbench.toastNeedKey'), 'error'); return; }
   if (!currentId.value) currentId.value = uid();
   input.value = '';
   messages.value.push({ role: 'user', content: text });
@@ -72,7 +73,7 @@ async function send() {
     bubble.loading = false;
     bubble.agentName = agentName;
   } catch (e) {
-    bubble.content = '（出错：' + e.message + '）';
+    bubble.content = t('views.agentWorkbench.errPrefix') + e.message + t('views.agentWorkbench.errSuffix');
     bubble.loading = false;
   } finally {
     loading.value = false;
@@ -102,12 +103,12 @@ async function persist() {
   if (!currentId.value) return;
   const clean = messages.value.filter(m => m.role && !m.loading).map(m => ({ role: m.role, content: m.content }));
   const firstUser = messages.value.find(m => m.role === 'user');
-  const title = firstUser?.content?.slice(0, 18) || 'Agent 会话';
+  const title = firstUser?.content?.slice(0, 18) || t('views.agentWorkbench.defaultSessionTitle');
   await saveChat({ id: currentId.value, type: 'agent', title, messages: clean, createdAt: Date.now() });
   await loadSessions();
 }
 async function removeSession(id) {
-  if (!(await confirmDialog('删除这个 Agent 会话？'))) return;
+  if (!(await confirmDialog(t('views.agentWorkbench.confirmDeleteSession')))) return;
   await deleteChat(id);
   if (currentId.value === id) newSession();
   await loadSessions();
@@ -122,12 +123,12 @@ function clearChat() { newSession(); }
 function demoExtend() {
   agentSystem.registerTool({
     name: 'echo_demo',
-    description: '【演示扩展】把输入原样返回，证明工具可在运行时注册并被编排器识别。',
+    description: t('views.agentWorkbench.demoToolDesc'),
     parameters: { text: 'string: 任意文本' },
     async execute(args) { return { ok: true, data: { echoed: args?.text || '' } }; },
   });
   tools.value = agentSystem.listTools();
-  toast('已运行时注册工具 echo_demo（可在上方工具列表看到）', 'success');
+  toast(t('views.agentWorkbench.toastToolRegistered'), 'success');
 }
 
 const counts = computed(() => {
@@ -146,24 +147,24 @@ onMounted(async () => {
   <div class="wb-wrap">
     <div class="wb-head">
       <div>
-        <h2 style="margin:0">Agent 工作台</h2>
+        <h2 style="margin:0">{{ t('views.agentWorkbench.title') }}</h2>
         <div class="hint" style="margin-top:4px">
-          模块化 Agent · 自动意图路由 · 多步工具编排 · 运行时可扩展接口
+          {{ t('views.agentWorkbench.subtitle') }}
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <select v-model="currentId" class="input" style="width:auto" @change="selectSession(currentId)">
-          <option value="">＋ 新会话</option>
+          <option value="">{{ t('views.agentWorkbench.newSession') }}</option>
           <option v-for="s in sessions" :key="s.id" :value="s.id">{{ s.title }}</option>
         </select>
         <select v-model="selectedAgent" class="input" style="width:auto">
-          <option value="">自动路由</option>
+          <option value="">{{ t('views.agentWorkbench.autoRoute') }}</option>
           <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
         </select>
-        <button class="chip" @click="showTools = !showTools">工具接口 ({{ tools.length }})</button>
-        <button class="chip" @click="demoExtend">＋运行时扩展</button>
-        <button class="chip" @click="clearChat">清空对话</button>
-        <button class="chip" @click="showUsage = !showUsage">📊 用量</button>
+        <button class="chip" @click="showTools = !showTools">{{ t('views.agentWorkbench.toolsBtn', { n: tools.length }) }}</button>
+        <button class="chip" @click="demoExtend">{{ t('views.agentWorkbench.extendBtn') }}</button>
+        <button class="chip" @click="clearChat">{{ t('views.agentWorkbench.clearChatBtn') }}</button>
+        <button class="chip" @click="showUsage = !showUsage">{{ t('views.agentWorkbench.usageBtn') }}</button>
       </div>
     </div>
 
@@ -172,28 +173,28 @@ onMounted(async () => {
       <aside class="wb-side no-print">
         <div v-if="showUsage" class="usage-panel">
           <div class="side-title">
-            AI 用量（近 {{ usageDays }} 天）
-            <a style="float:right;color:var(--red);cursor:pointer" @click="resetUsage">清空</a>
+            {{ t('views.agentWorkbench.usageTitle', { n: usageDays }) }}
+            <a style="float:right;color:var(--red);cursor:pointer" @click="resetUsage">{{ t('views.agentWorkbench.usageClear') }}</a>
           </div>
           <div v-if="!usage || !usage.calls" class="hint" style="padding:4px 0">
-            暂无记录。使用 AI 功能（对话/Agent/导图/建卡/向量化）后，这里会显示 token、耗时与估算费用。
+            {{ t('views.agentWorkbench.usageEmpty') }}
           </div>
           <template v-else>
             <div class="usage-grid">
-              <div class="usage-cell"><div class="usage-num">{{ usage.calls }}</div><div class="usage-label">调用</div></div>
-              <div class="usage-cell"><div class="usage-num">{{ fmtTokens(usage.totalTokens) }}</div><div class="usage-label">Token</div></div>
-              <div class="usage-cell"><div class="usage-num">{{ (usage.durationMs / 1000).toFixed(1) }}s</div><div class="usage-label">累计耗时</div></div>
-              <div class="usage-cell"><div class="usage-num">{{ fmtCost(usage.costCny) }}</div><div class="usage-label">估算费用</div></div>
+              <div class="usage-cell"><div class="usage-num">{{ usage.calls }}</div><div class="usage-label">{{ t('views.agentWorkbench.usageCalls') }}</div></div>
+              <div class="usage-cell"><div class="usage-num">{{ fmtTokens(usage.totalTokens) }}</div><div class="usage-label">{{ t('views.agentWorkbench.usageToken') }}</div></div>
+              <div class="usage-cell"><div class="usage-num">{{ (usage.durationMs / 1000).toFixed(1) }}s</div><div class="usage-label">{{ t('views.agentWorkbench.usageDuration') }}</div></div>
+              <div class="usage-cell"><div class="usage-num">{{ fmtCost(usage.costCny) }}</div><div class="usage-label">{{ t('views.agentWorkbench.usageCost') }}</div></div>
             </div>
             <div class="usage-row" v-for="s in usage.bySource.slice(0, 6)" :key="s.source">
               <span class="usage-name">{{ s.source }}</span>
-              <span class="usage-nums">{{ s.calls }} 次 · {{ fmtTokens(s.totalTokens) }} · {{ fmtCost(s.costCny) }}</span>
+              <span class="usage-nums">{{ s.calls }} {{ t('views.agentWorkbench.usageTimes') }} · {{ fmtTokens(s.totalTokens) }} · {{ fmtCost(s.costCny) }}</span>
             </div>
-            <div class="hint" style="margin-top:6px">费用按内置费率估算，实际以 API 服务商账单为准。</div>
+            <div class="hint" style="margin-top:6px">{{ t('views.agentWorkbench.usageFeeHint') }}</div>
           </template>
         </div>
 
-        <div class="side-title" style="margin-top:{{ showUsage ? '14px' : '0' }}">可用 Agent（{{ agents.length }}）</div>
+        <div class="side-title" style="margin-top:{{ showUsage ? '14px' : '0' }}">{{ t('views.agentWorkbench.agentsTitle', { n: agents.length }) }}</div>
         <div
           v-for="a in agents"
           :key="a.id"
@@ -204,20 +205,20 @@ onMounted(async () => {
           <div class="agent-name">{{ a.name }}</div>
           <div class="agent-desc">{{ a.description }}</div>
           <div class="agent-tools">
-            <span v-for="t in a.tools" :key="t" class="tag">{{ t }}</span>
-            <span v-if="!a.tools.length" class="tag muted">纯对话</span>
+            <span v-for="tag in a.tools" :key="tag" class="tag">{{ tag }}</span>
+            <span v-if="!a.tools.length" class="tag muted">{{ t('views.agentWorkbench.pureTalk') }}</span>
           </div>
         </div>
 
         <div v-if="showTools" style="margin-top:14px">
-          <div class="side-title">可扩展工具接口（{{ tools.length }}）</div>
-          <div v-for="t in tools" :key="t.name" class="tool-item">
+          <div class="side-title">{{ t('views.agentWorkbench.toolsTitle', { n: tools.length }) }}</div>
+          <div v-for="tool in tools" :key="tool.name" class="tool-item">
             <div class="tool-name">
-              {{ t.name }}
-              <span v-if="t.writesData" class="badge w">写</span>
-              <span v-if="t.readsData" class="badge r">读</span>
+              {{ tool.name }}
+              <span v-if="tool.writesData" class="badge w">{{ t('views.agentWorkbench.badgeWrite') }}</span>
+              <span v-if="tool.readsData" class="badge r">{{ t('views.agentWorkbench.badgeRead') }}</span>
             </div>
-            <div class="tool-desc">{{ t.description }}</div>
+            <div class="tool-desc">{{ tool.description }}</div>
           </div>
         </div>
       </aside>
@@ -226,31 +227,31 @@ onMounted(async () => {
       <section class="wb-chat">
         <div ref="streamBox" class="chat-box">
           <div v-if="!messages.length" class="hint" style="text-align:center;padding:40px">
-            试试：<br />「分析我本周的薄弱科目」<br />「把这段笔记拆成卡片」<br />「出 3 道数据结构选择题考我」
+            {{ t('views.agentWorkbench.emptyHintPrefix') }}<br />{{ t('views.agentWorkbench.emptyHintEx1') }}<br />{{ t('views.agentWorkbench.emptyHintEx2') }}<br />{{ t('views.agentWorkbench.emptyHintEx3') }}
           </div>
           <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
             <div class="bubble">
-              <div v-if="m.role === 'assistant' && m.loading" class="loading">思考/编排中…</div>
+              <div v-if="m.role === 'assistant' && m.loading" class="loading">{{ t('views.agentWorkbench.thinking') }}</div>
               <MarkdownRenderer v-else :content="m.content" />
               <div v-if="m.role === 'assistant' && m.agentName && !m.loading" class="agent-tag">🤖 {{ m.agentName }}</div>
             </div>
           </div>
         </div>
         <div class="input-row">
-          <input v-model="input" class="input" placeholder="描述你的任务，Agent 会自动编排执行…" @keydown.enter="send" />
-          <button class="btn primary" :disabled="loading" @click="send">执行</button>
+          <input v-model="input" class="input" :placeholder="t('views.agentWorkbench.inputPlaceholder')" @keydown.enter="send" />
+          <button class="btn primary" :disabled="loading" @click="send">{{ t('views.agentWorkbench.runBtn') }}</button>
         </div>
       </section>
 
       <!-- 右：编排轨迹 -->
       <aside class="wb-trace no-print">
         <div class="side-title">
-          编排轨迹
-          <span v-if="counts[TraceKind.THOUGHT]" class="mini">思考{{ counts[TraceKind.THOUGHT] }}</span>
-          <span v-if="counts[TraceKind.TOOL_CALL]" class="mini">工具{{ counts[TraceKind.TOOL_CALL] }}</span>
-          <a style="float:right;color:var(--red);cursor:pointer" @click="clearTrace">清</a>
+          {{ t('views.agentWorkbench.traceTitle') }}
+          <span v-if="counts[TraceKind.THOUGHT]" class="mini">{{ t('views.agentWorkbench.tThoughtMini', { n: counts[TraceKind.THOUGHT] }) }}</span>
+          <span v-if="counts[TraceKind.TOOL_CALL]" class="mini">{{ t('views.agentWorkbench.tToolMini', { n: counts[TraceKind.TOOL_CALL] }) }}</span>
+          <a style="float:right;color:var(--red);cursor:pointer" @click="clearTrace">{{ t('views.agentWorkbench.traceClear') }}</a>
         </div>
-        <div v-if="!traceNodes.length" class="hint" style="padding:8px">提交任务后，这里实时展示 Agent 的「路由→思考→调用工具→观察→结论」。</div>
+        <div v-if="!traceNodes.length" class="hint" style="padding:8px">{{ t('views.agentWorkbench.traceEmpty') }}</div>
         <div v-for="(n, i) in traceNodes" :key="i" class="trace-node" :class="(traceMeta[n.kind] || {}).cls">
           <div class="trace-head">
             <span class="trace-icon">{{ (traceMeta[n.kind] || {}).icon || '•' }}</span>

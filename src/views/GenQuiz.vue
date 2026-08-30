@@ -13,6 +13,7 @@ import { wrongQuestionsToCards } from '../utils/wrongToCards.js';
 import { hasAIKey } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import { T } from '../utils/telemetry.js';
+import { t } from '../i18n/index.js';
 
 const subjects = ref([]);
 const selSubjects = ref([]);
@@ -41,24 +42,25 @@ function toggleSubject(name) {
 }
 
 async function startQuiz() {
-  if (!count.value || count.value < 1) { toast('请填写题目数量', 'error'); return; }
+  if (!count.value || count.value < 1) { toast(t('views.genQuiz.fillCount'), 'error'); return; }
   generating.value = true;
   try {
     let pool = await db.cards.toArray();
     if (selSubjects.value.length) pool = pool.filter(c => selSubjects.value.includes(c.subject || '未分类'));
-    if (!pool.length) { toast('该范围内没有卡片', 'error'); return; }
+    if (!pool.length) { toast(t('views.genQuiz.noCards'), 'error'); return; }
     // 过滤掉无 back 的卡（无法生成题目）
     pool = pool.filter(c => c.front && c.back);
-    if (pool.length < 4) { toast('卡片不足 4 张，无法生成测验（至少需要 4 张以构造干扰项）', 'error'); return; }
+    if (pool.length < 4) { toast(t('views.genQuiz.notEnoughCards'), 'error'); return; }
     const opts = quizType.value === 'mixed' ? { mixTypes: true, count: count.value } : { type: quizType.value, count: count.value };
     const qs = await genQuiz(pool, opts);
     questions.value = qs;
     answers.value = new Array(qs.length).fill(quizType.value === 'choice' ? -1 : '');
     quizTitle.value = `${selSubjects.value.join('+') || '综合'} 生成式测验 ${new Date().toLocaleDateString()}`;
     phase.value = 'doing';
-    toast(`已生成 ${qs.length} 道题（${quizType.value === 'mixed' ? '混合题型' : QUIZ_TYPES.find(t => t.code === quizType.value)?.label}）`, 'success');
+    const typeLabel = quizType.value === 'mixed' ? t('views.genQuiz.mixedTypes') : QUIZ_TYPES.find(item => item.code === quizType.value)?.label;
+    toast(t('views.genQuiz.generated', { n: qs.length, typeLabel }), 'success');
   } catch (e) {
-    toast('生成失败：' + (e?.message || e), 'error');
+    toast(t('views.genQuiz.genFail', { msg: e?.message || e }), 'error');
   } finally {
     generating.value = false;
   }
@@ -77,7 +79,7 @@ async function submit() {
     if (q.type === 'choice') return a === -1 || a === undefined;
     return !String(a).trim();
   }).length;
-  if (unanswered > 0 && !(await confirmDialog(`还有 ${unanswered} 题未作答，确定交卷？`))) return;
+  if (unanswered > 0 && !(await confirmDialog(t('views.genQuiz.unansweredConfirm', { n: unanswered })))) return;
   const g = graded.value;
   savedQuiz.value = await saveExam({
     title: quizTitle.value,
@@ -99,7 +101,7 @@ async function submit() {
   phase.value = 'result';
   await loadHistory();
   try { T.examEnd(score.value, g.length); } catch {}
-  toast(`交卷：${score.value}/${g.length} 分（已存档）`, score.value === g.length ? 'success' : 'info');
+  toast(t('views.genQuiz.submitToast', { score: score.value, total: g.length }), score.value === g.length ? 'success' : 'info');
 }
 
 // P2-2 闭环入口：把错题一键生成为卡片入复习队列（复用共享工具，与 Exam.vue 模考统一逻辑）
@@ -108,15 +110,17 @@ async function supplementWrongToCards() {
   supplementBusy.value = true;
   try {
     const wrongs = wrongList.value;
-    if (!wrongs.length) { toast('没有错题需要补卡', 'info'); return; }
+    if (!wrongs.length) { toast(t('views.genQuiz.noWrong'), 'info'); return; }
     const r = await wrongQuestionsToCards(wrongs, { tag: '生成式测验错题', source: '生成式测验-错题补卡' });
     if (r.created > 0) {
-      toast(`已将 ${r.created} 道错题补卡入复习队列${r.failed ? `（${r.failed} 道失败）` : ''}`, 'success');
+      const msg = t('views.genQuiz.supplementDone', { n: r.created }) + (r.failed ? t('views.genQuiz.supplementFailSuffix', { failed: r.failed }) : '');
+      toast(msg, 'success');
     } else {
-      toast('补卡失败：' + (r.failed ? `${r.failed} 道无法生成` : '未知错误'), 'error');
+      const detail = r.failed ? t('views.genQuiz.supplementFailCount', { n: r.failed }) : t('views.genQuiz.unknownError');
+      toast(t('views.genQuiz.supplementFail', { detail }), 'error');
     }
   } catch (e) {
-    toast('错题补卡失败：' + (e?.message || e), 'error');
+    toast(t('views.genQuiz.wrongCardFail', { msg: e?.message || e }), 'error');
   } finally {
     supplementBusy.value = false;
   }
@@ -140,16 +144,15 @@ function viewHistory(h) {
 
 <template>
   <div class="page">
-    <h2>🧪 生成式测验</h2>
+    <h2>{{ t('views.genQuiz.title') }}</h2>
     <p class="hint">
-      与模考不同：这里用 AI 从你的卡片库<b>重新出题</b>（选择/填空/简答），题干和情境都是新的，
-      避免背题而非学知识。认知科学：测试效应 + 生成效应，主动检索比被动复习强 2~3 倍。
-      <span v-if="!hasAIKey()" style="color:var(--warn)">⚠ 未配置 AI 密钥，将降级为本地模板出题（质量较低）</span>
+      {{ t('views.genQuiz.hint1') }}<b>{{ t('views.genQuiz.hintBold') }}</b>{{ t('views.genQuiz.hint2') }}
+      <span v-if="!hasAIKey()" style="color:var(--warn)">{{ t('views.genQuiz.noKeyWarn') }}</span>
     </p>
 
     <!-- 阶段 1：出题设置 -->
     <div v-if="phase === 'setup'" class="card panel">
-      <div class="field-label">科目范围（不选=全部）</div>
+      <div class="field-label">{{ t('views.genQuiz.subjectRange') }}</div>
       <div class="subject-grid">
         <label v-for="s in subjects" :key="s.name" class="subject-chip" :class="{ on: selSubjects.includes(s.name) }">
           <input type="checkbox" :checked="selSubjects.includes(s.name)" @change="toggleSubject(s.name)" />
@@ -158,34 +161,34 @@ function viewHistory(h) {
         </label>
       </div>
 
-      <div class="field-label" style="margin-top:16px">题型</div>
+      <div class="field-label" style="margin-top:16px">{{ t('views.genQuiz.typeLabel') }}</div>
       <div class="type-grid">
-        <label v-for="t in QUIZ_TYPES" :key="t.code" class="type-chip" :class="{ on: quizType === t.code }">
-          <input type="radio" :value="t.code" v-model="quizType" />
+        <label v-for="item in QUIZ_TYPES" :key="item.code" class="type-chip" :class="{ on: quizType === item.code }">
+          <input type="radio" :value="item.code" v-model="quizType" />
           <div>
-            <div class="type-name">{{ t.label }}</div>
-            <div class="type-desc">{{ t.desc }}</div>
+            <div class="type-name">{{ item.label }}</div>
+            <div class="type-desc">{{ item.desc }}</div>
           </div>
         </label>
         <label class="type-chip" :class="{ on: quizType === 'mixed' }">
           <input type="radio" value="mixed" v-model="quizType" />
           <div>
-            <div class="type-name">混合</div>
-            <div class="type-desc">三种题型各 1/3，综合训练</div>
+            <div class="type-name">{{ t('views.genQuiz.mixedName') }}</div>
+            <div class="type-desc">{{ t('views.genQuiz.mixedDesc') }}</div>
           </div>
         </label>
       </div>
 
-      <div class="field-label" style="margin-top:16px">题目数量</div>
+      <div class="field-label" style="margin-top:16px">{{ t('views.genQuiz.countLabel') }}</div>
       <input type="number" min="1" max="20" v-model.number="count" class="input" style="width:120px" />
 
       <div style="margin-top:16px">
         <button class="btn primary" :disabled="generating" @click="startQuiz">
-          {{ generating ? '生成中…（LLM 出题）' : '生成测验' }}
+          {{ generating ? t('views.genQuiz.generating') : t('views.genQuiz.genBtn') }}
         </button>
       </div>
 
-      <div v-if="history.length" class="field-label" style="margin-top:24px">历史成绩</div>
+      <div v-if="history.length" class="field-label" style="margin-top:24px">{{ t('views.genQuiz.historyLabel') }}</div>
       <div v-if="history.length" class="history-list">
         <div v-for="h in history" :key="h.id" class="history-item" @click="viewHistory(h)">
           <span class="h-title">{{ h.title }}</span>
@@ -199,12 +202,12 @@ function viewHistory(h) {
     <div v-if="phase === 'doing'" class="card panel">
       <div class="quiz-header">
         <span>{{ quizTitle }}</span>
-        <button class="btn small primary" @click="submit">交卷</button>
+        <button class="btn small primary" @click="submit">{{ t('views.genQuiz.submitBtn') }}</button>
       </div>
       <div v-for="(q, i) in questions" :key="i" class="quiz-item">
         <div class="quiz-stem">
           <span class="q-no">{{ i + 1 }}.</span>
-          <span class="q-type-tag">{{ q.type === 'choice' ? '选择' : q.type === 'cloze' ? '填空' : '简答' }}</span>
+          <span class="q-type-tag">{{ q.type === 'choice' ? t('views.genQuiz.typeChoice') : q.type === 'cloze' ? t('views.genQuiz.typeCloze') : t('views.genQuiz.typeShort') }}</span>
           <pre>{{ q.stem }}</pre>
         </div>
         <!-- 选择题 -->
@@ -216,10 +219,10 @@ function viewHistory(h) {
           </label>
         </div>
         <!-- 填空/简答 -->
-        <textarea v-else v-model="answers[i]" class="input quiz-textarea" placeholder="请输入你的答案…"></textarea>
+        <textarea v-else v-model="answers[i]" class="input quiz-textarea" :placeholder="t('views.genQuiz.ansPlaceholder')"></textarea>
       </div>
       <div style="margin-top:16px;text-align:right">
-        <button class="btn primary" @click="submit">交卷</button>
+        <button class="btn primary" @click="submit">{{ t('views.genQuiz.submitBtn') }}</button>
       </div>
     </div>
 
@@ -231,14 +234,14 @@ function viewHistory(h) {
       </div>
       <div v-if="wrongList.length" style="margin:12px 0">
         <button class="btn primary" :disabled="supplementBusy" @click="supplementWrongToCards">
-          {{ supplementBusy ? '补卡中…' : `把 ${wrongList.length} 道错题生成卡片入复习队列` }}
+          {{ supplementBusy ? t('views.genQuiz.supplementBusy') : t('views.genQuiz.supplementBtn', { n: wrongList.length }) }}
         </button>
-        <span class="hint" style="margin-left:8px">闭环：错题 → 卡片 → 复习队列（P2-2）</span>
+        <span class="hint" style="margin-left:8px">{{ t('views.genQuiz.loopHint') }}</span>
       </div>
       <div v-for="(q, i) in graded" :key="i" class="grade-item" :class="{ wrong: !q.correct }">
         <div class="grade-stem">
           <span class="q-no">{{ i + 1 }}.</span>
-          <span class="q-type-tag">{{ q.type === 'choice' ? '选择' : q.type === 'cloze' ? '填空' : '简答' }}</span>
+          <span class="q-type-tag">{{ q.type === 'choice' ? t('views.genQuiz.typeChoice') : q.type === 'cloze' ? t('views.genQuiz.typeCloze') : t('views.genQuiz.typeShort') }}</span>
           <span class="grade-mark" :class="{ ok: q.correct }">{{ q.correct ? '✓' : '✗' }}</span>
           <pre>{{ q.stem }}</pre>
         </div>
@@ -247,19 +250,19 @@ function viewHistory(h) {
             :class="{ correct: oi === q.answer, picked: oi === q.user }">
             <span class="opt-letter">{{ 'ABCD'[oi] }}</span>
             <span>{{ opt }}</span>
-            <span v-if="oi === q.answer" class="tag-correct">正确答案</span>
-            <span v-if="oi === q.user && oi !== q.answer" class="tag-wrong">你的选择</span>
+            <span v-if="oi === q.answer" class="tag-correct">{{ t('views.genQuiz.tagCorrect') }}</span>
+            <span v-if="oi === q.user && oi !== q.answer" class="tag-wrong">{{ t('views.genQuiz.tagWrong') }}</span>
           </div>
         </div>
         <div v-else class="grade-ans">
-          <div><b>你的答案：</b><span>{{ q.type === 'choice' ? (q.user >= 0 ? 'ABCD'[q.user] : '未选') : (q.user || '未作答') }}</span></div>
-          <div><b>参考答案：</b><span>{{ q.type === 'choice' ? 'ABCD'[q.answer] + '. ' + (q.options?.[q.answer] || '') : q.answer }}</span></div>
-          <div class="grade-cov">关键词覆盖：{{ q.cov }}% · {{ q.reason }}</div>
+          <div><b>{{ t('views.genQuiz.ansYour') }}</b><span>{{ q.type === 'choice' ? (q.user >= 0 ? 'ABCD'[q.user] : t('views.genQuiz.ansNotPicked')) : (q.user || t('views.genQuiz.ansNotAnswered')) }}</span></div>
+          <div><b>{{ t('views.genQuiz.ansRef') }}</b><span>{{ q.type === 'choice' ? 'ABCD'[q.answer] + '. ' + (q.options?.[q.answer] || '') : q.answer }}</span></div>
+          <div class="grade-cov">{{ t('views.genQuiz.covLine', { cov: q.cov, reason: q.reason }) }}</div>
         </div>
-        <div v-if="q.explanation" class="grade-explain"><b>解析：</b>{{ q.explanation }}</div>
+        <div v-if="q.explanation" class="grade-explain"><b>{{ t('views.genQuiz.explain') }}</b>{{ q.explanation }}</div>
       </div>
       <div style="margin-top:16px">
-        <button class="btn" @click="reset">再来一次</button>
+        <button class="btn" @click="reset">{{ t('views.genQuiz.retryBtn') }}</button>
       </div>
     </div>
   </div>

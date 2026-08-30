@@ -1,5 +1,6 @@
 <script setup>
 // 笔记视图（D3.2）：双栏布局，左列表 + 右详情/编辑，支持双向链接 [[id]] 自动跳转 + ExportButton
+import { t } from '../i18n/index.js';
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
@@ -70,16 +71,16 @@ async function loadBacklinks(targetId) {
 }
 async function save() {
   if (!draft.value) return;
-  if (!draft.value.title?.trim()) { toast('标题不能为空', 'error'); return; }
+    if (!draft.value.title?.trim()) { toast(t('views.notesView.titleEmpty'), 'error'); return; }
   try {
     let saved;
     if (editingId.value) {
       saved = await updateNote(editingId.value, draft.value);
-      toast('已保存', 'success');
+      toast(t('views.notesView.toastSaved'), 'success');
     } else {
       saved = await createNote(draft.value);
       editingId.value = saved.id;
-      toast('已新建', 'success');
+      toast(t('views.notesView.toastCreated'), 'success');
     }
     isDirty.value = false;
     await reload();
@@ -89,7 +90,7 @@ async function save() {
     // 保持选中
     selectedId.value = saved.id;
   } catch (e) {
-    toast('保存失败：' + (e?.message || e), 'error');
+    toast(t('views.notesView.saveFailed', { msg: e?.message || e }), 'error');
   }
 }
 async function remove() {
@@ -98,9 +99,9 @@ async function remove() {
     draft.value = null; editingId.value = null; selectedId.value = null;
     return;
   }
-  if (!(await confirmDialog('删除笔记不可撤销（其他笔记的双向链接会变红），确定？'))) return;
+  if (!(await confirmDialog(t('views.notesView.confirmDelete')))) return;
   await deleteNote(editingId.value);
-  toast('已删除', 'success');
+  toast(t('views.notesView.toastDeleted'), 'success');
   editingId.value = null; draft.value = null; selectedId.value = null;
   await reload();
 }
@@ -133,18 +134,18 @@ const draftStats = computed(() => {
   return { chars: countChars(draft.value.content), links: draftLinks.value.length };
 });
 
-function addTag(t) {
-  const v = String(t || '').toLowerCase().trim();
+function addTag(tagName) {
+  const v = String(tagName || '').toLowerCase().trim();
   if (!v || draft.value.tags.includes(v)) return;
   draft.value.tags.push(v);
 }
-function removeTag(t) { draft.value.tags = draft.value.tags.filter(x => x !== t); }
+function removeTag(tagName) { draft.value.tags = draft.value.tags.filter(x => x !== tagName); }
 
 const titleInput = ref(null);
 
 const noteExportFormats = computed(() => [
-  { key: 'md', label: 'Markdown', hint: '人类可读', mime: 'text/markdown', ext: 'md', build: rows => exportNotesToMarkdown(rows) },
-  { key: 'json', label: 'JSON', hint: '可备份恢复', mime: 'application/json', ext: 'json', build: rows => exportNotesToJSON(rows) },
+  { key: 'md', label: t('views.notesView.fmtMarkdown'), hint: t('views.notesView.fmtMarkdownHint'), mime: 'text/markdown', ext: 'md', build: rows => exportNotesToMarkdown(rows) },
+  { key: 'json', label: t('views.notesView.fmtJson'), hint: t('views.notesView.fmtJsonHint'), mime: 'application/json', ext: 'json', build: rows => exportNotesToJSON(rows) },
 ]);
 
 // 渲染产物：把双向链接 [[id]] 转成 <a class="wiki-link">，再喂给 MarkdownRenderer
@@ -162,26 +163,26 @@ const filteredNotes = computed(() => notes.value);
 </script>
 
 <template>
-  <div class="notes-page" v-loading="loading" element-loading-text="加载中…">
+  <div class="notes-page" v-loading="loading" :element-loading-text="t('views.notesView.loading')">
     <!-- 左栏：列表 -->
     <div class="notes-list">
       <div class="notes-toolbar">
-        <input v-model="filter.q" class="input" placeholder="搜索标题/正文/标签…" />
+        <input v-model="filter.q" class="input" :placeholder="t('views.notesView.searchPlaceholder')" />
         <select v-model="filter.category" class="input">
-          <option value="">全部分类</option>
+          <option value="">{{ t('views.notesView.allCategories') }}</option>
           <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
         </select>
-        <button class="btn primary" @click="startCreate">+ 新建笔记</button>
+        <button class="btn primary" @click="startCreate">{{ t('views.notesView.newNote') }}</button>
       </div>
       <div v-if="tags.length" class="notes-tagbar">
         <button
-          v-for="t in tags" :key="t"
-          class="chip" :class="{ on: filter.tags.includes(t) }"
-          @click="filter.tags.includes(t) ? filter.tags = filter.tags.filter(x => x !== t) : filter.tags.push(t)"
-        >{{ t }}</button>
+          v-for="tag in tags" :key="tag"
+          class="chip" :class="{ on: filter.tags.includes(tag) }"
+          @click="filter.tags.includes(tag) ? filter.tags = filter.tags.filter(x => x !== tag) : filter.tags.push(tag)"
+        >{{ tag }}</button>
       </div>
       <div class="notes-list-items">
-        <EmptyState v-if="!notes.length" icon="📝" title="还没有笔记" message="点「＋ 新建笔记」开始记录" />
+        <EmptyState v-if="!notes.length" icon="📝" :title="t('views.notesView.emptyTitle')" :message="t('views.notesView.emptyMessage')" />
         <div
           v-for="n in notes"
           :key="n.id"
@@ -189,10 +190,10 @@ const filteredNotes = computed(() => notes.value);
           :class="{ active: selectedId === n.id }"
           @click="selectedId = n.id"
         >
-          <div class="notes-item-title">{{ n.title || '（无标题）' }}</div>
+          <div class="notes-item-title">{{ n.title || t('views.notesView.untitled') }}</div>
           <div class="notes-item-meta">
             <span class="notes-cat" v-if="n.category">📁 {{ n.category }}</span>
-            <span class="notes-tag" v-for="t in (n.tags || []).slice(0, 3)" :key="t">#{{ t }}</span>
+            <span class="notes-tag" v-for="tag in (n.tags || []).slice(0, 3)" :key="tag">#{{ tag }}</span>
             <span class="notes-time">{{ fmtLocaleDate(n.updatedAt) }}</span>
           </div>
           <div class="notes-item-excerpt">{{ (n.content || '').replace(/\s+/g, ' ').slice(0, 60) }}{{ (n.content || '').length > 60 ? '…' : '' }}</div>
@@ -203,7 +204,7 @@ const filteredNotes = computed(() => notes.value);
           :data="notes"
           :count="notes.length"
           filename-prefix="notes"
-          label="导出全部"
+          :label="t('views.notesView.exportAll')"
           :formats="noteExportFormats"
         />
       </div>
@@ -214,8 +215,8 @@ const filteredNotes = computed(() => notes.value);
       <EmptyState
         v-if="!draft"
         icon="📓"
-        title="选择一篇笔记"
-        message="或点 + 新建笔记 开始写"
+        :title="t('views.notesView.selectTitle')"
+        :message="t('views.notesView.selectMessage')"
       />
       <div v-else class="notes-edit">
         <div class="notes-edit-head">
@@ -223,12 +224,12 @@ const filteredNotes = computed(() => notes.value);
             ref="titleInput"
             v-model="draft.title"
             class="input title-input"
-            placeholder="笔记标题…"
+            :placeholder="t('views.notesView.titlePlaceholder')"
             @input="isDirty = true"
           />
           <div class="notes-edit-actions">
-            <button class="btn primary" @click="save">💾 保存</button>
-            <button v-if="editingId" class="btn" @click="remove">🗑 删除</button>
+            <button class="btn primary" @click="save">{{ t('views.notesView.save') }}</button>
+            <button v-if="editingId" class="btn" @click="remove">{{ t('views.notesView.delete') }}</button>
           </div>
         </div>
 
@@ -236,7 +237,7 @@ const filteredNotes = computed(() => notes.value);
           <input
             v-model="draft.category"
             class="input"
-            placeholder="分类（例：线代 / 计组 / 算法）"
+            :placeholder="t('views.notesView.categoryPlaceholder')"
             list="note-cat-list"
             @input="isDirty = true"
           />
@@ -246,11 +247,11 @@ const filteredNotes = computed(() => notes.value);
 
           <div class="tag-input-wrap">
             <div class="tag-list">
-              <span v-for="t in draft.tags" :key="t" class="tag-pill" @click="removeTag(t)">#{{ t }} ×</span>
+              <span v-for="tag in draft.tags" :key="tag" class="tag-pill" @click="removeTag(tag)">#{{ tag }} ×</span>
             </div>
             <input
               class="input"
-              placeholder="+ 加标签（回车）"
+              :placeholder="t('views.notesView.tagPlaceholder')"
               @keydown.enter.prevent="(e) => { addTag(e.target.value); e.target.value=''; }"
             />
           </div>
@@ -260,21 +261,21 @@ const filteredNotes = computed(() => notes.value);
           <textarea
             v-model="draft.content"
             class="input notes-content"
-            placeholder="写点什么…用 [[c-card-id]] 双向链接卡片，[[d-doc-id]] 关联资料，#标签 自动归类"
+            :placeholder="t('views.notesView.contentPlaceholder')"
             rows="16"
             @input="isDirty = true"
           />
           <div class="notes-preview">
-            <div class="hint notes-preview-head">预览</div>
+            <div class="hint notes-preview-head">{{ t('views.notesView.preview') }}</div>
             <MarkdownRenderer :content="renderedContent" v-if="draft.content" />
-            <div v-else class="hint">（无内容）</div>
+            <div v-else class="hint">{{ t('views.notesView.noContent') }}</div>
           </div>
         </div>
 
         <div class="notes-footer">
-          <span class="hint">字数 {{ draftStats.chars }} · 双向链接 {{ draftStats.links }} · {{ isDirty ? '● 未保存' : '✓ 已同步' }}</span>
+          <span class="hint">{{ t('views.notesView.charCount', { n: draftStats.chars }) }} · {{ t('views.notesView.linkCount', { n: draftStats.links }) }} · {{ isDirty ? t('views.notesView.unsaved') : t('views.notesView.synced') }}</span>
           <span v-if="backlinks.length" class="hint">
-            被引用：
+            {{ t('views.notesView.referenced') }}
             <a v-for="b in backlinks" :key="b.id" class="wiki-link" @click="openNote(notes.find(n => n.id === b.id))">{{ b.title }}</a>
           </span>
         </div>

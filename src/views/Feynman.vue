@@ -1,6 +1,7 @@
 <script setup>
 // 费曼学习法：Agent 基于选中的卡片范围，出题考用户，让用户"以教代学"
 import { confirmDialog } from '../utils/confirm.js';
+import { t } from '../i18n/index.js';
 import { ref, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
 import { db, uid } from '../db.js';
@@ -45,9 +46,9 @@ function filterCards(cards) {
   if (!allMode.value) {
     if (selSubjects.value.length) r = r.filter(c => selSubjects.value.includes(c.subject || '未分类'));
     if (selTags.value.length) {
-      if (logic.value === 'AND') r = r.filter(c => selTags.value.every(t => (c.tags || []).includes(t)));
-      else if (logic.value === 'OR') r = r.filter(c => selTags.value.some(t => (c.tags || []).includes(t)));
-      else r = r.filter(c => !selTags.value.some(t => (c.tags || []).includes(t)));
+      if (logic.value === 'AND') r = r.filter(c => selTags.value.every(tag => (c.tags || []).includes(tag)));
+      else if (logic.value === 'OR') r = r.filter(c => selTags.value.some(tag => (c.tags || []).includes(tag)));
+      else r = r.filter(c => !selTags.value.some(tag => (c.tags || []).includes(tag)));
     }
   }
   return r;
@@ -100,9 +101,9 @@ async function buildFeynmanContext(cards) {
 }
 
 async function start(initialUserMsg) {
-  if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.feynman.needKey'), 'error'); return; }
   const cards = filterCards(await db.cards.toArray());
-  if (!cards.length) { toast('该范围内没有卡片', 'error'); return; }
+  if (!cards.length) { toast(t('views.feynman.noCardsInScope'), 'error'); return; }
   if (!currentId.value) currentId.value = uid();
   started.value = true;
   messages.value = [];
@@ -160,7 +161,7 @@ async function send() {
     try { T.feynmanRound(currentId.value); } catch {}
   } catch (e) {
     toast(e.message, 'error');
-    messages.value.push({ role: 'assistant', content: '（出错了：' + e.message + '）' });
+    messages.value.push({ role: 'assistant', content: t('views.feynman.errorBubble', '（出错了：{msg}）', { msg: e.message }) });
   } finally { loading.value = false; scroll(); await persistSession(); }
 }
 
@@ -226,18 +227,26 @@ async function persistSession() {
     });
     localStorage.setItem('sxy_last_feynman', currentId.value);
     await loadSessions();
-  } catch (e) { toast('会话保存失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.feynman.saveSessionFail', '会话保存失败：{msg}', { msg: e.message }), 'error'); }
 }
 // 构建会话卡片的「范围摘要」文字
 function scopeSummary(s) {
-  if (!s?.scope || s.scope.allMode) return '📚 范围：全量卡片';
+  if (!s?.scope || s.scope.allMode) return t('views.feynman.scopeAllCards');
   const parts = [];
-  if (s.scope.selSubjects?.length) parts.push(`科目[${s.scope.selSubjects.slice(0,3).join('/')}${s.scope.selSubjects.length>3?'…':''}]`);
-  if (s.scope.selTags?.length) {
-    const log = s.scope.logic === 'AND' ? '∩' : s.scope.logic === 'NOT' ? '差集' : '∪';
-    parts.push(`${log}标签[${s.scope.selTags.slice(0,3).join('/')}${s.scope.selTags.length>3?'…':''}]`);
+  if (s.scope.selSubjects?.length) {
+    parts.push(t('views.feynman.scopeSubjects', '科目[{list}]', {
+      list: s.scope.selSubjects.slice(0,3).join('/') + (s.scope.selSubjects.length>3 ? '…' : ''),
+    }));
   }
-  return parts.length ? '📚 范围：' + parts.join(' · ') : '📚 范围：自定义（未选条件）';
+  if (s.scope.selTags?.length) {
+    const log = s.scope.logic === 'AND' ? t('views.feynman.logicAnd')
+      : s.scope.logic === 'NOT' ? t('views.feynman.logicNot') : t('views.feynman.logicOr');
+    parts.push(t('views.feynman.scopeTags', '{logic}标签[{list}]', {
+      logic: log,
+      list: s.scope.selTags.slice(0,3).join('/') + (s.scope.selTags.length>3 ? '…' : ''),
+    }));
+  }
+  return parts.length ? t('views.feynman.scopePrefix') + parts.join(' · ') : t('views.feynman.scopeCustomEmpty');
 }
 function fmtTime(ts) {
   if (!ts) return '';
@@ -245,11 +254,11 @@ function fmtTime(ts) {
   const p = n => String(n).padStart(2, '0');
   const now = new Date();
   const sameDay = d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() && d.getDate()===now.getDate();
-  if (sameDay) return `今天 ${p(d.getHours())}:${p(d.getMinutes())}`;
+  if (sameDay) return t('views.feynman.todayAt', '今天 {time}', { time: `${p(d.getHours())}:${p(d.getMinutes())}` });
   return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 async function removeSession(id) {
-  if (!(await confirmDialog('删除这个费曼会话？'))) return;
+  if (!(await confirmDialog(t('views.feynman.confirmDeleteSession')))) return;
   await deleteChat(id);
   if (currentId.value === id) newSession();
   await loadSessions();
@@ -260,17 +269,18 @@ onMounted(async () => {
   // P2-C 协同：错题集「去费曼练习 →」跳转过来时，预填费曼主题并自动开一轮会话
   const topic = sessionStorage.getItem('sxy_feynman_topic');
   if (topic) {
-    const prompt = sessionStorage.getItem('sxy_feynman_prompt') || `请用费曼学习法讲解：「${topic}」`;
+    const prompt = sessionStorage.getItem('sxy_feynman_prompt')
+      || t('views.feynman.topicPrefill', '请用费曼学习法讲解：「{topic}」', { topic });
     sessionStorage.removeItem('sxy_feynman_topic');
     sessionStorage.removeItem('sxy_feynman_prompt');
     newSession();
     input.value = prompt;
-    toast(`已载入错题补救的费曼建议：${topic}`, 'info');
+    toast(t('views.feynman.topicLoaded', '已载入错题补救的费曼建议：{topic}', { topic }), 'info');
     // 已配 AI Key 则自动开练；否则把 prompt 留在输入框，引导用户先配置
     if (hasAIKey()) {
       await start(prompt);
     } else {
-      toast('请先在「AI 设置」里填入密钥，再点「开始费曼练习」', 'info');
+      toast(t('views.feynman.needKeyThenStart'), 'info');
     }
     return;
   }
@@ -282,35 +292,35 @@ onMounted(async () => {
 <template>
   <div class="feynman-wrap">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">费曼学习法</h2>
-      <button class="chip" :class="{ on: voiceOn }" @click="toggleVoice">语音播报</button>
+      <h2 style="margin:0">{{ t('views.feynman.title') }}</h2>
+      <button class="chip" :class="{ on: voiceOn }" @click="toggleVoice">{{ t('views.feynman.voiceBtn') }}</button>
     </div>
-    <p class="hint" style="margin:4px 0 12px">以教代学：AI 出题考你，你用自己的话讲出来，讲不出的就是薄弱点。</p>
+    <p class="hint" style="margin:4px 0 12px">{{ t('views.feynman.hint') }}</p>
 
     <div v-if="sessions.length" style="margin-bottom:12px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
-        <span class="field-label" style="margin:0">历史练习（{{ sessions.length }} 条）</span>
-        <span class="hint">按时间倒序，点「继续」载入该会话的范围并接着练</span>
+        <span class="field-label" style="margin:0">{{ t('views.feynman.historyLabel', '历史练习（{n} 条）', { n: sessions.length }) }}</span>
+        <span class="hint">{{ t('views.feynman.historyHint') }}</span>
         <span style="flex:1"></span>
-        <button class="btn small primary" @click="newSession">＋ 新练习</button>
+        <button class="btn small primary" @click="newSession">{{ t('views.feynman.newPractice') }}</button>
       </div>
       <div class="feyn-history">
         <div v-for="s in sessions" :key="s.id" class="feyn-card" :class="{ active: s.id === currentId }">
           <div class="feyn-card-head">
             <span class="feyn-ts">🕒 {{ fmtTime(s.updatedAt || s.createdAt) }}</span>
-            <span class="feyn-rounds pill">{{ (s.rounds ?? (s.messages?.filter(m=>m.role==='assistant').length) ?? 0) }} 轮</span>
-            <span v-if="s.id === currentId" class="pill on">当前会话</span>
+            <span class="feyn-rounds pill">{{ t('views.feynman.rounds', '{n} 轮', { n: (s.rounds ?? (s.messages?.filter(m=>m.role==='assistant').length) ?? 0) }) }}</span>
+            <span v-if="s.id === currentId" class="pill on">{{ t('views.feynman.currentSession') }}</span>
             <span style="flex:1"></span>
           </div>
           <div class="feyn-scope">{{ scopeSummary(s) }}</div>
           <div v-if="s.preview || (s.messages?.length)" class="feyn-preview">
-            💬 {{ (s.preview || s.messages?.[s.messages.length-1]?.content || '（尚未开始对话）').replace(/\s+/g,' ').slice(0, 80) }}
+            💬 {{ (s.preview || s.messages?.[s.messages.length-1]?.content || t('views.feynman.noConversationYet')).replace(/\s+/g,' ').slice(0, 80) }}
           </div>
           <div class="feyn-actions">
             <button class="btn small primary" @click="selectSession(s.id)">
-              {{ s.id === currentId ? '已载入' : '继续此会话' }}
+              {{ s.id === currentId ? t('views.feynman.loaded') : t('views.feynman.continueSession') }}
             </button>
-            <button class="btn small" :disabled="s.id === currentId" @click="removeSession(s.id)">删除</button>
+            <button class="btn small" :disabled="s.id === currentId" @click="removeSession(s.id)">{{ t('views.feynman.deleteBtn') }}</button>
           </div>
         </div>
       </div>
@@ -318,26 +328,26 @@ onMounted(async () => {
 
     <div class="panel">
       <div class="row">
-        <button class="chip" :class="{ on: allMode }" @click="allMode = true">全量</button>
-        <button class="chip" :class="{ on: !allMode }" @click="allMode = false">自定义范围</button>
+        <button class="chip" :class="{ on: allMode }" @click="allMode = true">{{ t('views.feynman.scopeAll') }}</button>
+        <button class="chip" :class="{ on: !allMode }" @click="allMode = false">{{ t('views.feynman.scopeCustom') }}</button>
       </div>
       <template v-if="!allMode">
-        <div class="field-label" style="margin-top:0">科目（多选 = 并集）</div>
+        <div class="field-label" style="margin-top:0">{{ t('views.feynman.subjectsLabel') }}</div>
         <div class="row">
           <button v-for="s in subjects" :key="s.name" class="chip" :class="{ on: selSubjects.includes(s.name) }" @click="toggleSubject(s.name)">{{ s.name }}</button>
         </div>
-        <div class="field-label">标签</div>
+        <div class="field-label">{{ t('views.feynman.tagsLabel') }}</div>
         <div class="row">
-          <button v-for="t in allTags" :key="t.name" class="chip" :class="{ on: selTags.includes(t.name) }" @click="toggleTag(t.name)">{{ t.name }}</button>
+          <button v-for="tag in allTags" :key="tag.name" class="chip" :class="{ on: selTags.includes(tag.name) }" @click="toggleTag(tag.name)">{{ tag.name }}</button>
           <select v-if="selTags.length" v-model="logic" class="input" style="width:auto">
-            <option value="AND">交集（同时含）</option>
-            <option value="OR">并集（含任一）</option>
-            <option value="NOT">差集（排除）</option>
+            <option value="AND">{{ t('views.feynman.optAnd') }}</option>
+            <option value="OR">{{ t('views.feynman.optOr') }}</option>
+            <option value="NOT">{{ t('views.feynman.optNot') }}</option>
           </select>
         </div>
       </template>
       <div style="margin-top:12px">
-        <button class="btn primary" @click="start">开始费曼练习</button>
+        <button class="btn primary" @click="start">{{ t('views.feynman.startBtn') }}</button>
       </div>
     </div>
 
@@ -345,13 +355,13 @@ onMounted(async () => {
       <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
         <div class="bubble">{{ m.content }}</div>
       </div>
-      <div v-if="loading" class="msg assistant"><div class="bubble">思考中…</div></div>
+      <div v-if="loading" class="msg assistant"><div class="bubble">{{ t('views.feynman.thinking') }}</div></div>
     </div>
 
     <div v-if="started" class="input-row">
-      <VoiceInput @result="(t) => input = input ? input + t : t" />
-      <input v-model="input" class="input" placeholder="用你自己的话回答…" @keydown.enter="send" />
-      <button class="btn primary" :disabled="loading" @click="send">回答</button>
+      <VoiceInput @result="(txt) => input = input ? input + txt : txt" />
+      <input v-model="input" class="input" :placeholder="t('views.feynman.answerPlaceholder')" @keydown.enter="send" />
+      <button class="btn primary" :disabled="loading" @click="send">{{ t('views.feynman.answerBtn') }}</button>
     </div>
   </div>
 </template>

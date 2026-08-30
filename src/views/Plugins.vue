@@ -6,6 +6,7 @@
 //   3. 启用 / 禁用 / 卸载插件
 //   4. 调用插件工具：选择工具 → 填写参数(JSON) → 执行 → 查看结果
 //   5. 触发测试钩子：手动触发 onCardSaved 让用户感知钩子机制
+import { t } from '../i18n/index.js';
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, onMounted, computed } from 'vue';
 import { toast } from '../utils/toast.js';
@@ -49,7 +50,7 @@ async function load() {
       integration: await getAgentIntegration(p.id),
     })));
   }
-  catch (e) { toast('加载插件列表失败：' + (e?.message || e), 'error'); }
+  catch (e) { toast(t('views.plugins.loadFail', { msg: (e?.message || e) }), 'error'); }
   finally { loading.value = false; }
 }
 
@@ -64,54 +65,54 @@ async function selectPlugin(id) {
 }
 
 function prefillArgs() {
-  const t = tools.value.find(x => x.name === toolName.value);
-  if (!t?.inputSchema?.properties) { toolArgsText.value = '{}'; return; }
+  const def = tools.value.find(x => x.name === toolName.value);
+  if (!def?.inputSchema?.properties) { toolArgsText.value = '{}'; return; }
   // 生成 { 字段名: '' } 模板
   const sample = {};
-  for (const [k, v] of Object.entries(t.inputSchema.properties)) {
+  for (const [k, v] of Object.entries(def.inputSchema.properties)) {
     sample[k] = v.type === 'number' ? 0 : '';
   }
   toolArgsText.value = JSON.stringify(sample, null, 2);
 }
 
 async function runTool() {
-  if (!selected.value || !toolName.value) { toast('请先选择插件与工具', 'error'); return; }
+  if (!selected.value || !toolName.value) { toast(t('views.plugins.selectFirst'), 'error'); return; }
   toolBusy.value = true;
   toolError.value = '';
   toolResult.value = null;
   try {
     const args = JSON.parse(toolArgsText.value || '{}');
     toolResult.value = await invokeTool(selected.value, toolName.value, args);
-    toast('工具执行成功', 'success');
+    toast(t('views.plugins.toolOk'), 'success');
   } catch (e) {
     toolError.value = e?.message || String(e);
-    toast('工具执行失败：' + toolError.value, 'error');
+    toast(t('views.plugins.toolFail', { msg: toolError.value }), 'error');
   } finally { toolBusy.value = false; }
 }
 
 async function fireHook(event) {
   try {
     await triggerHook(event, { id: 'demo-card', front: '演示卡片', back: '这是触发钩子的演示数据' });
-    toast(`已向所有已启用插件分发事件：${event}（查看控制台日志）`, 'success');
-  } catch (e) { toast('事件分发失败：' + (e?.message || e), 'error'); }
+    toast(t('views.plugins.hookDispatched', { event }), 'success');
+  } catch (e) { toast(t('views.plugins.hookFail', { msg: (e?.message || e) }), 'error'); }
 }
 
 async function onToggle(id, enabled) {
   try {
     await togglePlugin(id, enabled);
     await load();
-    toast(enabled ? '插件已启用' : '插件已禁用', 'success');
-  } catch (e) { toast('切换失败：' + (e?.message || e), 'error'); }
+    toast(t('views.plugins.toggleOk', { state: enabled ? t('views.plugins.enabledLabel') : t('views.plugins.disabledLabel') }), 'success');
+  } catch (e) { toast(t('views.plugins.toggleFail', { msg: (e?.message || e) }), 'error'); }
 }
 
 async function onUninstall(id) {
-  if (!(await confirmDialog('确定卸载该插件？卸载后无法恢复，需重新安装。'))) return;
+  if (!(await confirmDialog(t('views.plugins.uninstallConfirm')))) return;
   try {
     await uninstallPlugin(id);
     if (selected.value === id) { selected.value = null; tools.value = []; }
     await load();
-    toast('插件已卸载', 'success');
-  } catch (e) { toast('卸载失败：' + (e?.message || e), 'error'); }
+    toast(t('views.plugins.uninstalled'), 'success');
+  } catch (e) { toast(t('views.plugins.uninstallFail', { msg: (e?.message || e) }), 'error'); }
 }
 
 function onExport(id) {
@@ -119,8 +120,8 @@ function onExport(id) {
   if (!p) return;
   try {
     downloadPluginPackage(p);
-    toast('插件包已导出（.json 文件，可分享或备份）', 'success');
-  } catch (e) { toast('导出失败：' + (e?.message || e), 'error'); }
+    toast(t('views.plugins.exported'), 'success');
+  } catch (e) { toast(t('views.plugins.exportFail', { msg: (e?.message || e) }), 'error'); }
 }
 
 async function onImportPackage(e) {
@@ -130,8 +131,8 @@ async function onImportPackage(e) {
   try {
     const r = await importPluginPackageFile(f);
     await load();
-    toast(`插件包导入成功：${r.id} v${r.version}`, 'success');
-  } catch (e) { toast('导入失败：' + (e?.message || e), 'error'); }
+    toast(t('views.plugins.pkgImported', { id: r.id, version: r.version }), 'success');
+  } catch (e) { toast(t('views.plugins.pkgFail', { msg: (e?.message || e) }), 'error'); }
 }
 
 function openInstall() {
@@ -143,51 +144,40 @@ function openInstall() {
 
 function loadExample() {
   installCode.value = exampleCode;
-  toast('已填入示例插件（word-count）源码，可直接安装体验', 'info');
+  toast(t('views.plugins.exampleLoaded'), 'info');
 }
 
 // 官方示例库：?raw 注入源码，一键安装
 const OFFICIAL_EXAMPLES = [
-  {
-    id: 'weekly-review',
-    name: '错题周报',
-    desc: '统计近 7 天错题/正确率/科目分布，附「错题周报助手」Agent，工作台直接对话',
-    tags: ['1 工具', '1 Agent'],
-    install: () => installPlugin(weeklyReviewCode),
-  },
-  {
-    id: 'pomo-stats',
-    name: '番茄统计',
-    desc: '汇总今日/本周专注次数与时长，按标签拆解，附「番茄统计助手」Agent',
-    tags: ['1 工具', '1 Agent'],
-    install: () => installPlugin(pomoStatsCode),
-  },
-  {
-    id: 'due-alert',
-    name: '到期提醒',
-    desc: '复习后检查未来 3 天到期洪峰，超阈值浏览器通知；可查到期分布',
-    tags: ['1 工具', '1 Agent', 'onReviewRated 钩子'],
-    install: () => installPlugin(dueAlertCode),
-  },
+  { id: 'weekly-review', key: 'exWeekly', hook: null, install: () => installPlugin(weeklyReviewCode) },
+  { id: 'pomo-stats', key: 'exPomo', hook: null, install: () => installPlugin(pomoStatsCode) },
+  { id: 'due-alert', key: 'exDue', hook: 'onReviewRated', install: () => installPlugin(dueAlertCode) },
 ];
 
-const officialExamples = computed(() => OFFICIAL_EXAMPLES.map(ex => ({
-  ...ex,
-  installed: plugins.value.some(p => p.id === ex.id),
-})));
+const officialExamples = computed(() => OFFICIAL_EXAMPLES.map(ex => {
+  const tags = [t('views.plugins.tagTool', { n: 1 }), t('views.plugins.tagAgent', { n: 1 })];
+  if (ex.hook) tags.push(t('views.plugins.tagHook', { hook: ex.hook }));
+  return {
+    ...ex,
+    name: t('views.plugins.' + ex.key + 'Name'),
+    desc: t('views.plugins.' + ex.key + 'Desc'),
+    tags,
+    installed: plugins.value.some(p => p.id === ex.id),
+  };
+}));
 
 async function installExample(ex) {
   installBusy.value = true;
   try {
     await ex.install();
     await load();
-    toast(`示例插件安装成功：${ex.id}`, 'success');
-  } catch (e) { toast('安装失败：' + (e?.message || e), 'error'); }
+    toast(t('views.plugins.exampleInstalledOk', { id: ex.id }), 'success');
+  } catch (e) { toast(t('views.plugins.exampleFail', { msg: (e?.message || e) }), 'error'); }
   finally { installBusy.value = false; }
 }
 
 async function doInstall() {
-  if (!installCode.value.trim()) { toast('请填入插件代码，或点击「填入示例」', 'error'); return; }
+  if (!installCode.value.trim()) { toast(t('views.plugins.fillCode'), 'error'); return; }
   installBusy.value = true;
   try {
     const r = await installPlugin(installCode.value, {
@@ -195,8 +185,8 @@ async function doInstall() {
     });
     showInstall.value = false;
     await load();
-    toast(`插件安装成功：${r.id} v${r.version}`, 'success');
-  } catch (e) { toast('安装失败：' + (e?.message || e), 'error'); }
+    toast(t('views.plugins.installedOk', { id: r.id, version: r.version }), 'success');
+  } catch (e) { toast(t('views.plugins.installFail', { msg: (e?.message || e) }), 'error'); }
   finally { installBusy.value = false; }
 }
 
@@ -208,8 +198,8 @@ async function onFile(e) {
     const code = await f.text();
     installCode.value = code;
     showInstall.value = true;
-    toast('已读取文件，请补充作者/说明后点击「安装」', 'info');
-  } catch (e) { toast('读取文件失败：' + (e?.message || e), 'error'); }
+    toast(t('views.plugins.fileRead'), 'info');
+  } catch (e) { toast(t('views.plugins.fileReadFail', { msg: (e?.message || e) }), 'error'); }
 }
 
 function fmtTime(ts) {
@@ -229,44 +219,44 @@ onMounted(load);
   <div style="max-width:760px;margin:0 auto">
     <div class="panel">
       <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>插件 / MCP 接入</span>
-        <button class="btn small primary" @click="openInstall">+ 安装插件</button>
+        <span>{{ t('views.plugins.title') }}</span>
+        <button class="btn small primary" @click="openInstall">{{ t('views.plugins.installBtn') }}</button>
       </div>
       <p class="hint" style="margin-top:0">
-        插件以 ES Module 形式存于本地 IndexedDB，运行时通过 Blob URL 动态加载。<br/>
-        工具定义与 <a href="https://modelcontextprotocol.io" target="_blank">MCP 协议</a> 兼容（name/description/inputSchema），
-        未来可桥接真正的 MCP server。仅安装可信来源的插件——插件代码在本应用上下文中执行。
+        {{ t('views.plugins.hintPreLink') }}
+        <a href="https://modelcontextprotocol.io" target="_blank">{{ t('views.plugins.mcpLink') }}</a>
+        {{ t('views.plugins.hintPostLink') }}
       </p>
 
-      <div v-if="loading" class="hint">加载中...</div>
-      <EmptyState v-else-if="!plugins.length" icon="🔌" title="暂无插件" message="安装插件可扩展卡片生成、知识图谱构建等能力">
-        <button class="btn small" @click="openInstall">+ 安装第一个插件</button>
+      <div v-if="loading" class="hint">{{ t('views.plugins.loading') }}</div>
+      <EmptyState v-else-if="!plugins.length" icon="🔌" :title="t('views.plugins.emptyTitle')" :message="t('views.plugins.emptyMsg')">
+        <button class="btn small" @click="openInstall">{{ t('views.plugins.installFirst') }}</button>
       </EmptyState>
       <div v-else class="plugin-list">
         <div v-for="p in plugins" :key="p.id" class="plugin-item" :class="{ on: selected === p.id, disabled: !p.enabled }" @click="selectPlugin(p.id)">
           <div class="plugin-main">
             <div class="plugin-name">{{ p.id }} <span class="plugin-ver">v{{ p.version }}</span></div>
-            <div class="plugin-desc">{{ p.description || '(无说明)' }}</div>
+            <div class="plugin-desc">{{ p.description || t('views.plugins.noDesc') }}</div>
             <div class="plugin-meta">
-              <span>{{ (p.tools || []).length }} 个工具</span>
-              <span v-if="p.author"> · 作者 {{ p.author }}</span>
-              <span> · 安装于 {{ fmtTime(p.installedAt) }}</span>
+              <span>{{ t('views.plugins.metaTools', { n: (p.tools || []).length }) }}</span>
+              <span v-if="p.author">{{ t('views.plugins.metaAuthor', { author: p.author }) }}</span>
+              <span>{{ t('views.plugins.metaInstalled', { time: fmtTime(p.installedAt) }) }}</span>
               <span v-if="p.enabled && p.integration" class="agent-chip" :class="{ on: p.integration.activated }">
-                {{ p.integration.activated ? '已接入 Agent 编排器' : '未接入' }}
+                {{ p.integration.activated ? t('views.plugins.agentActivated') : t('views.plugins.agentInactive') }}
                 <template v-if="p.integration.tools.length || p.integration.agents.length">
-                  （{{ p.integration.tools.length }} 工具 · {{ p.integration.agents.length }} Agent）
+                  {{ t('views.plugins.agentCount', { tools: p.integration.tools.length, agents: p.integration.agents.length }) }}
                 </template>
               </span>
             </div>
-            <div v-if="p.lastError" class="plugin-err" :title="p.lastError">⚠ {{ p.lastError }}</div>
+            <div v-if="p.lastError" class="plugin-err" :title="p.lastError">{{ t('views.plugins.errTitle', { msg: p.lastError }) }}</div>
           </div>
           <div class="plugin-actions" @click.stop>
             <label class="switch">
               <input type="checkbox" :checked="!!p.enabled" @change="onToggle(p.id, $event.target.checked)" />
-              <span>{{ p.enabled ? '启用' : '禁用' }}</span>
+              <span>{{ p.enabled ? t('views.plugins.enabledLabel') : t('views.plugins.disabledLabel') }}</span>
             </label>
-            <button class="btn small" @click="onExport(p.id)" :title="'导出插件包（.json）'">导出</button>
-            <button class="btn small danger" @click="onUninstall(p.id)">卸载</button>
+            <button class="btn small" @click="onExport(p.id)" :title="t('views.plugins.exportTitle')">{{ t('views.plugins.exportBtn') }}</button>
+            <button class="btn small danger" @click="onUninstall(p.id)">{{ t('views.plugins.uninstallBtn') }}</button>
           </div>
         </div>
       </div>
@@ -274,21 +264,22 @@ onMounted(load);
 
     <!-- 官方示例库 -->
     <div class="panel" style="margin-top:16px">
-      <div class="panel-title">官方示例库</div>
+      <div class="panel-title">{{ t('views.plugins.examplesTitle') }}</div>
       <p class="hint" style="margin-top:0">
-        一键体验插件生态——安装后工具/Agent 自动接入编排器，Agent 工作台直接可用。
-        源码在 <code>src/plugins/examples/</code>，可作开发模板。
+        {{ t('views.plugins.examplesHint') }}
+        <code>src/plugins/examples/</code>
+        {{ t('views.plugins.examplesHintPost') }}
       </p>
       <div class="example-grid">
         <div v-for="ex in officialExamples" :key="ex.id" class="example-card">
           <div class="example-name">{{ ex.name }} <span class="plugin-ver">{{ ex.id }}</span></div>
           <div class="plugin-desc">{{ ex.desc }}</div>
           <div class="plugin-meta">
-            <span v-for="t in ex.tags" :key="t" class="example-tag">{{ t }}</span>
+            <span v-for="tag in ex.tags" :key="tag" class="example-tag">{{ tag }}</span>
           </div>
           <div style="margin-top:8px">
             <button class="btn small primary" :disabled="ex.installed || installBusy" @click="installExample(ex)">
-              {{ ex.installed ? '✓ 已安装' : '一键安装' }}
+              {{ ex.installed ? t('views.plugins.exampleInstalled') : t('views.plugins.exampleInstall') }}
             </button>
           </div>
         </div>
@@ -297,59 +288,60 @@ onMounted(load);
 
     <!-- 工具调用面板 -->
     <div v-if="currentPlugin" class="panel" style="margin-top:16px">
-      <div class="panel-title">工具调用：{{ currentPlugin.id }}</div>
+      <div class="panel-title">{{ t('views.plugins.toolPanelTitle', { id: currentPlugin.id }) }}</div>
       <p v-if="currentPlugin.enabled && currentPlugin.integration?.activated" class="hint" style="margin-top:0">
-        ✅ 已注册到 Agent 编排器——在「Agent 工作台」或 AI 助手中，模型可以直接调用该插件的工具；
-        插件若导出 <code>agents</code>，对应 Agent 也会出现在 Agent 列表。
+        ✅ {{ t('views.plugins.toolRegistered') }}
+        <code>agents</code>
+        {{ t('views.plugins.toolRegisteredPost') }}
       </p>
-      <div v-if="!tools.length" class="hint">该插件没有声明工具。</div>
+      <div v-if="!tools.length" class="hint">{{ t('views.plugins.noTools') }}</div>
       <template v-else>
         <div class="row">
           <select v-model="toolName" class="input" style="max-width:240px" @change="prefillArgs">
-            <option v-for="t in tools" :key="t.name" :value="t.name">{{ t.name }}</option>
+            <option v-for="tool in tools" :key="tool.name" :value="tool.name">{{ tool.name }}</option>
           </select>
           <button class="btn primary" :disabled="toolBusy || !currentPlugin.enabled" @click="runTool">
-            {{ toolBusy ? '执行中...' : '执行' }}
+            {{ toolBusy ? t('views.plugins.running') : t('views.plugins.runBtn') }}
           </button>
         </div>
-        <div v-if="!currentPlugin.enabled" class="hint" style="color:var(--red)">插件未启用，无法调用工具。</div>
-        <div class="field-label">参数（JSON）</div>
+        <div v-if="!currentPlugin.enabled" class="hint" style="color:var(--red)">{{ t('views.plugins.disabledWarn') }}</div>
+        <div class="field-label">{{ t('views.plugins.paramLabel') }}</div>
         <textarea v-model="toolArgsText" class="input code" rows="6" placeholder="{}"></textarea>
-        <div v-if="toolError" class="hint" style="color:var(--red);margin-top:8px">⚠ {{ toolError }}</div>
-        <div v-if="toolResult != null" class="field-label" style="margin-top:12px">返回结果</div>
+        <div v-if="toolError" class="hint" style="color:var(--red);margin-top:8px">{{ t('views.plugins.errTitle', { msg: toolError }) }}</div>
+        <div v-if="toolResult != null" class="field-label" style="margin-top:12px">{{ t('views.plugins.returnLabel') }}</div>
         <pre v-if="toolResult != null" class="result-box">{{ JSON.stringify(toolResult, null, 2) }}</pre>
       </template>
 
-      <div class="field-label" style="margin-top:16px">事件钩子（手动触发测试）</div>
+      <div class="field-label" style="margin-top:16px">{{ t('views.plugins.hookTitle') }}</div>
       <div class="hook-row">
         <button v-for="[evt, label] in hookEvents" :key="evt" class="chip" @click="fireHook(evt)">
           {{ evt }} <small>{{ label }}</small>
         </button>
       </div>
-      <p class="hint" style="margin-top:6px">点击后会向所有已启用插件分发该事件，插件可在 console 输出日志。</p>
+      <p class="hint" style="margin-top:6px">{{ t('views.plugins.hookHint') }}</p>
     </div>
 
     <!-- 安装面板 -->
     <div v-if="showInstall" class="modal-mask" @click.self="showInstall = false">
       <div class="modal">
-        <h3 style="margin-top:0">安装插件</h3>
-        <p class="hint" style="margin-top:0">粘贴 ES Module 代码，或从 .js 文件读取。代码须导出 manifest 对象 + 与 tools 同名的异步函数。</p>
+        <h3 style="margin-top:0">{{ t('views.plugins.installTitle') }}</h3>
+        <p class="hint" style="margin-top:0">{{ t('views.plugins.installHint') }}</p>
         <div class="row" style="margin-bottom:8px">
-          <button class="btn small" @click="loadExample">填入示例</button>
-          <button class="btn small" @click="$refs.fileInput.click()">从 .js 文件读取</button>
-          <button class="btn small" @click="$refs.pkgInput.click()">导入插件包 (.json)</button>
+          <button class="btn small" @click="loadExample">{{ t('views.plugins.loadExample') }}</button>
+          <button class="btn small" @click="$refs.fileInput.click()">{{ t('views.plugins.readFileBtn') }}</button>
+          <button class="btn small" @click="$refs.pkgInput.click()">{{ t('views.plugins.importPkgBtn') }}</button>
           <input ref="pkgInput" type="file" accept=".json,application/json" style="display:none" @change="onImportPackage" />
           <input ref="fileInput" type="file" accept=".js,.mjs,text/javascript" style="display:none" @change="onFile" />
         </div>
-        <p class="hint" style="margin-top:0">插件包：单文件分发（manifest + 源码），可用右上「导出」生成，适合备份与分享。</p>
+        <p class="hint" style="margin-top:0">{{ t('views.plugins.pkgHint') }}</p>
         <textarea v-model="installCode" class="input code" rows="12" placeholder="export const manifest = { name: '...', version: '1.0.0', tools: [...] };&#10;export async function toolName(args) { ... }"></textarea>
         <div class="row" style="margin-top:8px">
-          <input v-model="installAuthor" class="input" style="max-width:200px" placeholder="作者（选填）" />
-          <input v-model="installDesc" class="input" style="flex:1" placeholder="说明（选填，会覆盖 manifest.description）" />
+          <input v-model="installAuthor" class="input" style="max-width:200px" :placeholder="t('views.plugins.authorPlaceholder')" />
+          <input v-model="installDesc" class="input" style="flex:1" :placeholder="t('views.plugins.descPlaceholder')" />
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
-          <button class="btn" @click="showInstall = false">取消</button>
-          <button class="btn primary" :disabled="installBusy" @click="doInstall">{{ installBusy ? '安装中...' : '安装' }}</button>
+          <button class="btn" @click="showInstall = false">{{ t('views.plugins.cancelBtn') }}</button>
+          <button class="btn primary" :disabled="installBusy" @click="doInstall">{{ installBusy ? t('views.plugins.installRunning') : t('views.plugins.installBtnLabel') }}</button>
         </div>
       </div>
     </div>
