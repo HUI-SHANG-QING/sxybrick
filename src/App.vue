@@ -1,5 +1,6 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount, defineAsyncComponent, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, defineAsyncComponent, watch, nextTick } from 'vue';
+import { t, locale, setLocale, LOCALES } from './i18n/index.js';
 import { toast } from './utils/toast.js';
 import { confirmDialog } from './utils/confirm.js';
 import { degraded } from './utils/perf.js';
@@ -90,54 +91,61 @@ function fmtBytes(n) {
   return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
+// 顶部导航：i18nKey 用于全局语言切换（label 经 t() 实时翻译）
 const navItems = [
-  { path: '/', label: '总览', icon: '📊' },
-  { path: '/workspace', label: '工作台', icon: '🧩' },
-  { path: '/cards', label: '卡片', icon: '🗂️' },
-  { path: '/groups', label: '卡组', icon: '🎴' },
+  { path: '/', label: '总览', icon: '📊', i18nKey: 'nav.overview' },
+  { path: '/workspace', label: '工作台', icon: '🧩', i18nKey: 'nav.workspace' },
+  { path: '/cards', label: '卡片', icon: '🗂️', i18nKey: 'nav.cards' },
+  { path: '/groups', label: '卡组', icon: '🎴', i18nKey: 'nav.groups' },
   // M2 卡片智能联动分析工作台（预设快捷 + 自由问答，本地/AI 双引擎）
-  { path: '/analysis/card-link', label: '联动分析', icon: '🔗' },
-  { path: '/review', label: '背诵', icon: '📖' },
-  { path: '/stats', label: '数据', icon: '📉' },
-  { path: '/export', label: '导出', icon: '🖨️' },
-  { path: '/sync', label: '同步', icon: '🔄' },
-  { path: '/ai', label: 'AI', icon: '🤖' },
-  { path: '/agent', label: 'Agent', icon: '🧠' },
-  { path: '/feynman', label: '费曼', icon: '👨‍🏫' },
-  { path: '/memo', label: '备忘', icon: '📝' },
+  { path: '/analysis/card-link', label: '联动分析', icon: '🔗', i18nKey: 'nav.cardLink' },
+  { path: '/review', label: '背诵', icon: '📖', i18nKey: 'nav.review' },
+  { path: '/stats', label: '数据', icon: '📉', i18nKey: 'nav.stats' },
+  { path: '/export', label: '导出', icon: '🖨️', i18nKey: 'nav.export' },
+  { path: '/sync', label: '同步', icon: '🔄', i18nKey: 'nav.sync' },
+  { path: '/ai', label: 'AI', icon: '🤖', i18nKey: 'nav.ai' },
+  { path: '/agent', label: 'Agent', icon: '🧠', i18nKey: 'nav.agent' },
+  { path: '/feynman', label: '费曼', icon: '👨‍🏫', i18nKey: 'nav.feynman' },
+  { path: '/memo', label: '备忘', icon: '📝', i18nKey: 'nav.memo' },
   // D3.2 笔记（厚笔记 / 双向链接 / 富文本，区别于 /memo 短备忘）
-  { path: '/notes', label: '笔记', icon: '📓' },
+  { path: '/notes', label: '笔记', icon: '📓', i18nKey: 'nav.notes' },
   // D4.2 自动分类
-  { path: '/categories', label: '分类', icon: '🏷️' },
+  { path: '/categories', label: '分类', icon: '🏷️', i18nKey: 'nav.categories' },
   // D8 每日规划/打卡
-  { path: '/daily', label: '每日规划', icon: '📅' },
-  { path: '/wrong', label: '错题', icon: '❌' },
-  { path: '/pomodoro', label: '番茄', icon: '🍅' },
-  { path: '/graph', label: '图谱', icon: '🕸️' },
-  { path: '/mindmap', label: '导图', icon: '🗺️' },
-  { path: '/plans', label: '计划', icon: '🎯' },
-  { path: '/docs', label: '文档', icon: '📄' },
-  { path: '/weekly', label: '周报', icon: '📈' },
-  { path: '/exam', label: '模考', icon: '🧪' },
+  { path: '/daily', label: '每日规划', icon: '📅', i18nKey: 'nav.daily' },
+  { path: '/wrong', label: '错题', icon: '❌', i18nKey: 'nav.wrong' },
+  { path: '/pomodoro', label: '番茄', icon: '🍅', i18nKey: 'nav.pomodoro' },
+  { path: '/graph', label: '图谱', icon: '🕸️', i18nKey: 'nav.graph' },
+  { path: '/mindmap', label: '导图', icon: '🗺️', i18nKey: 'nav.mindmap' },
+  { path: '/plans', label: '计划', icon: '🎯', i18nKey: 'nav.plans' },
+  { path: '/docs', label: '文档', icon: '📄', i18nKey: 'nav.docs' },
+  { path: '/weekly', label: '周报', icon: '📈', i18nKey: 'nav.weekly' },
+  { path: '/exam', label: '模考', icon: '🧪', i18nKey: 'nav.exam' },
   // P2-1 生成式测验：LLM 自动出题（选择/填空/简答），测试效应
-  { path: '/genquiz', label: '生成测验', icon: '🔬' },
-  { path: '/search', label: '搜索', icon: '🔍' },
-  { path: '/health', label: '体检', icon: '🩺' },
+  { path: '/genquiz', label: '生成测验', icon: '🔬', i18nKey: 'nav.genquiz' },
+  { path: '/search', label: '搜索', icon: '🔍', i18nKey: 'nav.search' },
+  { path: '/health', label: '体检', icon: '🩺', i18nKey: 'nav.health' },
   // P2-22 回收站：被删内容 30 天内可恢复（本地 trash 表，不进同步/备份）
-  { path: '/trash', label: '回收站', icon: '🗑️' },
-  { path: '/library', label: '书房', icon: '📚' },
+  { path: '/trash', label: '回收站', icon: '🗑️', i18nKey: 'nav.trash' },
+  { path: '/library', label: '书房', icon: '📚', i18nKey: 'nav.library' },
   // Phase 6 学习资料中枢：上传 → 全量解析 → 预览 → 问答 → 生成卡片（用户选择制）
-  { path: '/materials', label: '资料库', icon: '🗃️' },
-  { path: '/achievements', label: '成就', icon: '🏆' },
+  { path: '/materials', label: '资料库', icon: '🗃️', i18nKey: 'nav.materials' },
+  { path: '/achievements', label: '成就', icon: '🏆', i18nKey: 'nav.achievements' },
   // P2·10 + P3·11：用户仪表盘（恐怖监控图表）与隐私人生数据（超级监控）
-  { path: '/user-dashboard', label: '仪表盘', icon: '🛰️' },
-  { path: '/privacy', label: '超级监控', icon: '🧾' },
+  { path: '/user-dashboard', label: '仪表盘', icon: '🛰️', i18nKey: 'nav.dashboard' },
+  { path: '/privacy', label: '超级监控', icon: '🧾', i18nKey: 'nav.privacy' },
   // P3-4 插件 / MCP 接入：本地扩展机制（工具调用 + 事件钩子）
-  { path: '/plugins', label: '插件', icon: '🔌' },
-  { path: '/insight', label: '卡片洞察', icon: '💡' },
+  { path: '/plugins', label: '插件', icon: '🔌', i18nKey: 'nav.plugins' },
+  { path: '/insight', label: '卡片洞察', icon: '💡', i18nKey: 'nav.insight' },
   // UI 组件库：Element Plus × 主题桥接活样本（风格 / 配色随主题联动）
-  { path: '/uikit', label: '组件库', icon: '🧰' },
+  { path: '/uikit', label: '组件库', icon: '🧰', i18nKey: 'nav.uikit' },
 ];
+
+// 语言切换：label 经 t() 映射，t() 读取 locale.value ⇒ 切换时自动重渲染
+const i18nNavItems = computed(() => navItems.map((n) => ({ ...n, label: t(n.i18nKey, n.label) })));
+
+// 学习引擎算法原理详解：默认展开（#26 要求说明实现/依据/权重）
+const engineDocsOpen = ref(['sm2', 'fsrs']);
 
 // 功能精简：用户自定义核心导航项（始终显示）；未勾选的折叠到 NavBar 的「更多 ▼」
 // localStorage 'sxy_core_navs' 存 JSON 数组 of path；未设置时 NavBar 全部显示（向后兼容）
@@ -443,7 +451,7 @@ async function enableReminder() {
       <span>🧪 想试试功能？</span>
       <button class="pwa-act" @click="enterDemoMode">进入演示模式（加载示例数据，不影响真实数据）</button>
     </div>
-    <NavBar :variant="theme.style === 'custom' ? 'focus' : theme.style" :navItems="navItems" :coreNavs="coreNavs" :hasCoreSetting="hasCoreSetting" />
+    <NavBar :variant="theme.style === 'custom' ? 'focus' : theme.style" :navItems="i18nNavItems" :coreNavs="coreNavs" :hasCoreSetting="hasCoreSetting" />
 
     <main class="app-main">
       <router-view v-slot="{ Component }">
@@ -469,9 +477,9 @@ async function enableReminder() {
     <teleport to="body">
       <div v-if="showSettings" class="modal-mask" @click.self="showSettings = false">
         <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1" ref="settingsModal" @keydown="onSettingsKeydown">
-          <h3 id="settings-title" style="margin-top:0">设置中心</h3>
+          <h3 id="settings-title" style="margin-top:0">{{ t('settings.title') }}</h3>
           <el-tabs v-model="settingsTab">
-            <el-tab-pane label="🎨 外观" name="appearance">
+            <el-tab-pane :label="t('settings.appearance')" name="appearance">
               <div class="field-label">配色模式（全局通用，适用于每一种风格）</div>
               <div class="mode-row">
                 <button v-for="m in MODES" :key="m.id" class="chip" :class="{ on: theme.mode === m.id }" @click="theme.setMode(m.id)">{{ m.name }}</button>
@@ -500,9 +508,14 @@ async function enableReminder() {
               <div class="mode-row">
                 <button v-for="f in FONTS" :key="f.id" class="chip" :class="{ on: theme.font === f.id }" @click="theme.setFont(f.id)">{{ f.name }}</button>
               </div>
+              <div class="field-label" style="margin-top:18px">{{ t('settings.language') }}</div>
+              <div class="mode-row">
+                <button v-for="l in LOCALES" :key="l.code" class="chip" :class="{ on: locale === l.code }" @click="setLocale(l.code)">{{ l.label }}</button>
+              </div>
+              <div class="hint" style="margin-top:6px">{{ t('settings.languageHint') }}</div>
             </el-tab-pane>
 
-            <el-tab-pane label="⏰ 提醒与监控" name="remind">
+            <el-tab-pane :label="t('settings.remind')" name="remind">
               <div class="field-label">复习提醒（应用打开时生效，当日只提醒一次）</div>
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
                 <el-input v-model="remindTime" style="width:130px" placeholder="如 21:30" clearable />
@@ -526,34 +539,53 @@ async function enableReminder() {
               </div>
             </el-tab-pane>
 
-            <el-tab-pane label="🧠 学习引擎" name="engine">
-              <div class="field-label">复习调度器（记忆曲线算法）</div>
-              <div class="hint" style="margin-bottom:8px">
-                SM-2（默认）= 含短期巩固与错因惩罚的变体；FSRS = 基于机器学习的遗忘曲线，实测可省 20~30% 复习时间达到同等保持率。<br/>
-                切到 FSRS 后建议点「训练权重」用你的真实评分历史拟合 19 个参数（样本 ≥8 次可用，越多越准）。
-              </div>
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
+            <el-tab-pane :label="t('settings.engine')" name="engine">
+              <div class="field-label">{{ t('engine.title') }}</div>
+              <div class="hint" style="margin-bottom:12px">{{ t('engine.intro') }}</div>
+
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
                 <span>启用 FSRS 调度（opt-in，默认 SM-2）</span>
                 <el-switch :model-value="scheduler === 'fsrs'" @change="onToggleScheduler" />
               </div>
-              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
                 <el-button size="small" :loading="fsrsTraining" @click="trainFsrs">
-                  {{ fsrsTraining ? '训练中…' : '训练权重' }}
+                  {{ fsrsTraining ? t('engine.fsrs.trainBtn', '训练中…') : t('engine.fsrs.trainBtnDone', '训练权重') }}
                 </el-button>
                 <span v-if="fsrsInfo" class="hint">
                   上次：{{ fsrsInfo.samples }} 样本{{ fsrsInfo.loss != null ? ' · 损失 ' + (+fsrsInfo.loss).toFixed(3) : '' }}
                 </span>
               </div>
+
+              <el-collapse v-model="engineDocsOpen" class="engine-docs">
+                <el-collapse-item :title="t('engine.sm2.title')" name="sm2">
+                  <div class="hint" style="margin-bottom:6px"><strong>依据：</strong>{{ t('engine.sm2.basis') }}</div>
+                  <ul class="engine-list">
+                    <li v-for="(line, i) in t('engine.sm2.impl', [])" :key="i">{{ line }}</li>
+                  </ul>
+                </el-collapse-item>
+                <el-collapse-item :title="t('engine.fsrs.title')" name="fsrs">
+                  <div class="hint" style="margin-bottom:6px"><strong>依据：</strong>{{ t('engine.fsrs.basis') }}</div>
+                  <ul class="engine-list">
+                    <li v-for="(line, i) in t('engine.fsrs.impl', [])" :key="i">{{ line }}</li>
+                  </ul>
+                  <div class="hint" style="margin-top:8px"><strong>训练权重：</strong>{{ t('engine.fsrs.weights') }}</div>
+                  <div class="hint" style="margin-top:6px"><strong>训练方式：</strong>{{ t('engine.fsrs.train') }}</div>
+                  <div class="hint" style="margin-top:6px"><strong>冷启动前测：</strong>{{ t('engine.fsrs.pretest') }}</div>
+                  <div class="hint" style="margin-top:6px"><strong>方向铁律：</strong>{{ t('engine.fsrs.guard') }}</div>
+                </el-collapse-item>
+              </el-collapse>
+
+              <div class="hint" style="margin-top:10px">{{ t('engine.choose') }}</div>
             </el-tab-pane>
 
-            <el-tab-pane label="🧭 导航" name="nav">
+            <el-tab-pane :label="t('settings.nav')" name="nav">
               <div class="field-label">功能精简（自定义核心导航）</div>
               <div class="hint" style="margin-bottom:8px">
                 勾选的项常驻导航栏；未勾选的折叠到「更多 ▼」展开菜单。<br/>
                 首次勾选后即生效并保存到本地；未设置时默认全部显示（向后兼容）。
               </div>
               <div class="core-nav-grid">
-                <label v-for="item in navItems" :key="item.path" class="core-nav-item" :class="{ on: isCoreNav(item.path) }">
+                <label v-for="item in i18nNavItems" :key="item.path" class="core-nav-item" :class="{ on: isCoreNav(item.path) }">
                   <input type="checkbox" :checked="isCoreNav(item.path)" @change="toggleCoreNav(item.path, $event.target.checked)" />
                   <span class="core-nav-icon">{{ item.icon }}</span>
                   <span>{{ item.label }}</span>
@@ -561,7 +593,7 @@ async function enableReminder() {
               </div>
             </el-tab-pane>
 
-            <el-tab-pane label="💾 存储" name="storage">
+            <el-tab-pane :label="t('settings.storage')" name="storage">
               <div class="field-label">离线与存储</div>
               <div class="hint" style="margin-bottom:8px">应用已注册为 PWA，可「装到桌面」断网使用。本地数据保存在浏览器 IndexedDB。</div>
               <div v-if="storageEstimate && !storageEstimate.unsupported" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -623,6 +655,12 @@ async function enableReminder() {
 .storage-bar-fill { height: 100%; background: var(--accent); transition: width .3s; }
 .storage-bar-fill.warn { background: #d97706; }
 .storage-text { font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+/* 学习引擎算法原理详解 */
+.engine-docs { margin-top: 6px; border: none; }
+.engine-docs :deep(.el-collapse-item__header) { font-size: 13px; font-weight: 600; color: var(--ink); background: transparent; }
+.engine-docs :deep(.el-collapse-item__wrap) { background: transparent; }
+.engine-list { margin: 6px 0 2px; padding-left: 18px; }
+.engine-list li { font-size: 12.5px; line-height: 1.7; color: var(--ink-2); margin-bottom: 3px; }
 .mode-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .style-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
 .style-card { border: 2px solid var(--line); border-radius: 12px; padding: 12px 8px; cursor: pointer; text-align: center; transition: .15s; }

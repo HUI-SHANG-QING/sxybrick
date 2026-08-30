@@ -2,6 +2,8 @@ import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import { router } from './router.js';
+// i18n 地基：全局 t() / locale，切语言时所有用到 t() 的模板自动重渲染
+import { t, locale, setLocale, LOCALES } from './i18n/index.js';
 // M3 演示模式：启动时对齐数据库实例（real/test 双 Dexie 隔离）+ 测试库空时自动播种
 import { useAppModeStore } from './stores/appMode.js';
 import { startPerfMonitor } from './utils/perf.js';
@@ -52,6 +54,11 @@ useAppModeStore(pinia).init().catch(() => {});
 app.use(pinia);
 app.use(router);
 app.use(ElementPlus);
+
+// i18n：全局注入 t() 与 locale，并 provide 给所有组件（含非模板脚本）
+app.config.globalProperties.$t = t;
+app.config.globalProperties.$locale = locale;
+app.provide('i18n', { t, locale, setLocale, LOCALES });
 
 // 图标全局注册：模板里可直接写 <el-icon><Search /></el-icon>
 const EL_ICONS = {
