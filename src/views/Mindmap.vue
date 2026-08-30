@@ -9,7 +9,7 @@ import { uid } from '../db.js';
 import { listMindmaps, createMindmap, updateMindmap, deleteMindmap, listGraphEdges } from '../repo.js';
 import { db } from '../db.js';
 import { resolveGraph, edgesToForest } from '../algorithms/graph-resolve.js';
-import { treeToFlat as treeToFlatPure } from '../algorithms/mindmap-graph.js';
+import { treeToFlat as treeToFlatPure, sankeyFromTree } from '../algorithms/mindmap-graph.js';
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
@@ -90,10 +90,12 @@ function buildOption(data, style) {
   if (style === 'tree-tb') return treeOption(data, 'TB', 'orthogonal', accent, ink, line);
   if (style === 'tree-radial') return treeOption(data, 'LR', 'radial', accent, ink, line);
   if (style === 'sankey') {
-    const { nodes, links } = treeToFlat(data);
+    // ⚠️ ECharts sankey 在节点带 id 时会把 id 当成 label 文本（渲染出一串字母），
+    // 与 graph/force 系列行为不同。sankeyFromTree 已处理成只用 name 作键。
+    const { nodes: sankeyNodes, links: sankeyLinks } = sankeyFromTree(data);
     // 桑基图防堆叠：节点最小高度 minNodeHeight=6 防止一堆点挤成一条黑线；
     // 加大 nodeGap、迭代次数、容器边距，并让长标签截断避免横向重叠
-    const count = Math.max(nodes.length, 1);
+    const count = Math.max(sankeyNodes.length, 1);
     const nodeGap = Math.min(28, Math.max(10, 600 / count));  // 节点越多间距越小，但不低于 10
     const minNodeHeight = 6;
     return {
@@ -101,8 +103,8 @@ function buildOption(data, style) {
       animation: true,
       series: [{
         type: 'sankey',
-        data: nodes,
-        links: links,
+        data: sankeyNodes,
+        links: sankeyLinks,
         left: 96, right: 200, top: 40, bottom: 40,
         width: 'auto', height: 'auto',
         nodeWidth: 18,

@@ -18,6 +18,10 @@ import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 const route = useRoute();
 const router = useRouter();
 
+// 写库前脱 reactive：Vue ref/reactive 的 proxy 不能被 IndexedDB 的 structuredClone 克隆，
+// 直接 put 会抛 DataCloneError（#<Object> could not be cloned）。见 tests/vue-clone.test.mjs。
+function dbRow(obj) { return JSON.parse(JSON.stringify(obj ?? {})); }
+
 // ---------- 已选卡片 ----------
 const cards = ref([]);
 const addFilter = ref('');
@@ -73,7 +77,7 @@ async function ensureSession() {
     // 卡片集变更 → 更新会话快照（bump updatedAt 便于同步）
     currentSession.value.cardIds = JSON.stringify(cards.value.map(c => c.id));
     currentSession.value.updatedAt = Date.now();
-    await db.analysisSessions.put(currentSession.value);
+    await db.analysisSessions.put(dbRow(currentSession.value));
     return currentSession.value;
   }
   const s = {
@@ -166,8 +170,8 @@ async function pushResult(result, q) {
   };
   s.updatedAt = Date.now();
   await db.transaction('rw', db.analysisMessages, db.analysisSessions, async () => {
-    await db.analysisMessages.add(msg);
-    await db.analysisSessions.put(s);
+    await db.analysisMessages.add(dbRow(msg));
+    await db.analysisSessions.put(dbRow(s));
   });
   messages.value.push({ ...msg, resultData: result.data ?? null });
   await nextTick();

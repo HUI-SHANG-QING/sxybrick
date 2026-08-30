@@ -61,3 +61,26 @@ export function verifyLinks(nodes, links) {
   const orphans = (links || []).filter(l => !ids.has(l.source) || !ids.has(l.target));
   return { ok: orphans.length === 0, orphans };
 }
+
+/**
+ * 树 → 桑基图数据。
+ *
+ * ⚠️ 关键差异：ECharts 的 **sankey 系列**在节点带 `id` 时会把 `id` 当作
+ * label 文本渲染（一堆字母），与 graph/force 系列用 `data.name` 不同。
+ * 因此桑基图只用 `name` 作为节点唯一键，links 也按 `name` 匹配。
+ * treeToFlat 内部已按 name 合并同名节点，故 name 唯一，可按 name 建边。
+ *
+ * @param {object} root 树根
+ * @returns {{ nodes: Array<{name:string}>, links: Array<{source:string,target:string}> }}
+ */
+export function sankeyFromTree(root) {
+  const { nodes, links } = treeToFlat(root);
+  const nameById = new Map(nodes.map(n => [n.id, n.name]));
+  return {
+    nodes: nodes.map(n => ({ name: n.name })),
+    links: links.map(l => ({
+      source: nameById.get(l.source) || l.source,
+      target: nameById.get(l.target) || l.target,
+    })),
+  };
+}
