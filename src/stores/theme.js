@@ -46,6 +46,8 @@ export const STYLES = [
   { id: 'progress', name: 'Progress', desc: '暖琥珀 3D · 鼠标跟踪 · Inter 字体 · 流光按钮', icon: '✨' },
   // —— 2026-08-26 新增：国风主题（真水墨山水画交互 · 致敬宋元名家）——
   { id: 'guofeng', name: '国风', desc: '水墨山水 · 飞鸟涟漪 · 朱印题款', icon: '🏔️' },
+  // —— 2026-08-30 新增（taste-skill）：青瓷主题（静物工作室 · 单一釉青强调 · 染色阴影）——
+  { id: 'celadon', name: '青瓷', desc: '静物工作室 · 釉青单色 · 克制微动效', icon: '🍃' },
 ];
 
 // 配色模式（全局通用，适用于每一种风格）
