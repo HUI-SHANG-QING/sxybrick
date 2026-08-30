@@ -1,0 +1,41 @@
+// src/i18n/views/memo.js
+// 备忘录四象限视图（Memo.vue）的 zh/en 字典片段。
+export const zh = {
+  title: '备忘录 · 四象限',
+  hint: '按「重要 / 紧急」给事项分类：先做重要且紧急的。数据可随数据包同步。',
+  placeholder: '记点什么…',
+  important: '重要',
+  urgent: '紧急',
+  addBtn: '记下',
+  exportLabel: '导出备忘',
+  exportHintMd: '人类可读',
+  exportHintJson: '可备份恢复',
+  exportHintCsv: 'Excel 可打开',
+  q1: '重要且紧急 · 先做',
+  q2: '重要不紧急 · 计划做',
+  q3: '不重要但紧急 · 可委派',
+  q4: '不重要不紧急 · 少做',
+  empty: '空',
+  del: '删',
+  recorded: '已记录',
+};
+
+export const en = {
+  title: 'Memos · Four Quadrants',
+  hint: 'Classify items by "important / urgent": do important & urgent first. Data syncs with the data package.',
+  placeholder: 'Jot something down…',
+  important: 'Important',
+  urgent: 'Urgent',
+  addBtn: 'Add',
+  exportLabel: 'Export memos',
+  exportHintMd: 'Human readable',
+  exportHintJson: 'Restorable backup',
+  exportHintCsv: 'Opens in Excel',
+  q1: 'Urgent & Important · do first',
+  q2: 'Important, not urgent · plan',
+  q3: 'Urgent, not important · delegate',
+  q4: 'Not urgent & not important · minimize',
+  empty: 'Empty',
+  del: 'Del',
+  recorded: 'Recorded',
+};

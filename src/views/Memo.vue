@@ -6,6 +6,7 @@ import { toast } from '../utils/toast.js';
 import { listMemos, addMemo, deleteMemo } from '../repo.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import ExportButton from '../components/ExportButton.vue';
+import { t } from '../i18n/index.js';
 import {
   exportMemosToJSON, exportMemosToMarkdown, exportMemosToCSV,
 } from '../utils/exporters.js';
@@ -19,19 +20,19 @@ const urgent = ref(false);
 
 async function load() { memos.value = await listMemos(); }
 async function add() {
-  const t = input.value.trim();
-  if (!t) return;
-  await addMemo({ text: t, important: important.value, urgent: urgent.value });
+  const txt = input.value.trim();
+  if (!txt) return;
+  await addMemo({ text: txt, important: important.value, urgent: urgent.value });
   input.value = ''; important.value = false; urgent.value = false;
-  toast('已记录', 'success');
+  toast(t('views.memo.recorded'), 'success');
   await load();
 }
 async function remove(id) { await deleteMemo(id); await load(); }
 
 const memoExportFormats = [
-  { key: 'md', label: 'Markdown', hint: '人类可读', mime: 'text/markdown', ext: 'md', build: exportMemosToMarkdown },
-  { key: 'json', label: 'JSON', hint: '可备份恢复', mime: 'application/json', ext: 'json', build: exportMemosToJSON },
-  { key: 'csv', label: 'CSV', hint: 'Excel 可打开', mime: 'text/csv', ext: 'csv', build: exportMemosToCSV },
+  { key: 'md', label: 'Markdown', hint: t('views.memo.exportHintMd'), mime: 'text/markdown', ext: 'md', build: exportMemosToMarkdown },
+  { key: 'json', label: 'JSON', hint: t('views.memo.exportHintJson'), mime: 'application/json', ext: 'json', build: exportMemosToJSON },
+  { key: 'csv', label: 'CSV', hint: t('views.memo.exportHintCsv'), mime: 'text/csv', ext: 'csv', build: exportMemosToCSV },
 ];
 
 const quadrants = computed(() => {
@@ -60,54 +61,54 @@ onMounted(applyRouteId);
 <template>
   <div style="max-width:900px;margin:0 auto">
     <div class="page-header-row">
-      <h2 style="margin:0 0 4px">备忘录 · 四象限</h2>
+      <h2 style="margin:0 0 4px">{{ t('views.memo.title') }}</h2>
       <ExportButton
         :data="memos"
         :count="memos.length"
         filename-prefix="memos"
-        label="导出备忘"
+        :label="t('views.memo.exportLabel')"
         :formats="memoExportFormats"
       />
     </div>
-    <p class="hint" style="margin:0 0 16px">按「重要 / 紧急」给事项分类：先做重要且紧急的。数据可随数据包同步。</p>
+    <p class="hint" style="margin:0 0 16px">{{ t('views.memo.hint') }}</p>
 
     <div class="panel">
       <div class="input-row">
         <VoiceInput @result="(t) => input = input ? input + t : t" />
-        <input v-model="input" class="input" placeholder="记点什么…" @keydown.enter="add" />
-        <label class="mini-chip"><input type="checkbox" v-model="important" /> 重要</label>
-        <label class="mini-chip"><input type="checkbox" v-model="urgent" /> 紧急</label>
-        <button class="btn primary" @click="add">记下</button>
+        <input v-model="input" class="input" :placeholder="t('views.memo.placeholder')" @keydown.enter="add" />
+        <label class="mini-chip"><input type="checkbox" v-model="important" /> {{ t('views.memo.important') }}</label>
+        <label class="mini-chip"><input type="checkbox" v-model="urgent" /> {{ t('views.memo.urgent') }}</label>
+        <button class="btn primary" @click="add">{{ t('views.memo.addBtn') }}</button>
       </div>
     </div>
 
     <div class="quad">
       <div class="q q1">
-        <div class="q-title">重要且紧急 · 先做</div>
-        <div v-if="!quadrants.q1.length" class="hint" style="padding:12px">空</div>
+        <div class="q-title">{{ t('views.memo.q1') }}</div>
+        <div v-if="!quadrants.q1.length" class="hint" style="padding:12px">{{ t('views.memo.empty') }}</div>
         <div v-for="m in quadrants.q1" :key="m.id" class="q-item" :class="{ hl: highlightId === m.id }">
-          <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">删</a>
+          <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">{{ t('views.memo.del') }}</a>
         </div>
       </div>
       <div class="q q2">
-        <div class="q-title">重要不紧急 · 计划做</div>
-        <div v-if="!quadrants.q2.length" class="hint" style="padding:12px">空</div>
+        <div class="q-title">{{ t('views.memo.q2') }}</div>
+        <div v-if="!quadrants.q2.length" class="hint" style="padding:12px">{{ t('views.memo.empty') }}</div>
         <div v-for="m in quadrants.q2" :key="m.id" class="q-item" :class="{ hl: highlightId === m.id }">
-          <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">删</a>
+          <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">{{ t('views.memo.del') }}</a>
         </div>
       </div>
       <div class="q q3">
-        <div class="q-title">不重要但紧急 · 可委派</div>
-        <div v-if="!quadrants.q3.length" class="hint" style="padding:12px">空</div>
+        <div class="q-title">{{ t('views.memo.q3') }}</div>
+        <div v-if="!quadrants.q3.length" class="hint" style="padding:12px">{{ t('views.memo.empty') }}</div>
         <div v-for="m in quadrants.q3" :key="m.id" class="q-item" :class="{ hl: highlightId === m.id }">
-          <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">删</a>
+          <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">{{ t('views.memo.del') }}</a>
         </div>
       </div>
       <div class="q q4">
-        <div class="q-title">不重要不紧急 · 少做</div>
-        <div v-if="!quadrants.q4.length" class="hint" style="padding:12px">空</div>
+        <div class="q-title">{{ t('views.memo.q4') }}</div>
+        <div v-if="!quadrants.q4.length" class="hint" style="padding:12px">{{ t('views.memo.empty') }}</div>
         <div v-for="m in quadrants.q4" :key="m.id" class="q-item" :class="{ hl: highlightId === m.id }">
-          <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">删</a>
+          <span>{{ m.text }}</span><a class="q-del" @click="remove(m.id)">{{ t('views.memo.del') }}</a>
         </div>
       </div>
     </div>

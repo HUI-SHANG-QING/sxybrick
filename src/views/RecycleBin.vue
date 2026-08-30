@@ -7,9 +7,13 @@ import { db } from '../db.js';
 import { restoreFromTrash } from '../repo.js';
 import { confirmDialog } from '../utils/confirm.js';
 import { toast } from '../utils/toast.js';
+import { t } from '../i18n/index.js';
 
 const TRASH_DAYS = 30;
-const KIND_LABEL = { card: '卡片', memo: '备忘', note: '笔记', plan: '计划', doc: '文档', mindmap: '导图' };
+function kindLabel(k) {
+  const m = { card: 'views.recycleBin.kindCard', memo: 'views.recycleBin.kindMemo', note: 'views.recycleBin.kindNote', plan: 'views.recycleBin.kindPlan', doc: 'views.recycleBin.kindDoc', mindmap: 'views.recycleBin.kindMindmap' };
+  return m[k] ? t(m[k]) : k;
+}
 const items = ref([]);
 const busy = ref(false);
 const filterKind = ref('');
@@ -47,59 +51,59 @@ async function load() {
     const expiredOnes = all.filter(t => (t.deletedAt || 0) < cutoff);
     if (expiredOnes.length) {
       await db.trash.bulkDelete(expiredOnes.map(t => t.id));
-      toast(`已自动清理 ${expiredOnes.length} 条超过 ${TRASH_DAYS} 天的记录`, 'info');
+      toast(t('views.recycleBin.autoCleaned', '已自动清理 {n} 条超过 {d} 天的记录', { n: expiredOnes.length, d: TRASH_DAYS }), 'info');
     }
     items.value = all.filter(t => (t.deletedAt || 0) >= cutoff);
-  } catch (e) { toast(e.message || '加载失败', 'error'); }
+  } catch (e) { toast(e.message || t('views.recycleBin.loadFail'), 'error'); }
   finally { busy.value = false; }
 }
 
-async function restore(t) {
-  if (expired(t)) { toast('已过期，无法恢复', 'error'); return; }
-  if (!(await confirmDialog(`恢复这条「${KIND_LABEL[t.kind] || t.kind}」？将重新放回原处。`))) return;
+async function restore(item) {
+  if (expired(item)) { toast(t('views.recycleBin.expiredFail'), 'error'); return; }
+  if (!(await confirmDialog(t('views.recycleBin.confirmRestore', '恢复这条「{kind}」？将重新放回原处。', { kind: kindLabel(item.kind) })))) return;
   busy.value = true;
   try {
-    const ok = await restoreFromTrash(t);
-    if (ok) { toast('已恢复', 'success'); items.value = items.value.filter(x => x.id !== t.id); }
-    else toast('该类型暂不支持恢复', 'error');
-  } catch (e) { toast(e.message || '恢复失败', 'error'); }
+    const ok = await restoreFromTrash(item);
+    if (ok) { toast(t('views.recycleBin.restored'), 'success'); items.value = items.value.filter(x => x.id !== item.id); }
+    else toast(t('views.recycleBin.unsupported'), 'error');
+  } catch (e) { toast(e.message || t('views.recycleBin.restoreFail'), 'error'); }
   finally { busy.value = false; }
 }
 
-async function purge(t) {
-  if (!(await confirmDialog('永久删除这条记录？此操作不可恢复。'))) return;
+async function purge(item) {
+  if (!(await confirmDialog(t('views.recycleBin.confirmPurge')))) return;
   busy.value = true;
   try {
-    await db.trash.delete(t.id);
-    items.value = items.value.filter(x => x.id !== t.id);
-    toast('已永久删除', 'success');
-  } catch (e) { toast(e.message || '删除失败', 'error'); }
+    await db.trash.delete(item.id);
+    items.value = items.value.filter(x => x.id !== item.id);
+    toast(t('views.recycleBin.purged'), 'success');
+  } catch (e) { toast(e.message || t('views.recycleBin.deleteFail'), 'error'); }
   finally { busy.value = false; }
 }
 
 async function restoreAll() {
   const restorable = filtered.value.filter(t => !expired(t));
   if (!restorable.length) return;
-  if (!(await confirmDialog(`恢复全部 ${restorable.length} 条可恢复记录？`))) return;
+  if (!(await confirmDialog(t('views.recycleBin.confirmRestoreAll', '恢复全部 {n} 条可恢复记录？', { n: restorable.length })))) return;
   busy.value = true;
   try {
     let n = 0;
     for (const t of restorable) { if (await restoreFromTrash(t)) n++; }
-    toast(`已恢复 ${n} 条`, 'success');
+    toast(t('views.recycleBin.restoredN', '已恢复 {n} 条', { n }), 'success');
     await load();
-  } catch (e) { toast(e.message || '恢复失败', 'error'); }
+  } catch (e) { toast(e.message || t('views.recycleBin.restoreFail'), 'error'); }
   finally { busy.value = false; }
 }
 
 async function purgeAll() {
   if (!filtered.value.length) return;
-  if (!(await confirmDialog(`永久清空回收站（${filtered.value.length} 条）？不可恢复。`))) return;
+  if (!(await confirmDialog(t('views.recycleBin.confirmPurgeAll', '永久清空回收站（{n} 条）？不可恢复。', { n: filtered.value.length })))) return;
   busy.value = true;
   try {
     await db.trash.clear();
     items.value = [];
-    toast('回收站已清空', 'success');
-  } catch (e) { toast(e.message || '清空失败', 'error'); }
+    toast(t('views.recycleBin.purgedAll'), 'success');
+  } catch (e) { toast(e.message || t('views.recycleBin.clearFail'), 'error'); }
   finally { busy.value = false; }
 }
 
@@ -109,38 +113,38 @@ onMounted(load);
 <template>
   <div style="max-width:880px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">🗑️ 回收站</h2>
-      <span class="hint">被删除的内容会暂存在这里 {{ TRASH_DAYS }} 天，过期自动清空（删除仍会跨设备同步）</span>
+      <h2 style="margin:0">{{ t('views.recycleBin.title') }}</h2>
+      <span class="hint">{{ t('views.recycleBin.hint', '被删除的内容会暂存在这里 {n} 天，过期自动清空（删除仍会跨设备同步）', { n: TRASH_DAYS }) }}</span>
       <span style="flex:1"></span>
-      <button class="btn small" :disabled="busy" @click="load">刷新</button>
-      <button class="btn small primary" :disabled="busy || !restorableCount" @click="restoreAll">全部恢复</button>
-      <button class="btn small" :disabled="busy || !filtered.length" @click="purgeAll">清空</button>
+      <button class="btn small" :disabled="busy" @click="load">{{ t('views.recycleBin.refresh') }}</button>
+      <button class="btn small primary" :disabled="busy || !restorableCount" @click="restoreAll">{{ t('views.recycleBin.restoreAll') }}</button>
+      <button class="btn small" :disabled="busy || !filtered.length" @click="purgeAll">{{ t('views.recycleBin.clearAll') }}</button>
     </div>
 
     <div v-if="availableKinds.length" class="mode-row" style="margin-top:14px">
-      <button class="chip" :class="{ on: !filterKind }" @click="filterKind = ''">全部（{{ items.length }}）</button>
+      <button class="chip" :class="{ on: !filterKind }" @click="filterKind = ''">{{ t('views.recycleBin.all', '全部（{n}）', { n: items.length }) }}</button>
       <button v-for="k in availableKinds" :key="k" class="chip" :class="{ on: filterKind === k }" @click="filterKind = k">
-        {{ KIND_LABEL[k] || k }}（{{ items.filter(t => t.kind === k).length }}）
+        {{ kindLabel(k) }}（{{ items.filter(t => t.kind === k).length }}）
       </button>
     </div>
 
     <div v-if="!filtered.length" class="panel" style="margin-top:14px">
-      <p class="hint" style="margin:0">✅ 回收站是空的，没有可恢复的内容。</p>
+      <p class="hint" style="margin:0">{{ t('views.recycleBin.emptyTip') }}</p>
     </div>
 
-    <div v-for="t in filtered" :key="t.id" class="panel trash-row" style="margin-top:12px">
+    <div v-for="item in filtered" :key="item.id" class="panel trash-row" style="margin-top:12px">
       <div style="flex:1;min-width:0">
         <div class="trash-head">
-          <span class="tag">{{ KIND_LABEL[t.kind] || t.kind }}</span>
-          <span class="hint">删除于 {{ fmtDate(t.deletedAt) }}</span>
-          <span v-if="expired(t)" class="tag expired">已过期</span>
-          <span v-else class="tag left">剩 {{ daysLeft(t) }} 天</span>
+          <span class="tag">{{ kindLabel(item.kind) }}</span>
+          <span class="hint">{{ t('views.recycleBin.deletedAt', '删除于 {time}', { time: fmtDate(item.deletedAt) }) }}</span>
+          <span v-if="expired(item)" class="tag expired">{{ t('views.recycleBin.expired') }}</span>
+          <span v-else class="tag left">{{ t('views.recycleBin.daysLeft', '剩 {n} 天', { n: daysLeft(item) }) }}</span>
         </div>
-        <div class="preview">{{ previewOf(t) || '（无预览）' }}</div>
+        <div class="preview">{{ previewOf(item) || t('views.recycleBin.noPreview') }}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn small primary" :disabled="busy || expired(t)" @click="restore(t)">恢复</button>
-        <button class="btn small" :disabled="busy" @click="purge(t)">永久删除</button>
+        <button class="btn small primary" :disabled="busy || expired(item)" @click="restore(item)">{{ t('views.recycleBin.restore') }}</button>
+        <button class="btn small" :disabled="busy" @click="purge(item)">{{ t('views.recycleBin.purge') }}</button>
       </div>
     </div>
   </div>
