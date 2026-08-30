@@ -7,6 +7,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { getWorkspaceOverview } from '../workspace/overview.js';
 import { MODULE_GROUPS } from '../workspace/modules.js';
+import { t } from '../i18n/index.js';
 import { listNotifications, unreadCount } from '../agent/proactive.js';
 import { db } from '../db.js';
 
@@ -64,21 +65,25 @@ const online = computed(() => data.value?.meta?.online ?? true);
 const lastSync = computed(() => data.value?.meta?.lastSync || 0);
 
 const kpis = computed(() => [
-  { label: '学习画像分', value: profileScore.value == null ? '—' : profileScore.value, icon: '🧭', path: '/health', hint: profileLevel.value },
-  { label: '卡片总数', value: fmtNum(data.value?.stats?.totalCards), icon: '🗂️', path: '/cards', hint: '全科目' },
-  { label: '今日待复习', value: fmtNum(dueToday.value), icon: '📖', path: '/review', hint: dueToday.value ? '快去清' : '今日无到期' },
-  { label: '今日已复习', value: fmtNum(doneToday.value), icon: '✅', path: '/stats', hint: '去重计数' },
-  { label: '平均掌握度', value: avgMastery.value + '%', icon: '🎯', path: '/stats', hint: '近 90 天' },
-  { label: '今日番茄', value: fmtNum(data.value?.insight?.pomodoro?.today), icon: '🍅', path: '/pomodoro', hint: '专注次数' },
+  { label: t('workspace.kpiProfile'), value: profileScore.value == null ? '—' : profileScore.value, icon: '🧭', path: '/health', hint: profileLevel.value || t('workspace.kpiProfileHint') },
+  { label: t('workspace.kpiCards'), value: fmtNum(data.value?.stats?.totalCards), icon: '🗂️', path: '/cards', hint: t('workspace.kpiCardsHint') },
+  { label: t('workspace.kpiDue'), value: fmtNum(dueToday.value), icon: '📖', path: '/review', hint: dueToday.value ? t('workspace.kpiDueHint') : t('workspace.kpiDueHintNone') },
+  { label: t('workspace.kpiDone'), value: fmtNum(doneToday.value), icon: '✅', path: '/stats', hint: t('workspace.kpiDoneHint') },
+  { label: t('workspace.kpiMastery'), value: avgMastery.value + '%', icon: '🎯', path: '/stats', hint: t('workspace.kpiMasteryHint') },
+  { label: t('workspace.kpiPomodoro'), value: fmtNum(data.value?.insight?.pomodoro?.today), icon: '🍅', path: '/pomodoro', hint: t('workspace.kpiPomodoroHint') },
 ]);
 
 // 模块矩阵：分组 + 搜索过滤（过滤只影响展示，不触发其它渲染）
+// label/desc 经 t() 翻译（t 读取 locale.value ⇒ 切语言时自动重渲染）；搜索也按译文匹配
 const groups = computed(() => {
   const q = filter.value.trim().toLowerCase();
-  return MODULE_GROUPS.map(g => ({
-    ...g,
-    modules: g.modules.filter(m => !q || m.label.toLowerCase().includes(q) || m.desc.toLowerCase().includes(q)),
-  })).filter(g => g.modules.length);
+  return MODULE_GROUPS.map(g => {
+    const glabel = t(g.i18nKey, g.label);
+    const modules = g.modules
+      .map(m => ({ ...m, label: t('workspace.mod.' + m.key + '.label', m.label), desc: t('workspace.mod.' + m.key + '.desc', m.desc) }))
+      .filter(m => !q || m.label.toLowerCase().includes(q) || m.desc.toLowerCase().includes(q));
+    return { ...g, label: glabel, modules };
+  }).filter(g => g.modules.length);
 });
 
 const riskTop = computed(() => (data.value?.risks || []).slice(0, 3));
@@ -86,16 +91,16 @@ const healthItems = computed(() => {
   const h = data.value?.health;
   if (!h) return [];
   return [
-    { label: '重复卡', n: h.duplicates?.length || 0, path: '/health' },
-    { label: '僵尸卡', n: h.zombieCount || 0, path: '/health' },
-    { label: '孤儿图片', n: h.orphanImageCount || 0, path: '/health' },
+    { label: t('workspace.healthDup'), n: h.duplicates?.length || 0, path: '/health' },
+    { label: t('workspace.healthZombie'), n: h.zombieCount || 0, path: '/health' },
+    { label: t('workspace.healthOrphan'), n: h.orphanImageCount || 0, path: '/health' },
   ];
 });
 const diagTop = computed(() => [...(data.value?.diag || [])].sort((a, b) => a.mastery - b.mastery).slice(0, 3));
 
 // ---------- 交互 ----------
 function go(path) { router.push(path); }
-function ratingLabel(r) { return r === 2 ? '答对' : r === 1 ? '模糊' : '答错'; }
+function ratingLabel(r) { return r === 2 ? t('workspace.rateOk') : r === 1 ? t('workspace.rateWarn') : t('workspace.rateFail'); }
 function fmtTime(ts) {
   if (!ts) return '';
   const d = new Date(ts), diff = Date.now() - d;
@@ -105,7 +110,7 @@ function fmtTime(ts) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 function fmtSync(ts) {
-  if (!ts) return '未同步';
+  if (!ts) return t('workspace.noSync');
   const d = new Date(ts);
   return `同步于 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
@@ -123,15 +128,15 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); });
     <!-- 头部：标题 + 同步状态 + 备份/刷新 -->
     <div class="ws-head">
       <div>
-        <h1 class="ws-title">个人工作台</h1>
-        <p class="ws-sub">全模块可视化指挥中心 · {{ groups.reduce((s, g) => s + g.modules.length, 0) }}/30 模块</p>
+        <h1 class="ws-title">{{ t('workspace.title') }}</h1>
+        <p class="ws-sub">{{ t('workspace.sub') }} · {{ groups.reduce((s, g) => s + g.modules.length, 0) }}/30 模块</p>
       </div>
       <div class="ws-head-actions">
-        <span class="ws-sync" :class="online ? 'on' : 'off'" :title="online ? fmtSync(lastSync) : '当前离线'">
-          <i class="ws-sync-dot"></i>{{ online ? fmtSync(lastSync) : '离线模式' }}
+        <span class="ws-sync" :class="online ? 'on' : 'off'" :title="online ? fmtSync(lastSync) : t('workspace.offline')">
+          <i class="ws-sync-dot"></i>{{ online ? fmtSync(lastSync) : t('workspace.offline') }}
         </span>
-        <button class="ws-btn" @click="go('/export')">💾 备份</button>
-        <button class="ws-btn primary" @click="loadAll" :disabled="loading">{{ loading ? '加载中…' : '↻ 刷新' }}</button>
+        <button class="ws-btn" @click="go('/export')">{{ t('workspace.backup') }}</button>
+        <button class="ws-btn primary" @click="loadAll" :disabled="loading">{{ loading ? t('workspace.loading') : t('workspace.refresh') }}</button>
       </div>
     </div>
 
@@ -139,14 +144,14 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); });
     <section class="ws-today">
       <div class="ws-today-main">
         <div class="ws-today-due">{{ fmtNum(dueToday) }}</div>
-        <div class="ws-today-label">今日待复习</div>
-        <button class="ws-today-go" @click="go('/review')">{{ dueToday ? '开始复习 →' : '今日无到期，去复习 →' }}</button>
-        <p v-if="overdue" class="ws-today-overdue">⚠️ 昨日遗留 {{ fmtNum(overdue) }} 张未清，已顺延至今天，优先处理</p>
+        <div class="ws-today-label">{{ t('workspace.todayDue') }}</div>
+        <button class="ws-today-go" @click="go('/review')">{{ dueToday ? t('workspace.startReview') : t('workspace.startReviewNone') }}</button>
+        <p v-if="overdue" class="ws-today-overdue">⚠️ {{ t('workspace.overdueHint').replace('{n}', fmtNum(overdue)) }}</p>
       </div>
       <div class="ws-today-side">
-        <div class="ws-mini"><span class="ws-mini-n">{{ fmtNum(doneToday) }}</span><span class="ws-mini-l">今日已复习</span></div>
-        <div class="ws-mini"><span class="ws-mini-n">{{ avgMastery }}%</span><span class="ws-mini-l">平均掌握度</span></div>
-        <div class="ws-mini" :class="{ warn: riskTop.length }"><span class="ws-mini-n">{{ riskTop.length }}</span><span class="ws-mini-l">遗忘风险</span></div>
+        <div class="ws-mini"><span class="ws-mini-n">{{ fmtNum(doneToday) }}</span><span class="ws-mini-l">{{ t('workspace.miniDoneToday') }}</span></div>
+        <div class="ws-mini"><span class="ws-mini-n">{{ avgMastery }}%</span><span class="ws-mini-l">{{ t('workspace.miniMastery') }}</span></div>
+        <div class="ws-mini" :class="{ warn: riskTop.length }"><span class="ws-mini-n">{{ riskTop.length }}</span><span class="ws-mini-l">{{ t('workspace.miniRisk') }}</span></div>
       </div>
     </section>
 
@@ -165,8 +170,8 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); });
     <!-- 模块矩阵（全部 30 模块可视化面板） -->
     <section class="ws-matrix">
       <div class="ws-sec-row">
-        <h3 class="ws-sec">模块矩阵</h3>
-        <input v-model="filter" class="ws-filter" type="text" placeholder="🔍 搜索模块…" aria-label="搜索模块" />
+        <h3 class="ws-sec">{{ t('workspace.matrix') }}</h3>
+        <input v-model="filter" class="ws-filter" type="text" :placeholder="t('workspace.searchPlaceholder')" :aria-label="t('workspace.searchPlaceholder')" />
       </div>
       <div v-for="g in groups" :key="g.id" class="ws-group">
         <div class="ws-group-label">{{ g.label }}</div>
@@ -181,39 +186,39 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); });
           </button>
         </div>
       </div>
-      <div v-if="!groups.length" class="ws-empty">没有匹配的模块</div>
+      <div v-if="!groups.length" class="ws-empty">{{ t('workspace.noMatch') }}</div>
     </section>
 
     <!-- 风险 / 健康 / 单科诊断 -->
     <section class="ws-risk">
       <div class="ws-card">
-        <h3 class="ws-sec">遗忘风险 TOP3</h3>
+        <h3 class="ws-sec">{{ t('workspace.secRisk') }}</h3>
         <div v-if="riskTop.length">
           <div v-for="r in riskTop" :key="r.id" class="ws-risk-item" @click="go('/review')">
             <span class="ws-risk-front">{{ r.front }}</span>
             <span class="ws-risk-n">风险 {{ r.risk }}%</span>
           </div>
         </div>
-        <div v-else class="ws-empty">暂无遗忘风险卡</div>
+        <div v-else class="ws-empty">{{ t('workspace.noRisk') }}</div>
       </div>
       <div class="ws-card">
-        <h3 class="ws-sec">资产健康</h3>
+        <h3 class="ws-sec">{{ t('workspace.secHealth') }}</h3>
         <div v-if="healthItems.length">
           <div v-for="h in healthItems" :key="h.label" class="ws-health" @click="go(h.path)">
             <span>{{ h.label }}</span><span class="ws-health-n" :class="{ bad: h.n > 0 }">{{ fmtNum(h.n) }}</span>
           </div>
         </div>
-        <div class="ws-empty">体检数据加载中…</div>
+        <div class="ws-empty">{{ t('workspace.healthLoading') }}</div>
       </div>
       <div class="ws-card">
-        <h3 class="ws-sec">薄弱科目诊断</h3>
+        <h3 class="ws-sec">{{ t('workspace.secDiag') }}</h3>
         <div v-if="diagTop.length">
           <div v-for="d in diagTop" :key="d.subject" class="ws-diag" @click="go('/cards?subject=' + encodeURIComponent(d.subject))">
             <div class="ws-diag-head"><span>{{ d.subject }}</span><span>{{ d.mastery }}% · 到期 {{ d.due }}</span></div>
             <div class="ws-diag-track"><div class="ws-diag-fill" :style="{ width: d.mastery + '%' }"></div></div>
           </div>
         </div>
-        <div v-else class="ws-empty">暂无科目数据</div>
+        <div v-else class="ws-empty">{{ t('workspace.noDiag') }}</div>
       </div>
     </section>
 
@@ -221,10 +226,10 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); });
     <section class="ws-bottom">
       <div class="ws-card">
         <div class="ws-sec-row">
-          <h3 class="ws-sec">通知中心</h3>
-          <span v-if="unread" class="ws-badge">{{ unread }} 未读</span>
+          <h3 class="ws-sec">{{ t('workspace.notifications') }}</h3>
+          <span v-if="unread" class="ws-badge">{{ unread }} {{ t('workspace.unread') }}</span>
         </div>
-        <div v-if="!notifications.length" class="ws-empty">暂无通知，智能体会在合适时机推送建议</div>
+        <div v-if="!notifications.length" class="ws-empty">{{ t('workspace.noNotify') }}</div>
         <ul v-else class="ws-notify">
           <li v-for="n in notifications" :key="n.id" :class="{ unread: !n.read }">
             <i class="ws-dot" :class="n.read ? 'read' : 'unread'"></i>
@@ -237,19 +242,19 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); });
         </ul>
       </div>
       <div class="ws-card">
-        <h3 class="ws-sec">最近复习动态</h3>
-        <div v-if="!recentActivity.length" class="ws-empty">还没有复习记录，去「开始复习」试试</div>
+        <h3 class="ws-sec">{{ t('workspace.recentActivity') }}</h3>
+        <div v-if="!recentActivity.length" class="ws-empty">{{ t('workspace.noActivity') }}</div>
         <ul v-else class="ws-activity">
           <li v-for="a in recentActivity" :key="a.id">
             <span class="ws-tag" :class="a.rating === 2 ? 'ok' : a.rating === 1 ? 'warn' : 'fail'">{{ ratingLabel(a.rating) }}</span>
-            <span class="ws-activity-front">{{ a.front || '(已删除卡片)' }}</span>
+            <span class="ws-activity-front">{{ a.front || t('workspace.deletedCard') }}</span>
             <span class="ws-activity-time">{{ fmtTime(a.at) }}</span>
           </li>
         </ul>
       </div>
     </section>
 
-    <div v-if="loading" class="ws-loading">正在聚合各模块数据…</div>
+    <div v-if="loading" class="ws-loading">{{ t('workspace.loadingAgg') }}</div>
   </div>
 </template>
 

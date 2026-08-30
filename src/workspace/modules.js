@@ -3,11 +3,13 @@
 // 覆盖 SxyBrick 全部 30 个模块：分组 + 图标 + 描述 + 路由。
 // 新增模块只需在此登记；指标由 overview.js 按 key 聚合，Workspace.vue 按 key 渲染。
 // 图标沿用项目全站 emoji 惯例（与 App.vue navItems / 各视图一致），零外链。
+// i18nKey 用于全局语言切换（label / desc 经 t() 实时翻译，见 Workspace.vue）。
 
 export const MODULE_GROUPS = [
   {
     id: 'study',
     label: '学习',
+    i18nKey: 'workspace.group.study',
     modules: [
       { key: 'cards', path: '/cards', icon: '🗂️', label: '卡片', desc: '创建与编辑卡片' },
       { key: 'review', path: '/review', icon: '📖', label: '背诵', desc: '到期卡复习' },
@@ -20,6 +22,7 @@ export const MODULE_GROUPS = [
   {
     id: 'plan',
     label: '规划',
+    i18nKey: 'workspace.group.plan',
     modules: [
       { key: 'daily', path: '/daily', icon: '📅', label: '每日规划', desc: '口述→任务→打卡' },
       { key: 'plans', path: '/plans', icon: '🎯', label: '计划', desc: '学习计划管理' },
@@ -31,6 +34,7 @@ export const MODULE_GROUPS = [
   {
     id: 'knowledge',
     label: '知识',
+    i18nKey: 'workspace.group.knowledge',
     modules: [
       { key: 'notes', path: '/notes', icon: '📓', label: '笔记', desc: '厚笔记·双向链接' },
       { key: 'memo', path: '/memo', icon: '📝', label: '备忘', desc: '四象限短备忘' },
@@ -46,17 +50,19 @@ export const MODULE_GROUPS = [
   {
     id: 'smart',
     label: '智能',
+    i18nKey: 'workspace.group.smart',
     modules: [
       { key: 'ai', path: '/ai', icon: '🤖', label: 'AI', desc: '智能问答' },
       { key: 'agent', path: '/agent', icon: '🧠', label: 'Agent', desc: 'Agent 工作台' },
       { key: 'feynman', path: '/feynman', icon: '👨‍🏫', label: '费曼', desc: '费曼练习' },
-      { key: 'insight', path: '/insight', icon: '🔍', label: '卡片洞察', desc: '遗忘曲线' },
+      { key: 'insight', path: '/insight', icon: '💡', label: '卡片洞察', desc: '遗忘曲线' },
       { key: 'health', path: '/health', icon: '🩺', label: '体检', desc: '资产健康检查' },
     ],
   },
   {
     id: 'system',
     label: '系统',
+    i18nKey: 'workspace.group.system',
     modules: [
       { key: 'sync', path: '/sync', icon: '🔄', label: '同步', desc: '局域网/备份' },
       { key: 'export', path: '/export', icon: '📤', label: '导出', desc: '备份与导出' },
