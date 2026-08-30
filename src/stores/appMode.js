@@ -5,7 +5,7 @@
 //   - 切换 = localStorage 标记 + setDbInstance() + 整页 reload（保证所有视图/缓存重查）
 //   - 进入演示模式时若测试库为空 → testDataSeeder 自动填充示例数据
 import { defineStore } from 'pinia';
-import { setDbInstance, currentDbMode, MODE_KEY } from '../db.js';
+import { setDbInstance, currentDbMode, MODE_KEY, currentUserId } from '../db.js';
 import { seedTestDatabase, testDbEmpty } from '../utils/testDataSeeder.js';
 
 export const useAppModeStore = defineStore('appMode', {
@@ -24,7 +24,7 @@ export const useAppModeStore = defineStore('appMode', {
      */
     async init() {
       const wanted = (typeof localStorage !== 'undefined' && localStorage.getItem(MODE_KEY) === 'test') ? 'test' : 'real';
-      setDbInstance(wanted);
+      setDbInstance(wanted, currentUserId());
       this.mode = wanted;
       if (wanted === 'test') {
         try {

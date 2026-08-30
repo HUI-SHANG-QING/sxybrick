@@ -8,6 +8,9 @@ import { getGoal, getTodayCount, getDueCount, getLastReviewTs, getDueBySubject }
 // FloatAssistant / NavBar 首屏必需，保留同步
 import FloatAssistant from './components/FloatAssistant.vue';
 import NavBar from './components/NavBar.vue';
+// 多用户（档案）管理：用户目录 + 切换 + 新建 + 跨档案迁移
+import UserManager from './components/UserManager.vue';
+import { activeUser } from './user.js';
 // NotificationBell 首屏必需（通知铃铛），保留同步
 import NotificationBell from './components/NotificationBell.vue';
 import ErrorBoundary from './components/ErrorBoundary.vue';
@@ -38,6 +41,11 @@ import { serializeUserWeights } from './fsrs.js';
 import { parseHm, hasReached } from './utils/time.js';
 
 const theme = useThemeStore();
+
+// 多用户入口：当前画像 + 打开管理弹窗
+const userMgr = ref(null);
+function openUserMgr() { userMgr.value?.openManager(); }
+const curUserName = activeUser().name;
 const appMode = useAppModeStore();
 const showSettings = ref(false);
 
@@ -442,6 +450,12 @@ async function enableReminder() {
     </div>
     <NavBar :variant="theme.style === 'custom' ? 'focus' : theme.style" :navItems="navItems" :coreNavs="coreNavs" :hasCoreSetting="hasCoreSetting" />
 
+    <!-- 多用户（档案）：当前档案 + 切换/新建入口 -->
+    <div class="user-strip no-print">
+      <span class="us-cur">👤 当前档案：<b>{{ curUserName }}</b></span>
+      <button class="pwa-act" @click="openUserMgr">切换 / 新建档案</button>
+    </div>
+
     <main class="app-main">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
@@ -461,6 +475,9 @@ async function enableReminder() {
     <PlanReminderLayer />
     <Intro v-if="showIntro" @done="onIntroEnd" />
     <Guide v-if="showGuide" @done="onGuideEnd" />
+
+    <!-- 多用户（档案）管理弹窗 -->
+    <UserManager ref="userMgr" />
 
     <!-- 设置面板：标签页组织（外观 / 提醒与监控 / 学习引擎 / 导航 / 存储） -->
     <teleport to="body">
@@ -640,4 +657,11 @@ async function enableReminder() {
 .core-nav-item.on { border-color: var(--accent); background: var(--code-inline); }
 .core-nav-icon { font-size: 16px; }
 @media (max-width: 720px) { .core-nav-grid { grid-template-columns: repeat(3, 1fr); } }
+
+/* 多用户（档案）条：置于导航栏下方，右对齐当前档案 + 入口 */
+.user-strip { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
+.user-strip .us-cur { color: var(--ink-2); }
+.user-strip .us-cur b { color: var(--ink); }
+.user-strip .pwa-act { margin-left: 0; background: rgba(0,0,0,.06); color: inherit; }
+@media (max-width: 720px) { .user-strip { font-size: 12px; } }
 </style>
