@@ -16,6 +16,7 @@ import { logError } from '../utils/errorLog.js';
 import { agentSystem } from '../agent/index.js';
 import EmptyState from '../components/EmptyState.vue';
 import { T } from '../utils/telemetry.js';
+import { t } from '../i18n/index.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -31,10 +32,10 @@ async function jumpToNodeCard(label) {
     const loose = exact.length ? exact : all.filter(c => String(c.front || '').includes(q) || String(c.back || '').includes(q));
     if (loose.length === 1) router.push(`/cards?id=${encodeURIComponent(loose[0].id)}`);
     else if (loose.length > 1) router.push(`/cards?q=${encodeURIComponent(q)}`);
-    else { toast(`卡片库里没找到「${q}」，已跳转搜索结果`, 'warn'); router.push(`/cards?q=${encodeURIComponent(q)}`); }
+    else { toast(t('views.mindmap.jumpNotFound', undefined, { q }), 'warn'); router.push(`/cards?q=${encodeURIComponent(q)}`); }
   } catch (e) {
     logError(e, { component: 'Mindmap.vue:jumpToNodeCard', route: '/mindmap', info: `label=${q.slice(0,80)}` });
-    toast('跳转失败：' + e.message, 'error');
+    toast(t('views.mindmap.jumpFailed', '跳转失败：') + e.message, 'error');
   }
 }
 
@@ -49,13 +50,13 @@ let chart = null;
 
 // ---- 多风格切换 ----
 const layout = ref(localStorage.getItem('sxy_mm_layout') || 'tree-lr');
-const LAYOUTS = [
-  { id: 'tree-lr', name: '横向树', icon: '→' },
-  { id: 'tree-radial', name: '放射树', icon: '✸' },
-  { id: 'tree-tb', name: '竖向树', icon: '↓' },
-  { id: 'sankey', name: '桑基图', icon: '⇉' },
-  { id: 'force', name: '力导向', icon: '⊛' },
-];
+const LAYOUTS = computed(() => [
+  { id: 'tree-lr', name: t('views.mindmap.layoutTreeLr'), icon: '→' },
+  { id: 'tree-radial', name: t('views.mindmap.layoutTreeRadial'), icon: '✸' },
+  { id: 'tree-tb', name: t('views.mindmap.layoutTreeTb'), icon: '↓' },
+  { id: 'sankey', name: t('views.mindmap.layoutSankey'), icon: '⇉' },
+  { id: 'force', name: t('views.mindmap.layoutForce'), icon: '⊛' },
+]);
 function setLayout(id) { layout.value = id; localStorage.setItem('sxy_mm_layout', id); render(); }
 
 const list = async () => { maps.value = await listMindmaps(); };
@@ -232,7 +233,7 @@ function onResize() { chart?.resize(); }
 onBeforeUnmount(() => { window.removeEventListener('resize', onResize); chart?.dispose(); });
 
 async function newMap() {
-  const m = await createMindmap({ title: '新导图', rootLabel: '中心主题' });
+  const m = await createMindmap({ title: t('views.mindmap.defaultTitle'), rootLabel: '中心主题' });
   await list();
   openMap(m);
 }
@@ -242,25 +243,25 @@ async function newMap() {
 // 否则老数据里的裸 UUID 会被当成节点名直接画进导图。
 async function fromGraph() {
   const [rawEdges, cards] = await Promise.all([listGraphEdges(), db.cards.toArray()]);
-  if (!rawEdges.length) { toast('知识图谱还没有保存关联，先去「图谱」页生成并保存', 'error'); return; }
+  if (!rawEdges.length) { toast(t('views.mindmap.graphNoEdges'), 'error'); return; }
   const { edges } = resolveGraph(rawEdges, cards);
   const usable = edges.length ? edges : rawEdges; // 全是失效边时退回原样，至少不静默空转
   const { root } = edgesToForest(usable, { rootLabel: '📚 知识图谱' });
-  if (!root) { toast('知识图谱里没有可用的关联', 'error'); return; }
+  if (!root) { toast(t('views.mindmap.graphNoUsable'), 'error'); return; }
   const withIds = n => ({ id: uid(), label: String(n.name || '主题').slice(0, 30), children: (n.children || []).map(withIds) });
-  const mm = await createMindmap({ title: '知识图谱导图', root: withIds(root) });
+  const mm = await createMindmap({ title: t('views.mindmap.defaultFromGraph'), root: withIds(root) });
   await list(); openMap(mm);
   const skipped = edges.length - usable.length;
-  toast(skipped ? `已从知识图谱生成导图（跳过 ${skipped} 条失效关联）` : '已从知识图谱生成导图', 'success');
+  toast(skipped ? t('views.mindmap.genFromGraphSkipped', undefined, { skipped }) : t('views.mindmap.genFromGraph'), 'success');
 }
 
 // AI 从卡片生成导图（直接 LLM）
 async function fromAI() {
-  if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.mindmap.needKey'), 'error'); return; }
   aiLoading.value = true;
   try {
     const cards = await db.cards.toArray();
-    if (!cards.length) { toast('还没有卡片', 'error'); return; }
+    if (!cards.length) { toast(t('views.mindmap.noCards'), 'error'); return; }
     const sample = cards.slice(0, 60).map(c => `[${c.subject || '未分类'}] ${String(c.front).slice(0, 80)}${c.back ? ' / ' + String(c.back).slice(0, 60) : ''}`).join('\n');
     const r = await chatAI([
       { role: 'system', content: '你是思维导图生成器。根据下面卡片提取知识主题，输出严格 JSON：{"title":"导图标题","root":{"label":"中心主题","children":[{"label":"子主题","children":[]}]}}。层级 2~3 层，节点总数 8~25 个。只输出 JSON。' },
@@ -270,16 +271,16 @@ async function fromAI() {
     const obj = JSON.parse(m ? m[0] : r);
     if (!obj?.root?.label) throw new Error('AI 没返回有效结构');
     const withIds = n => ({ id: uid(), label: String(n.label || '主题').slice(0, 30), children: (n.children || []).slice(0, 40).map(withIds) });
-    const mm = await createMindmap({ title: String(obj.title || 'AI 生成导图').slice(0, 40), root: withIds(obj.root) });
+    const mm = await createMindmap({ title: String(obj.title || t('views.mindmap.defaultFromAI')).slice(0, 40), root: withIds(obj.root) });
     await list(); openMap(mm);
-    toast('AI 已生成导图', 'success');
-  } catch (e) { toast('生成失败：' + e.message, 'error'); }
+    toast(t('views.mindmap.aiDone'), 'success');
+  } catch (e) { toast(t('views.mindmap.genFailed', '生成失败：') + e.message, 'error'); }
   finally { aiLoading.value = false; }
 }
 
 // Agent 智能生成：走专业 agent（A 镜头）的 ReAct 工具调用循环，比裸 chatAI 更懂卡片库
 async function fromAgent() {
-  if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.mindmap.needKey'), 'error'); return; }
   aiLoading.value = true;
   try {
     const { reply } = await agentSystem.runTask({
@@ -292,10 +293,10 @@ async function fromAgent() {
     const obj = JSON.parse(m[0]);
     if (!obj?.root?.label) throw new Error('Agent 没返回有效结构');
     const withIds = n => ({ id: uid(), label: String(n.label || '主题').slice(0, 30), children: (n.children || []).slice(0, 40).map(withIds) });
-    const mm = await createMindmap({ title: String(obj.title || 'Agent 智能导图').slice(0, 40), root: withIds(obj.root) });
+    const mm = await createMindmap({ title: String(obj.title || t('views.mindmap.defaultFromAgent')).slice(0, 40), root: withIds(obj.root) });
     await list(); openMap(mm);
-    toast('Agent 已智能生成导图', 'success');
-  } catch (e) { toast('Agent 生成失败：' + e.message, 'error'); }
+    toast(t('views.mindmap.agentDone'), 'success');
+  } catch (e) { toast(t('views.mindmap.agentFailed', 'Agent 生成失败：') + e.message, 'error'); }
   finally { aiLoading.value = false; }
 }
 
@@ -306,8 +307,8 @@ const textLoading = ref(false);
 function openTextGen() { textInput.value = ''; textOpen.value = true; }
 async function fromText() {
   const txt = textInput.value.trim();
-  if (!txt) { toast('请先输入文字内容', 'error'); return; }
-  if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
+  if (!txt) { toast(t('views.mindmap.textEmpty'), 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.mindmap.needKey'), 'error'); return; }
   textLoading.value = true;
   try {
     const r = await chatAI([
@@ -318,10 +319,10 @@ async function fromText() {
     const obj = JSON.parse(m ? m[0] : r);
     if (!obj?.root?.label) throw new Error('AI 没返回有效结构');
     const withIds = n => ({ id: uid(), label: String(n.label || '主题').slice(0, 30), children: (n.children || []).slice(0, 40).map(withIds) });
-    const mm = await createMindmap({ title: String(obj.title || '文本导图').slice(0, 40), root: withIds(obj.root) });
+    const mm = await createMindmap({ title: String(obj.title || t('views.mindmap.defaultFromText')).slice(0, 40), root: withIds(obj.root) });
     await list(); openMap(mm); textOpen.value = false;
-    toast('已从文字生成导图', 'success');
-  } catch (e) { toast('生成失败：' + e.message, 'error'); }
+    toast(t('views.mindmap.textDone'), 'success');
+  } catch (e) { toast(t('views.mindmap.genFailed', '生成失败：') + e.message, 'error'); }
   finally { textLoading.value = false; }
 }
 
@@ -338,13 +339,13 @@ function addChild() {
 function renameSel() {
   const node = findNode(current.value?.root, selId.value);
   if (!node) return;
-  const name = prompt('修改节点文字：', node.label);
+  const name = prompt(t('views.mindmap.renamePrompt', '修改节点文字：'), node.label);
   if (name != null && name.trim()) { node.label = name.trim().slice(0, 30); markDirty(); }
 }
 function removeSel() {
   const root = current.value?.root;
   if (!root) return;
-  if (selId.value === root.id) { toast('根节点不能删除', 'error'); return; }
+  if (selId.value === root.id) { toast(t('views.mindmap.rootCantDelete'), 'error'); return; }
   const remove = (node) => {
     if (!node) return false;
     if ((node.children || []).some(c => c.id === selId.value)) { node.children = node.children.filter(c => c.id !== selId.value); return true; }
@@ -360,11 +361,11 @@ async function saveMap() {
     await list();
     const count = (function countNodes(n){ if (!n) return 0; return 1 + ((n.children||[]).reduce((s,c)=>s+countNodes(c),0)); })(current.value.root);
     try { T.mindmapSave(count); } catch {}
-    toast('导图已保存（可跨设备同步）', 'success');
-  } catch (e) { toast('保存失败：' + e.message, 'error'); }
+    toast(t('views.mindmap.savedToast'), 'success');
+  } catch (e) { toast(t('views.mindmap.saveFailed', '保存失败：') + e.message, 'error'); }
 }
 async function removeMap(m) {
-  if (!(await confirmDialog(`删除导图「${m.title}」？`))) return;
+  if (!(await confirmDialog(t('views.mindmap.confirmDelete', undefined, { title: m.title })))) return;
   await deleteMindmap(m.id);
   if (current.value?.id === m.id) { current.value = null; selId.value = ''; }
   await list();
@@ -384,18 +385,18 @@ onMounted(async () => {
 <template>
   <div class="mm-wrap">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <h2 style="margin:0">思维导图</h2>
+      <h2 style="margin:0">{{ t('views.mindmap.heading') }}</h2>
       <span style="flex:1"></span>
-      <button class="btn primary" @click="newMap">＋ 新建</button>
-      <button class="btn" @click="fromGraph">从知识图谱</button>
-      <button class="btn" :disabled="aiLoading" @click="fromAI">{{ aiLoading ? '生成中…' : 'AI 从卡片' }}</button>
-      <button class="btn" :disabled="aiLoading" @click="fromAgent" title="走专业 agent 的工具调用循环，更懂你的卡片库">🤖 Agent 生成</button>
-      <button class="btn" @click="openTextGen">📝 文字生成</button>
+      <button class="btn primary" @click="newMap">{{ t('views.mindmap.new') }}</button>
+      <button class="btn" @click="fromGraph">{{ t('views.mindmap.fromGraph') }}</button>
+      <button class="btn" :disabled="aiLoading" @click="fromAI">{{ aiLoading ? t('views.mindmap.genLoading') : t('views.mindmap.aiFromCards') }}</button>
+      <button class="btn" :disabled="aiLoading" @click="fromAgent" :title="t('views.mindmap.agentTooltip')">{{ t('views.mindmap.agentGen') }}</button>
+      <button class="btn" @click="openTextGen">{{ t('views.mindmap.textGen') }}</button>
     </div>
-    <p class="hint" style="margin:4px 0 10px">把知识点画成多风格导图：横向树/放射树/竖向树/桑基图/力导向；可手动编辑，也可一键从知识图谱、AI、Agent 或输入文字生成。</p>
+    <p class="hint" style="margin:4px 0 10px">{{ t('views.mindmap.hint') }}</p>
 
     <div v-if="current" class="mm-layout-bar">
-      <span class="hint" style="margin-right:4px">风格：</span>
+      <span class="hint" style="margin-right:4px">{{ t('views.mindmap.styleLabel') }}</span>
       <button v-for="l in LAYOUTS" :key="l.id" class="mm-style-chip" :class="{active: layout === l.id}" @click="setLayout(l.id)" :title="l.name">
         <span style="font-size:14px">{{ l.icon }}</span><span>{{ l.name }}</span>
       </button>
@@ -403,11 +404,11 @@ onMounted(async () => {
 
     <div class="mm-body">
       <aside class="mm-list">
-        <EmptyState v-if="!maps.length" icon="🗺️" title="还没有导图" message="点右上角「＋ 新建」开始" />
+        <EmptyState v-if="!maps.length" icon="🗺️" :title="t('views.mindmap.emptyTitle')" :message="t('views.mindmap.emptyMsg')" />
         <div v-for="m in maps" :key="m.id" class="mm-item" :class="{ active: current?.id === m.id }">
           <div style="display:flex;align-items:center;gap:6px">
             <span class="mm-title" @click="openMap(m)">{{ m.title }}</span>
-            <a class="mm-del" @click="removeMap(m)" aria-label="删除导图">删</a>
+            <a class="mm-del" @click="removeMap(m)" :aria-label="t('views.mindmap.delAria')">{{ t('views.mindmap.delText') }}</a>
           </div>
           <div class="mm-meta">{{ new Date(m.updatedAt).toLocaleDateString() }}</div>
         </div>
@@ -416,37 +417,37 @@ onMounted(async () => {
       <section class="mm-main">
         <template v-if="current">
           <div class="mm-toolbar">
-            <input v-model="current.title" class="input" style="max-width:220px" placeholder="导图标题" @input="dirty = true" />
-            <span v-if="selectedLabel" class="hint" style="margin-left:4px">选中：{{ selectedLabel }}</span>
+            <input v-model="current.title" class="input" style="max-width:220px" :placeholder="t('views.mindmap.titlePlaceholder')" @input="dirty = true" />
+            <span v-if="selectedLabel" class="hint" style="margin-left:4px">{{ t('views.mindmap.selected') }}{{ selectedLabel }}</span>
             <span style="flex:1"></span>
-            <button class="btn small" @click="addChild">＋ 子节点</button>
-            <button class="btn small" @click="renameSel">重命名</button>
-            <button class="btn small" style="color:var(--red)" @click="removeSel">删除节点</button>
-            <button class="btn small primary" :disabled="!dirty" @click="saveMap">{{ dirty ? '保存' : '已保存' }}</button>
+            <button class="btn small" @click="addChild">{{ t('views.mindmap.addChild') }}</button>
+            <button class="btn small" @click="renameSel">{{ t('views.mindmap.rename') }}</button>
+            <button class="btn small" style="color:var(--red)" @click="removeSel">{{ t('views.mindmap.removeNode') }}</button>
+            <button class="btn small primary" :disabled="!dirty" @click="saveMap">{{ dirty ? t('views.mindmap.save') : t('views.mindmap.saved') }}</button>
           </div>
           <div ref="chartEl" class="mm-chart"></div>
           <div v-if="selectedLabel" style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:8px">
             <span class="hint">
-              当前节点：<b>{{ selectedLabel }}</b>
-              <span class="hint" style="margin-left:4px">· 树状单击=展开子节点；点下面按钮才跳转到知识卡片（桑基/力导向同理）</span>
+              {{ t('views.mindmap.currentNode') }}<b>{{ selectedLabel }}</b>
+              <span class="hint" style="margin-left:4px">{{ t('views.mindmap.nodeHint') }}</span>
             </span>
-            <button class="btn small primary" @click="jumpToNodeCard(selectedLabel)">🔗 跳转关联卡片</button>
+            <button class="btn small primary" @click="jumpToNodeCard(selectedLabel)">{{ t('views.mindmap.jumpCard') }}</button>
           </div>
-          <p class="hint" style="margin:6px 0 0">提示：点节点选中后可编辑；切换上方风格按钮看不同呈现；修改后记得点「保存」。</p>
+          <p class="hint" style="margin:6px 0 0">{{ t('views.mindmap.editHint') }}</p>
         </template>
-        <EmptyState v-else icon="🗺️" title="从左侧选择导图" message="或新建一张开始绘制" />
+        <EmptyState v-else icon="🗺️" :title="t('views.mindmap.pickTitle')" :message="t('views.mindmap.pickMsg')" />
       </section>
     </div>
 
     <!-- 文字 → 思维导图 弹窗 -->
     <div v-if="textOpen" class="mm-mask" @click.self="textOpen = false">
       <div class="mm-modal">
-        <div class="mm-modal-title">📝 文字 → 思维导图</div>
-        <p class="hint" style="margin:4px 0 8px">粘贴一段文字（笔记/讲义/文章），AI 会自动提取层次结构生成导图。</p>
-        <textarea v-model="textInput" class="input mm-textarea" placeholder="在此粘贴文字内容，例如：&#10;第一章 绪论&#10;1.1 研究背景：……&#10;1.2 研究意义：……" ></textarea>
+        <div class="mm-modal-title">{{ t('views.mindmap.textModalTitle') }}</div>
+        <p class="hint" style="margin:4px 0 8px">{{ t('views.mindmap.textModalHint') }}</p>
+        <textarea v-model="textInput" class="input mm-textarea" :placeholder="t('views.mindmap.textPlaceholder')" ></textarea>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
-          <button class="btn" @click="textOpen = false">取消</button>
-          <button class="btn primary" :disabled="textLoading" @click="fromText">{{ textLoading ? '生成中…' : '生成导图' }}</button>
+          <button class="btn" @click="textOpen = false">{{ t('views.mindmap.cancel') }}</button>
+          <button class="btn primary" :disabled="textLoading" @click="fromText">{{ textLoading ? t('views.mindmap.genLoading') : t('views.mindmap.genMap') }}</button>
         </div>
       </div>
     </div>

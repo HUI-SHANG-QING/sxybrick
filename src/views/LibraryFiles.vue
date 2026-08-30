@@ -18,6 +18,7 @@ import { askDoc } from '../utils/docs-qa.js';
 import ExportButton from '../components/ExportButton.vue';
 import { exportLibraryToJSON, exportLibraryToMarkdown } from '../utils/exporters.js';
 import { sanitizeHtml } from '../utils/sanitize.js';
+import { t } from '../i18n/index.js';
 
 const ACCEPT = '.pdf,.xlsx,.xls,.csv,.docx,.doc,.txt,.md,.tex,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg';
 
@@ -70,7 +71,7 @@ function saveOcr() {
     langPath: ocrSettings.value.langPath,
     cloud: ocrSettings.value.cloud,
   });
-  toast('OCR 设置已保存', 'success');
+  toast(t('views.libraryFiles.ocrSaved'), 'success');
   showOcrCfg.value = false;
 }
 
@@ -83,10 +84,10 @@ async function runOcr(f) {
       onPage: (i, total) => { ocr.value.page = i; ocr.value.pages = total; },
       onProgress: (p) => { ocr.value.pct = Math.round((p || 0) * 100); },
     });
-    if (r.ok) toast(`OCR 完成：${f.name}（${r.textLen} 字）`, 'success');
-    else toast(`OCR 失败：${r.error}`, 'error');
+    if (r.ok) toast(t('views.libraryFiles.ocrDone', undefined, { name: f.name, len: r.textLen }), 'success');
+    else toast(t('views.libraryFiles.ocrFailed') + r.error, 'error');
   } catch (e) {
-    toast('OCR 出错：' + (e?.message || e), 'error');
+    toast(t('views.libraryFiles.ocrError') + (e?.message || e), 'error');
   } finally {
     ocr.value.busy = false;
     await load();
@@ -97,11 +98,12 @@ async function runOcr(f) {
 async function runLink(f) {
   try {
     const r = await linkDocToCards(f.id);
+    const skipped = r.skipped ? t('views.libraryFiles.linkSkipped', undefined, { n: r.skipped }) : '';
     toast(r.created
-      ? `已关联 ${r.created} 张卡片（${r.skipped ? `跳过 ${r.skipped} 条重复` : ''}），可在「知识图谱」查看`
-      : '未找到可关联的卡片（需同科目且卡片内容出自该资料）', r.created ? 'success' : 'info');
+      ? t('views.libraryFiles.linkSuccess', undefined, { created: r.created, skipped })
+      : t('views.libraryFiles.linkNone'), r.created ? 'success' : 'info');
   } catch (e) {
-    toast('关联失败：' + (e?.message || e), 'error');
+    toast(t('views.libraryFiles.linkFailed') + (e?.message || e), 'error');
   }
 }
 
@@ -116,10 +118,10 @@ const fmtBytes = (n) => {
 const iconOf = (ext) => ({ pdf: '📕', xlsx: '📗', xls: '📗', csv: '📊', docx: '📘', doc: '📘', txt: '📄', md: '📝', tex: '🧮' })[ext] || '🗂️';
 
 const statusText = (f) => ({
-  uploading: '上传中…',
-  parsing: '解析中…',
-  ready: '✅ 就绪',
-  failed: '❌ 失败',
+  uploading: t('views.libraryFiles.statusUploading'),
+  parsing: t('views.libraryFiles.statusParsing'),
+  ready: t('views.libraryFiles.statusReady'),
+  failed: t('views.libraryFiles.statusFailed'),
 }[f.status] || f.status);
 
 async function load() {
@@ -130,14 +132,14 @@ async function load() {
 
 /** 取资料全文长度（docTexts 表），N 通常不大，可接受 N+1 读 */
 async function getTextLen(id) {
-  const t = await getDocText(id);
-  return t?.text?.length || 0;
+  const docText = await getDocText(id);
+  return docText?.text?.length || 0;
 }
 
 const libraryExportFormats = [
-  { key: 'md', label: 'Markdown', hint: '人类可读', mime: 'text/markdown', ext: 'md',
+  { key: 'md', label: 'Markdown', hint: t('views.libraryFiles.exportMdHint'), mime: 'text/markdown', ext: 'md',
     build: async (rows) => exportLibraryToMarkdown(rows, getTextLen) },
-  { key: 'json', label: 'JSON', hint: '可备份恢复', mime: 'application/json', ext: 'json',
+  { key: 'json', label: 'JSON', hint: t('views.libraryFiles.exportJsonHint'), mime: 'application/json', ext: 'json',
     build: async (rows) => exportLibraryToJSON(rows, getTextLen) },
 ];
 
@@ -154,9 +156,9 @@ async function onPick(e) {
         onProgress: (written, total) => { up.pct = Math.round((written / total) * 100); },
       });
       if (row.status === 'failed') toast(`${file.name}：${row.error}`, 'error');
-      else toast(`已上传并开始解析：${file.name}`, 'success');
+      else toast(t('views.libraryFiles.uploadStarted', undefined, { name: file.name }), 'success');
     } catch (err) {
-      toast(`${file.name} 上传失败：${err?.message || err}`, 'error');
+      toast(t('views.libraryFiles.uploadFailed', undefined, { name: file.name, error: err?.message || err }), 'error');
     } finally {
       uploading.value = uploading.value.filter((x) => x !== up);
     }
@@ -178,21 +180,20 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); });
 async function onDelete(f) {
   try {
     await ElMessageBox.confirm(
-      `「${f.name}」的解析全文与元数据会进入回收站，保留 30 天可恢复；`
-      + `但原文件会从本机存储中移除（需要时可重新上传）。确定删除？`,
-      '删除资料',
-      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
+      t('views.libraryFiles.deleteConfirmMsg', undefined, { name: f.name }),
+      t('views.libraryFiles.deleteConfirmTitle'),
+      { type: 'warning', confirmButtonText: t('views.libraryFiles.confirmDelete'), cancelButtonText: t('views.libraryFiles.cancel') },
     );
   } catch { return; }
   try {
     await deleteDocFile(f.id);
-    toast('已删除', 'success');
+    toast(t('views.libraryFiles.deleted'), 'success');
     await load();
-  } catch (e) { toast('删除失败：' + (e?.message || e), 'error'); }
+  } catch (e) { toast(t('views.libraryFiles.deleteFailed') + (e?.message || e), 'error'); }
 }
 
 async function retry(id) {
-  toast('重新解析中…', 'info');
+  toast(t('views.libraryFiles.retryStart'), 'info');
   await retryParse(id);
   await load();
 }
@@ -210,7 +211,7 @@ async function openPreview(f) {
   preview.value = { row: f };
   sheetHtml.value = ''; docxHtml.value = ''; imgUrl.value = ''; textPreview.value = '';
   const blob = await getFileBlob(f);
-  if (!blob) { toast('本机无原文件（跨设备同步的元数据无法预览）', 'error'); return; }
+  if (!blob) { toast(t('views.libraryFiles.previewNoFile'), 'error'); return; }
   try {
     if (f.ext === 'pdf') {
       pdfPage.value = 1;
@@ -237,7 +238,7 @@ async function openPreview(f) {
       textPreview.value = await getDocText(f.id) || (await blob.text());
     }
   } catch (e) {
-    toast('预览失败：' + (e?.message || e), 'error');
+    toast(t('views.libraryFiles.previewFailed') + (e?.message || e), 'error');
   }
 }
 
@@ -264,7 +265,7 @@ watch([preview, pdfPage], async ([pv, pg]) => {
     try {
       const blob = await getFileBlob(pv.row);
       if (blob) pdfPages.value = await renderPdfPage(blob, pg);
-    } catch (e) { toast('PDF 翻页失败：' + (e?.message || e), 'error'); }
+    } catch (e) { toast(t('views.libraryFiles.pdfPageFailed') + (e?.message || e), 'error'); }
   }
 });
 
@@ -284,7 +285,7 @@ async function ask() {
     qa.value.answer = r.answer;
     qa.value.citations = r.citations;
   } catch (e) {
-    qa.value.answer = '问答失败：' + (e?.message || e);
+    qa.value.answer = t('views.libraryFiles.qaFailed') + (e?.message || e);
   } finally {
     qa.value.busy = false;
   }
@@ -294,11 +295,11 @@ async function ask() {
 
 async function openDrafts(f) {
   const text = await getDocText(f.id);
-  if (!text?.trim()) { toast('该资料尚未解析出文本', 'error'); return; }
+  if (!text?.trim()) { toast(t('views.libraryFiles.noText'), 'error'); return; }
   const drafts = textToCardDrafts(text).map((d) => ({ ...d, _edit: false }));
-  if (!drafts.length) { toast('未从文本中切分出可用卡片草稿', 'error'); return; }
+  if (!drafts.length) { toast(t('views.libraryFiles.noDrafts'), 'error'); return; }
   draftModal.value = { row: f, drafts };
-  toast(`生成 ${drafts.length} 张草稿——请预览确认后再导入`, 'info');
+  toast(t('views.libraryFiles.genDrafts', undefined, { n: drafts.length }), 'info');
 }
 
 function toggleEdit(d) { d._edit = !d._edit; }
@@ -306,15 +307,15 @@ function removeDraft(i) { draftModal.value.drafts.splice(i, 1); }
 
 async function doImport() {
   const m = draftModal.value;
-  if (!m?.drafts.length) { toast('没有可导入的卡片', 'error'); return; }
+  if (!m?.drafts.length) { toast(t('views.libraryFiles.noImportCards'), 'error'); return; }
   draftBusy.value = true;
   try {
     const clean = m.drafts.map(({ front, back }) => ({ front, back }));
     const cards = await confirmDrafts(clean, { subject: m.row.subject, source: m.row.id });
-    toast(`已导入 ${cards.length} 张卡片到复习队列（来源：${m.row.name}）`, 'success');
+    toast(t('views.libraryFiles.imported', undefined, { n: cards.length, name: m.row.name }), 'success');
     draftModal.value = null;
   } catch (e) {
-    toast('导入失败：' + (e?.message || e), 'error');
+    toast(t('views.libraryFiles.importFailed') + (e?.message || e), 'error');
   } finally {
     draftBusy.value = false;
   }
@@ -332,66 +333,65 @@ onMounted(async () => {
     <!-- Hero / 上传 -->
     <div class="mat-hero">
       <div class="lib-title-row">
-        <h2 style="margin:0 0 6px">📚 学习资料中枢</h2>
+        <h2 style="margin:0 0 6px">{{ t('views.libraryFiles.title') }}</h2>
         <ExportButton
           v-if="files.length"
           :data="files"
           :count="files.length"
           filename-prefix="library"
-          label="导出清单"
+          :label="t('views.libraryFiles.exportLabel')"
           :formats="libraryExportFormats"
         />
       </div>
       <p class="hint" style="margin:0 0 14px;line-height:1.8">
-        上传真题 / 讲义 / 笔记 → 全量解析（几百 MB 大文件不切片）→ 在线预览 → 对资料提问 → 一键生成卡片（<b>需你确认后才入库</b>）。<br>
-        原文件存本机（OPFS 专属大仓库），元数据可跨设备同步；解析全文与问答索引本地保存。
+        {{ t('views.libraryFiles.heroHintPre') }}<b>{{ t('views.libraryFiles.heroHintBold') }}</b>{{ t('views.libraryFiles.heroHintPost') }}
       </p>
       <div class="mat-upload">
         <input ref="fileInput" type="file" multiple :accept="ACCEPT" style="display:none" @change="onPick" />
         <select v-model="subject" class="subject-sel">
-          <option value="">选择科目（可选）</option>
+          <option value="">{{ t('views.libraryFiles.subjectPlaceholder') }}</option>
           <option v-for="s in subjects" :key="s" :value="s">{{ s }}</option>
         </select>
-        <button class="btn" @click="$refs.fileInput.click()">📤 上传资料</button>
-        <button class="btn" style="margin-left:8px" @click="showOcrCfg = !showOcrCfg">⚙️ OCR 设置</button>
+        <button class="btn" @click="$refs.fileInput.click()">{{ t('views.libraryFiles.uploadBtn') }}</button>
+        <button class="btn" style="margin-left:8px" @click="showOcrCfg = !showOcrCfg">{{ t('views.libraryFiles.ocrSettingsBtn') }}</button>
         <span v-if="storage" class="hint" style="margin-left:12px">
-          存储：{{ fmtBytes(storage.usage) }} / {{ fmtBytes(storage.quota) }}
-          <span v-if="persisted" class="ok"> · 已持久化</span>
+          {{ t('views.libraryFiles.storageLabel') }}{{ fmtBytes(storage.usage) }} / {{ fmtBytes(storage.quota) }}
+          <span v-if="persisted" class="ok"> · {{ t('views.libraryFiles.storagePersisted') }}</span>
         </span>
       </div>
       <!-- OCR 设置面板（本地 Tesseract 优先，云端可选） -->
       <div v-if="showOcrCfg" class="ocr-cfg">
         <div class="ocr-cfg-row">
-          <label>识别语言</label>
+          <label>{{ t('views.libraryFiles.ocrLangLabel') }}</label>
           <select v-model="ocrSettings.lang">
             <option v-for="o in ocrLangOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
-          <span class="hint">本地 Tesseract（数据不出浏览器，离线可用）；首次识别自动下载语言包并缓存</span>
+          <span class="hint">{{ t('views.libraryFiles.ocrLangHint') }}</span>
         </div>
         <div class="ocr-cfg-row">
-          <label>语言数据目录</label>
-          <input v-model="ocrSettings.langPath" placeholder="留空 = jsdelivr CDN（可填本地/自建 tessdata 目录 URL）" />
+          <label>{{ t('views.libraryFiles.ocrLangDirLabel') }}</label>
+          <input v-model="ocrSettings.langPath" :placeholder="t('views.libraryFiles.ocrLangDirPlaceholder')" />
         </div>
         <div class="ocr-cfg-row">
-          <label><input type="checkbox" v-model="ocrSettings.cloud.enabled" /> 使用云端 OCR（OpenAI 兼容视觉，需 API Key）</label>
+          <label><input type="checkbox" v-model="ocrSettings.cloud.enabled" /> {{ t('views.libraryFiles.ocrCloudLabel') }}</label>
         </div>
         <template v-if="ocrSettings.cloud.enabled">
           <div class="ocr-cfg-row">
-            <label>云端端点</label>
+            <label>{{ t('views.libraryFiles.ocrCloudEndpointLabel') }}</label>
             <input v-model="ocrSettings.cloud.endpoint" placeholder="https://api.openai.com/v1/chat/completions" />
           </div>
           <div class="ocr-cfg-row">
-            <label>API Key</label>
+            <label>{{ t('views.libraryFiles.ocrApiKeyLabel') }}</label>
             <input v-model="ocrSettings.cloud.apiKey" type="password" placeholder="sk-…" />
           </div>
           <div class="ocr-cfg-row">
-            <label>模型</label>
+            <label>{{ t('views.libraryFiles.ocrModelLabel') }}</label>
             <input v-model="ocrSettings.cloud.model" placeholder="gpt-4o-mini" />
           </div>
         </template>
         <div class="ocr-cfg-row" style="margin-top:10px">
-          <button class="btn accent" @click="saveOcr">保存设置</button>
-          <button class="btn" style="margin-left:8px" @click="showOcrCfg = false">取消</button>
+          <button class="btn accent" @click="saveOcr">{{ t('views.libraryFiles.ocrSave') }}</button>
+          <button class="btn" style="margin-left:8px" @click="showOcrCfg = false">{{ t('views.libraryFiles.ocrCancel') }}</button>
         </div>
       </div>
       <div v-if="uploading.length" class="up-list">
@@ -403,26 +403,26 @@ onMounted(async () => {
       </div>
       <div v-if="ocr.busy" class="up-list">
         <div class="up-item">
-          <span class="up-name">🔍 OCR：{{ ocr.name }}</span>
+          <span class="up-name">{{ t('views.libraryFiles.ocrBusy', undefined, { name: ocr.name }) }}</span>
           <div class="bar"><div class="bar-in" :style="{ width: ocr.pct + '%' }"></div></div>
           <span class="up-pct">{{ ocr.pct }}%</span>
-          <span v-if="ocr.pages" class="hint" style="margin-left:8px">{{ ocr.page }}/{{ ocr.pages }} 页</span>
+          <span v-if="ocr.pages" class="hint" style="margin-left:8px">{{ t('views.libraryFiles.ocrPages', undefined, { page: ocr.page, pages: ocr.pages }) }}</span>
         </div>
       </div>
     </div>
 
     <!-- 文件列表 -->
     <div class="mat-section">
-      <div class="mat-title">资料库 <span class="hint">（{{ files.length }} 份）</span></div>
-      <EmptyState v-if="!files.length" icon="📚" title="还没有资料" message="上传第一份真题或讲义，它会成为你复习系统的知识源头" />
+      <div class="mat-title">{{ t('views.libraryFiles.libTitle') }} <span class="hint">{{ t('views.libraryFiles.libCount', undefined, { n: files.length }) }}</span></div>
+      <EmptyState v-if="!files.length" icon="📚" :title="t('views.libraryFiles.emptyTitle')" :message="t('views.libraryFiles.emptyMsg')" />
       <div v-for="f in files" :key="f.id" class="mat-row">
         <div class="mat-ico">{{ iconOf(f.ext) }}</div>
         <div class="mat-info">
           <div class="mat-name">{{ f.name }} <span class="tag">{{ (f.ext || '?').toUpperCase() }}</span></div>
           <div class="mat-meta">
             {{ fmtBytes(f.size) }}<span v-if="f.subject"> · {{ f.subject }}</span>
-            <span v-if="f.pageCount"> · {{ f.pageCount }} 页</span>
-            <span v-if="f.textLen"> · 解析全文 {{ f.textLen }} 字</span>
+            <span v-if="f.pageCount"> · {{ t('views.libraryFiles.metaPages', undefined, { n: f.pageCount }) }}</span>
+            <span v-if="f.textLen"> · {{ t('views.libraryFiles.metaTextLen', undefined, { n: f.textLen }) }}</span>
           </div>
           <div v-if="f.error" class="err" :title="f.error">⚠ {{ f.error }}</div>
         </div>
@@ -431,14 +431,14 @@ onMounted(async () => {
         </div>
         <div class="mat-ops">
           <template v-if="f.status === 'ready'">
-            <button class="btn small" @click="openPreview(f)">预览</button>
-            <button class="btn small" @click="openQA(f)">问答</button>
-            <button class="btn small accent" @click="openDrafts(f)">生成卡片</button>
-            <button class="btn small" @click="runLink(f)" title="把资料与它覆盖的卡片建立知识图谱关联">🔗 关联卡片</button>
+            <button class="btn small" @click="openPreview(f)">{{ t('views.libraryFiles.opPreview') }}</button>
+            <button class="btn small" @click="openQA(f)">{{ t('views.libraryFiles.opQA') }}</button>
+            <button class="btn small accent" @click="openDrafts(f)">{{ t('views.libraryFiles.opGenerate') }}</button>
+            <button class="btn small" @click="runLink(f)" :title="t('views.libraryFiles.opLinkTitle')">{{ t('views.libraryFiles.opLink') }}</button>
           </template>
-          <button v-else-if="f.status === 'failed'" class="btn small" @click="retry(f.id)">重试</button>
-          <button v-if="needsOcr(f)" class="btn small accent" :disabled="ocr.busy" @click="runOcr(f)">🔍 OCR 识别</button>
-          <button class="btn small danger" @click="onDelete(f)">删除</button>
+          <button v-else-if="f.status === 'failed'" class="btn small" @click="retry(f.id)">{{ t('views.libraryFiles.opRetry') }}</button>
+          <button v-if="needsOcr(f)" class="btn small accent" :disabled="ocr.busy" @click="runOcr(f)">{{ t('views.libraryFiles.opOcr') }}</button>
+          <button class="btn small danger" @click="onDelete(f)">{{ t('views.libraryFiles.opDelete') }}</button>
         </div>
       </div>
     </div>
@@ -446,20 +446,20 @@ onMounted(async () => {
     <!-- 预览面板 -->
     <div v-if="preview" class="mat-section">
       <div class="mat-title">
-        预览：{{ preview.row.name }}
-        <button class="btn small" style="margin-left:8px" @click="preview = null; pdfDocCache = null">关闭</button>
+        {{ t('views.libraryFiles.previewTitle', undefined, { name: preview.row.name }) }}
+        <button class="btn small" style="margin-left:8px" @click="preview = null; pdfDocCache = null">{{ t('views.libraryFiles.previewClose') }}</button>
       </div>
       <div v-if="preview.row.ext === 'pdf'" class="pdf-box">
         <div class="pdf-toolbar">
-          <button class="btn small" :disabled="pdfPage <= 1" @click="pdfPage--">← 上一页</button>
+          <button class="btn small" :disabled="pdfPage <= 1" @click="pdfPage--">{{ t('views.libraryFiles.pdfPrev') }}</button>
           <span>{{ pdfPage }} / {{ pdfPages }}</span>
-          <button class="btn small" :disabled="pdfPage >= pdfPages" @click="pdfPage++">下一页 →</button>
+          <button class="btn small" :disabled="pdfPage >= pdfPages" @click="pdfPage++">{{ t('views.libraryFiles.pdfNext') }}</button>
         </div>
         <div class="pdf-scroll"><canvas ref="pdfCanvas" class="pdf-canvas"></canvas></div>
       </div>
       <div v-else-if="['xlsx', 'xls', 'csv'].includes(preview.row.ext)" class="sheet-wrap" v-html="sheetHtml"></div>
       <div v-else-if="preview.row.ext === 'docx' || preview.row.ext === 'doc'" class="docx-wrap">
-        <div class="hint" style="margin-bottom:8px">⚠ 近似预览（Word 复杂排版在纯前端有损）</div>
+        <div class="hint" style="margin-bottom:8px">{{ t('views.libraryFiles.docxWarn') }}</div>
         <div v-html="docxHtml"></div>
       </div>
       <div v-else-if="['png','jpg','jpeg','gif','webp','bmp','svg'].includes(preview.row.ext)"><img :src="imgUrl" class="img-preview" /></div>
@@ -469,19 +469,19 @@ onMounted(async () => {
     <!-- 问答面板 -->
     <div v-if="qa.docId" class="mat-section">
       <div class="mat-title">
-        对资料提问
-        <button class="btn small" style="margin-left:8px" @click="qa.docId = null">关闭</button>
+        {{ t('views.libraryFiles.qaTitle') }}
+        <button class="btn small" style="margin-left:8px" @click="qa.docId = null">{{ t('views.libraryFiles.qaClose') }}</button>
       </div>
       <div class="qa-row">
-        <input v-model="qa.question" class="qa-input" placeholder="例如：请总结这份真题的第三章考点" @keyup.enter="ask" :disabled="qa.busy" />
-        <button class="btn accent" :disabled="qa.busy || !qa.question.trim()" @click="ask">{{ qa.busy ? '思考中…' : '提问' }}</button>
+        <input v-model="qa.question" class="qa-input" :placeholder="t('views.libraryFiles.qaPlaceholder')" @keyup.enter="ask" :disabled="qa.busy" />
+        <button class="btn accent" :disabled="qa.busy || !qa.question.trim()" @click="ask">{{ qa.busy ? t('views.libraryFiles.qaThinking') : t('views.libraryFiles.qaAsk') }}</button>
       </div>
       <div v-if="qa.answer" class="qa-answer">
         <div class="qa-text">{{ qa.answer }}</div>
         <div v-if="qa.citations.length" class="qa-cites">
-          <div class="hint" style="margin-bottom:6px">📎 引用片段：</div>
+          <div class="hint" style="margin-bottom:6px">{{ t('views.libraryFiles.qaCites') }}</div>
           <div v-for="c in qa.citations" :key="c.idx" class="qa-cite">
-            <span class="tag">片段{{ c.idx }} · 相似 {{ c.score }}%</span>
+            <span class="tag">{{ t('views.libraryFiles.qaCite', undefined, { n: c.idx, score: c.score }) }}</span>
             <div class="qa-cite-text">{{ c.text }}</div>
           </div>
         </div>
@@ -492,12 +492,11 @@ onMounted(async () => {
     <div v-if="draftModal" class="modal-mask" @click.self="draftModal = null">
       <div class="modal">
         <div class="modal-head">
-          <b>🃏 生成卡片预览 — {{ draftModal.row.name }}</b>
+          <b>{{ t('views.libraryFiles.draftTitle', undefined, { name: draftModal.row.name }) }}</b>
           <button class="btn small" @click="draftModal = null">✕</button>
         </div>
         <div class="hint" style="margin-bottom:10px;line-height:1.7">
-          共 <b>{{ draftModal.drafts.length }}</b> 张草稿。可<b>编辑</b> / <b>删除</b>单张；
-          点击「确认导入」后才进入复习队列（默认绝不自动建卡）。来源血缘会自动记录，卡片可反查原文。
+          {{ t('views.libraryFiles.draftHintPre') }}<b>{{ draftModal.drafts.length }}</b>{{ t('views.libraryFiles.draftHintMid') }}<b>{{ t('views.libraryFiles.draftEdit') }}</b>{{ t('views.libraryFiles.draftSep') }}<b>{{ t('views.libraryFiles.draftDelete') }}</b>{{ t('views.libraryFiles.draftHintPost') }}
         </div>
         <div class="draft-list">
           <div v-for="(d, i) in draftModal.drafts" :key="i" class="draft">
@@ -505,12 +504,12 @@ onMounted(async () => {
               <span class="tag">{{ d.note }}</span>
               <span class="draft-idx">#{{ i + 1 }}</span>
               <span style="flex:1"></span>
-              <button class="btn small" @click="toggleEdit(d)">{{ d._edit ? '完成编辑' : '编辑' }}</button>
-              <button class="btn small danger" @click="removeDraft(i)">删除</button>
+              <button class="btn small" @click="toggleEdit(d)">{{ d._edit ? t('views.libraryFiles.draftBtnDone') : t('views.libraryFiles.draftBtnEdit') }}</button>
+              <button class="btn small danger" @click="removeDraft(i)">{{ t('views.libraryFiles.opDelete') }}</button>
             </div>
             <template v-if="d._edit">
-              <textarea v-model="d.front" class="draft-input" rows="3" placeholder="正面（提示 / 问题）"></textarea>
-              <textarea v-model="d.back" class="draft-input" rows="4" placeholder="背面（结论 / 答案）"></textarea>
+              <textarea v-model="d.front" class="draft-input" rows="3" :placeholder="t('views.libraryFiles.draftFrontPlaceholder')"></textarea>
+              <textarea v-model="d.back" class="draft-input" rows="4" :placeholder="t('views.libraryFiles.draftBackPlaceholder')"></textarea>
             </template>
             <template v-else>
               <div class="draft-front">Q：{{ d.front }}</div>
@@ -519,9 +518,9 @@ onMounted(async () => {
           </div>
         </div>
         <div class="modal-foot">
-          <button class="btn" @click="draftModal = null">取消（不建卡）</button>
+          <button class="btn" @click="draftModal = null">{{ t('views.libraryFiles.draftCancel') }}</button>
           <button class="btn accent" :disabled="draftBusy || !draftModal.drafts.length" @click="doImport">
-            {{ draftBusy ? '导入中…' : `✅ 确认导入 ${draftModal.drafts.length} 张卡片` }}
+            {{ draftBusy ? t('views.libraryFiles.draftImporting') : t('views.libraryFiles.draftConfirm', undefined, { n: draftModal.drafts.length }) }}
           </button>
         </div>
       </div>

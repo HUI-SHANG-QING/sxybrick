@@ -14,6 +14,7 @@ import {
   savePrivacyRecord, listPrivacyRecords, getPrivacyRecord, deletePrivacyRecord,
   privacyPersonaReport, recordUserOp,
 } from '../repo.js';
+import { t } from '../i18n/index.js';
 import { T } from '../utils/telemetry.js';
 import { toast } from '../utils/toast.js';
 import { hasAIKey, chatAI } from '../ai.js';
@@ -21,7 +22,7 @@ import { hasAIKey, chatAI } from '../ai.js';
 // 注册局部组件 <score-slider>：1-5 滑块 + 左右 2 文字
 const ScoreSlider = defineComponent({
   name: 'ScoreSlider',
-  props: { modelValue: { type: Number, default: 3 }, low: { type: String, default: '低' }, high: { type: String, default: '高' } },
+  props: { modelValue: { type: Number, default: 3 }, low: { type: String, default: () => t('views.privacyData.scoreLow', '低') }, high: { type: String, default: () => t('views.privacyData.scoreHigh', '高') } },
   emits: ['update:modelValue'],
   setup(props, ctx) {
     return () => h('div', { class: 'slider-box' }, [
@@ -77,11 +78,11 @@ const TYPE_OPTIONS = [
   { id: 'other',      label: '🛈 其它', sub: ['娱乐','休息躺平','洗澡','碎片时间'] },
   { id: 'mental',     label: '🧠 精神/心得', sub: ['每日总结','情绪记录','灵感','感恩','反思','计划展望','梦境笔记'] },
 ];
-const typeLabel = (k) => TYPE_OPTIONS.find(t => t.id === k)?.label || k;
+const typeLabel = (k) => t('views.privacyData.type.' + k, TYPE_OPTIONS.find(o => o.id === k)?.label || k);
 const subLabelOf = (typeKey, subKey) => {
-  const t = TYPE_OPTIONS.find(x => x.id === typeKey);
-  if (!t) return subKey || '';
-  return (t.sub.includes(subKey) ? subKey : subKey) || '';
+  const opt = TYPE_OPTIONS.find(x => x.id === typeKey);
+  if (!opt) return subKey || '';
+  return (opt.sub.includes(subKey) ? subKey : subKey) || '';
 };
 
 // Bristol 大便形状量表 1-7（锦衣卫级监控专用）
@@ -148,7 +149,7 @@ function addTag() {
   if (!form.customTags.includes(v)) form.customTags.push(v);
   tagInput.value = '';
 }
-function removeTag(t) { const i = form.customTags.indexOf(t); if (i >= 0) form.customTags.splice(i, 1); }
+function removeTag(tag) { const i = form.customTags.indexOf(tag); if (i >= 0) form.customTags.splice(i, 1); }
 function addPain() {
   const v = painInput.value.trim();
   if (!v) return;
@@ -163,30 +164,30 @@ function removeKV(idx) { form.customKV.splice(idx, 1); }
 
 // 类型切换时：初始化对应 Block 结构（保持原值如果已存在）
 function ensureBlocksForType() {
-  const t = form.type;
-  if (t === 'sleep' && !form.sleepBlock) {
+  const type = form.type;
+  if (type === 'sleep' && !form.sleepBlock) {
     form.sleepBlock = { hours: 7, quality: 3, wakeCount: 0, lightMinutes: 240, deepMinutes: 90, remMinutes: 90, interruptions: '', snore: 0, bedTime: '23:00', wakeTime: '07:00', napMinutes: 0, sleepLatency: 0 };
   }
-  if (t === 'eat' && !form.eatBlock) {
+  if (type === 'eat' && !form.eatBlock) {
     form.eatBlock = { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0, water_ml: 1500, caffeineMg: 0, alcohol_ml: 0, meals: [], mealCount: 0, sugar_g: 0, salt_g: 0, fiber_g: 0, notes: '' };
   }
-  if (t === 'move' && !form.moveBlock) {
+  if (type === 'move' && !form.moveBlock) {
     form.moveBlock = { kind: '有氧', minutes: 0, heartRateAvg: 0, heartRateMax: 0, steps: 0, distanceKm: 0, calories: 0, hrZone: [0,0,0,0,0], notes: '' };
   }
-  if (t === 'learn' && !form.learnBlock) {
+  if (type === 'learn' && !form.learnBlock) {
     form.learnBlock = { subject: '', topic: '', source: '', minutes: 0, focusEfficiency: 3, goals: [], outcomes: [], cards_reviewed: 0, cards_new: 0, cards_mastered: 0, aiCalls: 0, interruptions: 0, interruptReasons: [], deepFocusMinutes: 0, notes: '' };
   }
-  if (t === 'work' && !form.workBlock) {
+  if (type === 'work' && !form.workBlock) {
     form.workBlock = { project: '', role: '', minutes: 0, deepMinutes: 0, meetings: 0, decisions: [], deliverables: [], satisfaction: 3, notes: '' };
   }
-  if (t === 'screen' && !form.screenBlock) {
+  if (type === 'screen' && !form.screenBlock) {
     form.screenBlock = { device: '手机', totalMin: 0, appMinutes: [], blueLightReduced: 0, eyeBreak: 0, notes: '' };
   }
-  if (t === 'finance' && !form.financeBlock) {
+  if (type === 'finance' && !form.financeBlock) {
     form.financeBlock = { currency: 'CNY', income: 0, expense: 0, delta: 0, account: '', category: '', notes: '' };
   }
   // 排泄块：当 type='excrete' 或 'other' 时展开
-  if ((t === 'excrete' || t === 'other') && !form.excreteBlock) {
+  if ((type === 'excrete' || type === 'other') && !form.excreteBlock) {
     form.excreteBlock = { urineCount: 0, bowelCount: 0, stoolForm: 4, bloodUrine: false, bloodStool: false, notes: '' };
   }
 }
@@ -240,15 +241,15 @@ async function saveCurrent() {
     };
     const r = await savePrivacyRecord(payload);
     T.privacyRecord(r.type, r.date);
-    toast(editingId.value ? `已更新「${typeLabel(r.type)} · ${r.subType || ''}」` : `已记录「${typeLabel(r.type)} · ${r.subType || ''}」`, 'success');
+    toast(editingId.value ? t('views.privacyData.toastUpdated', undefined, { name: `${typeLabel(r.type)} · ${r.subType || ''}` }) : t('views.privacyData.toastRecorded', undefined, { name: `${typeLabel(r.type)} · ${r.subType || ''}` }), 'success');
     resetForm();
     refreshList();
-  } catch (e) { toast('保存失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.privacyData.saveFail', '保存失败：') + e.message, 'error'); }
   finally { saving.value = false; }
 }
 async function editRec(id) {
   const r = await getPrivacyRecord(id);
-  if (!r) { toast('记录不存在', 'warn'); return; }
+  if (!r) { toast(t('views.privacyData.recNotFound', '记录不存在'), 'warn'); return; }
   editingId.value = id;
   form.date = r.date || todayISO();
   form.startTime = hmFromTs(r.startTime);
@@ -283,12 +284,12 @@ async function editRec(id) {
   form.customKV = Object.entries(r.customKV || {}).map(([k, v]) => ({ k, v }));
   ensureBlocksForType();
   tab.value = 'form';
-  toast(`已载入 ${r.date} ${typeLabel(r.type)} 记录，可编辑后保存。`, 'info');
+  toast(t('views.privacyData.toastLoaded', undefined, { date: r.date, type: typeLabel(r.type) }), 'info');
 }
 async function delRec(id) {
-  if (!(await confirmDialog('确定删除这条人生记录？此删除会通过同步链传播到其他设备。'))) return;
+  if (!(await confirmDialog(t('views.privacyData.confirmDelete', '确定删除这条人生记录？此删除会通过同步链传播到其他设备。')))) return;
   await deletePrivacyRecord(id);
-  toast('已删除', 'success');
+  toast(t('views.privacyData.deleted', '已删除'), 'success');
   refreshList();
 }
 
@@ -308,11 +309,11 @@ async function refreshList() {
     if (qTo.value)   arr = arr.filter(r => (r.date || '') <= qTo.value);
     if (qType.value) arr = arr.filter(r => r.type === qType.value);
     if (qTag.value) {
-      const t = qTag.value.trim();
-      arr = arr.filter(r => (r.customTags || []).includes(t));
+      const kw = qTag.value.trim();
+      arr = arr.filter(r => (r.customTags || []).includes(kw));
     }
     list.value = arr;
-  } catch (e) { toast('列表加载失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.privacyData.listLoadFail', '列表加载失败：') + e.message, 'error'); }
   finally { listBusy.value = false; }
 }
 const previewRec = ref(null);
@@ -327,12 +328,12 @@ async function loadPersona() {
   reportBusy.value = true; persona.value = null;
   try {
     persona.value = await privacyPersonaReport({ rangeDays: reportRange.value, includeUserOps: true });
-  } catch (e) { toast('画像加载失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.privacyData.personaLoadFail', '画像加载失败：') + e.message, 'error'); }
   finally { reportBusy.value = false; }
 }
 async function aiEnhanceReport() {
-  if (!persona.value) return toast('请先生成一份本地报告再做 AI 增强', 'warn');
-  if (!hasAIKey()) return toast('当前未配置 AI 密钥，无法使用 AI 增强。请在 AI 助手页面设置 API Key。', 'warn');
+  if (!persona.value) return toast(t('views.privacyData.aiEnhanceWarn', '请先生成一份本地报告再做 AI 增强'), 'warn');
+  if (!hasAIKey()) return toast(t('views.privacyData.aiKeyWarn', '当前未配置 AI 密钥，无法使用 AI 增强。请在 AI 助手页面设置 API Key。'), 'warn');
   aiBusy.value = true;
   try {
     const prompt = `你是一位「数字生命画像分析师」。用户系统已生成以下 4 段结构化画像（近 ${persona.value.stats.rangeDays} 天，共 ${persona.value.stats.N} 条个人行为/精神记录）：
@@ -348,15 +349,15 @@ async function aiEnhanceReport() {
 中文，语气温暖、专业、可执行。`;
     const resp = await chatAI(prompt);
     persona.value.aiEnhanced = resp || '';
-    toast('AI 增强报告已生成（仅文字输出，未动系统任何设置）', 'success');
+    toast(t('views.privacyData.aiEnhanced', 'AI 增强报告已生成（仅文字输出，未动系统任何设置）'), 'success');
     T.aiCall('privacy_persona_enhance', 0);
-  } catch (e) { toast('AI 增强失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.privacyData.aiFail', 'AI 增强失败：') + e.message, 'error'); }
   finally { aiBusy.value = false; }
 }
 function copyReport() {
   if (!persona.value) return;
   const txt = `【SxyBrick 隐私数字画像报告 · 近 ${persona.value.stats.rangeDays} 天】\n\n===== 物理画像 =====\n${persona.value.physical}\n\n===== 行为画像 =====\n${persona.value.behavioral}\n\n===== 精神画像 =====\n${persona.value.mental}\n\n===== 预测/调节建议(实验室文字版) =====\n${persona.value.prediction}${persona.value.aiEnhanced ? `\n\n===== AI 增强版调节报告 =====\n${persona.value.aiEnhanced}` : ''}`;
-  navigator.clipboard.writeText(txt).then(() => toast('报告已复制到剪贴板', 'success')).catch(() => toast('复制失败，请手动复制', 'warn'));
+  navigator.clipboard.writeText(txt).then(() => toast(t('views.privacyData.copyOk', '报告已复制到剪贴板'), 'success')).catch(() => toast(t('views.privacyData.copyFail', '复制失败，请手动复制'), 'warn'));
 }
 
 // —— 一天时间段快捷预填（8 个典型片段）
@@ -377,12 +378,12 @@ function applySlot(slot) {
     form.endTime = slot.end;
   } else form.endTime = slot.end;
   // 推荐 type/subType：如果 subType 在枚举则直接用
-  const [t, s] = (slot.recommend || '').split('/');
-  if (t) {
-    const opt = TYPE_OPTIONS.find(o => o.id === t);
-    if (opt) { form.type = t; ensureBlocksForType(); if (s) form.subType = opt.sub.includes(s) ? s : (form.subType || s); }
+  const [type, sub] = (slot.recommend || '').split('/');
+  if (type) {
+    const opt = TYPE_OPTIONS.find(o => o.id === type);
+    if (opt) { form.type = type; ensureBlocksForType(); if (sub) form.subType = opt.sub.includes(sub) ? sub : (form.subType || sub); }
   }
-  toast(`已填时间段：${slot.start} ~ ${slot.end}`, 'success');
+  toast(t('views.privacyData.slotFilled', undefined, { start: slot.start, end: slot.end }), 'success');
 }
 
 // —— 快速填"现在 1 小时"按钮
@@ -412,20 +413,20 @@ const listGrouped = computed(() => {
 const totalRecordsToday = computed(() => list.value.filter(r => r.date === todayISO()).length);
 const allTags = computed(() => {
   const s = new Set();
-  for (const r of list.value) for (const t of r.customTags || []) s.add(t);
+  for (const r of list.value) for (const tag of r.customTags || []) s.add(tag);
   return [...s];
 });
 
 // 当前类型选中的枚举对象
-const currentTypeOpt = computed(() => TYPE_OPTIONS.find(t => t.id === form.type));
+const currentTypeOpt = computed(() => TYPE_OPTIONS.find(o => o.id === form.type));
 const currentSubOpts = computed(() => currentTypeOpt.value ? currentTypeOpt.value.sub : []);
 
 function fmtRange(ts1, ts2) {
   if (!ts1 || !ts2) return '';
   let mins = Math.round((ts2 - ts1) / 60000);
   if (mins < 0) mins += 24 * 60; // 跨午夜按 +1 天算
-  if (mins < 60) return `${mins} 分钟`;
-  return `${(mins / 60).toFixed(1)} 小时`;
+  if (mins < 60) return t('views.privacyData.minutes', undefined, { n: mins });
+  return t('views.privacyData.hours', undefined, { n: (mins / 60).toFixed(1) });
 }
 
 // 快捷：1-5 评分条
@@ -433,22 +434,21 @@ function ScoreRow({ label, model, modelKey, max = 5, low, high }) {}
 </script>
 
 <template>
-  <div class="pv-root" v-loading="loading" element-loading-text="加载中…">
+  <div class="pv-root" v-loading="loading" :element-loading-text="t('views.privacyData.loading')">
     <header class="pv-head">
       <div>
-        <h2 style="margin:0">🧾 人生隐私数据 · 超级监控（B档详尽版）</h2>
+        <h2 style="margin:0">{{ t('views.privacyData.pageTitle') }}</h2>
         <p class="hint" style="margin:4px 0 0">
-          把你每一天的物理行为 + 精神心得按"时间段 · 结构化块"详细录入，从 1 天 → 1 周 → 1 月 → 1 年，
-          刻画真实的人物数字肖像。所有记录都在本地 IndexedDB，可跨设备同步、可导出 JSON+CSV、可一键清空。
+          {{ t('views.privacyData.pageHint') }}
         </p>
       </div>
       <div class="tab-row">
-        <button class="chip" :class="{ on: tab === 'form' }" @click="tab = 'form'">📝 记录</button>
+        <button class="chip" :class="{ on: tab === 'form' }" @click="tab = 'form'">{{ t('views.privacyData.tabRecord') }}</button>
         <button class="chip" :class="{ on: tab === 'list' }" @click="tab = 'list'; refreshList()">
-          📚 列表<span class="chip-n">{{ list.length }}</span>
+          {{ t('views.privacyData.tabList') }}<span class="chip-n">{{ list.length }}</span>
         </button>
-        <button class="chip" :class="{ on: tab === 'report' }" @click="tab = 'report'; loadPersona()">🔮 画像报告</button>
-        <button class="btn small" @click="router.push('/export')">📤 导出 JSON+CSV</button>
+        <button class="chip" :class="{ on: tab === 'report' }" @click="tab = 'report'; loadPersona()">{{ t('views.privacyData.tabReport') }}</button>
+        <button class="btn small" @click="router.push('/export')">{{ t('views.privacyData.btnExport') }}</button>
       </div>
     </header>
 
@@ -456,64 +456,64 @@ function ScoreRow({ label, model, modelKey, max = 5, low, high }) {}
     <div v-if="tab === 'form'" class="panel">
       <div class="row" style="justify-content:space-between">
         <div class="row" style="margin-bottom:0">
-          <span class="field-label" style="margin:0">今天共记录</span>
-          <b style="color:var(--accent)">{{ totalRecordsToday }} 段</b>
-          <button class="chip" @click="fillNow1h">⏱ 填入 现在 + 1 小时</button>
+          <span class="field-label" style="margin:0">{{ t('views.privacyData.todayRecorded') }}</span>
+          <b style="color:var(--accent)">{{ totalRecordsToday }} {{ t('views.privacyData.seg') }}</b>
+          <button class="chip" @click="fillNow1h">{{ t('views.privacyData.fillNow') }}</button>
         </div>
         <div class="row" style="margin-bottom:0">
-          <button v-if="editingId" class="chip" @click="resetForm()">🔁 清空 / 新建</button>
+          <button v-if="editingId" class="chip" @click="resetForm()">{{ t('views.privacyData.clearNew') }}</button>
           <button class="btn primary" :disabled="saving" @click="saveCurrent">
-            {{ saving ? '保存中…' : (editingId ? '✓ 更新记录' : '💾 记录这一段') }}
+            {{ saving ? t('views.privacyData.saving') : (editingId ? t('views.privacyData.updateRec') : t('views.privacyData.recordSeg')) }}
           </button>
         </div>
       </div>
 
       <!-- 8 个典型时间段快捷预填 -->
       <div class="slot-bar">
-        <div class="field-label" style="margin:0 8px 0 0">快速时间段</div>
-        <button v-for="s in QUICK_SLOTS" :key="s.key" class="slot-chip" @click="applySlot(s)">
-          {{ s.label }}<em>{{ s.start }}-{{ s.end }}</em>
+        <div class="field-label" style="margin:0 8px 0 0">{{ t('views.privacyData.quickSlots') }}</div>
+        <button v-for="slot in QUICK_SLOTS" :key="slot.key" class="slot-chip" @click="applySlot(slot)">
+          {{ t('views.privacyData.slot' + slot.key.replace(/^([a-z])/, (m) => m.toUpperCase())) }}<em>{{ slot.start }}-{{ slot.end }}</em>
         </button>
       </div>
 
       <!-- 基础：日期 / 时间 / 类型 / 子类型 / 地点 / 人物 -->
       <section class="sec">
-        <h4 class="sec-h">🗓 基础元信息</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.baseMeta') }}</h4>
         <div class="grid3">
           <label class="inp">
-            <span>日期</span>
+            <span>{{ t('views.privacyData.fDate') }}</span>
             <input type="date" class="input" v-model="form.date" />
           </label>
           <label class="inp">
-            <span>开始时间</span>
+            <span>{{ t('views.privacyData.fStart') }}</span>
             <input type="time" class="input" v-model="form.startTime" />
           </label>
           <label class="inp">
-            <span>结束时间</span>
+            <span>{{ t('views.privacyData.fEnd') }}</span>
             <input type="time" class="input" v-model="form.endTime" />
           </label>
           <label class="inp span2">
-            <span>主类型</span>
+            <span>{{ t('views.privacyData.fType') }}</span>
             <select class="input" v-model="form.type" @change="ensureBlocksForType()">
-              <option v-for="t in TYPE_OPTIONS" :key="t.id" :value="t.id">{{ t.label }}</option>
+              <option v-for="item in TYPE_OPTIONS" :key="item.id" :value="item.id">{{ typeLabel(item.id) }}</option>
             </select>
           </label>
           <label class="inp">
-            <span>子类型</span>
+            <span>{{ t('views.privacyData.fSub') }}</span>
             <select v-if="currentSubOpts.length" class="input" v-model="form.subType">
-              <option v-for="s in currentSubOpts" :key="s" :value="s">{{ s }}</option>
+              <option v-for="sub in currentSubOpts" :key="sub" :value="sub">{{ t('views.privacyData.sub.' + form.type + '.' + sub, sub) }}</option>
             </select>
-            <input v-else class="input" v-model="form.subType" placeholder="自填子类型" />
+            <input v-else class="input" v-model="form.subType" :placeholder="t('views.privacyData.subPlaceholder')" />
           </label>
           <label class="inp span2">
-            <span>地点</span>
-            <input class="input" v-model="form.location" placeholder="例：家 / 公司 / 图书馆 / 地铁" />
+            <span>{{ t('views.privacyData.fLocation') }}</span>
+            <input class="input" v-model="form.location" :placeholder="t('views.privacyData.locPlaceholder')" />
           </label>
           <label class="inp span3">
-            <span>相关人物（回车添加）</span>
+            <span>{{ t('views.privacyData.fPeople') }}</span>
             <div class="tag-input-row">
-              <input class="input" v-model="peopleInput" @keydown.enter.prevent="addPeople" placeholder="例：妈妈 / 同学A / 导师" />
-              <button class="chip" @click="addPeople">+ 人物</button>
+              <input class="input" v-model="peopleInput" @keydown.enter.prevent="addPeople" :placeholder="t('views.privacyData.peoplePlaceholder')" />
+              <button class="chip" @click="addPeople">{{ t('views.privacyData.addPeople') }}</button>
             </div>
             <div class="tag-list" v-if="form.people.length">
               <span v-for="p in form.people" :key="p" class="tag-pill" @click="removePeople(p)">👤 {{ p }} ×</span>
@@ -524,20 +524,20 @@ function ScoreRow({ label, model, modelKey, max = 5, low, high }) {}
 
       <!-- 情绪 6 维 -->
       <section class="sec">
-        <h4 class="sec-h">🌈 精神物理 6 维评分</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.moodTitle') }}</h4>
         <div class="grid6">
-          <div class="score-card"><div class="sc-head">心情 mood</div><score-slider v-model="form.mood" :low="'低落'" :high="'兴奋'" /><div class="sc-v">{{ form.mood }} / 5</div></div>
-          <div class="score-card"><div class="sc-head">能量 energy</div><score-slider v-model="form.energy" :low="'倦怠'" :high="'满血'" /><div class="sc-v">{{ form.energy }} / 5</div></div>
-          <div class="score-card"><div class="sc-head">专注 focus</div><score-slider v-model="form.focus" :low="'涣散'" :high="'心流'" /><div class="sc-v">{{ form.focus }} / 5</div></div>
-          <div class="score-card"><div class="sc-head">愉悦 pleasure</div><score-slider v-model="form.pleasure" :low="'压抑'" :high="'狂喜'" /><div class="sc-v">{{ form.pleasure }} / 5</div></div>
-          <div class="score-card"><div class="sc-head">压力 stress</div><score-slider v-model="form.stress" :low="'松弛'" :high="'过载'" /><div class="sc-v">{{ form.stress }} / 5</div></div>
+          <div class="score-card"><div class="sc-head">{{ t('views.privacyData.dimMood') }} mood</div><score-slider v-model="form.mood" :low="t('views.privacyData.lowMood')" :high="t('views.privacyData.highMood')" /><div class="sc-v">{{ form.mood }} / 5</div></div>
+          <div class="score-card"><div class="sc-head">{{ t('views.privacyData.dimEnergy') }} energy</div><score-slider v-model="form.energy" :low="t('views.privacyData.lowEnergy')" :high="t('views.privacyData.highEnergy')" /><div class="sc-v">{{ form.energy }} / 5</div></div>
+          <div class="score-card"><div class="sc-head">{{ t('views.privacyData.dimFocus') }} focus</div><score-slider v-model="form.focus" :low="t('views.privacyData.lowFocus')" :high="t('views.privacyData.highFocus')" /><div class="sc-v">{{ form.focus }} / 5</div></div>
+          <div class="score-card"><div class="sc-head">{{ t('views.privacyData.dimPleasure') }} pleasure</div><score-slider v-model="form.pleasure" :low="t('views.privacyData.lowPleasure')" :high="t('views.privacyData.highPleasure')" /><div class="sc-v">{{ form.pleasure }} / 5</div></div>
+          <div class="score-card"><div class="sc-head">{{ t('views.privacyData.dimStress') }} stress</div><score-slider v-model="form.stress" :low="t('views.privacyData.lowStress')" :high="t('views.privacyData.highStress')" /><div class="sc-v">{{ form.stress }} / 5</div></div>
           <div class="score-card">
-            <div class="sc-head">疼痛 pain</div>
+            <div class="sc-head">{{ t('views.privacyData.dimPain') }} pain</div>
             <input type="range" min="0" max="10" step="1" v-model.number="form.painIndex" />
-            <div class="sc-v">疼痛指数 {{ form.painIndex }} / 10</div>
+            <div class="sc-v">{{ t('views.privacyData.painIndex') }} {{ form.painIndex }} / 10</div>
             <div class="tag-input-row" style="margin-top:4px">
-              <input class="input" v-model="painInput" @keydown.enter.prevent="addPain" placeholder="例：肩颈 / 腰部 / 左膝" />
-              <button class="chip" @click="addPain">+ 部位</button>
+              <input class="input" v-model="painInput" @keydown.enter.prevent="addPain" :placeholder="t('views.privacyData.painPlaceholder')" />
+              <button class="chip" @click="addPain">{{ t('views.privacyData.addPart') }}</button>
             </div>
             <div class="tag-list" v-if="form.painParts.length">
               <span v-for="p in form.painParts" :key="p" class="tag-pill" @click="removePain(p)">💊 {{ p }} ×</span>
@@ -548,263 +548,263 @@ function ScoreRow({ label, model, modelKey, max = 5, low, high }) {}
 
       <!-- 锦衣卫级情绪/精神扩展 -->
       <section class="sec">
-        <h4 class="sec-h">🎭 情绪 / 精神深度评估（锦衣卫级）</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.painTitle') }}</h4>
         <div class="grid6">
-          <div class="score-card"><div class="sc-head">焦虑 anxiety</div><score-slider v-model="form.anxiety" :low="'平静'" :high="'惊恐'" /><div class="sc-v">{{ form.anxiety }} / 5</div></div>
-          <div class="score-card"><div class="sc-head">抑郁 depression</div><score-slider v-model="form.depression" :low="'开朗'" :high="'沉郁'" /><div class="sc-v">{{ form.depression }} / 5</div></div>
-          <div class="score-card"><div class="sc-head">自信 confidence</div><score-slider v-model="form.confidence" :low="'自弃'" :high="'笃定'" /><div class="sc-v">{{ form.confidence }} / 5</div></div>
+          <div class="score-card"><div class="sc-head">{{ t('views.privacyData.dimAnxiety') }} anxiety</div><score-slider v-model="form.anxiety" :low="t('views.privacyData.lowAnxiety')" :high="t('views.privacyData.highAnxiety')" /><div class="sc-v">{{ form.anxiety }} / 5</div></div>
+          <div class="score-card"><div class="sc-head">{{ t('views.privacyData.dimDepression') }} depression</div><score-slider v-model="form.depression" :low="t('views.privacyData.lowDepression')" :high="t('views.privacyData.highDepression')" /><div class="sc-v">{{ form.depression }} / 5</div></div>
+          <div class="score-card"><div class="sc-head">{{ t('views.privacyData.dimConfidence') }} confidence</div><score-slider v-model="form.confidence" :low="t('views.privacyData.lowConfidence')" :high="t('views.privacyData.highConfidence')" /><div class="sc-v">{{ form.confidence }} / 5</div></div>
           <div class="score-card" style="grid-column:span 2">
-            <div class="sc-head">压力源 stressSource</div>
-            <input class="input" v-model="form.stressSource" placeholder="例：考试 / 人际 / 经济 / 健康" />
-            <div class="sc-v">文字描述</div>
+            <div class="sc-head">{{ t('views.privacyData.dimStressSource') }}</div>
+            <input class="input" v-model="form.stressSource" :placeholder="t('views.privacyData.stressSourcePlaceholder')" />
+            <div class="sc-v">{{ t('views.privacyData.textDesc') }}</div>
           </div>
         </div>
       </section>
 
       <!-- 专用块：按 type 条件渲染 -->
       <section v-if="form.type === 'sleep' && form.sleepBlock" class="sec">
-        <h4 class="sec-h">😴 睡眠专属指标</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.secSleep') }}</h4>
         <div class="grid4">
-          <label class="inp"><span>时长 (小时)</span><input type="number" step="0.1" min="0" max="24" class="input" v-model.number="form.sleepBlock.hours" /></label>
-          <label class="inp"><span>入睡时间</span><input type="time" class="input" v-model="form.sleepBlock.bedTime" /></label>
-          <label class="inp"><span>起床时间</span><input type="time" class="input" v-model="form.sleepBlock.wakeTime" /></label>
-          <label class="inp"><span>入睡 latency (分)</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.sleepLatency" placeholder="躺下到睡着" /></label>
-          <label class="inp"><span>午休时长 (分)</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.napMinutes" /></label>
-          <label class="inp"><span>质量 (1~5)</span><input type="range" min="1" max="5" v-model.number="form.sleepBlock.quality" /><div class="sc-v" style="text-align:center">{{ form.sleepBlock.quality }}</div></label>
-          <label class="inp"><span>夜醒次数</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.wakeCount" /></label>
-          <label class="inp"><span>浅睡(分钟)</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.lightMinutes" /></label>
-          <label class="inp"><span>深睡(分钟)</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.deepMinutes" /></label>
-          <label class="inp"><span>REM(分钟)</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.remMinutes" /></label>
-          <label class="inp"><span>打鼾 (0-10)</span><input type="range" min="0" max="10" v-model.number="form.sleepBlock.snore" /><div class="sc-v" style="text-align:center">{{ form.sleepBlock.snore }}</div></label>
-          <label class="inp"><span>干扰因素</span><input class="input" v-model="form.sleepBlock.interruptions" placeholder="例：噪音 / 咖啡因 / 小孩哭闹" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.slHours') }}</span><input type="number" step="0.1" min="0" max="24" class="input" v-model.number="form.sleepBlock.hours" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.slBedtime') }}</span><input type="time" class="input" v-model="form.sleepBlock.bedTime" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.slWaketime') }}</span><input type="time" class="input" v-model="form.sleepBlock.wakeTime" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.slLatency') }}</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.sleepLatency" :placeholder="t('views.privacyData.slLatencyPh')" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.slNap') }}</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.napMinutes" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.slQuality') }}</span><input type="range" min="1" max="5" v-model.number="form.sleepBlock.quality" /><div class="sc-v" style="text-align:center">{{ form.sleepBlock.quality }}</div></label>
+          <label class="inp"><span>{{ t('views.privacyData.slWakeCount') }}</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.wakeCount" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.slLight') }}</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.lightMinutes" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.slDeep') }}</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.deepMinutes" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.slRem') }}</span><input type="number" min="0" class="input" v-model.number="form.sleepBlock.remMinutes" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.slSnore') }}</span><input type="range" min="0" max="10" v-model.number="form.sleepBlock.snore" /><div class="sc-v" style="text-align:center">{{ form.sleepBlock.snore }}</div></label>
+          <label class="inp"><span>{{ t('views.privacyData.slInterrupt') }}</span><input class="input" v-model="form.sleepBlock.interruptions" :placeholder="t('views.privacyData.slInterruptPh')" /></label>
         </div>
       </section>
 
       <section v-if="form.type === 'eat' && form.eatBlock" class="sec">
-        <h4 class="sec-h">🍽️ 饮食 / 营养</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.secEat') }}</h4>
         <div class="grid4">
-          <label class="inp"><span>总热量 (kcal)</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.calories" /></label>
-          <label class="inp"><span>用餐次数</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.mealCount" /></label>
-          <label class="inp"><span>蛋白质 (g)</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.protein_g" /></label>
-          <label class="inp"><span>碳水 (g)</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.carbs_g" /></label>
-          <label class="inp"><span>脂肪 (g)</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.fat_g" /></label>
-          <label class="inp"><span>糖分 (g)</span><input type="number" min="0" step="0.1" class="input" v-model.number="form.eatBlock.sugar_g" /></label>
-          <label class="inp"><span>盐分 (g)</span><input type="number" min="0" step="0.1" class="input" v-model.number="form.eatBlock.salt_g" /></label>
-          <label class="inp"><span>纤维 (g)</span><input type="number" min="0" step="0.1" class="input" v-model.number="form.eatBlock.fiber_g" /></label>
-          <label class="inp"><span>饮水 (ml)</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.water_ml" /></label>
-          <label class="inp"><span>咖啡因 (mg)</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.caffeineMg" /></label>
-          <label class="inp span2"><span>酒精 (ml)</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.alcohol_ml" /></label>
-          <label class="inp span4"><span>备注</span><input class="input" v-model="form.eatBlock.notes" placeholder="例：外食偏油，蔬菜偏少" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.eatCalories') }}</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.calories" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.eatMeals') }}</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.mealCount" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.eatProtein') }}</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.protein_g" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.eatCarbs') }}</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.carbs_g" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.eatFat') }}</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.fat_g" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.eatSugar') }}</span><input type="number" min="0" step="0.1" class="input" v-model.number="form.eatBlock.sugar_g" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.eatSalt') }}</span><input type="number" min="0" step="0.1" class="input" v-model.number="form.eatBlock.salt_g" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.eatFiber') }}</span><input type="number" min="0" step="0.1" class="input" v-model.number="form.eatBlock.fiber_g" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.eatWater') }}</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.water_ml" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.eatCaffeine') }}</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.caffeineMg" /></label>
+          <label class="inp span2"><span>{{ t('views.privacyData.eatAlcohol') }}</span><input type="number" min="0" class="input" v-model.number="form.eatBlock.alcohol_ml" /></label>
+          <label class="inp span4"><span>{{ t('views.privacyData.eatNotes') }}</span><input class="input" v-model="form.eatBlock.notes" :placeholder="t('views.privacyData.eatNotesPh')" /></label>
         </div>
         <div class="tbl" style="margin-top:10px">
-          <div class="tbl-head" style="grid-template-columns: 1fr 100px 110px 80px"><span>餐次名称</span><span>估计 kcal</span><span>份量</span><span></span></div>
+          <div class="tbl-head" style="grid-template-columns: 1fr 100px 110px 80px"><span>{{ t('views.privacyData.eatTblName') }}</span><span>{{ t('views.privacyData.eatTblKcal') }}</span><span>{{ t('views.privacyData.eatTblPortion') }}</span><span></span></div>
           <div v-for="(m, i) in form.eatBlock.meals" :key="i" class="tbl-row" style="grid-template-columns: 1fr 100px 110px 80px">
-            <input class="input" v-model="m.name" placeholder="例：午餐·鸡腿饭" />
+            <input class="input" v-model="m.name" :placeholder="t('views.privacyData.eatNotesPh')" />
             <input class="input" type="number" min="0" v-model.number="m.kcal" />
             <select class="input" v-model="m.portion">
-              <option v-for="p in ['小碗','中碗','大碗','小份','中份','大份','两口','一盘']" :key="p" :value="p">{{ p }}</option>
+              <option v-for="p in ['小碗','中碗','大碗','小份','中份','大份','两口','一盘']" :key="p" :value="p">{{ t('views.privacyData.portion.' + p, p) }}</option>
             </select>
-            <button class="chip" @click="delMeal(i)">删除</button>
+            <button class="chip" @click="delMeal(i)">{{ t('views.privacyData.eatDelMeal') }}</button>
           </div>
-          <button class="chip" @click="addMeal">+ 餐次</button>
+          <button class="chip" @click="addMeal">{{ t('views.privacyData.eatAddMeal') }}</button>
         </div>
       </section>
 
       <section v-if="form.type === 'move' && form.moveBlock" class="sec">
-        <h4 class="sec-h">🏃 运动 / 体能</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.secMove') }}</h4>
         <div class="grid4">
-          <label class="inp"><span>类型</span>
+          <label class="inp"><span>{{ t('views.privacyData.mvType') }}</span>
             <select class="input" v-model="form.moveBlock.kind">
-              <option v-for="k in ['有氧','力量','拉伸','瑜伽','球类','户外徒步','通勤运动','康复训练']" :key="k" :value="k">{{ k }}</option>
+              <option v-for="k in ['有氧','力量','拉伸','瑜伽','球类','户外徒步','通勤运动','康复训练']" :key="k" :value="k">{{ t('views.privacyData.sub.move.' + k, k) }}</option>
             </select>
           </label>
-          <label class="inp"><span>时长 (分钟)</span><input type="number" min="0" class="input" v-model.number="form.moveBlock.minutes" /></label>
-          <label class="inp"><span>平均心率</span><input type="number" min="0" class="input" v-model.number="form.moveBlock.heartRateAvg" /></label>
-          <label class="inp"><span>最高心率</span><input type="number" min="0" class="input" v-model.number="form.moveBlock.heartRateMax" /></label>
-          <label class="inp"><span>步数</span><input type="number" min="0" class="input" v-model.number="form.moveBlock.steps" /></label>
-          <label class="inp"><span>距离 (km)</span><input type="number" step="0.1" min="0" class="input" v-model.number="form.moveBlock.distanceKm" /></label>
-          <label class="inp"><span>消耗 kcal</span><input type="number" min="0" class="input" v-model.number="form.moveBlock.calories" /></label>
-          <label class="inp span4"><span>心率分区 Z1-Z5（分钟，可留空）</span>
+          <label class="inp"><span>{{ t('views.privacyData.mvMinutes') }}</span><input type="number" min="0" class="input" v-model.number="form.moveBlock.minutes" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.mvHrAvg') }}</span><input type="number" min="0" class="input" v-model.number="form.moveBlock.heartRateAvg" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.mvHrMax') }}</span><input type="number" min="0" class="input" v-model.number="form.moveBlock.heartRateMax" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.mvSteps') }}</span><input type="number" min="0" class="input" v-model.number="form.moveBlock.steps" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.mvDist') }}</span><input type="number" step="0.1" min="0" class="input" v-model.number="form.moveBlock.distanceKm" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.mvCal') }}</span><input type="number" min="0" class="input" v-model.number="form.moveBlock.calories" /></label>
+          <label class="inp span4"><span>{{ t('views.privacyData.mvHrZone') }}</span>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               <input v-for="n in 5" :key="n" type="number" min="0" class="input" style="width:60px" v-model.number="form.moveBlock.hrZone[n-1]" :placeholder="`Z${n}`" />
             </div>
           </label>
-          <label class="inp span4"><span>备注</span><input class="input" v-model="form.moveBlock.notes" /></label>
+          <label class="inp span4"><span>{{ t('views.privacyData.eatNotes') }}</span><input class="input" v-model="form.moveBlock.notes" /></label>
         </div>
       </section>
 
       <section v-if="form.type === 'learn' && form.learnBlock" class="sec">
-        <h4 class="sec-h">📖 学习（深度联动卡片系统）</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.secLearn') }}</h4>
         <div class="grid4">
-          <label class="inp"><span>科目</span><input class="input" v-model="form.learnBlock.subject" /></label>
-          <label class="inp"><span>专题 / 知识点</span><input class="input" v-model="form.learnBlock.topic" /></label>
-          <label class="inp"><span>材料来源</span><input class="input" v-model="form.learnBlock.source" placeholder="课本 / MOOC / 教程 / SxyBrick" /></label>
-          <label class="inp"><span>时长 (分钟)</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.minutes" /></label>
-          <label class="inp"><span>深度专注 (分)</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.deepFocusMinutes" /></label>
-          <label class="inp"><span>专注效率 (1-5)</span><input type="range" min="1" max="5" v-model.number="form.learnBlock.focusEfficiency" /><div class="sc-v" style="text-align:center">{{ form.learnBlock.focusEfficiency }}</div></label>
-          <label class="inp"><span>打断次数</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.interruptions" /></label>
-          <label class="inp"><span>复习卡片数</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.cards_reviewed" /></label>
-          <label class="inp"><span>新卡数</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.cards_new" /></label>
-          <label class="inp"><span>掌握卡片</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.cards_mastered" /></label>
-          <label class="inp"><span>AI 调用次</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.aiCalls" /></label>
-          <label class="inp span4"><span>打断原因（回车添加，chip 模式）</span>
+          <label class="inp"><span>{{ t('views.privacyData.lnSubject') }}</span><input class="input" v-model="form.learnBlock.subject" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.lnTopic') }}</span><input class="input" v-model="form.learnBlock.topic" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.lnSource') }}</span><input class="input" v-model="form.learnBlock.source" :placeholder="t('views.privacyData.lnSourcePh')" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.lnMinutes') }}</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.minutes" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.lnDeepFocus') }}</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.deepFocusMinutes" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.lnFocusEff') }}</span><input type="range" min="1" max="5" v-model.number="form.learnBlock.focusEfficiency" /><div class="sc-v" style="text-align:center">{{ form.learnBlock.focusEfficiency }}</div></label>
+          <label class="inp"><span>{{ t('views.privacyData.lnInterrupts') }}</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.interruptions" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.lnCardsReviewed') }}</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.cards_reviewed" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.lnCardsNew') }}</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.cards_new" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.lnCardsMastered') }}</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.cards_mastered" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.lnAiCalls') }}</span><input type="number" min="0" class="input" v-model.number="form.learnBlock.aiCalls" /></label>
+          <label class="inp span4"><span>{{ t('views.privacyData.lnInterruptPh') }}</span>
             <div class="tag-input-row">
-              <input class="input" v-model="learnInterruptInput" @keydown.enter.prevent="addLearnInterrupt" placeholder="例：手机消息 / 同学问问题 / 突发会议" />
-              <button class="chip" @click="addLearnInterrupt">+ 原因</button>
+              <input class="input" v-model="learnInterruptInput" @keydown.enter.prevent="addLearnInterrupt" :placeholder="t('views.privacyData.lnInterruptPh')" />
+              <button class="chip" @click="addLearnInterrupt">{{ t('views.privacyData.lnAddReason') }}</button>
             </div>
             <div class="tag-list" v-if="form.learnBlock.interruptReasons.length">
-              <span v-for="(r, i) in form.learnBlock.interruptReasons" :key="i" class="tag-pill" @click="delLearnInterrupt(i)">⚠ {{ r }} ×</span>
+              <span v-for="(reason, i) in form.learnBlock.interruptReasons" :key="i" class="tag-pill" @click="delLearnInterrupt(i)">⚠ {{ reason }} ×</span>
             </div>
           </label>
         </div>
         <div class="pair-rows">
           <div class="pair-col">
-            <div class="field-label">目标</div>
+            <div class="field-label">{{ t('views.privacyData.lnGoals') }}</div>
             <div v-for="(_, i) in form.learnBlock.goals" :key="'g'+i" class="tag-input-row">
               <input class="input" v-model="form.learnBlock.goals[i]" />
               <button class="chip" @click="delStringArrItem('goals', form.learnBlock, i)">-</button>
             </div>
-            <button class="chip" @click="addStringArrItem('goals', form.learnBlock)">+ 目标</button>
+            <button class="chip" @click="addStringArrItem('goals', form.learnBlock)">{{ t('views.privacyData.lnAddGoal') }}</button>
           </div>
           <div class="pair-col">
-            <div class="field-label">成果 / 产出</div>
+            <div class="field-label">{{ t('views.privacyData.lnOutcomes') }}</div>
             <div v-for="(_, i) in form.learnBlock.outcomes" :key="'o'+i" class="tag-input-row">
               <input class="input" v-model="form.learnBlock.outcomes[i]" />
               <button class="chip" @click="delStringArrItem('outcomes', form.learnBlock, i)">-</button>
             </div>
-            <button class="chip" @click="addStringArrItem('outcomes', form.learnBlock)">+ 成果</button>
+            <button class="chip" @click="addStringArrItem('outcomes', form.learnBlock)">{{ t('views.privacyData.lnAddOutcome') }}</button>
           </div>
         </div>
-        <label class="inp span4" style="margin-top:10px"><span>备注</span><input class="input" v-model="form.learnBlock.notes" /></label>
+        <label class="inp span4" style="margin-top:10px"><span>{{ t('views.privacyData.lnNotes') }}</span><input class="input" v-model="form.learnBlock.notes" /></label>
       </section>
 
       <section v-if="form.type === 'work' && form.workBlock" class="sec">
-        <h4 class="sec-h">💼 工作</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.secWork') }}</h4>
         <div class="grid4">
-          <label class="inp"><span>项目</span><input class="input" v-model="form.workBlock.project" /></label>
-          <label class="inp"><span>角色</span><input class="input" v-model="form.workBlock.role" /></label>
-          <label class="inp"><span>总时长 (分)</span><input type="number" min="0" class="input" v-model.number="form.workBlock.minutes" /></label>
-          <label class="inp"><span>深度 (分)</span><input type="number" min="0" class="input" v-model.number="form.workBlock.deepMinutes" /></label>
-          <label class="inp"><span>会议数</span><input type="number" min="0" class="input" v-model.number="form.workBlock.meetings" /></label>
-          <label class="inp"><span>满意度 (1-5)</span><input type="range" min="1" max="5" v-model.number="form.workBlock.satisfaction" /><div class="sc-v" style="text-align:center">{{ form.workBlock.satisfaction }}</div></label>
+          <label class="inp"><span>{{ t('views.privacyData.wkProject') }}</span><input class="input" v-model="form.workBlock.project" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.wkRole') }}</span><input class="input" v-model="form.workBlock.role" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.wkMinutes') }}</span><input type="number" min="0" class="input" v-model.number="form.workBlock.minutes" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.wkDeep') }}</span><input type="number" min="0" class="input" v-model.number="form.workBlock.deepMinutes" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.wkMeetings') }}</span><input type="number" min="0" class="input" v-model.number="form.workBlock.meetings" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.wkSatisfaction') }}</span><input type="range" min="1" max="5" v-model.number="form.workBlock.satisfaction" /><div class="sc-v" style="text-align:center">{{ form.workBlock.satisfaction }}</div></label>
         </div>
         <div class="pair-rows">
           <div class="pair-col">
-            <div class="field-label">关键决策</div>
+            <div class="field-label">{{ t('views.privacyData.wkDecisions') }}</div>
             <div v-for="(_, i) in form.workBlock.decisions" :key="'wd'+i" class="tag-input-row">
               <input class="input" v-model="form.workBlock.decisions[i]" />
               <button class="chip" @click="delStringArrItem('decisions', form.workBlock, i)">-</button>
             </div>
-            <button class="chip" @click="addStringArrItem('decisions', form.workBlock)">+ 决策</button>
+            <button class="chip" @click="addStringArrItem('decisions', form.workBlock)">{{ t('views.privacyData.wkAddDecision') }}</button>
           </div>
           <div class="pair-col">
-            <div class="field-label">交付物</div>
+            <div class="field-label">{{ t('views.privacyData.wkDeliverables') }}</div>
             <div v-for="(_, i) in form.workBlock.deliverables" :key="'wv'+i" class="tag-input-row">
               <input class="input" v-model="form.workBlock.deliverables[i]" />
               <button class="chip" @click="delStringArrItem('deliverables', form.workBlock, i)">-</button>
             </div>
-            <button class="chip" @click="addStringArrItem('deliverables', form.workBlock)">+ 交付</button>
+            <button class="chip" @click="addStringArrItem('deliverables', form.workBlock)">{{ t('views.privacyData.wkAddDeliverable') }}</button>
           </div>
         </div>
-        <label class="inp span4" style="margin-top:10px"><span>备注</span><input class="input" v-model="form.workBlock.notes" /></label>
+        <label class="inp span4" style="margin-top:10px"><span>{{ t('views.privacyData.wkNotes') }}</span><input class="input" v-model="form.workBlock.notes" /></label>
       </section>
 
       <section v-if="form.type === 'screen' && form.screenBlock" class="sec">
-        <h4 class="sec-h">📱 屏幕时间</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.secScreen') }}</h4>
         <div class="grid4">
-          <label class="inp"><span>设备</span>
+          <label class="inp"><span>{{ t('views.privacyData.scDevice') }}</span>
             <select class="input" v-model="form.screenBlock.device">
-              <option v-for="k in ['手机','电脑','平板','电视','游戏机','其它']" :key="k" :value="k">{{ k }}</option>
+              <option v-for="k in ['手机','电脑','平板','电视','游戏机','其它']" :key="k" :value="k">{{ t('views.privacyData.sub.screen.' + k, k) }}</option>
             </select>
           </label>
-          <label class="inp"><span>总时长 (分)</span><input type="number" min="0" class="input" v-model.number="form.screenBlock.totalMin" /></label>
-          <label class="inp"><span>蓝光减免(0-10)</span><input type="range" min="0" max="10" v-model.number="form.screenBlock.blueLightReduced" /><div class="sc-v" style="text-align:center">{{ form.screenBlock.blueLightReduced }}</div></label>
-          <label class="inp"><span>护眼次</span><input type="number" min="0" class="input" v-model.number="form.screenBlock.eyeBreak" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.scTotal') }}</span><input type="number" min="0" class="input" v-model.number="form.screenBlock.totalMin" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.scBlue') }}</span><input type="range" min="0" max="10" v-model.number="form.screenBlock.blueLightReduced" /><div class="sc-v" style="text-align:center">{{ form.screenBlock.blueLightReduced }}</div></label>
+          <label class="inp"><span>{{ t('views.privacyData.scEye') }}</span><input type="number" min="0" class="input" v-model.number="form.screenBlock.eyeBreak" /></label>
         </div>
         <div class="tbl" style="margin-top:10px">
-          <div class="tbl-head"><span>App / 用途</span><span>分钟</span><span></span></div>
+          <div class="tbl-head"><span>{{ t('views.privacyData.scAppTbl') }}</span><span>{{ t('views.privacyData.scAppTblMin') }}</span><span></span></div>
           <div v-for="(a, i) in form.screenBlock.appMinutes" :key="i" class="tbl-row">
-            <input class="input" v-model="a.app" placeholder="例：Bilibili / 微信 / IDE" />
+            <input class="input" v-model="a.app" :placeholder="t('views.privacyData.scAppTbl')" />
             <input class="input" type="number" min="0" v-model.number="a.min" />
-            <button class="chip" @click="delAppMin(i)">删除</button>
+            <button class="chip" @click="delAppMin(i)">{{ t('views.privacyData.scDelApp') }}</button>
           </div>
-          <button class="chip" @click="addAppMin">+ App 明细</button>
+          <button class="chip" @click="addAppMin">{{ t('views.privacyData.scAddApp') }}</button>
         </div>
-        <label class="inp span4" style="margin-top:10px"><span>备注</span><input class="input" v-model="form.screenBlock.notes" /></label>
+        <label class="inp span4" style="margin-top:10px"><span>{{ t('views.privacyData.scNotes') }}</span><input class="input" v-model="form.screenBlock.notes" /></label>
       </section>
 
       <section v-if="form.type === 'finance' && form.financeBlock" class="sec">
-        <h4 class="sec-h">💰 财务</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.secFinance') }}</h4>
         <div class="grid4">
-          <label class="inp"><span>币种</span><input class="input" v-model="form.financeBlock.currency" /></label>
-          <label class="inp"><span>收入</span><input type="number" class="input" v-model.number="form.financeBlock.income" /></label>
-          <label class="inp"><span>支出</span><input type="number" class="input" v-model.number="form.financeBlock.expense" /></label>
-          <label class="inp"><span>净变动</span><input type="number" class="input" v-model.number="form.financeBlock.delta" /></label>
-          <label class="inp"><span>账户</span><input class="input" v-model="form.financeBlock.account" placeholder="银行卡 / 支付宝 / 现金" /></label>
-          <label class="inp span3"><span>分类</span><input class="input" v-model="form.financeBlock.category" placeholder="房租 / 餐饮 / 投资 / 捐赠" /></label>
-          <label class="inp span4"><span>备注</span><input class="input" v-model="form.financeBlock.notes" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.fnCurrency') }}</span><input class="input" v-model="form.financeBlock.currency" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.fnIncome') }}</span><input type="number" class="input" v-model.number="form.financeBlock.income" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.fnExpense') }}</span><input type="number" class="input" v-model.number="form.financeBlock.expense" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.fnDelta') }}</span><input type="number" class="input" v-model.number="form.financeBlock.delta" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.fnAccount') }}</span><input class="input" v-model="form.financeBlock.account" :placeholder="t('views.privacyData.fnAccountPh')" /></label>
+          <label class="inp span3"><span>{{ t('views.privacyData.fnCategory') }}</span><input class="input" v-model="form.financeBlock.category" :placeholder="t('views.privacyData.fnCategoryPh')" /></label>
+          <label class="inp span4"><span>{{ t('views.privacyData.fnNotes') }}</span><input class="input" v-model="form.financeBlock.notes" /></label>
         </div>
       </section>
 
       <section v-if="(form.type === 'excrete' || form.type === 'other') && form.excreteBlock" class="sec">
-        <h4 class="sec-h">🚽 排泄监控（锦衣卫级 · Bristol 量表）</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.secExcrete') }}</h4>
         <div class="grid4">
-          <label class="inp"><span>小便次数</span><input type="number" min="0" class="input" v-model.number="form.excreteBlock.urineCount" /></label>
-          <label class="inp"><span>大便次数</span><input type="number" min="0" class="input" v-model.number="form.excreteBlock.bowelCount" /></label>
-          <label class="inp span2"><span>大便形状 (Bristol 1-7)</span>
+          <label class="inp"><span>{{ t('views.privacyData.exUrine') }}</span><input type="number" min="0" class="input" v-model.number="form.excreteBlock.urineCount" /></label>
+          <label class="inp"><span>{{ t('views.privacyData.exBowel') }}</span><input type="number" min="0" class="input" v-model.number="form.excreteBlock.bowelCount" /></label>
+          <label class="inp span2"><span>{{ t('views.privacyData.exForm') }}</span>
             <select class="input" v-model.number="form.excreteBlock.stoolForm">
-              <option v-for="b in BRISTOL_SCALE" :key="b.v" :value="b.v">{{ b.label }}</option>
+              <option v-for="b in BRISTOL_SCALE" :key="b.v" :value="b.v">{{ t('views.privacyData.bristol' + b.v, b.label) }}</option>
             </select>
-            <div class="sc-v">当前 {{ form.excreteBlock.stoolForm }} · {{ BRISTOL_SCALE.find(b => b.v === form.excreteBlock.stoolForm)?.label || '' }}</div>
+            <div class="sc-v">{{ t('views.privacyData.bristol' + form.excreteBlock.stoolForm, BRISTOL_SCALE.find(b => b.v === form.excreteBlock.stoolForm)?.label || '') }}</div>
           </label>
-          <label class="inp"><span>血尿</span>
+          <label class="inp"><span>{{ t('views.privacyData.exBloodUrine') }}</span>
             <div style="display:flex;align-items:center;gap:6px">
               <input type="checkbox" v-model="form.excreteBlock.bloodUrine" />
-              <span>{{ form.excreteBlock.bloodUrine ? '有' : '无' }}</span>
+              <span>{{ form.excreteBlock.bloodUrine ? t('views.privacyData.yes') : t('views.privacyData.no') }}</span>
             </div>
           </label>
-          <label class="inp"><span>血便</span>
+          <label class="inp"><span>{{ t('views.privacyData.exBloodStool') }}</span>
             <div style="display:flex;align-items:center;gap:6px">
               <input type="checkbox" v-model="form.excreteBlock.bloodStool" />
-              <span>{{ form.excreteBlock.bloodStool ? '有' : '无' }}</span>
+              <span>{{ form.excreteBlock.bloodStool ? t('views.privacyData.yes') : t('views.privacyData.no') }}</span>
             </div>
           </label>
-          <label class="inp span4"><span>备注</span><input class="input" v-model="form.excreteBlock.notes" placeholder="例：夜尿频繁 / 腹泻伴绞痛 / 便秘 3 天" /></label>
+          <label class="inp span4"><span>{{ t('views.privacyData.exNotes') }}</span><input class="input" v-model="form.excreteBlock.notes" :placeholder="t('views.privacyData.exNotesPh')" /></label>
         </div>
       </section>
 
       <!-- 心得 / 精神 -->
       <section class="sec">
-        <h4 class="sec-h">🧠 精神 / 心得体会（Markdown 富文本）</h4>
-        <textarea class="input" rows="8" v-model="form.mental" placeholder="今天发生了什么？想到什么？想感谢谁？情绪/压力/反思/灵感... Markdown 渲染"></textarea>
+        <h4 class="sec-h">{{ t('views.privacyData.secMental') }}</h4>
+        <textarea class="input" rows="8" v-model="form.mental" :placeholder="t('views.privacyData.mentalPh')"></textarea>
         <div v-if="form.mental" style="margin-top:8px;padding:10px;border:1px dashed var(--line);border-radius:8px;background:var(--code-inline)">
-          <div class="field-label" style="margin:0 0 4px">预览</div>
+          <div class="field-label" style="margin:0 0 4px">{{ t('views.privacyData.preview') }}</div>
           <MarkdownRenderer :content="form.mental" />
         </div>
       </section>
 
       <!-- 自定义 KV + 标签 -->
       <section class="sec">
-        <h4 class="sec-h">🏷️ 自定义标签 + KV 元数据</h4>
+        <h4 class="sec-h">{{ t('views.privacyData.secCustom') }}</h4>
         <div class="pair-rows">
           <div class="pair-col">
-            <div class="field-label">自定义标签</div>
+            <div class="field-label">{{ t('views.privacyData.customTags') }}</div>
             <div class="tag-input-row">
-              <input class="input" v-model="tagInput" @keydown.enter.prevent="addTag" placeholder="例：#周一日 #情绪低谷 #恋爱" />
-              <button class="chip" @click="addTag">+ 标签</button>
+              <input class="input" v-model="tagInput" @keydown.enter.prevent="addTag" :placeholder="t('views.privacyData.customTagsPh')" />
+              <button class="chip" @click="addTag">{{ t('views.privacyData.addTag') }}</button>
             </div>
             <div class="tag-list" v-if="form.customTags.length">
-              <span v-for="t in form.customTags" :key="t" class="tag-pill" @click="removeTag(t)">#{{ t }} ×</span>
+              <span v-for="tag in form.customTags" :key="tag" class="tag-pill" @click="removeTag(tag)">#{{ tag }} ×</span>
             </div>
           </div>
           <div class="pair-col">
-            <div class="field-label">自定义 KV（最多 8 组，用于未来 AI 画像）</div>
+            <div class="field-label">{{ t('views.privacyData.customKV') }}</div>
             <div v-for="(kv, i) in form.customKV" :key="i" class="tag-input-row">
-              <input class="input" v-model="kv.k" placeholder="键（例：体重kg）" style="max-width:140px" />
-              <input class="input" v-model="kv.v" placeholder="值" />
+              <input class="input" v-model="kv.k" :placeholder="t('views.privacyData.kvKeyPh')" style="max-width:140px" />
+              <input class="input" v-model="kv.v" :placeholder="t('views.privacyData.kvValPh')" />
               <button class="chip" @click="removeKV(i)">-</button>
             </div>
-            <button class="chip" @click="addKV">+ KV</button>
+            <button class="chip" @click="addKV">{{ t('views.privacyData.addKV') }}</button>
           </div>
         </div>
       </section>
@@ -814,26 +814,26 @@ function ScoreRow({ label, model, modelKey, max = 5, low, high }) {}
     <div v-if="tab === 'list'" class="panel">
       <div class="row" style="justify-content:space-between;gap:10px">
         <div class="row" style="margin-bottom:0;gap:6px">
-          <input type="date" class="input" style="width:auto" v-model="qFrom" placeholder="起始日" />
+          <input type="date" class="input" style="width:auto" v-model="qFrom" :placeholder="t('views.privacyData.fFrom')" />
           <span>~</span>
-          <input type="date" class="input" style="width:auto" v-model="qTo" placeholder="结束日" />
+          <input type="date" class="input" style="width:auto" v-model="qTo" :placeholder="t('views.privacyData.fTo')" />
           <select class="input" style="width:auto" v-model="qType">
-            <option value="">全部类型</option>
-            <option v-for="t in TYPE_OPTIONS" :key="t.id" :value="t.id">{{ t.label }}</option>
+            <option value="">{{ t('views.privacyData.allTypes') }}</option>
+            <option v-for="item in TYPE_OPTIONS" :key="item.id" :value="item.id">{{ typeLabel(item.id) }}</option>
           </select>
-          <input class="input" style="max-width:180px" v-model="qTag" placeholder="标签筛选（已有：{{ allTags.join('、') || '无' }}）" />
-          <button class="chip" @click="refreshList">{{ listBusy ? '刷新中…' : '🔍 筛选' }}</button>
+          <input class="input" style="max-width:180px" v-model="qTag" :placeholder="t('views.privacyData.tagFilter', undefined, { tags: allTags.length ? allTags.join(t('views.privacyData.sep')) : t('views.privacyData.none') })" />
+          <button class="chip" @click="refreshList">{{ listBusy ? t('views.privacyData.refreshing') : t('views.privacyData.filterBtn') }}</button>
         </div>
-        <button class="btn small" @click="tab = 'form'">+ 新增记录</button>
+        <button class="btn small" @click="tab = 'form'">{{ t('views.privacyData.addRec') }}</button>
       </div>
 
-      <div v-if="listBusy" class="hint" style="padding:20px;text-align:center">载入中…</div>
-      <EmptyState v-else-if="!listGrouped.length" icon="🧾" title="暂无记录" message="试试切换到「📝 记录」填第一段，或者放开日期筛选" />
+      <div v-if="listBusy" class="hint" style="padding:20px;text-align:center">{{ t('views.privacyData.loadingList') }}</div>
+      <EmptyState v-else-if="!listGrouped.length" icon="🧾" :title="t('views.privacyData.emptyTitle')" :message="t('views.privacyData.emptyMsg')" />
       <div v-else class="days-list">
         <div v-for="g in listGrouped" :key="g.date" class="day-group">
           <div class="day-head">
             <span class="day-date">📅 {{ g.date }}</span>
-            <span class="hint">{{ g.rows.length }} 段 · 总时长 {{ g.rows.reduce((s, r) => s + Math.max(0, ((r.endTime||0)-(r.startTime||0))/60000), 0) }} 分钟</span>
+            <span class="hint">{{ g.rows.length }} {{ t('views.privacyData.seg') }} · {{ t('views.privacyData.totalDurLabel') }} {{ g.rows.reduce((s, r) => s + Math.max(0, ((r.endTime||0)-(r.startTime||0))/60000), 0) }} {{ t('views.privacyData.minUnit') }}</span>
           </div>
           <article v-for="r in g.rows" :key="r.id" class="rec-card">
             <div class="rec-left">
@@ -845,22 +845,22 @@ function ScoreRow({ label, model, modelKey, max = 5, low, high }) {}
                 <em>（{{ fmtRange(r.startTime, r.endTime) }}）</em>
               </div>
               <div class="rec-moodrow" v-if="r.mood || r.energy || r.stress || r.painIndex">
-                <span class="pill" :class="'lv'+r.mood"   title="心情">mood {{ r.mood }}</span>
-                <span class="pill" :class="'lv'+r.energy" title="能量">energy {{ r.energy }}</span>
-                <span class="pill" :class="'lv'+(6-Math.min(5,r.stress))" title="压力">stress {{ r.stress }}</span>
+                <span class="pill" :class="'lv'+r.mood"   :title="t('views.privacyData.dimMood')">mood {{ r.mood }}</span>
+                <span class="pill" :class="'lv'+r.energy" :title="t('views.privacyData.dimEnergy')">energy {{ r.energy }}</span>
+                <span class="pill" :class="'lv'+r.stress"  :title="t('views.privacyData.dimStress')">stress {{ r.stress }}</span>
                 <span v-if="r.painIndex" class="pill pain">pain {{ r.painIndex }}</span>
               </div>
               <div class="rec-chips" v-if="(r.customTags && r.customTags.length) || r.location || (r.people && r.people.length)">
                 <span v-if="r.location" class="tag-pill">📍 {{ r.location }}</span>
                 <span v-for="p in r.people" :key="p" class="tag-pill">👤 {{ p }}</span>
-                <span v-for="t in r.customTags" :key="t" class="tag-pill">#{{ t }}</span>
+                <span v-for="tag in r.customTags" :key="tag" class="tag-pill">#{{ tag }}</span>
               </div>
             </div>
             <div class="rec-right">
               <div class="rec-mental-snip" v-if="r.mental">{{ String(r.mental).slice(0, 80) }}{{ r.mental.length > 80 ? '…' : '' }}</div>
               <div class="rec-actions">
-                <button class="chip" @click="openPreview(r)">👁 详情</button>
-                <button class="chip" @click="editRec(r.id)">✏️ 编辑</button>
+                <button class="chip" @click="openPreview(r)">{{ t('views.privacyData.detail') }}</button>
+                <button class="chip" @click="editRec(r.id)">{{ t('views.privacyData.edit') }}</button>
                 <button class="chip danger" @click="delRec(r.id)">🗑</button>
               </div>
             </div>
@@ -873,52 +873,51 @@ function ScoreRow({ label, model, modelKey, max = 5, low, high }) {}
     <div v-if="tab === 'report'" class="panel">
       <div class="row" style="justify-content:space-between">
         <div class="row" style="margin-bottom:0">
-          <span class="field-label" style="margin:0">画像周期</span>
-          <button v-for="r in [7,14,30,90]" :key="r" class="chip" :class="{ on: reportRange === r }" @click="reportRange = r; loadPersona()">近 {{ r }} 天</button>
-          <button class="btn small" :disabled="reportBusy" @click="loadPersona">🔄 刷新报告</button>
+          <span class="field-label" style="margin:0">{{ t('views.privacyData.reportPeriod') }}</span>
+          <button v-for="r in [7,14,30,90]" :key="r" class="chip" :class="{ on: reportRange === r }" @click="reportRange = r; loadPersona()">{{ t('views.privacyData.recentDays', undefined, { n: r }) }}</button>
+          <button class="btn small" :disabled="reportBusy" @click="loadPersona">{{ t('views.privacyData.refreshReport') }}</button>
         </div>
         <div class="row" style="margin-bottom:0">
           <button class="btn small" :disabled="aiBusy || !persona" @click="aiEnhanceReport">
-            {{ aiBusy ? 'AI 生成中…' : '🤖 AI 增强版调节（仅文字）' }}
+            {{ aiBusy ? t('views.privacyData.aiGenerating') : t('views.privacyData.aiEnhance') }}
           </button>
-          <button class="btn small" :disabled="!persona" @click="copyReport">📋 复制完整报告</button>
+          <button class="btn small" :disabled="!persona" @click="copyReport">{{ t('views.privacyData.copyReport') }}</button>
         </div>
       </div>
-      <div v-if="reportBusy" class="hint" style="padding:20px;text-align:center">正在结合 userOps + privacyRecords 生成画像…</div>
-      <div v-else-if="!persona" class="hint" style="padding:20px;text-align:center">请先点「🔄 刷新报告」。</div>
+      <div v-if="reportBusy" class="hint" style="padding:20px;text-align:center">{{ t('views.privacyData.generatingPersona') }}</div>
+      <div v-else-if="!persona" class="hint" style="padding:20px;text-align:center">{{ t('views.privacyData.reportHint') }}</div>
       <div v-else class="report-body">
         <div class="report-stats">
-          <div><span>记录数</span><b>{{ persona.stats.N }}</b></div>
-          <div><span>平均睡眠</span><b>{{ persona.stats.avgSleep != null ? persona.stats.avgSleep.toFixed(1) + 'h' : '—' }}</b></div>
-          <div><span>平均心情</span><b>{{ persona.stats.avgMood != null ? persona.stats.avgMood.toFixed(1) + '/5' : '—' }}</b></div>
-          <div><span>平均能量</span><b>{{ persona.stats.avgEnergy != null ? persona.stats.avgEnergy.toFixed(1) + '/5' : '—' }}</b></div>
-          <div><span>平均压力</span><b>{{ persona.stats.avgStress != null ? persona.stats.avgStress.toFixed(1) + '/5' : '—' }}</b></div>
+          <div><span>{{ t('views.privacyData.statCount') }}</span><b>{{ persona.stats.N }}</b></div>
+          <div><span>{{ t('views.privacyData.statSleep') }}</span><b>{{ persona.stats.avgSleep != null ? persona.stats.avgSleep.toFixed(1) + 'h' : '—' }}</b></div>
+          <div><span>{{ t('views.privacyData.statMood') }}</span><b>{{ persona.stats.avgMood != null ? persona.stats.avgMood.toFixed(1) + '/5' : '—' }}</b></div>
+          <div><span>{{ t('views.privacyData.statEnergy') }}</span><b>{{ persona.stats.avgEnergy != null ? persona.stats.avgEnergy.toFixed(1) + '/5' : '—' }}</b></div>
+          <div><span>{{ t('views.privacyData.statStress') }}</span><b>{{ persona.stats.avgStress != null ? persona.stats.avgStress.toFixed(1) + '/5' : '—' }}</b></div>
         </div>
         <div class="report-grid">
           <section class="report-sec">
-            <h5>🌿 物理画像</h5>
+            <h5>{{ t('views.privacyData.repPhysical') }}</h5>
             <pre class="pre-wrap">{{ persona.physical }}</pre>
           </section>
           <section class="report-sec">
-            <h5>🧭 行为画像（融合系统真实操作埋点）</h5>
+            <h5>{{ t('views.privacyData.repBehavioral') }}</h5>
             <pre class="pre-wrap">{{ persona.behavioral }}</pre>
           </section>
           <section class="report-sec">
-            <h5>🧘 情绪 / 精神画像</h5>
+            <h5>{{ t('views.privacyData.repMental') }}</h5>
             <pre class="pre-wrap">{{ persona.mental }}</pre>
           </section>
           <section class="report-sec highlight">
-            <h5>🔬 下一步预测 / 调节建议（实验室文字版，<u>不改系统</u>）</h5>
+            <h5>{{ t('views.privacyData.repPred1') }}<u>{{ t('views.privacyData.repPred2') }}</u>{{ t('views.privacyData.repPred3') }}</h5>
             <pre class="pre-wrap">{{ persona.prediction }}</pre>
           </section>
         </div>
         <section v-if="persona.aiEnhanced" class="report-sec ai">
-          <h5>🤖 AI 增强版调节报告（仅文字输出 · 数字生命画像分析）</h5>
+          <h5>{{ t('views.privacyData.repAi') }}</h5>
           <MarkdownRenderer :content="persona.aiEnhanced" />
         </section>
         <div v-else class="hint" style="margin-top:8px">
-          💡 若希望 AI 基于上面的"结构化画像"给出更有洞察力的建议，可点击右上角「🤖 AI 增强版调节」。
-          输出为纯文字报告，不会真的修改系统任何设置或调度。
+          {{ t('views.privacyData.repAiHint') }}
         </div>
       </div>
     </div>
@@ -930,28 +929,28 @@ function ScoreRow({ label, model, modelKey, max = 5, low, high }) {}
           <div class="modal-bar" style="margin-bottom:8px">
             <h3 style="margin:0">{{ typeLabel(previewRec.type) }} · {{ previewRec.subType || '' }} · {{ previewRec.date }}</h3>
             <div>
-              <button class="btn small" @click="editRec(previewRec.id); previewRec = null">✏️ 编辑</button>
-              <button class="btn small" @click="previewRec = null">关闭</button>
+              <button class="btn small" @click="editRec(previewRec.id); previewRec = null">{{ t('views.privacyData.edit') }}</button>
+              <button class="btn small" @click="previewRec = null">{{ t('views.privacyData.close') }}</button>
             </div>
           </div>
           <div class="pv-detail">
-            <div class="pv-d-row"><span>时间段</span><b>{{ new Date(previewRec.startTime||0).toLocaleString() }} ~ {{ new Date(previewRec.endTime||0).toLocaleString() }} ({{ fmtRange(previewRec.startTime, previewRec.endTime) }})</b></div>
-            <div class="pv-d-row"><span>地点/人物</span><b>{{ previewRec.location || '—' }}
+            <div class="pv-d-row"><span>{{ t('views.privacyData.dTimeRange') }}</span><b>{{ new Date(previewRec.startTime||0).toLocaleString() }} ~ {{ new Date(previewRec.endTime||0).toLocaleString() }} ({{ fmtRange(previewRec.startTime, previewRec.endTime) }})</b></div>
+            <div class="pv-d-row"><span>{{ t('views.privacyData.dLocationPeople') }}</span><b>{{ previewRec.location || '—' }}
               <template v-for="p in previewRec.people" :key="p" style="margin-left:6px">👤 {{ p }} </template>
             </b></div>
-            <div class="pv-d-row"><span>6 维</span><b>心情{{ previewRec.mood }} 能量{{ previewRec.energy }} 专注{{ previewRec.focus }} 愉悦{{ previewRec.pleasure }} 压力{{ previewRec.stress }} 疼痛{{ previewRec.painIndex }}{{ previewRec.painParts?.length ? ' ('+previewRec.painParts.join('、')+')' : '' }}</b></div>
-            <div class="pv-d-row" v-if="previewRec.anxiety || previewRec.depression || previewRec.confidence || previewRec.stressSource"><span>情绪深度</span><b>焦虑{{ previewRec.anxiety }} 抑郁{{ previewRec.depression }} 自信{{ previewRec.confidence }}{{ previewRec.stressSource ? ' 压力源：'+previewRec.stressSource : '' }}</b></div>
-            <details v-if="previewRec.sleepBlock" class="det"><summary>😴 睡眠明细</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.sleepBlock, null, 2) }}</pre></details>
-            <details v-if="previewRec.eatBlock"   class="det"><summary>🍽️ 饮食明细</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.eatBlock, null, 2) }}</pre></details>
-            <details v-if="previewRec.moveBlock"  class="det"><summary>🏃 运动明细</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.moveBlock, null, 2) }}</pre></details>
-            <details v-if="previewRec.learnBlock" class="det"><summary>📖 学习明细</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.learnBlock, null, 2) }}</pre></details>
-            <details v-if="previewRec.workBlock"  class="det"><summary>💼 工作明细</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.workBlock, null, 2) }}</pre></details>
-            <details v-if="previewRec.screenBlock" class="det"><summary>📱 屏幕明细</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.screenBlock, null, 2) }}</pre></details>
-            <details v-if="previewRec.financeBlock" class="det"><summary>💰 财务明细</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.financeBlock, null, 2) }}</pre></details>
-            <details v-if="previewRec.excreteBlock" class="det"><summary>🚽 排泄明细</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.excreteBlock, null, 2) }}</pre></details>
-            <div v-if="previewRec.customTags?.length" class="pv-d-row"><span>自定义标签</span><b v-for="t in previewRec.customTags" :key="t">#{{ t }} </b></div>
-            <div v-if="Object.keys(previewRec.customKV||{}).length" class="pv-d-row"><span>自定义 KV</span><b><pre class="pre-wrap">{{ JSON.stringify(previewRec.customKV, null, 2) }}</pre></b></div>
-            <div v-if="previewRec.mental" class="pv-d-row"><span>精神/心得</span><b style="font-weight:400;text-align:left;display:block"><MarkdownRenderer :content="previewRec.mental" /></b></div>
+            <div class="pv-d-row"><span>{{ t('views.privacyData.dSixDim') }}</span><b>{{ t('views.privacyData.dimMood') }}{{ previewRec.mood }} {{ t('views.privacyData.dimEnergy') }}{{ previewRec.energy }} {{ t('views.privacyData.dimFocus') }}{{ previewRec.focus }} {{ t('views.privacyData.dimPleasure') }}{{ previewRec.pleasure }} {{ t('views.privacyData.dimStress') }}{{ previewRec.stress }} {{ t('views.privacyData.dimPain') }}{{ previewRec.painIndex }}{{ previewRec.painParts?.length ? ' (' + previewRec.painParts.join(t('views.privacyData.sep')) + ')' : '' }}</b></div>
+            <div class="pv-d-row" v-if="previewRec.anxiety || previewRec.depression || previewRec.confidence || previewRec.stressSource"><span>{{ t('views.privacyData.dEmotionDeep') }}</span><b>{{ t('views.privacyData.dimAnxiety') }}{{ previewRec.anxiety }} {{ t('views.privacyData.dimDepression') }}{{ previewRec.depression }} {{ t('views.privacyData.dimConfidence') }}{{ previewRec.confidence }}{{ previewRec.stressSource ? ' ' + t('views.privacyData.dimStressSource') + '：' + previewRec.stressSource : '' }}</b></div>
+            <details v-if="previewRec.sleepBlock" class="det"><summary>{{ t('views.privacyData.detailSleep') }}</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.sleepBlock, null, 2) }}</pre></details>
+            <details v-if="previewRec.eatBlock"   class="det"><summary>{{ t('views.privacyData.detailEat') }}</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.eatBlock, null, 2) }}</pre></details>
+            <details v-if="previewRec.moveBlock"  class="det"><summary>{{ t('views.privacyData.detailMove') }}</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.moveBlock, null, 2) }}</pre></details>
+            <details v-if="previewRec.learnBlock" class="det"><summary>{{ t('views.privacyData.detailLearn') }}</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.learnBlock, null, 2) }}</pre></details>
+            <details v-if="previewRec.workBlock"  class="det"><summary>{{ t('views.privacyData.detailWork') }}</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.workBlock, null, 2) }}</pre></details>
+            <details v-if="previewRec.screenBlock" class="det"><summary>{{ t('views.privacyData.detailScreen') }}</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.screenBlock, null, 2) }}</pre></details>
+            <details v-if="previewRec.financeBlock" class="det"><summary>{{ t('views.privacyData.detailFinance') }}</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.financeBlock, null, 2) }}</pre></details>
+            <details v-if="previewRec.excreteBlock" class="det"><summary>{{ t('views.privacyData.detailExcrete') }}</summary><pre class="pre-wrap">{{ JSON.stringify(previewRec.excreteBlock, null, 2) }}</pre></details>
+            <div v-if="previewRec.customTags?.length" class="pv-d-row"><span>{{ t('views.privacyData.detailTags') }}</span><b v-for="tag in previewRec.customTags" :key="tag">#{{ tag }} </b></div>
+            <div v-if="Object.keys(previewRec.customKV||{}).length" class="pv-d-row"><span>{{ t('views.privacyData.detailKV') }}</span><b><pre class="pre-wrap">{{ JSON.stringify(previewRec.customKV, null, 2) }}</pre></b></div>
+            <div v-if="previewRec.mental" class="pv-d-row"><span>{{ t('views.privacyData.detailMental') }}</span><b style="font-weight:400;text-align:left;display:block"><MarkdownRenderer :content="previewRec.mental" /></b></div>
           </div>
         </div>
       </div>
