@@ -36,7 +36,8 @@ export function setPrivacySyncEnabled(v) {
   localStorage.setItem('sxy_privacy_sync', v ? '1' : '0');
 }
 // 根据用户设置返回有效同步表清单
-function getEffectiveSyncTables() {
+// 导出：sync-status.js（状态面板）/ Sync.vue（记录全模块结果）需要按「有效表」遍历
+export function getEffectiveSyncTables() {
   return isPrivacySyncEnabled() ? [...SYNC_TABLES, ...PRIVACY_SYNC_TABLES] : SYNC_TABLES;
 }
 
@@ -90,8 +91,10 @@ export async function buildBackup(subject) {
 //   用途：hub 同步场景下，减少每次同步的包体积（从「全量 N 万行」降到「本次变更的几十行」）
 //   注意：墓碑始终全量带（删除传播不可遗漏），图片仍按被引用打包
 //   返回结构与 buildBackup 一致，但多一个 incremental: true + since 字段，hub 端可据此识别
-export async function buildIncrementalBackup(lastSyncAt = 0) {
+// M5：opts.table 指定单模块同步（只推送该表增量；hub 返回的全量包仍会整体合并 = 全模块拉取）
+export async function buildIncrementalBackup(lastSyncAt = 0, opts = {}) {
   const since = Number(lastSyncAt) || 0;
+  const onlyTable = opts.table || null;
   // 卡片：内容 / SRS / 错因 任一时间戳新于 since 都视为本次变更
   const allCards = await db.cards.toArray();
   const cards = allCards.filter(c => {
@@ -102,8 +105,9 @@ export async function buildIncrementalBackup(lastSyncAt = 0) {
 
   const parts = {};
   for (const t of getEffectiveSyncTables()) {
-    if (t.table === 'cards') { parts.cards = cards; continue; }
     if (t.table === 'images') continue; // 图片单独打包
+    if (onlyTable && t.table !== onlyTable) { parts[t.table] = []; continue; }
+    if (t.table === 'cards') { parts.cards = cards; continue; }
     // idOnly（不可变记录：番茄/成就/嵌入/userOps）与 updatedAt 策略统一用
     // sync-manifest 的 livenessTs 判定（2026-08-29 修复）：
     //   此前按固定顺序取「第一个存在的值」（createdAt ?? startedAt ?? unlockedAt ?? t ?? 0），
@@ -306,7 +310,8 @@ export function parseAnkiLines(text) {
 // M3：增量水位按 scope 分开（real/test 各自维护，互不干扰）
 const hubLastSyncKey = () => backupScope() === 'test' ? 'sxy_hub_last_sync_test' : 'sxy_hub_last_sync';
 const HUB_LAST_SYNC_KEY = 'sxy_hub_last_sync'; // 保留旧键兼容（real 域）
-export async function syncWithHub(hubUrl, token) {
+// M5：opts.table 指定单模块同步（只推送该表；hub 返回全量包仍整体合并 = 全模块拉取更新）
+export async function syncWithHub(hubUrl, token, opts = {}) {
   const hub = String(hubUrl || '').replace(/\/+$/, '');
   if (!hub) throw new Error('请先填写电脑端同步中枢地址');
   // M3：hub 端点按 scope 路由（/backup/real | /backup/test），中枢侧独立数据文件
@@ -317,7 +322,7 @@ export async function syncWithHub(hubUrl, token) {
   //   会被下次 `> since` 过滤掉，且 since 只增不减 → 这部分变更永久静默丢失。
   //   取快照前的时刻会让边界数据重传一次（合并幂等，安全），但绝不漏传。
   const startedAt = Date.now();
-  const backup = await buildIncrementalBackup(lastRaw);
+  const backup = await buildIncrementalBackup(lastRaw, { table: opts.table || null });
   const body = JSON.stringify(backup);
   // 鉴权 v2：优先 HMAC 挑战-响应（同步密码不上网）；老版 Hub 或不支持 WebCrypto 时退回明文 token
   const authHeaders = await buildAuthHeaders({ hub, token, method: 'PUT', path: hubPath, body })

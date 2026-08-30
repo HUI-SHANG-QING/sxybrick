@@ -11,6 +11,9 @@ import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from
 import { T } from '../utils/telemetry.js';
 import { buildAuthHeaders } from '../utils/hub-auth.js';
 import EmptyState from '../components/EmptyState.vue';
+// M5 同步状态面板：各模块 成功/待同步/失败/未配置 + 条数 + 最后同步时间 + 重试
+import { getModuleStatus, recordAllModulesOk, recordAllModulesError, recordModuleResult, resetStatus, summarizeStatus, MODULE_LABELS } from '../sync-status.js';
+import { getEffectiveSyncTables } from '../sync.js';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 // GH Pages 上 location.origin 是 https://xxx.github.io 且没有 /backup 接口，不能作为 Hub 默认地址。
@@ -126,8 +129,18 @@ async function uploadToGist() {
       saveGistCfg();
       toast(`✅ 首次云备份完成（${counts.value.cards} 张卡 · ${appMode.isTest ? '演示数据' : '真实数据'} · Gist ID 已保存）`, 'success');
     }
-  } catch (e) { toast('上传失败：' + e.message, 'error'); }
-  finally { gistBusy.value = false; }
+    // M5：gist 推送 = 全模块推送成功（buildBackup 为全量包）
+    const rows = {};
+    for (const t of getEffectiveSyncTables()) rows[t.table] = payload[t.table]?.length || 0;
+    recordAllModulesOk(rows);
+  } catch (e) {
+    toast('上传失败：' + e.message, 'error');
+    recordAllModulesError(e.message || String(e));
+  }
+  finally {
+    gistBusy.value = false;
+    await loadModuleStatus(); // M5
+  }
 }
 
 async function pullFromGist() {
@@ -145,9 +158,16 @@ async function pullFromGist() {
     const stats = await importBackup(payload, 'merge');
     saveReport('gist-pull', stats);
     await loadCounts();
+    // M5：gist 拉取 = 全部模块拉取完成（本地变更仍需下次推送，面板按 maxTs 判定待同步）
+    const rows = {};
+    for (const t of getEffectiveSyncTables()) rows[t.table] = stats[t.table] || 0;
+    recordAllModulesOk(rows);
     toast(`✅ 已从 Gist 拉取并合并：${fmtStats(stats)}`, 'success');
   } catch (e) { toast('拉取失败：' + e.message, 'error'); }
-  finally { gistBusy.value = false; }
+  finally {
+    gistBusy.value = false;
+    await loadModuleStatus(); // M5
+  }
 }
 
 async function resetGist() {
@@ -196,6 +216,7 @@ async function doExport() {
     lastBackup.value = { at: Date.now() };
     localStorage.setItem('sxy_last_backup', JSON.stringify(lastBackup.value));
     toast('数据包已导出，请把文件发到另一台设备导入', 'success');
+    await refreshStatus(); // M5：导出后通道状态变化（备份通道已配置）
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -228,6 +249,7 @@ async function confirmImport() {
     await loadCounts();
     await loadSnapshots(); // P3-3 导入会自动创建快照，刷新列表
     saveReport('导入数据包', stats);
+    await loadModuleStatus(); // M5：导入后刷新「待同步」判定（远端数据已合并到本地）
     // P3-3 冲突可视化：若有字段被覆盖，提示用户可查看明细
     lastConflicts.value = stats.conflicts || [];
     showConflicts.value = lastConflicts.value.length > 0;
@@ -323,10 +345,16 @@ async function doSync() {
     await loadCounts();
     saveReport('局域网一键同步', stats);
     try { T.syncRun('hub', true); } catch {}
+    // M5：hub 同步成功 = 全部模块推送+拉取完成
+    const rows = {};
+    for (const t of getEffectiveSyncTables()) rows[t.table] = stats[t.table] || 0;
+    recordAllModulesOk(rows);
     toast(`与电脑同步完成：${fmtStats(stats)}`, 'success');
   } catch (e) {
     const base = e.message || String(e);
     try { T.syncRun('hub', false); } catch {}
+    // M5：同步失败 → 全部模块记失败（保留各自错误原因，面板可重试）
+    recordAllModulesError(base);
     const extras = diagnoseFetchError(base, hub);
     // 把诊断追加到 toast，详细诊断放错误日志便于排查
     const fullMsg = base + (extras.length ? '\n\n' + extras.join('\n') : '');
@@ -336,7 +364,10 @@ async function doSync() {
       const { logError } = await import('../utils/errorLog.js');
       await logError(new Error(base), { component: 'Sync.vue', route: '/sync', info: `hub=${hub} details=${JSON.stringify(extras).slice(0,250)}` });
     } catch {}
-  } finally { syncing.value = false; }
+  } finally {
+    syncing.value = false;
+    await loadModuleStatus(); // M5：刷新状态判定
+  }
 }
 
 function loadLastBackup() {
@@ -379,11 +410,87 @@ async function onAnkiFile(e) {
   finally { ankiBusy.value = false; }
 }
 
+// ---------- M5 同步状态面板 ----------
+const moduleStatus = ref([]);
+const statusSummary = ref(null);
+const syncingAll = ref(false);
+const syncingModule = ref('');
+function channelsConfigured() {
+  return {
+    hub: !!String(hubUrl.value || '').trim(),
+    gist: !!(ghToken.value && gistId.value),
+    backup: !!(lastBackup.value && lastBackup.value.at),
+  };
+}
+async function loadModuleStatus() {
+  try {
+    moduleStatus.value = await getModuleStatus({ channels: channelsConfigured() });
+    statusSummary.value = summarizeStatus(moduleStatus.value);
+  } catch {}
+}
+function statusIcon(s) { return { ok: '✅', pending: '⏳', error: '❌', none: '⚪' }[s] || '⚪'; }
+function statusLabel(s) { return { ok: '成功', pending: '待同步', error: '失败', none: '未配置' }[s] || s; }
+function fmtTs(ts) { return ts ? fmt(ts) : '—'; }
+
+/** 立即同步（全部模块）：有 hub 走 hub；否则引导配置 */
+async function doSyncAll() {
+  const hub = String(hubUrl.value || '').replace(/\/+$/, '');
+  if (!hub) {
+    toast('未配置同步通道：请先填写电脑端中枢地址（或配置 Gist 云备份），再执行同步', 'warn');
+    return;
+  }
+  syncingAll.value = true;
+  try {
+    const stats = await syncWithHub(hub, hubToken.value);
+    // M5：hub 返回的是全量合并包 → 所有模块都已拉取更新；本地变更已全部推送
+    const rows = {};
+    for (const t of getEffectiveSyncTables()) rows[t.table] = stats[t.table] || 0;
+    recordAllModulesOk(rows);
+    await loadCounts();
+    saveReport('立即同步（全部模块）', stats);
+    try { T.syncRun('hub', true); } catch {}
+    toast(`✅ 全模块同步完成：${fmtStats(stats)}`, 'success');
+  } catch (e) {
+    recordAllModulesError(e.message || String(e));
+    toast('同步失败：' + (e.message || e), 'error');
+  } finally {
+    syncingAll.value = false;
+    await loadModuleStatus();
+  }
+}
+
+/** 单模块同步：只推送该模块增量；hub 返回全量包仍整体合并（= 全模块拉取），状态按「该模块推送成功」记录 */
+async function doSyncModule(module) {
+  const hub = String(hubUrl.value || '').replace(/\/+$/, '');
+  if (!hub) { toast('未配置同步通道：请先填写电脑端中枢地址', 'warn'); return; }
+  if (syncingModule.value || syncingAll.value) return;
+  syncingModule.value = module;
+  try {
+    const stats = await syncWithHub(hub, hubToken.value, { table: module });
+    recordModuleResult(module, { ok: true, rows: stats[module] || 0 });
+    // 其余模块：这次拉取也更新了它们 → 记成功（rows 取 stats）
+    for (const t of getEffectiveSyncTables()) if (t.table !== module) recordModuleResult(t.table, { ok: true, rows: stats[t.table] || 0 });
+    await loadCounts();
+    toast(`✅ 「${MODULE_LABELS[module] || module}」同步完成`, 'success');
+  } catch (e) {
+    recordModuleResult(module, { ok: false, error: e.message || String(e) });
+    toast(`「${MODULE_LABELS[module] || module}」同步失败：${e.message || e}`, 'error');
+  } finally {
+    syncingModule.value = '';
+    await loadModuleStatus();
+  }
+}
+
 onMounted(async () => {
   loading.value = true;
-  try { await Promise.all([loadCounts(), loadLastBackup(), loadSubjects(), loadErrors(), loadSnapshots()]); }
+  try {
+    await Promise.all([loadCounts(), loadLastBackup(), loadSubjects(), loadErrors(), loadSnapshots()]);
+    await loadModuleStatus(); // M5 状态面板
+  }
   finally { loading.value = false; }
 });
+// M5：每次同步动作（导出/导入/gist）后刷新状态判定（「待同步」= 有新变更未同步）
+async function refreshStatus() { await loadModuleStatus(); }
 </script>
 
 <template>
@@ -391,6 +498,48 @@ onMounted(async () => {
     <h2 style="margin:0 0 4px">数据同步</h2>
     <div class="hint" style="margin-bottom:16px">
       本机数据：{{ counts.cards }} 卡片 · {{ counts.reviews }} 复习 · {{ counts.images }} 图片 · {{ counts.aiChats }} 对话 · {{ counts.aiMemories }} 记忆 · {{ counts.memos }} 备忘 · {{ counts.plans }} 计划 · {{ counts.graphEdges }} 图谱边 · {{ counts.docs }} 文档 · {{ counts.pomoSessions }} 专注 · {{ counts.mindmaps }} 导图 · {{ counts.weeklyReports }} 周报 · {{ counts.achievements }} 成就 · {{ counts.exams }} 模考
+    </div>
+
+    <!-- M5 同步状态面板：所有数据模块的同步状态一览（全覆盖，无遗漏表） -->
+    <div class="panel">
+      <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <span>📊 同步状态{{ appMode.isTest ? '（演示数据）' : '' }}</span>
+        <button class="btn primary" :disabled="syncingAll || syncingModule" @click="doSyncAll">
+          {{ syncingAll ? '同步中…' : '⚡ 立即同步（全部模块）' }}
+        </button>
+      </div>
+      <div v-if="statusSummary" class="hint" style="margin-top:4px">
+        {{ statusSummary.total }} 个模块：
+        <span style="color:var(--green)">✅ 成功 {{ statusSummary.ok }}</span> ·
+        <span style="color:var(--amber)">⏳ 待同步 {{ statusSummary.pending }}</span> ·
+        <span style="color:var(--red)">❌ 失败 {{ statusSummary.error }}</span> ·
+        <span>⚪ 未配置 {{ statusSummary.none }}</span>
+        <span v-if="appMode.isTest" style="color:var(--amber)">（当前为演示模式，展示测试数据的同步状态）</span>
+      </div>
+      <div v-if="!moduleStatus.some(m => m.status !== 'none')" class="hint" style="margin-top:8px">
+        尚未配置同步通道。配置「局域网同步中枢」地址或下方「Gist 云备份」后，各模块状态会在此更新。
+      </div>
+      <table v-else class="status-table">
+        <thead><tr><th>模块</th><th>条数</th><th>最后同步</th><th>状态</th><th></th></tr></thead>
+        <tbody>
+          <tr v-for="m in moduleStatus" :key="m.module">
+            <td>{{ m.label }}</td>
+            <td class="num">{{ m.count }}</td>
+            <td class="ts">{{ fmtTs(m.lastSyncAt) }}<span v-if="m.lastRows" class="hint">（+{{ m.lastRows }}）</span></td>
+            <td><span class="st" :class="'st-' + m.status" :title="m.status === 'error' ? m.error : ''">{{ statusIcon(m.status) }} {{ statusLabel(m.status) }}</span></td>
+            <td>
+              <button v-if="m.status === 'error' || m.status === 'pending'" class="btn mini"
+                      :disabled="syncingAll || syncingModule" @click="doSyncModule(m.module)"
+                      :title="m.status === 'error' ? '重试同步该模块' : '立即同步该模块'">
+                {{ syncingModule === m.module ? '同步中…' : (m.status === 'error' ? '重试' : '同步') }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="hint" style="margin-top:8px">
+        待同步 = 该模块有新变更尚未同步；所有同步表均在此登记（卡组/联动分析/笔记等新增模块已包含）。同步失败会显示错误原因，可点「重试」。
+      </div>
     </div>
 
     <!-- 手动同步 -->
@@ -658,6 +807,20 @@ onMounted(async () => {
 <style scoped>
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; }
 .panel-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+/* M5 同步状态表：移动端压缩为紧凑布局 */
+.status-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+.status-table th { text-align: left; color: var(--ink-2); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.status-table td { padding: 5px 8px; border-bottom: 1px dashed var(--line); }
+.status-table .num { font-variant-numeric: tabular-nums; }
+.status-table .ts { color: var(--ink-2); white-space: nowrap; }
+.status-table .st { white-space: nowrap; }
+.st-ok { color: var(--green); }
+.st-pending { color: var(--amber); }
+.st-error { color: var(--red); }
+.st-none { color: var(--ink-2); }
+@media (max-width: 600px) {
+  .status-table th:nth-child(3), .status-table td:nth-child(3) { display: none; }
+}
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .field-label { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 12px 0 6px; }
 .hub-steps { margin-top: 16px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
