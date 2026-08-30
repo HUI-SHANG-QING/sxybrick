@@ -4,6 +4,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
 import { confirmDialog } from '../utils/confirm.js';
+import CardModal from '../components/CardModal.vue';
 import {
   listCardGroups, createCardGroup, updateCardGroup, deleteCardGroup,
   cardGroupCardIds, setCardGroups,
@@ -22,6 +23,8 @@ async function reload() {
   loading.value = true;
   try {
     groups.value = await listCardGroups();
+    // 默认展开第一个卡组，进入即看到组内卡片完整预览
+    if (groups.value.length && !expanded.value) await toggleExpand(groups.value[0]);
   } finally {
     loading.value = false;
   }
@@ -67,20 +70,32 @@ async function remove(g) {
   await reload();
 }
 
-// 查看组内卡片（懒加载 + 可移出）
+// 查看组内卡片（懒加载 + 可移出 + 点击编辑）
 const expanded = ref('');
 const expandedCards = ref([]);
-async function toggleExpand(g) {
-  if (expanded.value === g.id) { expanded.value = ''; expandedCards.value = []; return; }
-  expanded.value = g.id;
+async function loadGroupCards(g) {
   const ids = await cardGroupCardIds(g.id);
   const { db } = await import('../db.js');
   expandedCards.value = (await db.cards.bulkGet(ids)).filter(Boolean);
 }
+async function toggleExpand(g) {
+  if (expanded.value === g.id) { expanded.value = ''; expandedCards.value = []; return; }
+  expanded.value = g.id;
+  await loadGroupCards(g);
+}
 async function removeCard(g, card) {
   await setCardGroups([card.id], [], [g.id]);
   toast(`已从「${g.name}」移出`, 'success');
-  await toggleExpand(g); await toggleExpand(g); await toggleExpand(g); // 收起重开刷新
+  await loadGroupCards(g);
+}
+
+// 点击卡片 → 打开编辑弹窗（CardModal），保存后刷新预览
+const editCard = ref(null);
+const cardModalOpen = ref(false);
+function openCard(c) { editCard.value = c; cardModalOpen.value = true; }
+async function onCardSaved() {
+  const g = groups.value.find(x => x.id === expanded.value);
+  if (g) await loadGroupCards(g);
 }
 
 onMounted(reload);
@@ -146,16 +161,19 @@ onMounted(reload);
         <div v-if="expanded === g.id" class="group-cards">
           <div v-if="!expandedCards.length" class="hint">组内还没有卡片——到「卡片」页多选后移入此组，或编辑卡片时添加。</div>
           <div v-for="c in expandedCards" :key="c.id" class="gc-row">
-            <div class="gc-text" :title="c.front + '\n' + c.back">
-              <b>{{ c.front.slice(0, 24) }}</b>
-              <span v-if="c.front.length > 24">…</span>
-              <span class="hint"> · {{ c.back.slice(0, 24) }}{{ c.back.length > 24 ? '…' : '' }}</span>
+            <div class="gc-text" @click="openCard(c)" title="点击编辑">
+              <div class="gc-front">{{ c.front }}</div>
+              <div class="gc-back">{{ c.back }}</div>
+              <div v-if="c.tags && c.tags.length" class="gc-tags">
+                <span v-for="t in c.tags" :key="t" class="gc-tag">#{{ t }}</span>
+              </div>
             </div>
             <button class="btn" @click="removeCard(g, c)">移出</button>
           </div>
         </div>
       </div>
     </div>
+    <CardModal v-model="cardModalOpen" :card="editCard" @saved="onCardSaved" />
   </div>
 </template>
 
@@ -173,9 +191,14 @@ onMounted(reload);
 .g-info { flex: 1; min-width: 0; }
 .g-name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
 .group-actions { display: flex; gap: 6px; flex-shrink: 0; }
-.group-cards { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
-.gc-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
-.gc-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-cards { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.gc-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.gc-text { flex: 1; min-width: 0; cursor: pointer; line-height: 1.55; }
+.gc-text:hover { background: var(--panel); }
+.gc-front { font-weight: 600; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.gc-back { color: var(--ink-2); white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
+.gc-tags { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.gc-tag { font-size: 11px; color: var(--accent, #1677ff); background: color-mix(in srgb, var(--accent, #1677ff) 10%, transparent); border-radius: 6px; padding: 0 6px; }
 .chip-sm { font-size: 11px; padding: 0 6px; }
 .empty { padding: 40px 0; text-align: center; color: var(--ink-2); }
 </style>
