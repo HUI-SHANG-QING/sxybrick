@@ -83,9 +83,9 @@ async function grantNotify() {
   const p = await requestNotifyPermission();
   notifyState.value = p;
   toast(
-    p === 'granted' ? '系统通知已开启，到点会弹系统提醒 ✓'
-      : p === 'denied' ? '通知被拒绝，请在浏览器地址栏左侧的权限设置中允许'
-        : '浏览器不支持或未授权',
+    p === 'granted' ? t('views.dailyPlan.notifyOnToast')
+      : p === 'denied' ? t('views.dailyPlan.notifyDeniedToast')
+        : t('views.dailyPlan.notifyNoToast'),
     p === 'granted' ? 'success' : 'warning',
   );
 }
@@ -165,7 +165,7 @@ async function loadPlan(date) {
   } catch (e) {
     // 数据库异常兜底：提示而不是静默显示"没有内容"
     console.error('[plan] loadPlan failed', e);
-    toast('加载计划失败：' + (e?.message || e), 'error');
+    toast(t('views.dailyPlan.loadFailed', '加载计划失败：{msg}', { msg: e?.message || e }), 'error');
     plan.value = null;
   }
   heat.value = await getCompletionHeatmap(84).catch(() => []);
@@ -199,17 +199,17 @@ function fillExample() {
 
 async function submitPlan() {
   const text = rawInput.value.trim();
-  if (!text) { toast('先写下今天的规划', 'warning'); return; }
+  if (!text) { toast(t('views.dailyPlan.planEmpty'), 'warning'); return; }
   parsing.value = true;
   try {
     const result = await parsePlanSmart(text, { useLLM: useLLM.value });
     preview.value = { text, ...result };
     await nextTick();
     renderPreviewQuad();
-    const src = result.source === 'llm' ? '✨ AI 解析' : '⚡ 离线解析';
-    toast(`${src}出 ${result.tasks.length} 个任务`, 'success');
+    const src = result.source === 'llm' ? t('views.dailyPlan.parseSrcAI') : t('views.dailyPlan.parseSrcOffline');
+    toast(t('views.dailyPlan.parseDone', '{src}出 {n} 个任务', { src, n: result.tasks.length }), 'success');
   } catch (e) {
-    toast('解析失败：' + (e?.message || e), 'error');
+    toast(t('views.dailyPlan.parseFailed', '解析失败：{msg}', { msg: e?.message || e }), 'error');
   } finally {
     parsing.value = false;
   }
@@ -231,9 +231,9 @@ async function confirmPlan() {
     await refreshAll();
     await refreshSynergy();
     await loadHistoryList();
-    toast(`已入库 ${tasks.length} 个任务`, 'success');
+    toast(t('views.dailyPlan.stored', '已入库 {n} 个任务', { n: tasks.length }), 'success');
   } catch (e) {
-    toast('入库失败：' + (e?.message || e), 'error');
+    toast(t('views.dailyPlan.storeFailed', '入库失败：{msg}', { msg: e?.message || e }), 'error');
   } finally {
     busy.value = false;
   }
@@ -244,7 +244,7 @@ function cancelPreview() { preview.value = null; disposePreviewQuad(); }
 // ──────────────── 中途加任务 ────────────────
 async function appendTasks() {
   const text = addInput.value.trim();
-  if (!text || !plan.value?.plan?.id) { toast('请输入任务描述', 'warning'); return; }
+  if (!text || !plan.value?.plan?.id) { toast(t('views.dailyPlan.taskDescEmpty'), 'warning'); return; }
   busy.value = true;
   try {
     const rows = await appendDailyTasksByText(plan.value.plan.id, text);
@@ -254,9 +254,9 @@ async function appendTasks() {
     await refreshAll();
     await refreshSynergy();
     await loadHistoryList();
-    toast(`追加 ${rows.length} 个任务`, 'success');
+    toast(t('views.dailyPlan.appended', '追加 {n} 个任务', { n: rows.length }), 'success');
   } catch (e) {
-    toast('追加失败：' + (e?.message || e), 'error');
+    toast(t('views.dailyPlan.appendFailed', '追加失败：{msg}', { msg: e?.message || e }), 'error');
   } 
   finally {
     busy.value = false;
@@ -278,9 +278,9 @@ async function addManualTask() {
     await refreshAll();
     await refreshSynergy();
     await loadHistoryList();
-    toast(`已加 ${rows.length} 个任务`, 'success');
+    toast(t('views.dailyPlan.added', '已加 {n} 个任务', { n: rows.length }), 'success');
   } catch (e) {
-    toast('添加失败：' + (e?.message || e), 'error');
+    toast(t('views.dailyPlan.addFailed', '添加失败：{msg}', { msg: e?.message || e }), 'error');
   } finally {
     busy.value = false;
   }
@@ -289,7 +289,7 @@ async function addManualTask() {
 // ──────────────── 打卡 / 调整 ────────────────
 // 点击条目 → 弹出确认框，点击「确定」才标记完成；历史模式禁止编辑
 function openConfirm(task, status = 'done') {
-  if (!canEdit.value) { toast('历史记录为只读，不可修改', 'warning'); return; }
+  if (!canEdit.value) { toast(t('views.dailyPlan.historyReadOnly'), 'warning'); return; }
   hoverTask.value = null;          // 打开确认弹窗前先收起悬停放大卡
   pendingTask.value = task;
   confirmStatus.value = status;
@@ -301,16 +301,16 @@ async function confirmAction() {
   if (!task) return;
   busy.value = true;
   try {
-    const note = status === 'done' ? '' : (prompt(`备注（${STATUS_LABEL[status]}原因，可留空）：`) || '');
+    const note = status === 'done' ? '' : (prompt(t('views.dailyPlan.notePrompt', '备注（{status}原因，可留空）：', { status: STATUS_LABEL[status] })) || '');
     await checkinDailyTask(task.id, status, note);
     task.status = status;
     pendingTask.value = null;
     await refreshAll();
     await refreshSynergy();
     await loadHistoryList();
-    toast(`已${STATUS_LABEL[status]}：${task.title.slice(0, 20)}`, 'success');
+    toast(t('views.dailyPlan.checkedIn', '已{status}：{title}', { status: STATUS_LABEL[status], title: task.title.slice(0, 20) }), 'success');
   } catch (e) {
-    toast('打卡失败：' + (e?.message || e), 'error');
+    toast(t('views.dailyPlan.checkinFailed', '打卡失败：{msg}', { msg: e?.message || e }), 'error');
   } finally {
     busy.value = false;
   }
@@ -327,8 +327,8 @@ async function toggleQuadrant(task) {
 }
 
 async function removeTask(task) {
-  if (!canEdit.value) { toast('历史记录为只读，不可修改', 'warning'); return; }
-  if (!(await confirmDialog('删除这个任务？'))) return;
+  if (!canEdit.value) { toast(t('views.dailyPlan.historyReadOnly'), 'warning'); return; }
+  if (!(await confirmDialog(t('views.dailyPlan.confirmDeleteTask')))) return;
   await deleteDailyTask(task.id);
   plan.value.tasks = plan.value.tasks.filter(t => t.id !== task.id);
   await refreshAll();
@@ -337,9 +337,9 @@ async function removeTask(task) {
 }
 
 async function clearToday() {
-  if (!canEdit.value) { toast('历史记录为只读，不可修改', 'warning'); return; }
+  if (!canEdit.value) { toast(t('views.dailyPlan.historyReadOnly'), 'warning'); return; }
   if (!plan.value?.plan?.id) return;
-  if (!(await confirmDialog('删除这份规划及所有任务？'))) return;
+  if (!(await confirmDialog(t('views.dailyPlan.confirmDeletePlan')))) return;
   await deleteDailyPlan(plan.value.plan.id);
   plan.value = null;
   synergy.value = null;
@@ -395,45 +395,45 @@ function renderPreviewQuad() {
 function renderRadar() {
   if (!radarEl.value) return;
   radarChart = initChart(radarEl, radarChart);
-  radarChart.setOption(completion.value.length ? radarOption(completion.value) : emptyOption('暂无完成数据'));
+  radarChart.setOption(completion.value.length ? radarOption(completion.value) : emptyOption(t('views.dailyPlan.emptyComplete')));
 }
 
 function renderRisk() {
   if (!riskEl.value) return;
   riskChart = initChart(riskEl, riskChart);
-  riskChart.setOption(risks.value.length ? riskOption(risks.value) : emptyOption('暂无风险任务 🎉'));
+  riskChart.setOption(risks.value.length ? riskOption(risks.value) : emptyOption(t('views.dailyPlan.emptyRisk')));
 }
 
 function renderType() {
   if (!typeEl.value) return;
   typeChart = initChart(typeEl, typeChart);
   const tasks = plan.value?.tasks || [];
-  typeChart.setOption(tasks.length ? typeBreakdownOption(tasks) : emptyOption('暂无任务'));
+  typeChart.setOption(tasks.length ? typeBreakdownOption(tasks) : emptyOption(t('views.dailyPlan.emptyTasks')));
 }
 
 function renderCompare() {
   if (!compareEl.value) return;
   compareChart = initChart(compareEl, compareChart);
-  compareChart.setOption(completion.value.length ? compareBarOption(completion.value) : emptyOption('暂无对比数据'));
+  compareChart.setOption(completion.value.length ? compareBarOption(completion.value) : emptyOption(t('views.dailyPlan.emptyCompare')));
 }
 
 function renderTrend() {
   if (!trendEl.value) return;
   trendChart = initChart(trendEl, trendChart);
   const trend = (heat.value || []).slice(-30);
-  trendChart.setOption(trend.length ? trendOption(trend) : emptyOption('暂无趋势数据'));
+  trendChart.setOption(trend.length ? trendOption(trend) : emptyOption(t('views.dailyPlan.emptyTrend')));
 }
 
 function renderGauge() {
   if (!gaugeEl.value) return;
   gaugeChart = initChart(gaugeEl, gaugeChart);
-  gaugeChart.setOption(gaugeOption(overallRate.value, '数字资产利用率'));
+  gaugeChart.setOption(gaugeOption(overallRate.value, t('views.dailyPlan.chartGauge')));
 }
 
 function renderTimeline() {
   if (!timelineEl.value) return;
   timelineChart = initChart(timelineEl, timelineChart);
-  timelineChart.setOption(plan.value?.tasks?.length ? checkinTimelineOption(plan.value.tasks) : emptyOption('暂无排程/打卡数据'));
+  timelineChart.setOption(plan.value?.tasks?.length ? checkinTimelineOption(plan.value.tasks) : emptyOption(t('views.dailyPlan.emptySchedule')));
 }
 
 function renderHeat() {
@@ -444,7 +444,7 @@ function renderHeat() {
 function renderHeatEmpty() {
   if (!heatEl.value) return;
   heatChart = initChart(heatEl, heatChart);
-  heatChart.setOption(emptyOption('暂无数据'));
+  heatChart.setOption(emptyOption(t('views.dailyPlan.emptyData')));
 }
 
 function disposePreviewQuad() { previewQuadChart?.dispose(); previewQuadChart = null; }
@@ -462,30 +462,30 @@ function handleResize() {
   <div class="dp-page">
     <header class="dp-header">
       <div class="dp-title-row">
-        <h2 style="margin:0">📅 每日规划 · 打卡 · 多维分析</h2>
-        <span class="dp-mode" :class="canEdit ? 'm-edit' : 'm-history'">{{ canEdit ? '✏️ 编辑中' : '📖 历史只读' }}</span>
+        <h2 style="margin:0">{{ t('views.dailyPlan.title') }}</h2>
+        <span class="dp-mode" :class="canEdit ? 'm-edit' : 'm-history'">{{ canEdit ? t('views.dailyPlan.modeEdit') : t('views.dailyPlan.modeHistory') }}</span>
       </div>
 
       <!-- 日期导航：今天 / 昨天 / 前天 / 大前天 / 任意日期 -->
       <div class="dp-datebar">
-        <button class="dp-day-chip" :class="{ active: selectedDate === today }" @click="selectDate(today)">今天</button>
-        <button class="dp-day-chip" :class="{ active: selectedDate === shiftDate(new Date(),-1) }" @click="selectDate(shiftDate(new Date(),-1))">昨天</button>
-        <button class="dp-day-chip" :class="{ active: selectedDate === shiftDate(new Date(),-2) }" @click="selectDate(shiftDate(new Date(),-2))">前天</button>
-        <button class="dp-day-chip" :class="{ active: selectedDate === shiftDate(new Date(),-3) }" @click="selectDate(shiftDate(new Date(),-3))">大前天</button>
+        <button class="dp-day-chip" :class="{ active: selectedDate === today }" @click="selectDate(today)">{{ t('views.dailyPlan.today') }}</button>
+        <button class="dp-day-chip" :class="{ active: selectedDate === shiftDate(new Date(),-1) }" @click="selectDate(shiftDate(new Date(),-1))">{{ t('views.dailyPlan.yesterday') }}</button>
+        <button class="dp-day-chip" :class="{ active: selectedDate === shiftDate(new Date(),-2) }" @click="selectDate(shiftDate(new Date(),-2))">{{ t('views.dailyPlan.dayBeforeYesterday') }}</button>
+        <button class="dp-day-chip" :class="{ active: selectedDate === shiftDate(new Date(),-3) }" @click="selectDate(shiftDate(new Date(),-3))">{{ t('views.dailyPlan.threeDaysAgo') }}</button>
         <span class="dp-date-sep"></span>
         <input type="date" class="dp-date-input" :value="selectedDate" :max="today" @change="e => selectDate(e.target.value)" />
-        <span v-if="!canEdit" class="dp-date-label">查看：{{ selectedDate }}</span>
+        <span v-if="!canEdit" class="dp-date-label">{{ t('views.dailyPlan.viewing') }}：{{ selectedDate }}</span>
       </div>
 
       <!-- 历史存档列表 -->
       <div v-if="historyList.length" class="dp-history">
-        <span class="dp-history-title">📚 历史存档（点击回溯）：</span>
+        <span class="dp-history-title">{{ t('views.dailyPlan.historyArchive') }}</span>
         <div class="dp-history-row">
           <button
             v-for="h in historyList" :key="h.date"
             class="dp-history-item"
             :class="{ active: h.date === selectedDate }"
-            :title="`${relativeLabel(h.date)} · ${h.done}/${h.total} 完成`"
+            :title="`${relativeLabel(h.date)} · ${t('views.dailyPlan.historyItemTitle', '· {done}/{total} 完成', { done: h.done, total: h.total })}`"
             @click="selectDate(h.date)"
           >
             <span class="dp-history-date">{{ relativeLabel(h.date) }}</span>
@@ -501,34 +501,34 @@ function handleResize() {
         v-model="rawInput"
         class="input dp-textarea"
         rows="4"
-        placeholder="例：复习 30 张卡片，最优先；下午 3 点做 10 道线代题；番茄钟 25 分钟；看第三章讲义，重要；整理错题本"
+        :placeholder="t('views.dailyPlan.inputPlaceholder')"
       />
       <div class="dp-input-actions">
-        <label class="dp-llm-toggle" title="勾选后优先用 AI 解析（更准确），失败自动回退离线">
-          <input type="checkbox" v-model="useLLM" /> ✨ AI 智能解析
+        <label class="dp-llm-toggle" :title="t('views.dailyPlan.aiParseTip')">
+          <input type="checkbox" v-model="useLLM" /> {{ t('views.dailyPlan.aiParseLabel') }}
         </label>
-        <button class="btn" :disabled="parsing" @click="fillExample">✨ 载入示例</button>
+        <button class="btn" :disabled="parsing" @click="fillExample">{{ t('views.dailyPlan.loadExample') }}</button>
         <button class="btn primary" :disabled="parsing" @click="submitPlan">
-          {{ parsing ? '解析中…' : '🔍 解析规划' }}
+          {{ parsing ? t('views.dailyPlan.parsing') : t('views.dailyPlan.parsePlan') }}
         </button>
       </div>
     </div>
 
     <!-- 历史无记录提示 -->
     <div v-else-if="!plan && !canEdit" class="dp-empty">
-      📭 {{ selectedDate }} 暂无规划记录。仅「今天」可新建规划。
+      {{ t('views.dailyPlan.emptyHistory', '📭 {date} 暂无规划记录。仅「今天」可新建规划。', { date: selectedDate }) }}
     </div>
 
     <!-- 解析预览 -->
     <div v-if="preview" class="dp-preview">
       <div class="dp-preview-head">
-        <span>解析预览（确认后入库，可编辑）</span>
+        <span>{{ t('views.dailyPlan.previewHead') }}</span>
         <span class="dp-source" :class="'src-' + preview.source">
-          {{ preview.source === 'llm' ? '✨ AI' : '⚡ 离线' }}
+          {{ preview.source === 'llm' ? '✨ AI' : t('views.dailyPlan.parseSrcOffline') }}
         </span>
         <span style="flex:1"></span>
-        <button class="btn primary" :disabled="busy" @click="confirmPlan">确认入库</button>
-        <button class="btn" @click="cancelPreview">取消</button>
+        <button class="btn primary" :disabled="busy" @click="confirmPlan">{{ t('views.dailyPlan.confirmStore') }}</button>
+        <button class="btn" @click="cancelPreview">{{ t('views.dailyPlan.cancel') }}</button>
       </div>
       <div v-for="(t, i) in preview.tasks" :key="i" class="dp-task-row">
         <span class="dp-type">{{ TYPE_ICON[t.type] }} {{ TYPE_LABEL[t.type] }}</span>
@@ -544,35 +544,35 @@ function handleResize() {
       <div class="dp-plan-head">
         <div>
           <span class="dp-date">{{ relativeLabel(selectedDate) }} · {{ selectedDate }}</span>
-          <span class="hint">共 {{ summary.total }} 个任务 · 完成率 {{ summary.doneRate }}% · 总达成 {{ overallRate }}%</span>
+          <span class="hint">{{ t('views.dailyPlan.planSummary', '共 {total} 个任务 · 完成率 {doneRate}% · 总达成 {rate}%', { total: summary.total, doneRate: summary.doneRate, rate: overallRate }) }}</span>
         </div>
         <div v-if="canEdit" style="display:flex;gap:8px">
-          <button class="btn" @click="showAddTask = !showAddTask">➕ 中途加任务</button>
-          <button class="btn" @click="rawInput=''; plan=null">重新规划</button>
-          <button class="btn danger" @click="clearToday">删除</button>
+          <button class="btn" @click="showAddTask = !showAddTask">{{ t('views.dailyPlan.addTaskMidway') }}</button>
+          <button class="btn" @click="rawInput=''; plan=null">{{ t('views.dailyPlan.replan') }}</button>
+          <button class="btn danger" @click="clearToday">{{ t('views.dailyPlan.delete') }}</button>
         </div>
       </div>
 
       <!-- 中途加任务 -->
       <div v-if="showAddTask && canEdit" class="dp-add">
-        <input v-model="addInput" class="input" placeholder="例：背 20 个英语单词，重要；下午   4 点整理笔记" @keyup.enter="appendTasks" />
-        <button class="btn primary" :disabled="busy" @click="appendTasks">追加</button>
-        <button class="btn" :disabled="busy" @click="addManualTask">单任务</button>
+        <input v-model="addInput" class="input" :placeholder="t('views.dailyPlan.addTaskPlaceholder')" @keyup.enter="appendTasks" />
+        <button class="btn primary" :disabled="busy" @click="appendTasks">{{ t('views.dailyPlan.append') }}</button>
+        <button class="btn" :disabled="busy" @click="addManualTask">{{ t('views.dailyPlan.singleTask') }}</button>
       </div>
 
       <!-- 跨模块真实数据 -->
       <div v-if="synergy" class="dp-reality">
-        <span class="dp-reality-item">📖 今日复习 <b>{{ synergy.totals.reviews }}</b> 次</span>
-        <span class="dp-reality-item">🍅 今日专注 <b>{{ synergy.totals.focusMinutes }}</b> 分</span>
-        <span class="dp-reality-item">🃏 今日新建卡 <b>{{ synergy.totals.newCards }}</b> 张</span>
-        <span class="dp-reality-item">❌ 今日错题 <b>{{ synergy.totals.wrongToday }}</b> 道</span>
-        <span class="dp-reality-item">📝 今日模考 <b>{{ synergy.totals.exams }}</b> 套{{ synergy.totals.exams ? `·均分 ${synergy.totals.examAvg}` : '' }}</span>
+        <span class="dp-reality-item">{{ t('views.dailyPlan.realityReviews', '📖 今日复习 {n} 次', { n: synergy.totals.reviews }) }}</span>
+        <span class="dp-reality-item">{{ t('views.dailyPlan.realityFocus', '🍅 今日专注 {n} 分', { n: synergy.totals.focusMinutes }) }}</span>
+        <span class="dp-reality-item">{{ t('views.dailyPlan.realityNewCards', '🃏 今日新建卡 {n} 张', { n: synergy.totals.newCards }) }}</span>
+        <span class="dp-reality-item">{{ t('views.dailyPlan.realityWrong', '❌ 今日错题 {n} 道', { n: synergy.totals.wrongToday }) }}</span>
+        <span class="dp-reality-item">{{ t('views.dailyPlan.realityExams', '📝 今日模考 {n} 套', { n: synergy.totals.exams }) }}{{ synergy.totals.exams ? t('views.dailyPlan.realityExamsAvg', '·均分 {avg}', { avg: synergy.totals.examAvg }) : '' }}</span>
       </div>
 
       <!-- 今日日程表（课程表风格 · 居中） -->
       <section class="dp-board-section">
         <!-- 日期信息栏：公历 + 农历 + 星期 + 实时时钟（秒级） -->
-        <div class="dp-date-info" :title="isToday ? '今天' : '查看 ' + selectedDate">
+        <div class="dp-date-info" :title="isToday ? t('views.dailyPlan.dateInfoTitleToday') : t('views.dailyPlan.dateInfoTitleView', '查看 {date}', { date: selectedDate })">
           <div class="dp-date-info-main">
             <span class="dp-di-solar">📅 {{ dateInfo.solarText }}</span>
             <span class="dp-di-sub">
@@ -582,37 +582,37 @@ function handleResize() {
           </div>
           <div class="dp-di-clock-wrap">
             <div class="dp-di-clock">{{ timeText }}</div>
-            <div class="dp-di-clock-label">实时时间</div>
+            <div class="dp-di-clock-label">{{ t('views.dailyPlan.realtimeClock') }}</div>
           </div>
         </div>
         <!-- 到点提醒设置（默认静音：视觉提醒开、声音/语音关） -->
         <div class="dp-remind-bar">
-          <span class="dp-remind-title">⏰ 到点提醒</span>
-          <label class="dp-llm-toggle" title="总开关：到点弹出视觉提醒">
-            <input type="checkbox" :checked="remindSet.enabled" @change="patchRemind({ enabled: $event.target.checked })" /> 开启
+          <span class="dp-remind-title">{{ t('views.dailyPlan.remindTitle') }}</span>
+          <label class="dp-llm-toggle" :title="t('views.dailyPlan.remindMasterTip')">
+            <input type="checkbox" :checked="remindSet.enabled" @change="patchRemind({ enabled: $event.target.checked })" /> {{ t('views.dailyPlan.remindOn') }}
           </label>
           <button class="dp-remind-btn" :class="{ on: notifyState === 'granted' }" @click="grantNotify">{{ notifyLabel }}</button>
-          <label class="dp-llm-toggle" title="默认关闭（图书馆友好）">
-            <input type="checkbox" :checked="remindSet.sound" @change="patchRemind({ sound: $event.target.checked })" /> 🔊 提示音
+          <label class="dp-llm-toggle" :title="t('views.dailyPlan.remindSoundTip')">
+            <input type="checkbox" :checked="remindSet.sound" @change="patchRemind({ sound: $event.target.checked })" /> {{ t('views.dailyPlan.remindSound') }}
           </label>
-          <label class="dp-llm-toggle" title="默认关闭，开启后语音播报任务名">
-            <input type="checkbox" :checked="remindSet.voice" @change="patchRemind({ voice: $event.target.checked })" /> 🗣️ 语音播报
+          <label class="dp-llm-toggle" :title="t('views.dailyPlan.remindVoiceTip')">
+            <input type="checkbox" :checked="remindSet.voice" @change="patchRemind({ voice: $event.target.checked })" /> {{ t('views.dailyPlan.remindVoice') }}
           </label>
-          <select class="dp-remind-select" :value="remindSet.advanceMin" title="提前提醒时间" @change="patchRemind({ advanceMin: Number($event.target.value) })">
-            <option :value="0">到点提醒</option>
-            <option :value="5">提前 5 分钟</option>
-            <option :value="10">提前 10 分钟</option>
+          <select class="dp-remind-select" :value="remindSet.advanceMin" :title="t('views.dailyPlan.remindAdvanceTip')" @change="patchRemind({ advanceMin: Number($event.target.value) })">
+            <option :value="0">{{ t('views.dailyPlan.optRemindNow') }}</option>
+            <option :value="5">{{ t('views.dailyPlan.optRemind5') }}</option>
+            <option :value="10">{{ t('views.dailyPlan.optRemind10') }}</option>
           </select>
-          <span class="dp-remind-hint">🔕 默认静音 · 视觉提醒始终弹出</span>
+          <span class="dp-remind-hint">{{ t('views.dailyPlan.remindHint') }}</span>
         </div>
         <div class="dp-board-head">
-          <div class="dp-chart-title">📚 今日课程表（点击条目 → 弹窗确认打卡）</div>
+          <div class="dp-chart-title">{{ t('views.dailyPlan.boardTitle') }}</div>
           <div class="dp-legend">
-            <span class="lg lg-done">✓ 已完成</span>
-            <span class="lg lg-q1">Q1 重要紧急</span>
-            <span class="lg lg-q2">Q2 重要</span>
-            <span class="lg lg-q3">Q3 紧急</span>
-            <span class="lg lg-q4">Q4 其他</span>
+            <span class="lg lg-done">{{ t('views.dailyPlan.legendDone') }}</span>
+            <span class="lg lg-q1">{{ t('views.dailyPlan.legendQ1') }}</span>
+            <span class="lg lg-q2">{{ t('views.dailyPlan.legendQ2') }}</span>
+            <span class="lg lg-q3">{{ t('views.dailyPlan.legendQ3') }}</span>
+            <span class="lg lg-q4">{{ t('views.dailyPlan.legendQ4') }}</span>
           </div>
         </div>
         <div class="dp-board-wrap">
@@ -627,7 +627,7 @@ function handleResize() {
                   class="dp-board-block"
                   :class="['st-' + b.task.status, { editable: canEdit, hovering: hoverTask?.id === b.task.id }]"
                   :style="{ top: b.top + 'px', height: b.height + 'px', left: b.left, width: b.width, '--c': b.color }"
-                  :title="b.task.title + (canEdit ? '（悬停看完整内容 / 点击标记完成）' : '（历史只读）')"
+                  :title="b.task.title + (canEdit ? t('views.dailyPlan.boardTitleEdit') : t('views.dailyPlan.boardTitleHistory'))"
                   @click="openConfirm(b.task, 'done')"
                   @mouseenter="hoverTask = b.task"
                   @mouseleave="hoverTask = null"
@@ -642,21 +642,21 @@ function handleResize() {
                   <div class="dp-board-sub">
                     <span>{{ TYPE_LABEL[b.task.type] }}</span>
                     <span v-if="b.task.subject">· {{ b.task.subject }}</span>
-                    <span v-if="b.task.targetCount">· {{ b.task.targetCount }} 项</span>
-                    <span v-if="b.task.status !== 'done'" class="dp-board-status">待办</span>
-                    <span v-else class="dp-board-status done">已完成</span>
+                    <span v-if="b.task.targetCount">· {{ b.task.targetCount }} {{ t('views.dailyPlan.unitItem') }}</span>
+                    <span v-if="b.task.status !== 'done'" class="dp-board-status">{{ t('views.dailyPlan.statusTodo') }}</span>
+                    <span v-else class="dp-board-status done">{{ t('views.dailyPlan.legendDone') }}</span>
                   </div>
                 </div>
               </div>
             </div>
             <div v-if="board.unscheduled.length" class="dp-board-unscheduled">
-              <div class="dp-board-sub-title">⏳ 未排程（{{ board.unscheduled.length }}）</div>
+              <div class="dp-board-sub-title">{{ t('views.dailyPlan.unscheduledTitle', '⏳ 未排程（{n}）', { n: board.unscheduled.length }) }}</div>
               <div class="dp-unsched-chips">
                 <span
                   v-for="t in board.unscheduled" :key="t.id"
                   class="dp-unsched-chip"
                   :class="['st-' + t.status, { editable: canEdit, hovering: hoverTask?.id === t.id }]"
-                  :title="t.title + (canEdit ? '（悬停看完整内容 / 点击标记完成）' : '（历史只读）')"
+                  :title="t.title + (canEdit ? t('views.dailyPlan.boardTitleEdit') : t('views.dailyPlan.boardTitleHistory'))"
                   @click="openConfirm(t, 'done')"
                   @mouseenter="hoverTask = t"
                   @mouseleave="hoverTask = null"
@@ -670,50 +670,50 @@ function handleResize() {
       <!-- 多维图表网格 -->
       <div class="dp-charts-grid">
         <div class="dp-chart-card">
-          <div class="dp-chart-title">🎯 四象限（艾森豪威尔）</div>
+          <div class="dp-chart-title">{{ t('views.dailyPlan.chartQuadrant') }}</div>
           <div ref="quadEl" class="dp-chart" style="height:340px"></div>
         </div>
         <div class="dp-chart-card">
-          <div class="dp-chart-title">🛰️ 多维完成率雷达</div>
+          <div class="dp-chart-title">{{ t('views.dailyPlan.chartRadar') }}</div>
           <div ref="radarEl" class="dp-chart" style="height:340px"></div>
         </div>
         <div class="dp-chart-card">
-          <div class="dp-chart-title">📊 规划 vs 实际</div>
+          <div class="dp-chart-title">{{ t('views.dailyPlan.chartCompare') }}</div>
           <div ref="compareEl" class="dp-chart" style="height:340px"></div>
         </div>
         <div class="dp-chart-card">
-          <div class="dp-chart-title">🥧 任务类型分布</div>
+          <div class="dp-chart-title">{{ t('views.dailyPlan.chartType') }}</div>
           <div ref="typeEl" class="dp-chart" style="height:340px"></div>
         </div>
         <div class="dp-chart-card">
-          <div class="dp-chart-title">⚠️ 风险任务（{{ risks.length }}）</div>
+          <div class="dp-chart-title">{{ t('views.dailyPlan.chartRisk', '⚠️ 风险任务（{n}）', { n: risks.length }) }}</div>
           <div ref="riskEl" class="dp-chart" style="height:340px"></div>
         </div>
         <div class="dp-chart-card">
-          <div class="dp-chart-title">📈 30 天完成率趋势</div>
+          <div class="dp-chart-title">{{ t('views.dailyPlan.chartTrend') }}</div>
           <div ref="trendEl" class="dp-chart" style="height:340px"></div>
         </div>
         <div class="dp-chart-card">
-          <div class="dp-chart-title">🧭 数字资产利用率</div>
+          <div class="dp-chart-title">{{ t('views.dailyPlan.chartGauge') }}</div>
           <div ref="gaugeEl" class="dp-chart" style="height:340px"></div>
         </div>
       </div>
 
       <!-- 完成时序：计划时刻 vs 实际完成（是否按时间顺序） -->
       <div class="dp-chart-card" style="margin-top:12px">
-        <div class="dp-chart-title">⏱️ 计划时刻 vs 实际完成（绿=准时，橙=滞后，红=未完成）</div>
+        <div class="dp-chart-title">{{ t('views.dailyPlan.chartTimeline') }}</div>
         <div ref="timelineEl" class="dp-chart" :style="{ height: timelineHeight }"></div>
       </div>
 
       <!-- 84 天热力矩阵 -->
       <div class="dp-chart-card" style="margin-top:12px">
-        <div class="dp-chart-title">🔥 最近 84 天完成率热力图（GitHub 风格）</div>
+        <div class="dp-chart-title">{{ t('views.dailyPlan.chartHeat') }}</div>
         <div ref="heatEl" class="dp-chart" style="height:200px"></div>
       </div>
 
       <!-- 风险任务详情 -->
       <div v-if="risks.length" class="dp-risk-list">
-        <div class="dp-chart-title">⚠️ 今日风险任务清单</div>
+        <div class="dp-chart-title">{{ t('views.dailyPlan.riskListTitle') }}</div>
         <div v-for="(r, i) in risks" :key="i" class="dp-risk-row" :class="'sev-' + r.severity">
           <span :class="'dp-risk-badge sev-' + r.severity">{{ r.severity.toUpperCase() }}</span>
           <span class="dp-type">{{ TYPE_ICON[r.task.type] }}</span>
@@ -725,30 +725,30 @@ function handleResize() {
 
       <!-- 任务清单 -->
       <div class="dp-tasks">
-        <div class="dp-chart-title">📋 任务清单</div>
-        <div v-for="t in plan.tasks" :key="t.id" class="dp-task" :class="'st-' + t.status">
+        <div class="dp-chart-title">{{ t('views.dailyPlan.tasksTitle') }}</div>
+        <div v-for="task in plan.tasks" :key="task.id" class="dp-task" :class="'st-' + task.status">
           <div class="dp-task-main">
-            <span class="dp-type">{{ TYPE_ICON[t.type] }} {{ TYPE_LABEL[t.type] }}</span>
+            <span class="dp-type">{{ TYPE_ICON[task.type] }} {{ TYPE_LABEL[task.type] }}</span>
             <div class="dp-task-body">
               <div class="dp-title">
-                <span v-if="t.status==='done'" class="dp-check">✓ </span>{{ t.title }}
-                <span v-if="t.scheduledHour != null" class="dp-meta-item">⏰ {{ t.scheduledHour }}:00</span>
+                <span v-if="task.status==='done'" class="dp-check">✓ </span>{{ task.title }}
+                <span v-if="task.scheduledHour != null" class="dp-meta-item">⏰ {{ task.scheduledHour }}:00</span>
               </div>
               <div class="dp-meta">
-                <span :class="'dp-tag q-' + t.quadrant" @click="canEdit && toggleQuadrant(t)" title="点击切换象限">{{ t.quadrant }} {{ QUADRANT_LABEL[t.quadrant] }}</span>
-                <span v-if="t.targetCount" class="dp-meta-item">🎯 {{ t.targetCount }} 项</span>
-                <span v-if="t.estimatedMinutes" class="dp-meta-item">⏱ {{ t.estimatedMinutes }} 分钟</span>
-                <span v-if="t.subject" class="dp-meta-item">📚 {{ t.subject }}</span>
+                <span :class="'dp-tag q-' + task.quadrant" @click="canEdit && toggleQuadrant(task)" :title="t('views.dailyPlan.clickToggleQuadrant')">{{ task.quadrant }} {{ QUADRANT_LABEL[task.quadrant] }}</span>
+                <span v-if="task.targetCount" class="dp-meta-item">🎯 {{ task.targetCount }} {{ t('views.dailyPlan.unitItem') }}</span>
+                <span v-if="task.estimatedMinutes" class="dp-meta-item">⏱ {{ task.estimatedMinutes }} {{ t('views.dailyPlan.unitMinute') }}</span>
+                <span v-if="task.subject" class="dp-meta-item">📚 {{ task.subject }}</span>
               </div>
-              <div v-if="t.completionNote" class="dp-note">💬 {{ t.completionNote }}</div>
+              <div v-if="task.completionNote" class="dp-note">💬 {{ task.completionNote }}</div>
             </div>
           </div>
           <div v-if="canEdit" class="dp-task-actions">
-            <button v-if="t.status !== 'done'" class="btn small primary" @click="openConfirm(t, 'done')">✓ 完成</button>
-            <button v-if="t.status !== 'partial' && t.status !== 'done'" class="btn small" @click="openConfirm(t, 'partial')">◐ 部分</button>
-            <button v-if="t.status !== 'skipped' && t.status !== 'done'" class="btn small" @click="openConfirm(t, 'skipped')">✗ 跳过</button>
-            <button v-if="t.status !== 'pending'" class="btn small" @click="openConfirm(t, 'pending')">↩ 恢复</button>
-            <button class="btn small" @click="removeTask(t)">🗑</button>
+            <button v-if="task.status !== 'done'" class="btn small primary" @click="openConfirm(task, 'done')">{{ t('views.dailyPlan.btnDone') }}</button>
+            <button v-if="task.status !== 'partial' && task.status !== 'done'" class="btn small" @click="openConfirm(task, 'partial')">{{ t('views.dailyPlan.btnPartial') }}</button>
+            <button v-if="task.status !== 'skipped' && task.status !== 'done'" class="btn small" @click="openConfirm(task, 'skipped')">{{ t('views.dailyPlan.btnSkip') }}</button>
+            <button v-if="task.status !== 'pending'" class="btn small" @click="openConfirm(task, 'pending')">{{ t('views.dailyPlan.btnRestore') }}</button>
+            <button class="btn small" @click="removeTask(task)">🗑</button>
           </div>
         </div>
       </div>
@@ -764,18 +764,18 @@ function handleResize() {
       <div class="dp-zoom-title">{{ hoverTask.title }}</div>
       <div class="dp-zoom-meta">
         <span v-if="hoverTask.scheduledHour != null" class="dp-meta-item">⏰ {{ hoverTask.scheduledHour }}:00</span>
-        <span v-if="hoverTask.targetCount" class="dp-meta-item">🎯 {{ hoverTask.targetCount }} 项</span>
-        <span v-if="hoverTask.estimatedMinutes" class="dp-meta-item">⏱ {{ hoverTask.estimatedMinutes }} 分钟</span>
+        <span v-if="hoverTask.targetCount" class="dp-meta-item">🎯 {{ hoverTask.targetCount }} {{ t('views.dailyPlan.unitItem') }}</span>
+        <span v-if="hoverTask.estimatedMinutes" class="dp-meta-item">⏱ {{ hoverTask.estimatedMinutes }} {{ t('views.dailyPlan.unitMinute') }}</span>
         <span v-if="hoverTask.subject" class="dp-meta-item">📚 {{ hoverTask.subject }}</span>
       </div>
       <div v-if="hoverTask.completionNote" class="dp-zoom-note">💬 {{ hoverTask.completionNote }}</div>
-      <div class="dp-zoom-hint">移开鼠标恢复 · 点击可打卡</div>
+      <div class="dp-zoom-hint">{{ t('views.dailyPlan.zoomHint') }}</div>
     </div>
 
     <!-- 确认弹窗：点击条目后弹出，点「确定」才标记完成 -->
     <div v-if="pendingTask" class="dp-modal-mask" @click.self="pendingTask = null">
       <div class="dp-modal">
-        <div class="dp-modal-title">确认打卡</div>
+        <div class="dp-modal-title">{{ t('views.dailyPlan.modalTitle') }}</div>
         <div class="dp-modal-task">
           <span class="dp-modal-type">{{ TYPE_ICON[pendingTask.type] }} {{ TYPE_LABEL[pendingTask.type] }}</span>
           <div class="dp-modal-name">{{ pendingTask.title }}</div>
@@ -785,14 +785,14 @@ function handleResize() {
           </div>
         </div>
         <div class="dp-modal-actions">
-          <button class="btn" :class="{ 'sel': confirmStatus==='done' }" :disabled="busy" @click="confirmStatus='done'">✓ 完成</button>
-          <button class="btn" :class="{ 'sel': confirmStatus==='partial' }" :disabled="busy" @click="confirmStatus='partial'">◐ 部分完成</button>
-          <button class="btn" :class="{ 'sel': confirmStatus==='skipped' }" :disabled="busy" @click="confirmStatus='skipped'">✗ 跳过</button>
+          <button class="btn" :class="{ 'sel': confirmStatus==='done' }" :disabled="busy" @click="confirmStatus='done'">{{ t('views.dailyPlan.btnDone') }}</button>
+          <button class="btn" :class="{ 'sel': confirmStatus==='partial' }" :disabled="busy" @click="confirmStatus='partial'">{{ t('views.dailyPlan.modalPartial') }}</button>
+          <button class="btn" :class="{ 'sel': confirmStatus==='skipped' }" :disabled="busy" @click="confirmStatus='skipped'">{{ t('views.dailyPlan.btnSkip') }}</button>
           <span style="flex:1"></span>
-          <button class="btn ghost" @click="pendingTask = null">取消</button>
-          <button class="btn primary" :disabled="busy" @click="confirmAction">确定</button>
+          <button class="btn ghost" @click="pendingTask = null">{{ t('views.dailyPlan.cancel') }}</button>
+          <button class="btn primary" :disabled="busy" @click="confirmAction">{{ t('views.dailyPlan.modalOk') }}</button>
         </div>
-        <div class="dp-modal-hint">选择上方状态后点「确定」生效（默认：完成）</div>
+        <div class="dp-modal-hint">{{ t('views.dailyPlan.modalHint') }}</div>
       </div>
     </div>
   </div>
