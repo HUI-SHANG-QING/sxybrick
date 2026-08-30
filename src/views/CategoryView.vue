@@ -2,6 +2,7 @@
 // 自动分类视图（D4.2）：零 LLM 本地 TF-IDF 分类，卡片/资料/笔记三类实体
 import { ref, onMounted, computed } from 'vue';
 import { toast } from '../utils/toast.js';
+import { t } from '../i18n/index.js';
 import {
   classifyAllCards, classifyAllDocs, classifyAllNotes,
   getClassifyStats, evaluateClassification,
@@ -21,10 +22,14 @@ async function loadStats() {
   stats.value = await getClassifyStats();
 }
 
-function labelFor(entity, label) {
-  if (entity === 'cards') return { field: 'subject', name: '卡片' };
-  if (entity === 'docs') return { field: 'subject', name: '资料' };
-  return { field: 'category', name: '笔记' };
+function nameFor(entity) {
+  return entity === 'cards' ? t('views.category.nameCards') : entity === 'docs' ? t('views.category.nameDocs') : t('views.category.nameNotes');
+}
+
+function labelFor(entity) {
+  if (entity === 'cards') return { field: 'subject', name: nameFor(entity) };
+  if (entity === 'docs') return { field: 'subject', name: nameFor(entity) };
+  return { field: 'category', name: nameFor(entity) };
 }
 
 /** 先 dry-run 预览，再点确认真正写回 */
@@ -34,9 +39,9 @@ async function previewClassify(entity) {
     const fn = { cards: classifyAllCards, docs: classifyAllDocs, notes: classifyAllNotes }[entity];
     const r = await fn({ dryRun: true });
     preview.value = { entity, name: labelFor(entity).name, ...r };
-    if (!r.trained) toast(r.reason || '暂无训练样本', 'error');
-    else if (!r.classified) toast('没有可自动分类的' + labelFor(entity).name, 'info');
-    else toast(`预览：可自动分类 ${r.classified} 条${labelFor(entity).name}`, 'success');
+    if (!r.trained) toast(r.reason || t('views.category.noSamplesToast'), 'error');
+    else if (!r.classified) toast(t('views.category.noClassifiable', '没有可自动分类的{name}', { name: labelFor(entity).name }), 'info');
+    else toast(t('views.category.previewToast', '预览：可自动分类 {n} 条{name}', { n: r.classified, name: labelFor(entity).name }), 'success');
   } finally {
     busy.value = '';
   }
@@ -49,11 +54,11 @@ async function confirmClassify() {
   try {
     const fn = { cards: classifyAllCards, docs: classifyAllDocs, notes: classifyAllNotes }[entity];
     const r = await fn({ dryRun: false });
-    toast(`已分类 ${r.classified} 条${name}`, 'success');
+    toast(t('views.category.classifiedToast', '已分类 {n} 条{name}', { n: r.classified, name }), 'success');
     preview.value = null;
     await loadStats();
   } catch (e) {
-    toast('分类失败：' + (e?.message || e), 'error');
+    toast(t('views.category.classifyFail', '分类失败：{msg}', { msg: e?.message || e }), 'error');
   } finally {
     busy.value = '';
   }
@@ -62,19 +67,18 @@ async function confirmClassify() {
 const entityStats = computed(() => {
   if (!stats.value) return [];
   return [
-    { key: 'cards', name: '卡片', icon: '🗂️', field: 'subject', ...stats.value.cards },
-    { key: 'docs', name: '资料', icon: '📚', field: 'subject', ...stats.value.docs },
-    { key: 'notes', name: '笔记', icon: '📓', field: 'category', ...stats.value.notes },
+    { key: 'cards', name: t('views.category.nameCards'), icon: '🗂️', field: 'subject', ...stats.value.cards },
+    { key: 'docs', name: t('views.category.nameDocs'), icon: '📚', field: 'subject', ...stats.value.docs },
+    { key: 'notes', name: t('views.category.nameNotes'), icon: '📓', field: 'category', ...stats.value.notes },
   ];
 });
 </script>
 
 <template>
   <div class="cls-page">
-    <h2 style="margin:0 0 4px">🏷️ 自动分类</h2>
+    <h2 style="margin:0 0 4px">{{ t('views.category.title') }}</h2>
     <p class="hint" style="margin:0 0 16px">
-      本地 TF-IDF 自动归类（<b>零 LLM、零网络</b>）：用已有「科目 / 分类」做训练样本，自动把未分类的卡片 / 资料 / 笔记归到最接近的类别。
-      只自动填「未分类」的实体，<b>绝不覆盖你手动设的分类</b>。
+      {{ t('views.category.hint') }}
     </p>
 
     <!-- 统计总览 -->
@@ -83,30 +87,28 @@ const entityStats = computed(() => {
         <span class="cls-stat-icon">{{ s.icon }}</span>
         <span class="cls-stat-name">{{ s.name }}</span>
         <span class="cls-stat-num">{{ s.classified }}/{{ s.total }}</span>
-        <span class="hint">已分类</span>
+        <span class="hint">{{ t('views.category.statsClassified') }}</span>
       </div>
     </div>
 
     <!-- 模型质量 -->
     <div v-if="evalResult?.available" class="hint cls-eval">
-      🎯 当前分类模型：训练样本 <b>{{ evalResult.seedCount }}</b> 条 / <b>{{ evalResult.labelCount }}</b> 个科目，
-      留一法准确率 <b>{{ Math.round(evalResult.accuracy * 100) }}%</b>（{{ evalResult.correct }}/{{ evalResult.total }}）
+      {{ t('views.category.evalAvailable', '🎯 当前分类模型：训练样本 {seeds} 条 / {labels} 个科目，留一法准确率 {acc}%（{correct}/{total}）', { seeds: evalResult.seedCount, labels: evalResult.labelCount, acc: Math.round(evalResult.accuracy * 100), correct: evalResult.correct, total: evalResult.total }) }}
     </div>
     <div v-else-if="evalResult" class="hint cls-eval">
-      ⚠️ 还没有可用的训练样本：没有任何卡片设过科目。先手动给几张卡设定科目（卡片页可批量改科目），
-      模型才有归类依据——这是纯本地算法，不会联网。
+      {{ t('views.category.evalNoSamples') }}
     </div>
 
     <!-- 操作按钮 -->
     <div class="cls-actions">
       <button class="btn" :disabled="!!busy" @click="previewClassify('cards')">
-        {{ busy === 'cards' ? '分类中…' : '自动分类卡片' }}
+        {{ busy === 'cards' ? t('views.category.classifying') : t('views.category.classifyCards') }}
       </button>
       <button class="btn" :disabled="!!busy" @click="previewClassify('docs')">
-        {{ busy === 'docs' ? '分类中…' : '自动分类资料' }}
+        {{ busy === 'docs' ? t('views.category.classifying') : t('views.category.classifyDocs') }}
       </button>
       <button class="btn" :disabled="!!busy" @click="previewClassify('notes')">
-        {{ busy === 'notes' ? '分类中…' : '自动分类笔记' }}
+        {{ busy === 'notes' ? t('views.category.classifying') : t('views.category.classifyNotes') }}
       </button>
     </div>
 
@@ -114,20 +116,18 @@ const entityStats = computed(() => {
     <div v-if="preview" class="cls-preview">
       <div class="cls-preview-head">
         <span class="cls-preview-title">
-          {{ preview.trained ? `可自动分类 ${preview.classified} 条${preview.name}` : '暂无训练样本' }}
+          {{ preview.trained ? t('views.category.previewTitle', '可自动分类 {n} 条{name}', { n: preview.classified, name: preview.name }) : t('views.category.noSamplesTitle') }}
         </span>
         <span style="flex:1"></span>
-        <button v-if="preview.trained && preview.classified" class="btn primary" @click="confirmClassify">确认写回</button>
-        <button class="btn" @click="preview = null">取消</button>
+        <button v-if="preview.trained && preview.classified" class="btn primary" @click="confirmClassify">{{ t('views.category.confirmWrite') }}</button>
+        <button class="btn" @click="preview = null">{{ t('views.category.cancel') }}</button>
       </div>
       <!-- 诊断明细：解释「为什么是 0 条」，而不是让用户对着 0 干瞪眼 -->
       <div v-if="preview.trained" class="cls-diag">
-        共 {{ preview.total }} 条{{ preview.name }}，
-        其中已有分类 <b>{{ preview.already ?? 0 }}</b> 条（不覆盖）；
-        待判 <b>{{ preview.total - (preview.already ?? 0) }}</b> 条里：
-        置信度不足（&lt;12%）<b>{{ preview.lowConfidence ?? 0 }}</b> 条、
-        文本为空 <b>{{ preview.emptyText ?? 0 }}</b> 条。
-        模型依据：<b>{{ preview.seedCount ?? 0 }}</b> 条训练样本 / <b>{{ preview.labelCount ?? 0 }}</b> 个科目。
+        {{ t('views.category.diagSummary', '共 {total} 条{name}，其中已有分类 {already} 条（不覆盖）；待判 {pending} 条里：置信度不足（<12%）{low} 条、文本为空 {empty} 条。模型依据：{seeds} 条训练样本 / {labels} 个科目。', {
+          total: preview.total, name: preview.name, already: preview.already ?? 0, pending: preview.total - (preview.already ?? 0),
+          low: preview.lowConfidence ?? 0, empty: preview.emptyText ?? 0, seeds: preview.seedCount ?? 0, labels: preview.labelCount ?? 0,
+        }) }}
       </div>
 
       <div v-if="preview.results?.length" class="cls-preview-list">
@@ -141,10 +141,9 @@ const entityStats = computed(() => {
       </div>
       <div v-else-if="preview.trained" class="cls-diag">
         <template v-if="preview.lowConfidence">
-          💡 大部分{{ preview.name }}与已有科目的用词重叠太低，模型不敢下判断。
-          可以：① 多给一些卡片设上科目扩大样本；② 用「科目」页做批量归类。
+          {{ t('views.category.diagHintLow', '💡 大部分{name}与已有科目的用词重叠太低，模型不敢下判断。可以：① 多给一些卡片设上科目扩大样本；② 用「科目」页做批量归类。', { name: preview.name }) }}
         </template>
-        <template v-else>没有需要分类的{{ preview.name }}。</template>
+        <template v-else>{{ t('views.category.diagNone', '没有需要分类的{name}。', { name: preview.name }) }}</template>
       </div>
     </div>
   </div>

@@ -5,6 +5,7 @@ import { ref, computed, onMounted } from 'vue';
 import { evaluateAchievements } from '../achievements.js';
 import { unlockAchievement } from '../repo.js';
 import { toast } from '../utils/toast.js';
+import { t } from '../i18n/index.js';
 
 const items = ref([]);
 const unlockedCount = ref(0);
@@ -30,7 +31,7 @@ async function refresh() {
     items.value = await evaluateAchievements();
     unlockedCount.value = items.value.filter(x => x.unlocked).length;
     if (fresh.length) {
-      toast(`🎉 解锁新成就：${fresh.join('、')}`, 'success', 4000);
+      toast(t('views.achievements.unlockedToast', '🎉 解锁新成就：{names}', { names: fresh.join('、') }), 'success', 4000);
     }
   } finally { checking.value = false; }
 }
@@ -94,20 +95,20 @@ onMounted(refresh);
 <template>
   <div class="ach-wrap">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">成就</h2>
-      <span class="hint">{{ checking ? '评估中…' : `已解锁 ${unlockedCount} / ${items.length}` }}</span>
+      <h2 style="margin:0">{{ t('views.achievements.title') }}</h2>
+      <span class="hint">{{ checking ? t('views.achievements.checking') : t('views.achievements.unlockedN', '已解锁 {n} / {total}', { n: unlockedCount, total: items.length }) }}</span>
       <span style="flex:1"></span>
-      <button class="btn small" @click="refresh">重新评估</button>
+      <button class="btn small" @click="refresh">{{ t('views.achievements.reevaluate') }}</button>
     </div>
-    <p class="hint" style="margin:4px 0 14px">跟着你的学习足迹自动解锁：建卡、复习、打卡、专注、图谱、文档、计划……成就数据保存在本机并跨设备同步。</p>
+    <p class="hint" style="margin:4px 0 14px">{{ t('views.achievements.hint') }}</p>
 
     <!-- P4 学习成长树 -->
     <div class="tree-panel" style="margin-bottom:16px">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span class="tree-title">🌳 学习成长树</span>
-        <span class="hint">主干高度 = 总解锁进度 {{ totalRatio }}%</span>
+        <span class="tree-title">{{ t('views.achievements.treeTitle') }}</span>
+        <span class="hint">{{ t('views.achievements.trunkHint', '主干高度 = 总解锁进度 {n}%', { n: totalRatio }) }}</span>
         <span style="flex:1"></span>
-        <button class="btn small" @click="treeOpen = !treeOpen">{{ treeOpen ? '收起' : '展开' }}</button>
+        <button class="btn small" @click="treeOpen = !treeOpen">{{ treeOpen ? t('views.achievements.collapse') : t('views.achievements.expand') }}</button>
       </div>
       <div v-if="treeOpen" class="tree-svg-wrap">
         <svg viewBox="0 0 400 460" class="tree-svg" preserveAspectRatio="xMidYMax meet">
@@ -135,7 +136,7 @@ onMounted(refresh);
           </g>
         </svg>
         <p class="hint" style="text-align:center;margin:6px 0 0">
-          每条枝代表一个学习维度，结出果实 = 该类已有成就解锁；主干越高 = 整体成长越深。
+          {{ t('views.achievements.treeHint') }}
         </p>
       </div>
     </div>
@@ -145,7 +146,7 @@ onMounted(refresh);
         <div class="ach-icon">{{ a.icon }}</div>
         <div class="ach-name">{{ a.name }}</div>
         <div class="ach-desc">{{ a.desc }}</div>
-        <div v-if="a.unlocked" class="ach-date">解锁于 {{ fmtDate(a.unlockedAt) }}</div>
+        <div v-if="a.unlocked" class="ach-date">{{ t('views.achievements.unlockedAt', '解锁于 {date}', { date: fmtDate(a.unlockedAt) }) }}</div>
         <div v-else class="ach-progress">
           <div class="bar"><div class="fill" :style="{ width: Math.round(a.progress * 100) + '%' }"></div></div>
           <div class="ach-num">{{ Math.round(Math.min(a.value, a.goal)) }} / {{ a.goal }}</div>

@@ -315,7 +315,10 @@ const en = {
 };
 
 // —— 合并业务视图字典（每个视图一个模块，见 src/i18n/views/*.js） ——
+import { zh as achievementsZh, en as achievementsEn } from './views/achievements.js';
+import { zh as cardInsightZh, en as cardInsightEn } from './views/cardInsight.js';
 import { zh as cardsZh, en as cardsEn } from './views/cards.js';
+import { zh as categoryZh, en as categoryEn } from './views/category.js';
 import { zh as dailyPlanZh, en as dailyPlanEn } from './views/dailyPlan.js';
 import { zh as exportZh, en as exportEn } from './views/export.js';
 import { zh as memoZh, en as memoEn } from './views/memo.js';
@@ -324,8 +327,14 @@ import { zh as reviewZh, en as reviewEn } from './views/review.js';
 import { zh as searchZh, en as searchEn } from './views/search.js';
 import { zh as syncZh, en as syncEn } from './views/sync.js';
 
+zh.views.achievements = achievementsZh;
+en.views.achievements = achievementsEn;
+zh.views.cardInsight = cardInsightZh;
+en.views.cardInsight = cardInsightEn;
 zh.views.cards = cardsZh;
 en.views.cards = cardsEn;
+zh.views.category = categoryZh;
+en.views.category = categoryEn;
 zh.views.dailyPlan = dailyPlanZh;
 en.views.dailyPlan = dailyPlanEn;
 zh.views.export = exportZh;

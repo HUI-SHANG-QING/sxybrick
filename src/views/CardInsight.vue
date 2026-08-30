@@ -1,26 +1,26 @@
 <template>
   <div class="insight">
-    <h2>卡片洞察 · 为什么今天该复习</h2>
+    <h2>{{ t('views.cardInsight.title') }}</h2>
     <div class="bar">
       <select class="input" v-model="subject" @change="load">
-        <option value="">全部科目</option>
+        <option value="">{{ t('views.cardInsight.allSubjects') }}</option>
         <option v-for="s in subjects" :key="s" :value="s">{{ s }}</option>
       </select>
-      <input class="input" v-model="kw" placeholder="搜索正面内容" />
-      <button class="btn" @click="buildGraph">重建知识图谱</button>
-      <label class="exam">目标考试日 <input class="input exam-in" type="date" v-model="examDate" /></label>
+      <input class="input" v-model="kw" :placeholder="t('views.cardInsight.searchPlaceholder')" />
+      <button class="btn" @click="buildGraph">{{ t('views.cardInsight.rebuildGraph') }}</button>
+      <label class="exam">{{ t('views.cardInsight.examLabel') }} <input class="input exam-in" type="date" v-model="examDate" /></label>
     </div>
 
     <!-- 冷启动前测：自评该科目熟悉度 → 估计初始稳定度（新卡首次排程用） -->
     <div class="pretest">
-      <span class="pt-label">前测 · {{ ptSubject || '选科目' }} 熟悉度</span>
+      <span class="pt-label">{{ t('views.cardInsight.pretestLabel', '前测 · {subject} 熟悉度', { subject: ptSubject || t('views.cardInsight.selectSubject') }) }}</span>
       <select class="input pt-subj" v-model="ptSubject">
         <option v-for="s in subjects" :key="s" :value="s">{{ s }}</option>
       </select>
       <input type="range" min="0" max="5" step="1" v-model.number="ptFam" class="pt-range" />
-      <span class="pt-val">{{ ptFam }}（{{ ['完全不会','刚接触','有点印象','基本掌握','比较熟','滚瓜烂熟'][ptFam] }}）</span>
-      <button class="btn small" @click="savePretest">保存前测</button>
-      <span class="pt-saved" v-if="ptSaved">已存：S ≈ {{ ptSavedS }} 天</span>
+      <span class="pt-val">{{ ptFam }}（{{ t('views.cardInsight.famLevels')[ptFam] }}）</span>
+      <button class="btn small" @click="savePretest">{{ t('views.cardInsight.savePretest') }}</button>
+      <span class="pt-saved" v-if="ptSaved">{{ t('views.cardInsight.pretestSaved', '已存：S ≈ {s} 天', { s: ptSavedS }) }}</span>
     </div>
 
     <div class="cols">
@@ -28,24 +28,24 @@
         <div v-for="c in filtered" :key="c.id" class="row" :class="{ on: c.id === sel?.id }" @click="sel = c">
           <span class="subj">{{ c.subject }}</span>
           <span class="front">{{ (c.front || '').slice(0, 30) }}</span>
-          <span v-if="c.examUrgency!=null" class="urg" :style="{ background: urgencyColor(c.examUrgency) }">考 {{ (c.examUrgency*100).toFixed(0) }}</span>
+          <span v-if="c.examUrgency!=null" class="urg" :style="{ background: urgencyColor(c.examUrgency) }">{{ t('views.cardInsight.examBadge', '考 {n}', { n: (c.examUrgency * 100).toFixed(0) }) }}</span>
         </div>
-        <EmptyState v-if="!filtered.length" icon="🗂️" title="暂无卡片" message="先去「我的卡片」添加，再回来看洞察" />
+        <EmptyState v-if="!filtered.length" icon="🗂️" :title="t('views.cardInsight.emptyListTitle')" :message="t('views.cardInsight.emptyListMsg')" />
       </div>
 
       <div class="detail" v-if="sel">
         <ForgettingCurve :card="sel" :reviews="hist" :examAt="examTs" />
         <div class="sec" v-if="prereq.length">
-          <h3>建议先补的前置卡片</h3>
+          <h3>{{ t('views.cardInsight.prereqTitle') }}</h3>
           <div v-for="id in prereq" :key="id" class="chip" @click="jump(id)">{{ cardTitle(id) }}</div>
         </div>
         <div class="sec" v-if="related.length">
-          <h3>相关薄弱卡</h3>
+          <h3>{{ t('views.cardInsight.relatedTitle') }}</h3>
           <div v-for="id in related" :key="id" class="chip" @click="jump(id)">{{ cardTitle(id) }}</div>
         </div>
-        <EmptyState v-if="!prereq.length && !related.length" compact icon="🕸️" title="暂无图谱关联" message="点「重建知识图谱」自动生成" />
+        <EmptyState v-if="!prereq.length && !related.length" compact icon="🕸️" :title="t('views.cardInsight.noGraphTitle')" :message="t('views.cardInsight.noGraphMsg')" />
       </div>
-      <EmptyState v-else icon="🗂️" title="从左侧选择一张卡片" message="查看遗忘曲线与知识图谱关联" />
+      <EmptyState v-else icon="🗂️" :title="t('views.cardInsight.noSelTitle')" :message="t('views.cardInsight.noSelMsg')" />
     </div>
   </div>
 </template>
@@ -58,6 +58,7 @@ import EmptyState from '../components/EmptyState.vue';
 import { derivePrereqPlan, autoBuildGraph } from '../algorithms/graphAuto.js';
 import { prioritizeForExam } from '../algorithms/scheduling.js';
 import { estimateInitialStability } from '../algorithms/pretest.js';
+import { t } from '../i18n/index.js';
 
 const cards = ref([]);
 const subjects = ref([]);
@@ -130,12 +131,12 @@ async function buildGraph() {
   const res = await autoBuildGraph();
   await load();
   sel.value && selectCard(sel.value);
-  alert(`图谱已重建：${res.stats.prereq} 条前置边 / ${res.stats.related} 条相关边 / ${res.stats.cards} 张卡`);
+  alert(t('views.cardInsight.graphRebuilt', '图谱已重建：{prereq} 条前置边 / {related} 条相关边 / {cards} 张卡', { prereq: res.stats.prereq, related: res.stats.related, cards: res.stats.cards }));
 }
 
 // 保存前测：把该科目的估计初始稳定度写入 meta['pretestStability']
 async function savePretest() {
-  if (!ptSubject.value) { alert('请先选择科目'); return; }
+  if (!ptSubject.value) { alert(t('views.cardInsight.pickSubjectFirst')); return; }
   const s = estimateInitialStability({ familiarity: ptFam.value, difficulty: 'basic', subject: ptSubject.value });
   const row = await db.meta.get('pretestStability');
   const map = row && typeof row.value === 'object' ? { ...row.value } : {};
