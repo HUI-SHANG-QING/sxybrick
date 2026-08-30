@@ -15,6 +15,7 @@ import { encodeShareCode, decodeShareCode, estimateSize } from '../utils/shareCo
 import { parseApkg } from '../utils/apkg.js';
 import { flushTelemetry, T } from '../utils/telemetry.js';
 import { db } from '../db.js';
+import { t } from '../i18n/index.js';
 
 const subjects = ref([]);
 const allTags = ref([]);

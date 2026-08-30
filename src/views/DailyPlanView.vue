@@ -6,6 +6,7 @@ import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
+import { t } from '../i18n/index.js';
 import {
   createDailyPlan, listDailyPlan, listDailyPlanSummary, updateDailyTask, deleteDailyTask,
   checkinDailyTask, deleteDailyPlan, addDailyTask, appendDailyTasksByText,
@@ -38,10 +39,10 @@ function shiftDate(d, deltaDays) {
 }
 function relativeLabel(date) {
   const today = dateStr();
-  if (date === today) return '今天';
-  if (date === shiftDate(new Date(), -1)) return '昨天';
-  if (date === shiftDate(new Date(), -2)) return '前天';
-  if (date === shiftDate(new Date(), -3)) return '大前天';
+  if (date === today) return t('views.dailyPlan.today');
+  if (date === shiftDate(new Date(), -1)) return t('views.dailyPlan.yesterday');
+  if (date === shiftDate(new Date(), -2)) return t('views.dailyPlan.dayBeforeYesterday');
+  if (date === shiftDate(new Date(), -3)) return t('views.dailyPlan.threeDaysAgo');
   return date;
 }
 
@@ -69,14 +70,14 @@ const remindSet = ref(getReminderSettings());
 const notifyState = ref(typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'unsupported');
 const notifyLabel = computed(() => {
   const s = notifyState.value;
-  if (s === 'granted') return '✅ 系统通知已开启';
-  if (s === 'denied') return '⚠️ 通知被拒（浏览器设置开启）';
-  if (s === 'unsupported') return '🔕 系统通知不可用';
-  return '🔔 开启系统通知';
+  if (s === 'granted') return t('views.dailyPlan.notifyGranted');
+  if (s === 'denied') return t('views.dailyPlan.notifyDenied');
+  if (s === 'unsupported') return t('views.dailyPlan.notifyUnsupported');
+  return t('views.dailyPlan.notifyDefault');
 });
 function patchRemind(patch) {
   remindSet.value = saveReminderSettings(patch);
-  toast('提醒设置已保存', 'success');
+  toast(t('views.dailyPlan.remindSaved'), 'success');
 }
 async function grantNotify() {
   const p = await requestNotifyPermission();

@@ -6,9 +6,9 @@
 // 设计原则：先搭地基（引擎 + 全局注入 + 语言切换 + 高频文案外置），
 // 其余业务文案按模块分批迁移，不一次性改动全站。
 import { ref } from 'vue';
-// 业务视图字典片段：每个视图一个模块，启动时合并进 zh.views.<name> / en.views.<name>。
-// 新增视图只需在此加一行 import + 一行赋值，无需改动下方大字典。
-import { zh as searchZh, en as searchEn } from './views/search.js';
+// 业务视图字典片段：每个视图一个模块（src/i18n/views/<name>.js），
+// 由 scripts/merge-view-i18n.mjs 自动生成下方合并块（import + 赋值）。
+// 新增视图只需新建模块文件后重跑该脚本，勿手改合并块。
 
 export const LOCALES = [
   { code: 'zh-CN', label: '中文' },
@@ -315,8 +315,25 @@ const en = {
 };
 
 // —— 合并业务视图字典（每个视图一个模块，见 src/i18n/views/*.js） ——
+import { zh as cardsZh, en as cardsEn } from './views/cards.js';
+import { zh as dailyPlanZh, en as dailyPlanEn } from './views/dailyPlan.js';
+import { zh as exportZh, en as exportEn } from './views/export.js';
+import { zh as reviewZh, en as reviewEn } from './views/review.js';
+import { zh as searchZh, en as searchEn } from './views/search.js';
+import { zh as syncZh, en as syncEn } from './views/sync.js';
+
+zh.views.cards = cardsZh;
+en.views.cards = cardsEn;
+zh.views.dailyPlan = dailyPlanZh;
+en.views.dailyPlan = dailyPlanEn;
+zh.views.export = exportZh;
+en.views.export = exportEn;
+zh.views.review = reviewZh;
+en.views.review = reviewEn;
 zh.views.search = searchZh;
 en.views.search = searchEn;
+zh.views.sync = syncZh;
+en.views.sync = syncEn;
 
 export const DICTS = { 'zh-CN': zh, en };
 

@@ -21,6 +21,7 @@ import { genCardDeck } from '../utils/genCardDeck.js';
 import { highlight as hlKw } from '../search/search-service.js';
 import { getForgetRisk, getAssetHealth } from '../agent/analytics.js';
 import { T } from '../utils/telemetry.js';
+import { t } from '../i18n/index.js';
 
 const router = useRouter();
 

@@ -14,6 +14,7 @@ import EmptyState from '../components/EmptyState.vue';
 // M5 同步状态面板：各模块 成功/待同步/失败/未配置 + 条数 + 最后同步时间 + 重试
 import { getModuleStatus, recordAllModulesOk, recordAllModulesError, recordModuleResult, resetStatus, summarizeStatus, MODULE_LABELS } from '../sync-status.js';
 import { getEffectiveSyncTables } from '../sync.js';
+import { t } from '../i18n/index.js';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 // GH Pages 上 location.origin 是 https://xxx.github.io 且没有 /backup 接口，不能作为 Hub 默认地址。
@@ -38,7 +39,7 @@ const lastBackup = ref(null);
 const lastReport = ref(JSON.parse(localStorage.getItem('sxy_last_sync_report') || 'null'));
 const errors = ref([]);
 async function loadErrors() { errors.value = await getErrors(30); }
-async function clearErrs() { await clearErrors(); errors.value = []; toast('错误日志已清空', 'success'); }
+async function clearErrs() { await clearErrors(); errors.value = []; toast(t('views.sync.errorsCleared'), 'success'); }
 
 // ---------- P3-3 快照 / 回滚 / 冲突可视化 ----------
 const snapshots = ref([]);
@@ -49,28 +50,29 @@ async function loadSnapshots() { try { snapshots.value = await listSnapshots(); 
 async function doManualSnapshot() {
   snapshotBusy.value = true;
   try {
-    const snap = await saveSnapshot(`手动快照 · ${new Date().toLocaleString('zh-CN')}`, 'manual');
+    const snap = await saveSnapshot(t('views.sync.manualSnapLabel', '手动快照 · {time}', { time: new Date().toLocaleString('zh-CN') }), 'manual');
     await loadSnapshots();
-    toast(`已创建快照（含 ${snap.sizeBytes ? Math.round(snap.sizeBytes / 1024) + ' KB' : '数据'}，可在下方回滚）`, 'success');
-  } catch (e) { toast('创建快照失败：' + (e?.message || e), 'error'); }
+    const sizeText = snap.sizeBytes ? Math.round(snap.sizeBytes / 1024) + ' KB' : t('views.sync.snapData');
+    toast(t('views.sync.snapCreated', '已创建快照（含 {size}，可在下方回滚）', { size: sizeText }), 'success');
+  } catch (e) { toast(t('views.sync.createSnapFail', '创建快照失败：{msg}', { msg: e?.message || e }), 'error'); }
   finally { snapshotBusy.value = false; }
 }
 async function doRestore(id, label) {
-  if (!(await confirmDialog(`确定回滚到该快照吗？\n\n${label}\n\n回滚后当前所有非图片数据会被该快照覆盖，请谨慎操作。`))) return;
+  if (!(await confirmDialog(t('views.sync.confirmRestore', '确定回滚到该快照吗？\n\n{label}\n\n回滚后当前所有非图片数据会被该快照覆盖，请谨慎操作。', { label })))) return;
   snapshotBusy.value = true;
   try {
     // 回滚前再保存一次「回滚前自动快照」，避免回滚动作本身不可逆
-    await saveSnapshot(`回滚前自动快照 · ${new Date().toLocaleString('zh-CN')}`, 'backup-before-import');
+    await saveSnapshot(t('views.sync.preRollbackSnapLabel', '回滚前自动快照 · {time}', { time: new Date().toLocaleString('zh-CN') }), 'backup-before-import');
     const r = await restoreSnapshot(id);
     await loadCounts(); await loadSnapshots();
-    toast(`已回滚到：${r.label}（${fmt(r.restoredAt)}）`, 'success');
-  } catch (e) { toast('回滚失败：' + (e?.message || e), 'error'); }
+    toast(t('views.sync.restored', '已回滚到：{label}（{time}）', { label: r.label, time: fmt(r.restoredAt) }), 'success');
+  } catch (e) { toast(t('views.sync.restoreFail', '回滚失败：{msg}', { msg: e?.message || e }), 'error'); }
   finally { snapshotBusy.value = false; }
 }
 async function doDeleteSnapshot(id) {
-  if (!(await confirmDialog('确定删除该快照？删除后无法恢复。'))) return;
-  try { await deleteSnapshot(id); await loadSnapshots(); toast('快照已删除', 'success'); }
-  catch (e) { toast('删除失败：' + (e?.message || e), 'error'); }
+  if (!(await confirmDialog(t('views.sync.confirmDeleteSnap')))) return;
+  try { await deleteSnapshot(id); await loadSnapshots(); toast(t('views.sync.snapDeleted'), 'success'); }
+  catch (e) { toast(t('views.sync.deleteFail', '删除失败：{msg}', { msg: e?.message || e }), 'error'); }
 }
 function fmtSize(n) {
   if (!Number.isFinite(n)) return '—';
@@ -79,7 +81,7 @@ function fmtSize(n) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 function winnerLabel(w) {
-  return w === 'incoming' ? '导入方' : w === 'local' ? '本地' : '混合';
+  return w === 'incoming' ? t('views.sync.winIncoming') : w === 'local' ? t('views.sync.winLocal') : t('views.sync.winMixed');
 }
 
 // ---------- P3·#2 Gist 云备份 ----------
@@ -100,41 +102,42 @@ function saveGistCfg() {
 }
 
 async function verifyGhToken() {
-  if (!ghToken.value) { toast('请填写 Token', 'error'); return; }
+  if (!ghToken.value) { toast(t('views.sync.fillToken'), 'error'); return; }
   if (gistBusy.value) return;
   gistBusy.value = true;
   try {
     const r = await verifyToken(ghToken.value);
     ghLogin.value = r.login;
     saveGistCfg();
-    toast(`✅ Token 有效，账号：${r.login}`, 'success');
-  } catch (e) { toast('Token 校验失败：' + e.message, 'error'); }
+    toast(t('views.sync.tokenValid', '✅ Token 有效，账号：{login}', { login: r.login }), 'success');
+  } catch (e) { toast(t('views.sync.tokenVerifyFail', 'Token 校验失败：{msg}', { msg: e.message }), 'error'); }
   finally { gistBusy.value = false; }
 }
 
 async function uploadToGist() {
-  if (!ghToken.value) { toast('请先填 Token 并校验', 'error'); return; }
+  if (!ghToken.value) { toast(t('views.sync.fillTokenVerify'), 'error'); return; }
   if (gistBusy.value) return;
   gistBusy.value = true;
   try {
     const payload = await buildBackup();
+    const modeText = appMode.isTest ? t('views.sync.demoData') : t('views.sync.realData');
     if (gistId.value) {
       // 已有 gist：PATCH 更新（payload.scope 决定写入哪个文件名）
       const r = await updateGistBackup(ghToken.value, gistId.value, payload);
-      toast(`✅ 已更新 Gist 备份（${counts.value.cards} 张卡 · ${appMode.isTest ? '演示数据' : '真实数据'} · 更新于 ${new Date(r.updatedAt).toLocaleString()}）`, 'success');
+      toast(t('views.sync.gistUpdated', '✅ 已更新 Gist 备份（{cards} 张卡 · {mode} · 更新于 {time}）', { cards: counts.value.cards, mode: modeText, time: new Date(r.updatedAt).toLocaleString() }), 'success');
     } else {
       // 首次：创建新 secret gist
       const r = await createGistBackup(ghToken.value, payload);
       gistId.value = r.gistId;
       saveGistCfg();
-      toast(`✅ 首次云备份完成（${counts.value.cards} 张卡 · ${appMode.isTest ? '演示数据' : '真实数据'} · Gist ID 已保存）`, 'success');
+      toast(t('views.sync.gistFirst', '✅ 首次云备份完成（{cards} 张卡 · {mode} · Gist ID 已保存）', { cards: counts.value.cards, mode: modeText }), 'success');
     }
     // M5：gist 推送 = 全模块推送成功（buildBackup 为全量包）
     const rows = {};
     for (const t of getEffectiveSyncTables()) rows[t.table] = payload[t.table]?.length || 0;
     recordAllModulesOk(rows);
   } catch (e) {
-    toast('上传失败：' + e.message, 'error');
+    toast(t('views.sync.uploadFail', '上传失败：{msg}', { msg: e.message }), 'error');
     recordAllModulesError(e.message || String(e));
   }
   finally {
@@ -144,15 +147,18 @@ async function uploadToGist() {
 }
 
 async function pullFromGist() {
-  if (!ghToken.value || !gistId.value) { toast('请先填 Token 和 Gist ID', 'error'); return; }
+  if (!ghToken.value || !gistId.value) { toast(t('views.sync.fillTokenGist'), 'error'); return; }
   if (gistBusy.value) return;
-  if (!(await confirmDialog('将从 Gist 拉取备份并合并到本地库（保留本地较新内容）。继续？'))) return;
+  if (!(await confirmDialog(t('views.sync.confirmPullGist')))) return;
   gistBusy.value = true;
   try {
     const payload = await fetchGistBackup(ghToken.value, gistId.value, { scope: backupScope() });
     // M3 scope 校验：包内 scope 必须与当前数据域一致，防止演示包混入真实数据（反之亦然）
     if (payload.scope && payload.scope !== backupScope()) {
-      toast(`数据域不匹配：该 Gist 存的是「${payload.scope === 'test' ? '演示' : '真实'}」数据，当前是「${backupScope() === 'test' ? '演示' : '真实'}」模式`, 'error');
+      toast(t('views.sync.scopeMismatch', '数据域不匹配：该 Gist 存的是「{remote}」数据，当前是「{local}」模式', {
+        remote: payload.scope === 'test' ? t('views.sync.scopeTest') : t('views.sync.scopeReal'),
+        local: backupScope() === 'test' ? t('views.sync.scopeTest') : t('views.sync.scopeReal'),
+      }), 'error');
       return;
     }
     const stats = await importBackup(payload, 'merge');
@@ -162,8 +168,8 @@ async function pullFromGist() {
     const rows = {};
     for (const t of getEffectiveSyncTables()) rows[t.table] = stats[t.table] || 0;
     recordAllModulesOk(rows);
-    toast(`✅ 已从 Gist 拉取并合并：${fmtStats(stats)}`, 'success');
-  } catch (e) { toast('拉取失败：' + e.message, 'error'); }
+    toast(t('views.sync.gistPulled', '✅ 已从 Gist 拉取并合并：{stats}', { stats: fmtStats(stats) }), 'success');
+  } catch (e) { toast(t('views.sync.pullFail', '拉取失败：{msg}', { msg: e.message }), 'error'); }
   finally {
     gistBusy.value = false;
     await loadModuleStatus(); // M5
@@ -171,13 +177,13 @@ async function pullFromGist() {
 }
 
 async function resetGist() {
-  if (!(await confirmDialog('清空本机的 Gist 配置（不影响云端 Gist）？'))) return;
+  if (!(await confirmDialog(t('views.sync.confirmResetGist')))) return;
   ghToken.value = ''; gistId.value = ''; ghLogin.value = '';
   localStorage.removeItem('sxy_gist_token');
   localStorage.removeItem(gistIdKey());
   localStorage.removeItem(gistIdKey() === 'sxy_gist_id' ? 'sxy_gist_id_test' : 'sxy_gist_id');
   localStorage.removeItem('sxy_gist_login');
-  toast('已清空 Gist 配置', 'info');
+  toast(t('views.sync.gistCfgCleared'), 'info');
 }
 
 function saveReport(mode, stats) {
@@ -196,18 +202,19 @@ function fmt(ts) {
 }
 
 function fmtStats(stats) {
-  const parts = [`卡片 +${stats.cards || 0}`];
-  if (stats.overridden) parts.push(`更新 ${stats.overridden}`);
-  if (stats.deleted) parts.push(`删除 ${stats.deleted}`);
-  if (stats.duplicated) parts.push(`去重跳过 ${stats.duplicated}`);
-  parts.push(`复习 +${stats.reviews || 0}`, `图片 +${stats.images || 0}`);
+  const S = (k, fb, v) => t('views.sync.stats.' + k, fb, { n: v });
+  const parts = [S('cards', '卡片 +{n}', stats.cards || 0)];
+  if (stats.overridden) parts.push(S('updated', '更新 {n}', stats.overridden));
+  if (stats.deleted) parts.push(S('deleted', '删除 {n}', stats.deleted));
+  if (stats.duplicated) parts.push(S('duplicated', '去重跳过 {n}', stats.duplicated));
+  parts.push(S('reviews', '复习 +{n}', stats.reviews || 0), S('images', '图片 +{n}', stats.images || 0));
   const extra = [
-    ['aiChats', 'AI对话'], ['aiMemories', '记忆'], ['memos', '备忘'], ['plans', '计划'],
-    ['graphEdges', '图谱'], ['docs', '文档'], ['pomoSessions', '专注'],
-    ['mindmaps', '导图'], ['weeklyReports', '周报'], ['achievements', '成就'], ['exams', '模考'],
+    ['aiChats', 'aiChats'], ['aiMemories', 'aiMemories'], ['memos', 'memos'], ['plans', 'plans'],
+    ['graphEdges', 'graphEdges'], ['docs', 'docs'], ['pomoSessions', 'pomoSessions'],
+    ['mindmaps', 'mindmaps'], ['weeklyReports', 'weeklyReports'], ['achievements', 'achievements'], ['exams', 'exams'],
   ];
-  for (const [k, label] of extra) if (stats[k]) parts.push(`${label} +${stats[k]}`);
-  return parts.join('，');
+  for (const [k, dk] of extra) if (stats[k]) parts.push(S(dk, dk + ' +{n}', stats[k]));
+  return parts.join(t('views.sync.stats.join', '，'));
 }
 
 async function doExport() {
@@ -215,7 +222,7 @@ async function doExport() {
     await downloadBackup();
     lastBackup.value = { at: Date.now() };
     localStorage.setItem('sxy_last_backup', JSON.stringify(lastBackup.value));
-    toast('数据包已导出，请把文件发到另一台设备导入', 'success');
+    toast(t('views.sync.backupExported'), 'success');
     await refreshStatus(); // M5：导出后通道状态变化（备份通道已配置）
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -231,11 +238,11 @@ async function onFile(e) {
     const backup = JSON.parse(await f.text());
     // P2-23：先 dry-run 预览（新增/覆盖/跳过/重复/墓碑删除），确认后再写库
     const pv = await previewImport(backup);
-    if (!pv.valid) { toast(pv.error || '文件无效', 'error'); return; }
+    if (!pv.valid) { toast(pv.error || t('views.sync.fileInvalid'), 'error'); return; }
     pendingBackup.value = backup;
     importPreview.value = pv;
   } catch (err) {
-    toast(err.message || '文件解析失败，请检查格式', 'error');
+    toast(err.message || t('views.sync.parseFileFail'), 'error');
   } finally { importing.value = false; }
 }
 
@@ -254,14 +261,14 @@ async function confirmImport() {
     lastConflicts.value = stats.conflicts || [];
     showConflicts.value = lastConflicts.value.length > 0;
     const meta = backup.deckMeta;
-    const metaText = meta?.author ? `（卡组作者：${meta.author}${meta.description ? ' · ' + meta.description.slice(0, 40) : ''}）` : '';
-    const conflictText = lastConflicts.value.length ? `，${lastConflicts.value.length} 张卡片有字段被覆盖` : '';
-    const snapText = stats.snapshotId ? '（已自动创建导入前快照，可在下方回滚）' : '';
-    toast(`导入完成：${fmtStats(stats)}${metaText}${conflictText}${snapText}`, 'success');
+    const metaText = meta?.author ? t('views.sync.deckAuthor', '（卡组作者：{author}{desc}）', { author: meta.author, desc: meta.description ? ' · ' + meta.description.slice(0, 40) : '' }) : '';
+    const conflictText = lastConflicts.value.length ? t('views.sync.conflictSuffix', '，{n} 张卡片有字段被覆盖', { n: lastConflicts.value.length }) : '';
+    const snapText = stats.snapshotId ? t('views.sync.snapAutoHint') : '';
+    toast(t('views.sync.importDone', '导入完成：{stats}{meta}{conflict}{snap}', { stats: fmtStats(stats), meta: metaText, conflict: conflictText, snap: snapText }), 'success');
     importPreview.value = null;
     pendingBackup.value = null;
   } catch (err) {
-    toast(err.message || '导入失败，请检查文件格式', 'error');
+    toast(err.message || t('views.sync.importFailFile'), 'error');
   } finally { importing.value = false; }
 }
 
@@ -274,7 +281,7 @@ function saveHub() {
   localStorage.setItem('sxy_hub', hubUrl.value);
   localStorage.setItem('sxy_hub_token', hubToken.value);
   hubStatus.value = null;
-  toast('已保存电脑端地址和密码', 'success');
+  toast(t('views.sync.hubSaved'), 'success');
 }
 
 // 常见错误原因诊断（Fail to fetch / CORS / 混合内容）
@@ -283,24 +290,24 @@ function diagnoseFetchError(msg, url) {
   const hints = [];
   try {
     if (url && location.protocol === 'https:' && /^http:\/\//i.test(url)) {
-      hints.push('🚫 当前页面是 HTTPS（如 GitHub Pages），你填的 Hub 是 HTTP：浏览器「混合内容阻断」会直接拒绝请求，表现为「Failed to fetch」。');
-      hints.push('   → 解决：改用手机/平板浏览器直接打开 Hub 地址（http://<电脑IP>:4780），或本地启动前端 npm run dev 再用同步页。');
+      hints.push(t('views.sync.diagHttps'));
+      hints.push(t('views.sync.diagHttpsFix'));
     }
     if (/failed to fetch|networkerror|网络错误|typeerror: failed/.test(text)) {
-      hints.push('💡 其它常见「Failed to fetch」原因：');
-      hints.push('   1) 电脑没启动 npm run hub，或填错端口；');
-      hints.push('   2) Windows 防火墙拦截了 node.exe 的 4780 端口入站请求，需在弹窗选「允许访问」；');
-      hints.push('   3) USB/数据线连接未开启 USB 共享网络 —— 手机设置里打开后再访问 Hub 提示的 RNDIS IP。');
+      hints.push(t('views.sync.diagOther'));
+      hints.push(t('views.sync.diagHubNotStarted'));
+      hints.push(t('views.sync.diagFirewall'));
+      hints.push(t('views.sync.diagUsb'));
     }
-    if (/401|密码|token|unauthorized/.test(text)) hints.push('🔐 同步密码不匹配：复制 npm run hub 终端里打印的密码。');
-    if (/404|not found/.test(text)) hints.push('⚠ 响应 404：地址填错了？必须是 http://<IP>:<端口>，不要加子路径。');
+    if (/401|密码|token|unauthorized/.test(text)) hints.push(t('views.sync.diagToken'));
+    if (/404|not found/.test(text)) hints.push(t('views.sync.diag404'));
   } catch {}
   return hints;
 }
 
 async function testHub() {
   const hub = String(hubUrl.value || '').replace(/\/+$/, '');
-  if (!hub) { toast('请先填写电脑端地址', 'warn'); return; }
+  if (!hub) { toast(t('views.sync.fillHub'), 'warn'); return; }
   testingHub.value = true;
   hubStatus.value = null;
   try {
@@ -320,25 +327,25 @@ async function testHub() {
       tokenOk = vr.ok;
       if (vr.status === 401) {
         const d = await vr.json().catch(() => ({}));
-        tips.unshift(`密码校验未通过：${d?.error || '请检查同步密码'}`);
+        tips.unshift(t('views.sync.pwdFailPrefix', '密码校验未通过：{msg}', { msg: d?.error || t('views.sync.pwdFailDefault') }));
       }
     }
     hubStatus.value = { ok: true, tokenOk, tips };
     const msg = tokenOk === null
-      ? '✅ 已连接到 Hub（未填密码，未做校验）'
-      : tokenOk ? '✅ 已连接，密码正确，可以同步' : '⚠ 连接成功，但密码校验未通过，请检查同步密码';
+      ? t('views.sync.hubConnNoToken')
+      : tokenOk ? t('views.sync.hubConnOk') : t('views.sync.hubConnFail');
     toast(msg, tokenOk === false ? 'warn' : 'success');
   } catch (e) {
     const hints = diagnoseFetchError(e.message, hub);
     hubStatus.value = { ok: false, error: String(e.message || e), hints };
-    toast('无法访问 Hub：' + (e.message || e), 'error');
+    toast(t('views.sync.hubUnreachableToast', '无法访问 Hub：{msg}', { msg: e.message || e }), 'error');
   } finally { testingHub.value = false; }
 }
 
 async function doSync() {
   if (syncing.value) return;
   const hub = String(hubUrl.value || '').replace(/\/+$/, '');
-  if (!hub) { toast('请先填写电脑端地址后再同步', 'warn'); return; }
+  if (!hub) { toast(t('views.sync.fillHubSync'), 'warn'); return; }
   syncing.value = true;
   try {
     const stats = await syncWithHub(hub, hubToken.value);
@@ -349,7 +356,7 @@ async function doSync() {
     const rows = {};
     for (const t of getEffectiveSyncTables()) rows[t.table] = stats[t.table] || 0;
     recordAllModulesOk(rows);
-    toast(`与电脑同步完成：${fmtStats(stats)}`, 'success');
+    toast(t('views.sync.syncDone', '与电脑同步完成：{stats}', { stats: fmtStats(stats) }), 'success');
   } catch (e) {
     const base = e.message || String(e);
     try { T.syncRun('hub', false); } catch {}
@@ -382,7 +389,7 @@ async function loadSubjects() { subjects.value = await getSubjects(); }
 async function doShare() {
   try {
     await downloadSubjectBackup(shareSubject.value, { author: shareAuthor.value, description: shareDesc.value });
-    toast('卡组已导出（含署名信息），发给同学导入即可', 'success');
+    toast(t('views.sync.deckExported'), 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -390,7 +397,7 @@ async function doShare() {
 const ankiInput = ref(null);
 const ankiBusy = ref(false);
 async function doAnkiExport() {
-  try { await downloadAnkiText(); toast('已导出 Anki 文本（可在 Anki 桌面版「导入 → 文本文件」使用）', 'success'); }
+  try { await downloadAnkiText(); toast(t('views.sync.ankiExported'), 'success'); }
   catch (e) { toast(e.message, 'error'); }
 }
 function pickAnki() { ankiInput.value?.click(); }
@@ -401,12 +408,12 @@ async function onAnkiFile(e) {
   ankiBusy.value = true;
   try {
     const pairs = parseAnkiLines(await f.text());
-    if (!pairs.length) { toast('未解析出卡片行', 'error'); return; }
+    if (!pairs.length) { toast(t('views.sync.noAnkiRows'), 'error'); return; }
     let n = 0;
     for (const p of pairs) { await createCard({ front: p.front, back: p.back, subject: '', tags: [], type: 'basic', source: 'Anki 导入' }); n++; }
     await loadCounts();
-    toast(`已从 Anki 文本导入 ${n} 张卡片`, 'success');
-  } catch (err) { toast('导入失败：' + (err.message || '文件格式不正确'), 'error'); }
+    toast(t('views.sync.ankiImported', '已从 Anki 文本导入 {n} 张卡片', { n }), 'success');
+  } catch (err) { toast(t('views.sync.importFail', '导入失败：{msg}', { msg: err.message || t('views.sync.ankiFileFormat') }), 'error'); }
   finally { ankiBusy.value = false; }
 }
 
@@ -429,14 +436,14 @@ async function loadModuleStatus() {
   } catch {}
 }
 function statusIcon(s) { return { ok: '✅', pending: '⏳', error: '❌', none: '⚪' }[s] || '⚪'; }
-function statusLabel(s) { return { ok: '成功', pending: '待同步', error: '失败', none: '未配置' }[s] || s; }
+function statusLabel(s) { return { ok: t('views.sync.stOk'), pending: t('views.sync.stPending'), error: t('views.sync.stError'), none: t('views.sync.stNone') }[s] || s; }
 function fmtTs(ts) { return ts ? fmt(ts) : '—'; }
 
 /** 立即同步（全部模块）：有 hub 走 hub；否则引导配置 */
 async function doSyncAll() {
   const hub = String(hubUrl.value || '').replace(/\/+$/, '');
   if (!hub) {
-    toast('未配置同步通道：请先填写电脑端中枢地址（或配置 Gist 云备份），再执行同步', 'warn');
+    toast(t('views.sync.noChannel'), 'warn');
     return;
   }
   syncingAll.value = true;
@@ -449,10 +456,10 @@ async function doSyncAll() {
     await loadCounts();
     saveReport('立即同步（全部模块）', stats);
     try { T.syncRun('hub', true); } catch {}
-    toast(`✅ 全模块同步完成：${fmtStats(stats)}`, 'success');
+    toast(t('views.sync.allModulesSynced', '✅ 全模块同步完成：{stats}', { stats: fmtStats(stats) }), 'success');
   } catch (e) {
     recordAllModulesError(e.message || String(e));
-    toast('同步失败：' + (e.message || e), 'error');
+    toast(t('views.sync.syncFail', '同步失败：{msg}', { msg: e.message || e }), 'error');
   } finally {
     syncingAll.value = false;
     await loadModuleStatus();
@@ -462,7 +469,7 @@ async function doSyncAll() {
 /** 单模块同步：只推送该模块增量；hub 返回全量包仍整体合并（= 全模块拉取），状态按「该模块推送成功」记录 */
 async function doSyncModule(module) {
   const hub = String(hubUrl.value || '').replace(/\/+$/, '');
-  if (!hub) { toast('未配置同步通道：请先填写电脑端中枢地址', 'warn'); return; }
+  if (!hub) { toast(t('views.sync.noChannelHub'), 'warn'); return; }
   if (syncingModule.value || syncingAll.value) return;
   syncingModule.value = module;
   try {
@@ -471,10 +478,10 @@ async function doSyncModule(module) {
     // 其余模块：这次拉取也更新了它们 → 记成功（rows 取 stats）
     for (const t of getEffectiveSyncTables()) if (t.table !== module) recordModuleResult(t.table, { ok: true, rows: stats[t.table] || 0 });
     await loadCounts();
-    toast(`✅ 「${MODULE_LABELS[module] || module}」同步完成`, 'success');
+    toast(t('views.sync.moduleSyncDone', '✅ 「{label}」同步完成', { label: MODULE_LABELS[module] || module }), 'success');
   } catch (e) {
     recordModuleResult(module, { ok: false, error: e.message || String(e) });
-    toast(`「${MODULE_LABELS[module] || module}」同步失败：${e.message || e}`, 'error');
+    toast(t('views.sync.moduleSyncFail', '「{label}」同步失败：{msg}', { label: MODULE_LABELS[module] || module, msg: e.message || e }), 'error');
   } finally {
     syncingModule.value = '';
     await loadModuleStatus();
@@ -494,33 +501,38 @@ async function refreshStatus() { await loadModuleStatus(); }
 </script>
 
 <template>
-  <div style="max-width:720px;margin:0 auto" v-loading="loading" element-loading-text="加载中…">
-    <h2 style="margin:0 0 4px">数据同步</h2>
+  <div style="max-width:720px;margin:0 auto" v-loading="loading" :element-loading-text="t('views.sync.loading')">
+    <h2 style="margin:0 0 4px">{{ t('views.sync.title') }}</h2>
     <div class="hint" style="margin-bottom:16px">
-      本机数据：{{ counts.cards }} 卡片 · {{ counts.reviews }} 复习 · {{ counts.images }} 图片 · {{ counts.aiChats }} 对话 · {{ counts.aiMemories }} 记忆 · {{ counts.memos }} 备忘 · {{ counts.plans }} 计划 · {{ counts.graphEdges }} 图谱边 · {{ counts.docs }} 文档 · {{ counts.pomoSessions }} 专注 · {{ counts.mindmaps }} 导图 · {{ counts.weeklyReports }} 周报 · {{ counts.achievements }} 成就 · {{ counts.exams }} 模考
+      {{ t('views.sync.localData', '本机数据：{cards} 卡片 · {reviews} 复习 · {images} 图片 · {aiChats} 对话 · {aiMemories} 记忆 · {memos} 备忘 · {plans} 计划 · {graphEdges} 图谱边 · {docs} 文档 · {pomoSessions} 专注 · {mindmaps} 导图 · {weeklyReports} 周报 · {achievements} 成就 · {exams} 模考', {
+        cards: counts.cards, reviews: counts.reviews, images: counts.images, aiChats: counts.aiChats,
+        aiMemories: counts.aiMemories, memos: counts.memos, plans: counts.plans, graphEdges: counts.graphEdges,
+        docs: counts.docs, pomoSessions: counts.pomoSessions, mindmaps: counts.mindmaps,
+        weeklyReports: counts.weeklyReports, achievements: counts.achievements, exams: counts.exams,
+      }) }}
     </div>
 
     <!-- M5 同步状态面板：所有数据模块的同步状态一览（全覆盖，无遗漏表） -->
     <div class="panel">
       <div class="panel-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <span>📊 同步状态{{ appMode.isTest ? '（演示数据）' : '' }}</span>
+        <span>{{ t('views.sync.statusTitle') }}{{ appMode.isTest ? t('views.sync.statusTitleTest') : '' }}</span>
         <button class="btn primary" :disabled="syncingAll || syncingModule" @click="doSyncAll">
-          {{ syncingAll ? '同步中…' : '⚡ 立即同步（全部模块）' }}
+          {{ syncingAll ? t('views.sync.syncingAll') : t('views.sync.syncAllBtn') }}
         </button>
       </div>
       <div v-if="statusSummary" class="hint" style="margin-top:4px">
-        {{ statusSummary.total }} 个模块：
-        <span style="color:var(--green)">✅ 成功 {{ statusSummary.ok }}</span> ·
-        <span style="color:var(--amber)">⏳ 待同步 {{ statusSummary.pending }}</span> ·
-        <span style="color:var(--red)">❌ 失败 {{ statusSummary.error }}</span> ·
-        <span>⚪ 未配置 {{ statusSummary.none }}</span>
-        <span v-if="appMode.isTest" style="color:var(--amber)">（当前为演示模式，展示测试数据的同步状态）</span>
+        {{ t('views.sync.unitModules', '{n} 个模块：', { n: statusSummary.total }) }}
+        <span style="color:var(--green)">{{ t('views.sync.sumOk', '✅ 成功 {n}', { n: statusSummary.ok }) }}</span> ·
+        <span style="color:var(--amber)">{{ t('views.sync.sumPending', '⏳ 待同步 {n}', { n: statusSummary.pending }) }}</span> ·
+        <span style="color:var(--red)">{{ t('views.sync.sumError', '❌ 失败 {n}', { n: statusSummary.error }) }}</span> ·
+        <span>{{ t('views.sync.sumNone', '⚪ 未配置 {n}', { n: statusSummary.none }) }}</span>
+        <span v-if="appMode.isTest" style="color:var(--amber)">{{ t('views.sync.statusTestNote') }}</span>
       </div>
       <div v-if="!moduleStatus.some(m => m.status !== 'none')" class="hint" style="margin-top:8px">
-        尚未配置同步通道。配置「局域网同步中枢」地址或下方「Gist 云备份」后，各模块状态会在此更新。
+        {{ t('views.sync.noChannelConfigured') }}
       </div>
       <table v-else class="status-table">
-        <thead><tr><th>模块</th><th>条数</th><th>最后同步</th><th>状态</th><th></th></tr></thead>
+        <thead><tr><th>{{ t('views.sync.thModule') }}</th><th>{{ t('views.sync.thCount') }}</th><th>{{ t('views.sync.thLastSync') }}</th><th>{{ t('views.sync.thStatus') }}</th><th></th></tr></thead>
         <tbody>
           <tr v-for="m in moduleStatus" :key="m.module">
             <td>{{ m.label }}</td>
@@ -530,47 +542,46 @@ async function refreshStatus() { await loadModuleStatus(); }
             <td>
               <button v-if="m.status === 'error' || m.status === 'pending'" class="btn mini"
                       :disabled="syncingAll || syncingModule" @click="doSyncModule(m.module)"
-                      :title="m.status === 'error' ? '重试同步该模块' : '立即同步该模块'">
-                {{ syncingModule === m.module ? '同步中…' : (m.status === 'error' ? '重试' : '同步') }}
+                      :title="m.status === 'error' ? t('views.sync.retryTitle') : t('views.sync.syncNowTitle')">
+                {{ syncingModule === m.module ? t('views.sync.syncing') : (m.status === 'error' ? t('views.sync.retry') : t('views.sync.syncBtn')) }}
               </button>
             </td>
           </tr>
         </tbody>
       </table>
       <div class="hint" style="margin-top:8px">
-        待同步 = 该模块有新变更尚未同步；所有同步表均在此登记（卡组/联动分析/笔记等新增模块已包含）。同步失败会显示错误原因，可点「重试」。
+        {{ t('views.sync.statusHint') }}
       </div>
     </div>
 
     <!-- 手动同步 -->
     <div class="panel">
-      <div class="panel-title">手动同步（数据包文件）</div>
+      <div class="panel-title">{{ t('views.sync.manualTitle') }}</div>
       <p class="hint" style="margin-top:0">
-        导出一份数据包文件，包含<b>全部模块数据</b>：卡片、复习记录、图片、AI 对话（AI 问答 + 费曼 + Agent 工作台）、Agent 记忆、备忘录、学习计划、知识图谱、AI 文档、番茄专注记录、思维导图、每周报告、成就、每日目标与打卡。通过微信/QQ/网盘发到另一台设备导入即可。
+        {{ t('views.sync.manualHint') }}
       </p>
-      <div v-if="lastBackup" class="hint" style="margin-bottom:8px">上次备份：{{ fmt(lastBackup.at) }}</div>
-      <div v-else class="hint" style="margin-bottom:8px;color:var(--amber)">⚠ 尚未备份过，建议定期导出数据包，防止数据丢失</div>
+      <div v-if="lastBackup" class="hint" style="margin-bottom:8px">{{ t('views.sync.lastBackup', '上次备份：{time}', { time: fmt(lastBackup.at) }) }}</div>
+      <div v-else class="hint" style="margin-bottom:8px;color:var(--amber)">{{ t('views.sync.noBackupYet') }}</div>
       <div class="row">
-        <button class="btn primary" @click="doExport">导出数据包</button>
+        <button class="btn primary" @click="doExport">{{ t('views.sync.exportData') }}</button>
         <button class="btn" :disabled="importing" @click="pickFile">
-          {{ importing ? '导入中…' : '导入数据包' }}
+          {{ importing ? t('views.sync.importing') : t('views.sync.importData') }}
         </button>
         <input ref="fileInput" type="file" accept=".json,application/json" style="display:none" @change="onFile" />
       </div>
-      <div class="hint">合并规则：同 id 的记录按「最后修改时间」谁新听谁；删除会跨设备同步；图片按 id 自动去重；各模块（对话/记忆/计划/图谱/文档/专注）按 id 幂等合并。</div>
+      <div class="hint">{{ t('views.sync.mergeRule') }}</div>
 
       <!-- P2-23 导入去重预览：选文件后先预览，确认才写入 -->
       <div v-if="importPreview && importPreview.valid" class="preview-box">
-        <div class="panel-title" style="margin-bottom:8px">导入预览（确认后再写入本地库）</div>
+        <div class="panel-title" style="margin-bottom:8px">{{ t('views.sync.importPreviewTitle') }}</div>
         <p class="hint" style="margin-top:0">
-          将 <b style="color:var(--green)">新增 {{ importPreview.totalAdded }}</b> ·
-          <b style="color:var(--amber)">覆盖 {{ importPreview.totalOverwritten }}</b> ·
-          跳过（已相同）{{ importPreview.totalSkipped }} ·
-          重复跳过 {{ importPreview.totalDuplicated }} ·
-          <b style="color:var(--red)">删除（墓碑）{{ importPreview.totalDeleted }}</b>
+          {{ t('views.sync.previewSummary', '新增 {added} · 覆盖 {overwritten} · 跳过（已相同）{skipped} · 重复跳过 {duplicated} · 删除（墓碑）{deleted}', {
+            added: importPreview.totalAdded, overwritten: importPreview.totalOverwritten,
+            skipped: importPreview.totalSkipped, duplicated: importPreview.totalDuplicated, deleted: importPreview.totalDeleted,
+          }) }}
         </p>
         <p v-if="importPreview.deckMeta" class="hint deck-meta">
-          🏷️ 卡组署名：<b>{{ importPreview.deckMeta.author || '匿名' }}</b><template v-if="importPreview.deckMeta.description"> · {{ importPreview.deckMeta.description }}</template>
+          {{ t('views.sync.deckLabel') }}<b>{{ importPreview.deckMeta.author || t('views.sync.deckAnon') }}</b><template v-if="importPreview.deckMeta.description"> · {{ importPreview.deckMeta.description }}</template>
         </p>
         <div class="preview-list">
           <div v-for="t in previewTables" :key="t.table" class="preview-item">
@@ -588,47 +599,47 @@ async function refreshStatus() { await loadModuleStatus(); }
           </div>
         </div>
         <div class="row" style="margin-top:12px;margin-bottom:0">
-          <button class="btn primary" :disabled="importing" @click="confirmImport">确认导入</button>
-          <button class="btn" :disabled="importing" @click="cancelImport">取消</button>
+          <button class="btn primary" :disabled="importing" @click="confirmImport">{{ t('views.sync.confirmImport') }}</button>
+          <button class="btn" :disabled="importing" @click="cancelImport">{{ t('views.sync.cancel') }}</button>
         </div>
       </div>
     </div>
 
     <!-- 最近一次同步/导入明细（E1 数字资产对账） -->
     <div v-if="lastReport" class="panel" style="margin-top:16px">
-      <div class="panel-title">最近一次{{ lastReport.mode }}明细（{{ fmt(lastReport.at) }}）</div>
+      <div class="panel-title">{{ t('views.sync.lastReportTitle', '最近一次{mode}明细（{time}）', { mode: lastReport.mode, time: fmt(lastReport.at) }) }}</div>
       <div class="sync-detail">
-        <span class="sd-item">卡片新增 <b>{{ lastReport.stats.cards || 0 }}</b></span>
-        <span class="sd-item">内容更新 <b>{{ lastReport.stats.overridden || 0 }}</b></span>
-        <span class="sd-item">跨端删除 <b>{{ lastReport.stats.deleted || 0 }}</b></span>
-        <span class="sd-item">重复跳过 <b>{{ lastReport.stats.duplicated || 0 }}</b></span>
-        <span class="sd-item">复习记录 <b>{{ lastReport.stats.reviews || 0 }}</b></span>
-        <span class="sd-item">图片 <b>{{ lastReport.stats.images || 0 }}</b></span>
-        <span class="sd-item">对话 <b>{{ lastReport.stats.aiChats || 0 }}</b></span>
-        <span class="sd-item">记忆 <b>{{ lastReport.stats.aiMemories || 0 }}</b></span>
-        <span class="sd-item">备忘 <b>{{ lastReport.stats.memos || 0 }}</b></span>
-        <span class="sd-item">计划 <b>{{ lastReport.stats.plans || 0 }}</b></span>
-        <span class="sd-item">图谱 <b>{{ lastReport.stats.graphEdges || 0 }}</b></span>
-        <span class="sd-item">文档 <b>{{ lastReport.stats.docs || 0 }}</b></span>
-        <span class="sd-item">专注 <b>{{ lastReport.stats.pomoSessions || 0 }}</b></span>
-        <span class="sd-item">导图 <b>{{ lastReport.stats.mindmaps || 0 }}</b></span>
-        <span class="sd-item">周报 <b>{{ lastReport.stats.weeklyReports || 0 }}</b></span>
-        <span class="sd-item">成就 <b>{{ lastReport.stats.achievements || 0 }}</b></span>
-        <span class="sd-item">模考 <b>{{ lastReport.stats.exams || 0 }}</b></span>
+        <span class="sd-item">{{ t('views.sync.detailCards', '卡片新增 {n}', { n: lastReport.stats.cards || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailUpdated', '内容更新 {n}', { n: lastReport.stats.overridden || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailDeleted', '跨端删除 {n}', { n: lastReport.stats.deleted || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailDuplicated', '重复跳过 {n}', { n: lastReport.stats.duplicated || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailReviews', '复习记录 {n}', { n: lastReport.stats.reviews || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailImages', '图片 {n}', { n: lastReport.stats.images || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailChats', '对话 {n}', { n: lastReport.stats.aiChats || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailMemories', '记忆 {n}', { n: lastReport.stats.aiMemories || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailMemos', '备忘 {n}', { n: lastReport.stats.memos || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailPlans', '计划 {n}', { n: lastReport.stats.plans || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailGraph', '图谱 {n}', { n: lastReport.stats.graphEdges || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailDocs', '文档 {n}', { n: lastReport.stats.docs || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailPomo', '专注 {n}', { n: lastReport.stats.pomoSessions || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailMindmaps', '导图 {n}', { n: lastReport.stats.mindmaps || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailWeekly', '周报 {n}', { n: lastReport.stats.weeklyReports || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailAchievements', '成就 {n}', { n: lastReport.stats.achievements || 0 }) }}</span>
+        <span class="sd-item">{{ t('views.sync.detailExams', '模考 {n}', { n: lastReport.stats.exams || 0 }) }}</span>
       </div>
     </div>
 
     <!-- P3-3 冲突可视化：哪些卡片的哪些字段被覆盖 -->
     <div v-if="showConflicts" class="panel" style="margin-top:16px">
       <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>字段冲突明细（{{ lastConflicts.length }} 张卡片有字段被覆盖）</span>
-        <button class="btn small" @click="showConflicts = false">收起</button>
+        <span>{{ t('views.sync.conflictTitle', '字段冲突明细（{n} 张卡片有字段被覆盖）', { n: lastConflicts.length }) }}</span>
+        <button class="btn small" @click="showConflicts = false">{{ t('views.sync.collapse') }}</button>
       </div>
-      <p class="hint" style="margin-top:0">合并按「双时间戳字段级」策略：内容字段按 updatedAt、复习状态按 reviewedAt、错因按 wrongReasonAt 各自取新者。下表显示每张卡被覆盖的字段来自哪一端。</p>
-      <div v-if="lastConflicts.length > 50" class="hint" style="color:var(--ink-2)">仅展示前 50 条，完整明细可在「自动快照」中回滚查看。</div>
+      <p class="hint" style="margin-top:0">{{ t('views.sync.conflictHint') }}</p>
+      <div v-if="lastConflicts.length > 50" class="hint" style="color:var(--ink-2)">{{ t('views.sync.conflictMore') }}</div>
       <div class="conflict-list">
         <div v-for="c in lastConflicts.slice(0, 50)" :key="c.id" class="conflict-item" :class="'win-' + c.winner">
-          <div class="conflict-front">{{ c.front || '(空卡)' }}</div>
+          <div class="conflict-front">{{ c.front || t('views.sync.emptyCard') }}</div>
           <div class="conflict-meta">
             <span class="conflict-winner">{{ winnerLabel(c.winner) }}</span>
             <span class="conflict-fields">{{ c.fields.join(' / ') }}</span>
@@ -641,24 +652,24 @@ async function refreshStatus() { await loadModuleStatus(); }
     <!-- P3-3 历史快照 / 回滚 -->
     <div class="panel" style="margin-top:16px">
       <div class="panel-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>历史快照与回滚</span>
-        <button class="btn small" :disabled="snapshotBusy" @click="doManualSnapshot">立即创建快照</button>
+        <span>{{ t('views.sync.snapshotsTitle') }}</span>
+        <button class="btn small" :disabled="snapshotBusy" @click="doManualSnapshot">{{ t('views.sync.createSnapshot') }}</button>
       </div>
-      <p class="hint" style="margin-top:0">每次导入数据包前会自动创建快照（最多保留 12 份，超出自动删最旧）。回滚会把当前所有非图片数据覆盖为快照内容，回滚前会再自动保存一次「回滚前快照」。</p>
-      <EmptyState v-if="!snapshots.length" compact icon="🗑️" title="暂无快照" message="导入数据包或点击「立即创建快照」即可生成" />
+      <p class="hint" style="margin-top:0">{{ t('views.sync.snapshotsHint') }}</p>
+      <EmptyState v-if="!snapshots.length" compact icon="🗑️" :title="t('views.sync.snapEmptyTitle')" :message="t('views.sync.snapEmptyMsg')" />
       <div v-else class="snapshot-list">
         <div v-for="s in snapshots" :key="s.id" class="snapshot-item">
           <div class="snapshot-main">
-            <div class="snapshot-label">{{ s.label || '(未命名快照)' }}</div>
+            <div class="snapshot-label">{{ s.label || t('views.sync.unnamedSnapshot') }}</div>
             <div class="snapshot-meta">
               <span>{{ fmt(s.createdAt) }}</span>
               <span v-if="s.sizeBytes"> · {{ fmtSize(s.sizeBytes) }}</span>
-              <span class="snapshot-kind">{{ s.kind === 'manual' ? '手动' : s.kind === 'auto-before-sync' ? '同步前' : '导入前' }}</span>
+              <span class="snapshot-kind">{{ s.kind === 'manual' ? t('views.sync.snapManual') : s.kind === 'auto-before-sync' ? t('views.sync.snapBeforeSync') : t('views.sync.snapBeforeImport') }}</span>
             </div>
           </div>
           <div class="snapshot-actions">
-            <button class="btn small" :disabled="snapshotBusy" @click="doRestore(s.id, s.label || fmt(s.createdAt))">回滚</button>
-            <button class="btn small danger" :disabled="snapshotBusy" @click="doDeleteSnapshot(s.id)">删除</button>
+            <button class="btn small" :disabled="snapshotBusy" @click="doRestore(s.id, s.label || fmt(s.createdAt))">{{ t('views.sync.rollback') }}</button>
+            <button class="btn small danger" :disabled="snapshotBusy" @click="doDeleteSnapshot(s.id)">{{ t('views.sync.delete') }}</button>
           </div>
         </div>
       </div>
@@ -666,131 +677,130 @@ async function refreshStatus() { await loadModuleStatus(); }
 
     <!-- 分享卡组 -->
     <div class="panel" style="margin-top:16px">
-      <div class="panel-title">分享卡组（导出某个科目）</div>
-      <p class="hint" style="margin-top:0">把某个科目的卡片单独打包成文件，发给同学导入；可附署名与说明（数字资产的"作品署名"）。</p>
+      <div class="panel-title">{{ t('views.sync.shareDeckTitle') }}</div>
+      <p class="hint" style="margin-top:0">{{ t('views.sync.shareDeckHint') }}</p>
       <div class="row">
         <select v-model="shareSubject" class="input" style="max-width:240px">
-          <option value="">选择科目</option>
+          <option value="">{{ t('views.sync.selectSubject') }}</option>
           <option v-for="s in subjects" :key="s.name" :value="s.name">{{ s.name }}（{{ s.count }}）</option>
         </select>
-        <button class="btn" @click="doShare">导出该科目</button>
+        <button class="btn" @click="doShare">{{ t('views.sync.exportSubject') }}</button>
       </div>
       <div class="row" style="margin-bottom:0">
-        <input v-model="shareAuthor" class="input" style="max-width:180px" placeholder="作者署名（选填）" />
-        <input v-model="shareDesc" class="input" style="flex:1;max-width:340px" placeholder="卡组说明（选填，如：408 计算机网络高频考点）" />
+        <input v-model="shareAuthor" class="input" style="max-width:180px" :placeholder="t('views.sync.authorPlaceholder')" />
+        <input v-model="shareDesc" class="input" style="flex:1;max-width:340px" :placeholder="t('views.sync.descPlaceholder')" />
       </div>
     </div>
 
     <!-- Anki 互通（E2 数字资产流转） -->
     <div class="panel" style="margin-top:16px">
-      <div class="panel-title">Anki 互通（数字资产流转）</div>
+      <div class="panel-title">{{ t('views.sync.ankiTitle') }}</div>
       <p class="hint" style="margin-top:0">
-        导出 `.txt` 可在 Anki 桌面版「导入 → 文本文件」直接使用；也支持导入 Anki 导出的文本（每行一张，Tab / | / → 分隔正反面）。
+        {{ t('views.sync.ankiHint') }}
       </p>
       <div class="row" style="margin-bottom:0">
-        <button class="btn" @click="doAnkiExport">导出 Anki 文本</button>
-        <button class="btn" :disabled="ankiBusy" @click="pickAnki">{{ ankiBusy ? '导入中…' : '导入 Anki 文本' }}</button>
+        <button class="btn" @click="doAnkiExport">{{ t('views.sync.exportAnkiText') }}</button>
+        <button class="btn" :disabled="ankiBusy" @click="pickAnki">{{ ankiBusy ? t('views.sync.importing') : t('views.sync.importAnkiText') }}</button>
         <input ref="ankiInput" type="file" accept=".txt,.tsv,.csv,text/plain" style="display:none" @change="onAnkiFile" />
       </div>
     </div>
 
     <!-- Gist 云备份（P3-B） -->
     <div class="panel" style="margin-top:16px">
-      <div class="panel-title">GitHub Gist 云备份</div>
+      <div class="panel-title">{{ t('views.sync.gistTitle') }}</div>
       <p class="hint" style="margin-top:0">
-        用 GitHub Gist 做跨设备云端备份：上传一份加密快照到你的 Gist，换设备/换浏览器时拉取合并。Token 仅存本机 localStorage，不上传任何第三方。
+        {{ t('views.sync.gistHint') }}
       </p>
 
-      <div class="field-label" style="margin-top:0">GitHub Personal Access Token（需 gist 权限）</div>
+      <div class="field-label" style="margin-top:0">{{ t('views.sync.gistTokenLabel') }}</div>
       <div class="row">
-        <input v-model="ghToken" class="input" type="password" placeholder="ghp_xxxx（在 GitHub Settings → Developer settings → Tokens 生成）" />
-        <button class="btn small" :disabled="gistBusy" @click="verifyGhToken">{{ gistBusy ? '校验中…' : '校验' }}</button>
+        <input v-model="ghToken" class="input" type="password" :placeholder="t('views.sync.gistTokenPlaceholder')" />
+        <button class="btn small" :disabled="gistBusy" @click="verifyGhToken">{{ gistBusy ? t('views.sync.verifying') : t('views.sync.verify') }}</button>
       </div>
-      <div v-if="ghLogin" class="hint" style="margin-bottom:8px;color:var(--green)">✓ 已校验账号：{{ ghLogin }}</div>
+      <div v-if="ghLogin" class="hint" style="margin-bottom:8px;color:var(--green)">{{ t('views.sync.gistVerified', '✓ 已校验账号：{login}', { login: ghLogin }) }}</div>
 
-      <div class="field-label" v-if="gistId">已绑定的 Gist ID</div>
+      <div class="field-label" v-if="gistId">{{ t('views.sync.gistIdBound') }}</div>
       <div class="row" v-if="gistId">
-        <input v-model="gistId" class="input" :readonly="!gistOpen" placeholder="Gist ID（首次上传后自动填入）" />
-        <button class="btn small" @click="gistOpen = !gistOpen">{{ gistOpen ? '锁定' : '编辑' }}</button>
+        <input v-model="gistId" class="input" :readonly="!gistOpen" :placeholder="t('views.sync.gistIdPlaceholder')" />
+        <button class="btn small" @click="gistOpen = !gistOpen">{{ gistOpen ? t('views.sync.lock') : t('views.sync.edit') }}</button>
       </div>
 
       <div class="row" style="margin-bottom:0">
-        <button class="btn primary" :disabled="gistBusy" @click="uploadToGist">{{ gistBusy ? '处理中…' : (gistId ? '上传更新到 Gist' : '首次云备份') }}</button>
-        <button class="btn" :disabled="gistBusy || !gistId" @click="pullFromGist">从 Gist 拉取合并</button>
-        <button class="btn small" style="color:var(--red)" @click="resetGist" v-if="ghToken || gistId">清空配置</button>
+        <button class="btn primary" :disabled="gistBusy" @click="uploadToGist">{{ gistBusy ? t('views.sync.processing') : (gistId ? t('views.sync.uploadUpdate') : t('views.sync.firstBackup')) }}</button>
+        <button class="btn" :disabled="gistBusy || !gistId" @click="pullFromGist">{{ t('views.sync.pullGist') }}</button>
+        <button class="btn small" style="color:var(--red)" @click="resetGist" v-if="ghToken || gistId">{{ t('views.sync.clearConfig') }}</button>
       </div>
       <div class="hint" style="margin-top:8px;margin-bottom:0">
-        提示：首次点「首次云备份」会创建一个 secret Gist 并自动记下 ID；之后点「上传更新」即覆盖同一份。拉取时按「最后修改时间」合并，保留本地较新内容。
+        {{ t('views.sync.gistHint2') }}
       </div>
     </div>
 
     <!-- 局域网自动同步 -->
     <div class="panel" style="margin-top:16px">
-      <div class="panel-title">局域网一键同步（在家用）</div>
+      <div class="panel-title">{{ t('views.sync.lanTitle') }}</div>
       <p class="hint" style="margin-top:0">
-        手机/平板和电脑连同一个 WiFi 时，点一下就把三端数据合并一致。需要先在家里那台电脑上启动「同步中枢」。
+        {{ t('views.sync.lanHint') }}
       </p>
 
       <div v-if="isOnGhPages" class="hub-banner hub-warn">
-        ⚠ 当前部署在 GitHub Pages（HTTPS），浏览器会阻止 HTTPS 页面请求 HTTP 内网 Hub，表现为「Fail to fetch」。<br/>
-        请用手机/平板浏览器直接打开电脑端 Hub 地址（<code>http://<b>&lt;电脑IP&gt;</b>:4780</code>），即可使用同步功能。
+        {{ t('views.sync.ghPagesWarn') }}
       </div>
       <div v-else-if="isHttps && hubUrl && /^http:\/\//i.test(hubUrl)" class="hub-banner hub-warn">
-        ⚠ 当前页面是 HTTPS，但你填的 Hub 地址是 HTTP。浏览器「混合内容阻断」会直接拒绝请求，这就是「Fail to fetch」的常见原因。
+        {{ t('views.sync.httpsWarn') }}
       </div>
 
-      <div class="field-label" style="margin-top:0">电脑端地址</div>
+      <div class="field-label" style="margin-top:0">{{ t('views.sync.hubAddrLabel') }}</div>
       <div class="row">
-        <input v-model="hubUrl" class="input" placeholder="例如 http://192.168.1.5:4780" />
-        <button class="btn small" :disabled="testingHub" @click="testHub">{{ testingHub ? '检测中…' : '测试连接' }}</button>
-        <button class="btn small" @click="saveHub">保存</button>
+        <input v-model="hubUrl" class="input" :placeholder="t('views.sync.hubAddrPlaceholder')" />
+        <button class="btn small" :disabled="testingHub" @click="testHub">{{ testingHub ? t('views.sync.testing') : t('views.sync.testConn') }}</button>
+        <button class="btn small" @click="saveHub">{{ t('views.sync.save') }}</button>
       </div>
 
       <div v-if="hubStatus" class="hub-status" :class="hubStatus.ok ? 'ok' : 'bad'">
         <template v-if="hubStatus.ok">
-          ✅ Hub 可达。{{
-            hubStatus.tokenOk === null ? '未填密码，未做校验。'
-            : hubStatus.tokenOk ? '密码校验通过。'
-            : '⚠ 密码未通过，请检查同步密码。'
+          {{ t('views.sync.hubReachable') }}{{
+            hubStatus.tokenOk === null ? t('views.sync.hubNoToken')
+            : hubStatus.tokenOk ? t('views.sync.hubTokenOk')
+            : t('views.sync.hubTokenFail')
           }}
           <ul v-if="hubStatus.tips?.length" style="margin:6px 0 0 18px;padding:0"><li v-for="(t,i) in hubStatus.tips" :key="i" class="hint" style="font-size:12px">{{ t }}</li></ul>
         </template>
         <template v-else>
-          ❌ 无法访问 Hub：<b>{{ hubStatus.error }}</b>
+          {{ t('views.sync.hubUnreachable') }}<b>{{ hubStatus.error }}</b>
           <ul v-if="hubStatus.hints?.length" style="margin:6px 0 0 18px;padding:0"><li v-for="(h,i) in hubStatus.hints" :key="i" style="font-size:12px">{{ h }}</li></ul>
         </template>
       </div>
 
-      <div class="field-label">同步密码</div>
+      <div class="field-label">{{ t('views.sync.hubPwdLabel') }}</div>
       <div class="row">
-        <input v-model="hubToken" class="input" placeholder="电脑启动中枢时显示的密码" />
+        <input v-model="hubToken" class="input" :placeholder="t('views.sync.hubPwdPlaceholder')" />
       </div>
 
       <button class="btn primary" style="width:100%" :disabled="syncing" @click="doSync">
-        {{ syncing ? '同步中…' : '与电脑一键同步' }}
+        {{ syncing ? t('views.sync.syncing') : t('views.sync.syncWithPc') }}
       </button>
 
       <div class="hub-steps">
-        <div class="step-title">如何在电脑上启动同步中枢（只需一次）</div>
+        <div class="step-title">{{ t('views.sync.stepTitle') }}</div>
         <ol>
-          <li>命令行进入本项目的 <code>new_card</code> 目录；</li>
-          <li>运行 <code>npm run hub</code>（会显示电脑的内网 IP 和端口）；</li>
-          <li>把上面「电脑端地址」填成 <code>http://该IP:4780</code> 并保存；</li>
-          <li>以后在家点「一键同步」即可，三端数据自动合并。</li>
+          <li>{{ t('views.sync.step1') }}</li>
+          <li>{{ t('views.sync.step2') }}</li>
+          <li>{{ t('views.sync.step3') }}</li>
+          <li>{{ t('views.sync.step4') }}</li>
         </ol>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <h3 style="margin:0">本地错误日志</h3>
-        <span class="hint">{{ errors.length }} 条</span>
+        <h3 style="margin:0">{{ t('views.sync.errLogTitle') }}</h3>
+        <span class="hint">{{ t('views.sync.errCount', '{n} 条', { n: errors.length }) }}</span>
         <span style="flex:1"></span>
-        <button class="btn small" @click="loadErrors">刷新</button>
-        <button class="btn small" style="color:var(--red)" @click="clearErrs" v-if="errors.length">清空</button>
+        <button class="btn small" @click="loadErrors">{{ t('views.sync.refresh') }}</button>
+        <button class="btn small" style="color:var(--red)" @click="clearErrs" v-if="errors.length">{{ t('views.sync.clearBtn') }}</button>
       </div>
-      <p class="hint" style="margin:4px 0 8px">记录应用运行时的异常（看不见的崩溃），便于反馈排查。最多保留 200 条。</p>
-      <EmptyState v-if="!errors.length" compact icon="🐞" title="暂无错误记录" message="应用运行时的异常会记录在这里，便于反馈排查" />
+      <p class="hint" style="margin:4px 0 8px">{{ t('views.sync.errLogHint') }}</p>
+      <EmptyState v-if="!errors.length" compact icon="🐞" :title="t('views.sync.errEmptyTitle')" :message="t('views.sync.errEmptyMsg')" />
       <div v-for="e in errors" :key="e.id" class="err-row">
         <div class="err-head">
           <span class="err-sev" :class="e.severity">{{ e.severity }}</span>
@@ -798,7 +808,7 @@ async function refreshStatus() { await loadModuleStatus(); }
           <span class="err-ctx" v-if="e.ctx">{{ e.ctx }}</span>
         </div>
         <div class="err-msg">{{ e.message }}</div>
-        <details v-if="e.stack"><summary class="hint">堆栈</summary><pre class="err-stack">{{ e.stack }}</pre></details>
+        <details v-if="e.stack"><summary class="hint">{{ t('views.sync.stack') }}</summary><pre class="err-stack">{{ e.stack }}</pre></details>
       </div>
     </div>
   </div>

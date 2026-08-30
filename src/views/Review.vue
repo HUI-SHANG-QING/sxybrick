@@ -21,6 +21,7 @@ import { retentionFor } from '../algorithms/adaptive-retention.js';
 import { getQuickCheckDue, recordQuickCheck } from '../utils/quickCheck.js';
 import { recommendTodaySequence, syncReviewToPlan } from '../intelligence.js';
 import { T } from '../utils/telemetry.js';
+import { t } from '../i18n/index.js';
 
 const router = useRouter();
 
@@ -134,8 +135,8 @@ function nextCard() {
 const consolidationHint = computed(() => {
   const c = current();
   if (!c) return '';
-  if (c.consolidation === 1) return '🧠 当日巩固 · 6 小时内首次主动提取，强化工作记忆→长期记忆转化';
-  if (c.consolidation === 2) return '😴 隔日巩固 · 跨越睡眠周期，固化长期记忆';
+  if (c.consolidation === 1) return t('views.review.consolidation1');
+  if (c.consolidation === 2) return t('views.review.consolidation2');
   return '';
 });
 // 队列中短期巩固卡数量（让用户知道有几张在巩固阶段）
@@ -148,9 +149,9 @@ const graphHint = computed(() => {
   if (!graphMode.value) return '';
   const c = current();
   if (!c) return '';
-  if (c.graphReason === '前置知识') return '🧠 图驱动 · 前置知识：先把这块基础过一遍，再复习依赖它的卡';
-  if (c.graphReason === '易混配对') return '🔀 图驱动 · 易混配对：与上一张挨着复习，强化辨析';
-  if (c.graphReason === '到期/薄弱') return '📌 图驱动 · 当前到期/薄弱卡';
+  if (c.graphReason === '前置知识') return t('views.review.graphPrereq');
+  if (c.graphReason === '易混配对') return t('views.review.graphConfusable');
+  if (c.graphReason === '到期/薄弱') return t('views.review.graphDue');
   return '';
 });
 
@@ -225,7 +226,7 @@ const smartHint = computed(() => {
   const segs = smartMeta.value.segments;
   for (const s of segs) {
     const [start, end] = s.range.split('-').map(Number);
-    if (i + 1 >= start && i + 1 <= end) return `🎯 ${s.name}：${s.desc}`;
+    if (i + 1 >= start && i + 1 <= end) return t('views.review.smartHintTpl', '🎯 {name}：{desc}', { name: s.name, desc: s.desc });
   }
   return '';
 });
@@ -243,13 +244,13 @@ async function rate(card, rating, guessed = false, meta = {}) {
     todayCount.value = await getTodayCount(); // 从 db.reviews 推导（跨会话/跨设备同步）
     // P2·#12 计划↔复习联动：复习后刷新引用此卡的计划的进度
     syncReviewToPlan(card.id).catch(() => {});
-    let msg = `下次复习：${res.dueText}`;
+    let msg = t('views.review.nextReview', '下次复习：{due}', { due: res.dueText });
     if (rating === 0) {
       const pair = confusablePairs.value.find(p => p.a.id === card.id || p.b.id === card.id);
       if (pair) {
         const other = pair.a.id === card.id ? pair.b : pair.a;
-        confusableHint.value = `⚠ 易混提醒：这张卡常与「${other.front}」一起出错，建议紧接着复习对比。`;
-        msg += '；已标记易混对';
+        confusableHint.value = t('views.review.confusableHint', '⚠ 易混提醒：这张卡常与「{front}」一起出错，建议紧接着复习对比。', { front: other.front });
+        msg += t('views.review.markedConfusable');
       } else confusableHint.value = '';
     } else confusableHint.value = '';
     toast(msg, 'success');
@@ -275,9 +276,9 @@ function promptSelfExplain(card, reviewId) {
 }
 async function submitSelfExplain() {
   const se = selfExplain.value;
-  const t = selfExplainText.value.trim();
-  if (t && se) {
-    try { await attachSelfExplanation(se.reviewId, t); toast('已记录自我解释，下次更容易想起', 'success'); } catch { /* 落盘失败不阻塞 */ }
+  const txt = selfExplainText.value.trim();
+  if (txt && se) {
+    try { await attachSelfExplanation(se.reviewId, txt); toast(t('views.review.selfExplainSaved'), 'success'); } catch { /* 落盘失败不阻塞 */ }
   }
   const resolve = se?.resolve;
   selfExplain.value = null;
@@ -341,20 +342,20 @@ function voiceEval() {
     const cov = keywords.length ? Math.round((hit / keywords.length) * 100) : 0;
     // 行为回写 SRS：复述覆盖率影响这张卡的 ease 与下次复习时间（数据一致性闭环）
     applyCardFeedback(card.id, { score: cov });
-    const low = cov < 40 ? '；已安排 30 分钟内趁热重练' : cov >= 85 ? '；记忆较稳，间隔微调放宽' : '';
-    toast(`语音作答覆盖 ${cov}%（命中 ${hit}/${keywords.length} 个要点）${low}`, cov >= 60 ? 'success' : 'info');
+    const low = cov < 40 ? t('views.review.voiceLow') : cov >= 85 ? t('views.review.voiceHigh') : '';
+    toast(t('views.review.voiceResult', '语音作答覆盖 {cov}%（命中 {hit}/{total} 个要点）{extra}', { cov, hit, total: keywords.length, extra: low }), cov >= 60 ? 'success' : 'info');
   }, () => { voiceListening.value = false; });
-  if (!rec) { voiceListening.value = false; toast('当前浏览器不支持语音识别', 'error'); }
+  if (!rec) { voiceListening.value = false; toast(t('views.review.voiceUnsupported'), 'error'); }
 }
 
 // P3-C TTS 朗读：part = 'front' | 'back'
 function readAloud(part = 'front') {
-  if (!ttsSupported) { toast('当前浏览器不支持语音朗读', 'error'); return; }
+  if (!ttsSupported) { toast(t('views.review.ttsUnsupported'), 'error'); return; }
   const card = current();
   if (!card) return;
   const text = part === 'back' ? card.back : card.front;
   const ok = speak(text);
-  if (!ok) { toast('该卡无可朗读内容', 'info'); return; }
+  if (!ok) { toast(t('views.review.ttsEmpty'), 'info'); return; }
   reading.value = part;
   // 朗读结束后清除状态（SpeechSynthesis 无精确 end 事件可靠，用定时兜底）
   const dur = Math.max(1500, mdToSpeech(text).length * 180);
@@ -443,8 +444,8 @@ function expandAll() { collapsedIds.value = new Set(); saveCollapsed(); }
 
 function plain(md) {
   return String(md || '')
-    .replace(/```[\s\S]*?```/g, ' [代码] ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' [图片] ')
+    .replace(/```[\s\S]*?```/g, t('views.review.mdCode'))
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, t('views.review.mdImage'))
     .replace(/\$\$?([^$\n]+)\$\$?/g, ' $1 ')
     .replace(/[*_#>`~|-]/g, '')
     .replace(/\s+/g, ' ')
@@ -461,7 +462,7 @@ const focusSeconds = ref(0);
 let focusTimer = null;
 function fmtFocus(s) {
   const m = Math.floor(s / 60), sec = s % 60;
-  return m > 0 ? `${m} 分 ${sec} 秒` : `${sec} 秒`;
+  return m > 0 ? t('views.review.focusMin', '{m} 分 {s} 秒', { m, s: sec }) : t('views.review.focusSec', '{s} 秒', { s: sec });
 }
 
 /** D2 监督力：损失条 + 紧迫感弹窗 —— 统计与显隐 */
@@ -513,7 +514,7 @@ onMounted(async () => {
       quickIdx.value = 0;
       quickFlipped.value = false;
       quickMode.value = true;
-      toast(`⚡ ${due.length} 张新卡需要快速校验`, 'info');
+      toast(t('views.review.quickNeed', '⚡ {n} 张新卡需要快速校验', { n: due.length }), 'info');
     }
   }, 60000);
 });
@@ -582,7 +583,7 @@ function startSessionTimer() {
       clearInterval(sessionTimer);
       sessionOn.value = false; sessionDone.value = true;
       localStorage.removeItem('sxy_rv_session_end');
-      toast('25 分钟复习会话结束，去休息一下吧！', 'success');
+      toast(t('views.review.sessionEnd'), 'success');
     }
   }, 1000);
 }
@@ -599,7 +600,7 @@ const adaptiveOn = ref(localStorage.getItem('sxy_adaptive') === '1');
 function toggleAdaptive() {
   adaptiveOn.value = !adaptiveOn.value;
   localStorage.setItem('sxy_adaptive', adaptiveOn.value ? '1' : '0');
-  toast(adaptiveOn.value ? '已开启自适应节奏：频繁出错的卡会加快重现，稳定掌握的卡会拉长间隔' : '已切回基准间隔', 'info');
+  toast(adaptiveOn.value ? t('views.review.adaptiveOnMsg') : t('views.review.adaptiveOffMsg'), 'info');
 }
 
 // ---- C6 短期提取巩固：新卡快速校验 ----
@@ -616,12 +617,12 @@ async function quickRate(remembered) {
   quickFlipped.value = false;
   if (quickIdx.value >= quickQueue.value.length) {
     quickMode.value = false;
-    toast('⚡ 快速校验完成，继续正常复习', 'success');
+    toast(t('views.review.quickDone'), 'success');
   }
 }
 function skipQuick() {
   quickMode.value = false;
-  toast('已跳过快速校验', 'info');
+  toast(t('views.review.quickSkipped'), 'info');
 }
 
 // ---- C5 易混卡对决：看答案归属，练辨析 ----
@@ -633,7 +634,7 @@ const duelOptions = ref([]); // 本轮两个选项（随机顺序）
 const duelBack = ref(''); // 当前考问的答案文本（confusable 对里没有 back，需从库读）
 function shuffle(arr) { const a = [...arr]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function startDuel() {
-  if (!confusablePairs.value.length) { toast('暂无易混卡对：多答错几道带共同标签的题就会出现', 'info'); return; }
+  if (!confusablePairs.value.length) { toast(t('views.review.duelNone'), 'info'); return; }
   duelOpen.value = true;
   duelIdx.value = 0;
   nextDuel();
@@ -650,7 +651,7 @@ function pickDuel(card) {
   if (duelPicked.value) return;
   const correct = card.id === duelTarget.value.id;
   duelPicked.value = card.id;
-  toast(correct ? '✅ 辨析正确！' : `❌ 这张答案其实属于「${duelTarget.value.front.slice(0, 18)}」`, correct ? 'success' : 'error');
+  toast(correct ? t('views.review.duelRight') : t('views.review.duelWrong', '❌ 这张答案其实属于「{front}」', { front: duelTarget.value.front.slice(0, 18) }), correct ? 'success' : 'error');
   if (!correct) recordDuelWrong(card.id, duelTarget.value.id); // 错选回流：自动加权这对易混卡
   setTimeout(() => { duelIdx.value++; nextDuel(); }, 1200);
 }
@@ -672,91 +673,91 @@ async function recordDuelWrong(idA, idB) {
       :dismissible="true"
     />
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">专注背诵</h2>
-      <span class="hint">今日 {{ todayCount }} / {{ goal }} 张</span>
-      <span class="hint">待背 {{ Math.max(0, queue.length - idx) }} 张</span>
-      <span class="hint" style="color:var(--green)">已专注 {{ fmtFocus(focusSeconds) }}</span>
+      <h2 style="margin:0">{{ t('views.review.title') }}</h2>
+      <span class="hint">{{ t('views.review.todayProgress', '今日 {n} / {goal} 张', { n: todayCount, goal }) }}</span>
+      <span class="hint">{{ t('views.review.dueLeft', '待背 {n} 张', { n: Math.max(0, queue.length - idx) }) }}</span>
+      <span class="hint" style="color:var(--green)">{{ t('views.review.focused', '已专注 {t}', { t: fmtFocus(focusSeconds) }) }}</span>
       <span style="flex:1"></span>
-      <button class="chip" :class="{ on: tab === 'due' }" @click="switchTab('due')">待背</button>
-      <button class="chip" :class="{ on: tab === 'history' }" @click="switchTab('history')">已背记录</button>
+      <button class="chip" :class="{ on: tab === 'due' }" @click="switchTab('due')">{{ t('views.review.tabDue') }}</button>
+      <button class="chip" :class="{ on: tab === 'history' }" @click="switchTab('history')">{{ t('views.review.tabHistory') }}</button>
     </div>
 
     <template v-if="tab === 'due'">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px">
-        <label class="hint">复习强度</label>
+        <label class="hint">{{ t('views.review.intensityLabel') }}</label>
         <select v-model.number="intensity" class="input" style="width:auto">
-          <option :value="1">正常</option>
-          <option :value="1.5">考试临近（更频繁）</option>
-          <option :value="2">考前冲刺（最高频）</option>
+          <option :value="1">{{ t('views.review.intensityNormal') }}</option>
+          <option :value="1.5">{{ t('views.review.intensityNear') }}</option>
+          <option :value="2">{{ t('views.review.intensitySprint') }}</option>
         </select>
-        <label class="hint" title="检索方式越强，记忆越牢固，下次间隔越长（生成效应 + 费曼学习法）">检索方式</label>
+        <label class="hint" :title="t('views.review.retrievalTitle')">{{ t('views.review.retrievalLabel') }}</label>
         <select v-model="retrievalStrength" class="input" style="width:auto">
           <option v-for="o in RETRIEVAL_STRENGTH_OPTIONS" :key="o.code" :value="o.code" :title="o.desc">{{ o.label }}</option>
         </select>
-        <button class="chip" :class="{ on: interleave }" @click="toggleInterleave">交错混科</button>
-        <button class="chip" :class="{ on: smartMode }" @click="toggleSmart" title="综合到期+薄弱+精力曲线+交错混科+变式分散的智能排程（本地算法，零 LLM 开销）">🎯 今日最优序列</button>
-        <button class="chip" :class="{ on: graphMode }" @click="toggleGraph" title="按知识图谱的前置/依赖关系编排复习顺序：基础知识卡在前，易混卡挨着复习">图驱动复习</button>
-        <button class="chip" :class="{ on: adaptiveOn }" @click="toggleAdaptive" title="自适应节奏：按这张卡的历史错误率微调复习间隔">自适应节奏</button>
-        <button class="chip" :class="{ on: selfExplainOn }" @click="toggleSelfExplain" title="自我解释：答错后弹反思卡，写一句「为什么错/正确理解」，加深理解">✍️ 自我解释</button>
-        <button class="chip" :class="{ on: delayedOn }" @click="toggleDelayed" title="延迟反馈：答错后停留 3 秒再看一眼答案（间隔揭示效应）">⏳ 延迟反馈</button>
-        <button class="chip" :class="{ on: sessionOn }" @click="toggleSession">{{ sessionOn ? `会话中 ${fmtClock(sessionLeft)}` : '25 分钟会话' }}</button>
-        <button class="chip" @click="startDuel">易混对决</button>
-        <button v-if="sessionDone" class="chip" style="color:var(--green);border-color:var(--green)" @click="router.push('/pomodoro')">去番茄钟休息 →</button>
+        <button class="chip" :class="{ on: interleave }" @click="toggleInterleave">{{ t('views.review.interleave') }}</button>
+        <button class="chip" :class="{ on: smartMode }" @click="toggleSmart" :title="t('views.review.smartModeTitle')">{{ t('views.review.smartMode') }}</button>
+        <button class="chip" :class="{ on: graphMode }" @click="toggleGraph" :title="t('views.review.graphModeTitle')">{{ t('views.review.graphMode') }}</button>
+        <button class="chip" :class="{ on: adaptiveOn }" @click="toggleAdaptive" :title="t('views.review.adaptiveModeTitle')">{{ t('views.review.adaptiveMode') }}</button>
+        <button class="chip" :class="{ on: selfExplainOn }" @click="toggleSelfExplain" :title="t('views.review.selfExplainTitle')">{{ t('views.review.selfExplainBtn') }}</button>
+        <button class="chip" :class="{ on: delayedOn }" @click="toggleDelayed" :title="t('views.review.delayedTitle')">{{ t('views.review.delayedBtn') }}</button>
+        <button class="chip" :class="{ on: sessionOn }" @click="toggleSession">{{ sessionOn ? t('views.review.sessionRunning', '会话中 {t}', { t: fmtClock(sessionLeft) }) : t('views.review.sessionStart') }}</button>
+        <button class="chip" @click="startDuel">{{ t('views.review.duelBtn') }}</button>
+        <button v-if="sessionDone" class="chip" style="color:var(--green);border-color:var(--green)" @click="router.push('/pomodoro')">{{ t('views.review.gotoPomodoro') }}</button>
         <button class="chip" :class="{ on: filterActive }" @click="filterOpen = !filterOpen">
-          筛选背诵{{ filterActive ? '（已选）' : '' }}
+          {{ t('views.review.filterBtn') }}{{ filterActive ? t('views.review.filterActiveSuffix') : '' }}
         </button>
-        <button v-if="speechSupported" class="chip" :class="{ on: voiceListening }" @click="voiceEval">{{ voiceListening ? '聆听中…' : '语音作答' }}</button>
+        <button v-if="speechSupported" class="chip" :class="{ on: voiceListening }" @click="voiceEval">{{ voiceListening ? t('views.review.listening') : t('views.review.voiceAnswer') }}</button>
         <template v-if="ttsSupported">
-          <button class="chip" :class="{ on: reading === 'front' }" @click="readAloud('front')" title="用语音朗读题面">🔊 朗读题面</button>
-          <button class="chip" :class="{ on: reading === 'back' }" @click="readAloud('back')" title="翻面后朗读答案">朗读答案</button>
-          <button class="chip" :class="{ on: autoRead }" @click="toggleAutoRead" title="切到每张卡时自动朗读题面">自动朗读</button>
-          <button v-if="reading" class="chip" style="color:var(--red);border-color:var(--red)" @click="stopRead">停止</button>
+          <button class="chip" :class="{ on: reading === 'front' }" @click="readAloud('front')" :title="t('views.review.readFrontTitle')">{{ t('views.review.readFront') }}</button>
+          <button class="chip" :class="{ on: reading === 'back' }" @click="readAloud('back')" :title="t('views.review.readBackTitle')">{{ t('views.review.readBack') }}</button>
+          <button class="chip" :class="{ on: autoRead }" @click="toggleAutoRead" :title="t('views.review.autoReadTitle')">{{ t('views.review.autoRead') }}</button>
+          <button v-if="reading" class="chip" style="color:var(--red);border-color:var(--red)" @click="stopRead">{{ t('views.review.stopRead') }}</button>
         </template>
-        <button class="chip" :class="{ on: focusMode }" @click="toggleFocus">专注模式</button>
+        <button class="chip" :class="{ on: focusMode }" @click="toggleFocus">{{ t('views.review.focusMode') }}</button>
       </div>
 
       <!-- 自由组合筛选面板 -->
       <div v-if="filterOpen" class="panel no-print" style="margin-top:12px">
-        <div class="field-label" style="margin-top:0">科目（多选，并集）</div>
+        <div class="field-label" style="margin-top:0">{{ t('views.review.fSubjectLabel') }}</div>
         <div class="row">
           <button v-for="s in subjects" :key="s.name" class="chip" :class="{ on: fSubjects.includes(s.name) }" @click="toggleFSubject(s.name)">{{ s.name }}<span v-if="s.count" class="n">{{ s.count }}</span></button>
-          <button v-if="fSubjects.length" class="chip" @click="fSubjects = []">清除</button>
+          <button v-if="fSubjects.length" class="chip" @click="fSubjects = []">{{ t('views.review.clear') }}</button>
         </div>
-        <div class="field-label">标签（多选）</div>
+        <div class="field-label">{{ t('views.review.fTagLabel') }}</div>
         <div class="row">
           <button v-for="t in allTags" :key="t.name" class="chip" :class="{ on: fTags.includes(t.name) }" @click="toggleFTag(t.name)">{{ t.name }}<span class="n">{{ t.count }}</span></button>
           <select v-if="fTags.length" v-model="fLogic" class="input" style="width:auto">
-            <option value="OR">并集 OR</option>
-            <option value="AND">交集 AND</option>
-            <option value="NOT">差集 NOT</option>
+            <option value="OR">{{ t('views.review.logicOr') }}</option>
+            <option value="AND">{{ t('views.review.logicAnd') }}</option>
+            <option value="NOT">{{ t('views.review.logicNot') }}</option>
           </select>
         </div>
-        <div class="field-label">错因（多选）</div>
+        <div class="field-label">{{ t('views.review.fWrongLabel') }}</div>
         <div class="row">
           <button v-for="r in WRONG_REASONS" :key="r.code" class="chip" :class="{ on: fWrongReasons.includes(r.code) }" @click="toggleFWrong(r.code)">{{ r.label }}</button>
         </div>
         <!-- M1 卡组筛选：选卡组 = 只复习组内卡；不选 = 全部（含备用停车规则） -->
-        <div class="field-label">卡组（多选；不选 = 全部）</div>
+        <div class="field-label">{{ t('views.review.fGroupLabel') }}</div>
         <div class="row">
-          <button v-if="!cardGroups.length" class="chip" disabled>还没有卡组（「卡组」页创建）</button>
+          <button v-if="!cardGroups.length" class="chip" disabled>{{ t('views.review.noGroups') }}</button>
           <button v-for="g in cardGroups" :key="g.id" class="chip" :class="{ on: fGroups.includes(g.id) }" @click="toggleFGroup(g.id)"
-                  :title="g.status === 'archived' ? '备用卡组' : '背诵中'">
-            <span v-if="g.color" class="g-dot" :style="{ background: g.color }"></span>{{ g.name }}<span v-if="g.status === 'archived'" class="n">备</span>
+                  :title="g.status === 'archived' ? t('views.review.groupArchived') : t('views.review.groupActive')">
+            <span v-if="g.color" class="g-dot" :style="{ background: g.color }"></span>{{ g.name }}<span v-if="g.status === 'archived'" class="n">{{ t('views.review.archivedShort') }}</span>
           </button>
         </div>
         <div class="row">
           <button class="chip" :class="{ on: fArchivedOnly }" :disabled="!!fGroups.length" @click="fArchivedOnly = !fArchivedOnly"
-                  title="只看「仅属于备用卡组」的卡片（不选卡组时生效）">🅱 仅备用组卡片</button>
+                  :title="t('views.review.onlyArchivedTitle')">{{ t('views.review.onlyArchived') }}</button>
           <button class="chip" :class="{ on: parkArchived }" :disabled="!!fGroups.length || fArchivedOnly" @click="parkArchived = !parkArchived"
-                  title="开：只属于备用组的卡不进队列（未分组卡照常）；关：备用组的卡也参与">{{ parkArchived ? '✓ 备用组停车' : '备用组也参与' }}</button>
+                  :title="t('views.review.parkTitle')">{{ parkArchived ? t('views.review.parkOn') : t('views.review.parkOff') }}</button>
         </div>
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn primary" @click="applyFilter">应用筛选</button>
-          <button class="btn" @click="clearFilter">清除全部</button>
+          <button class="btn primary" @click="applyFilter">{{ t('views.review.applyFilter') }}</button>
+          <button class="btn" @click="clearFilter">{{ t('views.review.clearAll') }}</button>
         </div>
       </div>
 
-      <div v-if="loading" class="hint" style="text-align:center;padding:60px">加载中…</div>
+      <div v-if="loading" class="hint" style="text-align:center;padding:60px">{{ t('views.review.loading') }}</div>
       <!-- M1 卡组小样式 -->
 
       <!-- 短期提取巩固：新卡快速校验（不计 SRS） -->
@@ -764,23 +765,23 @@ async function recordDuelWrong(idA, idB) {
         <div class="quick-check panel" style="margin-top:12px">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
             <span style="font-size:18px">⚡</span>
-            <b>短期提取巩固</b>
+            <b>{{ t('views.review.quickTitle') }}</b>
             <span class="hint">{{ quickIdx + 1 }} / {{ quickQueue.length }}</span>
             <span style="flex:1"></span>
-            <button class="chip" @click="skipQuick">跳过</button>
+            <button class="chip" @click="skipQuick">{{ t('views.review.skip') }}</button>
           </div>
-          <div class="hint" style="margin-bottom:8px">刚学的卡在 10 分钟后快速回忆一次，巩固工作记忆（不计入复习排期）· 快捷键：空格翻面，1 没记住 2 记住了</div>
+          <div class="hint" style="margin-bottom:8px">{{ t('views.review.quickHint') }}</div>
           <div v-if="!quickFlipped" class="quick-front" @click="flipQuick">
             <MarkdownRenderer :content="quickCurrent.front" />
-            <div class="hint" style="text-align:center;margin-top:8px">点击卡片查看答案</div>
+            <div class="hint" style="text-align:center;margin-top:8px">{{ t('views.review.quickFlipHint') }}</div>
           </div>
           <div v-else>
             <div class="quick-back">
               <MarkdownRenderer :content="quickCurrent.back" />
             </div>
             <div style="display:flex;gap:12px;margin-top:12px;justify-content:center">
-              <button class="btn" style="border-color:var(--red);color:var(--red)" @click="quickRate(false)">没记住</button>
-              <button class="btn primary" @click="quickRate(true)">记住了</button>
+              <button class="btn" style="border-color:var(--red);color:var(--red)" @click="quickRate(false)">{{ t('views.review.rateBad') }}</button>
+              <button class="btn primary" @click="quickRate(true)">{{ t('views.review.rateGood') }}</button>
             </div>
           </div>
         </div>
@@ -799,7 +800,7 @@ async function recordDuelWrong(idA, idB) {
 
         <!-- 复习上下文增强：来源资料原文片段（翻转后才显示，避免剧透） -->
         <div v-if="flipRef?.flipped && sourceDoc" class="source-doc-bar">
-          <span class="source-doc-title">📄 来源：<a class="source-doc-link" @click="router.push('/materials')">{{ sourceDoc.doc.name }}</a></span>
+          <span class="source-doc-title">{{ t('views.review.sourcePrefix') }}<a class="source-doc-link" @click="router.push('/materials')">{{ sourceDoc.doc.name }}</a></span>
           <div class="source-doc-excerpt">{{ sourceDoc.excerpt }}</div>
         </div>
 
@@ -810,27 +811,27 @@ async function recordDuelWrong(idA, idB) {
       <div v-else class="empty">
         <div v-if="todayCount > 0" class="celebrate">
           <div class="celebrate-ring">{{ todayCount }}</div>
-          <h3>本轮复习完成</h3>
-          <p class="hint">今日已复习 {{ todayCount }} 张（目标 {{ goal }} 张）</p>
-          <button class="btn primary" @click="nextRound">继续复习</button>
+          <h3>{{ t('views.review.roundDone') }}</h3>
+          <p class="hint">{{ t('views.review.roundDoneMsg', '今日已复习 {n} 张（目标 {goal} 张）', { n: todayCount, goal }) }}</p>
+          <button class="btn primary" @click="nextRound">{{ t('views.review.continueReview') }}</button>
         </div>
         <template v-else>
-          <h3>当前没有到期的卡片</h3>
-          <p class="hint">所有卡片都已安排到未来复习，去「我的卡片」新建或编辑卡片吧。</p>
+          <h3>{{ t('views.review.noDueTitle') }}</h3>
+          <p class="hint">{{ t('views.review.noDueMsg') }}</p>
         </template>
       </div>
     </template>
 
     <template v-else>
-      <div v-if="historyLoading" class="hint" style="text-align:center;padding:40px">加载中…</div>
+      <div v-if="historyLoading" class="hint" style="text-align:center;padding:40px">{{ t('views.review.loading') }}</div>
 
       <div v-else-if="shownHistory.length">
         <div style="display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap">
-          <span class="hint">共 {{ shownHistory.length }} 条 · 默认全展开，点「收起」隐藏熟悉的卡</span>
+          <span class="hint">{{ t('views.review.historyHint', '共 {n} 条 · 默认全展开，点「收起」隐藏熟悉的卡', { n: shownHistory.length }) }}</span>
           <span style="flex:1"></span>
-          <button class="chip" :class="{ on: onlyToday }" @click="onlyToday = !onlyToday">只看今日</button>
-          <button class="chip" @click="expandAll">全部展开</button>
-          <button class="chip" @click="collapseAll">全部收起</button>
+          <button class="chip" :class="{ on: onlyToday }" @click="onlyToday = !onlyToday">{{ t('views.review.onlyToday') }}</button>
+          <button class="chip" @click="expandAll">{{ t('views.review.expandAll') }}</button>
+          <button class="chip" @click="collapseAll">{{ t('views.review.collapseAll') }}</button>
         </div>
 
         <div class="history-list">
@@ -841,16 +842,16 @@ async function recordDuelWrong(idA, idB) {
             </div>
             <!-- 默认全展开；点「收起」才隐藏详情 -->
             <div v-if="!collapsedIds.has(h.id)" class="history-detail">
-              <div class="hint" style="margin:6px 0 2px">正面</div>
+              <div class="hint" style="margin:6px 0 2px">{{ t('views.review.frontLabel') }}</div>
               <MarkdownRenderer :content="h.front" />
-              <div class="hint" style="margin:10px 0 2px">背面 / 答案</div>
+              <div class="hint" style="margin:10px 0 2px">{{ t('views.review.backLabel') }}</div>
               <MarkdownRenderer :content="h.back" />
             </div>
-            <div v-else class="front-preview">{{ plain(h.front).slice(0, 120) || '（空）' }}</div>
+            <div v-else class="front-preview">{{ plain(h.front).slice(0, 120) || t('views.review.empty') }}</div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
               <span class="hint">{{ fmtTime(h.reviewedAt) }}</span>
               <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn small" @click="toggleCollapse(h.id)">{{ collapsedIds.has(h.id) ? '展开' : '收起' }}</button>
+                <button class="btn small" @click="toggleCollapse(h.id)">{{ collapsedIds.has(h.id) ? t('views.review.expand') : t('views.review.collapse') }}</button>
                 <span class="rating-pill" :class="'r' + h.rating">{{ h.ratingText }}</span>
               </div>
             </div>
@@ -859,7 +860,7 @@ async function recordDuelWrong(idA, idB) {
       </div>
 
       <div v-else class="empty">
-        <EmptyState title="还没有背诵记录" message="完成第一张卡的背诵后，这里会显示你的历史记录" />
+        <EmptyState :title="t('views.review.noHistoryTitle')" :message="t('views.review.noHistoryMsg')" />
       </div>
     </template>
 
@@ -869,20 +870,20 @@ async function recordDuelWrong(idA, idB) {
     <teleport to="body">
       <div v-if="selfExplain" class="modal-mask" @click.self="skipSelfExplain">
         <div class="modal" style="max-width:520px">
-          <h3 style="margin-top:0">✍️ 自我解释</h3>
-          <p class="hint" style="margin:0 0 10px">答错了没关系——用一句话说清「为什么错 / 正确的理解是什么」，能显著加深记忆。</p>
+          <h3 style="margin-top:0">{{ t('views.review.selfExplainBtn') }}</h3>
+          <p class="hint" style="margin:0 0 10px">{{ t('views.review.selfExplainHint') }}</p>
           <div class="se-question">
-            <div class="hint" style="margin-bottom:4px;font-weight:600">问题</div>
+            <div class="hint" style="margin-bottom:4px;font-weight:600">{{ t('views.review.question') }}</div>
             <div class="se-text">{{ selfExplain.front }}</div>
-            <div class="hint" style="margin:10px 0 4px;font-weight:600">答案</div>
+            <div class="hint" style="margin:10px 0 4px;font-weight:600">{{ t('views.review.answer') }}</div>
             <div class="se-text">{{ selfExplain.back }}</div>
           </div>
           <textarea v-model="selfExplainText" class="input" rows="3" style="width:100%;margin-top:12px"
-            placeholder="例：我把「死锁」和「饥饿」搞混了——死锁是互相等待，饥饿是永远得不到资源…"
+            :placeholder="t('views.review.selfExplainPlaceholder')"
             @keydown.ctrl.enter="submitSelfExplain"></textarea>
           <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
-            <button class="btn" @click="skipSelfExplain">跳过</button>
-            <button class="btn primary" @click="submitSelfExplain">记录反思（Ctrl+Enter）</button>
+            <button class="btn" @click="skipSelfExplain">{{ t('views.review.skip') }}</button>
+            <button class="btn primary" @click="submitSelfExplain">{{ t('views.review.saveReflection') }}</button>
           </div>
         </div>
       </div>
@@ -893,17 +894,17 @@ async function recordDuelWrong(idA, idB) {
       <div v-if="showComplete" class="modal-mask" @click.self="showComplete = false">
         <div class="modal" style="max-width:420px;text-align:center">
           <div class="celebrate-ring" style="margin:0 auto 14px">{{ todayCount }}</div>
-          <h3 style="margin-top:0">{{ completeType === 'goal' ? '今日复习已完成 🎉' : '卡片已全部复习完' }}</h3>
+          <h3 style="margin-top:0">{{ completeType === 'goal' ? t('views.review.completeGoal') : t('views.review.completeEmpty') }}</h3>
           <p class="hint" style="line-height:1.8">
-            <template v-if="completeType === 'goal'">今日已复习 <b>{{ todayCount }}</b> 张，达成目标 <b>{{ goal }}</b> 张。</template>
-            <template v-else>今日已复习 <b>{{ todayCount }}</b> 张，当前到期卡片已全部复习完（目标 {{ goal }} 张）。</template>
+            <template v-if="completeType === 'goal'">{{ t('views.review.completeGoalMsg', '今日已复习 {n} 张，达成目标 {goal} 张。', { n: todayCount, goal }) }}</template>
+            <template v-else>{{ t('views.review.completeEmptyMsg', '今日已复习 {n} 张，当前到期卡片已全部复习完（目标 {goal} 张）。', { n: todayCount, goal }) }}</template>
           </p>
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:16px">
             <button class="btn primary" @click="nextRound">
-              {{ completeType === 'goal' ? (hasMore ? '继续复习' : '开始下一轮复习') : '重复复习' }}
+              {{ completeType === 'goal' ? (hasMore ? t('views.review.continueReview') : t('views.review.nextRound')) : t('views.review.repeatReview') }}
             </button>
-            <button class="btn" @click="viewToday">查看今日复习</button>
-            <button class="btn" @click="exitReview">退出</button>
+            <button class="btn" @click="viewToday">{{ t('views.review.viewToday') }}</button>
+            <button class="btn" @click="exitReview">{{ t('views.review.exitBtn') }}</button>
           </div>
         </div>
       </div>
@@ -913,10 +914,10 @@ async function recordDuelWrong(idA, idB) {
     <teleport to="body">
       <div v-if="duelOpen" class="modal-mask" @click.self="duelOpen = false">
         <div class="modal" style="max-width:460px">
-          <h3 style="margin-top:0">易混卡对决</h3>
-          <p class="hint" style="margin-top:0">下面这段「答案」属于哪张卡？</p>
+          <h3 style="margin-top:0">{{ t('views.review.duelTitle') }}</h3>
+          <p class="hint" style="margin-top:0">{{ t('views.review.duelQuestion') }}</p>
           <div class="hint" style="margin:0 0 12px;font-size:15px;color:var(--ink);font-weight:600">
-            「{{ duelBack.slice(0, 60) }}…」
+            {{ t('views.review.duelBackQuote', '「{text}…」', { text: duelBack.slice(0, 60) }) }}
           </div>
           <div style="display:flex;flex-direction:column;gap:10px">
             <button v-for="o in duelOptions" :key="o.id" class="duel-opt btn" :class="{ right: duelPicked === o.id && o.id === duelTarget?.id, wrong: duelPicked === o.id && o.id !== duelTarget?.id }"
@@ -925,8 +926,8 @@ async function recordDuelWrong(idA, idB) {
             </button>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">
-            <span class="hint">第 {{ duelIdx + 1 }} 轮</span>
-            <button class="btn small" @click="duelOpen = false">结束</button>
+            <span class="hint">{{ t('views.review.duelRound', '第 {n} 轮', { n: duelIdx + 1 }) }}</span>
+            <button class="btn small" @click="duelOpen = false">{{ t('views.review.duelEnd') }}</button>
           </div>
         </div>
       </div>
@@ -935,18 +936,18 @@ async function recordDuelWrong(idA, idB) {
     <!-- 独立底部快捷键提示条（position: sticky）：永远不与卡片难度/错因/自评按钮重叠 -->
     <div v-if="tab === 'due' && current() && !showComplete" class="review-kb-bar no-print">
       <div class="kb-col">
-        <button class="chip" :disabled="idx <= 0" @click="prevCard" title="上一张（←）">←</button>
-        <span class="kb-page">第 <b>{{ idx + 1 }}</b> / {{ queue.length }} 张</span>
-        <button class="chip" :disabled="idx >= queue.length - 1" @click="nextCard" title="下一张（→）">→</button>
+        <button class="chip" :disabled="idx <= 0" @click="prevCard" :title="t('views.review.prevTitle')">←</button>
+        <span class="kb-page">{{ t('views.review.pagePrefix') }}<b>{{ idx + 1 }}</b>{{ t('views.review.pageSuffix', ' / {n} 张', { n: queue.length }) }}</span>
+        <button class="chip" :disabled="idx >= queue.length - 1" @click="nextCard" :title="t('views.review.nextTitle')">→</button>
         <span v-if="current()?.subject" class="kb-subj">{{ current().subject }}</span>
       </div>
       <div class="kb-col kb-keys">
-        <span class="kb" title="上一张">← 上一张</span>
-        <span class="kb" title="下一张">→ 下一张</span>
-        <span class="kb" title="翻面">␣ 翻面</span>
-        <span class="kb bad" title="没记住">1 没记住</span>
-        <span class="kb mid" title="还模糊">2 还模糊</span>
-        <span class="kb good" title="记住了">3 记住了</span>
+        <span class="kb" :title="t('views.review.navPrev')">← {{ t('views.review.navPrev') }}</span>
+        <span class="kb" :title="t('views.review.navNext')">→ {{ t('views.review.navNext') }}</span>
+        <span class="kb" :title="t('views.review.flip')">␣ {{ t('views.review.flip') }}</span>
+        <span class="kb bad" :title="t('views.review.rateBad')">1 {{ t('views.review.rateBad') }}</span>
+        <span class="kb mid" :title="t('views.review.rateMid')">2 {{ t('views.review.rateMid') }}</span>
+        <span class="kb good" :title="t('views.review.rateGood')">3 {{ t('views.review.rateGood') }}</span>
       </div>
     </div>
   </div>
