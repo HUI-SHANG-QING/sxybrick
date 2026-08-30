@@ -6,6 +6,9 @@
 // 设计原则：先搭地基（引擎 + 全局注入 + 语言切换 + 高频文案外置），
 // 其余业务文案按模块分批迁移，不一次性改动全站。
 import { ref } from 'vue';
+// 业务视图字典片段：每个视图一个模块，启动时合并进 zh.views.<name> / en.views.<name>。
+// 新增视图只需在此加一行 import + 一行赋值，无需改动下方大字典。
+import { zh as searchZh, en as searchEn } from './views/search.js';
 
 export const LOCALES = [
   { code: 'zh-CN', label: '中文' },
@@ -167,6 +170,9 @@ const zh = {
 
   // ---------------- 常用 ----------------
   common: { more: '更多', resetTitle: '清空全部数据', resetConfirmHint: '此操作不可恢复，请谨慎。' },
+
+  // ---------------- 业务视图（按视图分批外置，见 src/views/*.vue） ----------------
+  views: {},
 };
 
 const en = {
@@ -303,9 +309,16 @@ const en = {
     },
   },
   common: { more: 'More', resetTitle: 'Erase All Data', resetConfirmHint: 'This cannot be undone. Please be careful.' },
+
+  // ---------------- Business views (externalized per view, see src/views/*.vue) ----------------
+  views: {},
 };
 
-const DICTS = { 'zh-CN': zh, en };
+// —— 合并业务视图字典（每个视图一个模块，见 src/i18n/views/*.js） ——
+zh.views.search = searchZh;
+en.views.search = searchEn;
+
+export const DICTS = { 'zh-CN': zh, en };
 
 function resolve(dict, key) {
   return key.split('.').reduce((o, k) => (o == null ? undefined : o[k]), dict);
@@ -314,12 +327,17 @@ function resolve(dict, key) {
 /**
  * 取词：优先当前语言，缺失回退中文，再回退 fallback/key。
  * 读取 locale.value ⇒ 模板中调用会自动追踪语言切换。
+ * @param {object} [params] 可选占位符：字符串值中的 {name} 会被 params.name 替换（用于「已加入 {n} 张」这类带动态数的文案）。
+ *   数组值（如 engine.sm2.impl）原样返回，不做插值。
  */
-export function t(key, fallback) {
+export function t(key, fallback, params) {
   const cur = DICTS[locale.value] || zh;
   let v = resolve(cur, key);
   if (v === undefined) v = resolve(zh, key);
   if (v === undefined) return fallback !== undefined ? fallback : key;
+  if (typeof v === 'string' && params && typeof params === 'object') {
+    return v.replace(/\{(\w+)\}/g, (m, n) => (n in params ? params[n] : m));
+  }
   return v;
 }
 

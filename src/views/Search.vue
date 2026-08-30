@@ -5,6 +5,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { search, highlight, SCOPE_ORDER, SCOPE_LABELS } from '../search/search-service.js';
+import { t } from '../i18n/index.js';
 
 const router = useRouter();
 const q = ref('');
@@ -19,7 +20,7 @@ const results = ref({ modules: [], total: 0 });
 const visibleModules = computed(() => (results.value.modules || []).filter(m => m.items?.length));
 
 const scopeOptions = [
-  { key: 'all', label: '全部（全局搜索）', icon: '🌐' },
+  { key: 'all', label: t('views.search.scopeAll'), icon: '🌐' },
   ...SCOPE_ORDER.map(k => ({ key: k, label: SCOPE_LABELS[k], icon: '' })),
 ];
 // 切换范围后必须重新搜索：否则已有关键词时结果停留在旧范围（原来只写 localStorage 不重搜）
@@ -84,8 +85,8 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('keydown
 <template>
   <div style="max-width:860px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">全局搜索</h2>
-      <span class="hint">按 / 快速聚焦 · 一次搜遍所有模块</span>
+      <h2 style="margin:0">{{ t('views.search.title') }}</h2>
+      <span class="hint">{{ t('views.search.hint') }}</span>
     </div>
 
     <!-- M4：搜索范围选择器（全量 / 指定模块） -->
@@ -96,11 +97,11 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('keydown
     </div>
 
     <input ref="inputEl" v-model="q" class="input" style="margin-top:14px;font-size:16px;padding:12px 14px"
-           placeholder="输入关键词，例如：死锁 / 特征值 / 操作系统…" @keyup.enter="runSearch" autofocus />
+           :placeholder="t('views.search.placeholder')" @keyup.enter="runSearch" autofocus />
 
-    <div v-if="err" class="hint" style="margin-top:10px;color:var(--red)">搜索出错：{{ err }}</div>
+    <div v-if="err" class="hint" style="margin-top:10px;color:var(--red)">{{ t('views.search.error', '搜索出错：{msg}', { msg: err }) }}</div>
     <div v-else-if="q.trim()" class="hint" style="margin-top:10px">
-      {{ loading ? '搜索中…' : `找到 ${results.total} 条结果` }}
+      {{ loading ? t('views.search.searching') : t('views.search.found', '找到 {n} 条结果', { n: results.total }) }}
     </div>
 
     <!-- 结果：按模块分组（scope=all 时多组；指定模块时单组） -->
@@ -113,7 +114,7 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('keydown
     </template>
 
     <div v-if="q.trim() && !loading && !results.total" class="hint" style="text-align:center;padding:50px">
-      在「{{ scope === 'all' ? '全部模块' : (SCOPE_LABELS[scope] || scope) }}」没有找到与「{{ q }}」相关的资产
+      {{ t('views.search.noResult', '在「{scope}」没有找到与「{q}」相关的资产', { scope: scope === 'all' ? t('views.search.scopeAllName') : (SCOPE_LABELS[scope] || scope), q }) }}
     </div>
   </div>
 </template>
