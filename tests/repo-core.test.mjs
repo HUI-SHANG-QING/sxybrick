@@ -119,8 +119,19 @@ test('formatDue: 分钟/小时/绝对日期/已过期', () => {
   assert.equal(formatDue(NOW + 30 * 60000, NOW), '30 分钟后');
   assert.equal(formatDue(NOW + 2 * 3600000, NOW), '2 小时后');
   assert.match(formatDue(NOW + 3 * DAY, NOW), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
-  assert.equal(formatDue(NOW - 1000, NOW), '1 分钟后'); // 过期下限夹 1
   assert.equal(formatDue(NOW + 90 * 60000, NOW), '2 小时后'); // <1h 边界外
+});
+
+test('formatDue: 逾期显示「已逾期 N」，不再一律显示「1 分钟后」', () => {
+  // ⚠️ 历史缺陷（2026-08-30 修复）：`diff < 3600000` 对负数恒真，
+  //   于是「逾期 3 天 / 逾期 2 小时 / 逾期 1 分钟」统统显示成「1 分钟后」，
+  //   用户完全看不出哪些卡已经拖了很久。
+  assert.equal(formatDue(NOW - 1000, NOW), '已逾期 · 不到 1 小时');
+  assert.equal(formatDue(NOW - 5 * 60000, NOW), '已逾期 · 不到 1 小时');
+  assert.equal(formatDue(NOW - 2 * 3600000, NOW), '已逾期 2 小时');
+  assert.equal(formatDue(NOW - 3 * DAY, NOW), '已逾期 3 天');
+  assert.equal(formatDue(NOW, NOW), '已逾期 · 不到 1 小时'); // diff === 0 也算已到期
+  assert.equal(formatDue(NOW + 5 * 60000, NOW), '5 分钟后'); // 未来仍走原分支
 });
 
 // ---------- filterReviewCandidates ----------

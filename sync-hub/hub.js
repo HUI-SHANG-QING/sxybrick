@@ -12,7 +12,7 @@ import { networkInterfaces } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES,
-  mergeRows, mergeTombstones, applyTombstones,
+  mergeRows, mergeTombstones, applyTombstones, shouldExportRow,
 } from '../src/sync-manifest.js';
 import {
   AUTH_VERSION, signPayload, safeEqual, createChallengeStore,
@@ -121,12 +121,37 @@ function imageIdsOf(card) {
   return ids;
 }
 
+/**
+ * 墓碑 GC：剔除「超过 ttlDays 天 且 目标行在中枢侧已不存在」的墓碑。
+ * 保守策略——只要该 id 还在任何一张表里出现，就说明还有设备持有它，绝不清理。
+ * @param {object} data 合并后的中枢数据
+ * @param {number} ttlDays
+ * @returns {Array} 清理后的墓碑数组
+ */
+function gcTombstones(data, ttlDays) {
+  const cutoff = Date.now() - ttlDays * 86400000;
+  const alive = new Set();
+  for (const t of ALL_TABLES) {
+    for (const r of data[t.table] || []) if (r && r.id != null) alive.add(r.id);
+  }
+  const before = (data.tombstones || []).length;
+  const kept = (data.tombstones || []).filter(tb => (tb?.deletedAt ?? 0) >= cutoff || alive.has(tb?.id));
+  if (kept.length !== before) {
+    console.log(`[hub] 墓碑 GC：${before} → ${kept.length}（清理 ${before - kept.length} 条超过 ${ttlDays} 天且目标行已不存在的墓碑）`);
+  }
+  return kept;
+}
+
 // 全量合并：与前端 importBackup 共用 sync-manifest 的纯函数，保证两端合并语义一致
 function merge(base, incoming) {
   const out = {};
   out.tombstones = mergeTombstones(base.tombstones, incoming.tombstones);
   for (const t of ALL_TABLES) {
-    out[t.table] = mergeRows(base[t.table], incoming[t.table], t.merge);
+    // 与前端 sync.js 的 exportRows 同口径：应用清单上的 exportFilter。
+    // 之前中枢不过滤 —— 老客户端推上来的 kind='auto' 派生图谱边会被中枢存下来，
+    // 再回灌给所有设备（客户端侧是过滤的，两端口径不一致 → 边越同步越多）。
+    const inRows = (incoming[t.table] || []).filter(r => shouldExportRow(t, r));
+    out[t.table] = mergeRows(base[t.table], inRows, t.merge);
   }
 
   // 卡片：应用墓碑（删除跨设备传播）+ 级联清理复习记录与孤儿图片 + 复活卡清除墓碑
@@ -142,11 +167,27 @@ function merge(base, incoming) {
   }
 
   // 其余各表：应用墓碑（备忘/计划/图谱边/文档/对话/记忆的删除跨设备传播）
+  //   同时收集「已失效」的墓碑（行在墓碑之后又被改过 = 复活），像卡片分支那样从墓碑表里剔除。
+  //   此前只取 res.rows 却不清 stale —— 失效墓碑常驻中枢，每次 GET/PUT 都回灌给所有客户端，
+  //   客户端每轮 import 都要重删一遍，previewImport 还会显示虚构的「将删除 N 条」。
+  const staleIds = new Set();
   for (const t of ALL_TABLES) {
     if (t.kind === 'card') continue;
     const res = applyTombstones(out[t.table] || [], out.tombstones, t.kind);
     out[t.table] = res.rows;
+    for (const id of res.stale) staleIds.add(`${t.kind} ${id}`);
   }
+  if (staleIds.size) {
+    out.tombstones = out.tombstones.filter(tb => !staleIds.has(`${tb.kind || 'card'} ${tb.id}`));
+  }
+
+  // 墓碑 GC（默认关闭，用 HUB_TOMBSTONE_TTL_DAYS=90 开启）：
+  //   墓碑只增不减，而前端每次增量同步都会全量带上墓碑（sync.js 里 tombstones 不走 since 过滤），
+  //   删得越多包越大。安全 GC 需要「各设备已确认收到」的水位协议，这里退而求其次：
+  //   只清理「早已过期 且 目标行在中枢侧已不存在」的墓碑 ——
+  //   仍存在的行说明还有设备在用，一条都不删。
+  const ttlDays = Number(process.env.HUB_TOMBSTONE_TTL_DAYS || 0);
+  if (ttlDays > 0) out.tombstones = gcTombstones(out, ttlDays);
 
   // 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
   let streakMeta = base.streakMeta || null;

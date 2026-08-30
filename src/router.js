@@ -41,7 +41,9 @@ const routes = [
   { path: '/library', component: () => import('./views/Library.vue') },
   // P2·10 + P3·11 新增：用户仪表盘（恐怖监控图表）+ 超级监控（人生数据）模块
   { path: '/user-dashboard', component: () => import('./views/UserDashboard.vue') },
-  { path: '/privacy', component: () => import('./views/PrivacyData.vue') },
+  // 超级监控（人生数据）：/monitor 是新语义路径；/privacy 作为旧书签/分享链接重定向保留
+  { path: '/privacy', redirect: '/monitor' },
+  { path: '/monitor', component: () => import('./views/PrivacyData.vue') },
   // P3-4 插件 / MCP 接入：本地插件管理与工具调用（MCP 兼容 schema）
   { path: '/plugins', component: () => import('./views/Plugins.vue') },
   // 智能层：单卡遗忘曲线 + 知识图谱洞察

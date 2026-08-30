@@ -190,13 +190,30 @@ export async function getLearningProfile() {
   const activity = Math.round((actDays.size / 7) * 100);
 
   // 纠正力：曾答错的卡片中，之后有答对记录的比例
-  const wrongCardIds = new Set();
-  for (const r of reviews) if (r.rating === 0) wrongCardIds.add(r.cardId);
-  let corrected = 0;
-  for (const id of wrongCardIds) {
-    if (reviews.some(r => r.cardId === id && r.rating === 2)) corrected++;
+  //
+  // ⚠️ 2026-08-30 修复（两处）：
+  //   ① 零错题用户被判 0 分：原实现 `wrongCardIds.size ? … : 0`，
+  //      从未答错过 = 最好的学习结果，却在这一维拿 0 分 —— 满分用户总分上限被压到 90，
+  //      从"优秀"(≥85) 掉档。零错题应判 100 分。
+  //   ② 复杂度 O(N×M)：`reviews.some()` 嵌在遍历错卡集合的循环里，
+  //      10 万条复习 × 5000 张错卡 = 5 亿次比较，且完全在主线程（该函数未被 offload）。
+  //   顺带修正语义：注释写的是「**之后**有答对记录」，原实现只判断"存在答对记录"，
+  //      不比较时间先后 —— 先答对后答错的卡也会被算成"已纠正"。
+  const lastWrongAt = new Map();  // cardId → 最近一次 rating=0 的时刻
+  const lastGoodAt = new Map();   // cardId → 最近一次 rating=2 的时刻
+  for (const r of reviews) {
+    const t = r.reviewedAt || 0;
+    if (r.rating === 0) {
+      if (t > (lastWrongAt.get(r.cardId) ?? -Infinity)) lastWrongAt.set(r.cardId, t);
+    } else if (r.rating === 2) {
+      if (t > (lastGoodAt.get(r.cardId) ?? -Infinity)) lastGoodAt.set(r.cardId, t);
+    }
   }
-  const correction = wrongCardIds.size ? Math.round((corrected / wrongCardIds.size) * 100) : 0;
+  let corrected = 0;
+  for (const [id, wrongAt] of lastWrongAt) {
+    if ((lastGoodAt.get(id) ?? -Infinity) > wrongAt) corrected++; // 答错**之后**又答对了
+  }
+  const correction = lastWrongAt.size ? Math.round((corrected / lastWrongAt.size) * 100) : 100;
 
   const score = Math.round(mastery * 0.25 + correct * 0.2 + stable * 0.15 + coverage * 0.15 + activity * 0.15 + correction * 0.1);
   return {
@@ -272,9 +289,14 @@ export async function getForgetRisk(limit = 5) {
     if (t < 2) continue; // 样本太少不预测
     const failRate = (fail.get(c.id) || 0) / t;
     const dueIn = (c.dueAt ?? 0) - nowTs;
-    if (dueIn < 0 || dueIn > 3 * DAY) continue; // 只预警"3 天内将到期"
+    // ⚠️ 2026-08-30 修复：原实现 `if (dueIn < 0 …) continue` 把**逾期卡整类跳过** ——
+    //   而逾期卡恰恰是风险最高、最该被预警的一批（已经过了最佳复习窗口还没背）。
+    //   修正：逾期 → 临近度直接拉满；只排除「3 天后才到期」的远期卡。
+    if (dueIn > 3 * DAY) continue;
+    const proximity = dueIn >= 0 ? (1 - dueIn / (3 * DAY)) : 1;
+    const overdueDays = dueIn < 0 ? Math.floor(-dueIn / DAY) : 0;
     // 风险 = 临近程度 60% + 历史错误率 40%；>=0.35 才预警
-    const risk = (1 - dueIn / (3 * DAY)) * 0.6 + Math.min(1, failRate * 2.5) * 0.4;
+    const risk = proximity * 0.6 + Math.min(1, failRate * 2.5) * 0.4;
     if (risk < 0.35) continue;
     out.push({
       id: c.id, subject: c.subject || '未分类',
@@ -283,6 +305,7 @@ export async function getForgetRisk(limit = 5) {
       failRate: Math.round(failRate * 100),
       reviews: t,
       dueAt: c.dueAt,
+      overdueDays,
     });
   }
   return out.sort((a, b) => b.risk - a.risk).slice(0, limit);

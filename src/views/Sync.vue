@@ -15,6 +15,7 @@ import EmptyState from '../components/EmptyState.vue';
 import { getModuleStatus, recordAllModulesOk, recordAllModulesError, recordModuleResult, resetStatus, summarizeStatus, MODULE_LABELS } from '../sync-status.js';
 import { getEffectiveSyncTables } from '../sync.js';
 import { t } from '../i18n/index.js';
+import { fmtLocaleDateTime } from '../utils/locale-date.js';
 
 const counts = ref({ cards: 0, reviews: 0, images: 0, aiChats: 0, aiMemories: 0, memos: 0, plans: 0, graphEdges: 0, docs: 0, pomoSessions: 0, mindmaps: 0, weeklyReports: 0, achievements: 0, exams: 0 });
 // GH Pages 上 location.origin 是 https://xxx.github.io 且没有 /backup 接口，不能作为 Hub 默认地址。
@@ -50,7 +51,7 @@ async function loadSnapshots() { try { snapshots.value = await listSnapshots(); 
 async function doManualSnapshot() {
   snapshotBusy.value = true;
   try {
-    const snap = await saveSnapshot(t('views.sync.manualSnapLabel', '手动快照 · {time}', { time: new Date().toLocaleString('zh-CN') }), 'manual');
+    const snap = await saveSnapshot(t('views.sync.manualSnapLabel', '手动快照 · {time}', { time: fmtLocaleDateTime(Date.now()) }), 'manual');
     await loadSnapshots();
     const sizeText = snap.sizeBytes ? Math.round(snap.sizeBytes / 1024) + ' KB' : t('views.sync.snapData');
     toast(t('views.sync.snapCreated', '已创建快照（含 {size}，可在下方回滚）', { size: sizeText }), 'success');
@@ -62,7 +63,7 @@ async function doRestore(id, label) {
   snapshotBusy.value = true;
   try {
     // 回滚前再保存一次「回滚前自动快照」，避免回滚动作本身不可逆
-    await saveSnapshot(t('views.sync.preRollbackSnapLabel', '回滚前自动快照 · {time}', { time: new Date().toLocaleString('zh-CN') }), 'backup-before-import');
+    await saveSnapshot(t('views.sync.preRollbackSnapLabel', '回滚前自动快照 · {time}', { time: fmtLocaleDateTime(Date.now()) }), 'backup-before-import');
     const r = await restoreSnapshot(id);
     await loadCounts(); await loadSnapshots();
     toast(t('views.sync.restored', '已回滚到：{label}（{time}）', { label: r.label, time: fmt(r.restoredAt) }), 'success');
@@ -124,7 +125,7 @@ async function uploadToGist() {
     if (gistId.value) {
       // 已有 gist：PATCH 更新（payload.scope 决定写入哪个文件名）
       const r = await updateGistBackup(ghToken.value, gistId.value, payload);
-      toast(t('views.sync.gistUpdated', '✅ 已更新 Gist 备份（{cards} 张卡 · {mode} · 更新于 {time}）', { cards: counts.value.cards, mode: modeText, time: new Date(r.updatedAt).toLocaleString() }), 'success');
+      toast(t('views.sync.gistUpdated', '✅ 已更新 Gist 备份（{cards} 张卡 · {mode} · 更新于 {time}）', { cards: counts.value.cards, mode: modeText, time: fmtLocaleDateTime(r.updatedAt) }), 'success');
     } else {
       // 首次：创建新 secret gist
       const r = await createGistBackup(ghToken.value, payload);

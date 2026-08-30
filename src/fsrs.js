@@ -37,10 +37,18 @@ export const DEFAULT_WEIGHTS = [
   4.93,  // w4  初始难度基准
   0.94,  // w5  难度斜率
   0.86,  // w6  难度均值回归
-  1.49,  // w7  回忆更新：e^w7 量级
-  0.14,  // w8  回忆更新：S^-w8 衰减
-  0.94,  // w9  回忆更新：遗忘驱动项 (e^(w9*(1-R))-1)
-  2.18,  // w10 回忆更新：乘子
+  // ---- 回忆后稳定度更新：S' = S·(1 + e^w7·(11-D)·S^-w8·(e^(w9(1-R))-1)·w10·hard·easy) ----
+  // ⚠️ 2026-08-30 重标定（此前是 P0 级缺陷）：
+  //   旧值 w7=1.49 / w8=0.14 / w9=0.94 / w10=2.18 在 R=0.9、D≈5 下单步倍率 **×6.1**，
+  //   实测间隔序列 2.4 → 14.7 → 73 → 305 → 365 天：一张卡连按 4 次「记住了」就跳到一年，
+  //   复习节奏被彻底毁掉（且第 3 次 level 就满级，UI 显示「已掌握」）。
+  //   w10 是上游 FSRS 不存在的额外乘子，正是它把倍率从 ≈2.8 放大到 6.1，置 1。
+  //   重标定目标：R=0.9 连续 good 的单步倍率 ≈2.6（S=2.4）并随 S 衰减到 ≈1.9（S=300），
+  //   实测间隔序列 2.4 → 6.2 → 14 → 28 → 54 → 101 → 190 → 356 天 —— 标准 FSRS 曲线。
+  0.976, // w7  回忆更新：e^w7 量级（ln 2.653）
+  0.1192,// w8  回忆更新：S^-w8 衰减（越大，稳定度越高时增长越慢）
+  1.0461,// w9  回忆更新：遗忘驱动项 (e^(w9*(1-R))-1)
+  1.0,   // w10 回忆更新：整体缩放（上游 FSRS 无此项；1.0 = 不额外放大）
   0.05,  // w11 遗忘更新：量级
   0.34,  // w12 遗忘更新：D^-w12
   1.26,  // w13 遗忘更新：(S+1)^w13
@@ -52,6 +60,9 @@ export const DEFAULT_WEIGHTS = [
 ];
 
 export const DEFAULT_DESIRED_RETENTION = 0.9; // 目标保持率 90%
+// 稳定度上限（天）。与 nextInterval 的 365 天硬上限保持一致：
+// 更大的 S 既调度不出来，又会在答错时污染 stabilityAfterForget。
+export const MAX_STABILITY = 365;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -105,8 +116,11 @@ export function stabilityAfterRecall(S, D, R, grade, w = DEFAULT_WEIGHTS) {
   const hardPenalty = grade === 2 ? clamp(Number.isFinite(w[15]) ? w[15] : 1, 0.01, 1) : 1;
   // easy 加成：缩放整体稳定度（训练器可把它拟合到 >1 或 <1，但不会改变 hard/good 序关系）
   const easyBonus = grade === 4 ? Math.max(0.01, Number.isFinite(w[16]) ? w[16] : 1) : 1;
+  // 稳定度上限：不封顶的话，长期全对的卡 S 会一路涨到上千（实测旧权重下 S=1873），
+  // 一旦答错，stabilityAfterForget 的 (S+1)^w13 项会把它打回一个与真实记忆强度无关的巨大值；
+  // 且 nextInterval 早在 365 天就截断了，更大的 S 没有任何调度意义。
   const nextS = s * (1 + w[10] * factor * hardPenalty) * easyBonus;
-  return Math.max(0.1, nextS);
+  return clamp(nextS, 0.1, MAX_STABILITY);
 }
 
 /** 遗忘后稳定度更新（grade==1，重新学习） */
@@ -173,6 +187,8 @@ export function schedule(card, rating, opts = {}) {
   if (!Number.isFinite(S)) S = initStability(grade, w);
   if (!Number.isFinite(D)) D = initDifficulty(grade, w);
   if (!Number.isFinite(reps) || reps < 1) reps = 1;
+  // 稳定度封顶（stabilityAfterRecall 内已钳，这里兜住 forget 分支与外部传入的异常值）
+  S = clamp(S, 0.01, MAX_STABILITY);
 
   // 遗忘（没记住）：立刻重学，给极短间隔；否则按目标保持率反解
   let intervalDays = grade === 1 ? 0.01 : nextInterval(S, desiredR, w);

@@ -23,7 +23,7 @@ export function adaptiveRetention(masteryPct, baseRetention = 0.9) {
 
 /**
  * 批量：把「各科掌握度」映射为「科目 → 保持率」。
- * @param {Array} masteryList [{ subject, mastery }]
+ * @param {Array} masteryList [{ subject, mastery, noData?, reviews? }]
  * @param {number} baseRetention
  * @returns {Object} { [subject]: retention }
  */
@@ -31,7 +31,13 @@ export function subjectRetentionMap(masteryList, baseRetention = 0.9) {
   const map = {};
   for (const m of masteryList || []) {
     if (!m || !m.subject) continue;
-    map[m.subject] = adaptiveRetention(m.mastery, baseRetention);
+    // 无数据的科目（近 90 天零复习）不该被当成「掌握度 0 → 最勤复习」：
+    // 它只是没数据，用基准保持率即可。否则一个刚导入还没背的科目
+    // 会被安排成全场最密的复习节奏（0.95），而真正学得差的科目反而更松。
+    //   注意：`reviews` 字段缺省时（老调用方只传 {subject, mastery}）视为"有数据"，
+    //   保持向后兼容 —— 是否无数据必须显式表达，不做隐式猜测。
+    const noData = m.noData === true || (m.reviews !== undefined && !(m.reviews > 0));
+    map[m.subject] = noData ? baseRetention : adaptiveRetention(m.mastery, baseRetention);
   }
   return map;
 }

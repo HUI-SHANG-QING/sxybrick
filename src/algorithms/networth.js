@@ -24,10 +24,23 @@ export function isReviewed(card) {
   return !!(f && typeof f.s === 'number' && f.reps >= 1);
 }
 
-// 单卡当前净值：未复习 = 原值全额；已复习 = 原值 × R(t)（遗忘即折旧）
+/** 单卡「原值」= 内容权重（与该卡是否已学无关） */
+export function cardIdealValue(card) {
+  return contentWeight(card);
+}
+
+/**
+ * 单卡当前净值：未复习 = **0**；已复习 = 原值 × R(t)（遗忘即折旧）。
+ *
+ * ⚠️ 2026-08-30 修复：此前未复习卡按「原值全额」计（R 默认 1），
+ *   于是导入 1000 张新卡后 净值 1000+、知识保持率 100% ——
+ *   「还没背过」被当成了「完全记住」，与「未复习科目按 0 分拉低掌握度」是同一类
+ *   「无数据 ≠ 0 / ≠ 满分」的口径错误，只是方向相反。
+ *   正确语义：没学过的卡尚未沉淀出任何知识净值，计 0。
+ */
 export function cardNetValue(card, nowTs = Date.now(), w = DEFAULT_WEIGHTS) {
   const wgt = contentWeight(card);
-  if (!isReviewed(card)) return wgt;
+  if (!isReviewed(card)) return 0;
   const f = card.fsrs;
   const elapsedDays = Math.max(0, (nowTs - (f.last ?? nowTs)) / DAY);
   const R = retrievability(f.s, elapsedDays, w);
@@ -46,38 +59,48 @@ export function cardNetValue(card, nowTs = Date.now(), w = DEFAULT_WEIGHTS) {
  */
 export function computeNetWorth(cards, nowTs = Date.now(), w = DEFAULT_WEIGHTS) {
   let totalValue = 0, idealValue = 0, newCount = 0, masteredCount = 0;
+  // reviewedIdeal：保持率的**分母**，只算「学过的卡」。
+  //   若把未复习卡算进分母，导入一堆新卡会把保持率稀释成很低（与旧的"满分"是同一错误的两个极端）。
+  //   未复习卡的净值按 0 计、原值仍单列在 newIdeal 里，UI 可展示「还有多少潜力没挖」。
+  let reviewedIdeal = 0, newIdeal = 0;
   const bySubject = new Map();
 
   for (const card of cards || []) {
     if (!card) continue;
     const wgt = contentWeight(card);
-    let R = 1;
+    let R = 0; // 未复习 = 0（不是 1）
     if (isReviewed(card)) {
       const f = card.fsrs;
       R = retrievability(f.s, Math.max(0, (nowTs - (f.last ?? nowTs)) / DAY), w);
       if (R >= 0.9) masteredCount++;
+      reviewedIdeal += wgt;
     } else {
       newCount++;
+      newIdeal += wgt;
     }
     const net = Math.round(wgt * R * 100) / 100;
     totalValue += net;
-    idealValue += wgt;
+    idealValue += wgt; // 原值 = 全量潜力（含未学的卡）
 
     const subj = card.subject || '未分类';
-    const e = bySubject.get(subj) || { subject: subj, value: 0, ideal: 0, count: 0 };
+    const e = bySubject.get(subj) || { subject: subj, value: 0, ideal: 0, reviewedIdeal: 0, count: 0 };
     e.value += net; e.ideal += wgt; e.count++;
+    if (isReviewed(card)) e.reviewedIdeal += wgt;
     bySubject.set(subj, e);
   }
 
   totalValue = Math.round(totalValue * 100) / 100;
   idealValue = Math.round(idealValue * 100) / 100;
+  reviewedIdeal = Math.round(reviewedIdeal * 100) / 100;
+  newIdeal = Math.round(newIdeal * 100) / 100;
 
   const bySubjectList = [...bySubject.values()]
     .map(e => ({
       subject: e.subject,
       value: Math.round(e.value * 100) / 100,
       ideal: Math.round(e.ideal * 100) / 100,
-      retentionRate: e.ideal ? Math.round(e.value / e.ideal * 100) : 0,
+      // 分母用「该科已学卡的原值」，未学的卡不参与保持率
+      retentionRate: e.reviewedIdeal ? Math.round(e.value / e.reviewedIdeal * 100) : 0,
       count: e.count,
     }))
     .sort((a, b) => b.value - a.value);
@@ -85,8 +108,10 @@ export function computeNetWorth(cards, nowTs = Date.now(), w = DEFAULT_WEIGHTS) 
   return {
     totalValue,
     idealValue,
-    decayedValue: Math.round((idealValue - totalValue) * 100) / 100,
-    retentionRate: idealValue ? Math.round(totalValue / idealValue * 100) : 0,
+    reviewedIdeal,
+    newIdeal,
+    decayedValue: Math.round((reviewedIdeal - totalValue) * 100) / 100,
+    retentionRate: reviewedIdeal ? Math.round(totalValue / reviewedIdeal * 100) : 0,
     newCount,
     reviewedCount: (cards || []).length - newCount,
     masteredCount,

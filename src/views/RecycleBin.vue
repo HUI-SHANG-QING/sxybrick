@@ -4,14 +4,20 @@
 // 同时清掉本地墓碑，使恢复在跨设备同步后仍成立。
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../db.js';
-import { restoreFromTrash } from '../repo.js';
+import { restoreFromTrash, pruneTrash, TRASH_TTL_DAYS } from '../repo.js';
 import { confirmDialog } from '../utils/confirm.js';
 import { toast } from '../utils/toast.js';
 import { t } from '../i18n/index.js';
+import { fmtLocaleDateTime } from '../utils/locale-date.js';
 
-const TRASH_DAYS = 30;
+const TRASH_DAYS = TRASH_TTL_DAYS; // TTL 唯一来源：repo.js（避免两处常量漂移）
 function kindLabel(k) {
-  const m = { card: 'views.recycleBin.kindCard', memo: 'views.recycleBin.kindMemo', note: 'views.recycleBin.kindNote', plan: 'views.recycleBin.kindPlan', doc: 'views.recycleBin.kindDoc', mindmap: 'views.recycleBin.kindMindmap' };
+  const m = {
+    card: 'views.recycleBin.kindCard', memo: 'views.recycleBin.kindMemo',
+    note: 'views.recycleBin.kindNote', plan: 'views.recycleBin.kindPlan',
+    doc: 'views.recycleBin.kindDoc', mindmap: 'views.recycleBin.kindMindmap',
+    docFile: 'views.recycleBin.kindDocFile',
+  };
   return m[k] ? t(m[k]) : k;
 }
 const items = ref([]);
@@ -26,6 +32,12 @@ function previewOf(t) {
   if (t.kind === 'plan') return (d.title || '').slice(0, 90);
   if (t.kind === 'doc') return (d.name || d.title || '').slice(0, 90);
   if (t.kind === 'mindmap') return (d.title || d.name || '').slice(0, 90);
+  // 资料：补一句规模提示，让用户判断「值不值得恢复」
+  if (t.kind === 'docFile') {
+    const n = d._textLen || (d._text || '').length || 0;
+    const base = (d.name || '').slice(0, 70);
+    return n ? `${base}（全文 ${n} 字）` : base;
+  }
   return (JSON.stringify(d) || '').slice(0, 90);
 }
 function daysLeft(t) {
@@ -33,7 +45,13 @@ function daysLeft(t) {
   return Math.max(0, Math.ceil(ms / 86400000));
 }
 function expired(t) { return daysLeft(t) <= 0; }
-function fmtDate(ts) { return ts ? new Date(ts).toLocaleString() : '—'; }
+// 资料快照恢复后没有原文件，确认文案要说清楚，否则用户恢复后点开预览会以为恢复失败
+function confirmTextOf(item) {
+  if (item.kind === 'docFile') {
+    return t('views.recycleBin.confirmRestoreDocFile', '恢复这份「{kind}」？解析全文与图谱关联会一并回来；原文件需重新上传。', { kind: kindLabel(item.kind) });
+  }
+  return t('views.recycleBin.confirmRestore', '恢复这条「{kind}」？将重新放回原处。', { kind: kindLabel(item.kind) });
+}
 
 const availableKinds = computed(() => [...new Set(items.value.map(t => t.kind))]);
 const filtered = computed(() => {
@@ -45,22 +63,20 @@ const restorableCount = computed(() => filtered.value.filter(t => !expired(t)).l
 async function load() {
   busy.value = true;
   try {
-    const all = await db.trash.toArray();
-    // 30 天自动过期：快照不再可恢复，直接清除（墓碑保留以继续跨设备删除）
-    const cutoff = Date.now() - TRASH_DAYS * 86400000;
-    const expiredOnes = all.filter(t => (t.deletedAt || 0) < cutoff);
-    if (expiredOnes.length) {
-      await db.trash.bulkDelete(expiredOnes.map(t => t.id));
-      toast(t('views.recycleBin.autoCleaned', '已自动清理 {n} 条超过 {d} 天的记录', { n: expiredOnes.length, d: TRASH_DAYS }), 'info');
+    // 过期清理统一走 repo.pruneTrash（同一份 TTL 与实现，应用启动时也会兜底跑一次）
+    const cleaned = await pruneTrash();
+    if (cleaned) {
+      toast(t('views.recycleBin.autoCleaned', '已自动清理 {n} 条超过 {d} 天的记录', { n: cleaned, d: TRASH_DAYS }), 'info');
     }
-    items.value = all.filter(t => (t.deletedAt || 0) >= cutoff);
+    const cutoff = Date.now() - TRASH_DAYS * 86400000;
+    items.value = (await db.trash.toArray()).filter(t => (t.deletedAt || 0) >= cutoff);
   } catch (e) { toast(e.message || t('views.recycleBin.loadFail'), 'error'); }
   finally { busy.value = false; }
 }
 
 async function restore(item) {
   if (expired(item)) { toast(t('views.recycleBin.expiredFail'), 'error'); return; }
-  if (!(await confirmDialog(t('views.recycleBin.confirmRestore', '恢复这条「{kind}」？将重新放回原处。', { kind: kindLabel(item.kind) })))) return;
+  if (!(await confirmDialog(confirmTextOf(item)))) return;
   busy.value = true;
   try {
     const ok = await restoreFromTrash(item);
@@ -136,7 +152,7 @@ onMounted(load);
       <div style="flex:1;min-width:0">
         <div class="trash-head">
           <span class="tag">{{ kindLabel(item.kind) }}</span>
-          <span class="hint">{{ t('views.recycleBin.deletedAt', '删除于 {time}', { time: fmtDate(item.deletedAt) }) }}</span>
+          <span class="hint">{{ t('views.recycleBin.deletedAt', '删除于 {time}', { time: fmtLocaleDateTime(item.deletedAt) }) }}</span>
           <span v-if="expired(item)" class="tag expired">{{ t('views.recycleBin.expired') }}</span>
           <span v-else class="tag left">{{ t('views.recycleBin.daysLeft', '剩 {n} 天', { n: daysLeft(item) }) }}</span>
         </div>

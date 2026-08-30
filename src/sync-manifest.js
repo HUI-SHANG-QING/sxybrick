@@ -89,6 +89,31 @@ export function shouldExportRow(entry, row) {
 export const CARD_CONTENT_FIELDS = ['front', 'back', 'subject', 'source', 'type', 'marked', 'mnemonic', 'tags', 'frontChars', 'backChars', 'difficulty'];
 export const CARD_SRS_FIELDS = ['ease', 'level', 'intervalDays', 'dueAt', 'reviewedAt', 'consolidation', 'fsrs'];
 
+// ---------- 表级「已清空水位」（O(1) 批量删除语义） ----------
+// 背景：userOps（埋点）/ privacyRecords（隐私）这类表行数可达十万级。
+//   「一键清空」若给每一行写墓碑，墓碑表瞬间爆炸，而且前端每次增量同步都会**全量**带墓碑，
+//   包体永久变大。但对历史埋点/历史隐私记录来说，「哪一行被删了」毫无意义 ——
+//   用户要的语义是「这个时间点之前的全部不要了」。
+// 于是用一条水位表达：clearedBefore = T 表示「T 及以前的行本地已清空，合并时一律丢弃」。
+//   O(1) 存储、O(n) 过滤、语义精确。
+export const CLEARED_BEFORE_PREFIX = 'sxy_cleared_before_';
+
+/** 某表的「已清空水位」localStorage 键 */
+export function clearedBeforeKey(table) {
+  return `${CLEARED_BEFORE_PREFIX}${table}`;
+}
+
+/**
+ * 过滤掉「已被本地一键清空」的历史行。
+ * @param {Array} rows 待合并的行
+ * @param {number} before 清空时刻（0/空 = 未清空，原样返回）
+ */
+export function filterClearedRows(rows, before) {
+  const t = Number(before) || 0;
+  if (!t) return rows || [];
+  return (rows || []).filter((r) => livenessTs(r) > t);
+}
+
 // ---------- 纯合并函数（无浏览器依赖，前端 sync.js 与 Node 端 hub.js 共用） ----------
 
 // 墓碑 kind 缺省 = card（兼容旧数据包）

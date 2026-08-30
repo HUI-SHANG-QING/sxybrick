@@ -100,9 +100,18 @@ async function newSession() {
 }
 
 async function deleteSession(s) {
-  await db.transaction('rw', db.analysisSessions, db.analysisMessages, async () => {
+  // 删除必须连墓碑一起写（kind=analysisSession / analysisMessage）：
+  // 这两张表都参与同步（v23 登记），只删行不写墓碑 → 对端下次同步把整个会话推回来，
+  // 表现为「删掉的会话又复活了」，且永远删不掉。
+  await db.transaction('rw', db.analysisSessions, db.analysisMessages, db.tombstones, async () => {
+    const msgs = await db.analysisMessages.where('sessionId').equals(s.id).toArray();
     await db.analysisMessages.where('sessionId').equals(s.id).delete();
     await db.analysisSessions.delete(s.id);
+    const t = Date.now();
+    await db.tombstones.bulkPut([
+      ...msgs.map(m => ({ id: m.id, kind: 'analysisMessage', deletedAt: t })),
+      { id: s.id, kind: 'analysisSession', deletedAt: t },
+    ]);
   });
   if (currentSession.value?.id === s.id) { currentSession.value = null; messages.value = []; }
   await loadSessions();

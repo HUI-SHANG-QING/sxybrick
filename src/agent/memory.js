@@ -27,8 +27,12 @@ export async function addMemory(item) {
 
 /** 删除一条记忆 */
 export async function deleteMemory(id) {
-  await db.aiMemories.delete(id);
-  await db.tombstones.put({ id, kind: 'memory', deletedAt: Date.now() }); // 墓碑：跨设备同步删除
+  // 事务：删行 + 墓碑原子化。分两次 await 时墓碑写失败会留下
+  // 「本机已删、对端永远还在」的幽灵记忆（下次同步还会被推回来）。
+  await db.transaction('rw', db.aiMemories, db.tombstones, async () => {
+    await db.aiMemories.delete(id);
+    await db.tombstones.put({ id, kind: 'memory', deletedAt: Date.now() }); // 墓碑：跨设备同步删除
+  });
 }
 
 /** 把分层记忆拼成注入文本（核心 > 偏好 > 事实） */

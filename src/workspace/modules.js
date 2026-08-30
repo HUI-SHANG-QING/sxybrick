@@ -67,7 +67,7 @@ export const MODULE_GROUPS = [
       { key: 'sync', path: '/sync', icon: '🔄', label: '同步', desc: '局域网/备份' },
       { key: 'export', path: '/export', icon: '📤', label: '导出', desc: '备份与导出' },
       { key: 'user-dashboard', path: '/user-dashboard', icon: '🛰️', label: '仪表盘', desc: '行为监控' },
-      { key: 'privacy', path: '/privacy', icon: '🧾', label: '超级监控', desc: '人生数据监控' },
+      { key: 'privacy', path: '/monitor', icon: '🧾', label: '超级监控', desc: '人生数据监控' },
       { key: 'plugins', path: '/plugins', icon: '🔌', label: '插件', desc: '扩展管理' },
     ],
   },

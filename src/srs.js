@@ -65,7 +65,12 @@ function wrongPenalty(reason) {
 export function computeNext(card, rating, intensity = 1, guessed = false, opts = {}) {
   const now = Date.now();
   let { level, ease } = card;
-  ease = typeof ease === 'number' ? ease : 2.5;
+  ease = Number.isFinite(Number(ease)) ? Number(ease) : 2.5;
+  // ⚠️ level 必须归一化（2026-08-30）：undefined/NaN 会在「已毕业卡正常升级」分支
+  //   执行 `level += 1` → NaN → days=NaN → dueAt=NaN。
+  //   而 `dueAt <= now` 对 NaN 恒为 false —— 这张卡会**永久消失于复习队列**，
+  //   不报错、不告警，用户只会觉得"卡莫名不见了"。FSRS 分支有护栏，SM-2 此前没有。
+  level = Number.isFinite(Number(level)) ? Math.max(0, Math.trunc(Number(level))) : 0;
   // 难度系数：opts.difficulty（复习时评分 0/1/2）优先；否则取卡片固有 difficulty
   // 兼容字符串梯度（P3-E：basic/applied/challenge → 0/1/2）与旧数值
   const DIFF_MAP = { basic: 0, applied: 1, challenge: 2 };
@@ -153,6 +158,9 @@ export function computeNext(card, rating, intensity = 1, guessed = false, opts =
     else if (failRate === 0 && (level || 0) >= 3) days *= 1.1;
   }
 
+  // 兜底：任何环节漏出 NaN/Infinity 都会让这张卡永久消失于队列（`NaN <= now` 恒假），
+  // 这里做最后一道拦截，保证 dueAt 永远是可比较的有限时间戳。
+  if (!Number.isFinite(days) || days <= 0) days = 10 / 1440;
   days = Math.min(365, days);
   const dueAt = now + Math.round(days * DAY);
   return { level, ease, intervalDays: days, dueAt, consolidation };

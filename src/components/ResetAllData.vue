@@ -7,6 +7,8 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { resetAllData } from '../stores/reset.js';
 import { toast } from '../utils/toast.js';
+import { downloadBackup } from '../sync.js';
+import { flushTelemetry } from '../utils/telemetry.js';
 
 const REQUIRED_CONFIRMS = 3;
 const GAP_MS = 3000;   // 每次确认间隔 > 3 秒
@@ -38,6 +40,24 @@ const allConfirmed = computed(() => count.value >= REQUIRED_CONFIRMS);
 const canExecute = computed(() => allConfirmed.value && !busy.value && !done.value && totalRemainMs.value === 0);
 
 function fmtSec(ms) { return (Math.ceil(ms / 1000)).toString(); }
+
+// 三重确认防的是「手滑」，防不了「没意识到该先备份」。
+// 门槛已经很重了，但清空是不可逆的 —— 与其事后补救，不如在入口就把备份按钮摆出来：
+// 点一下直接下载一份完整数据包（导出失败也不阻断清空流程，只提示）。
+const backing = ref(false);
+const backedUp = ref(false);
+async function doBackupFirst() {
+  if (backing.value) return;
+  backing.value = true;
+  try {
+    await flushTelemetry();   // 埋点先落库，否则最近的操作记录不进备份包
+    await downloadBackup();
+    backedUp.value = true;
+    toast('备份已下载（请确认文件已保存到本地）', 'success');
+  } catch (e) {
+    toast('备份失败：' + (e?.message || e), 'error');
+  } finally { backing.value = false; }
+}
 
 function doConfirm() {
   if (!canConfirm.value) return;
@@ -74,6 +94,17 @@ function resetFlow() {
       将删除当前账户（{{ /* 单用户，无档案 */ '本机' }}）在浏览器里的<strong>全部本地数据</strong>：
       所有卡片、复习记录、错题、AI 对话、计划、图谱、备忘录、同步记录、埋点等，且<strong>不可恢复</strong>。<br/>
       为防止误触，必须<strong>确认 {{ REQUIRED_CONFIRMS }} 次</strong>，且<strong>每次间隔 &gt; 3 秒</strong>、<strong>全程等待 ≥ 10 秒</strong>。
+    </div>
+
+    <!-- 先备份引导：清空不可逆，入口处直接给按钮，而不是只写一句"请先备份" -->
+    <div v-if="!done" class="backup-hint">
+      <span>
+        <template v-if="backedUp">✅ 已导出一份备份，可以放心继续。</template>
+        <template v-else>⚠️ 清空后无法找回。建议先导出一份完整备份（JSON 数据包，可原样导入还原）。</template>
+      </span>
+      <el-button size="small" :loading="backing" @click="doBackupFirst">
+        {{ backedUp ? '再导出一份' : '📦 先导出备份' }}
+      </el-button>
     </div>
 
     <div v-if="!done" style="display:flex;flex-direction:column;gap:10px">
@@ -127,4 +158,11 @@ function resetFlow() {
 }
 .confirm-dots .dot.on { background: var(--danger, #e5484d); color: #fff; border-color: var(--danger, #e5484d); }
 .confirm-dots .dot-label { font-size: 12px; color: var(--ink-2); margin-left: 4px; }
+.backup-hint {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px;
+  padding: 8px 12px; border-radius: 8px; font-size: 13px; line-height: 1.6;
+  border: 1px dashed var(--line); color: var(--ink-2);
+  background: color-mix(in srgb, var(--accent, #1677ff) 6%, transparent);
+}
+.backup-hint > span { flex: 1; min-width: 220px; }
 </style>

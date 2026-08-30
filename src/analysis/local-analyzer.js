@@ -82,6 +82,9 @@ export function topoSort(cards, matrix) {
   const n = cards.length;
   if (!n) return [];
   if (n === 1) return [cards[0].id];
+  // 防御：矩阵与卡片必须是同一批。若调用方先算矩阵再过滤卡片（或反过来），
+  // matrix[i] 会是 undefined → `.reduce` 直接 TypeError 让整个分析面板崩掉。
+  if (!Array.isArray(matrix) || matrix.length !== n) return cards.map(c => c.id);
   // 每卡的「基础性得分」= 平均相似度 ×10 + 掌握度加成（ease 越大越稳 → 越基础）
   const score = cards.map((c, i) => {
     const avg = matrix[i].reduce((a, b) => a + b, 0) / Math.max(1, n - 1);
@@ -98,7 +101,9 @@ export function topoSort(cards, matrix) {
 export function criticalPath(cards, matrix, k = 3) {
   const n = cards.length;
   if (!n) return [];
-  const deg = matrix.map(row => row.reduce((a, b) => a + b, 0));
+  // 同 topoSort：矩阵与卡片必须同源，否则 row 为 undefined → TypeError
+  if (!Array.isArray(matrix) || matrix.length !== n) return cards.map(c => ({ id: c.id, degree: 0 }));
+  const deg = matrix.map(row => (row || []).reduce((a, b) => a + (Number(b) || 0), 0));
   return deg.map((d, i) => ({ id: cards[i].id, degree: +d.toFixed(3) }))
     .sort((a, b) => b.degree - a.degree)
     .slice(0, Math.min(k, n));

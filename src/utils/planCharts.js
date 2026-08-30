@@ -14,6 +14,8 @@
  * 设计：纯函数 + 颜色常量集中管理，便于主题切换
  */
 
+import { fmtLocaleTime } from './locale-date.js';
+
 // ──────────────── 颜色常量 ────────────────
 
 export const STATUS_COLOR = {
@@ -304,7 +306,7 @@ export function checkinTimelineOption(tasks = []) {
         const t = rows[p.dataIndex];
         let s = `${t.title}<br/>`;
         if (t.scheduledHour != null) s += `计划：${t.scheduledHour}:00<br/>`;
-        if (t.completedAt) s += `完成：${new Date(t.completedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`;
+        if (t.completedAt) s += `完成：${fmtLocaleTime(t.completedAt)}`;
         else s += '完成：未打卡';
         return s;
       },

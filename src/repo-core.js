@@ -75,6 +75,15 @@ export const WRONG_REASONS = Object.entries(WRONG_REASON_MAP).map(([code, label]
 // ---------- 到期时间展示 ----------
 export function formatDue(ts, nowTs = Date.now()) {
   const diff = ts - nowTs;
+  // ⚠️ 逾期必须先判：此前 `diff < 3600000` 对负数恒真，
+  //   于是「逾期 3 天 / 逾期 2 小时 / 逾期 1 分钟」统统显示成「1 分钟后」——
+  //   用户完全看不出哪些卡已经拖了很久。
+  if (diff <= 0) {
+    const over = -diff;
+    if (over < 3600000) return '已逾期 · 不到 1 小时';
+    if (over < 24 * 3600000) return `已逾期 ${Math.round(over / 3600000)} 小时`;
+    return `已逾期 ${Math.round(over / 86400000)} 天`;
+  }
   if (diff < 60 * 60 * 1000) return `${Math.max(1, Math.round(diff / 60000))} 分钟后`;
   if (diff < 24 * 3600 * 1000) return `${Math.round(diff / 3600000)} 小时后`;
   const d = new Date(ts);
@@ -117,7 +126,15 @@ export function selectZombieIds(cards, reviewedIds, nowTs = Date.now(), staleDay
   const threshold = nowTs - staleDays * DAY;
   const reviewed = reviewedIds instanceof Set ? reviewedIds : new Set(reviewedIds || []);
   return cards
-    .filter(c => (c.createdAt || 0) <= threshold && !reviewed.has(c.id))
+    // ⚠️ createdAt 缺失（0/undefined）不能当成「1970 年创建」：
+    //   否则一张刚建的新卡立刻被判成僵尸卡（(0) <= threshold 恒真）。
+    //   缺时间戳时用 updatedAt 兜底，两者都缺则跳过该卡（没数据就不下结论）。
+    .filter((c) => {
+      if (reviewed.has(c.id)) return false;
+      const created = Number(c.createdAt) || Number(c.updatedAt) || 0;
+      if (!created) return false;
+      return created <= threshold;
+    })
     .map(c => c.id);
 }
 
@@ -192,8 +209,22 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   }
   const mastery = Object.entries(agg).map(([subject, v]) => ({
     subject, mastery: v.n ? Math.round((v.sum / (2 * v.n)) * 100) : 0, reviews: v.n,
+    // 「近 90 天没复习过」≠「掌握度 0 分」。此前两者都被写成 mastery:0，
+    // 下游（全局平均 / 自适应保持率）把"无数据"当成"完全没掌握"处理。
+    noData: v.n === 0,
   }));
-  const avgMastery = mastery.length ? Math.round(mastery.reduce((s, m) => s + m.mastery, 0) / mastery.length) : 0;
+  // 全局平均掌握度：只统计有复习数据的科目，且按复习次数加权。
+  //   此前对所有科目（含 0 次复习的）求算术平均 —— 实测「3 科只复习 1 科且全对」
+  //   平均掌握度被算成 33%，等价于把「没学过」判成「学了但全不会」。
+  //   按次数加权后等价于「近 90 天全局自评均分」，口径与 ability.correct 一致。
+  let mWeighted = 0;
+  let mWeight = 0;
+  for (const m of mastery) {
+    const n = agg[m.subject]?.n || 0;
+    mWeighted += m.mastery * n;
+    mWeight += n;
+  }
+  const avgMastery = mWeight ? Math.round(mWeighted / mWeight) : 0;
 
   // 近 14 天趋势（单趟扫描分桶，避免原「每天 filter 一次」的 O(14·N)）
   const trendBucket = new Map(); // 当天 0 点时间戳 → 计数

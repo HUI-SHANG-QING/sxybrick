@@ -178,7 +178,8 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); });
 async function onDelete(f) {
   try {
     await ElMessageBox.confirm(
-      `将同时删除「${f.name}」的解析全文与索引（不可恢复）。确定删除？`,
+      `「${f.name}」的解析全文与元数据会进入回收站，保留 30 天可恢复；`
+      + `但原文件会从本机存储中移除（需要时可重新上传）。确定删除？`,
       '删除资料',
       { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
     );

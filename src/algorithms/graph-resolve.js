@@ -27,7 +27,17 @@ export function looksLikeRawId(s) {
   // UUID v4：8-4-4-4-12 十六进制
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) return true;
   // 旧版 uid 兜底：base36 时间戳 + 随机串（如 mt8j0q35qzd4wkyf / mt8j0q35-xxxx）
-  if (/^[0-9a-z]{8}[0-9a-z-]{7,}$/i.test(v) && !/[\u4e00-\u9fff]/.test(v)) return true;
+  //
+  // ⚠️ 2026-08-30 修复：原正则 `/^[0-9a-z]{8}[0-9a-z-]{7,}$/i` 等价于
+  //   「≥15 位纯 ASCII 字母数字串」，会把 `computerNetworkArchitecture` 这类
+  //   **普通英文卡面**也判成裸 ID → 该边被标记 missing → 默认被过滤掉，
+  //   节点直接从知识图谱里消失（英文卡用户的图谱会莫名其妙少一大片）。
+  //   收紧为必须含数字：uid 的 base36 时间戳+随机串几乎必然含数字，
+  //   而纯英文术语/短语通常不含。同时排除含空格的（多个单词 = 人类文本）。
+  if (!/[\u4e00-\u9fff]/.test(v)
+      && !/\s/.test(v)
+      && /^[0-9a-z-]{15,}$/i.test(v)
+      && /\d/.test(v)) return true;
   return false;
 }
 
@@ -198,35 +208,38 @@ export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualK
   let roots = [...all].filter(n => !inDeg.has(n));
   if (!roots.length) roots = [...all];
 
-  const build = (label, visited) => {
+  // ⚠️ 2026-08-30 修复（复杂度爆炸 + 节点重复）：
+  //   旧实现 `build(k, new Set(visited))` 每次传的是**副本** ——
+  //   兄弟分支之间不共享 visited，等于没有任何记忆化，
+  //   展开量 = 从根出发的**路径数**（稠密 DAG 上是指数级，6 层×4 宽即 4⁵ 次重建）。
+  //   而且同一个节点会在多棵子树里反复出现，靠 JSON.stringify 整棵子树去重，
+  //   纯环时 n 个节点会产出 n 棵互不相同的 n 深子树（n 倍重复）。
+  //   改为全局 visited + placed：每个节点最多展开一次、最多挂一次 → O(V+E)。
+  const visited = new Set();  // 已展开（防环）
+  const placed = new Set();   // 已挂进森林（保证一个节点只出现一次）
+
+  const build = (label) => {
     if (visited.has(label)) return null;
     visited.add(label);
+    placed.add(label);
     const kids = [];
     for (const k of childrenOf.get(label) || []) {
-      const built = build(k, new Set(visited));
+      if (visited.has(k) || placed.has(k)) continue; // 已在别处出现 → 不重复挂
+      const built = build(k);
       if (built) kids.push(built);
     }
     return { name: label, children: kids };
   };
 
-  const seen = new Set();
   const subTrees = [];
   for (const r of roots) {
-    const t = build(r, new Set());
-    if (!t) continue;
-    // build 用 new Set(visited) 传副本，环上的点可能在多个子树里重复出现 → 去重
-    const key = JSON.stringify(t);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    for (const c of t.children) seen.add(JSON.stringify(c));
-    subTrees.push(t);
+    if (visited.has(r)) continue;
+    const t = build(r);
+    if (t) subTrees.push(t);
   }
-  const covered = new Set();
-  const collect = n => { covered.add(n.name); for (const c of n.children) collect(c); };
-  for (const t of subTrees) collect(t);
-  // 环内节点（既非根又没被任何子树覆盖）单独补上，避免静默丢节点
+  // 环内 / 孤立残留节点（既非根又没被任何子树覆盖）单独补上，避免静默丢节点
   for (const n of all) {
-    if (!covered.has(n)) subTrees.push({ name: n, children: [] });
+    if (!placed.has(n)) subTrees.push({ name: n, children: [] });
   }
 
   if (subTrees.length === 1) return { root: subTrees[0], virtual: false };

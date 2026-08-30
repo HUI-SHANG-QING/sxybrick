@@ -24,6 +24,8 @@ async function exportRows(t) {
 import { dedupeIncomingCards } from './sync-dedup.js';
 import { buildAuthHeaders } from './utils/hub-auth.js';
 import { pad2 } from './utils/format.js';
+// 快照标签里的时间跟随界面语言（此前硬编码 'zh-CN'，英文界面下仍是"2026/8/30 19:48"中文习惯）
+import { fmtLocaleDateTime } from './utils/locale-date.js';
 
 export { BACKUP_VERSION, EXCLUDED_FROM_SYNC };
 
@@ -317,19 +319,59 @@ export function parseAnkiLines(text) {
 // M3：增量水位按 scope 分开（real/test 各自维护，互不干扰）
 const hubLastSyncKey = () => backupScope() === 'test' ? 'sxy_hub_last_sync_test' : 'sxy_hub_last_sync';
 const HUB_LAST_SYNC_KEY = 'sxy_hub_last_sync'; // 保留旧键兼容（real 域）
+
+// ---------- 同步水位（P0 修复：单模块同步不得推进全局水位） ----------
+// 水位 = 「上次成功上传到中枢的时刻」，增量包只上传 livenessTs(row) > since 的行。
+//
+// 历史缺陷：水位只有一个全局值。单模块同步（opts.table）时其它表被写成空数组上传，
+// 中枢毫无变化，但水位仍被推到 startedAt —— 于是那些表里「时间戳早于 startedAt 的未推送变更」
+// 从此 `> since` 恒为假，**永久静默丢失**。
+// 修法：拆成「全局水位 + 每表独立水位」。单模块同步只推进该表水位；全量同步推进全局 + 所有表。
+export function tableSyncKeyOf(globalKey, table) {
+  return `${globalKey}__t_${table}`;
+}
+
+/**
+ * 取本次同步的 since（纯函数：storage 依赖注入，便于 Node 单测）。
+ * @param {{getItem:(k:string)=>string|null}} storage
+ * @param {{globalKey:string, table?:string|null}} opts
+ */
+export function resolveSince(storage, { globalKey, table }) {
+  const key = table ? tableSyncKeyOf(globalKey, table) : globalKey;
+  try { return Number(storage?.getItem?.(key) || 0) || 0; } catch { return 0; }
+}
+
+/**
+ * 推进水位（纯函数：storage 依赖注入）。
+ * - table 有值：只推进该表水位（其它表的待推送变更不受影响）
+ * - 全量：推进全局水位，并把所有表水位一并拉齐到同一值
+ *   （否则「先单模块、后全量」会因各表水位参差而产生漏传/重复）
+ * @param {{setItem:(k:string,v:string)=>void}} storage
+ */
+export function advanceWatermark(storage, { globalKey, table, value, allTables = [] }) {
+  const v = String(value);
+  const put = (k) => { try { storage?.setItem?.(k, v); } catch { /* 配额/隐私模式忽略 */ } };
+  if (table) { put(tableSyncKeyOf(globalKey, table)); return; }
+  put(globalKey);
+  for (const t of allTables) put(tableSyncKeyOf(globalKey, t));
+}
+
 // M5：opts.table 指定单模块同步（只推送该表；hub 返回全量包仍整体合并 = 全模块拉取更新）
 export async function syncWithHub(hubUrl, token, opts = {}) {
   const hub = String(hubUrl || '').replace(/\/+$/, '');
   if (!hub) throw new Error('请先填写电脑端同步中枢地址');
   // M3：hub 端点按 scope 路由（/backup/real | /backup/test），中枢侧独立数据文件
   const hubPath = `/backup/${backupScope()}`;
-  const lastRaw = Number(localStorage.getItem(hubLastSyncKey()) || 0) || 0;
+  const onlyTable = opts.table || null;
+  const globalKey = hubLastSyncKey();
+  // 单模块同步只认该表自己的水位；全量同步认全局水位
+  const lastRaw = resolveSince(localStorage, { globalKey, table: onlyTable });
   // 水位基准必须在「建快照之前」取时刻（2026-08-29 修复）：
   //   若用同步完成时刻推进，则快照(T0)→完成(T2) 之间用户的编辑/复习其时间戳 ≤ T2，
   //   会被下次 `> since` 过滤掉，且 since 只增不减 → 这部分变更永久静默丢失。
   //   取快照前的时刻会让边界数据重传一次（合并幂等，安全），但绝不漏传。
   const startedAt = Date.now();
-  const backup = await buildIncrementalBackup(lastRaw, { table: opts.table || null });
+  const backup = await buildIncrementalBackup(lastRaw, { table: onlyTable });
   const body = JSON.stringify(backup);
   // 鉴权 v2：优先 HMAC 挑战-响应（同步密码不上网）；老版 Hub 或不支持 WebCrypto 时退回明文 token
   const authHeaders = await buildAuthHeaders({ hub, token, method: 'PUT', path: hubPath, body })
@@ -355,12 +397,32 @@ export async function syncWithHub(hubUrl, token, opts = {}) {
   // 推进值取快照时刻（startedAt / exportedAt 的较早者），而非此处调用时的 Date.now()，
   // 否则会把「快照建立 → 数据导入完成」这段时间内产生的本地变更永久跳过。
   try {
-    const watermark = Math.min(startedAt, backup.exportedAt || startedAt);
-    localStorage.setItem(hubLastSyncKey(), String(watermark));
+    // -1：增量判定是严格 `> since`，同一毫秒内落库的变更若不减 1 会永久漏传；
+    //     减 1 只是让边界那批数据重传一次，合并是幂等的，安全。
+    const watermark = Math.max(0, Math.min(startedAt, backup.exportedAt || startedAt) - 1);
+    advanceWatermark(localStorage, {
+      globalKey, table: onlyTable, value: watermark,
+      allTables: getEffectiveSyncTables().map(t => t.table),
+    });
   } catch {}
   // 插件钩子：同步完成后分发（fire-and-forget，插件异常不阻断）
   triggerHook('onSyncCompleted', stats).catch(() => {});
   return stats;
+}
+
+/**
+ * 数据域校验：演示模式（test）与真实数据（real）的包不得互导。
+ * 中枢通道靠 409 拦、Gist 通道在 Sync.vue 里校验，唯独最常用的「文件导入」通道没校验
+ * —— M3 的数据域隔离在这条通道上形同虚设。
+ * 历史数据包没有 scope 字段，为不误伤一律放行。
+ */
+export function assertBackupScope(backup) {
+  const scope = backup?.scope;
+  if (!scope) return;
+  const cur = backupScope();
+  if (scope === cur) return;
+  const name = (s) => (s === 'test' ? '演示模式' : '真实数据');
+  throw new Error(`数据域不匹配：当前是「${name(cur)}」，却要导入「${name(scope)}」的数据包。请先在设置里切换到${name(scope)}再导入。`);
 }
 
 // 各表合并 + 墓碑应用（与中枢 hub.js 的 merge 使用同一套 sync-manifest 纯函数，保证两端一致）
@@ -369,13 +431,14 @@ export async function syncWithHub(hubUrl, token, opts = {}) {
 //   让用户在 Sync.vue 直观看到「哪张卡的哪个字段被谁覆盖了」
 export async function importBackup(backup) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
+  assertBackupScope(backup);
   const stats = { cards: 0, reviews: 0, overridden: 0, deleted: 0, duplicated: 0, conflicts: [], snapshotId: null };
   const effTables = getEffectiveSyncTables();
   for (const t of effTables) if (t.table !== 'cards' && t.table !== 'reviews') stats[t.table] = 0;
 
   // P3-3 0) 合并前自动保存快照（便于事后回滚）；失败不阻断导入
   try {
-    const label = `导入前自动快照 · ${new Date().toLocaleString('zh-CN')}`;
+    const label = `导入前自动快照 · ${fmtLocaleDateTime(Date.now())}`;
     const snap = await saveSnapshot(label, 'backup-before-import');
     stats.snapshotId = snap.id;
   } catch (e) { console.warn('[sync] 自动快照失败（不阻断导入）:', e?.message || e); }
@@ -522,6 +585,9 @@ function previewSample(t, row) {
 }
 export async function previewImport(backup) {
   if (!backup || backup.app !== 'sxybrick') return { valid: false, error: '不是有效的 SxyBrick 数据包', tables: [] };
+  // 与 importBackup 同口径：预览阶段就拦住跨数据域导入，别让用户走完 3 秒预览才发现
+  try { assertBackupScope(backup); }
+  catch (e) { return { valid: false, error: e.message, tables: [] }; }
   const effTables = getEffectiveSyncTables();
   const tombstones = backup.tombstones || [];
   const tables = [];

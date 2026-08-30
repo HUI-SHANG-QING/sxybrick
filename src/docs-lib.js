@@ -16,7 +16,7 @@ import {
   buildOcrAssets, buildCloudOcrRequest, parseCloudOcrResponse,
 } from './utils/ocr.js';
 import { indexDoc } from './agent/retrieval.js';
-import { createCard, createGraphEdge } from './repo.js';
+import { createCard, createGraphEdge, trashItem } from './repo.js';
 import { draftToCardPayload, validateDraft } from './utils/card-drafts.js';
 import { cardInDoc, buildDocCardEdges, excerptAround, traceCardDocId } from './utils/doc-graph.js';
 
@@ -179,17 +179,68 @@ export async function getDocText(id) {
   return (await db.docTexts.get(id))?.text || '';
 }
 
-/** 删除：原文件（OPFS）→ docFiles → docTexts → embeddings → 图谱边 → 墓碑 */
+/**
+ * 删除资料（可恢复，30 天）。
+ *
+ * 删除分级中的「软删保内容」：
+ *   - 元数据 + 解析全文 + 资料→卡片图谱边 进本地 trash 快照 → 回收站可还原（30 天）
+ *   - 原文件（OPFS / IndexedDB Blob）立即释放：它可能有几百 MB，留着等于存储泄漏，
+ *     且文件本身可用「重新上传」替代；解析全文（可能来自耗时 OCR）才是不可再生的部分。
+ *   - 恢复后 storage 被置为 'missing'，预览会提示「本机无原文件」，问答/检索照常可用。
+ *
+ * 顺序说明：先落库（快照 + 墓碑 + 删行，同一事务保证原子），成功后再释放原文件。
+ *   OPFS 是异步 API，不能放进 IndexedDB 事务（事务会在 await 期间自动提交）；
+ *   反过来若先删文件再落库，一旦事务失败就变成「文件没了、元数据还在」的幽灵资料。
+ *
+ * @param {string} id docFiles.id
+ * @returns {Promise<boolean>} 是否确实删掉了（不存在返回 false）
+ */
 export async function deleteDocFile(id) {
   const row = await db.docFiles.get(id);
-  if (!row) return;
-  if (row.storage === 'opfs' && row.opfsPath) await deleteFileFromOpfs(row.opfsPath);
-  await db.docFiles.delete(id);
-  await db.docBlobs.delete(id); // 降级暂存的原始 Blob（本地表）
-  await db.docTexts.delete(id);
-  await db.embeddings.where('sourceId').equals(id).delete();
-  await db.graphEdges.filter((e) => e.docId === id).delete(); // 清理资料 → 卡片图谱边
-  await db.tombstones.put({ id, kind: 'docFile', deletedAt: Date.now() });
+  if (!row) return false;
+  const textRow = await db.docTexts.get(id);
+  // 资料→卡片图谱边：恢复时按 updatedAt 压过对端仍存在的旧副本
+  const edges = await db.graphEdges.filter((e) => e.docId === id).toArray();
+  // 向量块也要墓碑：embeddings 是同步表（kind=embedding，idOnly 合并），
+  // 只删行不写墓碑 → 对端会把已删资料的向量块推回来，RAG 检索到"幽灵资料"的片段
+  const embIds = await db.embeddings.where('sourceId').equals(id).primaryKeys();
+  const deletedAt = Date.now();
+  await db.transaction(
+    'rw',
+    db.docFiles, db.docBlobs, db.docTexts, db.embeddings, db.graphEdges, db.trash, db.tombstones,
+    async () => {
+      // 1) 回收站快照（元数据 + 全文 + 图谱边）
+      await trashItem(id, 'docFile', {
+        ...row,
+        _text: textRow?.text || '',
+        _textLen: textRow?.textLen || 0,
+        _edges: edges.map((e) => ({ ...e })),
+      });
+      // 2) 墓碑（跨设备同步删除）：资料本体 + 级联删掉的图谱边与向量块
+      //    级联删除不写墓碑的后果见 deleteCard 的注释——对端会把它们原样推回来
+      await db.tombstones.put({ id, kind: 'docFile', deletedAt });
+      if (edges.length) {
+        await db.tombstones.bulkPut(edges.map(e => ({ id: e.id, kind: 'graphEdge', deletedAt })));
+      }
+      if (embIds.length) {
+        await db.tombstones.bulkPut(embIds.map(eid => ({ id: eid, kind: 'embedding', deletedAt })));
+      }
+      // 3) 删行：元数据 / 降级 Blob / 全文 / 向量 / 图谱边
+      await db.docFiles.delete(id);
+      await db.docBlobs.delete(id); // 降级暂存的原始 Blob（本地表）
+      await db.docTexts.delete(id);
+      await db.embeddings.where('sourceId').equals(id).delete();
+      await db.graphEdges.filter((e) => e.docId === id).delete();
+    },
+  );
+  // 4) 落库成功后才释放原文件（事务外：OPFS 异步 API 不能进 IndexedDB 事务）
+  try {
+    if (row.storage === 'opfs' && row.opfsPath) await deleteFileFromOpfs(row.opfsPath);
+  } catch (e) {
+    // 原文件释放失败不影响删除语义（元数据与快照已一致落库），仅告警
+    console.warn('[docs-lib] 原文件释放失败:', e?.message || e);
+  }
+  return true;
 }
 
 // ---------- 存储健康 ----------

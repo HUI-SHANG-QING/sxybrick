@@ -8,6 +8,7 @@ import { speak } from '../utils/tts.js';
 import { sendNotify } from '../utils/notify.js';
 import { addPomoSession, countPomoToday } from '../repo.js';
 import { T } from '../utils/telemetry.js';
+import { t } from '../i18n/index.js';
 
 const MODES = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
 const STATE_KEY = 'sxy_pomo_state';
@@ -27,7 +28,7 @@ const progress = computed(() => total.value ? 1 - left.value / total.value : 0);
 const r = 90, C = 2 * Math.PI * r;
 const dashOffset = computed(() => C * (1 - progress.value));
 const ringColor = computed(() => mode.value === 'focus' ? 'var(--accent)' : 'var(--green)');
-const modeLabel = computed(() => mode.value === 'focus' ? '专注' : mode.value === 'short' ? '短休息' : '长休息');
+const modeLabel = computed(() => mode.value === 'focus' ? t('views.pomodoro.labelFocus') : mode.value === 'short' ? t('views.pomodoro.labelShort') : t('views.pomodoro.labelLong'));
 
 function fmt(s) { const m = Math.floor(s / 60), sec = s % 60; return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`; }
 
@@ -86,13 +87,13 @@ async function finish() {
       try { T.pomodoroEnd(25, 'focus'); } catch {}
     }
     await refreshDone();
-    toast('专注完成，休息一下！', 'success'); speak('专注完成，休息一下吧');
-    sendNotify('番茄钟完成', '专注 25 分钟结束，休息一下吧！');
+    toast(t('views.pomodoro.focusDone'), 'success'); speak(t('views.pomodoro.focusDoneSpeech'));
+    sendNotify(t('views.pomodoro.notifyTitle'), t('views.pomodoro.notifyMsg'));
     // 每 4 个专注一个长休（用今日总数判断，跨页面/跨天一致）
     switchMode(doneToday.value % 4 === 0 ? 'long' : 'short');
   } else {
     try { T.pomodoroEnd(mode.value === 'short' ? 5 : 15, mode.value); } catch {}
-    toast('休息结束，继续加油！', 'success'); speak('休息结束，继续加油');
+    toast(t('views.pomodoro.restDone'), 'success'); speak(t('views.pomodoro.restDoneSpeech'));
     switchMode('focus');
   }
 }
@@ -158,13 +159,13 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="pomo-wrap">
-    <h2 style="margin:0 0 4px">番茄钟</h2>
-    <p class="hint" style="margin:0 0 16px">25 分钟专注 + 5 分钟休息，每 4 轮一个长休息。到点自动语音提醒。</p>
+    <h2 style="margin:0 0 4px">{{ t('views.pomodoro.title') }}</h2>
+    <p class="hint" style="margin:0 0 16px">{{ t('views.pomodoro.hint') }}</p>
 
     <div class="mode-row">
-      <button class="chip" :class="{ on: mode === 'focus' }" @click="switchMode('focus')">专注 25′</button>
-      <button class="chip" :class="{ on: mode === 'short' }" @click="switchMode('short')">短休 5′</button>
-      <button class="chip" :class="{ on: mode === 'long' }" @click="switchMode('long')">长休 15′</button>
+      <button class="chip" :class="{ on: mode === 'focus' }" @click="switchMode('focus')">{{ t('views.pomodoro.modeFocus') }}</button>
+      <button class="chip" :class="{ on: mode === 'short' }" @click="switchMode('short')">{{ t('views.pomodoro.modeShort') }}</button>
+      <button class="chip" :class="{ on: mode === 'long' }" @click="switchMode('long')">{{ t('views.pomodoro.modeLong') }}</button>
     </div>
 
     <div class="ring">
@@ -178,12 +179,12 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="ctrl">
-      <button class="btn primary" v-if="!running" @click="start">开始</button>
-      <button class="btn" v-else @click="stop">暂停</button>
-      <button class="btn" @click="resetCur">重置</button>
+      <button class="btn primary" v-if="!running" @click="start">{{ t('views.pomodoro.start') }}</button>
+      <button class="btn" v-else @click="stop">{{ t('views.pomodoro.pause') }}</button>
+      <button class="btn" @click="resetCur">{{ t('views.pomodoro.reset') }}</button>
     </div>
 
-    <div class="hint" style="text-align:center;margin-top:12px">今日已完成 {{ doneToday }} 个番茄钟</div>
+    <div class="hint" style="text-align:center;margin-top:12px">{{ t('views.pomodoro.doneToday', '今日已完成 {n} 个番茄钟', { n: doneToday }) }}</div>
   </div>
 </template>
 

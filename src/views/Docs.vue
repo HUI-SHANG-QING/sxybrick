@@ -8,6 +8,7 @@ import { chatAI, hasAIKey } from '../ai.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
+import { t } from '../i18n/index.js';
 
 const route = useRoute();
 const docs = ref([]);
@@ -24,7 +25,7 @@ const genLoading = ref(false);
 const genCards = ref([]);
 const genFrom = ref(null);
 
-const typeMeta = { summary: '总结', note: '笔记', plan: '计划', other: '其他' };
+const typeMeta = { summary: t('views.docs.typeSummary'), note: t('views.docs.typeNote'), plan: t('views.docs.typePlan'), other: t('views.docs.typeOther') };
 
 async function load() { docs.value = await listDocs(); }
 
@@ -35,25 +36,25 @@ function openEdit(d) {
   editing.value = d; title.value = d.title; content.value = d.content; type.value = d.type || 'note'; tags.value = (d.tags || []).join(', '); showForm.value = true;
 }
 async function save() {
-  if (!title.value.trim() && !content.value.trim()) { toast('标题或内容不能都为空', 'error'); return; }
+  if (!title.value.trim() && !content.value.trim()) { toast(t('views.docs.emptyBoth'), 'error'); return; }
   const tagArr = tags.value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
   try {
   if (editing.value) {
     await updateDoc(editing.value.id, { title: title.value, content: content.value, type: type.value, tags: tagArr });
-    toast('文档已更新', 'success');
+    toast(t('views.docs.updated'), 'success');
   } else {
     await createDoc({ title: title.value, content: content.value, type: type.value, tags: tagArr });
-    toast('文档已创建', 'success');
+    toast(t('views.docs.created'), 'success');
   }
   showForm.value = false; await load();
-  } catch (e) { toast('保存失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.docs.saveFail', '保存失败：{msg}', { msg: e.message }), 'error'); }
 }
-async function remove(d) { if (!(await confirmDialog('删除这个文档？'))) return; await deleteDoc(d.id); if (activeId.value === d.id) activeId.value = ''; await load(); }
+async function remove(d) { if (!(await confirmDialog(t('views.docs.confirmDelete')))) return; await deleteDoc(d.id); if (activeId.value === d.id) activeId.value = ''; await load(); }
 
 // 一键转卡片：把文档内容拆成记忆卡片（AI）
 async function toCards(d) {
-  if (!hasAIKey()) { toast('请先配置 AI 密钥', 'error'); return; }
-  if (!d.content || !d.content.trim()) { toast('文档内容为空', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.docs.noAIKey'), 'error'); return; }
+  if (!d.content || !d.content.trim()) { toast(t('views.docs.contentEmpty'), 'error'); return; }
   genFrom.value = d; genCards.value = []; genOpen.value = true; genLoading.value = true;
   try {
     const sys = '你是学习内容拆解助手。把下面内容拆成记忆卡片，输出严格 JSON 数组，每项 {"front":"问题/提示","back":"答案","subject":"科目","tags":["标签"]}。只输出 JSON 数组。';
@@ -61,8 +62,8 @@ async function toCards(d) {
     const m = String(r).match(/\[[\s\S]*\]/);
     const arr = JSON.parse(m ? m[0] : r);
     genCards.value = Array.isArray(arr) ? arr.filter(c => c && c.front && c.back) : [];
-    if (!genCards.value.length) toast('没解析出卡片', 'error');
-  } catch (e) { toast('转换失败：' + e.message, 'error'); }
+    if (!genCards.value.length) toast(t('views.docs.noCards'), 'error');
+  } catch (e) { toast(t('views.docs.convertFail', '转换失败：{msg}', { msg: e.message }), 'error'); }
   finally { genLoading.value = false; }
 }
 async function importCards() {
@@ -70,7 +71,7 @@ async function importCards() {
   for (const c of genCards.value) {
     await createCard({ front: String(c.front), back: String(c.back), subject: c.subject || (genFrom.value?.tags?.[0] || ''), tags: c.tags || [], type: 'basic' });
   }
-  toast(`已导入 ${genCards.value.length} 张卡片`, 'success');
+  toast(t('views.docs.importedN', '已导入 {n} 张卡片', { n: genCards.value.length }), 'success');
   genOpen.value = false; genCards.value = [];
 }
 
@@ -89,39 +90,39 @@ onMounted(applyRouteId);
 <template>
   <div class="docs-wrap">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">AI 文档</h2>
+      <h2 style="margin:0">{{ t('views.docs.title') }}</h2>
       <span style="flex:1"></span>
-      <button class="btn primary small" @click="openNew">＋ 新建文档</button>
+      <button class="btn primary small" @click="openNew">{{ t('views.docs.newDoc') }}</button>
     </div>
 
     <div class="docs-body">
       <aside class="docs-list no-print">
-        <EmptyState v-if="!docs.length" icon="📄" title="还没有文档" message="可手动创建，或在「Agent 工作台」让 Agent 生成总结/讲义后保存到这里" />
+        <EmptyState v-if="!docs.length" icon="📄" :title="t('views.docs.emptyListTitle')" :message="t('views.docs.emptyListMsg')" />
         <div v-for="d in docs" :key="d.id" class="doc-item" :class="{ active: activeId === d.id }" @click="activeId = d.id">
           <div class="doc-title">{{ d.title }}</div>
           <div class="doc-meta">
-            <span class="doc-type">{{ typeMeta[d.type] || '其他' }}</span>
+            <span class="doc-type">{{ typeMeta[d.type] || t('views.docs.typeOther') }}</span>
             <span class="doc-date">{{ new Date(d.updatedAt).toLocaleDateString() }}</span>
           </div>
         </div>
       </aside>
 
       <section class="docs-detail">
-        <EmptyState v-if="!activeId && !showForm" icon="📄" title="选择左侧文档" message="查看内容，或点「＋ 新建文档」开始写作" />
+        <EmptyState v-if="!activeId && !showForm" icon="📄" :title="t('views.docs.noSelTitle')" :message="t('views.docs.noSelMsg')" />
         <template v-for="d in docs" :key="'d' + d.id">
           <div v-if="activeId === d.id" class="detail-card">
             <div class="detail-head">
               <h3 style="margin:0">{{ d.title }}</h3>
               <div style="display:flex;gap:8px">
-                <button class="btn small primary" @click="toCards(d)">转卡片</button>
-                <button class="btn small" @click="openEdit(d)">编辑</button>
-                <button class="btn small" style="color:var(--red)" @click="remove(d)">删除</button>
+                <button class="btn small primary" @click="toCards(d)">{{ t('views.docs.toCards') }}</button>
+                <button class="btn small" @click="openEdit(d)">{{ t('views.docs.edit') }}</button>
+                <button class="btn small" style="color:var(--red)" @click="remove(d)">{{ t('views.docs.del') }}</button>
               </div>
             </div>
             <div v-if="d.tags && d.tags.length" style="margin-bottom:8px">
               <span v-for="t in d.tags" :key="t" class="tag">{{ t }}</span>
             </div>
-            <MarkdownRenderer :content="d.content || '（无内容）'" />
+            <MarkdownRenderer :content="d.content || t('views.docs.noContent')" />
           </div>
         </template>
       </section>
@@ -130,23 +131,23 @@ onMounted(applyRouteId);
     <teleport to="body">
       <div v-if="showForm" class="modal-mask" @click.self="showForm = false">
         <div class="modal">
-          <h3>{{ editing ? '编辑文档' : '新建文档' }}</h3>
-          <div class="field-label">标题</div>
-          <input v-model="title" class="input" placeholder="如：操作系统·文件系统总结" />
-          <div class="field-label">类型</div>
+          <h3>{{ editing ? t('views.docs.editDoc') : t('views.docs.newDocTitle') }}</h3>
+          <div class="field-label">{{ t('views.docs.fieldTitle') }}</div>
+          <input v-model="title" class="input" :placeholder="t('views.docs.titlePlaceholder')" />
+          <div class="field-label">{{ t('views.docs.fieldType') }}</div>
           <select v-model="type" class="input">
-            <option value="note">笔记</option>
-            <option value="summary">总结</option>
-            <option value="plan">计划</option>
-            <option value="other">其他</option>
+            <option value="note">{{ t('views.docs.typeNote') }}</option>
+            <option value="summary">{{ t('views.docs.typeSummary') }}</option>
+            <option value="plan">{{ t('views.docs.typePlan') }}</option>
+            <option value="other">{{ t('views.docs.typeOther') }}</option>
           </select>
-          <div class="field-label">标签（逗号分隔）</div>
-          <input v-model="tags" class="input" placeholder="如：操作系统, 文件系统" />
-          <div class="field-label">内容（支持 Markdown）</div>
-          <textarea v-model="content" class="input" rows="10" placeholder="正文…"></textarea>
+          <div class="field-label">{{ t('views.docs.fieldTags') }}</div>
+          <input v-model="tags" class="input" :placeholder="t('views.docs.tagsPlaceholder')" />
+          <div class="field-label">{{ t('views.docs.fieldContent') }}</div>
+          <textarea v-model="content" class="input" rows="10" :placeholder="t('views.docs.contentPlaceholder')"></textarea>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-            <button class="btn" @click="showForm = false">取消</button>
-            <button class="btn primary" @click="save">保存</button>
+            <button class="btn" @click="showForm = false">{{ t('views.docs.cancel') }}</button>
+            <button class="btn primary" @click="save">{{ t('views.docs.save') }}</button>
           </div>
         </div>
       </div>
@@ -155,9 +156,9 @@ onMounted(applyRouteId);
     <teleport to="body">
       <div v-if="genOpen" class="modal-mask" @click.self="genOpen = false">
         <div class="modal">
-          <h3 style="margin-top:0">文档转卡片</h3>
-          <p class="hint" style="margin-top:0">AI 已把「{{ genFrom?.title }}」拆成 {{ genCards.length }} 张卡片，确认后导入。</p>
-          <div v-if="genLoading" class="hint" style="text-align:center;padding:24px">生成中…</div>
+          <h3 style="margin-top:0">{{ t('views.docs.genTitle') }}</h3>
+          <p class="hint" style="margin-top:0">{{ t('views.docs.genHint', 'AI 已把「{title}」拆成 {n} 张卡片，确认后导入。', { title: genFrom?.title, n: genCards.length }) }}</p>
+          <div v-if="genLoading" class="hint" style="text-align:center;padding:24px">{{ t('views.docs.generating') }}</div>
           <div v-else class="gen-list">
             <div v-for="(c, i) in genCards" :key="i" class="gen-item">
               <div class="gen-q">{{ c.front }}</div>
@@ -165,8 +166,8 @@ onMounted(applyRouteId);
             </div>
           </div>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-            <button class="btn" @click="genOpen = false">取消</button>
-            <button class="btn primary" :disabled="!genCards.length" @click="importCards">导入这 {{ genCards.length }} 张</button>
+            <button class="btn" @click="genOpen = false">{{ t('views.docs.cancel') }}</button>
+            <button class="btn primary" :disabled="!genCards.length" @click="importCards">{{ t('views.docs.importN', '导入这 {n} 张', { n: genCards.length }) }}</button>
           </div>
         </div>
       </div>

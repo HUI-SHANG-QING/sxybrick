@@ -9,14 +9,46 @@
 const FAMILIARITY_S = [0.5, 1.0, 2.0, 4.0, 7.0, 12.0];
 
 // 科目难度系数：同等自评分下，越难的科目初始 S 略打折（首次接触更难内化）
-const SUBJECT_FACTOR = {
-  '数学': 0.82, '线代': 0.82, '概率': 0.85, '408': 0.8,
-  '计算机': 0.85, '计组': 0.82, '计网': 0.85, 'OS': 0.85,
-  'default': 1.0,
-};
+//
+// ⚠️ 2026-08-30 修复：这里是**包含匹配**的关键词表，不是精确键查找。
+//   此前用 `SUBJECT_FACTOR[subject] ?? 1.0` 精确查表，而实际科目名来自
+//   repo-core.DEFAULT_SUBJECTS（'计算机网络' / '高等数学' / '概率论' / '线性代数' …），
+//   与表里的 '数学' / '计网' / 'OS' 无一精确相等 → 整张表静默失效，全部回退 1.0。
+//   即：冷启动前测的「难科打折」功能从来没生效过。
+const SUBJECT_FACTOR_RULES = [
+  [/数学|高数/, 0.82],
+  [/线代|线性代数/, 0.82],
+  [/概率/, 0.85],
+  [/408|计算机|组成原理|计组/, 0.80],
+  [/网络|计网/, 0.85],
+  [/操作?系统|\bOS\b/i, 0.85],
+  [/英语|单词/, 0.95],   // 记忆型，首次内化相对容易
+  [/政治|马原|毛概|史纲/, 0.95],
+];
 
-// 内容难度（basic/application/challenge 映射 0/1/2）→ 初始 S 微调
+/** 科目名 → 难度系数（包含匹配；命中第一条即返回，都不中返回 1.0） */
+export function subjectFactorOf(subject = '') {
+  const s = String(subject || '');
+  if (!s) return 1.0;
+  for (const [re, f] of SUBJECT_FACTOR_RULES) if (re.test(s)) return f;
+  return 1.0;
+}
+
+// 内容难度（basic/applied/challenge 或 0/1/2）→ 初始 S 微调
 const DIFF_ADJ = { 0: 1.1, 1: 1.0, 2: 0.82 };
+
+/**
+ * 难度归一化：'basic'|'applied'|'challenge' 与 0|1|2（数字或数字字符串）都要能识别。
+ * ⚠️ 此前两处各写一份：一处支持数字、另一处把数字 2 落到 else 分支得 0
+ *   —— 同一张卡走 estimateInitialStability 与 initialStabilityForCard 会算出不同的 S。
+ */
+export function difficultyToNum(d) {
+  if (d === 'basic') return 0;
+  if (d === 'applied') return 1;
+  if (d === 'challenge') return 2;
+  const n = Number(d);
+  return Number.isFinite(n) ? Math.max(0, Math.min(2, Math.round(n))) : 0;
+}
 
 /**
  * 估计初始稳定度（天）
@@ -26,10 +58,8 @@ const DIFF_ADJ = { 0: 1.1, 1: 1.0, 2: 0.82 };
 export function estimateInitialStability({ familiarity = 2, difficulty = 'basic', subject = '' } = {}) {
   const fam = Math.max(0, Math.min(5, Math.round(Number(familiarity) || 0)));
   let s = FAMILIARITY_S[fam];
-  const sf = SUBJECT_FACTOR[subject] ?? SUBJECT_FACTOR.default;
-  s *= sf;
-  const diffNum = difficulty === 'basic' ? 0 : difficulty === 'applied' ? 1 : difficulty === 'challenge' ? 2 : (Number(difficulty) || 0);
-  s *= DIFF_ADJ[Math.max(0, Math.min(2, diffNum))] ?? 1.0;
+  s *= subjectFactorOf(subject);
+  s *= DIFF_ADJ[difficultyToNum(difficulty)] ?? 1.0;
   return Math.max(0.5, Number(s.toFixed(3)));
 }
 
@@ -43,6 +73,5 @@ export function initialStabilityForCard(card, pretestMap) {
   const subj = card?.subject || 'default';
   const base = pretestMap && pretestMap[subj];
   if (typeof base !== 'number') return null;
-  const diffNum = card?.difficulty === 'basic' ? 0 : card?.difficulty === 'applied' ? 1 : card?.difficulty === 'challenge' ? 2 : 0;
-  return Math.max(0.5, base * (DIFF_ADJ[diffNum] ?? 1.0));
+  return Math.max(0.5, base * (DIFF_ADJ[difficultyToNum(card?.difficulty)] ?? 1.0));
 }

@@ -44,11 +44,23 @@ test('逾期卡：计入 backlog，并推到今天（第 0 天）复习', () => 
   assert.equal(r.totalDue, 1);
 });
 
-test('遗忘回炉：rating=0 间隔极短，同一天反复到期直到 maxIters', () => {
+test('遗忘回炉：rating=0 只计「当天是否要复习」，不按重学次数重复计数', () => {
+  // ⚠️ 历史缺陷（2026-08-30 修复）：again 的间隔是 0.01 天（14.4 分钟），
+  //   reviewAt 恒等于 start、idx 恒等于 0，1 张卡在 day0 被反复计数到 maxIters 次
+  //   → 单卡预测出 totalDue=200 / peak=100，容量规划完全失真。
+  //   语义上「今天这张卡要复习吗」才是到期量，同一天重学 10 次仍只是 1 张卡。
   const card = mkCard({ dueAt: START, fsrs: null }); // 新卡、今天到期
   const r = forecastDue([card], 30, { now: NOW, rating: 0, maxIters: 10 });
-  assert.equal(r.byDay[0].count, 10);
-  assert.equal(r.totalDue, 10);
+  assert.equal(r.byDay[0].count, 1, '同一天同一张卡只计一次');
+  assert.equal(r.totalDue, 1, '总额不因重学次数虚增');
+  assert.equal(r.peak.count, 1);
+});
+
+test('多卡同天到期：每张卡各计一次（不互相抵消）', () => {
+  const cards = ['a', 'b', 'c'].map(id => mkCard({ id, dueAt: START, fsrs: null }));
+  const r = forecastDue(cards, 30, { now: NOW, rating: 0, maxIters: 10 });
+  assert.equal(r.byDay[0].count, 3, '3 张卡各计一次');
+  assert.equal(r.totalDue, 3);
 });
 
 test('确定性：无抖动权重下两次调用结果一致', () => {

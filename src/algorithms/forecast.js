@@ -6,6 +6,9 @@
 import { schedule, DEFAULT_WEIGHTS, DEFAULT_DESIRED_RETENTION } from '../fsrs.js';
 
 const DAY = 24 * 60 * 60 * 1000;
+// 最小有效推进量：下次到期与本次复习间隔不足 1 分钟，视为「当天重学」而非一次新排期，
+// 不再继续迭代（否则会退化成在窗口内以 14 分钟为步长空转数百次）。
+const MIN_STEP_MS = 60 * 1000;
 
 // 消除抖动权重：w[17] = 0 → nextInterval 的 fuzz 恒为 1，预测结果确定（均值口径）
 export function noFuzzWeights(w = DEFAULT_WEIGHTS) {
@@ -57,8 +60,17 @@ export function forecastDue(cards, days = 30, opts = {}) {
   let total = 0;
   let backlog = 0;
 
+  // 「同一张卡同一天只计一次」：
+  //   模拟的是「今天这张卡要复习吗」，而不是「今天要翻几次」。
+  //   实测缺陷（rating=0 时）：again 的间隔是 0.01 天（14.4 分钟），
+  //   reviewAt 恒等于 start、idx 恒等于 0，于是 1 张卡在 day0 被计数 ~100 次
+  //   → 单卡预测出 totalDue=200 / peak=100 这种天文数字，容量规划完全失真。
+  const counted = new Set(); // key: `${seq}|${idx}`
+  let seq = 0; // 卡片序号（同 id 的卡可能重复出现，用序号去重更稳）
+
   for (const card of cards || []) {
     if (!card) continue;
+    seq++;
     const firstDue = card.dueAt ?? card.createdAt ?? now;
     if (firstDue < start) backlog++; // 当前已逾期、待补的卡
 
@@ -70,9 +82,13 @@ export function forecastDue(cards, days = 30, opts = {}) {
       // 复习时刻：逾期卡今天补（reviewAt=start），未来卡按时（reviewAt=due）
       const reviewAt = Math.max(due, start);
       const idx = Math.floor((reviewAt - start) / DAY);
-      if (idx >= 0 && idx < n) { byDay[idx]++; total++; }
+      const key = `${seq}|${idx}`;
+      if (idx >= 0 && idx < n && !counted.has(key)) { counted.add(key); byDay[idx]++; total++; }
       // 模拟复习推进
       const next = schedule(state, rating, { now: reviewAt, weights, desiredRetention: desiredR });
+      // 推进量太小（如 again 的 0.01 天）说明这张卡进入了「当天重学」循环，
+      // 继续迭代只会反复命中同一天，直接退出本卡模拟。
+      if (next.dueAt - reviewAt < MIN_STEP_MS) break;
       due = next.dueAt;
       state = { ...state, fsrs: next.fsrs, dueAt: next.dueAt, level: next.level, ease: next.ease, intervalDays: next.intervalDays };
     }

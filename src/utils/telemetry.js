@@ -30,7 +30,7 @@ export function setBEnabled(v) { localStorage.setItem(LS_KEY_B, v ? '1' : '0'); 
 const PAGE_MODULE_MAP = {
   '/': '首页', '/workspace': '工作台', '/review': '复习', '/cards': '卡片', '/library': '书房',
   '/graph': '图谱', '/mindmap': '导图', '/wrong': '错题', '/feynman': '费曼',
-  '/stats': '统计', '/user-dashboard': '仪表盘', '/privacy': '隐私', '/plans': '计划',
+  '/stats': '统计', '/user-dashboard': '仪表盘', '/monitor': '超级监控', '/privacy': '超级监控', '/plans': '计划',
   '/memo': '备忘', '/notes': '笔记', '/categories': '分类', '/daily': '每日规划',
   '/pomodoro': '番茄', '/exam': '模考', '/weekly': '周报',
   '/achievements': '成就', '/health': '健康', '/ai': 'AI', '/agent': 'Agent',

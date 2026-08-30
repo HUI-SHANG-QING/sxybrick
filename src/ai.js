@@ -84,8 +84,12 @@ export async function saveChat(chat) {
   await db.aiChats.put({ ...plain, updatedAt: Date.now() });
 }
 export async function deleteChat(id) {
-  await db.aiChats.delete(id);
-  await db.tombstones.put({ id, kind: 'chat', deletedAt: Date.now() }); // 墓碑：跨设备同步删除
+  // 事务：删行与墓碑同生共死。分两次 await 的话，墓碑写失败会留下
+  // 「本机已删、对端永远还在」的幽灵对话（下次同步还会被推回来）。
+  await db.transaction('rw', db.aiChats, db.tombstones, async () => {
+    await db.aiChats.delete(id);
+    await db.tombstones.put({ id, kind: 'chat', deletedAt: Date.now() }); // 墓碑：跨设备同步删除
+  });
 }
 export function newChat() {
   return { id: uid(), title: '新对话', createdAt: Date.now(), updatedAt: Date.now(), messages: [] };

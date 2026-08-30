@@ -51,6 +51,12 @@ const pinia = createPinia();
 // 构建目标 es2020（chrome87/safari14）不支持 top-level await。
 useAppModeStore(pinia).init().catch(() => {});
 
+// 回收站过期快照兜底清理：此前只在用户打开回收站页时才清，
+// 长期不打开该页的话 trash 里的大快照（含资料解析全文）会一直占着 IndexedDB。
+// fire-and-forget，失败不影响启动。
+import { pruneTrash } from './repo.js';
+pruneTrash().catch(() => {});
+
 app.use(pinia);
 app.use(router);
 app.use(ElementPlus);

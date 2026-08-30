@@ -167,29 +167,99 @@ export async function updateCard(id, payload) {
   return card;
 }
 
+// ---------- 删除分级（数据生命周期统一语义，2026-08-30 收敛） ----------
+//   A 可恢复删：卡片 / 备忘 / 笔记 / 计划 / 文档 / 导图 / **资料** —— trash 快照 + 墓碑，30 天内可还原
+//   B 软删保内容：资料（docFile）—— 元数据 + 解析全文进 trash，原文件（OPFS/Blob）可丢，恢复后标记 storage='missing'
+//   C 不可逆删：清空全部数据（stores/reset.js）—— UI 层强制「先备份」引导
+// 统一原则：任何一次删除都必须 ① 先落 trash 快照 ② 再写墓碑 ③ 最后删行，且三步在同一事务内。
+
+/** 回收站 TTL（天）：过期快照不可恢复，自动清除（墓碑保留，跨设备删除语义不受影响） */
+export const TRASH_TTL_DAYS = 30;
+
 // P2-22 回收站：删除内容前把快照写入本地 trash 表（不进同步/备份），供 30 天内恢复
-async function trashItem(id, kind, data) {
+// 快照约定：data 里以下划线开头的字段是「附属快照」，恢复时按类型还原到对应表，不写回主表行
+//   _reviews    复习记录数组   → reviews
+//   _groupLinks 卡片-卡组关联  → cardGroupLinks
+//   _text/_textLen 资料解析全文 → docTexts（本地表，不同步）
+//   _edges      资料→卡片图谱边 → graphEdges
+export async function trashItem(id, kind, data) {
   if (!id || !data) return;
   try { await db.trash.put({ id, kind, deletedAt: now(), data }); } catch { /* trash 不可用不阻塞删除 */ }
 }
 
+/**
+ * 回收站过期清理：删掉超过 TTL 的快照（墓碑保留，保证跨设备删除语义不被本地回收站绑死）。
+ * 之前只在回收站页 load() 时清一次 —— 用户长期不打开该页，trash 会无限膨胀。
+ * 现在导出此函数，由应用启动时（main.js）兜底调用。
+ */
+export async function pruneTrash(ttlDays = TRASH_TTL_DAYS) {
+  try {
+    const cutoff = Date.now() - ttlDays * 86400000;
+    const stale = await db.trash.filter(t => (t.deletedAt || 0) < cutoff).primaryKeys();
+    if (stale.length) await db.trash.bulkDelete(stale);
+    return stale.length;
+  } catch { return 0; }
+}
+
+// 恢复时对主表行的类型专属修正：
+//   docFile —— 原文件（OPFS / IndexedDB Blob）在删除时已释放，无法还原；
+//              显式标记 storage='missing' 并清掉 opfsPath/blob，
+//              让 getFileBlob() 走「本机无原文件」分支，而不是拿着已删路径去读 OPFS 报错。
+const RESTORE_TRANSFORMS = {
+  docFile: (row) => {
+    const r = { ...row };
+    r.storage = 'missing';
+    delete r.opfsPath;
+    delete r.blob;
+    return r;
+  },
+};
+
 // P2-22 回收站：从 trash 恢复一条。重新插入行并 bump updatedAt（> 墓碑 deletedAt → 下次同步判定复活），
-// 同时清掉本地墓碑与 trash 记录。仅覆盖写入 trash 时快照的主类型；卡片类若带 _reviews 一并还原复习记录。
+// 同时清掉本地墓碑与 trash 记录。
+// 附属快照（_reviews / _groupLinks / _text / _edges）一并还原，避免「卡回来了但复习进度和分组丢了」。
 export async function restoreFromTrash(t) {
   if (!t || !t.data) return false;
-  const table = { card: 'cards', memo: 'memos', note: 'notes', plan: 'plans', doc: 'docs', mindmap: 'mindmaps' }[t.kind];
+  const table = {
+    card: 'cards', memo: 'memos', note: 'notes', plan: 'plans',
+    doc: 'docs', mindmap: 'mindmaps', docFile: 'docFiles',
+  }[t.kind];
   if (!table) return false;
   const data = { ...t.data };
   const reviews = data._reviews || null;
-  delete data._reviews;
-  const row = { ...data, id: t.id, updatedAt: Date.now() };
+  const links = data._groupLinks || null;
+  const text = typeof data._text === 'string' ? data._text : null;
+  const edges = data._edges || null;
+  delete data._reviews; delete data._groupLinks; delete data._text; delete data._textLen; delete data._edges;
+  const transform = RESTORE_TRANSFORMS[t.kind];
+  const row = { ...(transform ? transform(data) : data), id: t.id, updatedAt: Date.now() };
   const tables = [db[table], db.tombstones, db.trash];
   if (reviews && reviews.length) tables.push(db.reviews);
+  if (links && links.length) tables.push(db.cardGroupLinks);
+  if (text) tables.push(db.docTexts);
+  if (edges && edges.length) tables.push(db.graphEdges);
   await db.transaction('rw', ...tables, async () => {
     await db[table].put(row);
     if (reviews && reviews.length) {
       // 复习快照的 cardId 即本卡 id，原样还原（review 自带 id 用于幂等覆盖）
       await db.reviews.bulkPut(reviews.map(r => ({ ...r })));
+    }
+    if (links && links.length) {
+      await db.cardGroupLinks.bulkPut(links.map(l => ({ ...l })));
+      // 连带清除「删卡时为这些关联行写的 groupLink 墓碑」，否则恢复后
+      // 下次同步会被自己的墓碑重新删掉（墓碑 deletedAt > link.addedAt）
+      await db.tombstones.bulkDelete(links.map(l => l.id));
+    }
+    if (text) {
+      await db.docTexts.put({
+        id: t.id, text, textLen: data._textLen ?? text.length, updatedAt: Date.now(),
+      });
+    }
+    if (edges && edges.length) {
+      // bump updatedAt 让恢复后的边在下次同步时压过对端仍存在的旧副本
+      await db.graphEdges.bulkPut(edges.map(e => ({ ...e, updatedAt: Date.now() })));
+      // 同时清掉删资料时为这些边写的墓碑，否则恢复后会被自己的墓碑再删一遍
+      await db.tombstones.bulkDelete(edges.map(e => e.id));
     }
     await db.tombstones.delete(t.id);
     await db.trash.delete(t.id);
@@ -201,18 +271,28 @@ export async function deleteCard(id) {
   const old = await db.cards.get(id);
   if (!old) return;
   const imgIds = [...extractImageIds((old.front || '') + '\n' + (old.back || ''))];
-  // 三合一：事务内一次性完成 回收站快照 + 墓碑 + 删卡 + 删复习 + 切断图谱边，保证原子、无悬空引用
-  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, async () => {
-    // 1) 回收站快照（含复习记录快照，便于恢复时一并还原）
+  // 事务内一次性完成 回收站快照 + 墓碑 + 删卡 + 删复习 + 删卡组关联 + 切断图谱边，保证原子、无悬空引用
+  // 注：cardGroupLinks 此前漏删 —— 删卡后关联行原样留在库里（还进同步包跨设备传播），
+  //     卡组详情页会统计到已被删除的「幽灵卡」，且永不清理。
+  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, async () => {
+    // 1) 回收站快照（含复习记录 + 卡组关联，便于恢复时一并还原）
     const reviews = await db.reviews.where('cardId').equals(id).toArray();
-    await trashItem(id, 'card', { ...old, _reviews: reviews });
-    // 2) 墓碑（跨设备删除同步）
+    const links = await db.cardGroupLinks.where('cardId').equals(id).toArray();
+    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links });
+    // 2) 墓碑（跨设备删除同步）：卡片本体 + 它的每一条卡组关联
+    //    关联行不写墓碑的话，对端会在下次同步把「已删卡 → 卡组」的关联原样推回来，
+    //    形成永远删不掉、且指向幽灵卡的悬空行
     await db.tombstones.put({ id, kind: 'card', deletedAt: now() });
+    if (links.length) {
+      await db.tombstones.bulkPut(links.map(l => ({ id: l.id, kind: 'groupLink', deletedAt: now() })));
+    }
     // 3) 删卡
     await db.cards.delete(id);
     // 4) 删复习记录
     await db.reviews.where('cardId').equals(id).delete();
-    // 5) 切断关联图谱边（fromCardId/toCardId 未建索引，用 filter 全表扫）
+    // 5) 删卡组关联（此前漏删 → 指向已删卡的悬空行常驻并进同步包）
+    await db.cardGroupLinks.where('cardId').equals(id).delete();
+    // 6) 切断关联图谱边（fromCardId/toCardId 未建索引，用 filter 全表扫）
     await db.graphEdges.filter(e => e.fromCardId === id || e.toCardId === id).delete();
   });
   await cleanupOrphanImages(imgIds);
@@ -311,7 +391,19 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   const DIFF_MAP = { basic: 0, applied: 1, challenge: 2 };
   const toDiffNum = (v) => DIFF_MAP[v] ?? (Number.isFinite(Number(v)) ? Number(v) : null);
   const difficulty = toDiffNum(opts.difficulty) ?? toDiffNum(card.difficulty) ?? 1;
-  const wrongReason = opts.wrongReason || card.wrongReason || '';
+  // ⚠️ 错因不再「终身携带」（2026-08-30 修复）：
+  //   原写法 `opts.wrongReason || card.wrongReason` 会让一次错因永久生效 ——
+  //   标过一次「概念混淆」后，即便之后连答 20 次全对，每次间隔仍被 ×0.6，
+  //   这张卡永远升不到正常梯度。
+  //   修正：答对（rating=2）且本次没有上报新错因 → 清空历史错因。
+  //   答错 / 答模糊（rating<2）则保留，直到真正答对为止。
+  const incomingReason = String(opts.wrongReason || '').trim();
+  // 参与**本次**间隔计算的错因：本次上报的优先，否则沿用卡上已有的。
+  //   （答对也要按错因轻重缩短间隔 —— 见设置里 SM-2 的「错因惩罚」说明）
+  const wrongReason = incomingReason || card.wrongReason || '';
+  // 写回卡片的错因：答对且本次没有上报新错因 → 清空历史错因（clearedReason 标记「确实清掉了东西」）
+  const clearedReason = Number(rating) === 2 && !incomingReason && !!card.wrongReason;
+  const nextWrongReason = clearedReason ? '' : wrongReason;
   // 自适应节奏（C4）：按该卡近 10 次复习的错误率微调间隔（仅开启时计算）
   let adaptive = null;
   if (opts.adaptive) {
@@ -349,8 +441,11 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   // wrongReasonAt：错因独立时间戳，跨设备合并时按此取新者（不跟随 updatedAt 也不跟随 reviewedAt）
   // P0 修正：仅当本次确有错因内容时才推进 wrongReasonAt，
   // 否则「记住了」(空错因) 以新时间戳覆盖他机真实错因 → 跨设备错因丢失。
+  // 例外：主动清空错因（clearedReason）也必须 bump ——
+  //   mergeCardPair 在两端 wrongReasonAt 相等时会优先保留「有内容」的一方，
+  //   若清空时不推进时间戳，对端的旧错因会在下次同步把清空顶回来，清除永远不生效。
   const nowTs = now();
-  const wrongReasonAt = wrongReason ? nowTs : (card.wrongReasonAt ?? 0);
+  const wrongReasonAt = (nextWrongReason || clearedReason) ? nowTs : (card.wrongReasonAt ?? 0);
   // 校准回测（calibration）：用复习前的 fsrs 状态计算当时预测 R，落盘进复习记录。
   // 历史记录无 predR 由 calibration.js 回溯模拟补估；从这里起的新数据都是真实值。
   const predR = (card.fsrs && Number.isFinite(card.fsrs.s) && Number.isFinite(card.fsrs.last))
@@ -360,7 +455,7 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   // 任何一步失败都整体回滚，避免「卡片更新了但复习记录没写」的半残状态。
   const reviewId = uid();
   await db.transaction('rw', db.cards, db.reviews, async () => {
-    await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: next.fsrs ?? card.fsrs, wrongReason, wrongReasonAt, reviewedAt: nowTs });
+    await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: next.fsrs ?? card.fsrs, wrongReason: nextWrongReason, wrongReasonAt, reviewedAt: nowTs });
     await db.reviews.put({
       id: reviewId, cardId, reviewedAt: now(), rating,
       predR,
@@ -461,9 +556,12 @@ export async function addMemo(payload) {
 export async function deleteMemo(id) {
   const old = await db.memos.get(id);
   if (!old) return;
-  await trashItem(id, 'memo', old);
-  await db.memos.delete(id);
-  await db.tombstones.put({ id, kind: 'memo', deletedAt: now() }); // 墓碑：跨设备同步删除
+  // 事务：快照 + 删行 + 墓碑同生共死，杜绝「删了行但墓碑没写」→ 对端永久残留
+  await db.transaction('rw', db.memos, db.trash, db.tombstones, async () => {
+    await trashItem(id, 'memo', old);
+    await db.memos.delete(id);
+    await db.tombstones.put({ id, kind: 'memo', deletedAt: now() }); // 墓碑：跨设备同步删除
+  });
 }
 
 // ───────────── 每日规划/打卡（D8：口述→任务→四象限→打卡→早晚对比） ─────────────
@@ -484,7 +582,8 @@ export async function createDailyPlan(payload) {
   // 覆盖重建：删除当天已有的全部旧计划（含任务），保证每天只有一份最新计划
   const existing = await db.dailyPlans.where('date').equals(date).toArray();
   for (const p of existing) {
-    await db.dailyTasks.where('planId').equals(p.id).delete();
+    // 级联删任务必须逐条写墓碑，否则对端会把旧任务推回来、与新计划混在一起
+    await cascadeDeletePlanTasks(p.id, t);
     await db.dailyPlans.delete(p.id);
     await db.tombstones.put({ id: p.id, kind: 'dailyPlan', deletedAt: t });
   }
@@ -622,11 +721,25 @@ export async function appendDailyTasksByText(planId, text) {
   return rows;
 }
 
+/**
+ * 级联删除某计划下的全部任务，并为每一行写 dailyTask 墓碑。
+ * 只删行不写墓碑的话，对端设备下次同步会把这些任务原样推回来（删除永不生效）。
+ * @returns {Promise<number>} 删除的任务数
+ */
+async function cascadeDeletePlanTasks(planId, ts = now()) {
+  const tasks = await db.dailyTasks.where('planId').equals(planId).toArray();
+  if (!tasks.length) return 0;
+  await db.dailyTasks.where('planId').equals(planId).delete();
+  await db.tombstones.bulkPut(tasks.map(x => ({ id: x.id, kind: 'dailyTask', deletedAt: ts })));
+  return tasks.length;
+}
+
 /** 删除整日计划 + 其任务（联级） */
 export async function deleteDailyPlan(planId) {
+  const t = now();
   await db.dailyPlans.delete(planId);
-  await db.dailyTasks.where('planId').equals(planId).delete();
-  await db.tombstones.put({ id: planId, kind: 'dailyPlan', deletedAt: now() });
+  await cascadeDeletePlanTasks(planId, t);
+  await db.tombstones.put({ id: planId, kind: 'dailyPlan', deletedAt: t });
 }
 
 /**
@@ -745,9 +858,11 @@ export async function updateNote(id, payload) {
 export async function deleteNote(id) {
   const old = await db.notes.get(id);
   if (!old) return;
-  await trashItem(id, 'note', old);
-  await db.notes.delete(id);
-  await db.tombstones.put({ id, kind: 'note', deletedAt: now() }); // 墓碑：跨设备同步删除
+  await db.transaction('rw', db.notes, db.trash, db.tombstones, async () => {
+    await trashItem(id, 'note', old);
+    await db.notes.delete(id);
+    await db.tombstones.put({ id, kind: 'note', deletedAt: now() }); // 墓碑：跨设备同步删除
+  });
 }
 
 /** 反向链接：哪些笔记的 content 里有 [[id]]？ */
@@ -801,9 +916,11 @@ export async function updatePlan(id, patch) {
 export async function deletePlan(id) {
   const old = await db.plans.get(id);
   if (!old) return;
-  await trashItem(id, 'plan', old);
-  await db.plans.delete(id);
-  await db.tombstones.put({ id, kind: 'plan', deletedAt: now() }); // 墓碑：跨设备同步删除
+  await db.transaction('rw', db.plans, db.trash, db.tombstones, async () => {
+    await trashItem(id, 'plan', old);
+    await db.plans.delete(id);
+    await db.tombstones.put({ id, kind: 'plan', deletedAt: now() }); // 墓碑：跨设备同步删除
+  });
 }
 
 // ---------- 知识图谱关系（可持久化、随数据包同步） ----------
@@ -879,9 +996,11 @@ export async function updateDoc(id, patch) {
 export async function deleteDoc(id) {
   const old = await db.docs.get(id);
   if (!old) return;
-  await trashItem(id, 'doc', old);
-  await db.docs.delete(id);
-  await db.tombstones.put({ id, kind: 'doc', deletedAt: now() }); // 墓碑：跨设备同步删除
+  await db.transaction('rw', db.docs, db.trash, db.tombstones, async () => {
+    await trashItem(id, 'doc', old);
+    await db.docs.delete(id);
+    await db.tombstones.put({ id, kind: 'doc', deletedAt: now() }); // 墓碑：跨设备同步删除
+  });
 }
 
 // ---------- 番茄专注记录（可持久化、随数据包同步） ----------
@@ -933,9 +1052,11 @@ export async function updateMindmap(id, patch) {
 export async function deleteMindmap(id) {
   const old = await db.mindmaps.get(id);
   if (!old) return;
-  await trashItem(id, 'mindmap', old);
-  await db.mindmaps.delete(id);
-  await db.tombstones.put({ id, kind: 'mindmap', deletedAt: now() }); // 墓碑：跨设备同步删除
+  await db.transaction('rw', db.mindmaps, db.trash, db.tombstones, async () => {
+    await trashItem(id, 'mindmap', old);
+    await db.mindmaps.delete(id);
+    await db.tombstones.put({ id, kind: 'mindmap', deletedAt: now() }); // 墓碑：跨设备同步删除
+  });
 }
 
 // ---------- 每周学习报告（可持久化、随数据包同步；借鉴 Progress AI 的本地化实现） ----------
@@ -1420,9 +1541,17 @@ export async function updateCardGroup(id, patch) {
 export async function deleteCardGroup(id) {
   const g = await db.cardGroups.get(id);
   if (!g) return false;
-  await db.transaction('rw', db.cardGroups, db.cardGroupLinks, async () => {
+  // 墓碑：卡组本体 kind=cardGroup、被级联删掉的全部关联行 kind=groupLink。
+  // 此前两者都不写墓碑 —— 结果是「A 设备删卡组 → B 设备下次同步原样推回来」，
+  // 删除永不生效（sync-manifest 的注释早就声明要走墓碑，只是实现没跟上）。
+  await db.transaction('rw', db.cardGroups, db.cardGroupLinks, db.tombstones, async () => {
+    const links = await db.cardGroupLinks.where('groupId').equals(id).toArray();
     await db.cardGroupLinks.where('groupId').equals(id).delete();
     await db.cardGroups.delete(id);
+    await db.tombstones.put({ id, kind: 'cardGroup', deletedAt: now() });
+    if (links.length) {
+      await db.tombstones.bulkPut(links.map(l => ({ id: l.id, kind: 'groupLink', deletedAt: now() })));
+    }
   });
   fireHook('cardGroup.deleted', g);
   return true;
@@ -1449,9 +1578,9 @@ export async function cardGroupsOfCard(cardId) {
 export async function setCardGroups(cardIds, addGroupIds = [], removeGroupIds = []) {
   const t0 = Date.now();
   let added = 0, removed = 0;
-  // 事务必须声明全部涉及表（cards/cardGroups/cardGroupLinks）：
+  // 事务必须声明全部涉及表（cards/cardGroups/cardGroupLinks/tombstones）：
   // 漏声明的表在事务内访问会触发嵌套事务（fake-indexeddb 直接 NotFoundError，浏览器里死锁）
-  await db.transaction('rw', db.cards, db.cardGroups, db.cardGroupLinks, async () => {
+  await db.transaction('rw', db.cards, db.cardGroups, db.cardGroupLinks, db.tombstones, async () => {
     const cards = (cardIds && cardIds.length) ? await db.cards.bulkGet(cardIds) : [];
     const validIds = cards.filter(Boolean).map(c => c.id);
     const validAdd = new Set((await db.cardGroups.bulkGet(addGroupIds || [])).filter(Boolean).map(g => g.id));
@@ -1470,8 +1599,16 @@ export async function setCardGroups(cardIds, addGroupIds = [], removeGroupIds = 
     }
     if (validRemove.size) {
       const toDel = await db.cardGroupLinks.where('cardId').anyOf(validIds).toArray();
-      const ids = toDel.filter(l => validRemove.has(l.groupId)).map(l => l.id);
-      if (ids.length) { removed = ids.length; await db.cardGroupLinks.bulkDelete(ids); }
+      const gone = toDel.filter(l => validRemove.has(l.groupId));
+      if (gone.length) {
+        removed = gone.length;
+        await db.cardGroupLinks.bulkDelete(gone.map(l => l.id));
+        // 「移出」必须写墓碑，否则对端会在下次同步把这条关联推回来（移出永不生效）。
+        // 冲突裁决由 sync-manifest 的 applyTombstones 负责：
+        //   移出时间(deletedAt) vs 加入时间(addedAt) 谁新听谁。
+        // 注意：重新移入会生成全新的 link id（uid），不会被旧墓碑误删。
+        await db.tombstones.bulkPut(gone.map(l => ({ id: l.id, kind: 'groupLink', deletedAt: t0 })));
+      }
     }
   });
   fireHook('cardGroup.linked', { cardIds, addGroupIds, removeGroupIds });

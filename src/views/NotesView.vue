@@ -17,6 +17,7 @@ import {
 import {
   recognizeWikiLinks, renderWikiLinks, countChars,
 } from '../utils/note-parser.js';
+import { fmtLocaleDate } from '../utils/locale-date.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -192,7 +193,7 @@ const filteredNotes = computed(() => notes.value);
           <div class="notes-item-meta">
             <span class="notes-cat" v-if="n.category">📁 {{ n.category }}</span>
             <span class="notes-tag" v-for="t in (n.tags || []).slice(0, 3)" :key="t">#{{ t }}</span>
-            <span class="notes-time">{{ new Date(n.updatedAt).toLocaleDateString('zh-CN') }}</span>
+            <span class="notes-time">{{ fmtLocaleDate(n.updatedAt) }}</span>
           </div>
           <div class="notes-item-excerpt">{{ (n.content || '').replace(/\s+/g, ' ').slice(0, 60) }}{{ (n.content || '').length > 60 ? '…' : '' }}</div>
         </div>
