@@ -33,9 +33,9 @@ const cardsExportFormats = computed(() => {
   if (filters.q) meta.query = filters.q;
   if (weakMode.value) meta.filter = 'weak-only';
   return [
-    { key: 'md', label: 'Markdown', hint: '人类可读', mime: 'text/markdown', ext: 'md', build: rows => exportCardsToMarkdown(rows, meta) },
-    { key: 'csv', label: 'CSV', hint: 'Excel 可打开', mime: 'text/csv', ext: 'csv', build: rows => exportCardsToCSV(rows) },
-    { key: 'json', label: 'JSON', hint: '可备份恢复', mime: 'application/json', ext: 'json', build: rows => exportCardsToJSON(rows, meta) },
+    { key: 'md', label: 'Markdown', hint: t('views.cards.exportHintMd'), mime: 'text/markdown', ext: 'md', build: rows => exportCardsToMarkdown(rows, meta) },
+    { key: 'csv', label: 'CSV', hint: t('views.cards.exportHintCsv'), mime: 'text/csv', ext: 'csv', build: rows => exportCardsToCSV(rows) },
+    { key: 'json', label: 'JSON', hint: t('views.cards.exportHintJson'), mime: 'application/json', ext: 'json', build: rows => exportCardsToJSON(rows, meta) },
   ];
 });
 const route = useRoute();
@@ -108,18 +108,18 @@ function toggleSelectAll() {
 }
 function exitSelect() { selectMode.value = false; selectedIds.value = new Set(); }
 async function bulkGroup(gid) {
-  if (!selectedIds.value.size) return toast('请先勾选卡片', 'info');
+  if (!selectedIds.value.size) return toast(t('views.cards.selectFirst'), 'info');
   const r = await setCardGroups([...selectedIds.value], [gid], []);
-  toast(`已移入卡组：${r.added} 张关联（${r.removed} 跳过）`, 'success');
+  toast(t('views.cards.movedIn', '已移入卡组：{added} 张关联（{skipped} 跳过）', { added: r.added, skipped: r.removed }), 'success');
 }
 async function bulkRemoveGroup(gid) {
-  if (!selectedIds.value.size) return toast('请先勾选卡片', 'info');
+  if (!selectedIds.value.size) return toast(t('views.cards.selectFirst'), 'info');
   const r = await setCardGroups([...selectedIds.value], [], [gid]);
-  toast(`已移出卡组：解除 ${r.removed} 张关联`, 'success');
+  toast(t('views.cards.movedOut', '已移出卡组：解除 {n} 张关联', { n: r.removed }), 'success');
 }
 // M2：选中卡片 → 联动分析工作台
 function goLinkAnalysis() {
-  if (selectedIds.value.size < 2) return toast('联动分析至少需要 2 张卡片', 'info');
+  if (selectedIds.value.size < 2) return toast(t('views.cards.linkNeedTwo'), 'info');
   exitSelect();
   router.push({ path: '/analysis/card-link', query: { cardIds: [...selectedIds.value].join(',') } });
 }
@@ -143,20 +143,20 @@ watch(() => filters.tags, saveCardFilters, { deep: true });
 
 // M4：列表关键词高亮（有搜索词时启用 v-html，highlight 内部先转义防 XSS；无搜索词走普通插值）
 function hlFront(item) {
-  const t = plain(item.front).slice(0, 160) || '（空）';
-  return filters.q ? hlKw(t, filters.q) : t;
+  const txt = plain(item.front).slice(0, 160) || t('views.cards.empty');
+  return filters.q ? hlKw(txt, filters.q) : txt;
 }
 function plain(md) {
   return String(md || '')
-    .replace(/```[\s\S]*?```/g, ' [代码] ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' [图片] ')
+    .replace(/```[\s\S]*?```/g, t('views.cards.mdCode'))
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, t('views.cards.mdImage'))
     .replace(/\$\$?([^$\n]+)\$\$?/g, ' $1 ')
     .replace(/[*_#>`~|-]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function typeName(t) { return t === 'cloze' ? '填空' : t === 'choice' ? '选择' : t === 'writing' ? '默写' : ''; }
+function typeName(type) { return type === 'cloze' ? t('views.cards.typeCloze') : type === 'choice' ? t('views.cards.typeChoice') : type === 'writing' ? t('views.cards.typeWriting') : ''; }
 
 async function loadMeta() {
   subjects.value = await getSubjects();
@@ -232,9 +232,9 @@ async function copyLinkAsWiki() {
   const text = `[[c${c.id}]]`;
   try {
     await navigator.clipboard.writeText(text);
-    toast('已复制 ' + text + ' 到剪贴板', 'success');
+    toast(t('views.cards.copied', '已复制 {text} 到剪贴板', { text }), 'success');
   } catch {
-    toast('复制失败，请手动选中', 'error');
+    toast(t('views.cards.copyFail'), 'error');
   }
 }
 function previewEdit() {
@@ -247,7 +247,7 @@ async function toggleMarked(card) {
   try {
     await setMarked(card.id, !card.marked);
     await loadCards();
-    toast(card.marked ? '已移出错题集' : '已加入错题集', 'success');
+    toast(card.marked ? t('views.cards.unmarked') : t('views.cards.marked'), 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -258,20 +258,20 @@ async function genVariantsFor(card) {
   variantBusy.value.add(card.id);
   try {
     const created = await genVariants(card, 3);
-    toast(`已生成 ${created.length} 张情境变式卡`, 'success');
+    toast(t('views.cards.variantsDone', '已生成 {n} 张情境变式卡', { n: created.length }), 'success');
     await loadCards();
-  } catch (e) { toast('变式生成失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.cards.variantsFail', '变式生成失败：{msg}', { msg: e.message }), 'error'); }
   finally { variantBusy.value.delete(card.id); }
 }
 
 async function remove(card) {
-  if (!(await confirmDialog(`确定删除这张卡片？\n${plain(card.front).slice(0, 40)}`))) return;
+  if (!(await confirmDialog(t('views.cards.confirmDelete', '确定删除这张卡片？\n{front}', { front: plain(card.front).slice(0, 40) })))) return;
   try {
     await deleteCard(card.id);
     try { T.cardDelete(card.id); } catch {}
     await loadCards();
     await loadMeta();
-    toast('已删除', 'success');
+    toast(t('views.cards.deleted'), 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -301,7 +301,7 @@ async function openDiagnose(card) {
       { role: 'user', content: `正面：${card.front}\n背面：${card.back}\n科目：${card.subject || '无'}\n题型：${card.type || 'basic'}` },
     ]);
     diagText.value = r;
-  } catch (e) { toast(e.message, 'error'); diagText.value = '（诊断失败：' + e.message + '）'; }
+  } catch (e) { toast(e.message, 'error'); diagText.value = t('views.cards.diagFail', '（诊断失败：{msg}）', { msg: e.message }); }
   finally { diagLoading.value = false; }
 }
 
@@ -356,7 +356,7 @@ async function applyQueryParams() {
   if (untagged) {
     filters.logic = 'NOT';
     filters._untagged = true;
-    activeFilterBanner.value = '🏷 显示「无标签卡」（从资产体检跳转而来）。可点卡片右上角的「编辑」补齐标签，或点「清理」回到资产体检。';
+    activeFilterBanner.value = t('views.cards.bannerUntagged');
     changed = true;
   } else if (filters._untagged) {
     delete filters._untagged;
@@ -368,7 +368,7 @@ async function applyQueryParams() {
   }
   if (zombie && healthCache) {
     filters._zombieIds = new Set(healthCache.zombies.map(z => z.id));
-    activeFilterBanner.value = `🧟 显示「僵尸卡」共 ${healthCache.zombies.length} 张（90+ 天未复习且早已到期）。默认全展开详情，方便决定是否清理。`;
+    activeFilterBanner.value = t('views.cards.bannerZombie', '🧟 显示「僵尸卡」共 {n} 张（90+ 天未复习且早已到期）。默认全展开详情，方便决定是否清理。', { n: healthCache.zombies.length });
     collapsedIds.value = new Set();
     expandAllByDefault.value = true;
     changed = true;
@@ -380,7 +380,7 @@ async function applyQueryParams() {
       let totalDup = 0;
       for (const g of healthCache.duplicates) { allIds.push(...g.cards.map(c => c.id)); totalDup += g.n - 1; }
       filters._dupIds = new Set(allIds);
-      activeFilterBanner.value = `♻ 显示「全部重复卡」共 ${healthCache.duplicates.length} 组 / ${allIds.length} 张（重复冗余 ${totalDup} 张）。默认全展开详情对比后，可回到资产体检合并去重。`;
+      activeFilterBanner.value = t('views.cards.bannerDupAll', '♻ 显示「全部重复卡」共 {groups} 组 / {cards} 张（重复冗余 {dup} 张）。默认全展开详情对比后，可回到资产体检合并去重。', { groups: healthCache.duplicates.length, cards: allIds.length, dup: totalDup });
       collapsedIds.value = new Set();
       expandAllByDefault.value = true;
       changed = true;
@@ -389,7 +389,7 @@ async function applyQueryParams() {
         || healthCache.duplicates.find(g => g.front && dupGroup.includes(String(g.front).slice(0, 30)));
       if (group) {
         filters._dupIds = new Set(group.cards.map(c => c.id));
-        activeFilterBanner.value = `♻ 显示「重复卡组」共 ${group.cards.length} 张（正面：${String(group.front).slice(0,40)}…）。默认全展开详情对比后，可回到资产体检合并去重。`;
+        activeFilterBanner.value = t('views.cards.bannerDupGroup', '♻ 显示「重复卡组」共 {n} 张（正面：{front}…）。默认全展开详情对比后，可回到资产体检合并去重。', { n: group.cards.length, front: String(group.front).slice(0, 40) });
         collapsedIds.value = new Set();
         expandAllByDefault.value = true;
         changed = true;
@@ -400,7 +400,7 @@ async function applyQueryParams() {
   } else { filters._dupIds = null; }
   if (orphan) {
     filters._orphanImageIds = new Set((healthCache?.orphanImages || []).map(i => i.id));
-    activeFilterBanner.value = `🖼 显示「孤儿图片」共 ${healthCache?.orphanImages?.length || 0} 张（已无卡片引用，可直接清理）。`;
+    activeFilterBanner.value = t('views.cards.bannerOrphan', '🖼 显示「孤儿图片」共 {n} 张（已无卡片引用，可直接清理）。', { n: healthCache?.orphanImages?.length || 0 });
     orphanImages.value = healthCache?.orphanImages || [];
     orphanImagesVisible.value = true;
     changed = true;
@@ -440,16 +440,16 @@ async function removeOrphan(id) {
     await db.images.delete(id);
     _revokeObjUrl(id);
     orphanImages.value = orphanImages.value.filter(i => i.id !== id);
-    toast('已删除 1 张孤儿图片', 'success');
+    toast(t('views.cards.orphanDeleted'), 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 async function removeAllOrphans() {
   if (!orphanImages.value.length) return;
-  if (!(await confirmDialog(`一次性清理 ${orphanImages.value.length} 张孤儿图片？`))) return;
+  if (!(await confirmDialog(t('views.cards.confirmCleanOrphans', '一次性清理 {n} 张孤儿图片？', { n: orphanImages.value.length })))) return;
   try {
     for (const i of orphanImages.value) { await db.images.delete(i.id); _revokeObjUrl(i.id); }
     orphanImages.value = [];
-    toast('孤儿图片已全部清理', 'success');
+    toast(t('views.cards.orphansCleaned'), 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 // 图片对象 URL 缓存：模板里 :src="dataUrlOf(img)" 每次渲染都会重算，
@@ -510,7 +510,7 @@ function openBatch() {
 }
 async function importBatch() {
   const cards = batchParsed.value;
-  if (!cards.length) { toast('请先粘贴内容（每行一张卡）', 'error'); return; }
+  if (!cards.length) { toast(t('views.cards.batchPasteFirst'), 'error'); return; }
   batchBusy.value = true;
   try {
     let n = 0;
@@ -520,7 +520,7 @@ async function importBatch() {
       n++;
     }
     batchOpen.value = false;
-    toast(`已批量创建 ${n} 张卡片`, 'success');
+    toast(t('views.cards.batchCreated', '已批量创建 {n} 张卡片', { n }), 'success');
     loadCards();
   } catch (e) { toast(e.message, 'error'); }
   finally { batchBusy.value = false; }
@@ -534,22 +534,22 @@ const aiDeck = ref([]); // AI 拆出的卡片预览
 const aiGenBusy = ref(false);
 async function aiGenerateDeck() {
   const text = batchText.value.trim();
-  if (!text) { toast('请先粘贴笔记内容', 'error'); return; }
-  if (text.length < 20) { toast('内容太短（至少 20 字）', 'error'); return; }
+  if (!text) { toast(t('views.cards.aiPasteFirst'), 'error'); return; }
+  if (text.length < 20) { toast(t('views.cards.aiTooShort'), 'error'); return; }
   aiGenBusy.value = true;
   try {
     const deck = await genCardDeck(text, { count: aiDeckCount.value, subject: batchSubject.value || '未分类' });
     aiDeck.value = deck;
-    toast(`AI 已拆出 ${deck.length} 张卡片，预览后可导入`, 'success');
+    toast(t('views.cards.aiSplitDone', 'AI 已拆出 {n} 张卡片，预览后可导入', { n: deck.length }), 'success');
   } catch (e) {
-    toast('AI 拆分失败：' + (e?.message || e), 'error');
+    toast(t('views.cards.aiSplitFail', 'AI 拆分失败：{msg}', { msg: e?.message || e }), 'error');
   } finally {
     aiGenBusy.value = false;
   }
 }
 async function importAiDeck() {
   const deck = aiDeck.value;
-  if (!deck.length) { toast('没有可导入的卡片', 'error'); return; }
+  if (!deck.length) { toast(t('views.cards.aiNoCards'), 'error'); return; }
   batchBusy.value = true;
   try {
     let n = 0;
@@ -565,7 +565,7 @@ async function importAiDeck() {
     batchOpen.value = false;
     aiDeck.value = [];
     batchText.value = '';
-    toast(`已导入 ${n} 张 AI 生成的卡片`, 'success');
+    toast(t('views.cards.aiImported', '已导入 {n} 张 AI 生成的卡片', { n }), 'success');
     loadCards();
   } catch (e) { toast(e.message, 'error'); }
   finally { batchBusy.value = false; }
@@ -583,14 +583,14 @@ async function persistSmart() {
   await db.meta.put({ key: 'smartFilters', value: plainFilters, updatedAt: Date.now() });
 }
 async function saveSmart() {
-  const name = prompt('给这个筛选组合起个名字：', filters.subject || '智能卡组');
+  const name = prompt(t('views.cards.smartNamePrompt'), filters.subject || t('views.cards.smartDefaultName'));
   if (!name) return;
   smartFilters.value.push({
     id: uid(), name: String(name).slice(0, 12),
     q: filters.q, subject: filters.subject, tags: [...filters.tags], logic: filters.logic,
   });
   await persistSmart();
-  toast('已保存为智能卡组（本机偏好）', 'success');
+  toast(t('views.cards.smartSaved'), 'success');
 }
 function applySmart(f) {
   filters.q = f.q || ''; filters.subject = f.subject || '';
@@ -609,7 +609,7 @@ async function rescueCard(r) {
   const card = await db.cards.get(r.id);
   if (!card) return;
   await db.cards.put({ ...card, dueAt: Date.now() }); // 提前到今天（内容未变，不动 updatedAt）
-  toast(`已把「${r.front.slice(0, 16)}…」加入今日复习`, 'success');
+  toast(t('views.cards.rescued', '已把「{front}…」加入今日复习', { front: r.front.slice(0, 16) }), 'success');
   await loadRisk();
   loadCards();
 }
@@ -621,7 +621,7 @@ async function rescueAll() {
     await db.cards.put({ ...card, dueAt: Date.now() });
     n++;
   }
-  toast(`已把 ${n} 张高危卡加入今日复习，去「背诵」页巩固`, 'success');
+  toast(t('views.cards.rescuedAll', '已把 {n} 张高危卡加入今日复习，去「背诵」页巩固', { n }), 'success');
   await loadRisk();
   loadCards();
 }
@@ -630,13 +630,13 @@ async function rescueAll() {
 <template>
   <div>
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">我的卡片</h2>
-      <span class="hint">共 {{ total }} 张 · 今日待背 {{ dueCount }}</span>
+      <h2 style="margin:0">{{ t('views.cards.title') }}</h2>
+      <span class="hint">{{ t('views.cards.countHint', '共 {total} 张 · 今日待背 {due}', { total, due: dueCount }) }}</span>
       <span style="flex:1"></span>
-      <button v-if="dueCount > 0" class="btn primary" @click="router.push('/review')">专注背诵（{{ dueCount }}）→</button>
-      <button class="chip" :class="{ on: weakMode }" @click="toggleWeak">错题集</button>
-      <button class="chip" :class="{ on: selectMode }" @click="selectMode ? exitSelect() : (selectMode = true)" :disabled="!total">🎴 批量分组</button>
-      <button class="btn" @click="openBatch">批量建卡</button>
+      <button v-if="dueCount > 0" class="btn primary" @click="router.push('/review')">{{ t('views.cards.gotoReview', '专注背诵（{n}）→', { n: dueCount }) }}</button>
+      <button class="chip" :class="{ on: weakMode }" @click="toggleWeak">{{ t('views.cards.weakSet') }}</button>
+      <button class="chip" :class="{ on: selectMode }" @click="selectMode ? exitSelect() : (selectMode = true)" :disabled="!total">{{ t('views.cards.bulkGroupBtn') }}</button>
+      <button class="btn" @click="openBatch">{{ t('views.cards.batchCreate') }}</button>
       <ExportButton
         v-if="total > 0"
         :data="items"
@@ -645,71 +645,71 @@ async function rescueAll() {
         :type="'default'"
         :formats="cardsExportFormats"
       />
-      <button class="btn primary" @click="openCreate">＋ 新建卡</button>
+      <button class="btn primary" @click="openCreate">{{ t('views.cards.newCard') }}</button>
     </div>
 
     <div class="streak-bar">
-      <span class="hint">今日复习 <b>{{ todayCount }}</b> / <b>{{ goal }}</b> 张</span>
-      <input type="number" v-model.number="goal" class="input" style="width:80px" min="1" @change="onGoalChange" title="每日目标（复习卡片数）" />
-      <span class="streak-badge" :class="{ lit: streak >= 3, hot: streak >= 7 }">连续打卡 {{ streak }} 天</span>
+      <span class="hint">{{ t('views.cards.streakToday', '今日复习 {n} / {goal} 张', { n: todayCount, goal }) }}</span>
+      <input type="number" v-model.number="goal" class="input" style="width:80px" min="1" @change="onGoalChange" :title="t('views.cards.goalTitle')" />
+      <span class="streak-badge" :class="{ lit: streak >= 3, hot: streak >= 7 }">{{ t('views.cards.streakDays', '连续打卡 {n} 天', { n: streak }) }}</span>
     </div>
 
     <div v-if="riskCards.length" class="suggest-bar" style="border-color:var(--amber)">
-      <div class="hint" style="font-weight:600;color:var(--amber)">⚠ 遗忘预警：这几张 3 天内将到期且历史表现不稳，趁没忘先巩固</div>
+      <div class="hint" style="font-weight:600;color:var(--amber)">{{ t('views.cards.riskTitle') }}</div>
       <div v-for="r in riskCards" :key="r.id" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <span class="hint" style="flex:1">[{{ r.subject }}] {{ r.front }}（错误率 {{ r.failRate }}% · 风险 {{ r.risk }}%）</span>
-        <button class="btn small" @click="rescueCard(r)">加入今日复习</button>
+        <span class="hint" style="flex:1">[{{ r.subject }}] {{ r.front }}{{ t('views.cards.riskMeta', '（错误率 {fail}% · 风险 {risk}%）', { fail: r.failRate, risk: r.risk }) }}</span>
+        <button class="btn small" @click="rescueCard(r)">{{ t('views.cards.rescueBtn') }}</button>
       </div>
-      <div><button class="btn small primary" @click="rescueAll">全部加入今日复习</button></div>
+      <div><button class="btn small primary" @click="rescueAll">{{ t('views.cards.rescueAllBtn') }}</button></div>
     </div>
 
     <div v-if="suggestion && suggestion.dueCount > 0" class="suggest-bar">
-      <div class="hint" style="font-weight:600;color:var(--ink)">今日复习提醒</div>
-      <div class="hint">待背 {{ suggestion.dueCount }} 张<span v-if="suggestion.markedCount"> · 错题 {{ suggestion.markedCount }} 张</span></div>
+      <div class="hint" style="font-weight:600;color:var(--ink)">{{ t('views.cards.suggestTitle') }}</div>
+      <div class="hint">{{ t('views.cards.suggestDue', '待背 {n} 张', { n: suggestion.dueCount }) }}<span v-if="suggestion.markedCount">{{ t('views.cards.suggestMarked', '· 错题 {n} 张', { n: suggestion.markedCount }) }}</span></div>
       <div v-if="suggestion.dueBySubject.length" class="hint">
-        到期最多：<span v-for="(s, i) in suggestion.dueBySubject" :key="s.name">{{ i ? '、' : '' }}{{ s.name }}({{ s.count }})</span>
+        {{ t('views.cards.dueTop') }}<span v-for="(s, i) in suggestion.dueBySubject" :key="s.name">{{ i ? '、' : '' }}{{ s.name }}({{ s.count }})</span>
       </div>
       <div v-if="suggestion.staleSubjects.length" class="hint" style="color:var(--amber)">
-        很久没复习：<span v-for="(s, i) in suggestion.staleSubjects" :key="s.name">{{ i ? '、' : '' }}{{ s.name }}({{ s.days }}天)</span>
+        {{ t('views.cards.staleTop') }}<span v-for="(s, i) in suggestion.staleSubjects" :key="s.name">{{ i ? '、' : '' }}{{ s.name }}({{ t('views.cards.staleDays', '{n}天', { n: s.days }) }})</span>
       </div>
     </div>
 
     <div class="filter-bar">
       <div class="row">
-        <span class="hint" style="width:56px">视图</span>
-        <button class="chip" :class="{ on: viewMode === 'scroll' }" @click="viewMode = 'scroll'">滚轮模式</button>
-        <button class="chip" :class="{ on: viewMode === 'page' }" @click="viewMode = 'page'">分页模式</button>
+        <span class="hint" style="width:56px">{{ t('views.cards.viewLabel') }}</span>
+        <button class="chip" :class="{ on: viewMode === 'scroll' }" @click="viewMode = 'scroll'">{{ t('views.cards.viewScroll') }}</button>
+        <button class="chip" :class="{ on: viewMode === 'page' }" @click="viewMode = 'page'">{{ t('views.cards.viewPage') }}</button>
         <select v-model="sortBy" class="input" style="width:auto">
-          <option value="updated">按更新时间</option>
-          <option value="created">按创建时间</option>
-          <option value="due">按到期时间</option>
-          <option value="subject">按科目</option>
+          <option value="updated">{{ t('views.cards.sortUpdated') }}</option>
+          <option value="created">{{ t('views.cards.sortCreated') }}</option>
+          <option value="due">{{ t('views.cards.sortDue') }}</option>
+          <option value="subject">{{ t('views.cards.sortSubject') }}</option>
         </select>
         <span style="flex:1"></span>
-        <input v-model="searchInput" class="input" style="max-width:280px" placeholder="搜正面 / 背面内容…" />
-        <button class="btn small" @click="saveSmart">保存当前组合</button>
+        <input v-model="searchInput" class="input" style="max-width:280px" :placeholder="t('views.cards.searchPlaceholder')" />
+        <button class="btn small" @click="saveSmart">{{ t('views.cards.saveCombo') }}</button>
       </div>
       <div class="row">
-        <span class="hint" style="width:56px">科目</span>
-        <button class="chip" :class="{ on: !filters.subject }" @click="filters.subject = ''">全部科目</button>
+        <span class="hint" style="width:56px">{{ t('views.cards.subjectLabel') }}</span>
+        <button class="chip" :class="{ on: !filters.subject }" @click="filters.subject = ''">{{ t('views.cards.allSubjects') }}</button>
         <button v-for="s in subjects" :key="s.name" class="chip" :class="{ on: filters.subject === s.name }"
                 @click="filters.subject = filters.subject === s.name ? '' : s.name">
           {{ s.name }}<span class="n">{{ s.count }}</span>
         </button>
       </div>
       <div class="row">
-        <span class="hint" style="width:56px">标签</span>
-        <button class="chip" :class="{ on: !filters.tags.length }" @click="filters.tags = []">全部</button>
+        <span class="hint" style="width:56px">{{ t('views.cards.tagLabel') }}</span>
+        <button class="chip" :class="{ on: !filters.tags.length }" @click="filters.tags = []">{{ t('views.cards.all') }}</button>
         <button v-for="t in allTags.slice(0, 20)" :key="t.name" class="chip" :class="{ on: filters.tags.includes(t.name) }"
                 @click="toggleTag(t.name)">{{ t.name }}<span class="n">{{ t.count }}</span></button>
         <select v-if="filters.tags.length" v-model="filters.logic" class="input" style="width:auto;margin-left:8px">
-          <option value="AND">交集 AND（同时含所选）</option>
-          <option value="OR">并集 OR（含任一）</option>
-          <option value="NOT">差集 NOT（排除所选）</option>
+          <option value="AND">{{ t('views.cards.logicAnd') }}</option>
+          <option value="OR">{{ t('views.cards.logicOr') }}</option>
+          <option value="NOT">{{ t('views.cards.logicNot') }}</option>
         </select>
       </div>
       <div v-if="smartFilters.length" class="row" style="margin-top:2px">
-        <span class="hint" style="width:56px">智能卡组</span>
+        <span class="hint" style="width:56px">{{ t('views.cards.smartLabel') }}</span>
         <span v-for="f in smartFilters" :key="f.id" class="chip" style="cursor:pointer" @click="applySmart(f)">
           ⭐ {{ f.name }}<a @click.stop="removeSmart(f)" style="color:var(--red);margin-left:6px;cursor:pointer">✕</a>
         </span>
@@ -720,46 +720,46 @@ async function rescueAll() {
     <teleport to="body">
       <div v-if="batchOpen" class="modal-mask" @click.self="batchOpen = false">
         <div class="modal">
-          <h3 style="margin-top:0">批量建卡</h3>
+          <h3 style="margin-top:0">{{ t('views.cards.batchCreate') }}</h3>
           <!-- P2-3 模式切换：手动分隔 vs AI 智能拆分 -->
           <div class="batch-mode-row">
-            <button class="chip" :class="{ on: batchMode === 'manual' }" @click="batchMode = 'manual'; aiDeck = []">手动分隔</button>
-            <button class="chip" :class="{ on: batchMode === 'ai' }" @click="batchMode = 'ai'">🔬 AI 智能拆分</button>
-            <span v-if="batchMode === 'ai' && !hasAIKey()" class="hint" style="color:var(--warn)">⚠ 无 AI key，将降级段落拆分</span>
+            <button class="chip" :class="{ on: batchMode === 'manual' }" @click="batchMode = 'manual'; aiDeck = []">{{ t('views.cards.modeManual') }}</button>
+            <button class="chip" :class="{ on: batchMode === 'ai' }" @click="batchMode = 'ai'">{{ t('views.cards.modeAi') }}</button>
+            <span v-if="batchMode === 'ai' && !hasAIKey()" class="hint" style="color:var(--warn)">{{ t('views.cards.noAiKey') }}</span>
           </div>
           <p v-if="batchMode === 'manual'" class="hint" style="margin-top:0">
-            每行一张卡；用 <code>|</code>、<code>→</code> 或 <code>-&gt;</code> 分隔正面与背面。<br>
-            例：<code>TCP 三次握手的过程？| 共 SYN / SYN-ACK / ACK 三步</code>
+            {{ t('views.cards.manualHint1') }}<br>
+            {{ t('views.cards.manualHint2') }}
           </p>
           <p v-else class="hint" style="margin-top:0">
-            粘贴一段笔记/文档（无需分隔符），AI 自动识别知识点并生成问句式卡片。<br>
-            陈述句会被改写成提问，复习时检索强度更高。
+            {{ t('views.cards.aiHint1') }}<br>
+            {{ t('views.cards.aiHint2') }}
           </p>
-          <div class="field-label" style="margin-top:12px">科目（可留空）</div>
+          <div class="field-label" style="margin-top:12px">{{ t('views.cards.batchSubjectLabel') }}</div>
           <select v-model="batchSubject" class="input">
-            <option value="">不指定</option>
+            <option value="">{{ t('views.cards.notSpecified') }}</option>
             <option v-for="s in subjects" :key="s.name" :value="s.name">{{ s.name }}</option>
           </select>
           <template v-if="batchMode === 'manual'">
-            <div class="field-label">内容（已解析 {{ batchParsed.length }} 张）</div>
-            <textarea v-model="batchText" class="input" rows="10" placeholder="粘贴知识点清单…"></textarea>
+            <div class="field-label">{{ t('views.cards.parsedLabel', '内容（已解析 {n} 张）', { n: batchParsed.length }) }}</div>
+            <textarea v-model="batchText" class="input" rows="10" :placeholder="t('views.cards.batchPlaceholder')"></textarea>
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-              <button class="btn" @click="batchOpen = false">取消</button>
+              <button class="btn" @click="batchOpen = false">{{ t('views.cards.cancel') }}</button>
               <button class="btn primary" :disabled="batchBusy || !batchParsed.length" @click="importBatch">
-                {{ batchBusy ? '导入中…' : `导入 ${batchParsed.length} 张` }}
+                {{ batchBusy ? t('views.cards.importing') : t('views.cards.importN', '导入 {n} 张', { n: batchParsed.length }) }}
               </button>
             </div>
           </template>
           <template v-else>
-            <div class="field-label">目标卡片数</div>
+            <div class="field-label">{{ t('views.cards.aiCountLabel') }}</div>
             <input type="number" min="1" max="30" v-model.number="aiDeckCount" class="input" style="width:120px" />
-            <div class="field-label">笔记内容</div>
-            <textarea v-model="batchText" class="input" rows="10" placeholder="粘贴一段笔记或文档，AI 会自动拆成问句式卡片…"></textarea>
+            <div class="field-label">{{ t('views.cards.aiNoteLabel') }}</div>
+            <textarea v-model="batchText" class="input" rows="10" :placeholder="t('views.cards.aiPlaceholder')"></textarea>
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:8px">
-              <button class="btn" @click="batchOpen = false">取消</button>
-              <button class="btn" :disabled="aiGenBusy" @click="aiGenerateDeck">{{ aiGenBusy ? 'AI 拆分中…' : '生成预览' }}</button>
+              <button class="btn" @click="batchOpen = false">{{ t('views.cards.cancel') }}</button>
+              <button class="btn" :disabled="aiGenBusy" @click="aiGenerateDeck">{{ aiGenBusy ? t('views.cards.aiSplitting') : t('views.cards.genPreview') }}</button>
               <button class="btn primary" :disabled="batchBusy || !aiDeck.length" @click="importAiDeck">
-                {{ batchBusy ? '导入中…' : `导入 ${aiDeck.length} 张` }}
+                {{ batchBusy ? t('views.cards.importing') : t('views.cards.importN', '导入 {n} 张', { n: aiDeck.length }) }}
               </button>
             </div>
             <!-- AI 拆分预览 -->
@@ -776,17 +776,17 @@ async function rescueAll() {
 
     <!-- M1 批量分组操作栏 -->
     <div v-if="selectMode" class="bulk-bar">
-      <label class="chk"><input type="checkbox" :checked="selectedIds.size === items.length && items.length > 0" @change="toggleSelectAll" /> 全选</label>
-      <span class="hint">已选 {{ selectedIds.size }} 张</span>
-      <span v-if="!groupList.length" class="hint">（暂无卡组——到「卡组」页创建）</span>
+      <label class="chk"><input type="checkbox" :checked="selectedIds.size === items.length && items.length > 0" @change="toggleSelectAll" /> {{ t('views.cards.selectAll') }}</label>
+      <span class="hint">{{ t('views.cards.selectedN', '已选 {n} 张', { n: selectedIds.size }) }}</span>
+      <span v-if="!groupList.length" class="hint">{{ t('views.cards.noGroups') }}</span>
       <template v-else>
-        <span class="hint">移入：</span>
+        <span class="hint">{{ t('views.cards.moveIn') }}</span>
         <button v-for="g in groupList" :key="'a' + g.id" class="chip mini" @click="bulkGroup(g.id)">{{ g.name }}</button>
-        <span class="hint">移出：</span>
+        <span class="hint">{{ t('views.cards.moveOut') }}</span>
         <button v-for="g in groupList" :key="'r' + g.id" class="chip mini" @click="bulkRemoveGroup(g.id)">{{ g.name }}</button>
       </template>
-      <button class="chip mini" :disabled="selectedIds.size < 2" @click="goLinkAnalysis" title="联动分析选中卡片（关系图谱/拓扑/关键路径/自由问答）">🔗 联动分析</button>
-      <button class="chip mini" @click="exitSelect">完成</button>
+      <button class="chip mini" :disabled="selectedIds.size < 2" @click="goLinkAnalysis" :title="t('views.cards.linkAnalysisTitle')">{{ t('views.cards.linkAnalysis') }}</button>
+      <button class="chip mini" @click="exitSelect">{{ t('views.cards.done') }}</button>
     </div>
 
     <VirtualList v-if="viewMode === 'scroll'" :items="items">
@@ -796,30 +796,30 @@ async function rescueAll() {
           <div class="tags">
             <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
             <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
-            <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">遗忘{{ item.failCount }}次</span>
+            <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '遗忘{n}次', { n: item.failCount }) }}</span>
             <span style="flex:1"></span>
-            <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)" :title="(expandAllByDefault ? (collapsedIds.has(item.id) ? '展开' : '收起') : (collapsedIds.has(item.id) ? '收起' : '展开')) + '完整详情'">
-              {{ expandAllByDefault ? (collapsedIds.has(item.id) ? '展开详情' : '收起详情') : (collapsedIds.has(item.id) ? '收起详情' : '展开详情') }}
+            <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)" :title="(expandAllByDefault ? (collapsedIds.has(item.id) ? t('views.cards.expandDetailTitle') : t('views.cards.collapseDetailTitle')) : (collapsedIds.has(item.id) ? t('views.cards.collapseDetailTitle') : t('views.cards.expandDetailTitle')))">
+              {{ expandAllByDefault ? (collapsedIds.has(item.id) ? t('views.cards.expandDetail') : t('views.cards.collapseDetail')) : (collapsedIds.has(item.id) ? t('views.cards.collapseDetail') : t('views.cards.expandDetail')) }}
             </button>
           </div>
-          <div v-if="item.source" class="hint" style="margin-bottom:4px">来源：{{ item.source }}</div>
+          <div v-if="item.source" class="hint" style="margin-bottom:4px">{{ t('views.cards.sourcePrefix') }}{{ item.source }}</div>
           <!-- 默认：只显示 front preview；expandAll=1 或用户点展开：显示 front + back 完整 Markdown（背诵效果） -->
           <template v-if="showFullDetail(item.id)">
             <div class="detail-block">
-              <div class="detail-label">正面（问题）</div>
+              <div class="detail-label">{{ t('views.cards.frontLabel') }}</div>
               <div class="detail-face front"><MarkdownRenderer :content="item.front" /></div>
-              <div v-if="item.back" class="detail-label" style="margin-top:8px">背面（答案）</div>
+              <div v-if="item.back" class="detail-label" style="margin-top:8px">{{ t('views.cards.backLabel') }}</div>
               <div v-if="item.back" class="detail-face back"><MarkdownRenderer :content="item.back" /></div>
-              <div v-if="item.mnemonic" class="mnemonic-block">助记：{{ item.mnemonic }}</div>
+              <div v-if="item.mnemonic" class="mnemonic-block">{{ t('views.cards.mnemonicPrefix') }}{{ item.mnemonic }}</div>
             </div>
           </template>
           <template v-else>
             <div v-if="filters.q" class="front-preview" v-html="hlFront(item)"></div>
-            <div v-else class="front-preview">{{ plain(item.front).slice(0, 160) || '（空）' }}</div>
+            <div v-else class="front-preview">{{ plain(item.front).slice(0, 160) || t('views.cards.empty') }}</div>
           </template>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
-            <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
-            <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? '生成中…' : '变式' }}</button> <button class="btn small" @click="openDiagnose(item)">诊断</button> <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
+            <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? t('views.cards.unmark') : t('views.cards.mark') }}</button> <button class="btn small" @click="openEdit(item)">{{ t('views.cards.edit') }}</button>
+            <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? t('views.cards.generating') : t('views.cards.variant') }}</button> <button class="btn small" @click="openDiagnose(item)">{{ t('views.cards.diagnose') }}</button> <button class="btn small" @click="openHistory(item)">{{ t('views.cards.history') }}</button> <button class="btn small danger" @click="remove(item)">{{ t('views.cards.del') }}</button>
           </div>
         </div>
       </template>
@@ -831,29 +831,29 @@ async function rescueAll() {
         <div class="tags">
           <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
           <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
-          <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">遗忘{{ item.failCount }}次</span>
+          <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '遗忘{n}次', { n: item.failCount }) }}</span>
           <span style="flex:1"></span>
           <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)">
-            {{ expandAllByDefault ? (collapsedIds.has(item.id) ? '展开详情' : '收起详情') : (collapsedIds.has(item.id) ? '收起详情' : '展开详情') }}
+            {{ expandAllByDefault ? (collapsedIds.has(item.id) ? t('views.cards.expandDetail') : t('views.cards.collapseDetail')) : (collapsedIds.has(item.id) ? t('views.cards.collapseDetail') : t('views.cards.expandDetail')) }}
           </button>
         </div>
-        <div v-if="item.source" class="hint" style="margin-bottom:4px">来源：{{ item.source }}</div>
+        <div v-if="item.source" class="hint" style="margin-bottom:4px">{{ t('views.cards.sourcePrefix') }}{{ item.source }}</div>
         <template v-if="showFullDetail(item.id)">
           <div class="detail-block">
-            <div class="detail-label">正面（问题）</div>
+            <div class="detail-label">{{ t('views.cards.frontLabel') }}</div>
             <div class="detail-face front"><MarkdownRenderer :content="item.front" /></div>
-            <div v-if="item.back" class="detail-label" style="margin-top:8px">背面（答案）</div>
+            <div v-if="item.back" class="detail-label" style="margin-top:8px">{{ t('views.cards.backLabel') }}</div>
             <div v-if="item.back" class="detail-face back"><MarkdownRenderer :content="item.back" /></div>
-            <div v-if="item.mnemonic" class="mnemonic-block">助记：{{ item.mnemonic }}</div>
+            <div v-if="item.mnemonic" class="mnemonic-block">{{ t('views.cards.mnemonicPrefix') }}{{ item.mnemonic }}</div>
           </div>
         </template>
         <template v-else>
           <div v-if="filters.q" class="front-preview" v-html="hlFront(item)"></div>
-          <div v-else class="front-preview">{{ plain(item.front).slice(0, 160) || '（空）' }}</div>
+          <div v-else class="front-preview">{{ plain(item.front).slice(0, 160) || t('views.cards.empty') }}</div>
         </template>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
-          <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? '取消错题' : '标错题' }}</button> <button class="btn small" @click="openEdit(item)">编辑</button>
-          <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? '生成中…' : '变式' }}</button> <button class="btn small" @click="openDiagnose(item)">诊断</button> <button class="btn small" @click="openHistory(item)">历史</button> <button class="btn small danger" @click="remove(item)">删除</button>
+          <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? t('views.cards.unmark') : t('views.cards.mark') }}</button> <button class="btn small" @click="openEdit(item)">{{ t('views.cards.edit') }}</button>
+          <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? t('views.cards.generating') : t('views.cards.variant') }}</button> <button class="btn small" @click="openDiagnose(item)">{{ t('views.cards.diagnose') }}</button> <button class="btn small" @click="openHistory(item)">{{ t('views.cards.history') }}</button> <button class="btn small danger" @click="remove(item)">{{ t('views.cards.del') }}</button>
         </div>
       </div>
     </template>
@@ -861,19 +861,19 @@ async function rescueAll() {
     <!-- 孤儿图片面板（从资产体检跳转 orphan=1 时显示） -->
     <div v-if="orphanImagesVisible" class="panel orphan-panel" style="margin-top:12px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-        <span class="field-label" style="margin:0">孤儿图片（{{ orphanImages.length }} 张）</span>
-        <span class="hint">这些图片已无任何卡片 Markdown 引用，可直接删除释放本地空间。</span>
+        <span class="field-label" style="margin:0">{{ t('views.cards.orphanTitle', '孤儿图片（{n} 张）', { n: orphanImages.length }) }}</span>
+        <span class="hint">{{ t('views.cards.orphanHint') }}</span>
         <span style="flex:1"></span>
-        <button v-if="orphanImages.length" class="btn small primary" @click="removeAllOrphans">一键全部清理</button>
+        <button v-if="orphanImages.length" class="btn small primary" @click="removeAllOrphans">{{ t('views.cards.cleanAll') }}</button>
       </div>
-      <div v-if="!orphanImages.length" class="hint">✅ 暂无需清理的孤儿图片。</div>
+      <div v-if="!orphanImages.length" class="hint">{{ t('views.cards.noOrphan') }}</div>
       <div v-else class="orphan-grid">
         <div v-for="img in orphanImages" :key="img.id" class="orphan-cell">
           <img :src="dataUrlOf(img)" :alt="img.id" />
           <div class="orphan-meta">
             <span class="hint">{{ new Date(img.createdAt || Date.now()).toLocaleDateString() }}</span>
             <span style="flex:1"></span>
-            <button class="btn small danger" @click="removeOrphan(img.id)">删除</button>
+            <button class="btn small danger" @click="removeOrphan(img.id)">{{ t('views.cards.del') }}</button>
           </div>
         </div>
       </div>
@@ -883,12 +883,12 @@ async function rescueAll() {
     <div v-if="activeFilterBanner" class="filter-banner" style="margin-top:14px">
       <span>{{ activeFilterBanner }}</span>
       <span style="flex:1"></span>
-      <button class="chip" @click="router.push('/health')">回到资产体检</button>
-      <button class="chip" @click="activeFilterBanner='';location.search=''">清空当前筛选</button>
+      <button class="chip" @click="router.push('/health')">{{ t('views.cards.backToHealth') }}</button>
+      <button class="chip" @click="activeFilterBanner='';location.search=''">{{ t('views.cards.clearFilter') }}</button>
     </div>
 
-    <EmptyState v-if="!loading && !items.length" title="还没有卡片" message="创建第一张记忆卡片，开始高效复习">
-      <button class="btn primary" @click="openCreate">＋ 新建第一张卡</button>
+    <EmptyState v-if="!loading && !items.length" :title="t('views.cards.emptyTitle')" :message="t('views.cards.emptyMsg')">
+      <button class="btn primary" @click="openCreate">{{ t('views.cards.newFirstCard') }}</button>
     </EmptyState>
 
     <!-- 卡片预览层：点击卡片体打开，内嵌 FlipCard 翻转预览，编辑按钮才打开 CardModal -->
@@ -896,10 +896,10 @@ async function rescueAll() {
       <div v-if="showPreview && previewCard" class="modal-mask preview-mask" @click.self="closePreview">
         <div class="preview-wrap" @click.stop>
           <div class="preview-head">
-            <span class="hint" style="font-weight:600;color:var(--ink)">卡片预览（点击卡片翻面）</span>
+            <span class="hint" style="font-weight:600;color:var(--ink)">{{ t('views.cards.previewTitle') }}</span>
             <span style="flex:1"></span>
-            <button class="btn small primary" @click="previewEdit">编辑</button>
-            <button class="btn small" @click="closePreview">关闭</button>
+            <button class="btn small primary" @click="previewEdit">{{ t('views.cards.edit') }}</button>
+            <button class="btn small" @click="closePreview">{{ t('views.cards.close') }}</button>
           </div>
           <div class="preview-body">
             <FlipCard :card="previewCard" @edit="previewEdit" />
@@ -907,7 +907,7 @@ async function rescueAll() {
             <div v-if="linkedNotes.length" class="linked-notes">
               <div class="linked-notes-title">
                 <span class="soft-pulse" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-right:8px"></span>
-                关联笔记（{{ linkedNotes.length }}）
+                {{ t('views.cards.linkedNotes', '关联笔记（{n}）', { n: linkedNotes.length }) }}
               </div>
               <div
                 v-for="n in linkedNotes"
@@ -916,13 +916,13 @@ async function rescueAll() {
                 @click="$router.push({ path: '/notes', query: { id: n.id } })"
               >
                 <span class="ln-icon">📓</span>
-                <span class="ln-title">{{ n.title || '（无标题）' }}</span>
+                <span class="ln-title">{{ n.title || t('views.cards.untitled') }}</span>
                 <span class="ln-cat" v-if="n.category">📁 {{ n.category }}</span>
               </div>
             </div>
             <!-- D3.3 双链入口：当前卡片的 front 也能在笔记中作为 [[c<id>]] 被引用 -->
             <div class="linked-notes-foot">
-              <button class="btn small" @click="copyLinkAsWiki">📋 复制 [[c{{ previewCard.id }}]] 引用</button>
+              <button class="btn small" @click="copyLinkAsWiki">{{ t('views.cards.copyRef', '📋 复制 [[c{id}]] 引用', { id: previewCard.id }) }}</button>
             </div>
           </div>
         </div>
@@ -935,17 +935,17 @@ async function rescueAll() {
       <div v-if="historyOpen" class="modal-mask" @click.self="historyOpen = false">
         <div class="modal">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <h3 style="margin:0">该卡复习历史</h3>
-            <button class="btn small" @click="historyOpen = false">关闭</button>
+            <h3 style="margin:0">{{ t('views.cards.historyTitle') }}</h3>
+            <button class="btn small" @click="historyOpen = false">{{ t('views.cards.close') }}</button>
           </div>
           <div v-if="historyData && historyData.card" class="card-item" style="margin:8px 0">
             <div class="tags">
               <span v-if="historyData.card.subject" class="tag-pill subj">{{ historyData.card.subject }}</span>
               <span v-for="t in historyData.card.tags" :key="t" class="tag-pill">{{ t }}</span>
             </div>
-            <div class="front-preview">{{ plain(historyData.card.front).slice(0, 80) || '（空）' }}</div>
+            <div class="front-preview">{{ plain(historyData.card.front).slice(0, 80) || t('views.cards.empty') }}</div>
           </div>
-          <EmptyState v-if="historyData && !historyData.history.length" compact icon="🗂️" title="还没有复习记录" message="去「背诵」页复习后，这里会显示历史时间线" />
+          <EmptyState v-if="historyData && !historyData.history.length" compact icon="🗂️" :title="t('views.cards.noHistoryTitle')" :message="t('views.cards.noHistoryMsg')" />
           <div v-else>
             <div v-for="(h, i) in historyData.history" :key="i" style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line)">
               <span class="hint">{{ fmtTime(h.reviewedAt) }}</span>
@@ -959,10 +959,10 @@ async function rescueAll() {
       <div v-if="diagOpen" class="modal-mask" @click.self="diagOpen = false">
         <div class="modal">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <h3 style="margin:0">AI 卡片诊断</h3>
-            <button class="btn small" @click="diagOpen = false">关闭</button>
+            <h3 style="margin:0">{{ t('views.cards.diagTitle') }}</h3>
+            <button class="btn small" @click="diagOpen = false">{{ t('views.cards.close') }}</button>
           </div>
-          <div v-if="diagLoading" class="hint" style="text-align:center;padding:30px">AI 分析中…</div>
+          <div v-if="diagLoading" class="hint" style="text-align:center;padding:30px">{{ t('views.cards.diagLoading') }}</div>
           <div v-else class="diag-text">{{ diagText }}</div>
         </div>
       </div>

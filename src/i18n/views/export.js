@@ -128,6 +128,18 @@ export const zh = {
   importFail: '导入失败：{msg}',
   apkgParseSuccess: '解析成功：{n} 张卡片（下方预览前 8 张）',
   pickApkgFirst: '请先选择 .apkg 文件',
+
+  // ——— 接线补录键（与 Export.vue 逐句对齐） ———
+  sortPrefix: '排序：',
+  rangeLabel: '范围',
+  imgShort: '[图]',
+  shareImportHint: '粘贴以 SXY1: 或 SXY0: 开头的分享码，先解析预览，再批量导入。',
+  scopeSubject: '科目={v}',
+  scopeTag: '标签[{logic}]={v}',
+  scopeSearch: '搜索={v}',
+  scopeManual: '手选={n}张',
+  scopeAll: '全部卡片',
+  scopeIncremental: '（仅新增）',
 };
 
 export const en = {
@@ -255,4 +267,16 @@ export const en = {
   importFail: 'Import failed: {msg}',
   apkgParseSuccess: 'Parsed successfully: {n} cards (first 8 shown below)',
   pickApkgFirst: 'Please choose an .apkg file first',
+
+  // ——— keys added while wiring (aligned with Export.vue) ———
+  sortPrefix: 'Sort: ',
+  rangeLabel: 'Range',
+  imgShort: '[img]',
+  shareImportHint: 'Paste a share code starting with SXY1: or SXY0:, parse the preview first, then batch-import.',
+  scopeSubject: 'subject={v}',
+  scopeTag: 'tags[{logic}]={v}',
+  scopeSearch: 'search={v}',
+  scopeManual: 'manual={n}',
+  scopeAll: 'All cards',
+  scopeIncremental: ' (new only)',
 };

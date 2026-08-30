@@ -46,7 +46,7 @@ async function doFullBackup() {
     await flushTelemetry();
     await doDownloadBackup();
     T.exportRun('json', null);
-    toast('全量数据包已导出（含 userOps 埋点 + privacyRecords 隐私记录，可用于跨设备同步）', 'success');
+    toast(t('views.export.fullBackupDone'), 'success');
     await refreshCounts();
   } catch (e) { toast(e.message, 'error'); }
   finally { backupBusy.value = false; }
@@ -64,7 +64,7 @@ async function doExportUserOps() {
     const range = exportOpsRange.value;
     const from = range === 'all' ? 0 : Date.now() - Number(range) * 24 * 3600 * 1000;
     const rows = await queryUserOps({ from, groupBy: null });
-    if (!rows.length) { toast('范围内没有 userOps 记录', 'warn'); return; }
+    if (!rows.length) { toast(t('views.export.noUserOps'), 'warn'); return; }
     let payload;
     if (exportOpsMode.value === 'aggregate') {
       const [byDay, byHour, byModule, byType] = await Promise.all([
@@ -85,7 +85,7 @@ async function doExportUserOps() {
     a.click();
     URL.revokeObjectURL(a.href);
     T.exportRun('userOps.' + exportOpsMode.value, rows.length);
-    toast(`已导出 userOps ${fmtBytes(blob.size)}（${rows.length} 条）`, 'success');
+    toast(t('views.export.exportedUserOps', '已导出 userOps {size}（{n} 条）', { size: fmtBytes(blob.size), n: rows.length }), 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 // 导出隐私记录：JSON + CSV 双通道
@@ -95,7 +95,7 @@ async function doExportPrivacy() {
     const range = privacyExportRange.value;
     const fromMs = range === 'all' ? 0 : Date.now() - Number(range) * 24 * 3600 * 1000;
     const recs = (await listPrivacyRecords({ limit: 5000 })).filter(r => (r.updatedAt || 0) >= fromMs);
-    if (!recs.length) { toast('范围内没有隐私记录', 'warn'); return; }
+    if (!recs.length) { toast(t('views.export.noPrivacy'), 'warn'); return; }
     // JSON 通道
     const jsonBlob = new Blob([JSON.stringify({ rangeDays: range === 'all' ? 'all' : Number(range), total: recs.length, records: recs, exportedAt: Date.now() })], { type: 'application/json' });
     // CSV 通道（物理/精神/自定义的关键字段展开，复杂块以 JSON 字符串存放）
@@ -126,38 +126,38 @@ async function doExportPrivacy() {
     save(jsonBlob, 'json');
     save(csvBlob, 'csv');
     T.exportRun('privacy.json+csv', recs.length);
-    toast(`已导出 privacyRecords（JSON + CSV，${recs.length} 条 · ${fmtBytes(jsonBlob.size + csvBlob.size)}）`, 'success');
+    toast(t('views.export.exportedPrivacy', '已导出 privacyRecords（JSON + CSV，{n} 条 · {size}）', { n: recs.length, size: fmtBytes(jsonBlob.size + csvBlob.size) }), 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 // 一次性清空两张新表（给用户"撤销恐怖监控"的按钮）
 const dangerOpen = ref(false);
 const dangerConfirm = ref('');
 async function wipeUserOps() {
-  if (dangerConfirm.value !== '清空埋点') return toast('请在输入框输入「清空埋点」再确认', 'warn');
+  if (dangerConfirm.value !== '清空埋点') return toast(t('views.export.wipeOpsPrompt'), 'warn');
   try {
     await db.userOps.clear();
     dangerConfirm.value = '';
     await refreshCounts();
-    toast('已清空全部 userOps 埋点记录（本地与同步链均失效，需重新同步）', 'success');
+    toast(t('views.export.wipeOpsDone'), 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 async function wipePrivacy() {
-  if (dangerConfirm.value !== '清空隐私') return toast('请在输入框输入「清空隐私」再确认', 'warn');
+  if (dangerConfirm.value !== '清空隐私') return toast(t('views.export.wipePrivacyPrompt'), 'warn');
   try {
     await db.privacyRecords.clear();
     dangerConfirm.value = '';
     await refreshCounts();
-    toast('已清空全部 privacyRecords 隐私记录（历史画像一并重置）', 'success');
+    toast(t('views.export.wipePrivacyDone'), 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 
-const SORT_OPTIONS = [
-  { id: 'updated', label: '最近更新' },
-  { id: 'created', label: '创建时间' },
-  { id: 'subject', label: '科目' },
-  { id: 'level', label: '复习进度' },
-  { id: 'due', label: '到期时间' },
-];
+const SORT_OPTIONS = computed(() => [
+  { id: 'updated', label: t('views.export.sortUpdated') },
+  { id: 'created', label: t('views.export.sortCreated') },
+  { id: 'subject', label: t('views.export.sortSubject') },
+  { id: 'level', label: t('views.export.sortLevel') },
+  { id: 'due', label: t('views.export.sortDue') },
+]);
 
 const previewOpen = ref(false);
 const printCards = ref([]);
@@ -231,7 +231,7 @@ const checkedCount = computed(() => checkedIds.value.length);
 
 function plain(text) {
   return String(text || '')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '[图]')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, t('views.export.imgShort'))
     .replace(/[#>*`~|=-]+/g, '')
     .replace(/\$\$?/g, '')
     .replace(/\s+/g, ' ')
@@ -279,12 +279,12 @@ function fmtTime(ts) {
 
 function buildDesc() {
   const parts = [];
-  if (subjectSel.value.length) parts.push(`科目=${subjectSel.value.join('+')}`);
-  if (tagNames.value.length) parts.push(`标签[${logic.value}]=${tagNames.value.join(',')}`);
-  if (q.value.trim()) parts.push(`搜索=${q.value.trim()}`);
-  if (checkedIds.value.length) parts.push(`手选=${checkedIds.value.length}张`);
-  if (!parts.length) parts.push('全部卡片');
-  return parts.join('；') + (mode.value === 'incremental' ? '（仅新增）' : '');
+  if (subjectSel.value.length) parts.push(t('views.export.scopeSubject', '科目={v}', { v: subjectSel.value.join('+') }));
+  if (tagNames.value.length) parts.push(t('views.export.scopeTag', '标签[{logic}]={v}', { logic: logic.value, v: tagNames.value.join(',') }));
+  if (q.value.trim()) parts.push(t('views.export.scopeSearch', '搜索={v}', { v: q.value.trim() }));
+  if (checkedIds.value.length) parts.push(t('views.export.scopeManual', '手选={n}张', { n: checkedIds.value.length }));
+  if (!parts.length) parts.push(t('views.export.scopeAll'));
+  return parts.join('；') + (mode.value === 'incremental' ? t('views.export.scopeIncremental') : '');
 }
 
 // 最终选定的卡片（勾选优先，否则全部筛选结果）
@@ -301,7 +301,7 @@ async function generate() {
       cards = cards.filter(c => (c.updatedAt || 0) > (lastExport.value.exportedAt || 0));
     }
     if (!cards.length) {
-      return toast(mode.value === 'incremental' ? '上次导出后没有新增或修改' : '没有符合条件的卡片', 'error');
+      return toast(mode.value === 'incremental' ? t('views.export.noNewSince') : t('views.export.noCardsMatched'), 'error');
     }
     printCards.value = cards;
     scopeDesc.value = buildDesc();
@@ -315,7 +315,7 @@ function doPrint() {
 }
 
 async function doCsv() {
-  try { await downloadCsv(); toast('已导出 CSV/TSV 文件，可用 Excel 或 Anki 导入', 'success'); }
+  try { await downloadCsv(); toast(t('views.export.csvDone'), 'success'); }
   catch (e) { toast(e.message, 'error'); }
 }
 
@@ -326,21 +326,21 @@ async function doAnki() {
     const cards = checkedIds.value.length
       ? candidates.value.filter(c => checkedIds.value.includes(c.id))
       : candidates.value;
-    if (!cards.length) { toast('当前筛选范围内没有卡片可导出', 'error'); return; }
+    if (!cards.length) { toast(t('views.export.noCardsInRange'), 'error'); return; }
     await downloadAnkiText(cards);
     try { T.exportRun('anki', cards.length); } catch {}
-    toast(`已导出 ${cards.length} 张为 Anki TSV（带标签列），Anki 桌面版「导入 → 文本文件」直接可用`, 'success');
+    toast(t('views.export.exportedAnki', '已导出 {n} 张为 Anki TSV（带标签列），Anki 桌面版「导入 → 文本文件」直接可用', { n: cards.length }), 'success');
   } catch (e) { toast(e.message, 'error'); }
 }
 
 // 导出 Markdown 文件（按科目分组 Q/A，配合知识库使用）
 function doMarkdown() {
   const cards = selectedCards();
-  if (!cards.length) { toast('没有可导出的卡片', 'error'); return; }
+  if (!cards.length) { toast(t('views.export.noCardsToExport'), 'error'); return; }
   const L = [];
-  L.push('# SxyBrick 记忆卡片');
+  L.push('# ' + t('views.export.subtitle'));
   L.push('');
-  L.push(`> 导出日期：${exportDate.value} · 共 ${cards.length} 张 · ${scopeDesc.value}`);
+  L.push(`> ${t('views.export.exportDateLabel', '导出日期：{date}', { date: exportDate.value })} · ${t('views.export.totalCardsLabel', '卡片总数：{n} 张', { n: cards.length })} · ${scopeDesc.value}`);
   L.push('');
   const map = new Map();
   for (const c of cards) {
@@ -360,7 +360,7 @@ function doMarkdown() {
       if (tags) { L.push(tags); L.push(''); }
       L.push(`**Q** ${c.front}`);
       L.push('');
-      L.push(hideAnswer.value ? `**A** _（答案已隐藏）_` : `**A** ${c.back}`);
+      L.push(hideAnswer.value ? `**A** _${t('views.export.answerHidden', '（答案已隐藏 · 自测模式）')}_` : `**A** ${c.back}`);
       L.push('');
       L.push('---');
       L.push('');
@@ -373,14 +373,14 @@ function doMarkdown() {
   a.download = `sxybrick-卡片-${exportDate.value}.md`;
   a.click();
   URL.revokeObjectURL(a.href);
-  toast(`已导出 ${cards.length} 张卡片为 Markdown 文件`, 'success');
+  toast(t('views.export.exportedMarkdown', '已导出 {n} 张卡片为 Markdown 文件', { n: cards.length }), 'success');
 }
 
 async function onAfterPrint() {
   if (!previewOpen.value) return;
   lastExport.value = { exportedAt: Date.now(), count: printCards.value.length, scope: scopeDesc.value };
   localStorage.setItem('sxy_last_export', JSON.stringify(lastExport.value));
-  toast(`已导出 ${printCards.value.length} 张卡片，可在打印对话框选择「另存为 PDF」`, 'success');
+  toast(t('views.export.exportedPrint', '已导出 {n} 张卡片，可在打印对话框选择「另存为 PDF」', { n: printCards.value.length }), 'success');
 }
 
 onMounted(() => {
@@ -399,7 +399,7 @@ const importPreview = ref(null); // { cards, scope, exportedAt }
 
 async function openShareGen() {
   const cards = selectedCards();
-  if (!cards.length) { toast('没有可分享的卡片', 'error'); return; }
+  if (!cards.length) { toast(t('views.export.noShareCards'), 'error'); return; }
   shareMode.value = 'generate';
   shareOpen.value = true;
   shareCode.value = '';
@@ -407,8 +407,8 @@ async function openShareGen() {
   try {
     const code = await encodeShareCode(cards, { scope: buildDesc() });
     shareCode.value = code;
-    toast(`已生成分享码（${cards.length} 张，约 ${estimateSize(cards)} KB）`, 'success');
-  } catch (e) { toast('生成失败：' + e.message, 'error'); }
+    toast(t('views.export.shareGenDone', '已生成分享码（{n} 张，约 {size} KB）', { n: cards.length, size: estimateSize(cards) }), 'success');
+  } catch (e) { toast(t('views.export.shareGenFail', '生成失败：{msg}', { msg: e.message }), 'error'); }
   finally { shareBusy.value = false; }
 }
 
@@ -416,8 +416,8 @@ async function copyShareCode() {
   if (!shareCode.value) return;
   try {
     await navigator.clipboard.writeText(shareCode.value);
-    toast('分享码已复制到剪贴板', 'success');
-  } catch { toast('剪贴板不可用，请手动选中复制', 'info'); }
+    toast(t('views.export.shareCopied'), 'success');
+  } catch { toast(t('views.export.clipboardUnavailable'), 'info'); }
 }
 
 function openShareImport() {
@@ -428,21 +428,21 @@ function openShareImport() {
 }
 
 async function previewImport() {
-  if (!importCode.value.trim()) { toast('请粘贴分享码', 'error'); return; }
+  if (!importCode.value.trim()) { toast(t('views.export.pasteShare'), 'error'); return; }
   if (shareBusy.value) return;
   shareBusy.value = true;
   try {
     const r = await decodeShareCode(importCode.value);
     importPreview.value = r;
-    toast(`解析成功：${r.cards.length} 张卡片${r.scope ? '·范围 ' + r.scope : ''}`, 'success');
+    toast(t('views.export.parseSuccess', '解析成功：{n} 张卡片', { n: r.cards.length }) + (r.scope ? t('views.export.parseSuccessScope', '·范围 {scope}', { scope: r.scope }) : ''), 'success');
   } catch (e) {
-    toast('解析失败：' + e.message, 'error');
+    toast(t('views.export.parseFail', '解析失败：{msg}', { msg: e.message }), 'error');
     importPreview.value = null;
   } finally { shareBusy.value = false; }
 }
 
 async function doImport() {
-  if (!importPreview.value?.cards?.length) { toast('请先解析预览', 'error'); return; }
+  if (!importPreview.value?.cards?.length) { toast(t('views.export.parseFirst'), 'error'); return; }
   if (shareBusy.value) return;
   shareBusy.value = true;
   let n = 0, fail = 0;
@@ -458,10 +458,10 @@ async function doImport() {
         n++;
       } catch { fail++; }
     }
-    toast(`已导入 ${n} 张卡片${fail ? `，失败 ${fail} 张` : ''}（可在「我的卡片」查看）`, 'success');
+    toast(t('views.export.importedCards', '已导入 {n} 张卡片{failPart}（可在「我的卡片」查看）', { n, failPart: fail ? `，失败 ${fail} 张` : '' }), 'success');
     shareOpen.value = false;
     await loadMeta();
-  } catch (e) { toast('导入失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.export.importFail', '导入失败：{msg}', { msg: e.message }), 'error'); }
   finally { shareBusy.value = false; }
 }
 
@@ -482,14 +482,14 @@ async function onApkgFile(e) {
     const buf = await file.arrayBuffer();
     const r = await parseApkg(buf);
     apkgPreview.value = r;
-    toast(`解析成功：${r.count} 张卡片（下方预览前 8 张）`, 'success');
+    toast(t('views.export.apkgParseSuccess', '解析成功：{n} 张卡片（下方预览前 8 张）', { n: r.count }), 'success');
   } catch (err) {
-    toast('解析失败：' + (err?.message || err), 'error');
+    toast(t('views.export.parseFail', '解析失败：{msg}', { msg: err?.message || err }), 'error');
     apkgPreview.value = null;
   } finally { apkgBusy.value = false; }
 }
 async function doApkgImport() {
-  if (!apkgPreview.value?.cards?.length) { toast('请先选择 .apkg 文件', 'error'); return; }
+  if (!apkgPreview.value?.cards?.length) { toast(t('views.export.pickApkgFirst'), 'error'); return; }
   if (apkgBusy.value) return;
   apkgBusy.value = true;
   let n = 0, fail = 0;
@@ -503,67 +503,67 @@ async function doApkgImport() {
         n++;
       } catch { fail++; }
     }
-    toast(`已导入 ${n} 张卡片${fail ? `，失败 ${fail} 张` : ''}（可在「我的卡片」查看）`, 'success');
+    toast(t('views.export.importedCards', '已导入 {n} 张卡片{failPart}（可在「我的卡片」查看）', { n, failPart: fail ? `，失败 ${fail} 张` : '' }), 'success');
     apkgOpen.value = false;
     await loadMeta();
-  } catch (err) { toast('导入失败：' + (err?.message || err), 'error'); }
+  } catch (err) { toast(t('views.export.importFail', '导入失败：{msg}', { msg: err?.message || err }), 'error'); }
   finally { apkgBusy.value = false; }
 }
 </script>
 
 <template>
   <div>
-    <h2>导出打印</h2>
+    <h2>{{ t('views.export.title') }}</h2>
 
     <!-- 筛选范围 -->
     <div class="panel no-print">
-      <div class="field-label" style="margin-top:0">科目（可多选，多个科目为并集）</div>
+      <div class="field-label" style="margin-top:0">{{ t('views.export.subjectsLabel') }}</div>
       <div class="row">
         <button v-for="s in subjects" :key="s.name" class="chip"
                 :class="{ on: subjectSel.includes(s.name) }" @click="toggleSubject(s.name)">
           {{ s.name }}<span v-if="s.count" class="n">{{ s.count }}</span>
         </button>
-        <button v-if="subjectSel.length" class="chip" @click="subjectSel = []">清除科目</button>
+        <button v-if="subjectSel.length" class="chip" @click="subjectSel = []">{{ t('views.export.clearSubjects') }}</button>
       </div>
 
-      <div class="field-label">标签（可多选）</div>
+      <div class="field-label">{{ t('views.export.tagsLabel') }}</div>
       <div class="row">
         <button v-for="t in allTags" :key="t.name" class="chip"
                 :class="{ on: tagNames.includes(t.name) }" @click="toggleTag(t.name)">
           {{ t.name }}<span class="n">{{ t.count }}</span>
         </button>
         <select v-if="tagNames.length" v-model="logic" class="input" style="width:auto">
-          <option value="AND">交集 AND</option>
-          <option value="OR">并集 OR</option>
-          <option value="NOT">差集 NOT</option>
+          <option value="AND">{{ t('views.export.logicAnd') }}</option>
+          <option value="OR">{{ t('views.export.logicOr') }}</option>
+          <option value="NOT">{{ t('views.export.logicNot') }}</option>
         </select>
       </div>
 
       <div class="row" style="margin-bottom:0">
-        <input v-model="q" class="input" style="max-width:240px" placeholder="搜索定位（可选）" />
+        <input v-model="q" class="input" style="max-width:240px" :placeholder="t('views.export.searchPlaceholder')" />
         <select v-model="sortBy" class="input" style="width:auto">
-          <option v-for="o in SORT_OPTIONS" :key="o.id" :value="o.id">排序：{{ o.label }}</option>
+          <option v-for="o in SORT_OPTIONS" :key="o.id" :value="o.id">{{ t('views.export.sortPrefix', '排序：') }}{{ o.label }}</option>
         </select>
-        <button class="chip" :class="{ on: mode === 'all' }" @click="mode = 'all'">全部导出</button>
+        <button class="chip" :class="{ on: mode === 'all' }" @click="mode = 'all'">{{ t('views.export.modeAll') }}</button>
         <button class="chip" :class="{ on: mode === 'incremental' }" @click="mode = 'incremental'"
-                :disabled="!lastExport">仅新增卡片</button>
+                :disabled="!lastExport">{{ t('views.export.modeIncremental') }}</button>
       </div>
       <div v-if="lastExport" class="hint" style="margin-top:6px">
-        上次导出：{{ fmtTime(lastExport.exportedAt) }} · {{ lastExport.count }} 张 · {{ lastExport.scope }}
+        {{ t('views.export.lastExportInfo', '上次导出：{time} · {count} 张 · {scope}', { time: fmtTime(lastExport.exportedAt), count: lastExport.count, scope: lastExport.scope }) }}
       </div>
     </div>
 
     <!-- 批量勾选清单 -->
     <div class="panel no-print" style="margin-top:14px">
       <div class="pick-bar">
-        <div class="field-label" style="margin:0">卡片勾选清单（{{ checkedCount }} / {{ candidates.length }} 已选）</div>
+        <div class="field-label" style="margin:0">{{ t('views.export.pickListLabel', '卡片勾选清单（{checked} / {total} 已选）', { checked: checkedCount, total: candidates.length }) }}</div>
         <div class="pick-actions">
-          <button class="chip" @click="checkAll">全选</button>
-          <button class="chip" @click="checkInvert">反选</button>
-          <button class="chip" @click="checkClear">清空</button>
+          <button class="chip" @click="checkAll">{{ t('views.export.selectAll') }}</button>
+          <button class="chip" @click="checkInvert">{{ t('views.export.invert') }}</button>
+          <button class="chip" @click="checkClear">{{ t('views.export.clear') }}</button>
         </div>
       </div>
-      <EmptyState v-if="!candidates.length" icon="🖨️" title="暂无符合条件的卡片" message="请调整上方筛选条件" />
+      <EmptyState v-if="!candidates.length" icon="🖨️" :title="t('views.export.emptyTitle')" :message="t('views.export.emptyMsg')" />
       <div v-else class="pick-list">
         <label v-for="(c, i) in candidates" :key="c.id" class="pick-item"
                :class="{ on: checkedIds.includes(c.id) }">
@@ -587,16 +587,16 @@ async function doApkgImport() {
     <!-- 操作 -->
     <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center" class="no-print">
       <button class="btn primary" @click="generate">
-        生成 PDF 预览{{ checkedCount ? `（已选 ${checkedCount} 张）` : `（全部 ${candidates.length} 张）` }}
+        {{ checkedCount ? t('views.export.genPreviewSelected', '生成 PDF 预览（已选 {n} 张）', { n: checkedCount }) : t('views.export.genPreviewAll', '生成 PDF 预览（全部 {n} 张）', { n: candidates.length }) }}
       </button>
-      <button class="btn" @click="doCsv">导出 CSV</button>
-      <button class="btn" @click="doAnki" title="导出为 Anki 桌面版可识别的 TSV（带标签列），导入时自动带标签">导出 Anki 卡组</button>
-      <button class="btn" @click="doMarkdown">导出 Markdown</button>
-      <button class="btn" @click="openShareGen" title="把当前筛选/勾选的卡片编码成短字符串，对方粘贴即可导入">🔗 生成分享码</button>
-      <button class="btn" @click="openShareImport" title="粘贴他人分享的码，解析后批量导入">📥 导入分享码</button>
-      <button class="btn" @click="openApkg" title="导入 Anki 桌面版导出的 .apkg 卡组（本地解析，零服务端）">📦 导入 .apkg</button>
+      <button class="btn" @click="doCsv">{{ t('views.export.exportCsv') }}</button>
+      <button class="btn" @click="doAnki" :title="t('views.export.exportAnkiTitle')">{{ t('views.export.exportAnki') }}</button>
+      <button class="btn" @click="doMarkdown">{{ t('views.export.exportMarkdown') }}</button>
+      <button class="btn" @click="openShareGen" :title="t('views.export.genShareCodeTitle')">{{ t('views.export.genShareCode') }}</button>
+      <button class="btn" @click="openShareImport" :title="t('views.export.importShareCodeTitle')">{{ t('views.export.importShareCode') }}</button>
+      <button class="btn" @click="openApkg" :title="t('views.export.importApkgTitle')">{{ t('views.export.importApkg') }}</button>
       <button class="chip" :class="{ on: hideAnswer }" @click="hideAnswer = !hideAnswer">
-        {{ hideAnswer ? '已隐藏答案（自测）' : '隐藏答案（自测模式）' }}
+        {{ hideAnswer ? t('views.export.hideAnswerOn') : t('views.export.hideAnswerOff') }}
       </button>
     </div>
 
@@ -605,10 +605,10 @@ async function doApkgImport() {
       <div v-if="previewOpen" class="modal-mask" style="padding:20px">
         <div class="modal export-modal">
           <div class="no-print modal-bar">
-            <h3 style="margin:0">打印预览（{{ printCards.length }} 张）</h3>
+            <h3 style="margin:0">{{ t('views.export.previewTitle', '打印预览（{n} 张）', { n: printCards.length }) }}</h3>
             <div>
-              <button class="btn" @click="previewOpen = false">关闭</button>
-              <button class="btn primary" @click="doPrint">打印 / 另存为 PDF</button>
+              <button class="btn" @click="previewOpen = false">{{ t('views.export.previewClose') }}</button>
+              <button class="btn primary" @click="doPrint">{{ t('views.export.previewPrint') }}</button>
             </div>
           </div>
 
@@ -616,12 +616,12 @@ async function doApkgImport() {
             <div class="export-head">
               <div class="export-head-title">
                 <div class="export-logo">SxyBrick</div>
-                <div class="export-subtitle">记忆卡片</div>
+                <div class="export-subtitle">{{ t('views.export.subtitle') }}</div>
               </div>
               <div class="export-head-meta">
-                <div>导出日期：{{ exportDate }}</div>
-                <div>卡片总数：{{ printCards.length }} 张</div>
-                <div>范围：{{ scopeDesc }}</div>
+                <div>{{ t('views.export.exportDateLabel', '导出日期：{date}', { date: exportDate }) }}</div>
+                <div>{{ t('views.export.totalCardsLabel', '卡片总数：{n} 张', { n: printCards.length }) }}</div>
+                <div>{{ t('views.export.scopeLabel', '范围：{scope}', { scope: scopeDesc }) }}</div>
               </div>
             </div>
 
@@ -629,7 +629,7 @@ async function doApkgImport() {
               <div class="group-title">
                 <span class="group-bar"></span>
                 <span class="group-name">{{ g.name }}</span>
-                <span class="group-count">{{ g.cards.length }} 张</span>
+                <span class="group-count">{{ t('views.export.unitCards', '{n} 张', { n: g.cards.length }) }}</span>
               </div>
 
               <div v-for="(c, i) in g.cards" :key="c.id" class="print-card">
@@ -643,13 +643,13 @@ async function doApkgImport() {
                 <div class="qa-divider"></div>
                 <div class="qa a-side">
                   <span class="qa-mark a">A</span>
-                  <div v-if="hideAnswer" class="answer-hidden">（答案已隐藏 · 自测模式）</div>
+                  <div v-if="hideAnswer" class="answer-hidden">{{ t('views.export.answerHidden', '（答案已隐藏 · 自测模式）') }}</div>
                   <MarkdownRenderer v-else :content="c.back" />
                 </div>
               </div>
             </div>
 
-            <div class="export-foot">— SxyBrick 记忆卡片 · {{ exportDate }} —</div>
+            <div class="export-foot">{{ t('views.export.footNote', '— SxyBrick 记忆卡片 · {date} —', { date: exportDate }) }}</div>
           </div>
         </div>
       </div>
@@ -659,41 +659,41 @@ async function doApkgImport() {
     <teleport to="body">
       <div v-if="shareOpen" class="modal-mask" @click.self="shareOpen = false">
         <div class="modal" style="max-width:620px">
-          <h3 style="margin-top:0">🔗 卡组分享码</h3>
+          <h3 style="margin-top:0">{{ t('views.export.shareModalTitle') }}</h3>
           <div style="display:flex;gap:8px;margin-bottom:12px">
-            <button class="chip" :class="{ on: shareMode === 'generate' }" @click="shareMode = 'generate'">生成分享码</button>
-            <button class="chip" :class="{ on: shareMode === 'import' }" @click="shareMode = 'import'">粘贴导入</button>
+            <button class="chip" :class="{ on: shareMode === 'generate' }" @click="shareMode = 'generate'">{{ t('views.export.shareGenTab') }}</button>
+            <button class="chip" :class="{ on: shareMode === 'import' }" @click="shareMode = 'import'">{{ t('views.export.shareImportTab') }}</button>
           </div>
 
           <div v-if="shareMode === 'generate'">
-            <p class="hint" style="margin:4px 0 8px">把当前筛选/勾选的卡片编码成短字符串（gzip+base64 压缩，零外部服务）。对方在「导入分享码」粘贴即可批量导入。</p>
-            <div v-if="shareBusy" class="hint" style="padding:12px;text-align:center">生成中…</div>
+            <p class="hint" style="margin:4px 0 8px">{{ t('views.export.shareGenHint') }}</p>
+            <div v-if="shareBusy" class="hint" style="padding:12px;text-align:center">{{ t('views.export.generating') }}</div>
             <template v-else-if="shareCode">
               <textarea class="input" rows="6" readonly :value="shareCode" style="font-family:monospace;font-size:11px;word-break:break-all"></textarea>
               <div style="display:flex;gap:8px;margin-top:10px">
-                <button class="btn primary" @click="copyShareCode">📋 复制到剪贴板</button>
-                <button class="btn" @click="shareOpen = false">关闭</button>
+                <button class="btn primary" @click="copyShareCode">{{ t('views.export.copyClipboard') }}</button>
+                <button class="btn" @click="shareOpen = false">{{ t('views.export.previewClose') }}</button>
               </div>
             </template>
           </div>
 
           <div v-else>
-            <p class="hint" style="margin:4px 0 8px">粘贴以 <code>SXY1:</code> 或 <code>SXY0:</code> 开头的分享码，先解析预览，再批量导入。</p>
-            <textarea v-model="importCode" class="input" rows="5" placeholder="在此粘贴分享码…" style="font-family:monospace;font-size:11px;word-break:break-all"></textarea>
+            <p class="hint" style="margin:4px 0 8px">{{ t('views.export.shareImportHint') }}</p>
+            <textarea v-model="importCode" class="input" rows="5" :placeholder="t('views.export.pastePlaceholder')" style="font-family:monospace;font-size:11px;word-break:break-all"></textarea>
             <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-              <button class="btn" :disabled="shareBusy || !importCode.trim()" @click="previewImport">解析预览</button>
-              <button v-if="importPreview" class="btn primary" :disabled="shareBusy" @click="doImport">📥 导入 {{ importPreview.cards.length }} 张</button>
-              <button class="btn" @click="shareOpen = false">关闭</button>
+              <button class="btn" :disabled="shareBusy || !importCode.trim()" @click="previewImport">{{ t('views.export.parsePreview') }}</button>
+              <button v-if="importPreview" class="btn primary" :disabled="shareBusy" @click="doImport">{{ t('views.export.importN', '📥 导入 {n} 张', { n: importPreview.cards.length }) }}</button>
+              <button class="btn" @click="shareOpen = false">{{ t('views.export.previewClose') }}</button>
             </div>
             <div v-if="importPreview" class="hint" style="margin-top:10px;padding:8px 10px;background:var(--code-bg);border-radius:6px">
-              <div>✅ 解析成功：{{ importPreview.cards.length }} 张卡片</div>
-              <div v-if="importPreview.scope">范围：{{ importPreview.scope }}</div>
-              <div v-if="importPreview.exportedAt">导出于：{{ fmtTime(importPreview.exportedAt) }}</div>
+              <div>{{ t('views.export.parsedSuccessN', '✅ 解析成功：{n} 张卡片', { n: importPreview.cards.length }) }}</div>
+              <div v-if="importPreview.scope">{{ t('views.export.importScope', '范围：{scope}', { scope: importPreview.scope }) }}</div>
+              <div v-if="importPreview.exportedAt">{{ t('views.export.exportedAt', '导出于：{time}', { time: fmtTime(importPreview.exportedAt) }) }}</div>
               <div style="margin-top:6px;max-height:120px;overflow-y:auto">
                 <div v-for="(c, i) in importPreview.cards.slice(0, 5)" :key="i" style="font-size:12px;padding:2px 0">
                   · {{ (c.subject || '未分类') }} — {{ String(c.front).slice(0, 40) }}
                 </div>
-                <div v-if="importPreview.cards.length > 5" style="font-size:11px;color:var(--ink-2)">… 还有 {{ importPreview.cards.length - 5 }} 张</div>
+                <div v-if="importPreview.cards.length > 5" style="font-size:11px;color:var(--ink-2)">{{ t('views.export.moreN', '… 还有 {n} 张', { n: importPreview.cards.length - 5 }) }}</div>
               </div>
             </div>
           </div>
@@ -706,20 +706,20 @@ async function doApkgImport() {
     <teleport to="body">
       <div v-if="apkgOpen" class="modal-mask" @click.self="apkgOpen = false">
         <div class="modal" style="max-width:620px">
-          <h3 style="margin-top:0">📦 导入 Anki 卡组（.apkg）</h3>
+          <h3 style="margin-top:0">{{ t('views.export.apkgModalTitle') }}</h3>
           <p class="hint" style="margin:4px 0 8px">
-            Anki 桌面版「导出 → 卡组格式(.apkg)」得到文件后在此导入。全程本地解析，不上传任何数据。
+            {{ t('views.export.apkgHint') }}
           </p>
-          <button class="btn" :disabled="apkgBusy" @click="pickApkg">{{ apkgBusy ? '解析中…' : '选择 .apkg 文件' }}</button>
+          <button class="btn" :disabled="apkgBusy" @click="pickApkg">{{ apkgBusy ? t('views.export.parsing') : t('views.export.pickApkg') }}</button>
 
           <div v-if="apkgPreview" style="margin-top:12px">
             <div class="hint" style="padding:8px 10px;background:var(--code-bg);border-radius:6px">
-              <div>✅ 解析成功：{{ apkgPreview.count }} 张卡片</div>
+              <div>{{ t('views.export.apkgParsedSuccess', '✅ 解析成功：{n} 张卡片（下方预览前 8 张）', { n: apkgPreview.count }) }}</div>
             </div>
             <div style="margin-top:10px">
-              <label class="field-label">导入到科目（留空 = 未分类）</label>
+              <label class="field-label">{{ t('views.export.importToSubject') }}</label>
               <select v-model="apkgSubject" class="input" style="width:100%;max-width:260px">
-                <option value="">未分类</option>
+                <option value="">{{ t('views.export.uncategorized') }}</option>
                 <option v-for="s in subjects" :key="s.name" :value="s.name">{{ s.name }}</option>
               </select>
             </div>
@@ -727,24 +727,23 @@ async function doApkgImport() {
               <div v-for="(c, i) in apkgPreview.cards.slice(0, 8)" :key="i" style="font-size:12px;padding:3px 0;border-bottom:1px dashed var(--line)">
                 · {{ String(c.front).slice(0, 50) }} <span v-if="c.tags?.length" class="hint">[{{ c.tags.join(' ') }}]</span>
               </div>
-              <div v-if="apkgPreview.count > 8" class="hint" style="font-size:11px;padding:4px 0">… 还有 {{ apkgPreview.count - 8 }} 张</div>
+              <div v-if="apkgPreview.count > 8" class="hint" style="font-size:11px;padding:4px 0">{{ t('views.export.moreN', '… 还有 {n} 张', { n: apkgPreview.count - 8 }) }}</div>
             </div>
             <div style="display:flex;gap:8px;margin-top:12px">
-              <button class="btn primary" :disabled="apkgBusy" @click="doApkgImport">📥 导入 {{ apkgPreview.count }} 张</button>
-              <button class="btn" @click="apkgOpen = false">关闭</button>
+              <button class="btn primary" :disabled="apkgBusy" @click="doApkgImport">{{ t('views.export.importN', '📥 导入 {n} 张', { n: apkgPreview.count }) }}</button>
+              <button class="btn" @click="apkgOpen = false">{{ t('views.export.previewClose') }}</button>
             </div>
           </div>
-          <div v-else-if="!apkgBusy" class="hint" style="margin-top:12px">尚未选择文件。</div>
+          <div v-else-if="!apkgBusy" class="hint" style="margin-top:12px">{{ t('views.export.noFileSelected') }}</div>
         </div>
       </div>
     </teleport>
 
     <!-- ————— P1·9 新增：全量同步包 / 埋点监控 / 隐私人生数据 导出面板 ————— -->
     <div class="panel no-print" style="margin-top:18px;border-color:var(--accent)">
-      <h3 style="margin:0 0 12px">🧰 系统级数据导出 / 一键同步备份</h3>
+      <h3 style="margin:0 0 12px">{{ t('views.export.systemExportTitle') }}</h3>
       <div class="hint" style="margin-bottom:10px">
-        「全量数据包」包含卡片 / 复习 / AI / 导图 / 周报 / 成就 / 模考 / 通知 / 错误日志 / 操作埋点(userOps) / 人生隐私(privacyRecords) 全部模块，
-        与「同步 / 局域网一键同步」走同一条链路，可直接跨设备导入。
+        {{ t('views.export.systemExportHint') }}
       </div>
       <div class="stat-grid" style="margin-bottom:12px">
         <div v-for="(v, k) in ['cards','reviews','userOps','privacyRecords','docs','mindmaps','graphEdges','aiChats','weeklyReports','exams']"
@@ -755,65 +754,65 @@ async function doApkgImport() {
       </div>
       <div class="row" style="margin-bottom:0">
         <button class="btn primary" :disabled="backupBusy" @click="doFullBackup">
-          {{ backupBusy ? '打包中…' : '📦 导出全量数据包（一键同步）' }}
+          {{ backupBusy ? t('views.export.packing') : t('views.export.fullBackupBtn') }}
         </button>
-        <button class="chip" @click="refreshCounts">🔄 刷新统计</button>
+        <button class="chip" @click="refreshCounts">{{ t('views.export.refreshStats') }}</button>
       </div>
     </div>
 
     <div class="panel no-print" style="margin-top:14px">
-      <h3 style="margin:0 0 10px">👁️ 恐怖级操作监控（userOps 埋点）导出</h3>
+      <h3 style="margin:0 0 10px">{{ t('views.export.userOpsTitle') }}</h3>
       <div class="row">
-        <span class="field-label" style="margin:0">范围</span>
+        <span class="field-label" style="margin:0">{{ t('views.export.rangeLabel') }}</span>
         <select v-model="exportOpsRange" class="input" style="width:auto">
-          <option value="7">近 7 天</option>
-          <option value="30">近 30 天</option>
-          <option value="90">近 90 天</option>
-          <option value="all">全部历史</option>
+          <option value="7">{{ t('views.export.range7') }}</option>
+          <option value="30">{{ t('views.export.range30') }}</option>
+          <option value="90">{{ t('views.export.range90') }}</option>
+          <option value="all">{{ t('views.export.rangeAll') }}</option>
         </select>
-        <span class="field-label" style="margin:0">粒度</span>
-        <button class="chip" :class="{ on: exportOpsMode === 'full' }" @click="exportOpsMode = 'full'">原始明细（全量）</button>
-        <button class="chip" :class="{ on: exportOpsMode === 'aggregate' }" @click="exportOpsMode = 'aggregate'">仅聚合（体积小）</button>
-        <button class="btn" @click="doExportUserOps">📤 导出 userOps JSON</button>
+        <span class="field-label" style="margin:0">{{ t('views.export.granularity') }}</span>
+        <button class="chip" :class="{ on: exportOpsMode === 'full' }" @click="exportOpsMode = 'full'">{{ t('views.export.opsFull') }}</button>
+        <button class="chip" :class="{ on: exportOpsMode === 'aggregate' }" @click="exportOpsMode = 'aggregate'">{{ t('views.export.opsAggregate') }}</button>
+        <button class="btn" @click="doExportUserOps">{{ t('views.export.exportUserOps') }}</button>
       </div>
       <div class="hint" style="margin:8px 0 0">
-        聚合版会自动压缩出：日活跃、24 小时时段、模块使用占比、操作类型分布 4 份结果，体积通常为明细的 1~5%。
+        {{ t('views.export.opsHint') }}
       </div>
     </div>
 
     <div class="panel no-print" style="margin-top:14px">
-      <h3 style="margin:0 0 10px">🧍 人生隐私监控（privacyRecords）导出</h3>
+      <h3 style="margin:0 0 10px">{{ t('views.export.privacyTitle') }}</h3>
       <div class="row">
-        <span class="field-label" style="margin:0">范围</span>
+        <span class="field-label" style="margin:0">{{ t('views.export.rangeLabel') }}</span>
         <select v-model="privacyExportRange" class="input" style="width:auto">
-          <option value="7">近 7 天</option>
-          <option value="30">近 30 天</option>
-          <option value="90">近 90 天</option>
-          <option value="all">全部历史</option>
+          <option value="7">{{ t('views.export.range7') }}</option>
+          <option value="30">{{ t('views.export.range30') }}</option>
+          <option value="90">{{ t('views.export.range90') }}</option>
+          <option value="all">{{ t('views.export.rangeAll') }}</option>
         </select>
-        <button class="btn" @click="doExportPrivacy">📤 导出 JSON + CSV（双通道）</button>
+        <button class="btn" @click="doExportPrivacy">{{ t('views.export.exportPrivacy') }}</button>
       </div>
       <div class="hint" style="margin:8px 0 0">
-        CSV 展开睡眠 / 饮食 / 运动 / 学习 / 工作 / 屏幕 / 财务 / 心情 / 疼痛 / 自定义标签等字段，可用 Excel 做二次透视；JSON 保留完整结构，可再导入本系统。
+        {{ t('views.export.privacyHint') }}
       </div>
     </div>
 
     <div class="panel no-print" style="margin-top:14px;border-color:#e11d48;background:linear-gradient(180deg,#fff1f2,var(--panel))">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <h3 style="margin:0">⚠️ 危险区：清空监控 / 隐私数据</h3>
+        <h3 style="margin:0">{{ t('views.export.dangerTitle') }}</h3>
         <button class="btn small" @click="dangerOpen = !dangerOpen">
-          {{ dangerOpen ? '收起' : '展开危险区' }}
+          {{ dangerOpen ? t('views.export.dangerCollapse') : t('views.export.dangerExpand') }}
         </button>
       </div>
       <div v-if="dangerOpen" style="margin-top:12px">
         <div class="hint" style="margin-bottom:8px">
-          清空是单向的：本地 IndexedDB 立即删除，下一次同步会把删除事件传播到其他设备。请谨慎操作。
+          {{ t('views.export.dangerHint') }}
         </div>
         <div class="row">
           <input v-model="dangerConfirm" class="input" style="max-width:260px"
-                 placeholder="输入「清空埋点」或「清空隐私」" />
-          <button class="btn" style="background:#e11d48;color:#fff;border-color:#be123c" @click="wipeUserOps">🗑️ 清空全部 userOps 埋点</button>
-          <button class="btn" style="background:#9f1239;color:#fff;border-color:#881337" @click="wipePrivacy">🗑️ 清空全部隐私人生记录</button>
+                 :placeholder="t('views.export.dangerPlaceholder')" />
+          <button class="btn" style="background:#e11d48;color:#fff;border-color:#be123c" @click="wipeUserOps">{{ t('views.export.wipeOpsBtn') }}</button>
+          <button class="btn" style="background:#9f1239;color:#fff;border-color:#881337" @click="wipePrivacy">{{ t('views.export.wipePrivacyBtn') }}</button>
         </div>
       </div>
     </div>
