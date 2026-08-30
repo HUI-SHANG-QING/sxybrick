@@ -2,6 +2,7 @@
 // 数字书房（E3 资产叙事）：你的学习资料数字资产，一次看全
 // 首屏定位叙事 + 资产画廊（卡组/导图/成就/模考/总资产）+ 关于（免费·无广告·数据自持）
 import { ref, computed, onMounted } from 'vue';
+import { t } from '../i18n/index.js';
 import { db } from '../db.js';
 import { getSubjects } from '../repo.js';
 import { listAchievements } from '../repo.js';
@@ -45,59 +46,59 @@ onMounted(async () => {
   <div style="max-width:1000px;margin:0 auto">
     <!-- 定位叙事（落地页式首屏） -->
     <div class="lib-hero">
-      <h2 style="margin:0 0 6px">你的知识资产，永远属于你</h2>
+      <h2 style="margin:0 0 6px">{{ t('views.library.heroTitle') }}</h2>
       <p class="hint" style="margin:0 0 14px;font-size:14px;line-height:1.9">
-        这里是你的<b>数字书房</b>：卡片、笔记、导图、成绩、徽章——你亲手积累的每一份学习资料，<br>
-        都存在你自己的设备里：<b>免费 · 无广告 · 数据自持</b>，导出即带走，同步不出内网。
+        {{ t('views.library.hero1') }}<b>{{ t('views.library.heroBold1') }}</b>{{ t('views.library.hero2') }}<br>
+        {{ t('views.library.hero3') }}<b>{{ t('views.library.heroBold2') }}</b>{{ t('views.library.hero4') }}
       </p>
       <div class="hero-pills">
-        <span class="hero-pill">🗂️ {{ counts.cards }} 张卡片</span>
-        <span class="hero-pill">📄 {{ counts.docs }} 篇文档</span>
-        <span class="hero-pill">🗺️ {{ counts.mindmaps }} 张导图</span>
-        <span class="hero-pill">🧪 {{ counts.exams }} 场模考</span>
-        <span class="hero-pill">📝 {{ counts.memos }} 条备忘</span>
-        <span class="hero-pill">🏆 {{ unlocked }}/{{ totalAch }} 成就</span>
-        <span class="hero-pill">🔥 连续 {{ streak }} 天</span>
-        <span class="hero-pill">📖 今日已背 {{ today }} 张</span>
+        <span class="hero-pill">🗂️ {{ t('views.library.pillCards', { n: counts.cards }) }}</span>
+        <span class="hero-pill">📄 {{ t('views.library.pillDocs', { n: counts.docs }) }}</span>
+        <span class="hero-pill">🗺️ {{ t('views.library.pillMindmaps', { n: counts.mindmaps }) }}</span>
+        <span class="hero-pill">🧪 {{ t('views.library.pillExams', { n: counts.exams }) }}</span>
+        <span class="hero-pill">📝 {{ t('views.library.pillMemos', { n: counts.memos }) }}</span>
+        <span class="hero-pill">🏆 {{ t('views.library.pillAch', { unlocked, total: totalAch }) }}</span>
+        <span class="hero-pill">🔥 {{ t('views.library.pillStreak', { n: streak }) }}</span>
+        <span class="hero-pill">📖 {{ t('views.library.pillToday', { n: today }) }}</span>
       </div>
-      <div class="hint" style="margin-top:12px">数字资产合计：<b style="color:var(--accent);font-size:16px">{{ totalAssets }}</b> 件 · 全部可导出 / 可同步 / 永不丢失</div>
+      <div class="hint" style="margin-top:12px">{{ t('views.library.assetsLabel') }}<b style="color:var(--accent);font-size:16px">{{ totalAssets }}</b>{{ t('views.library.assetsSuffix') }}</div>
     </div>
 
     <!-- 资产画廊：科目书架 -->
     <div class="lib-section">
-      <div class="lib-title">科目书架</div>
+      <div class="lib-title">{{ t('views.library.shelfTitle') }}</div>
       <div class="shelf">
-        <div v-for="s in subjects" :key="s.name" class="book" :class="{ empty: !s.count }" :title="`查看 ${s.name} 全部 ${s.count} 张卡片`" @click="router.push(`/cards?subject=${encodeURIComponent(s.name)}`)">
+        <div v-for="s in subjects" :key="s.name" class="book" :class="{ empty: !s.count }" :title="t('views.library.bookTitle', { name: s.name, count: s.count })" @click="router.push(`/cards?subject=${encodeURIComponent(s.name)}`)">
           <div class="book-spine" :style="{ background: `hsl(${(subjects.indexOf(s) * 47) % 360} 55% 45%)` }">{{ s.name.slice(0, 1) }}</div>
           <div class="book-name">{{ s.name }}</div>
-          <div class="book-n">{{ s.count }} 卡</div>
+          <div class="book-n">{{ t('views.library.bookN', { n: s.count }) }}</div>
         </div>
       </div>
     </div>
 
     <!-- 资产画廊：其他资产与快捷入口 -->
     <div class="lib-section">
-      <div class="lib-title">资产捷径</div>
+      <div class="lib-title">{{ t('views.library.shortcutTitle') }}</div>
       <div class="shortcuts">
-        <div class="shortcut" @click="router.push('/cards')"><span class="sc-icon">🗂️</span><span>知识卡片（{{ counts.cards }}）</span></div>
-        <div class="shortcut" @click="router.push('/wrong')"><span class="sc-icon">❌</span><span>错题集（薄弱点）</span></div>
-        <div class="shortcut" @click="router.push('/review')"><span class="sc-icon">🧠</span><span>背诵复习</span></div>
-        <div class="shortcut" @click="router.push('/plans')"><span class="sc-icon">📋</span><span>学习计划</span></div>
-        <div class="shortcut" @click="router.push('/mindmap')"><span class="sc-icon">🗺️</span><span>思维导图（{{ counts.mindmaps }}）</span></div>
-        <div class="shortcut" @click="router.push('/docs')"><span class="sc-icon">📄</span><span>AI 文档（{{ counts.docs }}）</span></div>
-        <div class="shortcut" @click="router.push('/graph')"><span class="sc-icon">🔗</span><span>知识图谱</span></div>
-        <div class="shortcut" @click="router.push('/exam')"><span class="sc-icon">🧪</span><span>模考成绩（{{ counts.exams }}）</span></div>
-        <div class="shortcut" @click="router.push('/achievements')"><span class="sc-icon">🏆</span><span>成就徽章（{{ unlocked }}/{{ totalAch }}）</span></div>
-        <div class="shortcut" @click="router.push('/health')"><span class="sc-icon">🩺</span><span>资产体检</span></div>
-        <div class="shortcut" @click="router.push('/sync')"><span class="sc-icon">🔄</span><span>资产同步与备份</span></div>
+        <div class="shortcut" @click="router.push('/cards')"><span class="sc-icon">🗂️</span><span>{{ t('views.library.scCards', { n: counts.cards }) }}</span></div>
+        <div class="shortcut" @click="router.push('/wrong')"><span class="sc-icon">❌</span><span>{{ t('views.library.scWrong') }}</span></div>
+        <div class="shortcut" @click="router.push('/review')"><span class="sc-icon">🧠</span><span>{{ t('views.library.scReview') }}</span></div>
+        <div class="shortcut" @click="router.push('/plans')"><span class="sc-icon">📋</span><span>{{ t('views.library.scPlans') }}</span></div>
+        <div class="shortcut" @click="router.push('/mindmap')"><span class="sc-icon">🗺️</span><span>{{ t('views.library.scMindmap', { n: counts.mindmaps }) }}</span></div>
+        <div class="shortcut" @click="router.push('/docs')"><span class="sc-icon">📄</span><span>{{ t('views.library.scDocs', { n: counts.docs }) }}</span></div>
+        <div class="shortcut" @click="router.push('/graph')"><span class="sc-icon">🔗</span><span>{{ t('views.library.scGraph') }}</span></div>
+        <div class="shortcut" @click="router.push('/exam')"><span class="sc-icon">🧪</span><span>{{ t('views.library.scExam', { n: counts.exams }) }}</span></div>
+        <div class="shortcut" @click="router.push('/achievements')"><span class="sc-icon">🏆</span><span>{{ t('views.library.scAch', { unlocked, total: totalAch }) }}</span></div>
+        <div class="shortcut" @click="router.push('/health')"><span class="sc-icon">🩺</span><span>{{ t('views.library.scHealth') }}</span></div>
+        <div class="shortcut" @click="router.push('/sync')"><span class="sc-icon">🔄</span><span>{{ t('views.library.scSync') }}</span></div>
       </div>
     </div>
 
     <!-- 关于 -->
     <div class="lib-section">
-      <div class="lib-title">关于 SxyBrick</div>
+      <div class="lib-title">{{ t('views.library.aboutTitle') }}</div>
       <p class="hint" style="line-height:1.9;margin:0">
-        本地优先记忆卡片应用：所有数据存于你的浏览器 IndexedDB，不经过任何服务器。支持手动数据包（含全部 14 类数据）与局域网一键同步（hub 中枢）跨设备合并；8 种界面风格 × 白天/夜间/护眼三模式；AI 能力支持自备密钥接入任意 OpenAI 兼容端点。用于考研复习、语言学习与日常知识管理。
+        {{ t('views.library.about') }}
       </p>
     </div>
   </div>
