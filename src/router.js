@@ -39,7 +39,7 @@ const routes = [
   { path: '/trash', component: () => import('./views/RecycleBin.vue') },
   { path: '/search', component: () => import('./views/Search.vue') },
   { path: '/library', component: () => import('./views/Library.vue') },
-  // P2·10 + P3·11 新增：用户仪表盘（恐怖监控图表）+ 隐私人生数据模块
+  // P2·10 + P3·11 新增：用户仪表盘（恐怖监控图表）+ 超级监控（人生数据）模块
   { path: '/user-dashboard', component: () => import('./views/UserDashboard.vue') },
   { path: '/privacy', component: () => import('./views/PrivacyData.vue') },
   // P3-4 插件 / MCP 接入：本地插件管理与工具调用（MCP 兼容 schema）

@@ -92,7 +92,7 @@ d.version(12).stores({
   cards: 'id, subject, dueAt, updatedAt, createdAt, difficulty',
 });
 
-// v13：新增用户全操作埋点表（恐怖级本地监控，仅存本地加密，供仪表盘分析，可一键同步/导出/清空）
+// v13：新增用户全操作埋点表（恐怖级本地监控；存本地 IndexedDB，纯前端无服务端、无密码加密；属敏感监控数据，可一键导出/清空/同步）
 // A 级（业务级）+ B 级（DOM 交互级）统一存此表
 //   t:        毫秒时间戳（主索引）
 //   type:     动作大类（page_view / review_rate / card_edit / export / sync / ai_call / pomodoro /
@@ -100,7 +100,7 @@ d.version(12).stores({
 //             dom_click_chip / dom_click_btn / dom_click_card / dom_change_select / dom_asset_click 等）
 //   category: 细分类（如 review_rate: '0'|'1'|'2'；dom_click_btn: 'save'|'delete' 等）
 //   page:     路由页面（/review /cards /health ...）
-//   module:   模块（学习/复习/错题/整理/AI/计划/健康/图谱/导图/周报/模考/备忘/同步/导出/书房/成就/仪表盘/隐私）
+//   module:   模块（学习/复习/错题/整理/AI/计划/健康/图谱/导图/周报/模考/备忘/同步/导出/书房/成就/仪表盘/超级监控）
 //   payload:  自由 JSON 对象（任意附加信息，如卡片 front 摘要、背诵评分、AI token 数、导出格式、同步结果）
 //   _meta:    内部字段（设备 id、会话 id、是否批量合并等）
 d.version(13).stores({

@@ -174,15 +174,26 @@ async function trashItem(id, kind, data) {
 }
 
 // P2-22 回收站：从 trash 恢复一条。重新插入行并 bump updatedAt（> 墓碑 deletedAt → 下次同步判定复活），
-// 同时清掉本地墓碑与 trash 记录。仅覆盖写入 trash 时快照的主类型。
+// 同时清掉本地墓碑与 trash 记录。仅覆盖写入 trash 时快照的主类型；卡片类若带 _reviews 一并还原复习记录。
 export async function restoreFromTrash(t) {
   if (!t || !t.data) return false;
   const table = { card: 'cards', memo: 'memos', note: 'notes', plan: 'plans', doc: 'docs', mindmap: 'mindmaps' }[t.kind];
   if (!table) return false;
-  const row = { ...t.data, id: t.id, updatedAt: Date.now() };
-  await db[table].put(row);
-  await db.tombstones.delete(t.id);
-  await db.trash.delete(t.id);
+  const data = { ...t.data };
+  const reviews = data._reviews || null;
+  delete data._reviews;
+  const row = { ...data, id: t.id, updatedAt: Date.now() };
+  const tables = [db[table], db.tombstones, db.trash];
+  if (reviews && reviews.length) tables.push(db.reviews);
+  await db.transaction('rw', ...tables, async () => {
+    await db[table].put(row);
+    if (reviews && reviews.length) {
+      // 复习快照的 cardId 即本卡 id，原样还原（review 自带 id 用于幂等覆盖）
+      await db.reviews.bulkPut(reviews.map(r => ({ ...r })));
+    }
+    await db.tombstones.delete(t.id);
+    await db.trash.delete(t.id);
+  });
   return true;
 }
 
@@ -190,10 +201,20 @@ export async function deleteCard(id) {
   const old = await db.cards.get(id);
   if (!old) return;
   const imgIds = [...extractImageIds((old.front || '') + '\n' + (old.back || ''))];
-  await trashItem(id, 'card', old);
-  await db.cards.delete(id);
-  await db.tombstones.put({ id, kind: 'card', deletedAt: now() });
-  await db.reviews.where('cardId').equals(id).delete();
+  // 三合一：事务内一次性完成 回收站快照 + 墓碑 + 删卡 + 删复习 + 切断图谱边，保证原子、无悬空引用
+  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, async () => {
+    // 1) 回收站快照（含复习记录快照，便于恢复时一并还原）
+    const reviews = await db.reviews.where('cardId').equals(id).toArray();
+    await trashItem(id, 'card', { ...old, _reviews: reviews });
+    // 2) 墓碑（跨设备删除同步）
+    await db.tombstones.put({ id, kind: 'card', deletedAt: now() });
+    // 3) 删卡
+    await db.cards.delete(id);
+    // 4) 删复习记录
+    await db.reviews.where('cardId').equals(id).delete();
+    // 5) 切断关联图谱边（fromCardId/toCardId 未建索引，用 filter 全表扫）
+    await db.graphEdges.filter(e => e.fromCardId === id || e.toCardId === id).delete();
+  });
   await cleanupOrphanImages(imgIds);
   fireHook('onCardDeleted', { id });
 }

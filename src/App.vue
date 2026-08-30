@@ -131,7 +131,7 @@ const navItems = [
   { path: '/achievements', label: '成就', icon: '🏆' },
   // P2·10 + P3·11：用户仪表盘（恐怖监控图表）与隐私人生数据（超级监控）
   { path: '/user-dashboard', label: '仪表盘', icon: '🛰️' },
-  { path: '/privacy', label: '隐私', icon: '🧾' },
+  { path: '/privacy', label: '超级监控', icon: '🧾' },
   // P3-4 插件 / MCP 接入：本地扩展机制（工具调用 + 事件钩子）
   { path: '/plugins', label: '插件', icon: '🔌' },
   { path: '/insight', label: '卡片洞察', icon: '💡' },
