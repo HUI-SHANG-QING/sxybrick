@@ -130,10 +130,17 @@ export async function applyUpdate() {
 
 /**
  * 查询当前源（origin）的存储配额
- * @returns {Promise<{usage:number, quota:number, usagePercent:number}|null>}
+ * @returns {Promise<{usage:number, quota:number, usagePercent:number}
+ *   | {unsupported:'insecure'}        // 非安全上下文（局域网 http 等）浏览器禁用了配额 API
+ *   | {unsupported:'no-api'}          // 安全上下文但浏览器无此 API
+ *   | null>}                          // 其它异常
  */
 export async function getStorageEstimate() {
-  if (!navigator.storage?.estimate) return null;
+  if (!navigator.storage?.estimate) {
+    // 非安全上下文（http 局域网地址）下 navigator.storage 整体不可用 → 配额 API 被禁
+    if (typeof window !== 'undefined' && window.isSecureContext === false) return { unsupported: 'insecure' };
+    return { unsupported: 'no-api' };
+  }
   try {
     const { usage = 0, quota = 0 } = await navigator.storage.estimate();
     const usagePercent = quota > 0 ? Math.round((usage / quota) * 100) : 0;

@@ -8,11 +8,9 @@ import { getGoal, getTodayCount, getDueCount, getLastReviewTs, getDueBySubject }
 // FloatAssistant / NavBar 首屏必需，保留同步
 import FloatAssistant from './components/FloatAssistant.vue';
 import NavBar from './components/NavBar.vue';
-// 多用户（档案）管理：用户目录 + 切换 + 新建 + 跨档案迁移
-import UserManager from './components/UserManager.vue';
-import { activeUser } from './user.js';
 // NotificationBell 首屏必需（通知铃铛），保留同步
 import NotificationBell from './components/NotificationBell.vue';
+import ResetAllData from './components/ResetAllData.vue';
 import ErrorBoundary from './components/ErrorBoundary.vue';
 // Intro/Guide 仅首次访问时显示、InkLandscape 仅国风主题激活时显示 → 异步加载以减小首屏 chunk
 const Intro = defineAsyncComponent(() => import('./components/Intro.vue'));
@@ -42,10 +40,6 @@ import { parseHm, hasReached } from './utils/time.js';
 
 const theme = useThemeStore();
 
-// 多用户入口：当前画像 + 打开管理弹窗
-const userMgr = ref(null);
-function openUserMgr() { userMgr.value?.openManager(); }
-const curUserName = activeUser().name;
 const appMode = useAppModeStore();
 const showSettings = ref(false);
 
@@ -75,6 +69,7 @@ const swNeedRefresh = ref(false);         // 有新版本待激活
 const swOfflineReady = ref(false);       // 已可离线启动
 const quotaWarn = ref(null);             // { usage, quota, usagePercent } 或 null
 const storageEstimate = ref(null);       // 用于在设置面板展示当前存储占用
+const storageUnsupported = ref(null);    // 'insecure' | 'no-api' | null（配额 API 不可用原因）
 // 用户主动忽略本次新版本提示后，不再弹（直到下次出新版本）
 const swUpdateDismissed = ref(false);
 let unsubOnline, unsubSwUpdate, unsubOfflineReady, unsubQuotaWarn;
@@ -186,7 +181,7 @@ watch(showSettings, (open) => {
     lastFocusedEl = document.activeElement;
     telA.value = isAEnabled(); telB.value = isBEnabled(); loadScheduler();
     // P3-2 打开设置面板时刷新存储占用，让用户看到实时数据
-    getStorageEstimate().then(e => { storageEstimate.value = e; });
+    getStorageEstimate().then(e => { storageEstimate.value = e; storageUnsupported.value = e && e.unsupported || null; });
     // 焦点移入弹窗（键盘 / 读屏用户可达），关闭时还原到触发元素
     nextTick(() => settingsModal.value?.focus());
   } else if (lastFocusedEl && lastFocusedEl.focus) {
@@ -338,7 +333,7 @@ onMounted(() => {
     toast(`本地存储已用 ${info.usagePercent}%，建议导出备份后清理旧数据`, 'warn');
   });
   // 启动时尝试申请持久化存储（避免浏览器在 quota 紧张时回收 IndexedDB）
-  requestPersistentStorage().then(() => { getStorageEstimate().then(e => { storageEstimate.value = e; }); });
+  requestPersistentStorage().then(() => { getStorageEstimate().then(e => { storageEstimate.value = e; storageUnsupported.value = e && e.unsupported || null; }); });
 });
 onBeforeUnmount(() => {
   window.removeEventListener('beforeinstallprompt', onBeforeInstall);
@@ -450,12 +445,6 @@ async function enableReminder() {
     </div>
     <NavBar :variant="theme.style === 'custom' ? 'focus' : theme.style" :navItems="navItems" :coreNavs="coreNavs" :hasCoreSetting="hasCoreSetting" />
 
-    <!-- 多用户（档案）：当前档案 + 切换/新建入口 -->
-    <div class="user-strip no-print">
-      <span class="us-cur">👤 当前档案：<b>{{ curUserName }}</b></span>
-      <button class="pwa-act" @click="openUserMgr">切换 / 新建档案</button>
-    </div>
-
     <main class="app-main">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
@@ -475,9 +464,6 @@ async function enableReminder() {
     <PlanReminderLayer />
     <Intro v-if="showIntro" @done="onIntroEnd" />
     <Guide v-if="showGuide" @done="onGuideEnd" />
-
-    <!-- 多用户（档案）管理弹窗 -->
-    <UserManager ref="userMgr" />
 
     <!-- 设置面板：标签页组织（外观 / 提醒与监控 / 学习引擎 / 导航 / 存储） -->
     <teleport to="body">
@@ -578,7 +564,7 @@ async function enableReminder() {
             <el-tab-pane label="💾 存储" name="storage">
               <div class="field-label">离线与存储</div>
               <div class="hint" style="margin-bottom:8px">应用已注册为 PWA，可「装到桌面」断网使用。本地数据保存在浏览器 IndexedDB。</div>
-              <div v-if="storageEstimate" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <div v-if="storageEstimate && !storageEstimate.unsupported" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
                 <el-progress
                   :percentage="Math.round(storageEstimate.usagePercent)"
                   :stroke-width="14"
@@ -587,8 +573,14 @@ async function enableReminder() {
                 />
                 <span class="storage-text" style="white-space:nowrap">{{ fmtBytes(storageEstimate.usage) }} / {{ fmtBytes(storageEstimate.quota) }} · {{ storageEstimate.usagePercent }}%</span>
               </div>
+              <div v-else-if="storageUnsupported === 'insecure'" class="hint">
+                当前通过<strong>局域网 / 非 HTTPS</strong>地址访问，浏览器禁用了存储配额 API，故无法显示精确占用。<br/>
+                本地数据仍正常保存（不受影响）；用 <code>localhost</code> 或 <code>https://</code> 打开即可查看精确配额。
+              </div>
               <div v-else class="hint">当前浏览器不支持存储配额查询。</div>
               <div class="hint" v-if="swOfflineReady" style="color:var(--accent)">✓ 离线缓存已就绪，断网可正常打开与复习</div>
+
+              <ResetAllData />
             </el-tab-pane>
           </el-tabs>
 
@@ -657,11 +649,4 @@ async function enableReminder() {
 .core-nav-item.on { border-color: var(--accent); background: var(--code-inline); }
 .core-nav-icon { font-size: 16px; }
 @media (max-width: 720px) { .core-nav-grid { grid-template-columns: repeat(3, 1fr); } }
-
-/* 多用户（档案）条：置于导航栏下方，右对齐当前档案 + 入口 */
-.user-strip { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: 13px; flex-wrap: wrap; }
-.user-strip .us-cur { color: var(--ink-2); }
-.user-strip .us-cur b { color: var(--ink); }
-.user-strip .pwa-act { margin-left: 0; background: rgba(0,0,0,.06); color: inherit; }
-@media (max-width: 720px) { .user-strip { font-size: 12px; } }
 </style>

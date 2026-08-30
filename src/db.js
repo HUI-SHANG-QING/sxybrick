@@ -228,46 +228,20 @@ d.version(23).stores({
 defineSchema(instances.real);
 defineSchema(instances.test);
 
-// ---------- 多用户（档案）隔离：每用户一个独立 Dexie 库 ----------
-// 设计要点：
-//  - default 用户复用实例库 'sxybrick'（历史 2591 张卡等旧数据自然归属 default，不丢）。
-//  - 新建用户 → 'sxybrick_<userId>' 独立库，物理隔离、互不可见，删除=删库零残留。
-//  - 演示模式('test') 与多用户正交：test 始终指向 sxybrick-test，忽略具体用户。
-//  - 业务层全部 `import { db }`（live binding），切换用户/模式后自动跟随，零改动。
-//  - 当前用户 id 存 localStorage（单机本地优先，无密码鉴权，登录=切换档案）。
-const CURRENT_USER_KEY = 'sxy_current_user';
-const userDbs = new Map(); // userId -> Dexie 实例（惰性创建并应用全量 schema）
-
-/** 取（惰性创建）某用户的 Dexie 实例。userId 缺省/‘default’ → 实例库。 */
-export function getUserDb(userId) {
-  if (!userId || userId === 'default') return instances.real;
-  const key = `u_${userId}`;
-  if (!userDbs.has(key)) {
-    const d = new Dexie(`${REAL_DB_NAME}_${userId}`);
-    defineSchema(d);
-    d._sxyUserId = userId;
-    userDbs.set(key, d);
-  }
-  return userDbs.get(key);
-}
-
-/** 当前 localStorage 中的用户 id（缺省 'default'）。 */
-export function currentUserId() {
-  return (typeof localStorage !== 'undefined' && localStorage.getItem(CURRENT_USER_KEY)) || 'default';
-}
-
 // ---------- 当前实例（ESM live binding：重赋值后所有 import { db } 自动跟随） ----------
+// 单用户本地库：无多档案体系。所有数据归属唯一实例库 'sxybrick'（测试数据走 sxybrick-test）。
+// 「清空全部数据」功能见 stores/reset.js（清空当前实例库 + 删除本地存储标记），不做删库级隔离。
 let _mode = (typeof localStorage !== 'undefined' && localStorage.getItem(MODE_KEY) === 'test') ? 'test' : 'real';
-export let db = _mode === 'test' ? instances.test : getUserDb(currentUserId());
+export let db = _mode === 'test' ? instances.test : instances.real;
 
-/** 切换数据库实例（演示模式 / 多用户档案）。返回新实例。 */
-export function setDbInstance(mode, userId) {
+/** 切换数据库实例（仅演示模式 test / 真实 real）。返回新实例。 */
+export function setDbInstance(mode) {
   if (mode === 'test') {
     _mode = 'test';
     db = instances.test;
   } else {
     _mode = 'real';
-    db = getUserDb(userId || currentUserId());
+    db = instances.real;
   }
   return db;
 }
@@ -276,8 +250,6 @@ export function setDbInstance(mode, userId) {
 export function currentDbMode() {
   return _mode;
 }
-
-export { CURRENT_USER_KEY };
 
 /**
  * 取当前实例（函数形式）——测试里 `const { db } = await import()` 解构拿到的是值快照，
