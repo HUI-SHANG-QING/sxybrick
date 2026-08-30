@@ -14,6 +14,7 @@ import { getAIConfig, hasAIKey } from '../ai.js';
 import { runAnalysis } from '../analysis/link-engine.js';
 import { normalizeGraphEnds } from '../algorithms/graph-resolve.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+import { t } from '../i18n/index.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -39,9 +40,9 @@ async function addCardById() {
   const kw = addFilter.value.trim();
   if (!kw) return;
   const hit = (await db.cards.filter(c => (c.front || '').includes(kw) || (c.back || '').includes(kw)).limit(5)).toArray();
-  if (!hit.length) return toast('未找到匹配卡片', 'info');
+  if (!hit.length) return toast(t('views.cardLinkAnalysis.toastNoMatchCard'), 'info');
   const missing = hit.filter(c => !cards.value.some(x => x.id === c.id));
-  if (!missing.length) return toast('已在列表中', 'info');
+  if (!missing.length) return toast(t('views.cardLinkAnalysis.toastInList'), 'info');
   cards.value = [...cards.value, ...missing];
   addFilter.value = '';
 }
@@ -107,10 +108,10 @@ async function deleteSession(s) {
     const msgs = await db.analysisMessages.where('sessionId').equals(s.id).toArray();
     await db.analysisMessages.where('sessionId').equals(s.id).delete();
     await db.analysisSessions.delete(s.id);
-    const t = Date.now();
+    const nowTs = Date.now();
     await db.tombstones.bulkPut([
-      ...msgs.map(m => ({ id: m.id, kind: 'analysisMessage', deletedAt: t })),
-      { id: s.id, kind: 'analysisSession', deletedAt: t },
+      ...msgs.map(m => ({ id: m.id, kind: 'analysisMessage', deletedAt: nowTs })),
+      { id: s.id, kind: 'analysisSession', deletedAt: nowTs },
     ]);
   });
   if (currentSession.value?.id === s.id) { currentSession.value = null; messages.value = []; }
@@ -119,18 +120,18 @@ async function deleteSession(s) {
 
 // ---------- 分析执行 ----------
 const PRESETS = [
-  { key: 'graph', label: '🕸 关系图谱' },
-  { key: 'topo', label: '🧭 拓扑排序' },
-  { key: 'critical', label: '🎯 关键路径' },
-  { key: 'common', label: '🔍 共同知识点' },
-  { key: 'path', label: '📋 学习顺序' },
-  { key: 'compare', label: '⚖️ 对比前两张' },
+  { key: 'graph' },
+  { key: 'topo' },
+  { key: 'critical' },
+  { key: 'common' },
+  { key: 'path' },
+  { key: 'compare' },
 ];
 
 async function runPreset(key) {
   await ensureSession();
   const s = currentSession.value;
-  const userMsg = { id: uid(), sessionId: s.id, role: 'user', question: `预设：${PRESETS.find(p => p.key === key)?.label || key}`, resultType: null, resultData: null, engine: null, t: Date.now() };
+  const userMsg = { id: uid(), sessionId: s.id, role: 'user', question: `${t('views.cardLinkAnalysis.presetPrefix')}${t('views.cardLinkAnalysis.preset.' + key) || key}`, resultType: null, resultData: null, engine: null, t: Date.now() };
   await db.analysisMessages.add(userMsg);
   messages.value.push(userMsg);
 
@@ -139,7 +140,7 @@ async function runPreset(key) {
     const result = await runAnalysis(cards.value, { preset: key, mode: mode.value }, getAIConfig(), {});
     await pushResult(result, userMsg.question);
   } catch (e) {
-    await pushResult({ type: 'text', data: { text: `分析失败：${e.message || e}` }, engine: 'local' }, userMsg.question);
+    await pushResult({ type: 'text', data: { text: t('views.cardLinkAnalysis.analysisFailed') + (e.message || e) }, engine: 'local' }, userMsg.question);
   } finally {
     busy.value = false;
   }
@@ -163,7 +164,7 @@ async function ask() {
     const result = await runAnalysis(cards.value, { question: q, mode: mode.value, history }, getAIConfig(), {});
     await pushResult(result, q);
   } catch (e) {
-    await pushResult({ type: 'text', data: { text: `分析失败：${e.message || e}` }, engine: 'local' }, q);
+    await pushResult({ type: 'text', data: { text: t('views.cardLinkAnalysis.analysisFailed') + (e.message || e) }, engine: 'local' }, q);
   } finally {
     busy.value = false;
   }
@@ -193,14 +194,14 @@ async function createGroupFromResult() {
   // 把 timeline/list/拓扑序（graph.order）结果按顺序建为卡组（临时复习卡组）
   const m = messages.value.filter(x => x.role === 'assistant' && (x.resultType === 'timeline' || x.resultType === 'list' || (x.resultType === 'graph' && x.resultData?.order)))
     .pop();
-  if (!m) return toast('当前没有可建组的顺序结果', 'info');
+  if (!m) return toast(t('views.cardLinkAnalysis.toastNoOrder'), 'info');
   const d = m.resultData;
   const ids = (d.steps || d.items || d.order || (Array.isArray(d) ? d : [])).map ? (d.steps || d.items || d.order || []).map(x => x.id ?? x) : [];
   const valid = ids.filter(id => cards.value.some(c => c.id === id));
-  if (!valid.length) return toast('结果中没有可用卡片', 'info');
+  if (!valid.length) return toast(t('views.cardLinkAnalysis.toastNoValidCards'), 'info');
   const g = await createCardGroup({ name: `分析顺序 · ${new Date().toLocaleDateString()}`, status: 'active' });
   await import('../repo.js').then(r => r.setCardGroups(valid, [g.id], []));
-  toast(`已创建卡组并放入 ${valid.length} 张卡（按结果顺序）`, 'success');
+  toast(t('views.cardLinkAnalysis.toastGroupCreated', undefined, { n: valid.length }), 'success');
 }
 
 // ---------- ECharts 图谱（卸载必 dispose） ----------
@@ -257,7 +258,7 @@ function graphOption(d) {
       lineStyle: { width: 2, opacity: 0.7, color: '#888', curveness: 0.04 },
     }));
     return {
-      tooltip: { formatter: p => p.dataType === 'edge' ? '学习顺序 →' : (p.data?.name || '') },
+      tooltip: { formatter: p => p.dataType === 'edge' ? t('views.cardLinkAnalysis.graphEdgeTopo') : (p.data?.name || '') },
       series: [{
         type: 'graph', layout: 'none', roam: true, draggable: true,
         data: nodes, links: edges,
@@ -366,26 +367,26 @@ onBeforeUnmount(() => {
   <div class="page al-page">
     <div class="page-head">
       <div>
-        <h1>🔗 卡片联动分析</h1>
-        <div class="hint">预设一键分析 或 自由提问；本地模式离线可用，AI 模式失败自动降级。</div>
+        <h1>{{ t('views.cardLinkAnalysis.title') }}</h1>
+        <div class="hint">{{ t('views.cardLinkAnalysis.subtitle') }}</div>
       </div>
       <div class="mode-row">
         <select v-model="mode" class="input" style="width:auto">
-          <option value="auto">自动（有密钥用 AI）</option>
-          <option value="local">本地模式（离线）</option>
-          <option value="ai" :disabled="!aiReady">AI 模式</option>
+          <option value="auto">{{ t('views.cardLinkAnalysis.modeAuto') }}</option>
+          <option value="local">{{ t('views.cardLinkAnalysis.modeLocal') }}</option>
+          <option value="ai" :disabled="!aiReady">{{ t('views.cardLinkAnalysis.modeAi') }}</option>
         </select>
-        <span v-if="!aiReady" class="hint">未配置 AI 密钥</span>
-        <button class="btn" @click="newSession">＋ 新会话</button>
+        <span v-if="!aiReady" class="hint">{{ t('views.cardLinkAnalysis.noAiKey') }}</span>
+        <button class="btn" @click="newSession">{{ t('views.cardLinkAnalysis.newSessionBtn') }}</button>
       </div>
     </div>
 
     <div class="al-layout">
       <!-- 左：已选卡片 -->
       <aside class="al-side">
-        <div class="side-title">已选卡片（{{ cards.length }}）</div>
+        <div class="side-title">{{ t('views.cardLinkAnalysis.selectedCards', undefined, { n: cards.length }) }}</div>
         <div class="side-add">
-          <input v-model="addFilter" class="input" placeholder="按内容搜卡加入…" @keyup.enter="addCardById" />
+          <input v-model="addFilter" class="input" :placeholder="t('views.cardLinkAnalysis.addPlaceholder')" @keyup.enter="addCardById" />
           <button class="btn" @click="addCardById">＋</button>
         </div>
         <div class="side-list">
@@ -393,60 +394,59 @@ onBeforeUnmount(() => {
             <div class="side-text" :title="c.front">
               {{ (c.front || '').slice(0, 26) }}{{ (c.front || '').length > 26 ? '…' : '' }}
             </div>
-            <button class="mini-x" @click="removeCard(c.id)" title="移除">✕</button>
+            <button class="mini-x" @click="removeCard(c.id)" :title="t('views.cardLinkAnalysis.removeTitle')">✕</button>
           </div>
-          <div v-if="!cards.length" class="hint">从「卡片」页多选后点「联动分析」进入，或在上方搜索加入。</div>
+          <div v-if="!cards.length" class="hint">{{ t('views.cardLinkAnalysis.emptyCardsHint') }}</div>
         </div>
         <div class="side-sessions">
-          <div class="side-title">历史会话（同步）</div>
+          <div class="side-title">{{ t('views.cardLinkAnalysis.historySessions') }}</div>
           <div v-for="s in sessions" :key="s.id" class="sess-row" :class="{ on: currentSession?.id === s.id }" @click="openSession(s)">
             <span class="sess-name">{{ s.title }}</span>
-            <button class="mini-x" @click.stop="deleteSession(s)" title="删除会话">✕</button>
+            <button class="mini-x" @click.stop="deleteSession(s)" :title="t('views.cardLinkAnalysis.deleteSessionTitle')">✕</button>
           </div>
-          <div v-if="!sessions.length" class="hint">暂无</div>
+          <div v-if="!sessions.length" class="hint">{{ t('views.cardLinkAnalysis.noSessions') }}</div>
         </div>
       </aside>
 
       <!-- 中：对话/结果 -->
       <main class="al-main">
-        <div v-if="busy" class="hint busy">分析中…（本地即时；AI 约 5-20s）</div>
+        <div v-if="busy" class="hint busy">{{ t('views.cardLinkAnalysis.busyHint') }}</div>
         <div v-else-if="!messages.length" class="hint empty-hint">
-          点下方快捷按钮开始，或直接输入问题，例如：
-          「这些卡片之间有什么联系？」「哪张是前置知识？」「帮我排个复习顺序」
+          {{ t('views.cardLinkAnalysis.emptyHint') }}
         </div>
         <template v-else>
           <div v-for="m in messages" :key="m.id" class="msg" :class="m.role">
             <div class="msg-head">
-              <span class="msg-role">{{ m.role === 'user' ? '🙋 你' : `🤖 ${m.engine === 'ai' ? 'AI' : m.engine === 'fallback' ? '本地(降级)' : '本地'}` }}</span>
+              <span class="msg-role">{{ m.role === 'user' ? t('views.cardLinkAnalysis.roleYou') : (m.engine === 'ai' ? t('views.cardLinkAnalysis.roleAi') : m.engine === 'fallback' ? t('views.cardLinkAnalysis.roleFallback') : t('views.cardLinkAnalysis.roleLocal')) }}</span>
               <span v-if="m.role === 'assistant' && m.note" class="msg-note">{{ m.note }}</span>
             </div>
             <div v-if="m.role === 'user'" class="msg-q">{{ m.question }}</div>
             <template v-else>
               <!-- graph -->
               <div v-if="m.resultType === 'graph'" class="al-graph" :ref="el => registerGraph(el)"></div>
-              <button v-if="m.resultType === 'graph' && m.resultData?.order" class="btn mini-btn" @click="createGroupFromResult">🎴 按此顺序创建复习卡组</button>
+              <button v-if="m.resultType === 'graph' && m.resultData?.order" class="btn mini-btn" @click="createGroupFromResult">{{ t('views.cardLinkAnalysis.createGroupBtn') }}</button>
               <!-- timeline -->
               <div v-else-if="m.resultType === 'timeline'" class="timeline">
                 <div v-for="s in (m.resultData?.steps || [])" :key="s.step" class="tl-item">
                   <span class="tl-step">{{ s.step }}</span>
                   <span class="tl-text">{{ s.front || s.title || s.detail }}</span>
-                  <span v-if="s.weak" class="tl-weak">薄弱</span>
+                  <span v-if="s.weak" class="tl-weak">{{ t('views.cardLinkAnalysis.weak') }}</span>
                 </div>
-                <button class="btn mini-btn" @click="createGroupFromResult">🎴 按此顺序创建复习卡组</button>
+                <button class="btn mini-btn" @click="createGroupFromResult">{{ t('views.cardLinkAnalysis.createGroupBtn') }}</button>
               </div>
               <!-- list -->
               <div v-else-if="m.resultType === 'list'" class="res-list">
                 <div v-for="(it, i) in (m.resultData?.items || normalizeList(m.resultData))" :key="i" class="res-item">
                   <b>{{ it.term || it.title || it.rank && `#${it.rank}` || '' }}</b>
-                  <span v-if="it.cards" class="hint">{{ it.cards }} 张卡</span>
+                  <span v-if="it.cards" class="hint">{{ t('views.cardLinkAnalysis.cardsCount', undefined, { n: it.cards }) }}</span>
                   <span v-if="it.front" class="res-front">{{ it.front }}</span>
                   <span v-if="it.detail" class="res-detail">{{ it.detail }}</span>
                   <template v-if="it.text"><MarkdownRenderer :content="it.text" /></template>
                 </div>
-                <button v-if="m.resultData?.steps || isPathList(m.resultData)" class="btn mini-btn" @click="createGroupFromResult">🎴 按此顺序创建复习卡组</button>
+                <button v-if="m.resultData?.steps || isPathList(m.resultData)" class="btn mini-btn" @click="createGroupFromResult">{{ t('views.cardLinkAnalysis.createGroupBtn') }}</button>
               </div>
               <!-- text -->
-              <div v-else class="msg-text"><MarkdownRenderer :content="m.resultData?.text || '(无内容)'" /></div>
+              <div v-else class="msg-text"><MarkdownRenderer :content="m.resultData?.text || t('views.cardLinkAnalysis.noContent')" /></div>
             </template>
           </div>
         </template>
@@ -457,12 +457,12 @@ onBeforeUnmount(() => {
     <!-- 底：输入 + 预设 -->
     <div class="al-inputbar">
       <div class="preset-row">
-        <button v-for="p in PRESETS" :key="p.key" class="chip" :disabled="busy || !cards.length" @click="runPreset(p.key)">{{ p.label }}</button>
+        <button v-for="p in PRESETS" :key="p.key" class="chip" :disabled="busy || !cards.length" @click="runPreset(p.key)">{{ t('views.cardLinkAnalysis.preset.' + p.key) }}</button>
       </div>
       <div class="ask-row">
-        <input v-model="question" class="input" placeholder="自由提问，例如：如果我要用这些卡片准备考试，应该先复习什么？"
+        <input v-model="question" class="input" :placeholder="t('views.cardLinkAnalysis.askPlaceholder')"
                :disabled="busy || !cards.length" @keyup.enter="ask" />
-        <button class="btn primary" :disabled="busy || !cards.length || !question.trim()" @click="ask">提问</button>
+        <button class="btn primary" :disabled="busy || !cards.length || !question.trim()" @click="ask">{{ t('views.cardLinkAnalysis.askBtn') }}</button>
       </div>
     </div>
   </div>

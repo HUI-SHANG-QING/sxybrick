@@ -161,7 +161,7 @@ onMounted(async () => {
           <option value="">{{ t('views.agentWorkbench.autoRoute') }}</option>
           <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
         </select>
-        <button class="chip" @click="showTools = !showTools">{{ t('views.agentWorkbench.toolsBtn', { n: tools.length }) }}</button>
+        <button class="chip" @click="showTools = !showTools">{{ t('views.agentWorkbench.toolsBtn', undefined, { n: tools.length }) }}</button>
         <button class="chip" @click="demoExtend">{{ t('views.agentWorkbench.extendBtn') }}</button>
         <button class="chip" @click="clearChat">{{ t('views.agentWorkbench.clearChatBtn') }}</button>
         <button class="chip" @click="showUsage = !showUsage">{{ t('views.agentWorkbench.usageBtn') }}</button>
@@ -173,7 +173,7 @@ onMounted(async () => {
       <aside class="wb-side no-print">
         <div v-if="showUsage" class="usage-panel">
           <div class="side-title">
-            {{ t('views.agentWorkbench.usageTitle', { n: usageDays }) }}
+            {{ t('views.agentWorkbench.usageTitle', undefined, { n: usageDays }) }}
             <a style="float:right;color:var(--red);cursor:pointer" @click="resetUsage">{{ t('views.agentWorkbench.usageClear') }}</a>
           </div>
           <div v-if="!usage || !usage.calls" class="hint" style="padding:4px 0">
@@ -194,7 +194,7 @@ onMounted(async () => {
           </template>
         </div>
 
-        <div class="side-title" style="margin-top:{{ showUsage ? '14px' : '0' }}">{{ t('views.agentWorkbench.agentsTitle', { n: agents.length }) }}</div>
+        <div class="side-title" style="margin-top:{{ showUsage ? '14px' : '0' }}">{{ t('views.agentWorkbench.agentsTitle', undefined, { n: agents.length }) }}</div>
         <div
           v-for="a in agents"
           :key="a.id"
@@ -211,7 +211,7 @@ onMounted(async () => {
         </div>
 
         <div v-if="showTools" style="margin-top:14px">
-          <div class="side-title">{{ t('views.agentWorkbench.toolsTitle', { n: tools.length }) }}</div>
+          <div class="side-title">{{ t('views.agentWorkbench.toolsTitle', undefined, { n: tools.length }) }}</div>
           <div v-for="tool in tools" :key="tool.name" class="tool-item">
             <div class="tool-name">
               {{ tool.name }}
@@ -247,8 +247,8 @@ onMounted(async () => {
       <aside class="wb-trace no-print">
         <div class="side-title">
           {{ t('views.agentWorkbench.traceTitle') }}
-          <span v-if="counts[TraceKind.THOUGHT]" class="mini">{{ t('views.agentWorkbench.tThoughtMini', { n: counts[TraceKind.THOUGHT] }) }}</span>
-          <span v-if="counts[TraceKind.TOOL_CALL]" class="mini">{{ t('views.agentWorkbench.tToolMini', { n: counts[TraceKind.TOOL_CALL] }) }}</span>
+          <span v-if="counts[TraceKind.THOUGHT]" class="mini">{{ t('views.agentWorkbench.tThoughtMini', undefined, { n: counts[TraceKind.THOUGHT] }) }}</span>
+          <span v-if="counts[TraceKind.TOOL_CALL]" class="mini">{{ t('views.agentWorkbench.tToolMini', undefined, { n: counts[TraceKind.TOOL_CALL] }) }}</span>
           <a style="float:right;color:var(--red);cursor:pointer" @click="clearTrace">{{ t('views.agentWorkbench.traceClear') }}</a>
         </div>
         <div v-if="!traceNodes.length" class="hint" style="padding:8px">{{ t('views.agentWorkbench.traceEmpty') }}</div>

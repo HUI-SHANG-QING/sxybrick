@@ -55,12 +55,12 @@ async function startRemediation(c, withCards = false) {
     const r = await smartRemediation(c.id, opt);
     remediation.value = r;
     if (withCards && r.variantCards?.length) {
-      toast(t('views.wrongBook.remediationDoneCards', { n: r.variantCards.length, m: r.graphLinks.length }), 'success');
+      toast(t('views.wrongBook.remediationDoneCards', undefined, { n: r.variantCards.length, m: r.graphLinks.length }), 'success');
     } else {
-      toast(t('views.wrongBook.remediationDoneLinks', { m: r.graphLinks.length }), 'success');
+      toast(t('views.wrongBook.remediationDoneLinks', undefined, { m: r.graphLinks.length }), 'success');
     }
     await load();
-  } catch (e) { toast(t('views.wrongBook.remediationFail', { msg: e.message }), 'error'); }
+  } catch (e) { toast(t('views.wrongBook.remediationFail', undefined, { msg: e.message }), 'error'); }
   finally { remediationBusy.value.delete(c.id); }
 }
 
@@ -134,7 +134,7 @@ async function dueNow(card) {
 function reason(c) {
   if (c.wrongReason) return c.wrongReason;
   if (c.marked) return t('views.wrongBook.reasonMarked');
-  return t('views.wrongBook.reasonForgotten', { n: c.failCount || 0 });
+  return t('views.wrongBook.reasonForgotten', undefined, { n: c.failCount || 0 });
 }
 
 // AI 变式补卡：针对错题生成同考点变式，写入卡片库（错题→补卡闭环，smart-reviewer 思路的按钮化）
@@ -158,8 +158,8 @@ async function genVariant(c) {
       type: 'basic',
       source: '错题智能补卡',
     });
-    toast(t('views.wrongBook.variantGenDone', { q: String(obj.front).slice(0, 24) }), 'success');
-  } catch (e) { toast(t('views.wrongBook.genFail', { msg: e.message }), 'error'); }
+    toast(t('views.wrongBook.variantGenDone', undefined, { q: String(obj.front).slice(0, 24) }), 'success');
+  } catch (e) { toast(t('views.wrongBook.genFail', undefined, { msg: e.message }), 'error'); }
   finally { genBusy.value.delete(c.id); }
 }
 
@@ -173,7 +173,7 @@ async function genTop5() {
   let n = 0;
   for (const c of targets) { await genVariant(c); n++; }
   batchBusy.value = false;
-  toast(t('views.wrongBook.genTop5Done', { n }), 'success');
+  toast(t('views.wrongBook.genTop5Done', undefined, { n }), 'success');
   await load();
 }
 
@@ -184,7 +184,7 @@ onMounted(async () => { loading.value = true; try { await Promise.all([load(), l
   <div style="max-width:820px;margin:0 auto" v-loading="loading" :element-loading-text="t('views.wrongBook.loading')">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <h2 style="margin:0">{{ t('views.wrongBook.title') }}</h2>
-      <span class="hint">{{ t('views.wrongBook.countHint', { n: filteredItems.length }) }}</span>
+      <span class="hint">{{ t('views.wrongBook.countHint', undefined, { n: filteredItems.length }) }}</span>
       <span style="flex:1"></span>
       <button class="btn small" :disabled="batchBusy" @click="genTop5">{{ batchBusy ? t('views.wrongBook.genTop5Busy') : t('views.wrongBook.genTop5Btn') }}</button>
       <select v-model="filterSubject" class="input" style="width:auto" @change="load">
@@ -247,7 +247,7 @@ onMounted(async () => { loading.value = true; try { await Promise.all([load(), l
           <div class="rm-section-title">{{ t('views.wrongBook.diagTitle') }}</div>
           <div>{{ remediation.diagnosis.summary }}</div>
           <div class="hint" style="margin-top:4px">
-            {{ t('views.wrongBook.recentReview', { fail: remediation.diagnosis.failCount, fuzzy: remediation.diagnosis.fuzzyCount, rate: Math.round(remediation.diagnosis.failRate * 100) }) }}<span v-if="remediation.diagnosis.wrongReason">{{ t('views.wrongBook.wrongReasonPrefix') }}{{ remediation.diagnosis.wrongReason }}</span>
+            {{ t('views.wrongBook.recentReview', undefined, { fail: remediation.diagnosis.failCount, fuzzy: remediation.diagnosis.fuzzyCount, rate: Math.round(remediation.diagnosis.failRate * 100) }) }}<span v-if="remediation.diagnosis.wrongReason">{{ t('views.wrongBook.wrongReasonPrefix') }}{{ remediation.diagnosis.wrongReason }}</span>
           </div>
         </div>
         <div class="rm-section">
@@ -256,14 +256,14 @@ onMounted(async () => { loading.value = true; try { await Promise.all([load(), l
           <button class="btn small primary" @click="goFeynman">{{ t('views.wrongBook.goFeynmanBtn') }}</button>
         </div>
         <div v-if="remediation.variantCards?.length" class="rm-section">
-          <div class="rm-section-title">{{ t('views.wrongBook.variantCardsTitle', { n: remediation.variantCards.length }) }}</div>
+          <div class="rm-section-title">{{ t('views.wrongBook.variantCardsTitle', undefined, { n: remediation.variantCards.length }) }}</div>
           <div v-for="(v, i) in remediation.variantCards" :key="i" class="rm-variant">
             <div v-if="!v.error"><b>{{ t('views.wrongBook.variantFront') }}</b>{{ v.front }} <span class="hint">→ {{ v.subject }}</span></div>
             <div v-else style="color:var(--red)">{{ v.error }}</div>
           </div>
         </div>
         <div v-if="remediation.graphLinks?.length" class="rm-section">
-          <div class="rm-section-title">{{ t('views.wrongBook.graphLinksTitle', { n: remediation.graphLinks.length }) }}</div>
+          <div class="rm-section-title">{{ t('views.wrongBook.graphLinksTitle', undefined, { n: remediation.graphLinks.length }) }}</div>
           <div v-for="(e, i) in remediation.graphLinks" :key="i" class="rm-edge">
             <span>{{ e.from }}</span>
             <span class="rm-rel">{{ e.label }}</span>

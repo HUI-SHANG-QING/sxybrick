@@ -67,9 +67,9 @@ async function linkBySubject() {
     const ids = all.items.map(c => c.id);
     if (!ids.length) { toast(t('views.plans.noCardsInSubject'), 'error'); return; }
     const n = await linkCardsToPlan(linkTarget.value.id, ids);
-    toast(t('views.plans.linkedCards', { n, subject: linkSubject.value }), 'success');
+    toast(t('views.plans.linkedCards', undefined, { n, subject: linkSubject.value }), 'success');
     await load();
-  } catch (e) { toast(t('views.plans.linkFail', { msg: e.message }), 'error'); }
+  } catch (e) { toast(t('views.plans.linkFail', undefined, { msg: e.message }), 'error'); }
   finally { linkBusy.value = false; }
 }
 
@@ -82,16 +82,16 @@ async function linkDueCards() {
     const ids = all.items.map(c => c.id);
     if (!ids.length) { toast(t('views.plans.noDueCards'), 'error'); return; }
     const n = await linkCardsToPlan(linkTarget.value.id, ids);
-    toast(t('views.plans.linkedDueCards', { n }), 'success');
+    toast(t('views.plans.linkedDueCards', undefined, { n }), 'success');
     await load();
-  } catch (e) { toast(t('views.plans.linkFail', { msg: e.message }), 'error'); }
+  } catch (e) { toast(t('views.plans.linkFail', undefined, { msg: e.message }), 'error'); }
   finally { linkBusy.value = false; }
 }
 
 async function enablePomoLink() {
   if (!linkTarget.value) return;
   const tag = await linkPlanToPomodoro(linkTarget.value.id);
-  toast(t('views.plans.pomoLinkOn', { tag }), 'success');
+  toast(t('views.plans.pomoLinkOn', undefined, { tag }), 'success');
   await load();
 }
 
@@ -99,8 +99,8 @@ async function refreshProgress() {
   if (!linkTarget.value) return;
   const p = await refreshPlanProgress(linkTarget.value.id);
   if (p) {
-    const pomo = p.pomoMinutes ? t('views.plans.pomoMinutes', { n: p.pomoMinutes }) : '';
-    toast(t('views.plans.refreshProgress', { reviewed: p.reviewed, total: p.total, pomo }), 'info');
+    const pomo = p.pomoMinutes ? t('views.plans.pomoMinutes', undefined, { n: p.pomoMinutes }) : '';
+    toast(t('views.plans.refreshProgress', undefined, { reviewed: p.reviewed, total: p.total, pomo }), 'info');
   }
   await load();
 }
@@ -122,7 +122,7 @@ async function save() {
     toast(t('views.plans.planCreated'), 'success');
   }
   showForm.value = false; await load();
-  } catch (e) { toast(t('views.plans.saveFail', { msg: e.message }), 'error'); }
+  } catch (e) { toast(t('views.plans.saveFail', undefined, { msg: e.message }), 'error'); }
 }
 async function setStatus(p, s) { await updatePlan(p.id, { status: s }); await load(); }
 async function remove(p) { if (!(await confirmDialog(t('views.plans.confirmDelete')))) return; await deletePlan(p.id); if (activeId.value === p.id) activeId.value = ''; await load(); }
@@ -136,9 +136,9 @@ async function runAutoPlan() {
     const p = await createPlan({ title: r.title, content: r.content, status: 'active' });
     autoMeta.value = r.meta;
     activeId.value = p.id;
-    toast(t('views.plans.autoPlanSaved', { title: r.title }), 'success');
+    toast(t('views.plans.autoPlanSaved', undefined, { title: r.title }), 'success');
     await load();
-  } catch (e) { toast(t('views.plans.genFail', { msg: e.message }), 'error'); }
+  } catch (e) { toast(t('views.plans.genFail', undefined, { msg: e.message }), 'error'); }
   finally { autoLoading.value = false; }
 }
 
@@ -161,10 +161,10 @@ onMounted(async () => { loading.value = true; try { await applyRouteId(); } fina
       <span style="flex:1"></span>
       <div style="display:flex;align-items:center;gap:6px">
         <select v-model.number="autoDays" class="input" style="width:auto">
-          <option :value="3">{{ t('views.plans.optDays', { n: 3 }) }}</option>
-          <option :value="7">{{ t('views.plans.optDays', { n: 7 }) }}</option>
-          <option :value="14">{{ t('views.plans.optDays', { n: 14 }) }}</option>
-          <option :value="30">{{ t('views.plans.optDays', { n: 30 }) }}</option>
+          <option :value="3">{{ t('views.plans.optDays', undefined, { n: 3 }) }}</option>
+          <option :value="7">{{ t('views.plans.optDays', undefined, { n: 7 }) }}</option>
+          <option :value="14">{{ t('views.plans.optDays', undefined, { n: 14 }) }}</option>
+          <option :value="30">{{ t('views.plans.optDays', undefined, { n: 30 }) }}</option>
         </select>
         <button class="btn small" :disabled="autoLoading" @click="runAutoPlan" :title="t('views.plans.autoGenTitle')">{{ autoLoading ? t('views.plans.genLoading') : t('views.plans.autoGenerate') }}</button>
       </div>
@@ -172,10 +172,10 @@ onMounted(async () => { loading.value = true; try { await applyRouteId(); } fina
     </div>
     <div v-if="autoMeta" class="auto-meta">
       <span>{{ t('views.plans.focusPrefix') }}<b>{{ autoMeta.focusSubject || t('views.plans.focusAll') }}</b></span>
-      <span>{{ t('views.plans.dailyLoad', { n: autoMeta.dailyDue }) }}</span>
-      <span>{{ t('views.plans.riskCount', { n: autoMeta.riskCount }) }}</span>
-      <span>{{ t('views.plans.weakCount', { n: autoMeta.weakCount }) }}</span>
-      <span v-if="autoMeta.graphUsed">{{ t('views.plans.graphEdges', { n: autoMeta.graphEdgesUsed }) }}</span>
+      <span>{{ t('views.plans.dailyLoad', undefined, { n: autoMeta.dailyDue }) }}</span>
+      <span>{{ t('views.plans.riskCount', undefined, { n: autoMeta.riskCount }) }}</span>
+      <span>{{ t('views.plans.weakCount', undefined, { n: autoMeta.weakCount }) }}</span>
+      <span v-if="autoMeta.graphUsed">{{ t('views.plans.graphEdges', undefined, { n: autoMeta.graphEdgesUsed }) }}</span>
     </div>
 
     <div class="plans-body">
@@ -209,8 +209,8 @@ onMounted(async () => { loading.value = true; try { await applyRouteId(); } fina
               <div class="plan-progress-head">
                 <span class="hint">{{ t('views.plans.reviewProgress') }}</span>
                 <span style="flex:1"></span>
-                <span class="hint">{{ t('views.plans.progressCount', { reviewed: p.progress.reviewed, total: p.progress.total, pct: p.progress.pct }) }}</span>
-                <span v-if="p.progress.pomoMinutes" class="hint" style="margin-left:8px">{{ t('views.plans.pomoMinutes', { n: p.progress.pomoMinutes }) }}</span>
+                <span class="hint">{{ t('views.plans.progressCount', undefined, { reviewed: p.progress.reviewed, total: p.progress.total, pct: p.progress.pct }) }}</span>
+                <span v-if="p.progress.pomoMinutes" class="hint" style="margin-left:8px">{{ t('views.plans.pomoMinutes', undefined, { n: p.progress.pomoMinutes }) }}</span>
               </div>
               <div class="plan-progress-bar">
                 <div class="plan-progress-fill" :style="{ width: p.progress.pct + '%' }"></div>
@@ -250,7 +250,7 @@ onMounted(async () => { loading.value = true; try { await applyRouteId(); } fina
           <div v-if="linkTarget.autoProgress" class="link-on-box">
             <span>{{ t('views.plans.linkOn') }}</span>
             <span v-if="linkTarget.progress" class="hint">
-              {{ t('views.plans.linkOnProgress', { reviewed: linkTarget.progress.reviewed, total: linkTarget.progress.total, pomo: linkTarget.progress.pomoMinutes || 0 }) }}
+              {{ t('views.plans.linkOnProgress', undefined, { reviewed: linkTarget.progress.reviewed, total: linkTarget.progress.total, pomo: linkTarget.progress.pomoMinutes || 0 }) }}
             </span>
             <span style="flex:1"></span>
             <button class="btn small" @click="refreshProgress">🔄 {{ t('views.plans.refreshBtn') }}</button>
@@ -259,7 +259,7 @@ onMounted(async () => { loading.value = true; try { await applyRouteId(); } fina
           <div style="display:flex;gap:8px;align-items:center">
             <select v-model="linkSubject" class="input" style="width:auto;flex:1">
               <option value="">{{ t('views.plans.selectSubject') }}</option>
-              <option v-for="s in subjects" :key="s.name" :value="s.name">{{ t('views.plans.subjectCount', { name: s.name, count: s.count }) }}</option>
+              <option v-for="s in subjects" :key="s.name" :value="s.name">{{ t('views.plans.subjectCount', undefined, { name: s.name, count: s.count }) }}</option>
             </select>
             <button class="btn small primary" :disabled="linkBusy || !linkSubject" @click="linkBySubject">{{ t('views.plans.linkBtn2') }}</button>
           </div>

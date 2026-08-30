@@ -58,9 +58,9 @@ async function startQuiz() {
     quizTitle.value = `${selSubjects.value.join('+') || '综合'} 生成式测验 ${new Date().toLocaleDateString()}`;
     phase.value = 'doing';
     const typeLabel = quizType.value === 'mixed' ? t('views.genQuiz.mixedTypes') : QUIZ_TYPES.find(item => item.code === quizType.value)?.label;
-    toast(t('views.genQuiz.generated', { n: qs.length, typeLabel }), 'success');
+    toast(t('views.genQuiz.generated', undefined, { n: qs.length, typeLabel }), 'success');
   } catch (e) {
-    toast(t('views.genQuiz.genFail', { msg: e?.message || e }), 'error');
+    toast(t('views.genQuiz.genFail', undefined, { msg: e?.message || e }), 'error');
   } finally {
     generating.value = false;
   }
@@ -79,7 +79,7 @@ async function submit() {
     if (q.type === 'choice') return a === -1 || a === undefined;
     return !String(a).trim();
   }).length;
-  if (unanswered > 0 && !(await confirmDialog(t('views.genQuiz.unansweredConfirm', { n: unanswered })))) return;
+  if (unanswered > 0 && !(await confirmDialog(t('views.genQuiz.unansweredConfirm', undefined, { n: unanswered })))) return;
   const g = graded.value;
   savedQuiz.value = await saveExam({
     title: quizTitle.value,
@@ -101,7 +101,7 @@ async function submit() {
   phase.value = 'result';
   await loadHistory();
   try { T.examEnd(score.value, g.length); } catch {}
-  toast(t('views.genQuiz.submitToast', { score: score.value, total: g.length }), score.value === g.length ? 'success' : 'info');
+  toast(t('views.genQuiz.submitToast', undefined, { score: score.value, total: g.length }), score.value === g.length ? 'success' : 'info');
 }
 
 // P2-2 闭环入口：把错题一键生成为卡片入复习队列（复用共享工具，与 Exam.vue 模考统一逻辑）
@@ -113,14 +113,14 @@ async function supplementWrongToCards() {
     if (!wrongs.length) { toast(t('views.genQuiz.noWrong'), 'info'); return; }
     const r = await wrongQuestionsToCards(wrongs, { tag: '生成式测验错题', source: '生成式测验-错题补卡' });
     if (r.created > 0) {
-      const msg = t('views.genQuiz.supplementDone', { n: r.created }) + (r.failed ? t('views.genQuiz.supplementFailSuffix', { failed: r.failed }) : '');
+      const msg = t('views.genQuiz.supplementDone', undefined, { n: r.created }) + (r.failed ? t('views.genQuiz.supplementFailSuffix', undefined, { failed: r.failed }) : '');
       toast(msg, 'success');
     } else {
-      const detail = r.failed ? t('views.genQuiz.supplementFailCount', { n: r.failed }) : t('views.genQuiz.unknownError');
-      toast(t('views.genQuiz.supplementFail', { detail }), 'error');
+      const detail = r.failed ? t('views.genQuiz.supplementFailCount', undefined, { n: r.failed }) : t('views.genQuiz.unknownError');
+      toast(t('views.genQuiz.supplementFail', undefined, { detail }), 'error');
     }
   } catch (e) {
-    toast(t('views.genQuiz.wrongCardFail', { msg: e?.message || e }), 'error');
+    toast(t('views.genQuiz.wrongCardFail', undefined, { msg: e?.message || e }), 'error');
   } finally {
     supplementBusy.value = false;
   }
@@ -234,7 +234,7 @@ function viewHistory(h) {
       </div>
       <div v-if="wrongList.length" style="margin:12px 0">
         <button class="btn primary" :disabled="supplementBusy" @click="supplementWrongToCards">
-          {{ supplementBusy ? t('views.genQuiz.supplementBusy') : t('views.genQuiz.supplementBtn', { n: wrongList.length }) }}
+          {{ supplementBusy ? t('views.genQuiz.supplementBusy') : t('views.genQuiz.supplementBtn', undefined, { n: wrongList.length }) }}
         </button>
         <span class="hint" style="margin-left:8px">{{ t('views.genQuiz.loopHint') }}</span>
       </div>
@@ -257,7 +257,7 @@ function viewHistory(h) {
         <div v-else class="grade-ans">
           <div><b>{{ t('views.genQuiz.ansYour') }}</b><span>{{ q.type === 'choice' ? (q.user >= 0 ? 'ABCD'[q.user] : t('views.genQuiz.ansNotPicked')) : (q.user || t('views.genQuiz.ansNotAnswered')) }}</span></div>
           <div><b>{{ t('views.genQuiz.ansRef') }}</b><span>{{ q.type === 'choice' ? 'ABCD'[q.answer] + '. ' + (q.options?.[q.answer] || '') : q.answer }}</span></div>
-          <div class="grade-cov">{{ t('views.genQuiz.covLine', { cov: q.cov, reason: q.reason }) }}</div>
+          <div class="grade-cov">{{ t('views.genQuiz.covLine', undefined, { cov: q.cov, reason: q.reason }) }}</div>
         </div>
         <div v-if="q.explanation" class="grade-explain"><b>{{ t('views.genQuiz.explain') }}</b>{{ q.explanation }}</div>
       </div>

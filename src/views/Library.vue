@@ -52,14 +52,14 @@ onMounted(async () => {
         {{ t('views.library.hero3') }}<b>{{ t('views.library.heroBold2') }}</b>{{ t('views.library.hero4') }}
       </p>
       <div class="hero-pills">
-        <span class="hero-pill">🗂️ {{ t('views.library.pillCards', { n: counts.cards }) }}</span>
-        <span class="hero-pill">📄 {{ t('views.library.pillDocs', { n: counts.docs }) }}</span>
-        <span class="hero-pill">🗺️ {{ t('views.library.pillMindmaps', { n: counts.mindmaps }) }}</span>
-        <span class="hero-pill">🧪 {{ t('views.library.pillExams', { n: counts.exams }) }}</span>
-        <span class="hero-pill">📝 {{ t('views.library.pillMemos', { n: counts.memos }) }}</span>
-        <span class="hero-pill">🏆 {{ t('views.library.pillAch', { unlocked, total: totalAch }) }}</span>
-        <span class="hero-pill">🔥 {{ t('views.library.pillStreak', { n: streak }) }}</span>
-        <span class="hero-pill">📖 {{ t('views.library.pillToday', { n: today }) }}</span>
+        <span class="hero-pill">🗂️ {{ t('views.library.pillCards', undefined, { n: counts.cards }) }}</span>
+        <span class="hero-pill">📄 {{ t('views.library.pillDocs', undefined, { n: counts.docs }) }}</span>
+        <span class="hero-pill">🗺️ {{ t('views.library.pillMindmaps', undefined, { n: counts.mindmaps }) }}</span>
+        <span class="hero-pill">🧪 {{ t('views.library.pillExams', undefined, { n: counts.exams }) }}</span>
+        <span class="hero-pill">📝 {{ t('views.library.pillMemos', undefined, { n: counts.memos }) }}</span>
+        <span class="hero-pill">🏆 {{ t('views.library.pillAch', undefined, { unlocked, total: totalAch }) }}</span>
+        <span class="hero-pill">🔥 {{ t('views.library.pillStreak', undefined, { n: streak }) }}</span>
+        <span class="hero-pill">📖 {{ t('views.library.pillToday', undefined, { n: today }) }}</span>
       </div>
       <div class="hint" style="margin-top:12px">{{ t('views.library.assetsLabel') }}<b style="color:var(--accent);font-size:16px">{{ totalAssets }}</b>{{ t('views.library.assetsSuffix') }}</div>
     </div>
@@ -68,10 +68,10 @@ onMounted(async () => {
     <div class="lib-section">
       <div class="lib-title">{{ t('views.library.shelfTitle') }}</div>
       <div class="shelf">
-        <div v-for="s in subjects" :key="s.name" class="book" :class="{ empty: !s.count }" :title="t('views.library.bookTitle', { name: s.name, count: s.count })" @click="router.push(`/cards?subject=${encodeURIComponent(s.name)}`)">
+        <div v-for="s in subjects" :key="s.name" class="book" :class="{ empty: !s.count }" :title="t('views.library.bookTitle', undefined, { name: s.name, count: s.count })" @click="router.push(`/cards?subject=${encodeURIComponent(s.name)}`)">
           <div class="book-spine" :style="{ background: `hsl(${(subjects.indexOf(s) * 47) % 360} 55% 45%)` }">{{ s.name.slice(0, 1) }}</div>
           <div class="book-name">{{ s.name }}</div>
-          <div class="book-n">{{ t('views.library.bookN', { n: s.count }) }}</div>
+          <div class="book-n">{{ t('views.library.bookN', undefined, { n: s.count }) }}</div>
         </div>
       </div>
     </div>
@@ -80,15 +80,15 @@ onMounted(async () => {
     <div class="lib-section">
       <div class="lib-title">{{ t('views.library.shortcutTitle') }}</div>
       <div class="shortcuts">
-        <div class="shortcut" @click="router.push('/cards')"><span class="sc-icon">🗂️</span><span>{{ t('views.library.scCards', { n: counts.cards }) }}</span></div>
+        <div class="shortcut" @click="router.push('/cards')"><span class="sc-icon">🗂️</span><span>{{ t('views.library.scCards', undefined, { n: counts.cards }) }}</span></div>
         <div class="shortcut" @click="router.push('/wrong')"><span class="sc-icon">❌</span><span>{{ t('views.library.scWrong') }}</span></div>
         <div class="shortcut" @click="router.push('/review')"><span class="sc-icon">🧠</span><span>{{ t('views.library.scReview') }}</span></div>
         <div class="shortcut" @click="router.push('/plans')"><span class="sc-icon">📋</span><span>{{ t('views.library.scPlans') }}</span></div>
-        <div class="shortcut" @click="router.push('/mindmap')"><span class="sc-icon">🗺️</span><span>{{ t('views.library.scMindmap', { n: counts.mindmaps }) }}</span></div>
-        <div class="shortcut" @click="router.push('/docs')"><span class="sc-icon">📄</span><span>{{ t('views.library.scDocs', { n: counts.docs }) }}</span></div>
+        <div class="shortcut" @click="router.push('/mindmap')"><span class="sc-icon">🗺️</span><span>{{ t('views.library.scMindmap', undefined, { n: counts.mindmaps }) }}</span></div>
+        <div class="shortcut" @click="router.push('/docs')"><span class="sc-icon">📄</span><span>{{ t('views.library.scDocs', undefined, { n: counts.docs }) }}</span></div>
         <div class="shortcut" @click="router.push('/graph')"><span class="sc-icon">🔗</span><span>{{ t('views.library.scGraph') }}</span></div>
-        <div class="shortcut" @click="router.push('/exam')"><span class="sc-icon">🧪</span><span>{{ t('views.library.scExam', { n: counts.exams }) }}</span></div>
-        <div class="shortcut" @click="router.push('/achievements')"><span class="sc-icon">🏆</span><span>{{ t('views.library.scAch', { unlocked, total: totalAch }) }}</span></div>
+        <div class="shortcut" @click="router.push('/exam')"><span class="sc-icon">🧪</span><span>{{ t('views.library.scExam', undefined, { n: counts.exams }) }}</span></div>
+        <div class="shortcut" @click="router.push('/achievements')"><span class="sc-icon">🏆</span><span>{{ t('views.library.scAch', undefined, { unlocked, total: totalAch }) }}</span></div>
         <div class="shortcut" @click="router.push('/health')"><span class="sc-icon">🩺</span><span>{{ t('views.library.scHealth') }}</span></div>
         <div class="shortcut" @click="router.push('/sync')"><span class="sc-icon">🔄</span><span>{{ t('views.library.scSync') }}</span></div>
       </div>

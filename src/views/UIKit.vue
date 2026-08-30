@@ -132,8 +132,8 @@
         </el-table-column>
         <el-table-column :label="t('views.uiKit.colAction')">
           <template #default="{ row }">
-            <el-button link type="primary" @click="toast(t('views.uiKit.toastReview', { subject: row.subject }))">{{ t('views.uiKit.actReview') }}</el-button>
-            <el-button link type="danger" @click="toast(t('views.uiKit.toastArchive', { subject: row.subject }), 'error')">{{ t('views.uiKit.actArchive') }}</el-button>
+            <el-button link type="primary" @click="toast(t('views.uiKit.toastReview', undefined, { subject: row.subject }))">{{ t('views.uiKit.actReview') }}</el-button>
+            <el-button link type="danger" @click="toast(t('views.uiKit.toastArchive', undefined, { subject: row.subject }), 'error')">{{ t('views.uiKit.actArchive') }}</el-button>
           </template>
         </el-table-column>
       </el-table>

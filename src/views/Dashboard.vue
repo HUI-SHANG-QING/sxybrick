@@ -48,7 +48,7 @@ function renderTrend() {
   const trend = stats.value.trend;
   trendChart.setOption({
     grid: { left: 28, right: 8, top: 8, bottom: 20 },
-    tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/>${t('views.dashboard.trendTip', { v: p[0].value })}` },
+    tooltip: { trigger: 'axis', formatter: p => `${p[0].name}<br/>${t('views.dashboard.trendTip', undefined, { v: p[0].value })}` },
     xAxis: { type: 'category', data: trend.map(x => x.date), axisLabel: { color: '#888', fontSize: 10 } },
     yAxis: { type: 'value', axisLabel: { color: '#888', fontSize: 10 }, splitLine: { lineStyle: { color: 'var(--line)' } } },
     series: [{ type: 'bar', data: trend.map(x => x.count), itemStyle: { color: '#4a9eff', borderRadius: [3, 3, 0, 0] } }],
@@ -182,7 +182,7 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
       <div class="ds-heat">
         <span v-for="c in heatCells" :key="c.key" class="ds-heat-cell"
           :style="{ background: c.future ? 'transparent' : heatColor(c.count) }"
-          :title="t('views.dashboard.heatCellTitle', { key: c.key, count: c.count })"></span>
+          :title="t('views.dashboard.heatCellTitle', undefined, { key: c.key, count: c.count })"></span>
       </div>
       <div class="ds-heat-legend"><span>{{ t('views.dashboard.heatLess') }}</span><span class="ds-heat-cell" style="background:var(--code-bg)"></span><span class="ds-heat-cell" style="background:#c6f0d0"></span><span class="ds-heat-cell" style="background:#94e8a8"></span><span class="ds-heat-cell" style="background:#5cd66a"></span><span class="ds-heat-cell" style="background:#2cbe4e"></span><span>{{ t('views.dashboard.heatMore') }}</span></div>
     </div>
@@ -192,7 +192,7 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
       <div class="ds-card">
         <h3 class="ds-sec" style="margin-top:0">{{ t('views.dashboard.masteryBySubject') }}</h3>
         <div v-if="stats?.mastery?.length">
-          <div v-for="m in stats.mastery" :key="m.subject" class="ds-bar" :title="t('views.dashboard.subjectTitle', { subject: m.subject })" @click="goSubject(m.subject)">
+          <div v-for="m in stats.mastery" :key="m.subject" class="ds-bar" :title="t('views.dashboard.subjectTitle', undefined, { subject: m.subject })" @click="goSubject(m.subject)">
             <div class="ds-bar-head"><span>{{ m.subject }}</span><span>{{ m.mastery }}% · {{ m.reviews }}{{ t('views.dashboard.reviewsUnit') }}</span></div>
             <div class="ds-bar-track"><div class="ds-bar-fill" :style="{ width: m.mastery + '%' }"></div></div>
           </div>
@@ -205,7 +205,7 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
         <div v-if="weak.length">
           <div v-for="w in weak" :key="w.id" class="ds-weak" :title="t('views.dashboard.weakTitleTip')" @click.stop="goWeak(w)">
             <span class="ds-weak-front">{{ String(w.front).slice(0, 28) }}</span>
-            <span class="ds-weak-fail">{{ t('views.dashboard.weakFail', { n: w.failCount }) }}</span>
+            <span class="ds-weak-fail">{{ t('views.dashboard.weakFail', undefined, { n: w.failCount }) }}</span>
           </div>
         </div>
         <EmptyState v-else compact icon="📊" :title="t('views.dashboard.emptyWeakTitle')" :message="t('views.dashboard.emptyWeakMsg')" />

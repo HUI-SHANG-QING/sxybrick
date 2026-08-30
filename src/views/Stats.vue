@@ -4,6 +4,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import * as echarts from 'echarts';
 import 'echarts-wordcloud';
 import EmptyState from '../components/EmptyState.vue';
+import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { getStats } from '../repo.js';
 import { getLearningProfile, getSubjectDiagnosis, getCalibration, getDueForecast } from '../agent/analytics.js';
@@ -72,7 +73,7 @@ function buildCharts() {
     const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const maxV = Math.max(1, ...data.map(d => d[1]));
     heat.setOption({
-      tooltip: { formatter: p => `${p.value[0]}：复习 ${p.value[1]} 次` },
+      tooltip: { formatter: p => t('views.stats.heatTip', '{date}：复习 {n} 次', { date: p.value[0], n: p.value[1] }) },
       visualMap: {
         min: 0, max: maxV,
         left: 'center', bottom: 0,
@@ -88,8 +89,15 @@ function buildCharts() {
         splitLine: { show: false },
         itemStyle: { borderColor: theme.border, borderWidth: 2, borderRadius: 3 },
         yearLabel: { show: false },
-        dayLabel: { firstDay: 1, margin: 8, nameMap: ['日', '一', '二', '三', '四', '五', '六'] },
-        monthLabel: { margin: 10, nameMap: 'cn' },
+        dayLabel: {
+          firstDay: 1, margin: 8,
+          nameMap: [
+            t('views.stats.dowSun', '日'), t('views.stats.dowMon', '一'), t('views.stats.dowTue', '二'),
+            t('views.stats.dowWed', '三'), t('views.stats.dowThu', '四'), t('views.stats.dowFri', '五'),
+            t('views.stats.dowSat', '六'),
+          ],
+        },
+        monthLabel: { margin: 10, nameMap: t('views.stats.calendarMonthMap', 'cn') },
       },
       series: [{ type: 'heatmap', coordinateSystem: 'calendar', data }],
     });
@@ -109,7 +117,7 @@ function buildCharts() {
       },
       series: [{
         type: 'radar',
-        data: [{ value: stats.value.mastery.map(m => m.mastery), name: '掌握度 %', areaStyle: { opacity: .25 } }],
+        data: [{ value: stats.value.mastery.map(m => m.mastery), name: t('views.stats.radarMasteryName', '掌握度 %'), areaStyle: { opacity: .25 } }],
       }],
     });
     charts.push(radar);
@@ -118,12 +126,12 @@ function buildCharts() {
   if (trendEl.value) {
     const trend = echarts.init(trendEl.value);
     const data = trendData.value.length ? trendData.value : stats.value.trend;
-    const xData = data.map(t => typeof t.date === 'number' ? fmtDate(t.date) : t.date);
+    const xData = data.map(item => typeof item.date === 'number' ? fmtDate(item.date) : item.date);
     trend.setOption({
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'category', data: xData, axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } } },
       yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
-      series: [{ type: 'bar', data: data.map(t => t.count), itemStyle: { color: theme.bar, borderRadius: [4, 4, 0, 0] } }],
+      series: [{ type: 'bar', data: data.map(item => item.count), itemStyle: { color: theme.bar, borderRadius: [4, 4, 0, 0] } }],
       grid: { left: 36, right: 12, top: 20, bottom: 28 },
     });
     charts.push(trend);
@@ -134,7 +142,7 @@ function buildCharts() {
     const pie = echarts.init(pieEl.value);
     const pdata = Object.entries(stats.value.subjectCards || {}).map(([name, value]) => ({ name, value }));
     pie.setOption({
-      tooltip: { trigger: 'item', formatter: '{b}: {c} 张 ({d}%)' },
+      tooltip: { trigger: 'item', formatter: t('views.stats.pieTip', '{b}: {c} 张 ({d}%)') },
       legend: { bottom: 0, textStyle: { color: theme.text } },
       series: [{
         type: 'pie', radius: ['38%', '62%'], center: ['50%', '44%'],
@@ -152,7 +160,11 @@ function buildCharts() {
     const d = stats.value.ratingDist || { 0: 0, 1: 0, 2: 0 };
     rating.setOption({
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: ['没记住', '还模糊', '记住了'], axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } } },
+      xAxis: {
+        type: 'category',
+        data: [t('views.stats.ratingLabelFail', '没记住'), t('views.stats.ratingLabelVague', '还模糊'), t('views.stats.ratingLabelOk', '记住了')],
+        axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } },
+      },
       yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
       series: [{ type: 'bar', data: [
         { value: d[0], itemStyle: { color: theme.red } },
@@ -172,15 +184,15 @@ function buildCharts() {
       tooltip: {},
       radar: {
         indicator: [
-          { name: '掌握度', max: 100 }, { name: '正确率', max: 100 },
-          { name: '稳定度', max: 100 }, { name: '覆盖率', max: 100 },
+          { name: t('views.stats.dimMastery', '掌握度'), max: 100 }, { name: t('views.stats.dimCorrect', '正确率'), max: 100 },
+          { name: t('views.stats.dimStable', '稳定度'), max: 100 }, { name: t('views.stats.dimCoverage', '覆盖率'), max: 100 },
         ],
         radius: '62%',
         axisName: { color: theme.text },
         splitLine: { lineStyle: { color: theme.grid } },
         axisLine: { lineStyle: { color: theme.grid } },
       },
-      series: [{ type: 'radar', data: [{ value: [ab.mastery, ab.correct, ab.stable, ab.coverage], name: '能力', areaStyle: { opacity: .25 } }] }],
+      series: [{ type: 'radar', data: [{ value: [ab.mastery, ab.correct, ab.stable, ab.coverage], name: t('views.stats.abilitySeriesName', '能力'), areaStyle: { opacity: .25 } }] }],
     });
     charts.push(ability);
   }
@@ -193,15 +205,15 @@ function buildCharts() {
       tooltip: {},
       radar: {
         indicator: [
-          { name: '掌握度', max: 100 }, { name: '正确率', max: 100 }, { name: '稳定度', max: 100 },
-          { name: '覆盖率', max: 100 }, { name: '活跃度', max: 100 }, { name: '纠正力', max: 100 },
+          { name: t('views.stats.dimMastery', '掌握度'), max: 100 }, { name: t('views.stats.dimCorrect', '正确率'), max: 100 }, { name: t('views.stats.dimStable', '稳定度'), max: 100 },
+          { name: t('views.stats.dimCoverage', '覆盖率'), max: 100 }, { name: t('views.stats.dimActivity', '活跃度'), max: 100 }, { name: t('views.stats.dimCorrection', '纠正力'), max: 100 },
         ],
         radius: '65%',
         axisName: { color: theme.text },
         splitLine: { lineStyle: { color: theme.grid } },
         axisLine: { lineStyle: { color: theme.grid } },
       },
-      series: [{ type: 'radar', data: [{ value: [p.dimensions.mastery, p.dimensions.correct, p.dimensions.stable, p.dimensions.coverage, p.dimensions.activity, p.dimensions.correction], name: '学习画像', areaStyle: { opacity: .25 } }] }],
+      series: [{ type: 'radar', data: [{ value: [p.dimensions.mastery, p.dimensions.correct, p.dimensions.stable, p.dimensions.coverage, p.dimensions.activity, p.dimensions.correction], name: t('views.stats.profileSeriesName', '学习画像'), areaStyle: { opacity: .25 } }] }],
     });
     charts.push(pr);
   }
@@ -211,7 +223,7 @@ function buildCharts() {
     const hourly = echarts.init(hourlyEl.value);
     hourly.setOption({
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => i + '时'), axisLabel: { color: theme.axis } },
+      xAxis: { type: 'category', data: Array.from({ length: 24 }, (_, i) => t('views.stats.hourLabel', '{n}时', { n: i })), axisLabel: { color: theme.axis } },
       yAxis: { type: 'value', minInterval: 1, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
       series: [{ type: 'bar', data: stats.value.hourly, itemStyle: { color: theme.bar, borderRadius: [3, 3, 0, 0] } }],
       grid: { left: 32, right: 8, top: 20, bottom: 24 },
@@ -224,9 +236,9 @@ function buildCharts() {
     const forgot = echarts.init(forgotEl.value);
     forgot.setOption({
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: stats.value.forgotTrend.map(t => t.date), axisLabel: { color: theme.axis } },
+      xAxis: { type: 'category', data: stats.value.forgotTrend.map(item => item.date), axisLabel: { color: theme.axis } },
       yAxis: { type: 'value', max: 100, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
-      series: [{ type: 'line', data: stats.value.forgotTrend.map(t => t.rate), smooth: true, itemStyle: { color: theme.red }, areaStyle: { opacity: .1 } }],
+      series: [{ type: 'line', data: stats.value.forgotTrend.map(item => item.rate), smooth: true, itemStyle: { color: theme.red }, areaStyle: { opacity: .1 } }],
       grid: { left: 32, right: 12, top: 20, bottom: 24 },
     });
     charts.push(forgot);
@@ -239,8 +251,8 @@ function buildCharts() {
     tag.setOption({
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'value', axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
-      yAxis: { type: 'category', data: data.map(t => t.name), axisLabel: { color: theme.axis } },
-      series: [{ type: 'bar', data: data.map(t => t.count), itemStyle: { color: '#8b5cf6', borderRadius: [0, 4, 4, 0] } }],
+      yAxis: { type: 'category', data: data.map(item => item.name), axisLabel: { color: theme.axis } },
+      series: [{ type: 'bar', data: data.map(item => item.count), itemStyle: { color: '#8b5cf6', borderRadius: [0, 4, 4, 0] } }],
       grid: { left: 60, right: 16, top: 10, bottom: 20 },
     });
     charts.push(tag);
@@ -251,7 +263,7 @@ function buildCharts() {
     const wc = echarts.init(wordEl.value);
     const colors = ['#6366F1', '#8B5CF6', '#EC4899', '#F59E0B', '#22C55E', '#3B82F6', '#EF4444'];
     wc.setOption({
-      tooltip: { formatter: p => `${p.name}：${p.value} 张` },
+      tooltip: { formatter: p => t('views.stats.wordTip', '{name}：{n} 张', { name: p.name, n: p.value }) },
       series: [{
         type: 'wordCloud',
         shape: 'circle',
@@ -260,7 +272,7 @@ function buildCharts() {
         gridSize: 8,
         textStyle: { color: p => colors[p.dataIndex % colors.length] },
         emphasis: { textStyle: { fontWeight: 'bold' } },
-        data: stats.value.tagCounts.map(t => ({ name: t.name, value: t.count })),
+        data: stats.value.tagCounts.map(item => ({ name: item.name, value: item.count })),
       }],
     });
     charts.push(wc);
@@ -274,25 +286,33 @@ function buildCharts() {
       tooltip: {
         formatter: p => {
           const b = calibration.value.buckets[p.dataIndex];
-          return b
-            ? `预测 ${(b.predMean * 100).toFixed(0)}% · 实际 ${(b.actualRate * 100).toFixed(0)}%<br/>样本 ${b.n} 次${b.simulatedShare != null ? ` · 模拟补估 ${(b.simulatedShare * 100).toFixed(0)}%` : ''}`
-            : `${p.data[0]}% / ${p.data[1]}%`;
+          if (!b) return `${p.data[0]}% / ${p.data[1]}%`;
+          // <br/> 由 ECharts tooltip 自身渲染，故按「主行 / 样本行 / 模拟补估后缀」三段拼接
+          const main = t('views.stats.calibTipMain', '预测 {pred}% · 实际 {actual}%', {
+            pred: (b.predMean * 100).toFixed(0),
+            actual: (b.actualRate * 100).toFixed(0),
+          });
+          const sample = t('views.stats.calibTipSample', '样本 {n} 次', { n: b.n });
+          const sim = b.simulatedShare != null
+            ? t('views.stats.calibTipSim', ' · 模拟补估 {pct}%', { pct: (b.simulatedShare * 100).toFixed(0) })
+            : '';
+          return `${main}<br/>${sample}${sim}`;
         },
       },
       grid: { left: 44, right: 16, top: 24, bottom: 34 },
-      xAxis: { type: 'value', min: 0, max: 100, name: '预测记忆 %', nameTextStyle: { color: theme.axis }, axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } } },
-      yAxis: { type: 'value', min: 0, max: 100, name: '实际正确 %', nameTextStyle: { color: theme.axis }, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
+      xAxis: { type: 'value', min: 0, max: 100, name: t('views.stats.calibXName', '预测记忆 %'), nameTextStyle: { color: theme.axis }, axisLabel: { color: theme.axis }, axisLine: { lineStyle: { color: theme.grid } } },
+      yAxis: { type: 'value', min: 0, max: 100, name: t('views.stats.calibYName', '实际正确 %'), nameTextStyle: { color: theme.axis }, axisLabel: { color: theme.axis }, splitLine: { lineStyle: { color: theme.grid } } },
       series: [
         {
           type: 'scatter',
           data: calibration.value.buckets.map(b => ({ value: [Number((b.predMean * 100).toFixed(1)), Number((b.actualRate * 100).toFixed(1))], n: b.n })),
           symbolSize: (val, params) => 8 + 22 * ((params?.data?.n) || 0) / maxN,
           itemStyle: { color: theme.blue, opacity: 0.85 },
-          name: '实测',
+          name: t('views.stats.calibSeriesActual', '实测'),
         },
         {
           type: 'line', data: [[0, 0], [100, 100]], symbol: 'none',
-          lineStyle: { color: theme.red, type: 'dashed', width: 1.5 }, name: '完美校准',
+          lineStyle: { color: theme.red, type: 'dashed', width: 1.5 }, name: t('views.stats.calibSeriesPerfect', '完美校准'),
         },
       ],
     });
@@ -305,7 +325,7 @@ function buildCharts() {
     const fchart = echarts.init(forecastEl.value);
     const todayIdx = 0;
     fchart.setOption({
-      tooltip: { trigger: 'axis', formatter: p => `${p[0].name}：预计到期 ${p[0].value} 张` },
+      tooltip: { trigger: 'axis', formatter: p => t('views.stats.forecastTip', '{date}：预计到期 {n} 张', { date: p[0].name, n: p[0].value }) },
       grid: { left: 36, right: 12, top: 24, bottom: 40 },
       xAxis: {
         type: 'category', data: fc.byDay.map(b => b.date.slice(5)),
@@ -352,8 +372,8 @@ async function loadTrendByRange(range) {
   if (trend) {
     const theme = getChartTheme();
     trend.setOption({
-      xAxis: { data: trendData.value.map(t => fmtDate(t.date)) },
-      series: [{ data: trendData.value.map(t => t.count) }],
+      xAxis: { data: trendData.value.map(item => fmtDate(item.date)) },
+      series: [{ data: trendData.value.map(item => item.count) }],
     });
   }
 }
@@ -382,76 +402,80 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
 </script>
 
 <template>
-  <div v-loading="loading" element-loading-text="加载中…">
-    <h2>复习数据</h2>
+  <div v-loading="loading" :element-loading-text="t('views.stats.loading', '加载中…')">
+    <h2>{{ t('views.stats.title', '复习数据') }}</h2>
 
     <div class="stat-cards">
-      <div class="stat"><div class="num">{{ stats?.totalCards ?? '-' }}</div><div class="hint">总卡片数</div></div>
-      <div class="stat"><div class="num">{{ stats?.totalReviews ?? '-' }}</div><div class="hint">总复习次数</div></div>
-      <div class="stat"><div class="num">{{ stats?.todayReviews ?? '-' }}</div><div class="hint">今日复习（张）</div></div>
-      <div class="stat"><div class="num">{{ stats?.avgMastery ?? '-' }}%</div><div class="hint">平均掌握度</div></div>
-      <div class="stat"><div class="num">{{ stats?.dueToday ?? '-' }}</div><div class="hint">待复习</div></div>
+      <div class="stat"><div class="num">{{ stats?.totalCards ?? '-' }}</div><div class="hint">{{ t('views.stats.kpiTotalCards', '总卡片数') }}</div></div>
+      <div class="stat"><div class="num">{{ stats?.totalReviews ?? '-' }}</div><div class="hint">{{ t('views.stats.kpiTotalReviews', '总复习次数') }}</div></div>
+      <div class="stat"><div class="num">{{ stats?.todayReviews ?? '-' }}</div><div class="hint">{{ t('views.stats.kpiTodayReviews', '今日复习（张）') }}</div></div>
+      <div class="stat"><div class="num">{{ stats?.avgMastery ?? '-' }}%</div><div class="hint">{{ t('views.stats.kpiAvgMastery', '平均掌握度') }}</div></div>
+      <div class="stat"><div class="num">{{ stats?.dueToday ?? '-' }}</div><div class="hint">{{ t('views.stats.kpiDueToday', '待复习') }}</div></div>
     </div>
 
     <div v-if="profile" class="panel profile-panel">
       <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <div class="profile-score">
           <div class="ps-num">{{ profile.score }}</div>
-          <div class="hint">学习画像 · {{ profile.level }}</div>
+          <div class="hint">{{ t('views.stats.profileLabel', '学习画像 · {level}', { level: profile.level }) }}</div>
         </div>
         <div class="hint" style="flex:1;min-width:220px;font-size:13px">{{ profile.summary }}</div>
       </div>
     </div>
 
     <div class="panel">
-      <div class="hint" style="margin-bottom:8px">复习热力图（近一年）</div>
+      <div class="hint" style="margin-bottom:8px">{{ t('views.stats.heatTitle', '复习热力图（近一年）') }}</div>
       <div ref="heatEl" style="height:210px"></div>
     </div>
 
     <div class="panel">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div class="hint">校准回测 · 预测记忆概率 vs 实际正确率</div>
+        <div class="hint">{{ t('views.stats.calibTitle', '校准回测 · 预测记忆概率 vs 实际正确率') }}</div>
         <div v-if="calibration && calibration.n" class="hint" style="font-size:12px">
-          样本 {{ calibration.n }} · Brier {{ calibration.brier }} · ECE {{ calibration.ece }} ·
-          偏差 {{ (calibration.bias > 0 ? '+' : '') + calibration.bias }}
+          {{ t('views.stats.calibStats', '样本 {n} · Brier {brier} · ECE {ece} · 偏差 {bias}', {
+            n: calibration.n, brier: calibration.brier, ece: calibration.ece,
+            bias: (calibration.bias > 0 ? '+' : '') + calibration.bias,
+          }) }}
         </div>
       </div>
       <div v-if="calibration && calibration.n" ref="calibEl" style="height:280px"></div>
-      <EmptyState v-else compact icon="📊" title="暂无校准数据" :message="calibration?.note || '还没有可用的校准回测样本'" />
+      <EmptyState v-else compact icon="📊" :title="t('views.stats.emptyCalibTitle', '暂无校准数据')" :message="calibration?.note || t('views.stats.emptyCalibMsg', '还没有可用的校准回测样本')" />
       <div v-if="calibration && calibration.n" class="hint" style="margin-top:6px">
-        {{ calibration.verdict }} —— {{ calibration.note }}
+        {{ t('views.stats.calibVerdict', '{verdict} —— {note}', { verdict: calibration.verdict, note: calibration.note }) }}
       </div>
     </div>
 
     <div class="panel">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div class="hint">到期洪峰预测 · 未来 30 天（按当前复习节奏模拟）</div>
+        <div class="hint">{{ t('views.stats.forecastTitle', '到期洪峰预测 · 未来 30 天（按当前复习节奏模拟）') }}</div>
         <div v-if="forecast" class="hint" style="font-size:12px">
-          逾期待补 {{ forecast.backlog }} · 30 天累计 {{ forecast.totalDue }} ·
-          日均 {{ forecast.avgPerDay }} · 峰值 {{ forecast.peak.date.slice(5) }}（{{ forecast.peak.count }} 张）
+          {{ t('views.stats.forecastStats', '逾期待补 {backlog} · 30 天累计 {total} · 日均 {avg} · 峰值 {peakDate}（{peakCount} 张）', {
+            backlog: forecast.backlog, total: forecast.totalDue, avg: forecast.avgPerDay,
+            peakDate: forecast.peak.date.slice(5), peakCount: forecast.peak.count,
+          }) }}
         </div>
       </div>
       <div v-if="forecast && forecast.totalDue" ref="forecastEl" style="height:260px"></div>
-      <EmptyState v-else compact icon="📊" title="暂无到期卡片" message="未来 30 天没有到期卡片，保持节奏！" />
+      <EmptyState v-else compact icon="📊" :title="t('views.stats.emptyForecastTitle', '暂无到期卡片')" :message="t('views.stats.emptyForecastMsg', '未来 30 天没有到期卡片，保持节奏！')" />
     </div>
 
     <div class="grid2">
       <div class="panel">
-        <div class="hint" style="margin-bottom:8px">各科掌握度雷达图（近 90 天自评）</div>
+        <div class="hint" style="margin-bottom:8px">{{ t('views.stats.radarTitle', '各科掌握度雷达图（近 90 天自评）') }}</div>
         <div ref="radarEl" style="height:300px"></div>
-        <EmptyState v-if="stats && !stats.mastery.length" compact icon="📊" title="暂无复习记录" message="开始复习后这里会显示各科掌握度雷达" />
+        <EmptyState v-if="stats && !stats.mastery.length" compact icon="📊" :title="t('views.stats.emptyRadarTitle', '暂无复习记录')" :message="t('views.stats.emptyRadarMsg', '开始复习后这里会显示各科掌握度雷达')" />
       </div>
       <div class="panel">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-          <div class="hint">复习趋势</div>
+          <div class="hint">{{ t('views.stats.trendTitle', '复习趋势') }}</div>
           <div class="range-switch">
-            <button v-for="r in [7, 14, 30]" :key="r" class="chip" :class="{ on: trendRange === r }" @click="trendRange = r">{{ r }} 天</button>
+            <button v-for="r in [7, 14, 30]" :key="r" class="chip" :class="{ on: trendRange === r }" @click="trendRange = r">{{ t('views.stats.rangeDays', '{n} 天', { n: r }) }}</button>
           </div>
         </div>
         <div v-if="weekDelta" class="week-delta">
           <div class="wd-cell">
             <div class="wd-num">{{ weekDelta.thisWeek }}</div>
-            <div class="hint">本周复习</div>
+            <div class="hint">{{ t('views.stats.wdThisWeek', '本周复习') }}</div>
           </div>
           <div class="wd-arrow" :class="{ up: weekDelta.diff > 0, down: weekDelta.diff < 0 }">
             <span v-if="weekDelta.diff > 0">↑</span>
@@ -461,7 +485,7 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
           </div>
           <div class="wd-cell">
             <div class="wd-num">{{ weekDelta.lastWeek }}</div>
-            <div class="hint">上周复习</div>
+            <div class="hint">{{ t('views.stats.wdLastWeek', '上周复习') }}</div>
           </div>
         </div>
         <div ref="trendEl" style="height:260px;margin-top:8px"></div>
@@ -470,22 +494,22 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
 
     <div class="grid2">
       <div class="panel">
-        <div class="hint" style="margin-bottom:8px">各科卡片占比</div>
+        <div class="hint" style="margin-bottom:8px">{{ t('views.stats.pieTitle', '各科卡片占比') }}</div>
         <div ref="pieEl" style="height:280px"></div>
       </div>
       <div class="panel">
-        <div class="hint" style="margin-bottom:8px">自评分布（全部复习）</div>
+        <div class="hint" style="margin-bottom:8px">{{ t('views.stats.ratingTitle', '自评分布（全部复习）') }}</div>
         <div ref="ratingEl" style="height:280px"></div>
       </div>
     </div>
 
     <div class="grid2">
       <div class="panel">
-        <div class="hint" style="margin-bottom:8px">学习画像雷达（六维）</div>
+        <div class="hint" style="margin-bottom:8px">{{ t('views.stats.profileRadarTitle', '学习画像雷达（六维）') }}</div>
         <div ref="profileEl" style="height:260px"></div>
       </div>
       <div class="panel">
-        <div class="hint" style="margin-bottom:8px">复习时间分布（24 小时）</div>
+        <div class="hint" style="margin-bottom:8px">{{ t('views.stats.hourlyTitle', '复习时间分布（24 小时）') }}</div>
         <div ref="hourlyEl" style="height:260px"></div>
         <div v-if="goldenHint" class="hint" style="margin-top:8px;color:var(--amber)">⏰ {{ goldenHint }}</div>
       </div>
@@ -493,27 +517,29 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
 
     <div class="grid2">
       <div class="panel">
-        <div class="hint" style="margin-bottom:8px">遗忘率趋势（近 30 天，越低越好）</div>
+        <div class="hint" style="margin-bottom:8px">{{ t('views.stats.forgotTitle', '遗忘率趋势（近 30 天，越低越好）') }}</div>
         <div ref="forgotEl" style="height:260px"></div>
       </div>
       <div class="panel">
-        <div class="hint" style="margin-bottom:8px">标签 Top 10</div>
+        <div class="hint" style="margin-bottom:8px">{{ t('views.stats.tagTitle', '标签 Top 10') }}</div>
         <div ref="tagEl" style="height:260px"></div>
       </div>
     </div>
 
     <div class="panel">
-      <div class="hint" style="margin-bottom:8px">标签词云</div>
+      <div class="hint" style="margin-bottom:8px">{{ t('views.stats.wordTitle', '标签词云') }}</div>
       <div ref="wordEl" style="height:300px"></div>
     </div>
 
     <!-- D1 单科诊断：每科体检 + 处方 -->
     <div class="panel">
-      <div class="hint" style="margin-bottom:10px;font-weight:600">单科诊断（掌握度 · 待背 · 错题 · 易混 → 处置建议）</div>
-      <EmptyState v-if="!diagnosis.length" compact icon="📊" title="暂无卡片数据" message="导入或新建卡片后，这里会生成单科诊断" />
+      <div class="hint" style="margin-bottom:10px;font-weight:600">{{ t('views.stats.diagTitle', '单科诊断（掌握度 · 待背 · 错题 · 易混 → 处置建议）') }}</div>
+      <EmptyState v-if="!diagnosis.length" compact icon="📊" :title="t('views.stats.emptyDiagTitle', '暂无卡片数据')" :message="t('views.stats.emptyDiagMsg', '导入或新建卡片后，这里会生成单科诊断')" />
       <div v-for="d in diagnosis" :key="d.subject" class="diag-row">
         <span class="diag-subj">{{ d.subject }}</span>
-        <span class="hint">卡片 {{ d.cards }} · 待背 {{ d.due }} · 错题 {{ d.marked }} · 易混 {{ d.pairN }} 组 · 掌握度 {{ d.mastery }}%</span>
+        <span class="hint">{{ t('views.stats.diagStats', '卡片 {cards} · 待背 {due} · 错题 {marked} · 易混 {pairN} 组 · 掌握度 {mastery}%', {
+          cards: d.cards, due: d.due, marked: d.marked, pairN: d.pairN, mastery: d.mastery,
+        }) }}</span>
         <span style="flex:1"></span>
         <span class="diag-advice">{{ d.advice }}</span>
       </div>

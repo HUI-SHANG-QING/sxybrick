@@ -50,7 +50,7 @@ async function load() {
       integration: await getAgentIntegration(p.id),
     })));
   }
-  catch (e) { toast(t('views.plugins.loadFail', { msg: (e?.message || e) }), 'error'); }
+  catch (e) { toast(t('views.plugins.loadFail', undefined, { msg: (e?.message || e) }), 'error'); }
   finally { loading.value = false; }
 }
 
@@ -86,23 +86,23 @@ async function runTool() {
     toast(t('views.plugins.toolOk'), 'success');
   } catch (e) {
     toolError.value = e?.message || String(e);
-    toast(t('views.plugins.toolFail', { msg: toolError.value }), 'error');
+    toast(t('views.plugins.toolFail', undefined, { msg: toolError.value }), 'error');
   } finally { toolBusy.value = false; }
 }
 
 async function fireHook(event) {
   try {
     await triggerHook(event, { id: 'demo-card', front: '演示卡片', back: '这是触发钩子的演示数据' });
-    toast(t('views.plugins.hookDispatched', { event }), 'success');
-  } catch (e) { toast(t('views.plugins.hookFail', { msg: (e?.message || e) }), 'error'); }
+    toast(t('views.plugins.hookDispatched', undefined, { event }), 'success');
+  } catch (e) { toast(t('views.plugins.hookFail', undefined, { msg: (e?.message || e) }), 'error'); }
 }
 
 async function onToggle(id, enabled) {
   try {
     await togglePlugin(id, enabled);
     await load();
-    toast(t('views.plugins.toggleOk', { state: enabled ? t('views.plugins.enabledLabel') : t('views.plugins.disabledLabel') }), 'success');
-  } catch (e) { toast(t('views.plugins.toggleFail', { msg: (e?.message || e) }), 'error'); }
+    toast(t('views.plugins.toggleOk', undefined, { state: enabled ? t('views.plugins.enabledLabel') : t('views.plugins.disabledLabel') }), 'success');
+  } catch (e) { toast(t('views.plugins.toggleFail', undefined, { msg: (e?.message || e) }), 'error'); }
 }
 
 async function onUninstall(id) {
@@ -112,7 +112,7 @@ async function onUninstall(id) {
     if (selected.value === id) { selected.value = null; tools.value = []; }
     await load();
     toast(t('views.plugins.uninstalled'), 'success');
-  } catch (e) { toast(t('views.plugins.uninstallFail', { msg: (e?.message || e) }), 'error'); }
+  } catch (e) { toast(t('views.plugins.uninstallFail', undefined, { msg: (e?.message || e) }), 'error'); }
 }
 
 function onExport(id) {
@@ -121,7 +121,7 @@ function onExport(id) {
   try {
     downloadPluginPackage(p);
     toast(t('views.plugins.exported'), 'success');
-  } catch (e) { toast(t('views.plugins.exportFail', { msg: (e?.message || e) }), 'error'); }
+  } catch (e) { toast(t('views.plugins.exportFail', undefined, { msg: (e?.message || e) }), 'error'); }
 }
 
 async function onImportPackage(e) {
@@ -131,8 +131,8 @@ async function onImportPackage(e) {
   try {
     const r = await importPluginPackageFile(f);
     await load();
-    toast(t('views.plugins.pkgImported', { id: r.id, version: r.version }), 'success');
-  } catch (e) { toast(t('views.plugins.pkgFail', { msg: (e?.message || e) }), 'error'); }
+    toast(t('views.plugins.pkgImported', undefined, { id: r.id, version: r.version }), 'success');
+  } catch (e) { toast(t('views.plugins.pkgFail', undefined, { msg: (e?.message || e) }), 'error'); }
 }
 
 function openInstall() {
@@ -155,8 +155,8 @@ const OFFICIAL_EXAMPLES = [
 ];
 
 const officialExamples = computed(() => OFFICIAL_EXAMPLES.map(ex => {
-  const tags = [t('views.plugins.tagTool', { n: 1 }), t('views.plugins.tagAgent', { n: 1 })];
-  if (ex.hook) tags.push(t('views.plugins.tagHook', { hook: ex.hook }));
+  const tags = [t('views.plugins.tagTool', undefined, { n: 1 }), t('views.plugins.tagAgent', undefined, { n: 1 })];
+  if (ex.hook) tags.push(t('views.plugins.tagHook', undefined, { hook: ex.hook }));
   return {
     ...ex,
     name: t('views.plugins.' + ex.key + 'Name'),
@@ -171,8 +171,8 @@ async function installExample(ex) {
   try {
     await ex.install();
     await load();
-    toast(t('views.plugins.exampleInstalledOk', { id: ex.id }), 'success');
-  } catch (e) { toast(t('views.plugins.exampleFail', { msg: (e?.message || e) }), 'error'); }
+    toast(t('views.plugins.exampleInstalledOk', undefined, { id: ex.id }), 'success');
+  } catch (e) { toast(t('views.plugins.exampleFail', undefined, { msg: (e?.message || e) }), 'error'); }
   finally { installBusy.value = false; }
 }
 
@@ -185,8 +185,8 @@ async function doInstall() {
     });
     showInstall.value = false;
     await load();
-    toast(t('views.plugins.installedOk', { id: r.id, version: r.version }), 'success');
-  } catch (e) { toast(t('views.plugins.installFail', { msg: (e?.message || e) }), 'error'); }
+    toast(t('views.plugins.installedOk', undefined, { id: r.id, version: r.version }), 'success');
+  } catch (e) { toast(t('views.plugins.installFail', undefined, { msg: (e?.message || e) }), 'error'); }
   finally { installBusy.value = false; }
 }
 
@@ -199,7 +199,7 @@ async function onFile(e) {
     installCode.value = code;
     showInstall.value = true;
     toast(t('views.plugins.fileRead'), 'info');
-  } catch (e) { toast(t('views.plugins.fileReadFail', { msg: (e?.message || e) }), 'error'); }
+  } catch (e) { toast(t('views.plugins.fileReadFail', undefined, { msg: (e?.message || e) }), 'error'); }
 }
 
 function fmtTime(ts) {
@@ -238,17 +238,17 @@ onMounted(load);
             <div class="plugin-name">{{ p.id }} <span class="plugin-ver">v{{ p.version }}</span></div>
             <div class="plugin-desc">{{ p.description || t('views.plugins.noDesc') }}</div>
             <div class="plugin-meta">
-              <span>{{ t('views.plugins.metaTools', { n: (p.tools || []).length }) }}</span>
-              <span v-if="p.author">{{ t('views.plugins.metaAuthor', { author: p.author }) }}</span>
-              <span>{{ t('views.plugins.metaInstalled', { time: fmtTime(p.installedAt) }) }}</span>
+              <span>{{ t('views.plugins.metaTools', undefined, { n: (p.tools || []).length }) }}</span>
+              <span v-if="p.author">{{ t('views.plugins.metaAuthor', undefined, { author: p.author }) }}</span>
+              <span>{{ t('views.plugins.metaInstalled', undefined, { time: fmtTime(p.installedAt) }) }}</span>
               <span v-if="p.enabled && p.integration" class="agent-chip" :class="{ on: p.integration.activated }">
                 {{ p.integration.activated ? t('views.plugins.agentActivated') : t('views.plugins.agentInactive') }}
                 <template v-if="p.integration.tools.length || p.integration.agents.length">
-                  {{ t('views.plugins.agentCount', { tools: p.integration.tools.length, agents: p.integration.agents.length }) }}
+                  {{ t('views.plugins.agentCount', undefined, { tools: p.integration.tools.length, agents: p.integration.agents.length }) }}
                 </template>
               </span>
             </div>
-            <div v-if="p.lastError" class="plugin-err" :title="p.lastError">{{ t('views.plugins.errTitle', { msg: p.lastError }) }}</div>
+            <div v-if="p.lastError" class="plugin-err" :title="p.lastError">{{ t('views.plugins.errTitle', undefined, { msg: p.lastError }) }}</div>
           </div>
           <div class="plugin-actions" @click.stop>
             <label class="switch">
@@ -288,7 +288,7 @@ onMounted(load);
 
     <!-- 工具调用面板 -->
     <div v-if="currentPlugin" class="panel" style="margin-top:16px">
-      <div class="panel-title">{{ t('views.plugins.toolPanelTitle', { id: currentPlugin.id }) }}</div>
+      <div class="panel-title">{{ t('views.plugins.toolPanelTitle', undefined, { id: currentPlugin.id }) }}</div>
       <p v-if="currentPlugin.enabled && currentPlugin.integration?.activated" class="hint" style="margin-top:0">
         ✅ {{ t('views.plugins.toolRegistered') }}
         <code>agents</code>
@@ -307,7 +307,7 @@ onMounted(load);
         <div v-if="!currentPlugin.enabled" class="hint" style="color:var(--red)">{{ t('views.plugins.disabledWarn') }}</div>
         <div class="field-label">{{ t('views.plugins.paramLabel') }}</div>
         <textarea v-model="toolArgsText" class="input code" rows="6" placeholder="{}"></textarea>
-        <div v-if="toolError" class="hint" style="color:var(--red);margin-top:8px">{{ t('views.plugins.errTitle', { msg: toolError }) }}</div>
+        <div v-if="toolError" class="hint" style="color:var(--red);margin-top:8px">{{ t('views.plugins.errTitle', undefined, { msg: toolError }) }}</div>
         <div v-if="toolResult != null" class="field-label" style="margin-top:12px">{{ t('views.plugins.returnLabel') }}</div>
         <pre v-if="toolResult != null" class="result-box">{{ JSON.stringify(toolResult, null, 2) }}</pre>
       </template>

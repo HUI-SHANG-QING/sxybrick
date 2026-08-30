@@ -56,7 +56,7 @@ async function startExam() {
   const n = Math.min(Number(count.value) || 10, shuffled.length);
   questions.value = shuffled.slice(0, n).map(c => ({ cardId: c.id, front: c.front, back: c.back, subject: c.subject || t('views.exam.uncategorized') }));
   answers.value = new Array(n).fill('');
-  examTitle.value = t('views.exam.examTitle', { subject: selSubjects.value.join('+') || t('views.exam.subjectAll'), date: new Date().toLocaleDateString() });
+  examTitle.value = t('views.exam.examTitle', undefined, { subject: selSubjects.value.join('+') || t('views.exam.subjectAll'), date: new Date().toLocaleDateString() });
   phase.value = 'doing';
 }
 
@@ -87,7 +87,7 @@ async function submit() {
   phase.value = 'result';
   await loadHistory();
   try { T.examEnd(score.value, g.length); } catch {}
-  toast(t('views.exam.submitted', { score: score.value, total: g.length }), score.value === g.length ? 'success' : 'info');
+  toast(t('views.exam.submitted', undefined, { score: score.value, total: g.length }), score.value === g.length ? 'success' : 'info');
 }
 
 // ---- D1 模考讲解：AI 逐题讲解错题（错因 + 关联知识点），讲解写回成绩存档 ----
@@ -117,14 +117,14 @@ async function aiExplain() {
     }
     await loadHistory();
     toast(t('views.exam.explainDone'), 'success');
-  } catch (e) { toast(t('views.exam.explainFail', { msg: e.message }), 'error'); }
+  } catch (e) { toast(t('views.exam.explainFail', undefined, { msg: e.message }), 'error'); }
   finally { explainBusy.value = false; }
 }
 
 async function markWrong() {
   let n = 0;
   for (const w of wrongList.value) { await setMarked(w.cardId, true); n++; }
-  toast(t('views.exam.markedWrong', { n }), 'success');
+  toast(t('views.exam.markedWrong', undefined, { n }), 'success');
 }
 
 // P2-2 模考-错题-AI补卡闭环：错题一键生成卡片入复习队列
@@ -138,14 +138,14 @@ async function supplementWrongToCards() {
     if (!wrongs.length) { toast(t('views.exam.noWrongToSupplement'), 'info'); return; }
     const r = await wrongQuestionsToCards(wrongs, { tag: '模考错题', source: '模考-错题补卡' });
     if (r.created > 0) {
-      const failPart = r.failed ? t('views.exam.supplementFailCount', { n: r.failed }) : '';
-      toast(t('views.exam.supplemented', { n: r.created }) + failPart, 'success');
+      const failPart = r.failed ? t('views.exam.supplementFailCount', undefined, { n: r.failed }) : '';
+      toast(t('views.exam.supplemented', undefined, { n: r.created }) + failPart, 'success');
     } else {
-      const reason = r.failed ? t('views.exam.supplementFailCount2', { n: r.failed }) : t('views.exam.unknownError');
+      const reason = r.failed ? t('views.exam.supplementFailCount2', undefined, { n: r.failed }) : t('views.exam.unknownError');
       toast(t('views.exam.supplementFailPrefix') + reason, 'error');
     }
   } catch (e) {
-    toast(t('views.exam.supplementError', { msg: e?.message || e }), 'error');
+    toast(t('views.exam.supplementError', undefined, { msg: e?.message || e }), 'error');
   } finally {
     supplementBusy.value = false;
   }
@@ -154,7 +154,7 @@ async function supplementWrongToCards() {
 function viewExam(ex) { viewing.value = ex; }
 function closeView() { viewing.value = null; }
 async function removeExam(ex) {
-  if (!(await confirmDialog(t('views.exam.confirmDelete', { title: ex.title, score: ex.score, total: ex.total })))) return;
+  if (!(await confirmDialog(t('views.exam.confirmDelete', undefined, { title: ex.title, score: ex.score, total: ex.total })))) return;
   await deleteExam(ex.id);
   if (viewing.value?.id === ex.id) viewing.value = null;
   await loadHistory();
@@ -226,16 +226,16 @@ onMounted(async () => {
       </div>
       <div class="field-label">{{ t('views.exam.questionCount') }}</div>
       <div class="row">
-        <button v-for="n in [5, 10, 20, 50]" :key="n" class="chip" :class="{ on: count === n }" @click="count = n">{{ t('views.exam.nQuestions', { n }) }}</button>
+        <button v-for="n in [5, 10, 20, 50]" :key="n" class="chip" :class="{ on: count === n }" @click="count = n">{{ t('views.exam.nQuestions', undefined, { n }) }}</button>
       </div>
       <button class="btn primary" @click="startExam">{{ t('views.exam.startExam') }}</button>
     </div>
 
     <!-- 答题中 -->
     <div v-if="phase === 'doing'" class="panel" style="margin-top:14px">
-      <div class="field-label" style="margin-top:0">{{ examTitle }}{{ t('views.exam.qTotal', { n: questions.length }) }}</div>
+      <div class="field-label" style="margin-top:0">{{ examTitle }}{{ t('views.exam.qTotal', undefined, { n: questions.length }) }}</div>
       <div v-for="(q, i) in questions" :key="q.cardId" class="exam-q">
-        <div class="exam-num">{{ t('views.exam.qNum', { n: i + 1 }) }} <span class="hint">{{ t('views.exam.qHint') }}</span></div>
+        <div class="exam-num">{{ t('views.exam.qNum', undefined, { n: i + 1 }) }} <span class="hint">{{ t('views.exam.qHint') }}</span></div>
         <div class="exam-front">{{ q.front }}</div>
         <textarea v-model="answers[i]" class="input" rows="3" :placeholder="t('views.exam.answerPlaceholder')"></textarea>
       </div>
@@ -246,17 +246,17 @@ onMounted(async () => {
     <div v-if="phase === 'result' && graded.length" class="panel" style="margin-top:14px">
       <div class="result-head">
         <span class="result-score">{{ score }} / {{ graded.length }}</span>
-        <span class="hint" style="margin-left:10px">{{ t('views.exam.accuracy', { n: Math.round((score / graded.length) * 100) }) }}</span>
+        <span class="hint" style="margin-left:10px">{{ t('views.exam.accuracy', undefined, { n: Math.round((score / graded.length) * 100) }) }}</span>
         <span style="flex:1"></span>
-        <button class="btn small" :disabled="explainBusy || !wrongList.length" @click="aiExplain">{{ explainBusy ? t('views.exam.explaining') : t('views.exam.aiExplainBtn', { n: wrongList.length }) }}</button>
-        <button class="btn small" :disabled="!wrongList.length" @click="markWrong">{{ t('views.exam.markWrongBtn', { n: wrongList.length }) }}</button>
+        <button class="btn small" :disabled="explainBusy || !wrongList.length" @click="aiExplain">{{ explainBusy ? t('views.exam.explaining') : t('views.exam.aiExplainBtn', undefined, { n: wrongList.length }) }}</button>
+        <button class="btn small" :disabled="!wrongList.length" @click="markWrong">{{ t('views.exam.markWrongBtn', undefined, { n: wrongList.length }) }}</button>
         <button class="btn small primary" :disabled="supplementBusy || !wrongList.length" @click="supplementWrongToCards" :title="t('views.exam.supplementTitle')">
-          {{ supplementBusy ? t('views.exam.supplementing') : t('views.exam.supplementBtn', { n: wrongList.length }) }}
+          {{ supplementBusy ? t('views.exam.supplementing') : t('views.exam.supplementBtn', undefined, { n: wrongList.length }) }}
         </button>
         <button class="btn small" @click="backToSetup">{{ t('views.exam.again') }}</button>
       </div>
       <div v-for="(g, i) in graded" :key="g.cardId" class="exam-q" :class="{ wrong: !g.correct }">
-        <div class="exam-num">{{ g.correct ? '✅' : '❌' }} {{ t('views.exam.qNumCov', { n: i + 1, cov: g.cov }) }}</div>
+        <div class="exam-num">{{ g.correct ? '✅' : '❌' }} {{ t('views.exam.qNumCov', undefined, { n: i + 1, cov: g.cov }) }}</div>
         <div class="exam-front">{{ g.front }}</div>
         <div class="hint">{{ t('views.exam.yourAnswer') }}{{ answers[i] || t('views.exam.notAnswered') }}</div>
         <div class="exam-std">{{ t('views.exam.stdAnswer') }}{{ g.back }}</div>
@@ -266,7 +266,7 @@ onMounted(async () => {
 
     <!-- 历史 -->
     <div class="panel" style="margin-top:16px">
-      <div class="field-label" style="margin-top:0">{{ t('views.exam.historyTitle', { n: history.length }) }}</div>
+      <div class="field-label" style="margin-top:0">{{ t('views.exam.historyTitle', undefined, { n: history.length }) }}</div>
       <EmptyState v-if="!history.length" icon="🧪" :title="t('views.exam.emptyTitle')" :message="t('views.exam.emptyMsg')" />
 
       <!-- 纵向对比走势图 -->
@@ -279,7 +279,7 @@ onMounted(async () => {
             <line :x1="padX" :y1="padY" :x2="padX" :y2="svgH - padY" :stroke="'var(--line)'" stroke-width="1" />
             <polyline :points="linePath(tp.pts).replace(/[ML]/g, '').split(' ').map(p => p).join(' ')" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
             <circle v-for="(p, i) in tp.pts" :key="i" :cx="padX + (tp.pts.length === 1 ? 0 : (i / (tp.pts.length - 1)) * (svgW - padX * 2))" :cy="svgH - padY - (p.rate / 100) * (svgH - padY * 2)" r="3.5" fill="var(--accent)">
-              <title>{{ t('views.exam.trendPoint', { date: p.date, rate: p.rate, score: p.score, total: p.total }) }}</title>
+              <title>{{ t('views.exam.trendPoint', undefined, { date: p.date, rate: p.rate, score: p.score, total: p.total }) }}</title>
             </circle>
           </svg>
           <span class="hint" style="flex:1">{{ tp.pts.map(p => `${p.rate}%`).join(' → ') }}</span>
@@ -293,7 +293,7 @@ onMounted(async () => {
           <div class="prediction-main">
             <span class="prediction-rate">{{ passPrediction.predictedRate }}%</span>
             <span class="prediction-verdict">{{ passPrediction.willPass ? t('views.exam.passVerdict') : t('views.exam.failVerdict') }}</span>
-            <span class="hint">{{ t('views.exam.passLine', { n: passPrediction.passLine, m: passPrediction.confidence }) }}</span>
+            <span class="hint">{{ t('views.exam.passLine', undefined, { n: passPrediction.passLine, m: passPrediction.confidence }) }}</span>
           </div>
           <div class="prediction-reasons">
             <span v-for="(r, i) in passPrediction.reasons" :key="i" class="reason-tag">{{ r }}</span>
@@ -326,9 +326,9 @@ onMounted(async () => {
     <teleport to="body">
       <div v-if="viewing" class="modal-mask" @click.self="closeView">
         <div class="modal">
-          <h3 style="margin-top:0">{{ viewing.title }}{{ t('views.exam.scoreSuffix', { score: viewing.score, total: viewing.total }) }}</h3>
+          <h3 style="margin-top:0">{{ viewing.title }}{{ t('views.exam.scoreSuffix', undefined, { score: viewing.score, total: viewing.total }) }}</h3>
           <div v-for="(q, i) in viewing.questions" :key="i" class="exam-q" :class="{ wrong: !q.correct }">
-            <div class="exam-num">{{ q.correct ? '✅' : '❌' }} {{ t('views.exam.qNumPlain', { n: i + 1 }) }}</div>
+            <div class="exam-num">{{ q.correct ? '✅' : '❌' }} {{ t('views.exam.qNumPlain', undefined, { n: i + 1 }) }}</div>
             <div class="exam-front">{{ q.front }}</div>
             <div class="hint">{{ t('views.exam.yourAnswer') }}{{ q.user || t('views.exam.notAnswered') }}</div>
             <div class="exam-std">{{ t('views.exam.stdAnswer') }}{{ q.back }}</div>

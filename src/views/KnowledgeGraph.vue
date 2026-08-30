@@ -4,6 +4,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
+import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
 import { db } from '../db.js';
@@ -32,11 +33,11 @@ const activeSubject = ref('');
 const mode = ref('generated');
 const router = useRouter();
 
-const graphExportFormats = [
-  { key: 'md', label: 'Markdown', hint: '人类可读', mime: 'text/markdown', ext: 'md', build: exportGraphToMarkdown },
-  { key: 'json', label: 'JSON', hint: '节点+边', mime: 'application/json', ext: 'json', build: exportGraphToJSON },
-  { key: 'graphml', label: 'GraphML', hint: '可导入 Gephi/Cytoscape', mime: 'application/xml', ext: 'graphml', build: exportGraphToGraphML },
-];
+const graphExportFormats = computed(() => [
+  { key: 'md', label: 'Markdown', hint: t('views.knowledgeGraph.exportMdHint'), mime: 'text/markdown', ext: 'md', build: exportGraphToMarkdown },
+  { key: 'json', label: 'JSON', hint: t('views.knowledgeGraph.exportJsonHint'), mime: 'application/json', ext: 'json', build: exportGraphToJSON },
+  { key: 'graphml', label: 'GraphML', hint: t('views.knowledgeGraph.exportGraphmlHint'), mime: 'application/xml', ext: 'graphml', build: exportGraphToGraphML },
+]);
 // 节点跳转：根据 label+subject 精确匹配卡片；1:1 命中直接带 id 打开弹窗，N:1 命中则用关键字搜索跳转
 // Phase 6.6：资料节点（type=doc-card 边的 from，label 带 📄 前缀）跳转到资料库，而非卡片
 const docNodeIds = computed(() => {
@@ -50,7 +51,7 @@ const docNodeIds = computed(() => {
 async function jumpToNodeCard(label, subject) {
   if (!label) return;
   if (docNodeIds.value.has(label)) {
-    toast(`已跳转到资料库「${String(label).replace(/^📄\s*/, '')}」`, 'info');
+    toast(t('views.knowledgeGraph.jumpedToMaterials', undefined, { label: String(label).replace(/^📄\s*/, '') }), 'info');
     router.push('/materials');
     return;
   }
@@ -72,7 +73,7 @@ async function jumpToNodeCard(label, subject) {
       // 卡片库里没直接命中：带 q 搜索跳，让用户新建/关联
       const params = new URLSearchParams({ q });
       if (sub) params.set('subject', sub);
-      toast(`没找到名为「${q}」的卡片，已跳转搜索结果`, 'warn');
+      toast(t('views.knowledgeGraph.notFoundCard', undefined, { q }), 'warn');
       router.push(`/cards?${params.toString()}`);
     }
   } catch (e) { logError(e, { component: 'KnowledgeGraph.vue:jumpToNodeCard', route: '/graph', info: `label=${q.slice(0,60)} sub=${sub}` }); throw e; }
@@ -87,8 +88,8 @@ async function autoRecommend() {
   try {
     const list = await recommendGraphEdges({ topN: 30 });
     recommended.value = list;
-    if (!list.length) toast('暂无可推荐关联：卡片数量不足或已全部建立关联', 'info');
-    else toast(`分析出 ${list.length} 条候选关联（基于卡片相似度，可一键保存）`, 'success');
+    if (!list.length) toast(t('views.knowledgeGraph.noRecommend'), 'info');
+    else toast(t('views.knowledgeGraph.recommendAnalyzed', undefined, { n: list.length }), 'success');
   } catch (e) { toast(e.message, 'error'); }
   finally { recommendLoading.value = false; }
 }
@@ -99,11 +100,11 @@ async function saveRecommended(idx) {
   // R10：recommendGraphEdges 已返回 fromId/toId（卡片 id），直传避免文本匹配
   const created = await createGraphEdge({ from: r.from, to: r.to, fromCardId: r.fromId || '', toCardId: r.toId || '', label: r.label, subject: r.subject });
   if (created) {
-    toast(`已保存：${r.from} ${r.label} ${r.to}`, 'success');
+    toast(t('views.knowledgeGraph.savedEdge', undefined, { from: r.from, rel: r.label, to: r.to }), 'success');
     recommended.value.splice(idx, 1);
     await loadSaved();
   } else {
-    toast('该关联已存在，已从列表移除', 'info');
+    toast(t('views.knowledgeGraph.edgeExists'), 'info');
     recommended.value.splice(idx, 1);
   }
 }
@@ -116,7 +117,7 @@ async function saveAllRecommended() {
   }
   recommended.value = [];
   await loadSaved();
-  toast(`批量保存 ${n} 条${skip ? `，跳过 ${skip} 条重复` : ''}`, 'success');
+  toast(t('views.knowledgeGraph.batchSaved', undefined, { n }) + (skip ? t('views.knowledgeGraph.batchSkipped', undefined, { skip }) : ''), 'success');
 }
 
 function fmtScore(s) { return `${(s * 100 | 0)}%`; }
@@ -124,10 +125,10 @@ function fmtScore(s) { return `${(s * 100 | 0)}%`; }
 // ---- 多风格 ----
 const layout = ref(localStorage.getItem('sxy_kg_layout') || 'force');
 const LAYOUTS = [
-  { id: 'force', name: '力导向', icon: '⊛' },
-  { id: 'circular', name: '圆形', icon: '◯' },
-  { id: 'concentric', name: '同心圆', icon: '◎' },
-  { id: 'tree', name: '树状', icon: '⋗' },
+  { id: 'force', key: 'layoutForce', icon: '⊛' },
+  { id: 'circular', key: 'layoutCircular', icon: '◯' },
+  { id: 'concentric', key: 'layoutConcentric', icon: '◎' },
+  { id: 'tree', key: 'layoutTree', icon: '⋗' },
 ];
 function setLayout(id) { layout.value = id; localStorage.setItem('sxy_kg_layout', id); if (!chart) ensureChart(); render(); }
 
@@ -152,7 +153,7 @@ function plain(md) {
 // 构建图数据：按 subject 分组（用于同心圆分层着色）
 function buildGraphData(nds, eds) {
   const subjects = [...new Set(nds.map(n => n.subject).filter(Boolean))];
-  const categories = [{ name: '未分类' }, ...subjects.map(s => ({ name: s }))];
+  const categories = [{ name: t('views.knowledgeGraph.catUncategorized') }, ...subjects.map(s => ({ name: s }))];
   const catOf = (n) => n.subject ? categories.findIndex(c => c.name === n.subject) : 0;
   const nodeList = nds.map(n => ({
     id: n.id, name: n.label, category: catOf(n),
@@ -188,14 +189,14 @@ function buildOption(nds, eds, style) {
     };
     const rootsBuilt = forest.map(r => build(r, new Set())).filter(Boolean);
     // 多个不连通的树：用一个虚拟根包一层，避免只剩一个“N0”
-    let root = rootsBuilt[0] || { name: '（空）', value: { subject: '' } };
+    let root = rootsBuilt[0] || { name: t('views.knowledgeGraph.treeEmptyNode'), value: { subject: '' } };
     if (rootsBuilt.length > 1) {
-      root = { name: '📚 知识图谱', value: { subject: '' }, children: rootsBuilt };
+      root = { name: t('views.knowledgeGraph.treeRootName'), value: { subject: '' }, children: rootsBuilt };
     }
     return {
       tooltip: { trigger: 'item', formatter: p => {
         const subj = p.data?.value?.subject;
-        const tip = `📚 ${p.data.name}${subj ? `\n🎓 科目：${subj}` : ''}\n💡 单击展开/折叠子节点；点下方「跳转卡片」按钮查看关联卡片。`;
+        const tip = `${p.data.name}${subj ? t('views.knowledgeGraph.treeSubject', undefined, { subj }) : ''}${t('views.knowledgeGraph.treeTip')}`;
         return tip.replace(/\n/g, '<br/>');
       } },
       series: [{
@@ -270,7 +271,7 @@ function render() {
     chart.setOption(buildOption(nodes.value, edges.value, layout.value), true);
   } catch (e) {
     logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: `render layout=${layout.value}` });
-    toast('图谱渲染失败：' + e.message, 'error');
+    toast(t('views.knowledgeGraph.renderFail') + e.message, 'error');
   }
 }
 
@@ -313,18 +314,18 @@ function initChart() {
     window.addEventListener('resize', onResize);
   } catch (e) {
     logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: 'initChart' });
-    toast('初始化图谱失败：' + e.message, 'error');
+    toast(t('views.knowledgeGraph.initFail') + e.message, 'error');
   }
 }
 function onResize() { chart?.resize(); }
 onBeforeUnmount(() => { window.removeEventListener('resize', onResize); chart?.dispose(); });
 
 async function generate() {
-  if (!hasAIKey()) { toast('请先配置 AI 密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.knowledgeGraph.noAiKey'), 'error'); return; }
   loading.value = true;
   try {
     const cards = await db.cards.toArray();
-    if (!cards.length) { toast('还没有卡片，先去建几张吧', 'error'); return; }
+    if (!cards.length) { toast(t('views.knowledgeGraph.noCards'), 'error'); return; }
     const sample = cards.slice(0, 80).map(c => `[${c.subject || '未分类'}] ${plain(c.front)} / ${plain(c.back)}（标签:${(c.tags || []).join(',')}）`).join('\n');
     const r = await chatAI([
       { role: 'system', content: '你是知识图谱生成器。从下面卡片提取 8~20 个核心知识点作为节点，并找出知识点之间的关联作为边（关系如：属于/依赖/前置/对比）。输出严格 JSON：{"nodes":[{"id":"1","label":"知识点","subject":"科目"}],"edges":[{"from":"1","to":"2","label":"关系"}]}。只输出 JSON。' },
@@ -336,7 +337,7 @@ async function generate() {
     generatedEdges.value = (obj.edges || []).map(e => ({ from: String(e.from), to: String(e.to), label: e.label || '' }));
     activeId.value = ''; mode.value = 'generated';
     nextTick(() => { if (!chart) initChart(); render(); });
-    if (!generatedNodes.value.length) toast('没解析出知识点', 'error');
+    if (!generatedNodes.value.length) toast(t('views.knowledgeGraph.noNodes'), 'error');
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; }
 }
@@ -344,7 +345,7 @@ async function generate() {
 // Agent 智能构建：走 graph-builder agent 的 ReAct 工具调用循环
 // agent 会用 search_cards / list_subjects_and_tags 智能检索，用 link_cards 直接建立持久化关联（去重）
 async function generateByAgent() {
-  if (!hasAIKey()) { toast('请先配置 AI 密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.knowledgeGraph.noAiKey'), 'error'); return; }
   loading.value = true;
   try {
     const { reply } = await agentSystem.runTask({
@@ -352,11 +353,11 @@ async function generateByAgent() {
       cfg: getAIConfig(),
       agentId: 'graph-builder',
     });
-    toast('Agent 智能构建完成', 'success');
+    toast(t('views.knowledgeGraph.agentDone'), 'success');
     await loadSaved();
     mode.value = 'saved';
     nextTick(() => { if (!chart) initChart(); render(); });
-  } catch (e) { toast('Agent 构建失败：' + e.message, 'error'); }
+  } catch (e) { toast(t('views.knowledgeGraph.agentFail') + e.message, 'error'); }
   finally { loading.value = false; }
 }
 
@@ -384,9 +385,9 @@ const deadCount = computed(() => savedStats.value?.missing || 0);
 async function pruneDead() {
   try {
     const r = await pruneDeadEdges();
-    toast(r.removed ? `已清理 ${r.removed} 条失效关联` : '没有失效关联', r.removed ? 'success' : 'info');
+    toast(r.removed ? t('views.knowledgeGraph.prunedEdges', undefined, { n: r.removed }) : t('views.knowledgeGraph.prunedNone'), r.removed ? 'success' : 'info');
     await loadSaved();
-  } catch (e) { toast('清理失败：' + (e?.message || e), 'error'); }
+  } catch (e) { toast(t('views.knowledgeGraph.pruneFail') + (e?.message || e), 'error'); }
 }
 
 async function saveGenerated() {
@@ -410,7 +411,7 @@ async function saveGenerated() {
     });
     if (created) n++; else skipped++;
   }
-  toast(skipped ? `已保存 ${n} 条关联，跳过 ${skipped} 条重复（可跨设备同步）` : `已保存 ${n} 条关联到知识库（可跨设备同步）`, 'success');
+  toast(skipped ? t('views.knowledgeGraph.savedSkip', undefined, { n, skip }) : t('views.knowledgeGraph.savedAll', undefined, { n }), 'success');
   await loadSaved();
   try { T.graphSave(savedEdges.value.length); } catch {}
 }
@@ -423,7 +424,7 @@ async function removeEdge(id) {
 const clusters = computed(() => {
   const m = new Map();
   for (const e of savedEdges.value) {
-    const k = e.subject || '未分类';
+    const k = e.subject || t('views.knowledgeGraph.catUncategorized');
     if (!m.has(k)) m.set(k, []);
     m.get(k).push(e);
   }
@@ -449,99 +450,98 @@ watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
 <template>
   <div style="max-width:980px;margin:0 auto">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <h2 style="margin:0">知识图谱</h2>
+      <h2 style="margin:0">{{ t('views.knowledgeGraph.title') }}</h2>
       <span style="flex:1"></span>
       <button v-if="savedEdges.length" class="chip" @click="mode = mode === 'saved' ? 'generated' : 'saved'">
-        {{ mode === 'saved' ? '切换到 AI 生成' : '查看已保存图谱' }}
+        {{ mode === 'saved' ? t('views.knowledgeGraph.switchToGenerated') : t('views.knowledgeGraph.viewSaved') }}
       </button>
-      <button class="btn" :disabled="loading" @click="autoRecommend" title="基于卡片相似度的本地算法，零 LLM 开销，零延迟">🔗 智能推荐关联</button>
-      <button class="btn" :disabled="loading" @click="generateByAgent" title="走 graph-builder agent 工具调用循环，更懂卡片库且自动去重">🤖 Agent 智能构建</button>
-      <button class="btn primary" :disabled="loading" @click="generate">{{ loading ? '生成中…' : 'AI 生成图谱' }}</button>
+      <button class="btn" :disabled="loading" @click="autoRecommend" :title="t('views.knowledgeGraph.recommendTitle')">{{ t('views.knowledgeGraph.recommendBtn') }}</button>
+      <button class="btn" :disabled="loading" @click="generateByAgent" :title="t('views.knowledgeGraph.agentTitle')">{{ t('views.knowledgeGraph.agentBtn') }}</button>
+      <button class="btn primary" :disabled="loading" @click="generate">{{ loading ? t('views.knowledgeGraph.generating') : t('views.knowledgeGraph.aiGenerate') }}</button>
     </div>
-    <p class="hint" style="margin:4px 0 10px">AI/Agent 从卡片挖出知识点和关联；多风格可视化；可保存进知识库随数据包同步。「🔗 智能推荐」用本地相似度算法，免 Key 免流量。</p>
+    <p class="hint" style="margin:4px 0 10px">{{ t('views.knowledgeGraph.introHint') }}</p>
 
-    <div v-if="recommendLoading" class="hint" style="padding:12px;text-align:center">分析卡片相似度中…</div>
+    <div v-if="recommendLoading" class="hint" style="padding:12px;text-align:center">{{ t('views.knowledgeGraph.analyzing') }}</div>
     <div v-if="recommended.length" class="rec-box">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <strong>智能推荐 {{ recommended.length }} 条关联</strong>
-        <span class="hint">基于卡片内容/标签/科目相似度，可一键保存</span>
+        <strong>{{ t('views.knowledgeGraph.recTitle', undefined, { n: recommended.length }) }}</strong>
+        <span class="hint">{{ t('views.knowledgeGraph.recHint') }}</span>
         <span style="flex:1"></span>
-        <button class="btn small primary" @click="saveAllRecommended">💾 全部保存</button>
+        <button class="btn small primary" @click="saveAllRecommended">{{ t('views.knowledgeGraph.saveAll') }}</button>
       </div>
       <div v-for="(r, i) in recommended" :key="`${r.from}-${r.to}-${r.label}`" class="rec-row">
         <div class="rec-main">
           <span class="rec-node">{{ r.from }}</span>
           <span class="rec-rel" :title="r.reason">{{ r.label }}</span>
           <span class="rec-node">{{ r.to }}</span>
-          <span class="rec-score" :title="r.reason">相似度 {{ fmtScore(r.score) }}</span>
+          <span class="rec-score" :title="r.reason">{{ t('views.knowledgeGraph.similarity') }} {{ fmtScore(r.score) }}</span>
         </div>
         <div class="rec-reason">{{ r.reason }}</div>
         <div style="margin-top:4px">
-          <button class="btn small primary" @click="saveRecommended(i)">保存</button>
-          <button class="btn small" @click="recommended.splice(i, 1)">忽略</button>
+          <button class="btn small primary" @click="saveRecommended(i)">{{ t('views.knowledgeGraph.save') }}</button>
+          <button class="btn small" @click="recommended.splice(i, 1)">{{ t('views.knowledgeGraph.ignore') }}</button>
         </div>
       </div>
     </div>
 
     <div v-if="nodes.length" class="kg-layout-bar">
-      <span class="hint" style="margin-right:4px">风格：</span>
-      <button v-for="l in LAYOUTS" :key="l.id" class="kg-style-chip" :class="{active: layout === l.id}" @click="setLayout(l.id)" :title="l.name">
-        <span style="font-size:14px">{{ l.icon }}</span><span>{{ l.name }}</span>
+      <span class="hint" style="margin-right:4px">{{ t('views.knowledgeGraph.styleLabel') }}</span>
+      <button v-for="l in LAYOUTS" :key="l.id" class="kg-style-chip" :class="{active: layout === l.id}" @click="setLayout(l.id)" :title="t('views.knowledgeGraph.' + l.key)">
+        <span style="font-size:14px">{{ l.icon }}</span><span>{{ t('views.knowledgeGraph.' + l.key) }}</span>
       </button>
     </div>
 
-    <EmptyState v-if="!nodes.length && !loading" icon="🕸️" title="还没有知识图谱" message="点右上角「AI 生成图谱」或「🤖 Agent 智能构建」，自动分析你的卡片" />
+    <EmptyState v-if="!nodes.length && !loading" icon="🕸️" :title="t('views.knowledgeGraph.emptyTitle')" :message="t('views.knowledgeGraph.emptyMsg')" />
 
     <div v-if="nodes.length" class="graph-box">
       <div ref="chartEl" style="width:100%;height:58vh;min-height:400px"></div>
     </div>
 
     <div v-if="mode === 'generated' && generatedEdges.length" style="text-align:center;margin-top:10px">
-      <button class="btn primary small" @click="saveGenerated">💾 保存这些关联到知识库</button>
+      <button class="btn primary small" @click="saveGenerated">{{ t('views.knowledgeGraph.saveGenerated') }}</button>
     </div>
 
     <div v-if="deadCount" class="dead-box">
       <span>
-        ⚠️ 有 <b>{{ deadCount }}</b> 条关联的两端找不到对应卡片（卡片已删，或历史版本把卡片 ID 直接写进了关联里），
-        已从图谱视图中排除，避免显示成一串无意义的 ID。
+        {{ t('views.knowledgeGraph.deadPrefix') }}<b>{{ deadCount }}</b>{{ t('views.knowledgeGraph.deadSuffix') }}
       </span>
-      <button class="btn small" @click="pruneDead">🧹 清理失效关联</button>
+      <button class="btn small" @click="pruneDead">{{ t('views.knowledgeGraph.pruneBtn') }}</button>
     </div>
 
     <div v-if="mode === 'saved' && savedEdges.length" class="saved-box">
       <div class="saved-title-row">
-        <span class="saved-title">已保存的知识图谱（{{ savedEdges.length }} 条关联 · {{ clusters.length }} 个章节，可跨设备同步）</span>
+        <span class="saved-title">{{ t('views.knowledgeGraph.savedTitle', undefined, { edges: savedEdges.length, clusters: clusters.length }) }}</span>
         <ExportButton
           :data="savedEdges"
           :count="savedEdges.length"
           filename-prefix="knowledge-graph"
-          label="导出图谱"
+          :label="t('views.knowledgeGraph.exportLabel')"
           :formats="graphExportFormats"
         />
       </div>
       <div v-for="c in clusters" :key="c.subject" class="cluster">
-        <div class="cluster-title">{{ c.subject }}<span class="cluster-count">{{ c.edges.length }} 条</span></div>
+        <div class="cluster-title">{{ c.subject }}<span class="cluster-count">{{ t('views.knowledgeGraph.clusterCount', undefined, { n: c.edges.length }) }}</span></div>
         <div v-for="e in c.edges" :key="e.id" class="saved-edge">
           <span>{{ nodeById(e.from)?.label || e.from }}</span>
           <span class="saved-rel">{{ e.label }}</span>
           <span>{{ nodeById(e.to)?.label || e.to }}</span>
-          <a style="color:var(--red);cursor:pointer;margin-left:8px" @click="removeEdge(e.id)" aria-label="删除关联">删</a>
+          <a style="color:var(--red);cursor:pointer;margin-left:8px" @click="removeEdge(e.id)" :aria-label="t('views.knowledgeGraph.deleteEdgeAria')">{{ t('views.knowledgeGraph.deleteEdge') }}</a>
         </div>
       </div>
     </div>
 
     <div v-if="activeLabel" class="selected-node-bar" style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap">
       <span class="hint">
-        <template v-if="activeId && nodeById(activeId)">选中节点：<b>{{ nodeById(activeId).label }}</b>，</template>
-        <template v-else>当前节点：<b>{{ activeLabel }}</b>，</template>
+        <template v-if="activeId && nodeById(activeId)">{{ t('views.knowledgeGraph.selectedNodePrefix') }}<b>{{ nodeById(activeId).label }}</b>{{ t('views.knowledgeGraph.selectedNodeSuffix') }}</template>
+        <template v-else>{{ t('views.knowledgeGraph.currentNodePrefix') }}<b>{{ activeLabel }}</b>{{ t('views.knowledgeGraph.currentNodeSuffix') }}</template>
         <span v-if="activeSubject" style="margin-right:6px">🎓 {{ activeSubject }}</span>
-        可直接跳转到对应的知识卡片浏览。
+        {{ t('views.knowledgeGraph.jumpHint') }}
       </span>
-      <button class="btn primary small" @click="jumpToNodeCard(activeLabel, activeSubject)">🔗 跳转知识卡片</button>
-      <button class="btn small" @click="activeLabel='';activeSubject='';activeId=''">清空选择</button>
+      <button class="btn primary small" @click="jumpToNodeCard(activeLabel, activeSubject)">{{ t('views.knowledgeGraph.jumpCard') }}</button>
+      <button class="btn small" @click="activeLabel='';activeSubject='';activeId=''">{{ t('views.knowledgeGraph.clearSelection') }}</button>
     </div>
     <div v-else-if="activeId && nodeById(activeId)" class="hint" style="text-align:center;margin-top:10px">
-      选中：{{ nodeById(activeId).label }}，相关节点已高亮。
+      {{ t('views.knowledgeGraph.selectedPrefix') }}{{ nodeById(activeId).label }}{{ t('views.knowledgeGraph.selectedSuffix') }}
     </div>
   </div>
 </template>

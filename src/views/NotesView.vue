@@ -90,7 +90,7 @@ async function save() {
     // 保持选中
     selectedId.value = saved.id;
   } catch (e) {
-    toast(t('views.notesView.saveFailed', { msg: e?.message || e }), 'error');
+    toast(t('views.notesView.saveFailed', undefined, { msg: e?.message || e }), 'error');
   }
 }
 async function remove() {
@@ -273,7 +273,7 @@ const filteredNotes = computed(() => notes.value);
         </div>
 
         <div class="notes-footer">
-          <span class="hint">{{ t('views.notesView.charCount', { n: draftStats.chars }) }} · {{ t('views.notesView.linkCount', { n: draftStats.links }) }} · {{ isDirty ? t('views.notesView.unsaved') : t('views.notesView.synced') }}</span>
+          <span class="hint">{{ t('views.notesView.charCount', undefined, { n: draftStats.chars }) }} · {{ t('views.notesView.linkCount', undefined, { n: draftStats.links }) }} · {{ isDirty ? t('views.notesView.unsaved') : t('views.notesView.synced') }}</span>
           <span v-if="backlinks.length" class="hint">
             {{ t('views.notesView.referenced') }}
             <a v-for="b in backlinks" :key="b.id" class="wiki-link" @click="openNote(notes.find(n => n.id === b.id))">{{ b.title }}</a>

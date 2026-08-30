@@ -9,6 +9,7 @@ import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { speak } from '../utils/tts.js';
 import { T } from '../utils/telemetry.js';
+import { t } from '../i18n/index.js';
 
 const chats = ref([]);
 const currentChat = ref(newChat());
@@ -29,7 +30,7 @@ const deckFilter = ref('all');
 
 const coldOpen = ref(false);
 const coldLoading = ref(false);
-const coldTemplates = ref(COLD_START_TEMPLATES.map(t => ({ id: t.id, name: t.name, subject: t.subject, description: t.description })));
+const coldTemplates = ref(COLD_START_TEMPLATES.map(tpl => ({ id: tpl.id, name: tpl.name, subject: tpl.subject, description: tpl.description })));
 
 const SYSTEM_PROMPT = '你是「SxyBrick 记忆卡片」的智能学习助手。你会拿到用户的真实学习数据（卡片、复习记录、错题、标签、掌握度）。请用中文、简洁、友好地回答。当用户问学习情况、薄弱点、错因、复习建议时，务必结合下面提供的数据给出针对性建议，不要泛泛而谈。';
 
@@ -55,7 +56,7 @@ async function createNew() {
 }
 
 async function removeChat(id) {
-  if (!(await confirmDialog('删除这个对话？'))) return;
+  if (!(await confirmDialog(t('views.aiAssistant.confirmDeleteChat')))) return;
   await deleteChat(id);
   if (currentChat.value.id === id) currentChat.value = newChat();
   await loadChatList();
@@ -63,13 +64,13 @@ async function removeChat(id) {
 
 async function persist() {
   try { await saveChat(currentChat.value); await loadChatList(); }
-  catch (e) { toast('对话保存失败：' + e.message, 'error'); }
+  catch (e) { toast(t('views.aiAssistant.chatSaveFail', undefined, { msg: e.message }), 'error'); }
 }
 
 async function send() {
   const text = input.value.trim();
   if (!text || loading.value) return;
-  if (!hasAIKey()) { showSettings.value = true; toast('请先配置 AI 密钥', 'error'); return; }
+  if (!hasAIKey()) { showSettings.value = true; toast(t('views.aiAssistant.needKey'), 'error'); return; }
   input.value = '';
   currentChat.value.messages.push({ role: 'user', content: text });
   if (currentChat.value.messages.filter(m => m.role === 'user').length === 1) currentChat.value.title = text.slice(0, 18);
@@ -85,10 +86,10 @@ async function send() {
     currentChat.value.messages.push({ role: 'assistant', content: reply });
     if (voiceOn.value) speak(reply);
     const n = await extractMemories(text, reply);
-    if (n > 0) toast(`已自动记下 ${n} 条记忆`, 'success');
+    if (n > 0) toast(t('views.aiAssistant.memSaved', undefined, { n }), 'success');
   } catch (e) {
     toast(e.message, 'error');
-    currentChat.value.messages.push({ role: 'assistant', content: '（出错：' + e.message + '）' });
+    currentChat.value.messages.push({ role: 'assistant', content: t('views.aiAssistant.chatError', undefined, { msg: e.message }) });
   } finally {
     loading.value = false;
     await persist();
@@ -106,31 +107,31 @@ async function testConnection() {
   testing.value = true;
   try {
     const r = await chatAI([{ role: 'user', content: '请只回复「连接成功」四个字' }]);
-    toast(r ? '连接成功：' + r.trim().slice(0, 30) : '连接成功', 'success');
+    toast(r ? t('views.aiAssistant.connOkWith') + r.trim().slice(0, 30) : t('views.aiAssistant.connOk'), 'success');
   } catch (e) {
-    toast('连接失败：' + e.message, 'error');
+    toast(t('views.aiAssistant.connFail', undefined, { msg: e.message }), 'error');
   } finally { testing.value = false; }
 }
-function saveSettings() { setAIConfig(cfg.value); showSettings.value = false; toast('AI 配置已保存', 'success'); }
+function saveSettings() { setAIConfig(cfg.value); showSettings.value = false; toast(t('views.aiAssistant.cfgSaved'), 'success'); }
 
 // ---- 快捷指令 ----
 const quickActions = [
-  { label: '智能出题', prompt: '请根据我的数据，出 3 道选择题考我（给出 A-D 选项，先别公布答案，等我回答后再判对错）' },
-  { label: '学习周报', prompt: '请根据我的数据，生成一份本周学习周报：学了什么、哪里薄弱、下周复习建议' },
-  { label: '知识关联', prompt: '请分析我的卡片涉及的知识点之间的关联，帮我把它们串成一个知识网络' },
+  { label: 'quickQuiz', prompt: '请根据我的数据，出 3 道选择题考我（给出 A-D 选项，先别公布答案，等我回答后再判对错）' },
+  { label: 'quickWeekly', prompt: '请根据我的数据，生成一份本周学习周报：学了什么、哪里薄弱、下周复习建议' },
+  { label: 'quickRelate', prompt: '请分析我的卡片涉及的知识点之间的关联，帮我把它们串成一个知识网络' },
 ];
 function clickQuick(q) { input.value = q.prompt; send(); }
 
 // ---- 智能卡组生成（Phase 2 杀手锏）----
 async function generateDeckFlow() {
-  const t = genText.value.trim();
-  if (!t) return toast('请先粘贴内容', 'error');
-  if (!hasAIKey()) { showSettings.value = true; toast('请先配置 AI 密钥', 'error'); return; }
+  const txt = genText.value.trim();
+  if (!txt) return toast(t('views.aiAssistant.needPaste'), 'error');
+  if (!hasAIKey()) { showSettings.value = true; toast(t('views.aiAssistant.needKey'), 'error'); return; }
   deckLoading.value = true;
   deck.value = null;
   deckSelected.value = new Set();
   try {
-    const r = await generateDeck(t, { subject: genSubject.value.trim() });
+    const r = await generateDeck(txt, { subject: genSubject.value.trim() });
     deck.value = r;
     const sel = new Set();
     r.deduped.forEach((c) => {
@@ -138,8 +139,8 @@ async function generateDeckFlow() {
       if (idx >= 0 && (c.score?.overall ?? 0) >= 60) sel.add(idx);
     });
     deckSelected.value = sel;
-    if (!r.candidates.length) toast('没解析出卡片，请检查内容', 'error');
-    else toast(`生成 ${r.candidates.length} 张候选卡（去重后 ${r.deduped.length} 张，已勾选 ${sel.size} 张）`, 'success');
+    if (!r.candidates.length) toast(t('views.aiAssistant.genNoCards'), 'error');
+    else toast(t('views.aiAssistant.genDone', undefined, { cand: r.candidates.length, dedup: r.deduped.length, sel: sel.size }), 'success');
   } catch (e) { toast(e.message, 'error'); }
   finally { deckLoading.value = false; }
 }
@@ -172,11 +173,11 @@ const filteredCandidates = computed(() => {
 async function importDeck() {
   if (!deck.value) return;
   const picks = [...deckSelected.value].map(i => deck.value.candidates[i]).filter(Boolean);
-  if (!picks.length) return toast('请至少勾选一张卡', 'error');
+  if (!picks.length) return toast(t('views.aiAssistant.genPickOne'), 'error');
   deckLoading.value = true;
   try {
     const r = await bulkCreateCards(picks, { sourceDocId: deck.value.sourceDocId });
-    toast(`已导入 ${r.created} 张卡片${r.failed.length ? `，${r.failed.length} 张失败` : ''}`, r.failed.length ? 'error' : 'success');
+    toast(t('views.aiAssistant.importDone', undefined, { created: r.created }) + (r.failed.length ? t('views.aiAssistant.importFailed', undefined, { n: r.failed.length }) : ''), r.failed.length ? 'error' : 'success');
     if (!r.failed.length) {
       genOpen.value = false; deck.value = null; genText.value = ''; genSubject.value = ''; deckSelected.value = new Set();
     }
@@ -186,7 +187,7 @@ async function importDeck() {
 
 // ---- 冷启动卡组（0 卡新用户首选）----
 async function runColdStart(tplId) {
-  if (!hasAIKey()) { showSettings.value = true; toast('请先配置 AI 密钥', 'error'); return; }
+  if (!hasAIKey()) { showSettings.value = true; toast(t('views.aiAssistant.needKey'), 'error'); return; }
   coldLoading.value = true;
   try {
     const r = await generateColdStartDeck(tplId);
@@ -200,7 +201,7 @@ async function runColdStart(tplId) {
     deckFilter.value = 'all';
     coldOpen.value = false;
     genOpen.value = true;
-    toast(`冷启动生成 ${r.candidates.length} 张卡（去重后 ${r.deduped.length} 张）`, 'success');
+    toast(t('views.aiAssistant.coldDone', undefined, { cand: r.candidates.length, dedup: r.deduped.length }), 'success');
   } catch (e) { toast(e.message, 'error'); }
   finally { coldLoading.value = false; }
 }
@@ -217,7 +218,7 @@ async function addMem() {
   memories.value = await listMemories();
 }
 async function removeMem(id) { await deleteMemory(id); memories.value = await listMemories(); }
-function catName(c) { return c === 'core' ? '核心' : c === 'preference' ? '偏好' : '事实'; }
+function catName(c) { return c === 'core' ? t('views.aiAssistant.catCore') : c === 'preference' ? t('views.aiAssistant.catPref') : t('views.aiAssistant.catFact'); }
 
 const voiceOn = ref(localStorage.getItem('sxy_voice') !== '0');
 function toggleVoice() {
@@ -236,29 +237,29 @@ onMounted(async () => {
 <template>
   <div class="ai-wrap">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">AI 学习助手</h2>
-      <button class="btn primary small" @click="createNew">＋ 新建对话</button>
+      <h2 style="margin:0">{{ t('views.aiAssistant.headerTitle') }}</h2>
+      <button class="btn primary small" @click="createNew">{{ t('views.aiAssistant.newChatBtn') }}</button>
       <span style="flex:1"></span>
-      <button class="chip" :class="{ on: voiceOn }" @click="toggleVoice">语音播报</button>
-      <button class="btn small" @click="openMem">记忆</button>
-      <button class="btn small" @click="cfg = getAIConfig(); showSettings = true">AI 设置</button>
+      <button class="chip" :class="{ on: voiceOn }" @click="toggleVoice">{{ t('views.aiAssistant.voiceBroadcast') }}</button>
+      <button class="btn small" @click="openMem">{{ t('views.aiAssistant.memLabel') }}</button>
+      <button class="btn small" @click="cfg = getAIConfig(); showSettings = true">{{ t('views.aiAssistant.settingsLabel') }}</button>
     </div>
 
     <div class="quick-bar">
-      <button v-for="q in quickActions" :key="q.label" class="chip" @click="clickQuick(q)">{{ q.label }}</button>
-      <button class="chip" style="border-color:var(--blue);color:var(--blue)" @click="genOpen = true">智能组卡</button>
-      <button class="chip" style="border-color:var(--green);color:var(--green)" @click="coldOpen = true">冷启动卡组</button>
+      <button v-for="q in quickActions" :key="q.label" class="chip" @click="clickQuick(q)">{{ t('views.aiAssistant.' + q.label) }}</button>
+      <button class="chip" style="border-color:var(--blue);color:var(--blue)" @click="genOpen = true">{{ t('views.aiAssistant.genDeckBtn') }}</button>
+      <button class="chip" style="border-color:var(--green);color:var(--green)" @click="coldOpen = true">{{ t('views.aiAssistant.coldDeckBtn') }}</button>
     </div>
 
     <div class="ai-body">
       <!-- 左栏：历史对话 -->
       <div class="chat-side">
-        <div class="side-title">历史对话</div>
-        <EmptyState v-if="!chats.length" compact icon="🤖" title="暂无历史对话" message="开始一段新对话，或点「智能组卡」试试" />
+        <div class="side-title">{{ t('views.aiAssistant.historyTitle') }}</div>
+        <EmptyState v-if="!chats.length" compact icon="🤖" :title="t('views.aiAssistant.emptyHistoryTitle')" :message="t('views.aiAssistant.emptyHistoryMsgPrefix') + t('views.aiAssistant.genDeckBtn') + t('views.aiAssistant.emptyHistoryMsgSuffix')" />
         <div v-for="c in chats" :key="c.id" class="chat-item" :class="{ active: c.id === currentChat.id }" @click="selectChat(c.id)">
-          <div class="chat-item-title">{{ c.title || '新对话' }}</div>
-          <div class="chat-item-meta">{{ c.messages?.length || 0 }} 条
-            <a style="float:right;color:var(--red);cursor:pointer" @click.stop="removeChat(c.id)">删</a>
+          <div class="chat-item-title">{{ c.title || t('views.aiAssistant.newChatTitle') }}</div>
+          <div class="chat-item-meta">{{ c.messages?.length || 0 }}{{ t('views.aiAssistant.msgCountSuffix') }}
+            <a style="float:right;color:var(--red);cursor:pointer" @click.stop="removeChat(c.id)">{{ t('views.aiAssistant.delLink') }}</a>
           </div>
         </div>
       </div>
@@ -266,18 +267,18 @@ onMounted(async () => {
       <!-- 中间：消息流 -->
       <div ref="box" class="chat-box">
         <div v-if="!currentChat.messages.length" class="hint" style="text-align:center;padding:40px">
-          你好，我是你的学习助手。问问我吧，例如「我最近哪些科目薄弱？」
+          {{ t('views.aiAssistant.chatEmpty') }}
         </div>
         <div v-for="(m, i) in currentChat.messages" :key="i" :id="'msg-' + i" class="msg" :class="m.role">
           <div class="bubble">{{ m.content }}</div>
         </div>
-        <div v-if="loading" class="msg assistant"><div class="bubble">思考中…</div></div>
+        <div v-if="loading" class="msg assistant"><div class="bubble">{{ t('views.aiAssistant.aiThinking') }}</div></div>
       </div>
 
       <!-- 右栏：数轴节点 -->
       <div class="timeline">
-        <div class="side-title">提问节点</div>
-        <EmptyState v-if="!userNodes.length" compact icon="🤖" title="暂无提问" message="对话中向助手提问，会在这里形成时间轴节点" />
+        <div class="side-title">{{ t('views.aiAssistant.nodesTitle') }}</div>
+        <EmptyState v-if="!userNodes.length" compact icon="🤖" :title="t('views.aiAssistant.emptyNodesTitle')" :message="t('views.aiAssistant.emptyNodesMsg')" />
         <div v-for="n in userNodes" :key="n.index" class="tl-node" :title="n.text" @click="scrollToUser(n.index)">
           <span class="tl-dot"></span>
           <span class="tl-text">{{ n.text.slice(0, 12) }}</span>
@@ -286,27 +287,27 @@ onMounted(async () => {
     </div>
 
     <div class="input-row">
-      <VoiceInput @result="(t) => input = input ? input + t : t" />
-      <input v-model="input" class="input" placeholder="问我任何关于你学习的问题…" @keydown.enter="send" />
-      <button class="btn primary" :disabled="loading" @click="send">发送</button>
+      <VoiceInput @result="(res) => input = input ? input + res : res" />
+      <input v-model="input" class="input" :placeholder="t('views.aiAssistant.inputPlaceholder')" @keydown.enter="send" />
+      <button class="btn primary" :disabled="loading" @click="send">{{ t('views.aiAssistant.sendBtn') }}</button>
     </div>
 
     <!-- AI 设置弹窗 -->
     <teleport to="body">
       <div v-if="showSettings" class="modal-mask" @click.self="showSettings = false">
         <div class="modal">
-          <h3>AI 设置</h3>
-          <div class="field-label" style="margin-top:4px">API 地址（OpenAI 兼容）</div>
-          <input v-model="cfg.baseUrl" class="input" placeholder="https://api.deepseek.com" />
-          <div class="field-label">API 密钥</div>
-          <input v-model="cfg.apiKey" class="input" type="password" placeholder="sk-..." />
-          <div class="field-label">模型名</div>
-          <input v-model="cfg.model" class="input" placeholder="deepseek-v4-flash" />
-          <div class="hint" style="margin-top:8px">推荐 deepseek-v4-flash（快、便宜、够用）；需要更强推理可换 deepseek-v4-pro。密钥只存你本地。</div>
+          <h3>{{ t('views.aiAssistant.settingsLabel') }}</h3>
+          <div class="field-label" style="margin-top:4px">{{ t('views.aiAssistant.apiUrlLabel') }}</div>
+          <input v-model="cfg.baseUrl" class="input" :placeholder="t('views.aiAssistant.apiUrlPlaceholder')" />
+          <div class="field-label">{{ t('views.aiAssistant.apiKeyLabel') }}</div>
+          <input v-model="cfg.apiKey" class="input" type="password" :placeholder="t('views.aiAssistant.apiKeyPlaceholder')" />
+          <div class="field-label">{{ t('views.aiAssistant.modelLabel') }}</div>
+          <input v-model="cfg.model" class="input" :placeholder="t('views.aiAssistant.modelPlaceholder')" />
+          <div class="hint" style="margin-top:8px">{{ t('views.aiAssistant.apiHint') }}</div>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-            <button class="btn" :disabled="testing" @click="testConnection">{{ testing ? '测试中…' : '测试连接' }}</button>
-            <button class="btn" @click="showSettings = false">取消</button>
-            <button class="btn primary" @click="saveSettings">保存</button>
+            <button class="btn" :disabled="testing" @click="testConnection">{{ testing ? t('views.aiAssistant.testing') : t('views.aiAssistant.testConn') }}</button>
+            <button class="btn" @click="showSettings = false">{{ t('views.aiAssistant.cancel') }}</button>
+            <button class="btn primary" @click="saveSettings">{{ t('views.aiAssistant.save') }}</button>
           </div>
         </div>
       </div>
@@ -316,51 +317,51 @@ onMounted(async () => {
     <teleport to="body">
       <div v-if="genOpen" class="modal-mask" @click.self="genOpen = false">
         <div class="modal">
-          <h3>智能卡组生成</h3>
-          <p class="hint" style="margin-top:0">粘贴学习内容（笔记/讲义/文章），AI 自动拆成高质量记忆卡组，含质量评分、多题型、重复检测、原文溯源。</p>
-          <textarea v-model="genText" class="input" rows="6" placeholder="粘贴内容（可超长，自动分块拆解）…"></textarea>
-          <input v-model="genSubject" class="input" style="margin-top:8px" placeholder="科目提示（可选，如 数据结构 / 高数 / 英语）" />
+          <h3>{{ t('views.aiAssistant.genTitle') }}</h3>
+          <p class="hint" style="margin-top:0">{{ t('views.aiAssistant.genHint') }}</p>
+          <textarea v-model="genText" class="input" rows="6" :placeholder="t('views.aiAssistant.genTextPlaceholder')"></textarea>
+          <input v-model="genSubject" class="input" style="margin-top:8px" :placeholder="t('views.aiAssistant.genSubjectPlaceholder')" />
           <div style="display:flex;gap:10px;margin-top:12px">
-            <button class="btn primary" :disabled="deckLoading" @click="generateDeckFlow">{{ deckLoading ? '生成中…' : '生成卡组' }}</button>
-            <button class="btn" @click="coldOpen = true">从模板冷启动</button>
+            <button class="btn primary" :disabled="deckLoading" @click="generateDeckFlow">{{ deckLoading ? t('views.aiAssistant.generating') : t('views.aiAssistant.genBtn') }}</button>
+            <button class="btn" @click="coldOpen = true">{{ t('views.aiAssistant.genFromTemplate') }}</button>
           </div>
 
           <div v-if="deck" style="margin-top:14px">
             <div class="deck-summary">
-              <span>候选 <b>{{ deck.count }}</b></span>
-              <span>去重后 <b style="color:var(--green)">{{ deck.deduped.length }}</b></span>
-              <span>已勾选 <b style="color:var(--blue)">{{ deckSelected.size }}</b></span>
-              <span v-if="deck.sourceDocId" title="原文已存为 AI 文档">源文档 ✓</span>
-              <span v-if="deck.chunks > 1">分块 {{ deck.chunks }}</span>
+              <span>{{ t('views.aiAssistant.deckCandidate') }} <b>{{ deck.count }}</b></span>
+              <span>{{ t('views.aiAssistant.deckDeduped') }} <b style="color:var(--green)">{{ deck.deduped.length }}</b></span>
+              <span>{{ t('views.aiAssistant.deckSelected') }} <b style="color:var(--blue)">{{ deckSelected.size }}</b></span>
+              <span v-if="deck.sourceDocId" :title="t('views.aiAssistant.deckSourceTooltip')">{{ t('views.aiAssistant.deckSourceDoc') }}</span>
+              <span v-if="deck.chunks > 1">{{ t('views.aiAssistant.deckChunks') }} {{ deck.chunks }}</span>
             </div>
             <div class="deck-filter">
-              <button :class="['chip-sm', deckFilter==='all'?'on':'']" @click="deckFilter='all'">全部 {{ deck.count }}</button>
-              <button :class="['chip-sm', deckFilter==='deduped'?'on':'']" @click="deckFilter='deduped'">去重后 {{ deck.deduped.length }}</button>
-              <button :class="['chip-sm', deckFilter==='selected'?'on':'']" @click="deckFilter='selected'">已选 {{ deckSelected.size }}</button>
+              <button :class="['chip-sm', deckFilter==='all'?'on':'']" @click="deckFilter='all'">{{ t('views.aiAssistant.deckFilterAll') }} {{ deck.count }}</button>
+              <button :class="['chip-sm', deckFilter==='deduped'?'on':'']" @click="deckFilter='deduped'">{{ t('views.aiAssistant.deckFilterDeduped') }} {{ deck.deduped.length }}</button>
+              <button :class="['chip-sm', deckFilter==='selected'?'on':'']" @click="deckFilter='selected'">{{ t('views.aiAssistant.deckFilterSelected') }} {{ deckSelected.size }}</button>
               <span style="flex:1"></span>
-              <button class="chip-sm" @click="selectAllVisible">全选可见</button>
-              <button class="chip-sm" @click="clearSelection">清空</button>
+              <button class="chip-sm" @click="selectAllVisible">{{ t('views.aiAssistant.deckSelectAll') }}</button>
+              <button class="chip-sm" @click="clearSelection">{{ t('views.aiAssistant.deckClear') }}</button>
             </div>
             <div class="gen-list">
               <label v-for="c in filteredCandidates" :key="c._idx" class="gen-item" :class="{ sel: deckSelected.has(c._idx), dup: c.dupScore >= 0.35, low: (c.score?.overall ?? 0) < 60 }">
                 <input type="checkbox" :checked="deckSelected.has(c._idx)" @change="toggleCard(c._idx)" />
                 <div class="gen-main">
                   <div class="gen-q">
-                    <span class="badge" :class="'t-' + c.type">{{ c.type === 'cloze' ? '填空' : c.type === 'choice' ? '选择' : '问答' }}</span>
+                    <span class="badge" :class="'t-' + c.type">{{ c.type === 'cloze' ? t('views.aiAssistant.typeCloze') : c.type === 'choice' ? t('views.aiAssistant.typeChoice') : t('views.aiAssistant.typeBasic') }}</span>
                     {{ c.front }}
                   </div>
                   <div class="gen-a">{{ c.back }}</div>
                   <div class="gen-meta">
-                    <span :class="['sc', c.score?.overall >= 80 ? 's-hi' : c.score?.overall >= 60 ? 's-mid' : 's-low']">质量 {{ c.score?.overall ?? '-' }}</span>
+                    <span :class="['sc', c.score?.overall >= 80 ? 's-hi' : c.score?.overall >= 60 ? 's-mid' : 's-low']">{{ t('views.aiAssistant.deckQuality') }} {{ c.score?.overall ?? '-' }}</span>
                     <span v-if="c.subject">· {{ c.subject }}</span>
-                    <span v-if="c.dupScore >= 0.35" class="dup-warn">⚠ 疑似重复 ({{ (c.dupScore * 100).toFixed(0) }}%)</span>
+                    <span v-if="c.dupScore >= 0.35" class="dup-warn">{{ t('views.aiAssistant.deckDupWarnPrefix') }}{{ (c.dupScore * 100).toFixed(0) }}%{{ t('views.aiAssistant.deckDupWarnSuffix') }}</span>
                   </div>
                 </div>
               </label>
             </div>
             <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:10px">
-              <button class="btn" @click="genOpen = false">取消</button>
-              <button class="btn primary" :disabled="deckLoading || !deckSelected.size" @click="importDeck">导入勾选的 {{ deckSelected.size }} 张</button>
+              <button class="btn" @click="genOpen = false">{{ t('views.aiAssistant.cancel') }}</button>
+              <button class="btn primary" :disabled="deckLoading || !deckSelected.size" @click="importDeck">{{ t('views.aiAssistant.deckImportPrefix') }} {{ deckSelected.size }} {{ t('views.aiAssistant.deckImportSuffix') }}</button>
             </div>
           </div>
         </div>
@@ -371,16 +372,16 @@ onMounted(async () => {
     <teleport to="body">
       <div v-if="coldOpen" class="modal-mask" @click.self="coldOpen = false">
         <div class="modal">
-          <h3>冷启动卡组</h3>
-          <p class="hint" style="margin-top:0">卡片库空空如也？选一个学科模板，AI 一键生成入门卡包，立刻开始复习。</p>
+          <h3>{{ t('views.aiAssistant.coldTitle') }}</h3>
+          <p class="hint" style="margin-top:0">{{ t('views.aiAssistant.coldHint') }}</p>
           <div class="cold-list">
-            <div v-for="t in coldTemplates" :key="t.id" class="cold-item" @click="runColdStart(t.id)">
-              <div class="cold-name">{{ t.name }} <span class="cold-sub">{{ t.subject }}</span></div>
-              <div class="cold-desc">{{ t.description }}</div>
+            <div v-for="tpl in coldTemplates" :key="tpl.id" class="cold-item" @click="runColdStart(tpl.id)">
+              <div class="cold-name">{{ tpl.name }} <span class="cold-sub">{{ tpl.subject }}</span></div>
+              <div class="cold-desc">{{ tpl.description }}</div>
             </div>
           </div>
           <div style="display:flex;justify-content:flex-end;margin-top:12px">
-            <button class="btn" :disabled="coldLoading" @click="coldOpen = false">{{ coldLoading ? '生成中…' : '关闭' }}</button>
+            <button class="btn" :disabled="coldLoading" @click="coldOpen = false">{{ coldLoading ? t('views.aiAssistant.generating') : t('views.aiAssistant.close') }}</button>
           </div>
         </div>
       </div>
@@ -390,27 +391,27 @@ onMounted(async () => {
     <teleport to="body">
       <div v-if="memOpen" class="modal-mask" @click.self="memOpen = false">
         <div class="modal">
-          <h3>Agent 记忆库</h3>
-          <p class="hint" style="margin-top:0">Agent 会跨对话记住这些信息，并自动按分层注入。</p>
+          <h3>{{ t('views.aiAssistant.memTitle') }}</h3>
+          <p class="hint" style="margin-top:0">{{ t('views.aiAssistant.memHint') }}</p>
           <div class="mem-add">
             <select v-model="newMemCat" class="input" style="width:auto">
-              <option value="core">核心</option>
-              <option value="preference">偏好</option>
-              <option value="fact">事实</option>
+              <option value="core">{{ t('views.aiAssistant.catCore') }}</option>
+              <option value="preference">{{ t('views.aiAssistant.catPref') }}</option>
+              <option value="fact">{{ t('views.aiAssistant.catFact') }}</option>
             </select>
-            <input v-model="newMemContent" class="input" placeholder="记住什么？如：我在备考考研计算机408" @keydown.enter="addMem" />
-            <button class="btn primary" @click="addMem">添加</button>
+            <input v-model="newMemContent" class="input" :placeholder="t('views.aiAssistant.memPlaceholder')" @keydown.enter="addMem" />
+            <button class="btn primary" @click="addMem">{{ t('views.aiAssistant.memAdd') }}</button>
           </div>
           <div class="mem-list">
-            <EmptyState v-if="!memories.length" icon="🤖" title="暂无记忆" message="对话中 Agent 会自动提取，也可手动添加" />
+            <EmptyState v-if="!memories.length" icon="🤖" :title="t('views.aiAssistant.emptyMemTitle')" :message="t('views.aiAssistant.emptyMemMsg')" />
             <div v-for="m in memories" :key="m.id" class="mem-item">
               <span class="mem-cat" :class="'cat-' + m.category">{{ catName(m.category) }}</span>
               <span class="mem-content">{{ m.content }}</span>
-              <a style="color:var(--red);cursor:pointer" @click="removeMem(m.id)">删</a>
+              <a style="color:var(--red);cursor:pointer" @click="removeMem(m.id)">{{ t('views.aiAssistant.delLink') }}</a>
             </div>
           </div>
           <div style="display:flex;justify-content:flex-end;margin-top:12px">
-            <button class="btn" @click="memOpen = false">关闭</button>
+            <button class="btn" @click="memOpen = false">{{ t('views.aiAssistant.close') }}</button>
           </div>
         </div>
       </div>
