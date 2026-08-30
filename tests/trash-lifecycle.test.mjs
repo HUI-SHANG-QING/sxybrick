@@ -1,0 +1,193 @@
+// tests/trash-lifecycle.test.mjs —— 删除分级 / 回收站生命周期（2026-08-30 收敛）
+// 覆盖：
+//   1) 资料（docFile）删除进回收站可恢复：元数据 + 解析全文 + 图谱边回来，原文件标记 missing
+//   2) 资料删除写全墓碑：docFile / graphEdge / embedding（级联删除不写墓碑 → 对端回灌）
+//   3) 删卡连带删卡组关联，并写 groupLink 墓碑；恢复时关联与墓碑一起还原
+//   4) 卡组删除 / 「移出卡组」写墓碑（此前设计有、实现无 → 删除永不生效）
+//   5) 删计划级联删任务写 dailyTask 墓碑
+//   6) pruneTrash 按 TTL 清理过期快照
+// 必须最先 import fake-indexeddb/auto，再 import 依赖 db.js 的模块。
+import 'fake-indexeddb/auto';
+import './_env.mjs';
+import test, { after } from 'node:test';
+import assert from 'node:assert/strict';
+import { db } from '../src/db.js';
+import {
+  createCard, deleteCard, restoreFromTrash, pruneTrash, TRASH_TTL_DAYS,
+  createCardGroup, setCardGroups, deleteCardGroup, cardGroupsOfCard,
+  createDailyPlan, deleteDailyPlan,
+} from '../src/repo.js';
+import { deleteDocFile } from '../src/docs-lib.js';
+
+after(async () => { try { await db.close(); } catch {} });
+
+async function resetTrash() { await db.trash.clear(); }
+
+// ---------- 1) 资料删除 → 回收站 → 恢复 ----------
+
+test('资料删除：写 trash 快照，可直接从回收站恢复（解析全文不丢）', async () => {
+  await resetTrash();
+  const id = 'doc-restore-1';
+  const fullText = '第一章 线性代数。向量组的线性相关性是贯穿全章的核心概念。'.repeat(20);
+  await db.docFiles.put({
+    id, name: '线代讲义.pdf', ext: 'pdf', size: 2048, subject: '线性代数',
+    status: 'ready', storage: 'opfs', opfsPath: 'doc-restore-1_线代讲义.pdf',
+    textLen: fullText.length, createdAt: Date.now(), updatedAt: Date.now(),
+  });
+  await db.docTexts.put({ id, text: fullText, textLen: fullText.length, updatedAt: Date.now() });
+  await db.embeddings.put({ id: 'emb-1', sourceType: 'doc', sourceId: id, updatedAt: Date.now(), vector: [0.1, 0.2] });
+  await db.graphEdges.put({
+    id: 'edge-1', from: '📄 线代讲义.pdf', to: '向量相关性', label: '涵盖', subject: '线性代数',
+    docId: id, updatedAt: Date.now(),
+  });
+
+  assert.equal(await deleteDocFile(id), true, '删除成功返回 true');
+  assert.equal(await db.docFiles.get(id), undefined, '元数据已删');
+  assert.equal(await db.docTexts.get(id), undefined, '全文已删');
+
+  // 快照落在回收站
+  const snap = await db.trash.get(id);
+  assert.ok(snap, 'trash 有快照');
+  assert.equal(snap.kind, 'docFile');
+  assert.equal(snap.data._text, fullText, '快照带完整解析全文');
+  assert.equal(snap.data._edges.length, 1, '快照带图谱边');
+
+  // 恢复
+  assert.equal(await restoreFromTrash(snap), true);
+  const back = await db.docFiles.get(id);
+  assert.ok(back, '元数据回来了');
+  assert.equal(back.name, '线代讲义.pdf');
+  assert.equal(back.textLen, fullText.length);
+  assert.equal((await db.docTexts.get(id))?.text, fullText, '解析全文完整恢复');
+  assert.equal((await db.graphEdges.get('edge-1'))?.docId, id, '图谱边恢复');
+  assert.equal(await db.trash.get(id), undefined, '恢复后 trash 记录清除');
+  assert.equal(await db.tombstones.get(id), undefined, '恢复后墓碑清除');
+
+  // 原文件已释放 → 必须显式标记 missing，而不是留着指向已删 OPFS 路径
+  assert.equal(back.storage, 'missing', '原文件不可恢复，storage 标记为 missing');
+  assert.equal(back.opfsPath, undefined, '已失效的 opfsPath 必须清掉');
+});
+
+test('资料删除：级联删掉的图谱边与向量块都写墓碑（防对端回灌）', async () => {
+  await resetTrash();
+  const id = 'doc-tomb-1';
+  await db.docFiles.put({
+    id, name: 't.txt', ext: 'txt', size: 10, status: 'ready', storage: 'idb',
+    createdAt: Date.now(), updatedAt: Date.now(),
+  });
+  await db.embeddings.put({ id: 'emb-x', sourceType: 'doc', sourceId: id, updatedAt: Date.now() });
+  await db.graphEdges.put({ id: 'edge-x', from: '📄 t.txt', to: 'a', label: '涵盖', subject: '', docId: id, updatedAt: Date.now() });
+
+  await deleteDocFile(id);
+  const kinds = new Set((await db.tombstones.toArray()).map(t => `${t.kind}:${t.id}`));
+  assert.ok(kinds.has(`docFile:${id}`), 'docFile 墓碑');
+  assert.ok(kinds.has('graphEdge:edge-x'), '级联删的图谱边也要墓碑');
+  assert.ok(kinds.has('embedding:emb-x'), '级联删的向量块也要墓碑');
+});
+
+// ---------- 2) 删卡：卡组关联 ----------
+
+test('删卡：连带删卡组关联并写 groupLink 墓碑；恢复时关联与墓碑一起还原', async () => {
+  await resetTrash();
+  const card = await createCard({ front: 'Q-组关联', back: 'A', subject: '计组' });
+  const g = await createCardGroup({ name: '组-删卡' });
+  await setCardGroups([card.id], [g.id], []);
+  assert.equal((await cardGroupsOfCard(card.id)).length, 1, '已在组内');
+
+  await deleteCard(card.id);
+  assert.equal((await db.cardGroupLinks.where('cardId').equals(card.id).toArray()).length, 0, '关联行已删（无悬空）');
+  const snap = await db.trash.get(card.id);
+  assert.equal(snap.kind, 'card');
+  assert.equal(snap.data._groupLinks.length, 1, '快照带卡组关联');
+  const linkId = snap.data._groupLinks[0].id;
+  assert.equal((await db.tombstones.get(linkId))?.kind, 'groupLink', '关联行写了 groupLink 墓碑');
+
+  assert.equal(await restoreFromTrash(snap), true);
+  assert.equal((await cardGroupsOfCard(card.id)).length, 1, '恢复后回到原卡组');
+  assert.equal(await db.tombstones.get(linkId), undefined, '恢复后关联墓碑清除（否则下次同步又被删）');
+  await deleteCardGroup(g.id);
+  await deleteCard(card.id);
+});
+
+// ---------- 3) 卡组删除 / 移出 ----------
+
+test('删除卡组：卡组本体与级联关联都写墓碑（否则对端会推回来）', async () => {
+  const card = await createCard({ front: 'Q-删组', back: 'A', subject: '计组' });
+  const g = await createCardGroup({ name: '组-待删' });
+  await setCardGroups([card.id], [g.id], []);
+  const links = await db.cardGroupLinks.where('groupId').equals(g.id).toArray();
+  assert.equal(links.length, 1);
+
+  assert.equal(await deleteCardGroup(g.id), true);
+  assert.equal((await db.tombstones.get(g.id))?.kind, 'cardGroup', '卡组墓碑');
+  assert.equal((await db.tombstones.get(links[0].id))?.kind, 'groupLink', '关联墓碑');
+  await deleteCard(card.id);
+});
+
+test('移出卡组：写 groupLink 墓碑（此前只删行 → 移出永不生效）', async () => {
+  const card = await createCard({ front: 'Q-移出', back: 'A', subject: '计组' });
+  const g = await createCardGroup({ name: '组-移出' });
+  const r = await setCardGroups([card.id], [g.id], []);
+  assert.equal(r.added, 1);
+  const linkId = (await db.cardGroupLinks.where('cardId').equals(card.id).toArray())[0].id;
+
+  const r2 = await setCardGroups([card.id], [], [g.id]);
+  assert.equal(r2.removed, 1);
+  assert.equal((await db.cardGroupLinks.where('cardId').equals(card.id).toArray()).length, 0, '关联已删');
+  const tomb = await db.tombstones.get(linkId);
+  assert.equal(tomb?.kind, 'groupLink', '移出必须写墓碑，否则对端推回来');
+  await deleteCardGroup(g.id);
+  await deleteCard(card.id);
+});
+
+// ---------- 4) 每日计划级联 ----------
+
+test('删除每日计划：级联删的任务逐条写 dailyTask 墓碑', async () => {
+  const { plan } = await createDailyPlan({ rawInput: '复习：线代 2 小时；做题：计组 1 小时' });
+  const tasks = await db.dailyTasks.where('planId').equals(plan.id).toArray();
+  assert.ok(tasks.length >= 1, '至少解析出 1 条任务');
+
+  await deleteDailyPlan(plan.id);
+  assert.equal((await db.dailyTasks.where('planId').equals(plan.id).toArray()).length, 0);
+  for (const t of tasks) {
+    assert.equal((await db.tombstones.get(t.id))?.kind, 'dailyTask', `任务 ${t.id} 缺墓碑`);
+  }
+  assert.equal((await db.tombstones.get(plan.id))?.kind, 'dailyPlan');
+});
+
+test('同一天重建计划：覆盖掉的旧任务也写墓碑', async () => {
+  const first = await createDailyPlan({ rawInput: '背单词 30 分钟', date: '2026-08-30' });
+  const oldTasks = await db.dailyTasks.where('planId').equals(first.plan.id).toArray();
+  assert.ok(oldTasks.length >= 1);
+
+  await createDailyPlan({ rawInput: '做真题 90 分钟', date: '2026-08-30' });
+  for (const t of oldTasks) {
+    assert.equal((await db.tombstones.get(t.id))?.kind, 'dailyTask', '覆盖重建时旧任务缺墓碑');
+  }
+  const plans = await db.dailyPlans.where('date').equals('2026-08-30').toArray();
+  assert.equal(plans.length, 1, '同日只保留一份计划');
+  await deleteDailyPlan(plans[0].id);
+});
+
+// ---------- 5) 回收站 TTL ----------
+
+test('pruneTrash：清理超过 TTL 的快照，保留墓碑', async () => {
+  await resetTrash();
+  const old = Date.now() - (TRASH_TTL_DAYS + 1) * 86400000;
+  const fresh = Date.now();
+  await db.trash.put({ id: 'old-1', kind: 'memo', deletedAt: old, data: { id: 'old-1', text: '过期' } });
+  await db.trash.put({ id: 'new-1', kind: 'memo', deletedAt: fresh, data: { id: 'new-1', text: '新鲜' } });
+  await db.tombstones.put({ id: 'old-1', kind: 'memo', deletedAt: old });
+
+  const cleaned = await pruneTrash();
+  assert.equal(cleaned, 1, '只清 1 条过期快照');
+  assert.equal(await db.trash.get('old-1'), undefined);
+  assert.ok(await db.trash.get('new-1'), '未过期的保留');
+  assert.ok(await db.tombstones.get('old-1'), '墓碑不受回收站 TTL 影响（跨设备删除语义必须保留）');
+  await db.tombstones.delete('old-1');
+});
+
+test('restoreFromTrash：未知 kind 返回 false 且不改动数据', async () => {
+  assert.equal(await restoreFromTrash(null), false);
+  assert.equal(await restoreFromTrash({ id: 'x', kind: 'unknownKind', data: { a: 1 } }), false);
+});
