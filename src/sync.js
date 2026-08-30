@@ -12,8 +12,15 @@ import { triggerHook } from './plugins/registry.js';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES, EXCLUDED_FROM_SYNC,
   CARD_CONTENT_FIELDS, CARD_SRS_FIELDS,
-  mergeRows, mergeTombstones, applyTombstones, kindOf, livenessTs,
+  mergeRows, mergeTombstones, applyTombstones, kindOf, livenessTs, shouldExportRow,
 } from './sync-manifest.js';
+
+/** 按表读取待导出行（应用清单上的 exportFilter，排除派生/本机专属数据，如 kind='auto' 的图谱边） */
+async function exportRows(t) {
+  let rows = await db[t.table].toArray();
+  if (typeof t.exportFilter === 'function') rows = rows.filter(r => shouldExportRow(t, r));
+  return rows;
+}
 import { dedupeIncomingCards } from './sync-dedup.js';
 import { buildAuthHeaders } from './utils/hub-auth.js';
 import { pad2 } from './utils/format.js';
@@ -65,7 +72,7 @@ export async function buildBackup(subject) {
       continue; // 图片单独打包：只带被引用图片，且需 base64 编码（不能直接放 Blob）
     } else {
       // 科目卡组分享：其他模块数据不带（发给同学的包里只含该科目内容）
-      parts[t.table] = subject ? [] : await db[t.table].toArray();
+      parts[t.table] = subject ? [] : await exportRows(t);
     }
   }
   // 科目分享包不携带墓碑（同学设备与你的删除历史无关）
@@ -114,7 +121,7 @@ export async function buildIncrementalBackup(lastSyncAt = 0, opts = {}) {
     //   reviews（只有 reviewedAt）与 embeddings（只有 updatedAt）的字段都不在链上
     //   → 判定值恒为 0 → `0 > since` 恒假 → 这两张表永不上传。
     //   livenessTs 取全部已知时间字段的最大值，任一表只要带其中一个字段即可正确判定。
-    const rows = await db[t.table].toArray();
+    const rows = await exportRows(t);
     parts[t.table] = rows.filter(r => livenessTs(r) > since);
   }
   // 增量包仍带全量墓碑（删除传播不可遗漏）

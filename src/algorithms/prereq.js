@@ -5,21 +5,40 @@
 
 /**
  * 沿 prereq 边做多层 BFS 回溯，收集目标卡的所有「未掌握」祖先前置卡。
- * @param {Array<{from:string,to:string,kind:string}>} edges 图谱边
+ *
+ * ⚠️ ID 空间：图谱里混着两种端点写法（见 graph-resolve.js 说明）——
+ * 有的边 from/to 就是卡片 id，有的 from/to 是人类可读文本、卡片 id 在 fromCardId/toCardId。
+ * 这里统一优先取 *CardId 字段，取不到才退回 from/to，
+ * 否则「AI 生成 / 智能推荐」建的边会被整条链路无视（前置回溯静默失效）。
+ *
+ * @param {Array<{from:string,to:string,kind:string,fromCardId?:string,toCardId?:string}>} edges 图谱边
  * @param {Set<string>} masteredSet 已掌握卡片 id 集合
  * @param {string} cardId 目标薄弱卡
  * @returns {{prereqCardIds:string[], relatedCardIds:string[]}}
  */
+/** 判定边的语义类型：有 kind 直接用；没有（AI 生成 / 推荐 / 资料边只有 label）则按 label 推断。 */
+export function kindOfEdge(e) {
+  const k = String(e?.kind || '').trim();
+  if (k === 'prereq' || k === 'related') return k;
+  const l = String(e?.label || '');
+  if (/前置|依赖|基础|先修|prereq/i.test(l)) return 'prereq';
+  return 'related';
+}
+
 export function resolvePrereqPlan(edges, masteredSet, cardId) {
   const prereqMap = new Map(); // to -> [from...]
   const relatedMap = new Map(); // to -> [from...]
   for (const e of edges) {
-    if (e.kind === 'prereq') {
-      if (!prereqMap.has(e.to)) prereqMap.set(e.to, []);
-      prereqMap.get(e.to).push(e.from);
-    } else if (e.kind === 'related') {
-      if (!relatedMap.has(e.to)) relatedMap.set(e.to, []);
-      relatedMap.get(e.to).push(e.from);
+    // 旧版 graphAuto 直接把卡片 id 写进 from/to，新版写在 *CardId 上 → 两者都要认
+    const a = String(e.fromCardId || e.from || '').trim();
+    const b = String(e.toCardId || e.to || '').trim();
+    if (!a || !b || a === b) continue;
+    if (kindOfEdge(e) === 'prereq') {
+      if (!prereqMap.has(b)) prereqMap.set(b, []);
+      prereqMap.get(b).push(a);
+    } else {
+      if (!relatedMap.has(b)) relatedMap.set(b, []);
+      relatedMap.get(b).push(a);
     }
   }
 

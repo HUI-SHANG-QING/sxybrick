@@ -8,6 +8,7 @@ import { db, uid } from './db.js';
 import {
   buildDocMeta, normalizeOpfsPath, saveFileToOpfs, readFileFromOpfs,
   deleteFileFromOpfs, statOpfs, requestPersist, assertDocTransition, routeParser,
+  opfsWritableSupported,
 } from './utils/opfs.js';
 import { parseFile, assertParsedOk } from './utils/parsers.js';
 import {
@@ -34,7 +35,11 @@ export async function uploadFile(file, opts = {}) {
   const parserId = routeParser(meta.ext);
   if (!parserId) {
     meta.status = 'failed';
-    meta.error = `暂不支持 ${meta.ext || '未知'} 格式`;
+    meta.error = `暂不支持 ${meta.ext || '未知'} 格式（支持 PDF / Word / Excel / CSV / TXT / MD / 图片）`;
+  } else if (!opfsWritableSupported()) {
+    // 提前探测：Firefox / Safari 有 OPFS 根目录但没有 createWritable，
+    // 硬试只会抛出 "h.createWritable is not a function" 这种看不懂的错。
+    await fallbackToIdb(meta, file, '当前浏览器不支持原文件落盘（OPFS 写入不可用），已改用 IndexedDB 暂存');
   } else {
     try {
       const opfsPath = `${meta.id}_${normalizeOpfsPath(meta.name)}`;
@@ -42,19 +47,38 @@ export async function uploadFile(file, opts = {}) {
       meta.storage = 'opfs';
       meta.opfsPath = opfsPath;
     } catch (e) {
-      // OPFS 不可用 → 小文件降级 IndexedDB（Dexie 直接存 Blob）
-      if (meta.size <= IDB_FALLBACK_MAX) {
-        meta.storage = 'idb';
-        meta.blob = file;
-      } else {
-        meta.status = 'failed';
-        meta.error = `OPFS 写入失败：${e?.message || e}`;
-      }
+      await fallbackToIdb(meta, file, `OPFS 写入失败：${e?.message || e}`);
     }
   }
-  await db.docFiles.put(meta);
+  try {
+    await db.docFiles.put(meta);
+  } catch (e) {
+    // 元数据落库失败＝这次上传彻底失败，给出人话而不是让调用方拿到一个裸 Dexie 错误
+    throw new Error(`资料元数据写入失败（可能是浏览器存储空间不足）：${e?.message || e}`);
+  }
   if (meta.status !== 'failed') enqueueParse(meta.id);
   return meta;
+}
+
+/**
+ * 降级到 IndexedDB 暂存原文件。
+ * ⚠️ Blob 存进独立的 docBlobs 本地表，**不能**塞进 docFiles：
+ * docFiles 是同步表（sync-manifest 已登记），一旦带上二进制，
+ * 每次备份/跨设备同步都会把整个文件打包进 JSON，包体爆炸且对端毫无用处。
+ */
+async function fallbackToIdb(meta, file, reason) {
+  if (Number(meta.size || 0) > IDB_FALLBACK_MAX) {
+    meta.status = 'failed';
+    meta.error = `${reason}；且文件超过 ${IDB_FALLBACK_MAX / 1024 / 1024}MB 无法降级暂存，请换用 Chrome / Edge 上传`;
+    return;
+  }
+  try {
+    await db.docBlobs.put({ id: meta.id, blob: file, size: meta.size, updatedAt: Date.now() });
+    meta.storage = 'idb';
+  } catch (e) {
+    meta.status = 'failed';
+    meta.error = `${reason}；IndexedDB 暂存也失败（${e?.message || e}）`;
+  }
 }
 
 // ---------- 解析队列（串行：防几百 MB 大文件并发挤爆内存） ----------
@@ -84,7 +108,12 @@ async function drain() {
 export async function getFileBlob(row) {
   if (!row) return null;
   if (row.storage === 'opfs' && row.opfsPath) return readFileFromOpfs(row.opfsPath);
-  if (row.storage === 'idb') return row.blob || null;
+  // 兼容历史数据：早期版本把 Blob 直接放在 docFiles.blob 上
+  if (row.storage === 'idb') {
+    if (row.blob) return row.blob;
+    const b = await db.docBlobs.get(row.id);
+    return b?.blob || null;
+  }
   return null;
 }
 
@@ -156,6 +185,7 @@ export async function deleteDocFile(id) {
   if (!row) return;
   if (row.storage === 'opfs' && row.opfsPath) await deleteFileFromOpfs(row.opfsPath);
   await db.docFiles.delete(id);
+  await db.docBlobs.delete(id); // 降级暂存的原始 Blob（本地表）
   await db.docTexts.delete(id);
   await db.embeddings.where('sourceId').equals(id).delete();
   await db.graphEdges.filter((e) => e.docId === id).delete(); // 清理资料 → 卡片图谱边

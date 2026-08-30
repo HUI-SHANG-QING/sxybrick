@@ -449,6 +449,15 @@ toolRegistry.register({
       fromCardId: resolveId(args?.from), toCardId: resolveId(args?.to),
       label: args?.label, subject: args?.subject,
     });
+    // createGraphEdge 命中去重时返回 null——直接读 e.id 会抛 TypeError，
+    // 整个工具调用以「未知错误」失败，Agent 只会回一句没头没尾的话。
+    if (!e) {
+      return {
+        ok: true,
+        data: { duplicate: true, from: args?.from, to: args?.to, label: args?.label },
+        note: '这条关联已经存在，无需重复建立',
+      };
+    }
     return { ok: true, data: { id: e.id, from: e.from, to: e.to, label: e.label } };
   },
 });

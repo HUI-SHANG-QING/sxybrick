@@ -1,7 +1,7 @@
 <script setup>
 // 知识图谱：多风格可视化（力导向/圆形/同心圆/树状）+ AI 生成 + Agent 智能构建（A 镜头）
 // 生成的关联可保存到本地库并随数据包同步。
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
@@ -11,6 +11,8 @@ import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { listGraphEdges, createGraphEdge, deleteGraphEdge } from '../repo.js';
 import { agentSystem } from '../agent/index.js';
 import { recommendGraphEdges } from '../intelligence.js';
+import { resolveGraph } from '../algorithms/graph-resolve.js';
+import { pruneDeadEdges } from '../algorithms/graphAuto.js';
 import { T } from '../utils/telemetry.js';
 import EmptyState from '../components/EmptyState.vue';
 import ExportButton from '../components/ExportButton.vue';
@@ -22,6 +24,7 @@ const generatedNodes = ref([]);
 const generatedEdges = ref([]);
 const savedNodes = ref([]);
 const savedEdges = ref([]);
+const savedStats = ref({ total: 0, resolved: 0, missing: 0, bySubject: new Map() });
 const loading = ref(false);
 const activeId = ref('');
 const activeLabel = ref('');
@@ -126,7 +129,7 @@ const LAYOUTS = [
   { id: 'concentric', name: '同心圆', icon: '◎' },
   { id: 'tree', name: '树状', icon: '⋗' },
 ];
-function setLayout(id) { layout.value = id; localStorage.setItem('sxy_kg_layout', id); render(); }
+function setLayout(id) { layout.value = id; localStorage.setItem('sxy_kg_layout', id); if (!chart) ensureChart(); render(); }
 
 const chartEl = ref(null);
 let chart = null;
@@ -255,13 +258,32 @@ function buildOption(nds, eds, style) {
 }
 
 function render() {
-  if (!chart || !nodes.value.length) return;
+  if (!nodes.value.length) return;
+  // 图表必须等 DOM 上的容器 div 真正出现后才能 init。
+  // 过去的写法只在 onMounted 里判定「当时已有节点才 init」——
+  // 首次进页面时库里还没有关联，容器 div 因 v-if 未渲染，initChart 直接被跳过；
+  // 之后用户新建/保存了关联，loadSaved 里又是 `if (chart && ...)`，chart 仍为 null
+  // → **图谱永远画不出来**，只剩下面一列文字边表。这里统一按需初始化。
+  if (!chart) ensureChart();
+  if (!chart) return;
   try {
     chart.setOption(buildOption(nodes.value, edges.value, layout.value), true);
   } catch (e) {
     logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: `render layout=${layout.value}` });
     toast('图谱渲染失败：' + e.message, 'error');
   }
+}
+
+/** 按需初始化 ECharts 实例（容器 div 由 v-if="nodes.length" 控制，出现时机晚于 mounted） */
+function ensureChart() {
+  if (chart) return chart;
+  if (!chartEl.value) return null;
+  try {
+    initChart();
+  } catch (e) {
+    logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: 'ensureChart' });
+  }
+  return chart;
 }
 
 function initChart() {
@@ -338,15 +360,33 @@ async function generateByAgent() {
   finally { loading.value = false; }
 }
 
+/**
+ * 载入已保存图谱。
+ *
+ * ⚠️ 修复要点：过去这里把 e.from/e.to 直接当成「显示文本」，
+ * 于是 graphAuto 写的卡片 UUID 边全变成裸 ID 节点、subject 全空（挤在「未分类」），
+ * 与 AI/推荐建的 label 型节点是两套 ID 空间，永远连不通——看着有几千条边，其实是散点。
+ * 现在统一走 resolveGraph()：优先用 fromCardId/toCardId 反查卡片正文，
+ * 查不到才用字面量，并顺带把 subject 从卡片上补回来。
+ */
 async function loadSaved() {
-  const list = await listGraphEdges();
-  // 以真实 label 作为节点 id，保证图谱/树状图显示的就是真实文字，而不是 n0/n1 假编号
-  const labelSet = new Set();
-  list.forEach(e => { labelSet.add(e.from); labelSet.add(e.to); });
-  savedNodes.value = [...labelSet].map(label => ({ id: label, label, subject: '' }));
-  savedEdges.value = list.map(e => ({ id: e.id, from: e.from, to: e.to, label: e.label || '', subject: e.subject || '', docId: e.docId || '', type: e.type || '' }));
+  const [list, cards] = await Promise.all([listGraphEdges(), db.cards.toArray()]);
+  const { nodes, edges, stats } = resolveGraph(list, cards);
+  savedNodes.value = nodes;
+  savedEdges.value = edges;
+  savedStats.value = stats;
   if (list.length) mode.value = 'saved';
-  nextTick(() => { if (chart && savedNodes.value.length) render(); });
+  nextTick(() => { if (savedNodes.value.length) render(); });
+}
+
+// 失效关联（两端卡片已不存在 / 历史脏数据）：可一键清理
+const deadCount = computed(() => savedStats.value?.missing || 0);
+async function pruneDead() {
+  try {
+    const r = await pruneDeadEdges();
+    toast(r.removed ? `已清理 ${r.removed} 条失效关联` : '没有失效关联', r.removed ? 'success' : 'info');
+    await loadSaved();
+  } catch (e) { toast('清理失败：' + (e?.message || e), 'error'); }
 }
 
 async function saveGenerated() {
@@ -401,7 +441,9 @@ const relatedIds = () => {
 };
 function nodeById(id) { return nodes.value.find(n => n.id === id); }
 
-onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value.length && !chart) initChart(); render(); }); });
+onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value.length) render(); }); });
+// 切换「AI 生成 / 已保存」后容器可能刚出现，需补一次初始化
+watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
 </script>
 
 <template>
@@ -458,6 +500,14 @@ onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value
       <button class="btn primary small" @click="saveGenerated">💾 保存这些关联到知识库</button>
     </div>
 
+    <div v-if="deadCount" class="dead-box">
+      <span>
+        ⚠️ 有 <b>{{ deadCount }}</b> 条关联的两端找不到对应卡片（卡片已删，或历史版本把卡片 ID 直接写进了关联里），
+        已从图谱视图中排除，避免显示成一串无意义的 ID。
+      </span>
+      <button class="btn small" @click="pruneDead">🧹 清理失效关联</button>
+    </div>
+
     <div v-if="mode === 'saved' && savedEdges.length" class="saved-box">
       <div class="saved-title-row">
         <span class="saved-title">已保存的知识图谱（{{ savedEdges.length }} 条关联 · {{ clusters.length }} 个章节，可跨设备同步）</span>
@@ -509,6 +559,9 @@ onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value
 .saved-edge { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
 .saved-edge:last-child { border-bottom: none; }
 .saved-rel { color: var(--accent); font-size: 12px; }
+.dead-box { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2);
+  border: 1px solid var(--line); border-left: 3px solid var(--warn, #f5a623); border-radius: 8px;
+  background: var(--panel); padding: 10px 12px; margin-top: 12px; }
 .cluster { margin-bottom: 10px; padding: 8px 12px; background: var(--code-bg); border-radius: 8px; }
 .cluster-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
 .cluster-count { font-size: 11px; color: var(--ink-2); margin-left: 6px; font-weight: 400; }

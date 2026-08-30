@@ -92,6 +92,8 @@ const navItems = [
   { path: '/workspace', label: '工作台', icon: '🧩' },
   { path: '/cards', label: '卡片', icon: '🗂️' },
   { path: '/groups', label: '卡组', icon: '🎴' },
+  // M2 卡片智能联动分析工作台（预设快捷 + 自由问答，本地/AI 双引擎）
+  { path: '/analysis/card-link', label: '联动分析', icon: '🔗' },
   { path: '/review', label: '背诵', icon: '📖' },
   { path: '/stats', label: '数据', icon: '📉' },
   { path: '/export', label: '导出', icon: '🖨️' },

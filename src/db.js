@@ -199,6 +199,16 @@ d.version(22).stores({
   cardGroupLinks: 'id, cardId, groupId, addedAt',
 });
 
+// v24：资料文件降级存储（本地表，**不进同步**）。
+//   OPFS 不可用时（Firefox/Safari 无 createWritable、无痕模式、配额不足），
+//   ≤10MB 的文件降级存 IndexedDB。此前把 Blob 直接塞进 docFiles，
+//   而 docFiles 是同步表（sync-manifest 已登记），等于每次备份/跨设备同步
+//   都会把整个文件二进制打包进 JSON——包体爆炸且跨设备毫无意义（对端没有原文语境）。
+//   现在 Blob 单独存 docBlobs，docFiles 只留元数据。
+d.version(24).stores({
+  docBlobs: 'id',
+});
+
 // v23：卡片智能联动分析（M2）——工作台对话历史与分析结果，参与同步（跨设备可回看）
 //   analysisSessions：一次分析会话（选定卡片集合 + 多轮对话）。
 //     id, title(自动摘要或用户命名), cardIds(JSON 数组，会话创建时的卡片快照),

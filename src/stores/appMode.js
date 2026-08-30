@@ -62,6 +62,7 @@ export const useAppModeStore = defineStore('appMode', {
         db.privacyRecords, db.snapshots, db.plugins, db.docFiles, db.docTexts,
         db.notes, db.dailyPlans, db.dailyTasks, db.trash, db.aiUsage,
         db.cardGroups, db.cardGroupLinks, db.analysisSessions, db.analysisMessages,
+        db.docBlobs,
         async () => {
           for (const t of [db.cards, db.reviews, db.images, db.tombstones, db.meta,
             db.aiChats, db.aiMemories, db.memos, db.plans, db.graphEdges,
@@ -69,7 +70,8 @@ export const useAppModeStore = defineStore('appMode', {
             db.exams, db.embeddings, db.notifications, db.errors, db.userOps,
             db.privacyRecords, db.snapshots, db.plugins, db.docFiles, db.docTexts,
             db.notes, db.dailyPlans, db.dailyTasks, db.trash, db.aiUsage,
-            db.cardGroups, db.cardGroupLinks, db.analysisSessions, db.analysisMessages]) {
+            db.cardGroups, db.cardGroupLinks, db.analysisSessions, db.analysisMessages,
+            db.docBlobs]) {
             await t.clear();
           }
         });

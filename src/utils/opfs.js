@@ -86,6 +86,24 @@ function opfsSupported() {
   return typeof navigator !== 'undefined' && !!navigator.storage?.getDirectory;
 }
 
+/**
+ * 能否真正往 OPFS **写**文件。
+ *
+ * ⚠️ 只检查 navigator.storage.getDirectory 是不够的：
+ * FileSystemFileHandle.createWritable() 是非标准 API，Firefox / Safari 拿得到根目录句柄
+ * 却没有这个方法，调用时抛 `h.createWritable is not a function`，
+ * 上传会以一个完全看不懂的错误失败。这里提前探测，好走 IndexedDB 降级路径并给出人话提示。
+ */
+export function opfsWritableSupported() {
+  if (!opfsSupported()) return false;
+  try {
+    return typeof FileSystemFileHandle !== 'undefined'
+      && typeof FileSystemFileHandle.prototype?.createWritable === 'function';
+  } catch {
+    return false;
+  }
+}
+
 /** 获取 OPFS 根目录句柄（非浏览器返回 null） */
 export async function getOpfsRoot() {
   if (!opfsSupported()) return null;
@@ -98,16 +116,26 @@ export async function getOpfsRoot() {
  */
 export async function saveFileToOpfs(opfsPath, file, onProgress) {
   const root = await getOpfsRoot();
-  if (!root) throw new Error('当前环境不支持 OPFS（请使用 Chrome / Edge / Safari 15+）');
+  if (!root) throw new Error('当前浏览器不支持 OPFS 存储');
+  if (!opfsWritableSupported()) {
+    throw new Error('当前浏览器不支持 OPFS 写入（createWritable 缺失，多为 Firefox / Safari）');
+  }
   const h = await root.getFileHandle(opfsPath, { create: true });
   const w = await h.createWritable();
-  const total = file.size;
+  const total = Number(file?.size || 0);
   let written = 0;
   try {
+    if (total === 0) {
+      await w.write(new Blob([]));
+      await w.close();
+      onProgress?.(1, 1);
+      return { opfsPath, size: 0 };
+    }
     for (let off = 0; off < total; off += CHUNK_SIZE) {
       const blob = file.slice(off, Math.min(off + CHUNK_SIZE, total));
       await w.write(blob);
       written += blob.size;
+      // 除零防护：空文件 / size 取不到时进度条会变成 NaN%
       onProgress?.(written, total);
     }
     await w.close();

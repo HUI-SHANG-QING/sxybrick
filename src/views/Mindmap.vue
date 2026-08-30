@@ -8,6 +8,8 @@ import * as echarts from 'echarts';
 import { uid } from '../db.js';
 import { listMindmaps, createMindmap, updateMindmap, deleteMindmap, listGraphEdges } from '../repo.js';
 import { db } from '../db.js';
+import { resolveGraph, edgesToForest } from '../algorithms/graph-resolve.js';
+import { treeToFlat as treeToFlatPure } from '../algorithms/mindmap-graph.js';
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
@@ -66,21 +68,19 @@ const findNode = (node, id) => {
 const toChart = node => ({ name: node.label, id: node.id, children: (node.children || []).map(toChart) });
 const chartData = computed(() => (current.value ? toChart(current.value.root) : null));
 
-// 树 → 扁平 nodes/links（供桑基图、力导向用）
-function treeToFlat(root) {
-  const nodes = [];
-  const links = [];
-  const seen = new Set();
-  const walk = (node, parentName) => {
-    if (!node) return;
-    const name = node.name || node.label;
-    if (!seen.has(name)) { nodes.push({ name, id: node.id }); seen.add(name); }
-    if (parentName) links.push({ source: parentName, target: name, value: 1 });
-    for (const c of node.children || []) walk(c, name);
-  };
-  walk(root, null);
-  return { nodes, links };
+// 兼容历史导图：早期版本保存的树节点没有 id，统一补齐（否则点击选中/力导向建边都拿不到 id）
+function ensureNodeIds(node) {
+  if (!node) return node;
+  if (!node.id) node.id = uid();
+  for (const c of node.children || []) ensureNodeIds(c);
+  return node;
 }
+
+// 树 → 扁平 nodes/links（供桑基图、力导向用）。
+// 实现抽到 algorithms/mindmap-graph.js：ECharts 的 graph/sankey 系列
+// 是「节点带 id 时边只能按 id 匹配」，一旦用 name 建边就会静默丢掉全部连线，
+// 这个坑必须有单测守住，不能埋在 SFC 里。
+function treeToFlat(root) { return treeToFlatPure(root); }
 
 function buildOption(data, style) {
   const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4a9eff';
@@ -190,8 +190,10 @@ function render() {
 
 function openMap(m) {
   current.value = JSON.parse(JSON.stringify(m));
+  // 补齐历史数据缺失的节点 id（影响点击选中 + 力导向/桑基建边）
+  ensureNodeIds(current.value.root);
   dirty.value = false;
-  selId.value = m.root?.id || '';
+  selId.value = current.value.root?.id || '';
   nextTick(() => { if (!chart) initChart(); render(); });
 }
 
@@ -233,35 +235,21 @@ async function newMap() {
   openMap(m);
 }
 
-// 从知识图谱关系生成导图（有向边 → 树，防环）
+// 从知识图谱关系生成导图（有向边 → 森林，防环）
+// 走统一解析层：卡片ID 型 / 标签型 / 资料型三种边都能解析成人类可读节点，
+// 否则老数据里的裸 UUID 会被当成节点名直接画进导图。
 async function fromGraph() {
-  const edges = await listGraphEdges();
-  if (!edges.length) { toast('知识图谱还没有保存关联，先去「图谱」页生成并保存', 'error'); return; }
-  const childrenOf = new Map();
-  for (const e of edges) {
-    if (!childrenOf.has(e.from)) childrenOf.set(e.from, []);
-    childrenOf.get(e.from).push(e.to);
-  }
-  const allNames = new Set([...edges.map(e => e.from), ...edges.map(e => e.to)]);
-  const inDeg = new Map();
-  for (const e of edges) inDeg.set(e.to, (inDeg.get(e.to) || 0) + 1);
-  // 所有入度为 0 的点都作为子树根（森林），避免“只生成两个节点”
-  const roots = [...allNames].filter(n => !inDeg.has(n));
-  const seedRoots = roots.length ? roots : [...allNames];
-  const build = (label, visited) => {
-    if (visited.has(label)) return null;
-    visited.add(label);
-    const kids = (childrenOf.get(label) || []).map(k => build(k, new Set(visited))).filter(Boolean);
-    return { id: uid(), label, children: kids };
-  };
-  const subTrees = seedRoots.map(r => build(r, new Set())).filter(Boolean);
-  let root;
-  if (subTrees.length === 1) root = subTrees[0];
-  else root = { id: uid(), label: '📚 知识图谱', children: subTrees };
-  const title = (subTrees.length === 1 ? `${subTrees[0].label} 知识导图` : '综合知识导图');
-  const m = await createMindmap({ title, root });
-  await list(); openMap(m);
-  toast('已从知识图谱生成导图', 'success');
+  const [rawEdges, cards] = await Promise.all([listGraphEdges(), db.cards.toArray()]);
+  if (!rawEdges.length) { toast('知识图谱还没有保存关联，先去「图谱」页生成并保存', 'error'); return; }
+  const { edges } = resolveGraph(rawEdges, cards);
+  const usable = edges.length ? edges : rawEdges; // 全是失效边时退回原样，至少不静默空转
+  const { root } = edgesToForest(usable, { rootLabel: '📚 知识图谱' });
+  if (!root) { toast('知识图谱里没有可用的关联', 'error'); return; }
+  const withIds = n => ({ id: uid(), label: String(n.name || '主题').slice(0, 30), children: (n.children || []).map(withIds) });
+  const mm = await createMindmap({ title: '知识图谱导图', root: withIds(root) });
+  await list(); openMap(mm);
+  const skipped = edges.length - usable.length;
+  toast(skipped ? `已从知识图谱生成导图（跳过 ${skipped} 条失效关联）` : '已从知识图谱生成导图', 'success');
 }
 
 // AI 从卡片生成导图（直接 LLM）

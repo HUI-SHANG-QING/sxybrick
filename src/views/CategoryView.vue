@@ -89,8 +89,12 @@ const entityStats = computed(() => {
 
     <!-- 模型质量 -->
     <div v-if="evalResult?.available" class="hint cls-eval">
-      🎯 当前分类模型准确率（留一法）：<b>{{ Math.round(evalResult.accuracy * 100) }}%</b>
-      （{{ evalResult.correct }}/{{ evalResult.total }}）
+      🎯 当前分类模型：训练样本 <b>{{ evalResult.seedCount }}</b> 条 / <b>{{ evalResult.labelCount }}</b> 个科目，
+      留一法准确率 <b>{{ Math.round(evalResult.accuracy * 100) }}%</b>（{{ evalResult.correct }}/{{ evalResult.total }}）
+    </div>
+    <div v-else-if="evalResult" class="hint cls-eval">
+      ⚠️ 还没有可用的训练样本：没有任何卡片设过科目。先手动给几张卡设定科目（卡片页可批量改科目），
+      模型才有归类依据——这是纯本地算法，不会联网。
     </div>
 
     <!-- 操作按钮 -->
@@ -116,6 +120,16 @@ const entityStats = computed(() => {
         <button v-if="preview.trained && preview.classified" class="btn primary" @click="confirmClassify">确认写回</button>
         <button class="btn" @click="preview = null">取消</button>
       </div>
+      <!-- 诊断明细：解释「为什么是 0 条」，而不是让用户对着 0 干瞪眼 -->
+      <div v-if="preview.trained" class="cls-diag">
+        共 {{ preview.total }} 条{{ preview.name }}，
+        其中已有分类 <b>{{ preview.already ?? 0 }}</b> 条（不覆盖）；
+        待判 <b>{{ preview.total - (preview.already ?? 0) }}</b> 条里：
+        置信度不足（&lt;12%）<b>{{ preview.lowConfidence ?? 0 }}</b> 条、
+        文本为空 <b>{{ preview.emptyText ?? 0 }}</b> 条。
+        模型依据：<b>{{ preview.seedCount ?? 0 }}</b> 条训练样本 / <b>{{ preview.labelCount ?? 0 }}</b> 个科目。
+      </div>
+
       <div v-if="preview.results?.length" class="cls-preview-list">
         <div v-for="(r, i) in preview.results" :key="r.id" class="cls-preview-item">
           <span class="cls-idx">{{ i + 1 }}</span>
@@ -124,6 +138,13 @@ const entityStats = computed(() => {
           <span class="cls-label">{{ r.label }}</span>
           <span class="cls-conf">{{ Math.round(r.confidence * 100) }}%</span>
         </div>
+      </div>
+      <div v-else-if="preview.trained" class="cls-diag">
+        <template v-if="preview.lowConfidence">
+          💡 大部分{{ preview.name }}与已有科目的用词重叠太低，模型不敢下判断。
+          可以：① 多给一些卡片设上科目扩大样本；② 用「科目」页做批量归类。
+        </template>
+        <template v-else>没有需要分类的{{ preview.name }}。</template>
       </div>
     </div>
   </div>
@@ -139,6 +160,9 @@ const entityStats = computed(() => {
 .cls-eval { margin-bottom: 14px; padding: 8px 12px; background: color-mix(in srgb, var(--accent) 6%, transparent); border-radius: 8px; }
 .cls-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 .cls-preview { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: var(--panel); }
+.cls-diag { font-size: 12px; color: var(--ink-2); line-height: 1.7; padding: 8px 10px; margin-bottom: 8px;
+  background: var(--code-bg, #f7f7f9); border-radius: 8px; }
+.cls-diag b { color: var(--ink); }
 .cls-preview-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .cls-preview-title { font-weight: 600; }
 .cls-preview-list { display: flex; flex-direction: column; gap: 4px; max-height: 360px; overflow-y: auto; }

@@ -207,19 +207,24 @@ export function predictCategory(text, model, { k = 3 } = {}) {
 }
 
 /**
- * 高层的「分类决策」：给定阈值，返回 { label, confidence, suggestions }。
- *   label:       '未分类' 或最佳匹配类别
+ * 高层的「分类决策」：给定阈值，返回 { label, confidence, suggestions, ok }。
+ *   label:       最佳匹配类别；无把握时为 '未分类'
  *   confidence:  cosine 分数
  *   suggestions: top-k 建议（含分数）
+ *   ok:          是否达到可信阈值（**判定的唯一依据**）
+ *
+ * ⚠️ 不能只用 `label === '未分类'` 判断「没分出来」：用户完全可能真有一个叫「未分类」的科目，
+ * 那时每条预测都会命中它，上层会把所有卡片当成「不可分类」跳过——这正是
+ * 「有 2591 条待分类，却提示可自动分类 0 条」的成因之一。故一律以 ok 为准。
  */
 export function classify(text, model, { threshold = 0.12, k = 3 } = {}) {
   const scores = predictCategory(text, model, { k });
-  if (!scores.length) return { label: '未分类', confidence: 0, suggestions: [] };
+  if (!scores.length) return { label: '未分类', confidence: 0, suggestions: [], ok: false };
   const best = scores[0];
   if (best.score < threshold) {
-    return { label: '未分类', confidence: best.score, suggestions: scores };
+    return { label: '未分类', confidence: best.score, suggestions: scores, ok: false };
   }
-  return { label: best.label, confidence: best.score, suggestions: scores };
+  return { label: best.label, confidence: best.score, suggestions: scores, ok: true };
 }
 
 // ──────────────── 评估 ────────────────

@@ -2,7 +2,7 @@
 // 全局搜索（E1 数字资产保值批 → M4 统一搜索服务）：
 // 全量搜索（聚合所有模块，分类展示）+ 针对性搜索（指定模块）；关键词高亮，点击跳转定位。
 // 数据源全部走当前 db 实例（live binding）→ 演示模式下自动搜测试数据。
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { search, highlight, SCOPE_ORDER, SCOPE_LABELS } from '../search/search-service.js';
 
@@ -12,11 +12,18 @@ const loading = ref(false);
 const scope = ref(localStorage.getItem('sxy_search_scope') || 'all');
 const results = ref({ modules: [], total: 0 });
 
+// 只渲染有命中的分组。
+// ⚠️ 不能写成 <template v-for="m in results.modules" v-if="m.items.length">：
+// Vue 3 里 v-if 的优先级高于 v-for，条件会先求值，此时 v-for 变量 m 尚未定义，
+// 编译产物是 _ctx.m.items.length → 渲染时抛 TypeError，整页白屏。
+const visibleModules = computed(() => (results.value.modules || []).filter(m => m.items?.length));
+
 const scopeOptions = [
   { key: 'all', label: '全部（全局搜索）', icon: '🌐' },
   ...SCOPE_ORDER.map(k => ({ key: k, label: SCOPE_LABELS[k], icon: '' })),
 ];
-watch(scope, v => localStorage.setItem('sxy_search_scope', v));
+// 切换范围后必须重新搜索：否则已有关键词时结果停留在旧范围（原来只写 localStorage 不重搜）
+watch(scope, v => { localStorage.setItem('sxy_search_scope', v); runSearch(); });
 
 let timer = null;
 watch(q, () => {
@@ -24,13 +31,27 @@ watch(q, () => {
   timer = setTimeout(runSearch, 250);
 });
 
+// 请求序号：防抖只压最后一次发起，但异步落盘快慢不定，慢的旧结果可能覆盖新结果
+let seq = 0;
+const err = ref('');
 async function runSearch() {
   const kw = q.value.trim();
-  if (!kw) { results.value = { modules: [], total: 0 }; return; }
+  clearTimeout(timer);
+  const my = ++seq;
+  if (!kw) { results.value = { modules: [], total: 0 }; err.value = ''; return; }
   loading.value = true;
+  err.value = '';
   try {
-    results.value = await search(scope.value, kw);
-  } finally { loading.value = false; }
+    const r = await search(scope.value, kw);
+    if (my !== seq) return; // 已有更新的请求，丢弃本次结果
+    results.value = r;
+  } catch (e) {
+    if (my !== seq) return;
+    err.value = String(e?.message || e);
+    results.value = { modules: [], total: 0 };
+  } finally {
+    if (my === seq) loading.value = false;
+  }
 }
 
 // 模板高亮：先转义再包 <mark>（search-service.highlight 已做 XSS 转义）
@@ -77,14 +98,15 @@ onBeforeUnmount(() => { clearTimeout(timer); window.removeEventListener('keydown
     <input ref="inputEl" v-model="q" class="input" style="margin-top:14px;font-size:16px;padding:12px 14px"
            placeholder="输入关键词，例如：死锁 / 特征值 / 操作系统…" @keyup.enter="runSearch" autofocus />
 
-    <div v-if="q.trim()" class="hint" style="margin-top:10px">
+    <div v-if="err" class="hint" style="margin-top:10px;color:var(--red)">搜索出错：{{ err }}</div>
+    <div v-else-if="q.trim()" class="hint" style="margin-top:10px">
       {{ loading ? '搜索中…' : `找到 ${results.total} 条结果` }}
     </div>
 
     <!-- 结果：按模块分组（scope=all 时多组；指定模块时单组） -->
-    <template v-for="m in results.modules" :key="m.key" v-if="m.items.length">
+    <template v-for="m in visibleModules" :key="m.key">
       <div class="sec-title">{{ m.icon }} {{ m.label }}（{{ m.items.length }}）</div>
-      <div v-for="r in m.items" :key="m.key + r.id" class="sr-row" @click="go(r)">
+      <div v-for="r in m.items" :key="m.key + ':' + r.id" class="sr-row" @click="go(r)">
         <span class="sr-title" v-html="hl(r.title)"></span>
         <span class="hint" v-html="hl(r.sub)"></span>
       </div>

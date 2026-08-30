@@ -29,7 +29,14 @@ export const SYNC_TABLES = [
   { table: 'aiMemories', kind: 'memory', merge: 'updatedAt' },
   { table: 'memos', kind: 'memo', merge: 'updatedAt' },
   { table: 'plans', kind: 'plan', merge: 'updatedAt' },
-  { table: 'graphEdges', kind: 'graphEdge', merge: 'updatedAt' },
+  // graphEdges：只同步「人工确认 / AI 生成 / 资料」的关联，
+  //   **不同步 kind='auto' 的自动推导边**——它是从卡片集合确定性推出来的派生数据，
+  //   每台设备自己重算即可。若让它进同步会有两个坑：
+  //   ① A 设备每次重建都 bulkDelete 旧边再写新边，但不产生墓碑（派生数据不该带删除语义），
+  //      B 设备上的旧 auto 边会永久堆积；
+  //   ② id 是 `auto-${aId}-${bId}` 这种确定性拼接，两端同 id 行的 updatedAt 会互相覆盖，
+  //      出现「越同步越乱」的伪冲突。故在导出侧直接过滤。
+  { table: 'graphEdges', kind: 'graphEdge', merge: 'updatedAt', exportFilter: (r) => r?.kind !== 'auto' },
   { table: 'docs', kind: 'doc', merge: 'updatedAt' },
   { table: 'pomoSessions', kind: 'pomo', merge: 'idOnly' },
   { table: 'mindmaps', kind: 'mindmap', merge: 'updatedAt' },
@@ -61,6 +68,16 @@ export const SYNC_TABLES = [
   { table: 'analysisSessions', kind: 'analysisSession', merge: 'updatedAt' },
   { table: 'analysisMessages', kind: 'analysisMessage', merge: 'idOnly' },
 ];
+
+/**
+ * 导出侧行级过滤（可选）：清单条目可带 exportFilter(row) => boolean。
+ * 用于排除「派生数据 / 本机专属数据」，避免它们进入备份包或被同步到别的设备。
+ * 纯函数，Node（hub）与浏览器（sync.js）共用。
+ */
+export function shouldExportRow(entry, row) {
+  if (!entry || typeof entry.exportFilter !== 'function') return true;
+  try { return entry.exportFilter(row) !== false; } catch { return true; }
+}
 
 // 卡片字段级合并分组：
 //   内容侧（按 updatedAt 谁新听谁）：文本/科目/标签/来源/错题标记/助记/难度梯度(P3-E)
