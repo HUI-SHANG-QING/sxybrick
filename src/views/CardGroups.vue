@@ -2,6 +2,7 @@
 // M1 卡组管理：自定义分组（多对多）+ active/archived 状态
 // 核心规则：卡片全局唯一，学习数据不随分组隔离；archived（备用）组内的卡不进默认复习队列
 import { ref, computed, onMounted } from 'vue';
+import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { confirmDialog } from '../utils/confirm.js';
 import CardModal from '../components/CardModal.vue';
@@ -44,29 +45,29 @@ async function saveForm() {
   try {
     if (editing.value === null) {
       await createCardGroup(form.value);
-      toast('卡组已创建', 'success');
+      toast(t('views.cardGroups.created'), 'success');
     } else {
       await updateCardGroup(editing.value, form.value);
-      toast('卡组已更新', 'success');
+      toast(t('views.cardGroups.updated'), 'success');
     }
     closeEdit();
     await reload();
   } catch (e) {
-    toast(e.message || '保存失败', 'error');
+    toast(e.message || t('views.cardGroups.saveFailed'), 'error');
   }
 }
 
 async function toggleStatus(g) {
   const next = g.status === 'active' ? 'archived' : 'active';
   await updateCardGroup(g.id, { status: next });
-  toast(next === 'archived' ? `「${g.name}」已转备用（组内卡不进默认复习）` : `「${g.name}」已恢复背诵`, 'success');
+  toast(next === 'archived' ? t('views.cardGroups.toArchivedToast', '', { name: g.name }) : t('views.cardGroups.restoreToast', '', { name: g.name }), 'success');
   await reload();
 }
 
 async function remove(g) {
-  if (!(await confirmDialog(`删除卡组「${g.name}」？组内卡片本身不会被删除，仅解除关联。`))) return;
+  if (!(await confirmDialog(t('views.cardGroups.confirmDelete', '', { name: g.name })))) return;
   await deleteCardGroup(g.id);
-  toast('卡组已删除', 'success');
+  toast(t('views.cardGroups.deleted'), 'success');
   await reload();
 }
 
@@ -85,7 +86,7 @@ async function toggleExpand(g) {
 }
 async function removeCard(g, card) {
   await setCardGroups([card.id], [], [g.id]);
-  toast(`已从「${g.name}」移出`, 'success');
+  toast(t('views.cardGroups.movedOut', '', { name: g.name }), 'success');
   await loadGroupCards(g);
 }
 
@@ -105,37 +106,37 @@ onMounted(reload);
   <div class="page">
     <div class="page-head">
       <div>
-        <h1>卡组</h1>
-        <div class="hint">把卡片分到不同卡组（可多组）；「备用」卡组暂停背诵，随时恢复。卡片学习数据全局共享，分组不影响复习进度。</div>
+        <h1>{{ t('views.cardGroups.title') }}</h1>
+        <div class="hint">{{ t('views.cardGroups.hint') }}</div>
       </div>
-      <button class="btn btn-primary" @click="startCreate">＋ 新建卡组</button>
+      <button class="btn btn-primary" @click="startCreate">{{ t('views.cardGroups.addGroup') }}</button>
     </div>
 
     <!-- 新建/编辑 -->
     <div v-if="editing !== null" class="group-form">
-      <div class="field-label">名称 *</div>
-      <input v-model="form.name" class="input" maxlength="30" placeholder="如：数二 · 高数" @keyup.enter="saveForm" />
-      <div class="field-label">描述（可选）</div>
-      <input v-model="form.description" class="input" maxlength="60" placeholder="如：2027 考研数二" />
-      <div class="field-label">颜色</div>
+      <div class="field-label">{{ t('views.cardGroups.nameLabel') }}</div>
+      <input v-model="form.name" class="input" maxlength="30" :placeholder="t('views.cardGroups.namePlaceholder')" @keyup.enter="saveForm" />
+      <div class="field-label">{{ t('views.cardGroups.descLabel') }}</div>
+      <input v-model="form.description" class="input" maxlength="60" :placeholder="t('views.cardGroups.descPlaceholder')" />
+      <div class="field-label">{{ t('views.cardGroups.colorLabel') }}</div>
       <div class="palette">
         <button v-for="c in PALETTE" :key="c" type="button" class="pal-dot"
                 :class="{ on: form.color === c }" :style="{ background: c }" @click="form.color = c"></button>
       </div>
-      <div class="field-label">状态</div>
+      <div class="field-label">{{ t('views.cardGroups.statusLabel') }}</div>
       <div class="chip-row">
-        <button class="chip" :class="{ on: form.status === 'active' }" @click="form.status = 'active'">背诵中</button>
-        <button class="chip" :class="{ on: form.status === 'archived' }" @click="form.status = 'archived'">备用（暂停）</button>
+        <button class="chip" :class="{ on: form.status === 'active' }" @click="form.status = 'active'">{{ t('views.cardGroups.statusActive') }}</button>
+        <button class="chip" :class="{ on: form.status === 'archived' }" @click="form.status = 'archived'">{{ t('views.cardGroups.statusArchived') }}</button>
       </div>
       <div class="form-actions">
-        <button class="btn btn-primary" @click="saveForm">{{ editing === null ? '创建' : '保存' }}</button>
-        <button class="btn" @click="closeEdit">取消</button>
+        <button class="btn btn-primary" @click="saveForm">{{ editing === null ? t('views.cardGroups.create') : t('views.cardGroups.save') }}</button>
+        <button class="btn" @click="closeEdit">{{ t('views.cardGroups.cancel') }}</button>
       </div>
     </div>
 
-    <div v-else-if="loading" class="hint">加载中…</div>
+    <div v-else-if="loading" class="hint">{{ t('views.cardGroups.loading') }}</div>
     <div v-else-if="!groups.length" class="empty">
-      还没有卡组。创建一个卡组，把卡片按「科目/模块/考试」分组管理。
+      {{ t('views.cardGroups.emptyTitle') }}
     </div>
 
     <div v-else class="group-list">
@@ -145,30 +146,30 @@ onMounted(reload);
           <div class="g-info">
             <div class="g-name">
               {{ g.name }}
-              <span class="chip chip-sm" :class="g.status === 'active' ? 'on' : ''">{{ g.status === 'active' ? '背诵中' : '备用' }}</span>
+              <span class="chip chip-sm" :class="g.status === 'active' ? 'on' : ''">{{ g.status === 'active' ? t('views.cardGroups.statusActive') : t('views.cardGroups.archivedChip') }}</span>
             </div>
             <div v-if="g.description" class="hint">{{ g.description }}</div>
           </div>
-          <button class="chip" @click="toggleExpand(g)">{{ expanded === g.id ? '收起 ▲' : '卡片 ▼' }}</button>
+          <button class="chip" @click="toggleExpand(g)">{{ expanded === g.id ? t('views.cardGroups.collapse') : t('views.cardGroups.cardsToggle') }}</button>
         </div>
         <div class="group-actions">
-          <button class="btn" @click="startEdit(g)">编辑</button>
-          <button class="btn" @click="toggleStatus(g)">{{ g.status === 'active' ? '转备用' : '恢复' }}</button>
-          <button class="btn btn-danger" @click="remove(g)">删除</button>
+          <button class="btn" @click="startEdit(g)">{{ t('views.cardGroups.edit') }}</button>
+          <button class="btn" @click="toggleStatus(g)">{{ g.status === 'active' ? t('views.cardGroups.toArchivedBtn') : t('views.cardGroups.restoreBtn') }}</button>
+          <button class="btn btn-danger" @click="remove(g)">{{ t('views.cardGroups.delete') }}</button>
         </div>
 
         <!-- 组内卡片 -->
         <div v-if="expanded === g.id" class="group-cards">
-          <div v-if="!expandedCards.length" class="hint">组内还没有卡片——到「卡片」页多选后移入此组，或编辑卡片时添加。</div>
+          <div v-if="!expandedCards.length" class="hint">{{ t('views.cardGroups.emptyCards') }}</div>
           <div v-for="c in expandedCards" :key="c.id" class="gc-row">
-            <div class="gc-text" @click="openCard(c)" title="点击编辑">
+            <div class="gc-text" @click="openCard(c)" :title="t('views.cardGroups.editTip')">
               <div class="gc-front">{{ c.front }}</div>
               <div class="gc-back">{{ c.back }}</div>
               <div v-if="c.tags && c.tags.length" class="gc-tags">
-                <span v-for="t in c.tags" :key="t" class="gc-tag">#{{ t }}</span>
+                <span v-for="tag in c.tags" :key="tag" class="gc-tag">#{{ tag }}</span>
               </div>
             </div>
-            <button class="btn" @click="removeCard(g, c)">移出</button>
+            <button class="btn" @click="removeCard(g, c)">{{ t('views.cardGroups.moveOut') }}</button>
           </div>
         </div>
       </div>

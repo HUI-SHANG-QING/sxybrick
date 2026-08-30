@@ -316,12 +316,14 @@ const en = {
 
 // —— 合并业务视图字典（每个视图一个模块，见 src/i18n/views/*.js） ——
 import { zh as achievementsZh, en as achievementsEn } from './views/achievements.js';
+import { zh as cardGroupsZh, en as cardGroupsEn } from './views/cardGroups.js';
 import { zh as cardInsightZh, en as cardInsightEn } from './views/cardInsight.js';
 import { zh as cardsZh, en as cardsEn } from './views/cards.js';
 import { zh as categoryZh, en as categoryEn } from './views/category.js';
 import { zh as dailyPlanZh, en as dailyPlanEn } from './views/dailyPlan.js';
 import { zh as docsZh, en as docsEn } from './views/docs.js';
 import { zh as exportZh, en as exportEn } from './views/export.js';
+import { zh as healthZh, en as healthEn } from './views/health.js';
 import { zh as libraryZh, en as libraryEn } from './views/library.js';
 import { zh as memoZh, en as memoEn } from './views/memo.js';
 import { zh as pomodoroZh, en as pomodoroEn } from './views/pomodoro.js';
@@ -329,9 +331,12 @@ import { zh as recycleBinZh, en as recycleBinEn } from './views/recycleBin.js';
 import { zh as reviewZh, en as reviewEn } from './views/review.js';
 import { zh as searchZh, en as searchEn } from './views/search.js';
 import { zh as syncZh, en as syncEn } from './views/sync.js';
+import { zh as weeklyReportZh, en as weeklyReportEn } from './views/weeklyReport.js';
 
 zh.views.achievements = achievementsZh;
 en.views.achievements = achievementsEn;
+zh.views.cardGroups = cardGroupsZh;
+en.views.cardGroups = cardGroupsEn;
 zh.views.cardInsight = cardInsightZh;
 en.views.cardInsight = cardInsightEn;
 zh.views.cards = cardsZh;
@@ -344,6 +349,8 @@ zh.views.docs = docsZh;
 en.views.docs = docsEn;
 zh.views.export = exportZh;
 en.views.export = exportEn;
+zh.views.health = healthZh;
+en.views.health = healthEn;
 zh.views.library = libraryZh;
 en.views.library = libraryEn;
 zh.views.memo = memoZh;
@@ -358,6 +365,8 @@ zh.views.search = searchZh;
 en.views.search = searchEn;
 zh.views.sync = syncZh;
 en.views.sync = syncEn;
+zh.views.weeklyReport = weeklyReportZh;
+en.views.weeklyReport = weeklyReportEn;
 
 export const DICTS = { 'zh-CN': zh, en };
 

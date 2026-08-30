@@ -1,6 +1,7 @@
 <script setup>
 // 每周学习报告（借鉴 Progress AI，纯本地聚合 + 可选 AI 总结）：按周统计学习数据，
 // 可生成 AI 点评并保存存档（按周 upsert），历史报告可回看/删除，全部随数据包同步
+import { t } from '../i18n/index.js';
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../db.js';
@@ -45,12 +46,12 @@ async function aggregate(ws) {
   const cardsMap = new Map(cards.map(c => [c.id, c]));
   const subjectReview = new Map();
   for (const r of rWeek) {
-    const s = cardsMap.get(r.cardId)?.subject || '未分类';
+    const s = cardsMap.get(r.cardId)?.subject || t('views.weeklyReport.uncategorized');
     subjectReview.set(s, (subjectReview.get(s) || 0) + 1);
   }
   const newCards = cards.filter(c => c.createdAt >= from && c.createdAt < to);
   const subjectNew = new Map();
-  for (const c of newCards) subjectNew.set(c.subject || '未分类', (subjectNew.get(c.subject || '未分类') || 0) + 1);
+  for (const c of newCards) subjectNew.set(c.subject || t('views.weeklyReport.uncategorized'), (subjectNew.get(c.subject || t('views.weeklyReport.uncategorized')) || 0) + 1);
   const topSubjects = [...subjectReview.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   const pomosWeek = pomos.filter(p => p.startedAt >= from && p.startedAt < to);
   return {
@@ -82,7 +83,7 @@ async function selectWeek(ws) {
 function shiftWeek(delta) { selectWeek(weekStart.value + delta * 7 * DAY); }
 
 async function aiSummarize() {
-  if (!hasAIKey()) { toast('请先在「AI 设置」里填入密钥', 'error'); return; }
+  if (!hasAIKey()) { toast(t('views.weeklyReport.aiKeyMissing'), 'error'); return; }
   if (!data.value) return;
   aiLoading.value = true;
   try {
@@ -98,21 +99,21 @@ async function aiSummarize() {
       { role: 'user', content: text },
     ]);
     summary.value = String(r || '').trim();
-    toast('AI 总结已生成，可编辑后再保存', 'success');
-  } catch (e) { toast('生成失败：' + e.message, 'error'); }
+    toast(t('views.weeklyReport.aiSummaryGenerated'), 'success');
+  } catch (e) { toast(t('views.weeklyReport.aiGenerateFail', '生成失败：{msg}', { msg: e.message }), 'error'); }
   finally { aiLoading.value = false; }
 }
 
 async function saveReport() {
   if (!data.value) return;
-  await saveWeeklyReport({ weekStart: weekStart.value, title: `${weekLabel.value} 学习周报`, data: data.value, summary: summary.value });
+  await saveWeeklyReport({ weekStart: weekStart.value, title: `${weekLabel.value} ${t('views.weeklyReport.reportTitleSuffix')}`, data: data.value, summary: summary.value });
   await loadHistory();
   existing.value = await getWeeklyReportByWeek(weekStart.value);
-  toast('周报已保存（可跨设备同步）', 'success');
+  toast(t('views.weeklyReport.savedToast'), 'success');
 }
 
 async function removeReport(r) {
-  if (!(await confirmDialog(`删除「${r.title}」？`))) return;
+  if (!(await confirmDialog(t('views.weeklyReport.confirmDelete', '删除「{title}」？', { title: r.title })))) return;
   await deleteWeeklyReport(r.id);
   if (r.weekStart === existing.value?.weekStart) { existing.value = null; summary.value = ''; }
   await loadHistory();
@@ -132,52 +133,52 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="wr-wrap" v-loading="loading" element-loading-text="加载中…">
+  <div class="wr-wrap" v-loading="loading" :element-loading-text="t('views.weeklyReport.loading')">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      <h2 style="margin:0">每周报告</h2>
+      <h2 style="margin:0">{{ t('views.weeklyReport.title') }}</h2>
       <span style="flex:1"></span>
-      <button class="btn small" @click="shiftWeek(-1)">← 上一周</button>
+      <button class="btn small" @click="shiftWeek(-1)">{{ t('views.weeklyReport.prevWeek') }}</button>
       <span class="hint" style="font-weight:600">{{ weekLabel }}</span>
-      <button class="btn small" @click="shiftWeek(1)">下一周 →</button>
+      <button class="btn small" @click="shiftWeek(1)">{{ t('views.weeklyReport.nextWeek') }}</button>
     </div>
-    <p class="hint" style="margin:4px 0 14px">自动汇总本周学习数据；点「AI 生成总结」让 AI 点评并给建议，保存后可随时回看。</p>
+    <p class="hint" style="margin:4px 0 14px">{{ t('views.weeklyReport.hint') }}</p>
 
     <div class="wr-body">
       <aside class="wr-list">
-        <EmptyState v-if="!reports.length" compact icon="📈" title="还没有周报存档" message="选好周、点「保存周报」即可归档" />
+        <EmptyState v-if="!reports.length" compact icon="📈" :title="t('views.weeklyReport.emptyHistoryTitle')" :message="t('views.weeklyReport.emptyHistoryMsg')" />
         <div v-for="r in reports" :key="r.id" class="wr-item" :class="{ active: existing?.id === r.id }" @click="openReport(r)">
           <div class="wr-title">{{ r.title }}</div>
-          <div class="wr-meta">{{ new Date(r.updatedAt).toLocaleDateString() }} <a class="wr-del" @click.stop="removeReport(r)">删</a></div>
+          <div class="wr-meta">{{ new Date(r.updatedAt).toLocaleDateString() }} <a class="wr-del" @click.stop="removeReport(r)">{{ t('views.weeklyReport.deleteLink') }}</a></div>
         </div>
       </aside>
 
       <section class="wr-main">
         <div v-if="data" class="wr-cards">
-          <div class="stat"><div class="num">{{ data.reviews }}</div><div class="lbl">本周复习次数</div></div>
-          <div class="stat"><div class="num">{{ data.reviewedCards }}</div><div class="lbl">涉及卡片</div></div>
-          <div class="stat"><div class="num">{{ data.correctRate }}%</div><div class="lbl">正确率</div></div>
-          <div class="stat"><div class="num">{{ data.newCards }}</div><div class="lbl">新建卡片</div></div>
-          <div class="stat"><div class="num">{{ data.pomo }}</div><div class="lbl">番茄（{{ data.pomoMinutes }} 分钟）</div></div>
-          <div class="stat"><div class="num">{{ data.docs }}</div><div class="lbl">新文档</div></div>
-          <div class="stat"><div class="num">{{ data.plansDone }}</div><div class="lbl">完成计划</div></div>
-          <div class="stat"><div class="num">{{ data.feynman }}</div><div class="lbl">费曼练习</div></div>
+          <div class="stat"><div class="num">{{ data.reviews }}</div><div class="lbl">{{ t('views.weeklyReport.statReviews') }}</div></div>
+          <div class="stat"><div class="num">{{ data.reviewedCards }}</div><div class="lbl">{{ t('views.weeklyReport.statReviewedCards') }}</div></div>
+          <div class="stat"><div class="num">{{ data.correctRate }}%</div><div class="lbl">{{ t('views.weeklyReport.statCorrectRate') }}</div></div>
+          <div class="stat"><div class="num">{{ data.newCards }}</div><div class="lbl">{{ t('views.weeklyReport.statNewCards') }}</div></div>
+          <div class="stat"><div class="num">{{ data.pomo }}</div><div class="lbl">{{ t('views.weeklyReport.statPomo', '番茄（{n} 分钟）', { n: data.pomoMinutes }) }}</div></div>
+          <div class="stat"><div class="num">{{ data.docs }}</div><div class="lbl">{{ t('views.weeklyReport.statDocs') }}</div></div>
+          <div class="stat"><div class="num">{{ data.plansDone }}</div><div class="lbl">{{ t('views.weeklyReport.statPlansDone') }}</div></div>
+          <div class="stat"><div class="num">{{ data.feynman }}</div><div class="lbl">{{ t('views.weeklyReport.statFeynman') }}</div></div>
         </div>
 
         <div v-if="data?.topSubjects.length" class="wr-line hint">
-          复习最多：{{ data.topSubjects.map(([s, n]) => `${s} ${n} 次`).join(' · ') }}
+          {{ t('views.weeklyReport.topSubjectsPrefix') }}{{ data.topSubjects.map(([s, n]) => `${s} ${n} 次`).join(' · ') }}
         </div>
 
         <div class="wr-ai">
           <div class="wr-ai-head">
-            <span class="field-label" style="margin:0">AI 总结（可手动编辑）</span>
+            <span class="field-label" style="margin:0">{{ t('views.weeklyReport.aiSummaryLabel') }}</span>
             <span style="flex:1"></span>
-            <button class="btn small" :disabled="aiLoading" @click="aiSummarize">{{ aiLoading ? 'AI 生成中…' : 'AI 生成总结' }}</button>
-            <button class="btn small primary" @click="saveReport">保存周报</button>
+            <button class="btn small" :disabled="aiLoading" @click="aiSummarize">{{ aiLoading ? t('views.weeklyReport.aiGenerating') : t('views.weeklyReport.aiGenerate') }}</button>
+            <button class="btn small primary" @click="saveReport">{{ t('views.weeklyReport.saveReport') }}</button>
           </div>
-          <textarea v-model="summary" class="input" rows="8" placeholder="点「AI 生成总结」，或自己写一段本周复盘…"></textarea>
+          <textarea v-model="summary" class="input" rows="8" :placeholder="t('views.weeklyReport.summaryPlaceholder')"></textarea>
         </div>
 
-        <EmptyState v-if="!data?.reviews && data?.newCards === 0" compact icon="📅" title="这一周还没有学习记录" message="前后翻周看看，或开始今天的学习" />
+        <EmptyState v-if="!data?.reviews && data?.newCards === 0" compact icon="📅" :title="t('views.weeklyReport.emptyWeekTitle')" :message="t('views.weeklyReport.emptyWeekMsg')" />
       </section>
     </div>
   </div>
