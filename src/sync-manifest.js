@@ -67,6 +67,16 @@ export const SYNC_TABLES = [
   //   会话按 updatedAt 合并（标题/卡片集更新）；消息不可变（append-only）→ idOnly 幂等
   { table: 'analysisSessions', kind: 'analysisSession', merge: 'updatedAt' },
   { table: 'analysisMessages', kind: 'analysisMessage', merge: 'idOnly' },
+  // v25（英语单词模块）新增：独立四表，与记忆卡物理隔离
+  //   wordCards：复用「卡片」级字段合并（内容按 updatedAt、SRS 状态按 reviewedAt），
+  //     保证复习动作跨设备传播，不覆盖对端文字/批注编辑（与 cards 同策略）。
+  //   wordReviews：复习记录主体不可变 → review 策略（selfExplanation 按 selfExplainAt 字段级合并）。
+  //   wordGroups：词组元数据按 updatedAt 合并（重命名/状态/颜色谁新听谁）。
+  //   wordGroupLinks：多对多关联，idOnly 幂等；「移出」写 kind=wordGroupLink 墓碑（见 word-repo.js）。
+  { table: 'wordCards', kind: 'wordCard', merge: 'card' },
+  { table: 'wordReviews', kind: 'wordReview', merge: 'review' },
+  { table: 'wordGroups', kind: 'wordGroup', merge: 'updatedAt' },
+  { table: 'wordGroupLinks', kind: 'wordGroupLink', merge: 'idOnly' },
 ];
 
 /**

@@ -139,6 +139,8 @@ const navItems = [
   { path: '/insight', label: '卡片洞察', icon: '💡', i18nKey: 'nav.insight' },
   // UI 组件库：Element Plus × 主题桥接活样本（风格 / 配色随主题联动）
   { path: '/uikit', label: '组件库', icon: '🧰', i18nKey: 'nav.uikit' },
+  // 英语单词模块（独立表；复用记忆曲线；背单词软件式 UI）
+  { path: '/words', label: '单词本', icon: '🔤', i18nKey: 'nav.words' },
 ];
 
 // 语言切换：label 经 t() 映射，t() 读取 locale.value ⇒ 切换时自动重渲染

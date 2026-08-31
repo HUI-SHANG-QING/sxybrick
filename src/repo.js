@@ -50,7 +50,7 @@ function fireHook(event, ...args) {
 
 // P1-1 FSRS 调度配置缓存：避免每次复习都查 db.meta（scheduler/fsrsWeights）
 let _schedCache = null;
-async function getSchedConfig() {
+export async function getSchedConfig() {
   if (_schedCache && Date.now() - _schedCache.loadedAt < 60000) return _schedCache;
   const [sched, wRow] = await Promise.all([db.meta.get('scheduler'), db.meta.get('fsrsWeights')]);
   _schedCache = {

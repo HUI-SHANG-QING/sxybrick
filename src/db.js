@@ -209,6 +209,21 @@ d.version(24).stores({
   docBlobs: 'id',
 });
 
+// v25：英语单词模块（独立表，与记忆卡物理隔离；复用 FSRS 调度算法）
+//   wordCards：单词/词组/短句/范文。kind ∈ {word, phrase, sentence, template}；
+//     - template（范文模板）不参与 SRS 复习队列，仅存储 + 收藏 + 导出；
+//     - familiar(0/1) 熟词标记：移出默认复习队列但仍可检索、可导出。
+//     - subject 记录考试类别（考研/四六级/雅思…），便于按类别导出与筛选。
+//   wordReviews：复习记录（idOnly 幂等，跨设备同步，selfExplanation 字段级合并）
+//   wordGroups：词组（类似卡组，英语模块专属多对多分组）
+//   wordGroupLinks：单词-词组关联（多对多；移出写墓碑，跨设备按 addedAt vs 墓碑时间裁决）
+d.version(25).stores({
+  wordCards: 'id, kind, subject, dueAt, updatedAt, createdAt, familiar',
+  wordReviews: 'id, cardId, reviewedAt',
+  wordGroups: 'id, name, status, sortOrder, createdAt, updatedAt',
+  wordGroupLinks: 'id, cardId, groupId, addedAt',
+});
+
 // v23：卡片智能联动分析（M2）——工作台对话历史与分析结果，参与同步（跨设备可回看）
 //   analysisSessions：一次分析会话（选定卡片集合 + 多轮对话）。
 //     id, title(自动摘要或用户命名), cardIds(JSON 数组，会话创建时的卡片快照),

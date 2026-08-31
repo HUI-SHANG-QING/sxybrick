@@ -52,6 +52,11 @@ const routes = [
   { path: '/materials', component: () => import('./views/LibraryFiles.vue') },
   // UI 组件库：Element Plus × 主题桥接的活样本（验证 11 风格 × 3 模式跟随效果）
   { path: '/uikit', component: () => import('./views/UIKit.vue') },
+  // 英语单词模块（独立表，复用 FSRS 调度）：首页 / 背诵 / 词组 / 导出
+  { path: '/words', component: () => import('./views/WordBook.vue') },
+  { path: '/words/review', component: () => import('./views/WordReview.vue') },
+  { path: '/words/groups', component: () => import('./views/WordGroups.vue') },
+  { path: '/words/export', component: () => import('./views/WordExport.vue') },
 ];
 
 export const router = createRouter({
