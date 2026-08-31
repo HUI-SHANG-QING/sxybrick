@@ -192,9 +192,9 @@ export async function trashItem(id, kind, data) {
  * 之前只在回收站页 load() 时清一次 —— 用户长期不打开该页，trash 会无限膨胀。
  * 现在导出此函数，由应用启动时（main.js）兜底调用。
  */
-export async function pruneTrash(ttlDays = TRASH_TTL_DAYS) {
+export async function pruneTrash(ttlDays = TRASH_TTL_DAYS, nowTs = Date.now()) {
   try {
-    const cutoff = Date.now() - ttlDays * 86400000;
+    const cutoff = nowTs - ttlDays * 86400000;
     const stale = await db.trash.filter(t => (t.deletedAt || 0) < cutoff).primaryKeys();
     if (stale.length) await db.trash.bulkDelete(stale);
     return stale.length;

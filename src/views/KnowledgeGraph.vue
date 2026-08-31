@@ -150,6 +150,13 @@ function plain(md) {
     .replace(/\$\$?([^$\n]+)\$\$?/g, ' $1 ').replace(/[*_#>`~|-]/g, '').replace(/\s+/g, ' ').trim();
 }
 
+// 边标签显示文本（round11b N-1）：
+//   · auto 派生边带 labelKind → label 存的是语义 code，这里按当前语言翻译；
+//   · AI / 用户手动建的边没有 labelKind → label 是内容本身（用户可以手打「前置」），必须原样显示；
+//   · 旧落库的边没有 labelKind 且 label 是中文 → 兜底显示原 label，行为与修复前一致，
+//     等下次图谱重建时被 bulkDelete 替换成带 labelKind 的新边。
+const edgeLabelText = (e) => (e?.labelKind ? t('graph.labelKind.' + e.labelKind, e.label) : (e?.label || ''));
+
 // 构建图数据：按 subject 分组（用于同心圆分层着色）
 function buildGraphData(nds, eds) {
   const subjects = [...new Set(nds.map(n => n.subject).filter(Boolean))];
@@ -160,7 +167,10 @@ function buildGraphData(nds, eds) {
     symbolSize: 22, itemStyle: { color: palette[catOf(n) % palette.length] },
     label: { show: true, position: 'right', fontSize: 12 },
   }));
-  const linkList = eds.map(e => ({ source: e.from, target: e.to, label: e.label ? { show: true, formatter: e.label, fontSize: 10 } : { show: false } }));
+  const linkList = eds.map(e => ({
+    source: e.from, target: e.to,
+    label: e.label ? { show: true, formatter: edgeLabelText(e), fontSize: 10 } : { show: false },
+  }));
   return { nodes: nodeList, links: linkList, categories };
 }
 const palette = ['#4a9eff', '#f5a623', '#7ed321', '#bd10e0', '#f8e71c', '#50e3c2', '#b8e986', '#d0021b'];
@@ -523,7 +533,7 @@ watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
         <div class="cluster-title">{{ c.subject }}<span class="cluster-count">{{ t('views.knowledgeGraph.clusterCount', undefined, { n: c.edges.length }) }}</span></div>
         <div v-for="e in c.edges" :key="e.id" class="saved-edge">
           <span>{{ nodeById(e.from)?.label || e.from }}</span>
-          <span class="saved-rel">{{ e.label }}</span>
+          <span class="saved-rel">{{ edgeLabelText(e) }}</span>
           <span>{{ nodeById(e.to)?.label || e.to }}</span>
           <a style="color:var(--red);cursor:pointer;margin-left:8px" @click="removeEdge(e.id)" :aria-label="t('views.knowledgeGraph.deleteEdgeAria')">{{ t('views.knowledgeGraph.deleteEdge') }}</a>
         </div>

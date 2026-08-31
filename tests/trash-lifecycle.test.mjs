@@ -21,6 +21,10 @@ import { deleteDocFile } from '../src/docs-lib.js';
 
 after(async () => { try { await db.close(); } catch {} });
 
+// N-4(round11b)：固定参考时刻，所有时间相关断言与此解耦，避免真实运行日期
+//   撞上「跨月 28/30/31 天」「周一必红」类边界导致偶发失败。与 pomo 测试同一 REF。
+const REF = new Date(2026, 7, 26, 14, 0, 0).getTime(); // 2026-08-26 周三 14:00
+
 async function resetTrash() { await db.trash.clear(); }
 
 // ---------- 1) 资料删除 → 回收站 → 恢复 ----------
@@ -32,13 +36,13 @@ test('资料删除：写 trash 快照，可直接从回收站恢复（解析全�
   await db.docFiles.put({
     id, name: '线代讲义.pdf', ext: 'pdf', size: 2048, subject: '线性代数',
     status: 'ready', storage: 'opfs', opfsPath: 'doc-restore-1_线代讲义.pdf',
-    textLen: fullText.length, createdAt: Date.now(), updatedAt: Date.now(),
+    textLen: fullText.length, createdAt: REF, updatedAt: REF,
   });
-  await db.docTexts.put({ id, text: fullText, textLen: fullText.length, updatedAt: Date.now() });
-  await db.embeddings.put({ id: 'emb-1', sourceType: 'doc', sourceId: id, updatedAt: Date.now(), vector: [0.1, 0.2] });
+  await db.docTexts.put({ id, text: fullText, textLen: fullText.length, updatedAt: REF });
+  await db.embeddings.put({ id: 'emb-1', sourceType: 'doc', sourceId: id, updatedAt: REF, vector: [0.1, 0.2] });
   await db.graphEdges.put({
     id: 'edge-1', from: '📄 线代讲义.pdf', to: '向量相关性', label: '涵盖', subject: '线性代数',
-    docId: id, updatedAt: Date.now(),
+    docId: id, updatedAt: REF,
   });
 
   assert.equal(await deleteDocFile(id), true, '删除成功返回 true');
@@ -73,10 +77,10 @@ test('资料删除：级联删掉的图谱边与向量块都写墓碑（防对�
   const id = 'doc-tomb-1';
   await db.docFiles.put({
     id, name: 't.txt', ext: 'txt', size: 10, status: 'ready', storage: 'idb',
-    createdAt: Date.now(), updatedAt: Date.now(),
+    createdAt: REF, updatedAt: REF,
   });
-  await db.embeddings.put({ id: 'emb-x', sourceType: 'doc', sourceId: id, updatedAt: Date.now() });
-  await db.graphEdges.put({ id: 'edge-x', from: '📄 t.txt', to: 'a', label: '涵盖', subject: '', docId: id, updatedAt: Date.now() });
+  await db.embeddings.put({ id: 'emb-x', sourceType: 'doc', sourceId: id, updatedAt: REF });
+  await db.graphEdges.put({ id: 'edge-x', from: '📄 t.txt', to: 'a', label: '涵盖', subject: '', docId: id, updatedAt: REF });
 
   await deleteDocFile(id);
   const kinds = new Set((await db.tombstones.toArray()).map(t => `${t.kind}:${t.id}`));
@@ -173,13 +177,13 @@ test('同一天重建计划：覆盖掉的旧任务也写墓碑', async () => {
 
 test('pruneTrash：清理超过 TTL 的快照，保留墓碑', async () => {
   await resetTrash();
-  const old = Date.now() - (TRASH_TTL_DAYS + 1) * 86400000;
-  const fresh = Date.now();
+  const old = REF - (TRASH_TTL_DAYS + 1) * 86400000;
+  const fresh = REF;
   await db.trash.put({ id: 'old-1', kind: 'memo', deletedAt: old, data: { id: 'old-1', text: '过期' } });
   await db.trash.put({ id: 'new-1', kind: 'memo', deletedAt: fresh, data: { id: 'new-1', text: '新鲜' } });
   await db.tombstones.put({ id: 'old-1', kind: 'memo', deletedAt: old });
 
-  const cleaned = await pruneTrash();
+  const cleaned = await pruneTrash(TRASH_TTL_DAYS, REF);
   assert.equal(cleaned, 1, '只清 1 条过期快照');
   assert.equal(await db.trash.get('old-1'), undefined);
   assert.ok(await db.trash.get('new-1'), '未过期的保留');

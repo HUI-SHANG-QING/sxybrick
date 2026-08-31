@@ -158,7 +158,8 @@ export async function autoBuildGraph(opts = {}) {
       const [a, b] = key.split('|');
       const sa = tagSets.get(a), sb = tagSets.get(b);
       const w = shared / Math.max(1, Math.min(sa.size, sb.size));
-      if (w >= minTagWeight) add(a, b, 'related', w, '同标签');
+      // label 传语义 code 而非中文（见下方 rows 构建处的说明），视图层按 labelKind 翻译
+      if (w >= minTagWeight) add(a, b, 'related', w, 'sameTag');
     }
   }
 
@@ -173,7 +174,7 @@ export async function autoBuildGraph(opts = {}) {
       const [a, b] = key.split('|');
       const sa = tokenSets.get(a), sb = tokenSets.get(b);
       const ov = interCount / Math.max(1, Math.min(sa.size, sb.size));
-      if (ov >= similarityThreshold) add(a, b, 'related', Math.min(1, ov), '内容相似');
+      if (ov >= similarityThreshold) add(a, b, 'related', Math.min(1, ov), 'similar');
     }
   }
 
@@ -200,7 +201,7 @@ export async function autoBuildGraph(opts = {}) {
   for (const [key, cnt] of wrongPairs) {
     if (cnt < 2) continue;
     const [a, b] = key.split('|');
-    add(a, b, 'related', Math.min(1, 0.6 + cnt * 0.1), '易错同现');
+    add(a, b, 'related', Math.min(1, 0.6 + cnt * 0.1), 'coMistake');
   }
 
   // ---------- 4) 前置依赖：同科目 + 已相关 + 难度递增 ----------
@@ -217,7 +218,7 @@ export async function autoBuildGraph(opts = {}) {
     const rb = DIFF_RANK[B.difficulty] ?? 0;
     if (ra === rb) continue;
     const [low, high] = ra < rb ? [A, B] : [B, A];
-    add(low.id, high.id, 'prereq', Math.max(e.weight, 0.5), '前置', true);
+    add(low.id, high.id, 'prereq', Math.max(e.weight, 0.5), 'prereq', true);
   }
 
   // ---------- 5) 截断：先按边权重降序，再限制每卡边数 ----------
@@ -257,7 +258,19 @@ export async function autoBuildGraph(opts = {}) {
       to: nodeLabelOf(B) || e.bId,
       fromCardId: e.aId,
       toCardId: e.bId,
-      label: e.label || (e.kind === 'prereq' ? '前置' : '相关'),
+      // ⚠️ 2026-08-31（round11b N-1）：auto 派生边的 label 存语义 code 而非中文，
+      //   并额外落 labelKind 作为「这条边需要翻译」的判别标记。
+      //   旧实现直接落库中文「前置/同标签/…」——这是第三例「数据层产出 localized 内容」
+      //   （前两例 bestWorstPartners / getLearningProfile 都是 API 返回值，改完即生效），
+      //   本例更难发现：它**写进 db.graphEdges**，切英文后图谱仍显示中文，
+      //   且已落库的旧边换语言也不会变，只能等重建。
+      //   为什么需要 labelKind 而不仅看 label 值：AI 建边 / 用户手动建边的 label 是
+      //   **内容本身**（用户完全可以手打「前置」二字），没有 labelKind 的必须原样显示。
+      //   兼容：旧边无 labelKind → 视图兜底显示原 label（中文），行为不变；
+      //   auto 边不参与同步（sync-manifest 的 exportFilter 排除 kind==='auto'），
+      //   且重建前先 bulkDelete，旧中文标签随下次重建自然替换，无需迁移脚本。
+      labelKind: e.label || (e.kind === 'prereq' ? 'prereq' : 'sameTag'),
+      label: e.label || (e.kind === 'prereq' ? 'prereq' : 'sameTag'),
       subject,
       kind: 'auto',
       weight: Number(e.weight.toFixed(4)),

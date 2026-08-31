@@ -105,9 +105,21 @@ test('autoBuildGraph：stats.prereq / related 真实计数（不能恒为 0）',
   assert.equal(r2.stats.prereq, 0);
 });
 
-test('autoBuildGraph：前置边的标签是「前置」，不会停留在「同标签」', async () => {
+test('autoBuildGraph：边标签落库语义 code 而非中文（round11b N-1）', async () => {
   await db.graphEdges.clear(); await db.cards.clear();
   await db.cards.bulkPut([mkCard('z1', 'basic'), mkCard('z2', 'challenge')]);
   const r = await autoBuildGraph({});
-  assert.equal(r.edges[0].label, '前置', `kind 已升级为 prereq，标签应同步，实际 ${r.edges[0].label}`);
+  // kind 升级为 prereq 时 label 必须同步（旧实现停留在「同标签」），且是 code 不是中文
+  assert.equal(r.edges[0].labelKind, 'prereq', `labelKind 应为 prereq，实际 ${r.edges[0].labelKind}`);
+  assert.equal(r.edges[0].label, 'prereq', `label 应为语义 code，实际 ${r.edges[0].label}`);
+  // 核心防线：数据层落库内容不得含中文（已落库的旧边换语言不会变，只能等重建）
+  for (const e of r.edges) {
+    assert.ok(!/[\u4e00-\u9fa5]/.test(e.label || ''), `边标签落库了中文：${e.label}`);
+  }
+  // 落库后从 db 读回来同样不得有中文
+  const inDb = await db.graphEdges.toArray();
+  for (const e of inDb) {
+    assert.ok(e.labelKind, `落库边必须有 labelKind（视图靠它判断是否需要翻译）：${e.id}`);
+    assert.ok(!/[\u4e00-\u9fa5]/.test(e.label || ''), `库里落了中文标签：${e.label}`);
+  }
 });

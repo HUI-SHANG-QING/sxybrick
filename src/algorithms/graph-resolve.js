@@ -114,11 +114,20 @@ export function resolveGraph(rawEdges, cards, opts = {}) {
     if (bad) missing++; else resolved++;
     putNode(fromLabel, subject);
     putNode(toLabel, subject);
+    // ⚠️ 2026-08-31（round11b N-3 残留）：边 label 兜底不再写中文 '相关'。
+    //   - 来源显式带 labelKind（graphAuto 派生边）→ 沿用，view 按当前语言翻译；
+    //   - 空 label → label='related' + labelKind='related'（语义 code，进字典）；
+    //   - 旧落库中文 label / 用户手打内容 → 不带 labelKind，view 原样显示，不把中文塞进 labelKind。
+    const rawLabel = String(e.label || '').trim();
+    const isFallback = !rawLabel;
+    const label = rawLabel || 'related';
+    const labelKind = e.labelKind || (isFallback ? 'related' : undefined);
     edges.push({
       id: e.id,
       from: fromLabel,
       to: toLabel,
-      label: String(e.label || '').trim() || '相关',
+      label,
+      labelKind,
       subject,
       type: String(e.type || '').trim(),
       docId: String(e.docId || '').trim(),

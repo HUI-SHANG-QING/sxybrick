@@ -10,14 +10,14 @@
 //   1) 数据层不得再返回中文 level / summary（防回潮）
 //   2) levelCode 必须能映射到四个等级码之一（防枚举漂移）
 //   3) i18n 的 profile.level.* 与 profile.summary 在 zh/en 下都能解析（防键缺失）
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 // fake-indexeddb 必须先于 db.js 加载（db.js 顶层 new Dexie 会读 indexedDB 全局）
 import 'fake-indexeddb/auto';
 await import('./_env.mjs');
 const { db } = await import('../src/db.js');
-const { getLearningProfile } = await import('../src/agent/analytics.js');
+const { getLearningProfile, shutdownAnalyticsWorker } = await import('../src/agent/analytics.js');
 const { t, setLocale } = await import('../src/i18n/index.js');
 
 const LEVEL_CODES = ['excellent', 'good', 'fair', 'needsWork'];
@@ -80,3 +80,7 @@ test('i18n：profile.summary 插值在 zh/en 都能工作', () => {
     assert.ok(s.includes('80'), `${loc}: 应包含掌握度数值 80`);
   }
 });
+
+// 收尾关闭分析 worker：不关的话 worker 线程让子进程无法自然退出，
+// node --test 会把整个文件判成失败（exitCode 143），即使 3 条用例全 pass。
+after(async () => { await shutdownAnalyticsWorker(); });

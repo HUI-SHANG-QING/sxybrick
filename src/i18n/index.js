@@ -184,6 +184,13 @@ const zh = {
     summary: '掌握度 {mastery}% · 正确率 {correct}% · 稳定度 {stable}% · 覆盖率 {coverage}% · 活跃度 {activity}% · 纠正力 {correction}%',
   },
 
+  // ---------------- 知识图谱边标签（round11b N-1） ----------------
+  // graphAuto 自动建边落库的是语义 code（labelKind），这里翻成显示文本。
+  // 只用于 auto 派生边；AI / 用户手动边的 label 是内容本身，不经过字典。
+  graph: {
+    labelKind: { prereq: '前置', sameTag: '同标签', similar: '内容相似', coMistake: '易错同现', related: '相关' },
+  },
+
   // ---------------- 业务视图（按视图分批外置，见 src/views/*.vue） ----------------
   views: {},
 };
@@ -331,6 +338,10 @@ const en = {
   profile: {
     level: { excellent: 'Excellent', good: 'Good', fair: 'Fair', needsWork: 'Needs work' },
     summary: 'Mastery {mastery}% · Accuracy {correct}% · Stability {stable}% · Coverage {coverage}% · Activity {activity}% · Correction {correction}%',
+  },
+
+  graph: {
+    labelKind: { prereq: 'Prereq', sameTag: 'Same tag', similar: 'Similar', coMistake: 'Co-mistake', related: 'Related' },
   },
 
   // ---------------- Business views (externalized per view, see src/views/*.vue) ----------------

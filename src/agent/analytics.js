@@ -45,6 +45,28 @@ function offload(fn, args) {
   }).catch(() => _FALLBACK);
 }
 
+/**
+ * 关闭分析 worker（仅供测试收尾调用）。
+ *
+ * ⚠️ 为什么需要：worker 线程是活跃 handle，会让 `node --test` 的子进程**无法自然退出**，
+ * 被 SIGTERM 杀掉后 node --test 把整个文件判成失败（exitCode 143）——即使里面每条
+ * 用例都 pass。项目为此在 package.json 用了 `--test-force-exit` 兜底，但实证该参数
+ * 会在测试真正跑完前就 `process.exit(0)`，**吞掉真实的断言失败**（graphAuto 有一条
+ * 用例在 force-exit 下不报 not ok）。正确解法是让进程能干净退出，而不是强制杀。
+ * 浏览器里无需调用（页面卸载即回收 Worker）。
+ */
+export async function shutdownAnalyticsWorker() {
+  const w = _analyticsWorker;
+  _analyticsWorker = null;
+  if (w) {
+    // terminate() 是异步的：不 await 的话 worker 线程可能还没真正退出，
+    // node --test 的子进程就已经被判定为「不退出」了。
+    try { await w.terminate(); } catch { /* 已终止 */ }
+  }
+  for (const [, p] of _pending) p.reject(new Error('worker shutdown'));
+  _pending.clear();
+}
+
 // ---------- 卡片维度：单卡复习画像 ----------
 export async function getCardAnalytics(cardId) {
   const card = await db.cards.get(cardId);

@@ -104,7 +104,12 @@ function scheduleFlush() {
   _flushTimer = setTimeout(() => { _flushTimer = null; _flush(); }, FLUSH_INTERVAL);
 }
 // 紧急合并：10s 内缓冲超过 1000 条直接落盘（防止狂点点爆 DB）
-setInterval(() => { if (_buffer.length > 1000) _flush(true); }, 10000);
+// ⚠️ 2026-08-31（round11b 测试挂起修复）：模块级 setInterval 在 Node/测试环境会让事件循环永空不了，
+// 导致 node --test 子进程挂起（exitCode 143），而 --test-force-exit 又会把真实断言失败一并吞掉。
+// telemetry 本就是浏览器端采集器，定时器只在浏览器启动；测试/SSR/Worker 环境不启动。
+if (typeof window !== 'undefined') {
+  setInterval(() => { if (_buffer.length > 1000) _flush(true); }, 10000);
+}
 
 // ---- A 级（业务级）主入口 ----
 // 参数：

@@ -425,6 +425,18 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
       </div>
     </div>
 
+    <!-- 能力四维雷达（round11b N-2）：
+         容器 div 在 134ad8b（四层优化大重构）里被误删 —— script 的渲染逻辑（:179 能力四维雷达）
+         一直留着却永远拿不到 DOM（abilityEl.value 恒为 null），于是「掌握度/正确率/稳定度/覆盖率」
+         在 UI 上彻底消失，只有 Agent 内部（analytics/context）还在消费这四位数。
+         这里补回容器，并把 round11 加的 ability.noData 标记接上：零复习时显示空态，
+         而不是画一个 0/0/0/0 的全零雷达（那正是 round11 修「假满分 100%」想避免的误导）。 -->
+    <div class="panel">
+      <div class="hint" style="margin-bottom:8px">{{ t('views.stats.abilityTitle', '能力四维雷达') }}</div>
+      <div v-if="stats?.ability && !stats.ability.noData" ref="abilityEl" style="height:260px"></div>
+      <EmptyState v-else compact icon="📊" :title="t('views.stats.emptyAbilityTitle', '暂无复习数据')" :message="t('views.stats.emptyAbilityMsg', '完成第一轮复习后，这里会显示掌握度 / 正确率 / 稳定度 / 覆盖率四维能力')" />
+    </div>
+
     <div class="panel">
       <div class="hint" style="margin-bottom:8px">{{ t('views.stats.heatTitle', '复习热力图（近一年）') }}</div>
       <div ref="heatEl" style="height:210px"></div>

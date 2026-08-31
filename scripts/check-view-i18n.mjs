@@ -10,11 +10,13 @@
 //   node scripts/check-view-i18n.mjs                    正向 + 字典完整性 + 占位符（默认）
 //   node scripts/check-view-i18n.mjs --strict           另加反向硬编码扫描（对照基线）
 //   node scripts/check-view-i18n.mjs --update-baseline  重写反向扫描基线（认领当前存量）
+//   node scripts/check-view-i18n.mjs --js              第三道闸：扫数据层 / 算法层 .js 硬编码中文（对照基线）
+//   node scripts/check-view-i18n.mjs --js-update-baseline  重写数据层基线（认领当前存量）
 //
 // 反向扫描为什么用基线而非零容忍：存量里有一大类「数据常量」——选项数组、AI prompt 模板、
 // 写进库的枚举值（如 PrivacyData 的 ['早餐','午餐','晚餐']）。它们不是界面文案，
 // 翻译了反而污染数据。基线把存量固化并标注理由，之后只卡「新增」，防止债务继续扩大。
-import { readdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -26,6 +28,12 @@ const baselineFile = join(root, 'scripts/i18n-hardcode-baseline.json');
 const args = new Set(process.argv.slice(2));
 const STRICT = args.has('--strict');
 const UPDATE_BASELINE = args.has('--update-baseline');
+// 第三道闸：扫数据层 / 算法层 .js 里未被 console.* / throw 包裹的硬编码中文
+// （见 round11b N-3：bestWorstPartners / getLearningProfile / graphAuto 边标签三例都漏在 .js 数据层）。
+// 只报「短中文片段」（行内最长连续中文 ≤ 24 字）—— AI prompt 模板普遍是长串，排除掉避免误杀。
+const JS = args.has('--js');
+const JS_UPDATE = args.has('--js-update-baseline');
+const jsBaselineFile = join(root, 'scripts/i18n-js-hardcode-baseline.json');
 
 const problems = [];
 const fail = (msg) => problems.push(`✗ ${msg}`);
@@ -145,6 +153,9 @@ function maskCallArgs(src, names) {
 }
 
 const HAS_CJK = /[一-鿿]/;
+// 行内最长连续中文字符数（用于去噪：超过阈值视为 AI prompt / 长数据串，跳过）
+const maxCJKRun = (line) => Math.max(0, ...[...line.matchAll(/[一-鿿]+/g)].map(m => m[0].length));
+
 function scanHardcoded(file) {
   let src = readFileSync(join(viewsDir, file), 'utf8');
   // 本地 t 别名（如 Sync.vue 的 const S = (k, fb, v) => t(...)、UserDashboard 的 T）
@@ -164,6 +175,64 @@ function scanHardcoded(file) {
   const hits = [];
   src.split(/\r?\n/).forEach((line, i) => {
     if (!HAS_CJK.test(line)) return;
+    hits.push({ line: i + 1, text: line.trim().slice(0, 160) });
+  });
+  return hits;
+}
+
+// ------------------------------------------------- 5) 第三道闸：数据层 / 算法层 .js
+// 思路同 scanHardcoded，但目标不是 .vue 视图、而是 .js 领域代码。
+// 领域层很长一段时间是「中文散文 / 标签」的漏网地带（N-1 三例全部在此）：
+//   bestWorstPartners 中文子串嗅探、getLearningProfile 中文等级、graphAuto 边标签中文。
+// 去噪策略（与 .vue 不同的关键）：
+//   · 挖空 console.* 调用参数（日志不是文案）
+//   · 跳过 throw new Error(...) 所在行（错误码不是 UI 文案）
+//   · 只报「行内最长连续中文 ≤ 24 字」—— AI prompt 模板普遍是长串（>24 字），排除掉。
+//     这样能命中 graph-resolve 的 '相关' 兜底词、calibration 的 '样本不足' verdict 这类短 UI 文案，
+//     又不误杀动辄数百字的 prompt。
+const JS_TARGETS = ['src/repo.js', 'src/repo-core.js', 'src/agent', 'src/algorithms'];
+function collectJsFiles() {
+  const out = [];
+  const walk = (p) => {
+    for (const f of readdirSync(p)) {
+      const abs = join(p, f);
+      const st = lstatSyncSafe(abs);
+      if (st === 'dir') { walk(abs); continue; }
+      if (st === 'file' && f.endsWith('.js')) {
+        if (readFileSync(abs, 'utf8').length === 0) continue; // 防御空文件
+        out.push(abs);
+      }
+    }
+  };
+  for (const t of JS_TARGETS) {
+    const abs = join(root, t);
+    const st = lstatSyncSafe(abs);
+    if (st === 'dir') walk(abs);
+    else if (st === 'file' && t.endsWith('.js')) {
+      if (readFileSync(abs, 'utf8').length === 0) continue;
+      out.push(abs);
+    }
+  }
+  return out.map(abs => ({ rel: abs.replace(root + (root.endsWith('/') ? '' : '/'), ''), abs }));
+}
+function lstatSyncSafe(abs) {
+  try { return statSync(abs).isDirectory() ? 'dir' : 'file'; } catch { return 'file'; }
+}
+
+function scanJsHardcoded(abs) {
+  let src = readFileSync(abs, 'utf8');
+  const names = new Set([
+    ...[...src.matchAll(/console\.([a-zA-Z]+)/g)].map(m => 'console.' + m[1]),
+  ]);
+  src = src.replace(/\/\*[\s\S]*?\*\//g, blankKeepNewlines);   // 块注释
+  src = maskCallArgs(src, names);                              // 挖空 console.* 参数
+  src = src.replace(/(^|[ \t])\/\/[^\n]*/gm, (m, p1) => p1 + ' '.repeat(m.length - p1.length)); // 行注释
+
+  const hits = [];
+  src.split(/\r?\n/).forEach((line, i) => {
+    if (!HAS_CJK.test(line)) return;
+    if (maxCJKRun(line) > 24) return;                          // 长串（AI prompt）跳过
+    if (/throw\s+new\s+Error/.test(line)) return;              // 错误码非文案
     hits.push({ line: i + 1, text: line.trim().slice(0, 160) });
   });
   return hits;
@@ -219,6 +288,36 @@ if (STRICT || UPDATE_BASELINE) {
   }
 }
 
+// ------------------------------------------------- 5) 数据层 .js 第三道闸
+let jsScanTotal = 0, jsFiles = [];
+if (JS || JS_UPDATE) {
+  jsFiles = collectJsFiles();
+  const found = {};
+  for (const f of jsFiles) {
+    const hits = scanJsHardcoded(f.abs);
+    if (hits.length) found[f.rel] = hits;
+    jsScanTotal += hits.length;
+  }
+  if (JS_UPDATE) {
+    const old = existsSync(jsBaselineFile) ? JSON.parse(readFileSync(jsBaselineFile, 'utf8')) : {};
+    const next = {};
+    for (const [f, hits] of Object.entries(found).sort(([a], [b]) => a.localeCompare(b))) {
+      const reasons = old[f]?.reasons || {};
+      next[f] = { count: hits.length, note: old[f]?.note || '', reasons: Object.fromEntries(hits.map(h => [String(h.line), reasons[String(h.line)] || ''])) };
+    }
+    writeFileSync(jsBaselineFile, JSON.stringify(next, null, 2) + '\n', 'utf8');
+    console.log(`✓ 数据层基线已更新：scripts/i18n-js-hardcode-baseline.json（${Object.keys(next).length} 文件 / ${jsScanTotal} 行）`);
+  } else {
+    const base = existsSync(jsBaselineFile) ? JSON.parse(readFileSync(jsBaselineFile, 'utf8')) : {};
+    let added = 0;
+    for (const [f, hits] of Object.entries(found)) {
+      const known = new Set(Object.keys(base[f]?.reasons || {}));
+      for (const h of hits) if (!known.has(String(h.line))) { fail(`[数据层] 新增硬编码中文 ${f}:${h.line}  ${h.text}`); added++; }
+    }
+    console.log(`  数据层扫描：命中 ${jsScanTotal} 行（.vue 第三道闸），较基线新增 ${added} 行`);
+  }
+}
+
 // ------------------------------------------------------------------- 汇总
 if (problems.length) {
   for (const p of problems) console.error(p);
@@ -226,4 +325,5 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(`✓ i18n 闸门通过：${vueFiles.length} 个视图 t() 可解析 · ${dictCount} 个字典 zh/en 键位与占位符对齐`
-  + (STRICT ? ` · 反向扫描 ${scanTotal} 行无新增` : '（加 --strict 可查硬编码中文）'));
+  + (STRICT ? ` · 反向扫描 ${scanTotal} 行无新增` : '（加 --strict 可查硬编码中文）')
+  + (JS ? ` · 数据层第三道闸 ${jsScanTotal} 行` : '（加 --js 可查数据层中文）'));

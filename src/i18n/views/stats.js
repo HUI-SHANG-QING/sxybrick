@@ -71,6 +71,11 @@ export const zh = {
   dowFri: '五',
   dowSat: '六',
 
+  // ——— 能力四维雷达（round11b N-2 接回 noData 空态） ———
+  abilityTitle: '能力四维雷达',
+  emptyAbilityTitle: '暂无复习数据',
+  emptyAbilityMsg: '完成第一轮复习后，这里会显示掌握度 / 正确率 / 稳定度 / 覆盖率四维能力',
+
   // ——— 雷达图维度与系列名 ———
   radarMasteryName: '掌握度 %',
   dimMastery: '掌握度',
@@ -170,6 +175,11 @@ export const en = {
   dowThu: 'Thu',
   dowFri: 'Fri',
   dowSat: 'Sat',
+
+  // ——— Ability radar (round11b N-2 noData empty state) ———
+  abilityTitle: 'Ability radar (4-dim)',
+  emptyAbilityTitle: 'No review data yet',
+  emptyAbilityMsg: 'After your first review round, this shows the 4-dimension ability: mastery / accuracy / stability / coverage',
 
   // ——— Radar dimensions & series names ———
   radarMasteryName: 'Mastery %',
