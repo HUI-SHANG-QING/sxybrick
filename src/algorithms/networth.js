@@ -21,7 +21,10 @@ export function contentWeight(card) {
 // 判断卡片是否已复习过（有有效 fsrs 状态且 reps >= 1）
 export function isReviewed(card) {
   const f = card?.fsrs;
-  return !!(f && typeof f.s === 'number' && f.reps >= 1);
+  // 必须用 Number.isFinite 而不是 typeof：NaN 的 typeof 也是 'number'，
+  // 一旦放过 NaN，它会一路污染 retrievability → 单卡净值 → 全局总净值 →
+  // 按来源聚合，整张报表变成一串 NaN，且没有任何报错。
+  return !!(f && Number.isFinite(f.s) && f.s > 0 && f.reps >= 1);
 }
 
 /** 单卡「原值」= 内容权重（与该卡是否已学无关） */

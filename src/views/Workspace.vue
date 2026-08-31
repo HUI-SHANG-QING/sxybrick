@@ -8,6 +8,7 @@ import { useRouter } from 'vue-router';
 import { getWorkspaceOverview } from '../workspace/overview.js';
 import { MODULE_GROUPS } from '../workspace/modules.js';
 import { t } from '../i18n/index.js';
+import { fmtLocaleRelative, fmtLocaleTime } from '../utils/locale-date.js';
 import { listNotifications, unreadCount } from '../agent/proactive.js';
 import { db } from '../db.js';
 
@@ -60,7 +61,12 @@ const overdue = computed(() => data.value?.overdue || 0);
 const doneToday = computed(() => data.value?.stats?.todayReviews || 0);
 const avgMastery = computed(() => data.value?.stats?.avgMastery || 0);
 const profileScore = computed(() => data.value?.profile?.score ?? null);
-const profileLevel = computed(() => data.value?.profile?.level || '');
+// ⚠️ 2026-08-31：getLearningProfile 不再返回中文 level/summary（领域层不得产出 localized 散文），
+//   只回 levelCode，这里用 t() 翻译；漏改的话切英文后此 hint 会一直是空串。
+const profileLevel = computed(() => {
+  const code = data.value?.profile?.levelCode;
+  return code ? t('profile.level.' + code) : '';
+});
 const online = computed(() => data.value?.meta?.online ?? true);
 const lastSync = computed(() => data.value?.meta?.lastSync || 0);
 
@@ -86,6 +92,10 @@ const groups = computed(() => {
   }).filter(g => g.modules.length);
 });
 
+// 模块总数从 MODULE_GROUPS 实算：曾硬编码 "/30 模块"，新增模块后标识会失真
+const totalModules = computed(() => MODULE_GROUPS.reduce((s, g) => s + g.modules.length, 0));
+const shownModules = computed(() => groups.value.reduce((s, g) => s + g.modules.length, 0));
+
 const riskTop = computed(() => (data.value?.risks || []).slice(0, 3));
 const healthItems = computed(() => {
   const h = data.value?.health;
@@ -101,18 +111,13 @@ const diagTop = computed(() => [...(data.value?.diag || [])].sort((a, b) => a.ma
 // ---------- 交互 ----------
 function go(path) { router.push(path); }
 function ratingLabel(r) { return r === 2 ? t('workspace.rateOk') : r === 1 ? t('workspace.rateWarn') : t('workspace.rateFail'); }
+// 相对时间走 Intl.RelativeTimeFormat（跟随界面语言）：zh → 现在/5分钟前/昨天，en → now/5 minutes ago/yesterday
 function fmtTime(ts) {
-  if (!ts) return '';
-  const d = new Date(ts), diff = Date.now() - d;
-  if (diff < 60000) return '刚刚';
-  if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
-  if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  return ts ? fmtLocaleRelative(ts) : '';
 }
 function fmtSync(ts) {
   if (!ts) return t('workspace.noSync');
-  const d = new Date(ts);
-  return `同步于 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return t('workspace.syncedAt', undefined, { time: fmtLocaleTime(ts) });
 }
 
 let timer = null;
@@ -129,7 +134,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); });
     <div class="ws-head">
       <div>
         <h1 class="ws-title">{{ t('workspace.title') }}</h1>
-        <p class="ws-sub">{{ t('workspace.sub') }} · {{ groups.reduce((s, g) => s + g.modules.length, 0) }}/30 模块</p>
+        <p class="ws-sub">{{ t('workspace.sub') }} · {{ t('workspace.moduleCount', undefined, { n: shownModules, total: totalModules }) }}</p>
       </div>
       <div class="ws-head-actions">
         <span class="ws-sync" :class="online ? 'on' : 'off'" :title="online ? fmtSync(lastSync) : t('workspace.offline')">
@@ -177,7 +182,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); });
         <div class="ws-group-label">{{ g.label }}</div>
         <div class="ws-tiles">
           <button v-for="m in g.modules" :key="m.key" class="ws-tile" :class="{ warn: metric(m.key).warn }" @click="go(m.path)">
-            <i v-if="metric(m.key).warn" class="ws-tile-dot" title="有预警"></i>
+            <i v-if="metric(m.key).warn" class="ws-tile-dot" :title="t('workspace.warnBadge')"></i>
             <span class="ws-tile-icon">{{ m.icon }}</span>
             <div class="ws-tile-main">
               <div class="ws-tile-head"><span class="ws-tile-label">{{ m.label }}</span><span class="ws-tile-metric">{{ metricText(m.key) }}</span></div>
@@ -196,7 +201,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); });
         <div v-if="riskTop.length">
           <div v-for="r in riskTop" :key="r.id" class="ws-risk-item" @click="go('/review')">
             <span class="ws-risk-front">{{ r.front }}</span>
-            <span class="ws-risk-n">风险 {{ r.risk }}%</span>
+            <span class="ws-risk-n">{{ t('workspace.riskPct', undefined, { n: r.risk }) }}</span>
           </div>
         </div>
         <div v-else class="ws-empty">{{ t('workspace.noRisk') }}</div>
@@ -214,7 +219,7 @@ onBeforeUnmount(() => { if (timer) clearInterval(timer); });
         <h3 class="ws-sec">{{ t('workspace.secDiag') }}</h3>
         <div v-if="diagTop.length">
           <div v-for="d in diagTop" :key="d.subject" class="ws-diag" @click="go('/cards?subject=' + encodeURIComponent(d.subject))">
-            <div class="ws-diag-head"><span>{{ d.subject }}</span><span>{{ d.mastery }}% · 到期 {{ d.due }}</span></div>
+            <div class="ws-diag-head"><span>{{ d.subject }}</span><span>{{ d.mastery }}% · {{ t('workspace.dueCount', undefined, { n: d.due }) }}</span></div>
             <div class="ws-diag-track"><div class="ws-diag-fill" :style="{ width: d.mastery + '%' }"></div></div>
           </div>
         </div>

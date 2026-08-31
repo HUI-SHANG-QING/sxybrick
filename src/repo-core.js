@@ -271,12 +271,17 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   }
 
   // 能力四维（掌握度/正确率/稳定度/覆盖率）
+  //
+  // ⚠️ 零复习时不能沿用 `total = totalReviews || 1`：那样 stable = 1 - 0/1 = 100%，
+  // 新用户会看到「稳定度 100% / 正确率 0% / 掌握度 0%」这种自相矛盾的面板。
+  // 与上面 mastery 分支同一口径：无数据记 0，另给 noData 标记供 UI 显示「暂无数据」。
+  const hasReviews = totalReviews > 0;
   const total = totalReviews || 1;
-  const correct = Math.round((reviews.filter(r => r.rating === 2).length / total) * 100);
-  const stable = Math.round((1 - reviews.filter(r => r.rating === 0).length / total) * 100);
+  const correct = hasReviews ? Math.round((reviews.filter(r => r.rating === 2).length / total) * 100) : 0;
+  const stable = hasReviews ? Math.round((1 - reviews.filter(r => r.rating === 0).length / total) * 100) : 0;
   const reviewedCount = new Set(reviews.map(r => r.cardId)).size;
   const coverage = totalCards ? Math.round((reviewedCount / totalCards) * 100) : 0;
-  const ability = { mastery: avgMastery, correct, stable, coverage };
+  const ability = { mastery: avgMastery, correct, stable, coverage, noData: !hasReviews };
 
   // 标签 Top 10
   const tagMap = new Map();

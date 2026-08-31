@@ -9,6 +9,12 @@ const DAY = 24 * 60 * 60 * 1000;
 // 最小有效推进量：下次到期与本次复习间隔不足 1 分钟，视为「当天重学」而非一次新排期，
 // 不再继续迭代（否则会退化成在窗口内以 14 分钟为步长空转数百次）。
 const MIN_STEP_MS = 60 * 1000;
+// 同一天内允许的「当天重学」次数上限（again/hard 的间隔是亚日级，约 14 分钟）。
+// 不封顶的后果：单次迭代只推进 14 分钟，maxIters=200 只够走约 48 小时，
+// 于是 rating=0（文档里正是用来模拟「遗忘回炉洪峰」的场景）跑出来的 30 天预测
+// 只有前 3 天有数、后 27 天恒为 0 —— 洪峰场景完全失效，还白烧 200 次 schedule()/卡。
+// 到顶后跳到次日零点继续：真人第二天会再来复习，这才符合"每日到期量"的口径。
+const MAX_SAME_DAY_STEPS = 3;
 
 // 消除抖动权重：w[17] = 0 → nextInterval 的 fuzz 恒为 1，预测结果确定（均值口径）
 export function noFuzzWeights(w = DEFAULT_WEIGHTS) {
@@ -77,6 +83,7 @@ export function forecastDue(cards, days = 30, opts = {}) {
     let due = firstDue;
     let state = card; // 传给 schedule 的「当前卡片状态」（含 fsrs）
     let guard = 0;
+    let sameDaySteps = 0; // 同一自然日内的连续重学次数
     while (guard++ < maxIters) {
       if (due >= end) break; // 已超出预测窗口
       // 复习时刻：逾期卡今天补（reviewAt=start），未来卡按时（reviewAt=due）
@@ -89,7 +96,21 @@ export function forecastDue(cards, days = 30, opts = {}) {
       // 推进量太小（如 again 的 0.01 天）说明这张卡进入了「当天重学」循环，
       // 继续迭代只会反复命中同一天，直接退出本卡模拟。
       if (next.dueAt - reviewAt < MIN_STEP_MS) break;
-      due = next.dueAt;
+
+      let advancedTo = next.dueAt;
+      if (Math.floor((next.dueAt - start) / DAY) === idx) {
+        // 仍在同一天 → 一次当天重学
+        sameDaySteps += 1;
+        if (sameDaySteps >= MAX_SAME_DAY_STEPS) {
+          // 重学次数到顶：跳到次日零点，让这张卡在第二天继续参与模拟。
+          // 注意 state.dueAt 仍记真实的 next.dueAt —— schedule 靠它算 elapsed 天数。
+          advancedTo = startOfDay(next.dueAt) + DAY;
+          sameDaySteps = 0;
+        }
+      } else {
+        sameDaySteps = 0;
+      }
+      due = advancedTo;
       state = { ...state, fsrs: next.fsrs, dueAt: next.dueAt, level: next.level, ease: next.ease, intervalDays: next.intervalDays };
     }
   }

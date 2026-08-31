@@ -253,6 +253,7 @@ test('computeStats: 基础计数 / 今日去重 / 掌握度 / 能力四维 / 标
   assert.equal(s.ability.correct, 50);
   assert.equal(s.ability.stable, 75);
   assert.equal(s.ability.coverage, 100);
+  assert.equal(s.ability.noData, false, '有复习数据时 noData 必须为 false');
   // 评分分布与热力图
   assert.deepEqual(s.ratingDist, { 0: 1, 1: 1, 2: 2 });
   assert.equal(Object.keys(s.heatmap).length >= 1, true);
@@ -268,7 +269,10 @@ test('computeStats: 空数据不炸，除零全部兜底', () => {
   assert.equal(s.totalReviews, 0);
   assert.equal(s.todayReviews, 0);
   assert.equal(s.avgMastery, 0);
-  assert.deepEqual(s.ability, { mastery: 0, correct: 0, stable: 100, coverage: 0 }); // stable=1-0/1
+  // ⚠️ 2026-08-31 修正：旧实现写 `total = totalReviews || 1`，零复习时
+  //    stable = 1 - 0/1 = 100%，新用户面板显示「稳定度 100% / 正确率 0% / 掌握度 0%」自相矛盾。
+  //    与 mastery 分支同口径：无数据一律记 0，另给 noData 标记供 UI 显示「暂无数据」。
+  assert.deepEqual(s.ability, { mastery: 0, correct: 0, stable: 0, coverage: 0, noData: true });
   assert.deepEqual(s.ratingDist, { 0: 0, 1: 0, 2: 0 });
   assert.equal(s.trend.length, 14);
   assert.equal(s.forgotTrend.length, 30);

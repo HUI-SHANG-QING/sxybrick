@@ -216,11 +216,17 @@ export async function getLearningProfile() {
   const correction = lastWrongAt.size ? Math.round((corrected / lastWrongAt.size) * 100) : 100;
 
   const score = Math.round(mastery * 0.25 + correct * 0.2 + stable * 0.15 + coverage * 0.15 + activity * 0.15 + correction * 0.1);
+  // ⚠️ 2026-08-31：等级与 summary 不再在这里拼中文。
+  //   领域层产出 localized 散文的后果：切到英文界面后「学习画像」卡片仍显示
+  //   「优秀 / 掌握度80% · 正确率90% …」，而问题不在任何 .vue 里，
+  //   i18n 闸门（只扫视图）永远扫不到 —— 与 repo.bestWorstPartners 是同一类跨层缺陷。
+  //   这里只回 levelCode，文案交给视图用 t() 组装。
+  const levelCode = score >= 85 ? 'excellent' : score >= 70 ? 'good' : score >= 55 ? 'fair' : 'needsWork';
+  const dimensions = { mastery, correct, stable, coverage, activity, correction };
   return {
     score,
-    level: score >= 85 ? '优秀' : score >= 70 ? '良好' : score >= 55 ? '中等' : '待提升',
-    dimensions: { mastery, correct, stable, coverage, activity, correction },
-    summary: `掌握度${mastery}% · 正确率${correct}% · 稳定度${stable}% · 覆盖率${coverage}% · 活跃度${activity}% · 纠正力${correction}%`,
+    levelCode,
+    dimensions,
   };
 }
 

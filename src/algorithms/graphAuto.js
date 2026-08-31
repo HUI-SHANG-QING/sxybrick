@@ -112,13 +112,29 @@ export async function autoBuildGraph(opts = {}) {
   const add = (aId, bId, kind, weight, label, directed = false) => {
     if (!aId || !bId || aId === bId) return;
     if (!byId.has(aId) || !byId.has(bId)) return;
-    const undirected = pairKey(aId, bId);
-    const key = directed ? `${aId}->${bId}` : undirected;
-    // 同一对卡片若已有反向的有向边，视为同一条，避免 A→B 与 B→A 各存一份
-    const revKey = directed ? `${bId}->${aId}` : null;
-    const existing = edges.get(key) || (revKey ? edges.get(revKey) : null);
+    // 同一对卡片只保留一条边；方向信息存在 aId/bId 的先后里（aId → bId）。
+    //
+    // 旧实现用两套 key：无向 `a|b`、有向 `a->b`。后果是同一对卡能同时留下
+    // related 与 prereq 两条边，落库时又按 (aId,bId) 的先后拼出
+    // `auto-a-b` / `auto-b-a` 两个不同 id：
+    //   · 顺序一致 → 两个 id 相同，bulkPut 静默覆盖，related 边丢失；
+    //   · 顺序相反 → 同对卡两条边并存，各吃掉 maxEdgesPerCard 的一个名额，图谱出现重复连线。
+    // 命中哪种取决于「id 字典序」与「难度序」是否一致 —— 同一份数据重建结果不稳定。
+    const key = pairKey(aId, bId);
+    const existing = edges.get(key);
     if (existing) {
-      if (kind === 'prereq') existing.kind = 'prereq';
+      // 后来者是前置关系：升级 kind，并把方向改成这次传入的顺序（低难度 → 高难度）。
+      // 标签也要换掉，否则会出现「按前置关系走、图上却显示『同标签』」的错位。
+      if (kind === 'prereq' && existing.kind !== 'prereq') {
+        existing.kind = 'prereq';
+        existing.directed = true;
+        existing.aId = aId;
+        existing.bId = bId;
+        existing.label = label || existing.label;
+        existing.weight = Math.max(existing.weight, weight);
+        existing.updatedAt = Date.now();
+        return;
+      }
       if (weight > existing.weight) { existing.weight = weight; existing.label = label; }
       return;
     }
@@ -232,7 +248,10 @@ export async function autoBuildGraph(opts = {}) {
     const A = byId.get(e.aId), B = byId.get(e.bId);
     const subject = String(A?.subject || B?.subject || '').trim();
     return {
-      id: `auto-${e.aId}-${e.bId}`,
+      // id 用「排序后的卡片对」：与方向无关，两端设备算出同一个 id。
+      // 旧实现按 (aId,bId) 的原始先后拼接，方向一变就是另一个 id，
+      // 跨设备同步时同对卡会各写一条 → 派生边重复堆积。
+      id: `auto-${[e.aId, e.bId].sort().join('-')}`,
       // from/to 用显示文本：与「AI 生成 / 智能推荐」建的边同一套 ID 空间，图谱才能连通
       from: nodeLabelOf(A) || e.aId,
       to: nodeLabelOf(B) || e.bId,
@@ -251,8 +270,10 @@ export async function autoBuildGraph(opts = {}) {
   return {
     edges: rows,
     stats: {
-      prereq: rows.filter(e => e.kind === 'prereq').length,
-      related: rows.filter(e => e.kind === 'related').length,
+      // 必须数内部 list，不能数 rows —— rows 的 kind 统一是 'auto'（派生边标记），
+      // 按 'prereq'/'related' 过滤 rows 会恒为 0（旧实现就错在这里）。
+      prereq: list.filter(e => e.kind === 'prereq').length,
+      related: list.filter(e => e.kind === 'related').length,
       cards: cards.length,
       truncated,
     },

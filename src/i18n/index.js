@@ -131,6 +131,11 @@ const zh = {
     deletedCard: '(已删除卡片)',
     loadingAgg: '正在聚合各模块数据…',
     noSync: '未同步',
+    syncedAt: '同步于 {time}',
+    warnBadge: '有预警',
+    riskPct: '风险 {n}%',
+    dueCount: '到期 {n}',
+    moduleCount: '{n}/{total} 模块',
     healthDup: '重复卡', healthZombie: '僵尸卡', healthOrphan: '孤儿图片',
     rateOk: '答对', rateWarn: '模糊', rateFail: '答错',
     group: { study: '学习', plan: '规划', knowledge: '知识', smart: '智能', system: '系统' },
@@ -170,6 +175,14 @@ const zh = {
 
   // ---------------- 常用 ----------------
   common: { more: '更多', resetTitle: '清空全部数据', resetConfirmHint: '此操作不可恢复，请谨慎。' },
+
+  // ---------------- 学习画像（跨视图共用：Workspace 的 KPI 卡 + Stats 的画像面板） ----------------
+  // 等级名放根字典而不是各视图字典：getLearningProfile 只回 levelCode，
+  // 两个视图都要把 code 翻成等级名，各存一份迟早漂移。
+  profile: {
+    level: { excellent: '优秀', good: '良好', fair: '中等', needsWork: '待提升' },
+    summary: '掌握度 {mastery}% · 正确率 {correct}% · 稳定度 {stable}% · 覆盖率 {coverage}% · 活跃度 {activity}% · 纠正力 {correction}%',
+  },
 
   // ---------------- 业务视图（按视图分批外置，见 src/views/*.vue） ----------------
   views: {},
@@ -272,6 +285,11 @@ const en = {
     deletedCard: '(deleted card)',
     loadingAgg: 'Aggregating module data…',
     noSync: 'Not synced',
+    syncedAt: 'Synced at {time}',
+    warnBadge: 'Has warning',
+    riskPct: 'Risk {n}%',
+    dueCount: 'Due {n}',
+    moduleCount: '{n}/{total} modules',
     healthDup: 'Duplicate cards', healthZombie: 'Zombie cards', healthOrphan: 'Orphan images',
     rateOk: 'Correct', rateWarn: 'Vague', rateFail: 'Wrong',
     group: { study: 'Study', plan: 'Plan', knowledge: 'Knowledge', smart: 'Smart', system: 'System' },
@@ -310,6 +328,11 @@ const en = {
   },
   common: { more: 'More', resetTitle: 'Erase All Data', resetConfirmHint: 'This cannot be undone. Please be careful.' },
 
+  profile: {
+    level: { excellent: 'Excellent', good: 'Good', fair: 'Fair', needsWork: 'Needs work' },
+    summary: 'Mastery {mastery}% · Accuracy {correct}% · Stability {stable}% · Coverage {coverage}% · Activity {activity}% · Correction {correction}%',
+  },
+
   // ---------------- Business views (externalized per view, see src/views/*.vue) ----------------
   views: {},
 };
@@ -347,6 +370,7 @@ import { zh as searchZh, en as searchEn } from './views/search.js';
 import { zh as statsZh, en as statsEn } from './views/stats.js';
 import { zh as syncZh, en as syncEn } from './views/sync.js';
 import { zh as uiKitZh, en as uiKitEn } from './views/uiKit.js';
+import { zh as userDashboardZh, en as userDashboardEn } from './views/userDashboard.js';
 import { zh as weeklyReportZh, en as weeklyReportEn } from './views/weeklyReport.js';
 import { zh as wrongBookZh, en as wrongBookEn } from './views/wrongBook.js';
 
@@ -414,6 +438,8 @@ zh.views.sync = syncZh;
 en.views.sync = syncEn;
 zh.views.uiKit = uiKitZh;
 en.views.uiKit = uiKitEn;
+zh.views.userDashboard = userDashboardZh;
+en.views.userDashboard = userDashboardEn;
 zh.views.weeklyReport = weeklyReportZh;
 en.views.weeklyReport = weeklyReportEn;
 zh.views.wrongBook = wrongBookZh;

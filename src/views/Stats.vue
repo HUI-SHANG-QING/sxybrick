@@ -417,9 +417,11 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
       <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
         <div class="profile-score">
           <div class="ps-num">{{ profile.score }}</div>
-          <div class="hint">{{ t('views.stats.profileLabel', '学习画像 · {level}', { level: profile.level }) }}</div>
+          <div class="hint">{{ t('views.stats.profileLabel', '学习画像 · {level}', { level: t('profile.level.' + (profile.levelCode || 'needsWork')) }) }}</div>
         </div>
-        <div class="hint" style="flex:1;min-width:220px;font-size:13px">{{ profile.summary }}</div>
+        <!-- 2026-08-31：summary 由视图用 t() 组装（profile.summary 已从数据层移除）。
+             t(key, fallback, params)：第二参是 fallback，插值参数必须放第三位 -->
+        <div class="hint" style="flex:1;min-width:220px;font-size:13px">{{ t('profile.summary', '掌握度 {mastery}% · 正确率 {correct}% · 稳定度 {stable}% · 覆盖率 {coverage}% · 活跃度 {activity}% · 纠正力 {correction}%', profile.dimensions || {}) }}</div>
       </div>
     </div>
 

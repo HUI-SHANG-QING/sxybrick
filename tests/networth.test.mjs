@@ -30,6 +30,22 @@ test('isReviewed：有有效 fsrs 且 reps>=1 才算已复习', () => {
   assert.equal(isReviewed(mkCard({ fsrs: { s: 10, d: 5, reps: 1, last: NOW } })), true);
 });
 
+test('isReviewed：NaN / Infinity / 非正数稳定度一律视为未复习（防 NaN 污染净值）', () => {
+  // typeof NaN === 'number'，只查 typeof 会把它当成有效状态放进去，
+  // 之后 retrievability → 单卡净值 → 全局总净值 → 按来源聚合全变 NaN，且不报错。
+  for (const s of [NaN, Infinity, -Infinity, -1, 0]) {
+    assert.equal(isReviewed(mkCard({ fsrs: { s, d: 5, reps: 3, last: NOW } })), false, `s=${s} 应视为未复习`);
+  }
+  assert.equal(isReviewed(mkCard({ fsrs: { s: 0.01, d: 5, reps: 3, last: NOW } })), true);
+  // 端到端：含 NaN 的卡不得让总净值变成 NaN
+  const nw = computeNetWorth([
+    mkCard({ id: 'a', fsrs: { s: NaN, d: 5, reps: 3, last: NOW } }),
+    mkCard({ id: 'b', fsrs: { s: 10, d: 5, reps: 3, last: NOW } }),
+  ], NOW);
+  assert.ok(Number.isFinite(nw.totalValue), `总净值不应是 NaN，实际 ${nw.totalValue}`);
+  assert.ok(Number.isFinite(nw.retentionRate), `保持率不应是 NaN，实际 ${nw.retentionRate}`);
+});
+
 test('cardNetValue：未复习 = 0（不是全额）；刚复习 R=1 全额；9S 天 R=0.5 半额', () => {
   // ⚠️ 2026-08-30 修复：此前未复习卡按「原值全额」计（R 默认 1），
   //   于是导入 1000 张新卡 → 净值 1000+、知识保持率 100% ——
