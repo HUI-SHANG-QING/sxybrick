@@ -1185,10 +1185,24 @@ export async function queryUserOps(opts = {}) {
 //   D = 最活跃单份资产（/最不活跃僵尸单份）
 // rangeDays: 7 = 近期, 90 = 长期
 // worst: false=最佳, true=最坏
+// 卡片展示名：空卡面用语言中立的 '—' 占位。
+// 数据层不能产出中文占位符（旧实现写死 '（空卡）'）—— 它不经过 i18n，英文界面下会露馅。
+function cardLabel(card, max = 30) {
+  const s = String(card?.front || '').trim();
+  return s ? s.slice(0, max) : '—';
+}
+
 export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = false }) {
   const since = Date.now() - rangeDays * 24 * 3600 * 1000;
   const ops = await db.userOps.where('t').above(since - 1).toArray();
-  const dataNotEnough = { notEnough: true, title: '数据不足，继续积累', desc: `近 ${rangeDays} 天操作样本偏少，无法稳定分析。再多使用几天系统就会有结果。`, items: [] };
+  // 结论文案不再在这里拼中文：数据层只回 i18n code + params，
+  // 由视图用 t('views.userDashboard.partner.<code>.title', undefined, params) 组装。
+  // 旧实现把 localized 散文埋在领域层里 —— 切英文后整块结论仍是中文，且无法单测。
+  const dataNotEnough = {
+    notEnough: true,
+    items: [],
+    i18n: { code: 'notEnough', params: { days: rangeDays } },
+  };
 
   // —— A：科目学习频次（基于复习评分/卡片新建）
   if (kind === 'A') {
@@ -1207,13 +1221,12 @@ export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = fal
     const top = arr.slice(0, 1)[0];
     return {
       notEnough: false,
-      title: (worst ? '最冷门学习科目' : '最高频学习科目') + `（近 ${rangeDays} 天）`,
-      desc: `${top.key}：${top.count} 次复习`,
       items: arr.slice(0, 5),
       primary: top.key,
-      suggest: worst
-        ? `建议优先补短板：在「${top.key}」安排 30 分钟专项复习`
-        : `优势科目「${top.key}」已形成节奏，可推进到更难章节。`,
+      i18n: {
+        code: worst ? 'a.worst' : 'a.best',
+        params: { days: rangeDays, name: top.key, count: top.count },
+      },
     };
   }
 
@@ -1229,13 +1242,12 @@ export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = fal
     const top = arr[0];
     return {
       notEnough: false,
-      title: (worst ? '最少被调 Agent 工具' : '最高频 Agent 工具') + `（近 ${rangeDays} 天）`,
-      desc: `${top.key}：${top.count} 次调用`,
       items: arr.slice(0, 5),
       primary: top.key,
-      suggest: worst
-        ? `${top.key} 还有挖掘空间，遇到不确定的知识可尝试调用它。`
-        : `${top.key} 是你的得力助手，继续保持协同节奏。`,
+      i18n: {
+        code: worst ? 'b.worst' : 'b.best',
+        params: { days: rangeDays, name: top.key, count: top.count },
+      },
     };
   }
 
@@ -1263,13 +1275,12 @@ export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = fal
     const top = arr[0];
     return {
       notEnough: false,
-      title: (worst ? '最少共现知识对' : '最常共现知识对') + `（近 ${rangeDays} 天）`,
-      desc: `${top.key}：共现 ${top.count} 次`,
       items: arr.slice(0, 5),
       primary: top.key,
-      suggest: worst
-        ? `${top.key} 组合联系薄弱，建议把两者放一张导图里加强关联。`
-        : `${top.key} 已经形成强关联，可尝试合并为高维模型。`,
+      i18n: {
+        code: worst ? 'c.worst' : 'c.best',
+        params: { days: rangeDays, name: top.key, count: top.count },
+      },
     };
   }
 
@@ -1293,18 +1304,21 @@ export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = fal
       neverReviewed.sort((a,b)=>(a.card.createdAt||0)-(b.card.createdAt||0)); // 最老在前
       const top = neverReviewed[0].card;
       arr = neverReviewed.slice(0, 10).map(x => ({
-        key: String(x.card.front||'').slice(0, 30) || '（空卡）',
+        key: cardLabel(x.card),
         count: 0,
         cardId: x.card.id,
       }));
       return {
         notEnough: false,
-        title: `最不活跃的僵尸单份资产（近 ${rangeDays} 天）`,
-        desc: `${String(top.front||'').slice(0,50) || '（空卡）'} · 创建于 ${new Date(top.createdAt||0).toLocaleDateString()} · 从未复习`,
         items: arr,
-        primary: String(top.front||'').slice(0, 40),
+        primary: cardLabel(top, 40),
         cardId: top.id,
-        suggest: '建议今天就把它加入复习队列，把僵尸资产唤醒。',
+        i18n: {
+          code: 'd.worst',
+          // createdAt 传原始时间戳：日期的本地化交给视图层的 fmtLocaleDate，
+          // 数据层不做 toLocaleDateString（那会跟随操作系统语言，而非用户在 App 里选的语言）
+          params: { days: rangeDays, name: cardLabel(top, 50), createdAt: top.createdAt || 0 },
+        },
       };
     }
     // 最佳：score 最高
@@ -1317,19 +1331,20 @@ export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = fal
     const cardOf = new Map();
     for (const c of cards) if (c) cardOf.set(c.id, c);
     const items = arr.slice(0, 10).map(x => ({
-      key: String(cardOf.get(x.cardId)?.front || x.cardId).slice(0, 40),
+      key: cardOf.get(x.cardId) ? cardLabel(cardOf.get(x.cardId)) : String(x.cardId).slice(0, 40),
       count: x.count,
       cardId: x.cardId,
     }));
     const top = items[0];
     return {
       notEnough: false,
-      title: `最活跃单份资产「最佳拍档」（近 ${rangeDays} 天）`,
-      desc: `${top.key} · 互动分数 ${top.count}`,
       items,
       primary: top.key,
       cardId: top.cardId,
-      suggest: `它是你近期最常用的知识点，考虑围绕它构建一张导图，把网络效应放大。`,
+      i18n: {
+        code: 'd.best',
+        params: { days: rangeDays, name: top.key, count: top.count },
+      },
     };
   }
   return dataNotEnough;

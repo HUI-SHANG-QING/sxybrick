@@ -50,6 +50,10 @@ export async function createPluginCtx(pluginId, scope) {
       listPlans: repo.listPlans,
       getStats: repo.getStats,
     },
+    // 时钟注入点：插件内所有「今天/本周/近 N 天」判断都应经 ctx.now()，
+    // 不要直接 Date.now()——否则单元测试只能依赖真实运行时刻，
+    // 会在周一/月初等边界上出现「随日期变化而红」的假失败（见 tests/plugins-examples.test.mjs）。
+    now: () => Date.now(),
     notify(text) {
       try {
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {

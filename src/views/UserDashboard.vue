@@ -9,15 +9,34 @@ import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import 'echarts-wordcloud';
 import {
-  queryUserOps, bestWorstPartners, privacyPersonaReport, recordUserOp,
+  queryUserOps, bestWorstPartners, recordUserOp,
 } from '../repo.js';
 import { flushTelemetry, isAEnabled, isBEnabled } from '../utils/telemetry.js';
 import { toast } from '../utils/toast.js';
+import { t, locale } from '../i18n/index.js';
+import { fmtLocaleDate, fmtLocaleDateTime, fmtLocaleNumber, weekdayNames, monthNames } from '../utils/locale-date.js';
+
+// 字典前缀（视图内大量 t() 调用，抽出来避免写错模块名）
+const T = (k, params) => t('views.userDashboard.' + k, undefined, params);
+
+// 星期/月份名跟随界面语言；locale.value 被读取 ⇒ 切语言后自动重算并触发图表重渲染。
+//
+// ⚠️ 本页两种星期顺序并存，改任何一个都会让图表标签与数据错位：
+//   WEEK_SUN（周日…周六）—— 365 天热力：格子起点被对齐到周日，y 轴下标 0 就是周日。
+//   WEEK_MON（周一…周日）—— 雷达 / 168h 热力：代码用 (getDay()+6)%7 把周一算成 0。
+const WEEK_SUN = computed(() => weekdayNames('short'));
+const WEEK_MON = computed(() => { const w = WEEK_SUN.value; return [...w.slice(1), w[0]]; });
+const MONTH_NAMES = computed(() => monthNames('short'));
+// 365 热力 y 轴很窄：中文用 narrow（日/一/二）省空间；但英文 narrow 是 S,M,T,W,T,F,S
+// （S 和 T 各出现两次，有歧义），所以英文回退 short。
+const WEEK_SUN_AXIS = computed(() => (locale.value === 'en' ? WEEK_SUN.value : weekdayNames('narrow')));
 
 const router = useRouter();
 const rangeDays = ref(30);    // 全局范围 7 | 14 | 30 | 90 | 365
 const busy = ref(false);
-const status = ref('');       // 状态提示
+// 状态改为结构化字段，不再拼一整条中文串 —— 旧实现靠 status.split(' · ') 拆段渲染，
+// 一旦文案里出现 ' · '（英文用逗号）就会错位，且无法本地化。
+const stat = ref(null);       // { days, ops, modules, types, active365, total365 }
 const today = new Date();
 const pad = n => String(n).padStart(2, '0');
 const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -35,9 +54,24 @@ async function loadPartner() {
     partnerData.value = await bestWorstPartners({
       rangeDays: partnerRange.value, kind: partnerKind.value, worst: partnerWorst.value,
     });
-  } catch (e) { toast('拍档加载失败：' + e.message, 'error'); }
+  } catch (e) { toast(T('partner.loadFail', { msg: e.message }), 'error'); }
   finally { partnerBusy.value = false; }
 }
+
+// 拍档结论：repo 只回 code + params，文案在这里按当前语言组装
+const partner = computed(() => {
+  const i = partnerData.value?.i18n;
+  if (!i) return { title: '—', desc: '', suggest: '' };
+  const p = { ...i.params };
+  // 日期类参数在视图层格式化（跟随界面语言，而非操作系统语言）
+  if (p.createdAt != null) p.createdAt = fmtLocaleDate(p.createdAt);
+  const base = 'views.userDashboard.partner.' + i.code + '.';
+  return {
+    title: t(base + 'title', undefined, p),
+    desc: t(base + 'desc', undefined, p),
+    suggest: t(base + 'suggest', undefined, p) || '',
+  };
+});
 function onPartnerItemClick(item) {
   if (item.cardId) router.push(`/cards?id=${encodeURIComponent(item.cardId)}`);
 }
@@ -74,7 +108,7 @@ const chartHolders = {
 const heatmapCells = ref([]); // GitHub 式 365 天格子（CSS 绘制，ECharts 可选冗余）
 
 async function loadAll() {
-  busy.value = true; status.value = '拉取埋点 + 聚合中…';
+  busy.value = true;
   try {
     await flushTelemetry();
     const to = Date.now();
@@ -97,7 +131,7 @@ async function loadAll() {
         const map = new Map(); // `${date}::${module}` -> count
         for (const o of rows) {
           const d = new Date(o.t);
-          const key = `${iso(d)}::${o.module || '其它'}`;
+          const key = `${iso(d)}::${o.module || T('misc')}`;
           map.set(key, (map.get(key) || 0) + 1);
         }
         const modules = new Set();
@@ -122,7 +156,6 @@ async function loadAll() {
     ]);
 
     const totalCount = rawAll.length;
-    status.value = `${rangeDays.value} 天共 ${totalCount} 次操作 · ${byModule.length} 个模块 · ${byType.length} 种动作`;
 
     // 补全日序列（如果某天没数据也显示 0）
     const dateMap = new Map(byDay.map(x => [x.date, x.count]));
@@ -142,19 +175,31 @@ async function loadAll() {
     heatmapCells.value = ccc;
     const total365 = ccc.reduce((s, x) => s + x.count, 0);
     const activeDays365 = ccc.filter(x => x.count > 0).length;
-    status.value += ` · 近 365 天活跃 ${activeDays365} 天 / 共 ${total365} 次`;
+    stat.value = {
+      days: rangeDays.value,
+      ops: totalCount,
+      modules: byModule.length,
+      types: byType.length,
+      active365: activeDays365,
+      total365,
+    };
 
     await nextTick();
 
     // —— 图 1：ECharts 一年热力图（x=周, y=周几）
     renderChart('heatmap', {
-      tooltip: { position: 'top', formatter: p => Array.isArray(p) ? `${p[0].data[1]||''} ${p[0].data[0]}<br/>操作 ${p[0].data[2]} 次` : '' },
+      // 旧实现显示的是「星期名 + 周序号」（如"周三 12"），看不出是哪一天；
+      // buildHeatSeries 的第 4 位才是真实日期，这里改用它。
+      tooltip: {
+        position: 'top',
+        formatter: p => (Array.isArray(p) && p[0]) ? T('tipHeat', { date: p[0].data[3] || '', n: p[0].data[2] }) : '',
+      },
       grid: { left: 70, right: 10, top: 40, bottom: 40 },
       xAxis: { type: 'category', data: buildHeatXLabels(ccc), splitArea: { show: false }, axisLabel: { color: '#888', fontSize: 10 } },
-      yAxis: { type: 'category', data: ['日','一','二','三','四','五','六'], axisLabel: { color: '#888', fontSize: 10 }, splitArea: { show: false } },
+      yAxis: { type: 'category', data: WEEK_SUN_AXIS.value, axisLabel: { color: '#888', fontSize: 10 }, splitArea: { show: false } },
       visualMap: { min: 0, max: 20, calculable: false, orient: 'horizontal', left: 'center', bottom: 4, inRange: { color: ['#ebedf0','#c6f0d0','#5cd66a','#2cbe4e','#006d32'] }, textStyle: { color: '#888' } },
       series: [{ type: 'heatmap', data: buildHeatSeries(ccc), label: { show: false } }],
-      title: { text: '近 365 天活跃（GitHub 式热力图）', left: 'center', top: 4, textStyle: { fontSize: 13, color: 'var(--ink)', fontWeight: 600 } },
+      title: { text: T('chart.heatmap'), left: 'center', top: 4, textStyle: { fontSize: 13, color: 'var(--ink)', fontWeight: 600 } },
     });
 
     // —— 图 2：24h 时段曲线（可交互 tooltip，叠加 3 日对比：全范围平均 / 近 7d / 近 1d）
@@ -167,23 +212,23 @@ async function loadAll() {
     const factorAll = rangeDays.value || 1;
     renderChart('hourLine', {
       grid: { left: 36, right: 12, top: 36, bottom: 22 },
-      title: { text: '24 小时使用时段（叠加 7d / 24h 对比）', left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+      title: { text: T('chart.hour'), left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
       legend: { bottom: 0, textStyle: { color: 'var(--ink-2)', fontSize: 10 } },
       xAxis: { type: 'category', boundaryGap: false, data: hours, axisLabel: { color: '#888', fontSize: 10, interval: 2 } },
       yAxis: { type: 'value', axisLabel: { color: '#888', fontSize: 10 }, splitLine: { lineStyle: { color: 'var(--line)' } } },
       series: [
-        { name: `${rangeDays.value}d 日均`, type: 'line', smooth: true, areaStyle: {}, data: hours.map((_, i) => Math.round((hourAll.get(i) || 0) / factorAll * 10) / 10), itemStyle: { color: '#4a9eff' } },
-        { name: `近 7d 平均`, type: 'line', smooth: true, data: hours.map((_, i) => Math.round((h7.get(i) || 0) / 7 * 10) / 10), itemStyle: { color: '#22c55e' } },
-        { name: '近 24h',    type: 'line', smooth: true, data: hours.map((_, i) => h1.get(i) || 0), itemStyle: { color: '#f59e0b' }, lineStyle: { type: 'dashed' } },
+        { name: T('legend.avgRange', { n: rangeDays.value }), type: 'line', smooth: true, areaStyle: {}, data: hours.map((_, i) => Math.round((hourAll.get(i) || 0) / factorAll * 10) / 10), itemStyle: { color: '#4a9eff' } },
+        { name: T('legend.avg7'), type: 'line', smooth: true, data: hours.map((_, i) => Math.round((h7.get(i) || 0) / 7 * 10) / 10), itemStyle: { color: '#22c55e' } },
+        { name: T('legend.last24'), type: 'line', smooth: true, data: hours.map((_, i) => h1.get(i) || 0), itemStyle: { color: '#f59e0b' }, lineStyle: { type: 'dashed' } },
       ],
     });
 
     // —— 图 3：模块使用占比（饼 + 玫瑰中心文字）
     const pieTop = byModule.slice(0, 10).map(x => ({ name: x.key, value: x.count }));
     renderChart('modulePie', {
-      title: { text: '模块使用偏好（Top 10）', left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
-      tooltip: { trigger: 'item', formatter: '{b}<br/>{c} 次（{d}%）' },
+      title: { text: T('chart.modulePie'), left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+      tooltip: { trigger: 'item', formatter: T('tipPie') },
       legend: { orient: 'vertical', right: 6, top: 30, textStyle: { color: 'var(--ink-2)', fontSize: 10 }, type: 'scroll' },
       series: [{
         type: 'pie', radius: ['38%', '68%'], center: ['38%', '58%'], roseType: 'radius',
@@ -196,7 +241,7 @@ async function loadAll() {
     // —— 图 4：操作类型 Top15 柱状
     const typeTop = byType.slice(0, 15);
     renderChart('typeBar', {
-      title: { text: '动作类型 Top 15', left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+      title: { text: T('chart.typeBar'), left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
       grid: { left: 120, right: 16, top: 36, bottom: 10 },
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       xAxis: { type: 'value', axisLabel: { color: '#888', fontSize: 10 }, splitLine: { lineStyle: { color: 'var(--line)' } } },
@@ -229,15 +274,22 @@ async function loadAll() {
     const step = Math.max(1, Math.floor(dotRaw.length / MAX_DOT));
     const dotSample = [];
     for (let i = 0; i < dotRaw.length; i += step) dotSample.push(dotRaw[i]);
-    const clusterLegend = ['学习/复习','卡片CRUD','AI/Agent','业务大按钮','DOM点击'];
+    const clusterLegend = [
+      T('legend.study'), T('legend.card'), T('legend.ai'), T('legend.business'), T('legend.dom'),
+    ];
     renderChart('actionDot', {
-      title: { text: `近期 2D 交互散点（x=时间, y=模块，采样 ${dotSample.length}/${dotRaw.length}）`, left: 'center', top: 4, textStyle: { fontSize: 12, fontWeight: 600, color: 'var(--ink)' } },
+      title: { text: T('chart.actionDot', { shown: dotSample.length, total: dotRaw.length }), left: 'center', top: 4, textStyle: { fontSize: 12, fontWeight: 600, color: 'var(--ink)' } },
       grid: { left: 90, right: 16, top: 38, bottom: 54 },
       legend: { bottom: 4, textStyle: { color: 'var(--ink-2)', fontSize: 10 }, data: clusterLegend },
       tooltip: {
         formatter(p) {
-          const o = p.data[3]; if (!o) return '';
-          return `${new Date(o.t).toLocaleString()}<br/>module: ${o.module}<br/>type: ${o.type}${o.category ? `<br/>category: ${String(o.category).slice(0,30)}` : ''}`;
+          const o = p.data?.[3]; if (!o) return '';
+          // 时间走 fmtLocaleDateTime 而非 toLocaleString：后者跟随操作系统语言，
+          // 用户在 App 里选了英文、系统是中文时仍会显示中文习惯的日期。
+          const head = T('tipDot', {
+            time: fmtLocaleDateTime(o.t), module: o.module || T('misc'), type: o.type || '',
+          });
+          return o.category ? head + T('tipDotCategory', { category: String(o.category).slice(0, 30) }) : head;
         },
       },
       xAxis: {
@@ -257,19 +309,20 @@ async function loadAll() {
       series: clusterLegend.map((name, ci) => ({
         name, type: 'scatter',
         symbolSize: (val, param) => { const o = param.data[3]; return 5 + Math.min(10, (o?.payload ? 3 : 0)); },
-        data: dotSample.filter(o => clusterColor[ci] === colorOf(o.type)).map(o => [o.t, o.module || '其它', 0, o]),
+        data: dotSample.filter(o => clusterColor[ci] === colorOf(o.type)).map(o => [o.t, o.module || T('misc'), 0, o]),
         itemStyle: { color: clusterColor[ci], opacity: 0.72 },
       })),
     });
 
     // —— 图 6：周极坐标雷达（周一~周日 × 不同 module 使用强度）
-    const dayOrder = ['周一','周二','周三','周四','周五','周六','周日'];
+    // 周一…周日：与下面 (getDay()+6)%7（周一=0）的算法配套，顺序不能改成周日起
+    const dayOrder = WEEK_MON.value;
     const modRadar = byModule.slice(0, 6).map(x => x.key);
     // 重新 rawAll，把日期转为 idx 映射
     const radarData = modRadar.map(m => {
       const v = new Array(7).fill(0);
       for (const o of rawAll) {
-        if ((o.module || '其它') !== m) continue;
+        if ((o.module || T('misc')) !== m) continue;
         const wd = (new Date(o.t).getDay() + 6) % 7;
         v[wd]++;
       }
@@ -277,7 +330,7 @@ async function loadAll() {
     });
     const radMax = Math.max(1, ...radarData.flatMap(x => x.value));
     renderChart('weekRadar', {
-      title: { text: '周维度 × 模块 极坐标雷达', left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+      title: { text: T('chart.weekRadar'), left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
       legend: { bottom: 0, textStyle: { color: 'var(--ink-2)', fontSize: 10 }, type: 'scroll' },
       tooltip: {},
       radar: {
@@ -302,8 +355,8 @@ async function loadAll() {
     const series7 = [];
     for (let d = 0; d < 7; d++) for (let h = 0; h < 24; h++) series7.push([`${pad(h)}:00`, dayOrder[d], wh.get(`${d}-${h}`) || 0]);
     renderChart('weekHeat168', {
-      title: { text: '168 小时热力（周 × 小时）', left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
-      tooltip: { formatter: p => `${p.data[1]} · ${p.data[0]}<br/>操作 ${p.data[2]} 次` },
+      title: { text: T('chart.week168'), left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+      tooltip: { formatter: p => T('tipHeat168', { day: p.data[1], hour: p.data[0], n: p.data[2] }) },
       grid: { left: 56, right: 16, top: 38, bottom: 40 },
       xAxis: { type: 'category', data: Array.from({length:24},(_,i)=>`${pad(i)}:00`), splitArea: { show: true }, axisLabel: { color: '#888', fontSize: 9, interval: 1 } },
       yAxis: { type: 'category', data: dayOrder, splitArea: { show: true }, axisLabel: { color: '#888', fontSize: 11 } },
@@ -315,10 +368,10 @@ async function loadAll() {
     const rates = { 0: 0, 1: 0, 2: 0 };
     for (const o of rawAll) if (o.type === 'review_rate') { const k = Number(o.category)||0; rates[Math.max(0, Math.min(2, k))]++; }
     renderChart('rateDist', {
-      title: { text: '背诵自评分布（没记住 / 模糊 / 记住了）', left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+      title: { text: T('chart.rateDist'), left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
       grid: { left: 40, right: 10, top: 36, bottom: 30 },
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-      xAxis: { type: 'category', data: ['① 没记住', '② 还模糊', '③ 记住了'], axisLabel: { color: 'var(--ink-2)', fontSize: 12 } },
+      xAxis: { type: 'category', data: [T('legend.rateForgot'), T('legend.rateVague'), T('legend.rateKnown')], axisLabel: { color: 'var(--ink-2)', fontSize: 12 } },
       yAxis: { type: 'value', axisLabel: { color: '#888', fontSize: 10 }, splitLine: { lineStyle: { color: 'var(--line)' } } },
       series: [{
         type: 'bar',
@@ -333,18 +386,20 @@ async function loadAll() {
 
     // —— 图 9：卡片 CRUD 堆叠区域（new/edit/delete/mark_wrong）
     const crudTypes = ['card_new','card_edit','card_delete','card_mark_wrong'];
+    // 图例显示本地化名（旧实现直接把 card_new 这类原始事件名当图例，用户看不懂）
+    const crudLabels = [T('legend.crudNew'), T('legend.crudEdit'), T('legend.crudDelete'), T('legend.crudWrong')];
     const crudColors = ['#22c55e','#3b82f6','#ef4444','#f59e0b'];
     const crudMap = {}; for (const t of crudTypes) crudMap[t] = new Map(datesFull.map(d => [d.date, 0]));
     for (const o of rawAll) if (crudMap[o.type]) { const k = iso(new Date(o.t)); if (crudMap[o.type].has(k)) crudMap[o.type].set(k, crudMap[o.type].get(k)+1); }
     renderChart('cardCrud', {
-      title: { text: '卡片 CRUD 堆叠区（新增/编辑/删除/错因标记）', left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+      title: { text: T('chart.cardCrud'), left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
       grid: { left: 36, right: 12, top: 36, bottom: 30 },
       tooltip: { trigger: 'axis' },
       legend: { bottom: 0, textStyle: { color: 'var(--ink-2)', fontSize: 10 } },
       xAxis: { type: 'category', boundaryGap: false, data: datesFull.map(d => d.date.slice(5)), axisLabel: { color: '#888', fontSize: 10, interval: Math.floor(datesFull.length / 10) } },
       yAxis: { type: 'value', axisLabel: { color: '#888', fontSize: 10 }, splitLine: { lineStyle: { color: 'var(--line)' } } },
       series: crudTypes.map((t, i) => ({
-        name: t, type: 'line', stack: 'card', areaStyle: { opacity: 0.5 }, smooth: true, symbol: 'none',
+        name: crudLabels[i], type: 'line', stack: 'card', areaStyle: { opacity: 0.5 }, smooth: true, symbol: 'none',
         itemStyle: { color: crudColors[i] },
         data: datesFull.map(d => crudMap[t].get(d.date) || 0),
       })),
@@ -359,17 +414,21 @@ async function loadAll() {
       ['exam_end', '#f59e0b'],
       ['feynman_round', '#14b8a6'],
     ];
+    const evLabels = [
+      T('legend.evExport'), T('legend.evSync'), T('legend.evAi'),
+      T('legend.evPomodoro'), T('legend.evExam'), T('legend.evFeynman'),
+    ];
     const evMap = {}; evKeys.forEach(([k]) => { evMap[k] = new Map(datesFull.map(d => [d.date, 0])); });
     for (const o of rawAll) if (evMap[o.type]) { const k = iso(new Date(o.t)); if (evMap[o.type].has(k)) evMap[o.type].set(k, evMap[o.type].get(k)+1); }
     renderChart('syncExport', {
-      title: { text: '关键大事件：导出/同步/AI/番茄/模考/费曼', left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+      title: { text: T('chart.events'), left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
       grid: { left: 36, right: 12, top: 36, bottom: 30 },
       tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
       legend: { bottom: 0, textStyle: { color: 'var(--ink-2)', fontSize: 10 } },
       xAxis: { type: 'category', data: datesFull.map(d => d.date.slice(5)), axisLabel: { color: '#888', fontSize: 10, interval: Math.floor(datesFull.length / 10) } },
       yAxis: { type: 'value', axisLabel: { color: '#888', fontSize: 10 }, splitLine: { lineStyle: { color: 'var(--line)' } } },
-      series: evKeys.map(([name, color]) => ({
-        name, type: 'bar', stack: null, emphasis: { focus: 'series' },
+      series: evKeys.map(([name, color], i) => ({
+        name: evLabels[i] || name, type: 'bar', stack: null, emphasis: { focus: 'series' },
         itemStyle: { color, borderRadius: [3, 3, 0, 0] },
         data: datesFull.map(d => evMap[name].get(d.date) || 0),
       })),
@@ -384,7 +443,7 @@ async function loadAll() {
     }
     const cloudData = [...aiMap.entries()].map(([name, value]) => ({ name: String(name).slice(0, 24), value }));
     renderChart('aiCloud', {
-      title: { text: 'AI / Agent 调用词云（没有调用则为空）', left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+      title: { text: T('chart.aiCloud'), left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
       tooltip: {},
       series: [{
         type: 'wordCloud', shape: 'circle', left: 'center', top: 30, width: '96%', height: '80%',
@@ -397,7 +456,7 @@ async function loadAll() {
 
     // —— 图 12：模块 × 日 混合趋势（多线，可单查模块）
     renderChart('mixTrend', {
-      title: { text: '混合趋势：模块 × 日（堆叠曲线）', left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
+      title: { text: T('chart.mixTrend'), left: 'center', top: 4, textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' } },
       grid: { left: 36, right: 130, top: 36, bottom: 30 },
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
       legend: { orient: 'vertical', right: 6, top: 36, textStyle: { color: 'var(--ink-2)', fontSize: 10 }, type: 'scroll' },
@@ -409,7 +468,7 @@ async function loadAll() {
 
     recordUserOp('dashboard_view', { rangeDays: rangeDays.value, totalOps: totalCount }, { category: String(rangeDays.value) });
   } catch (e) {
-    toast('仪表盘加载失败：' + e.message, 'error');
+    toast(T('loadFail', { msg: e.message }), 'error');
     console.error(e);
   } finally {
     busy.value = false;
@@ -426,7 +485,7 @@ function buildHeatXLabels(cells) {
     const dayIdx = i * 7;
     if (dayIdx >= cells.length) break;
     const m = cells[dayIdx].date.split('-')[1];
-    if (m !== lastMonth) { labels[i] = `${Number(m)}月`; lastMonth = m; }
+    if (m !== lastMonth) { labels[i] = MONTH_NAMES.value[Number(m) - 1] || ''; lastMonth = m; }
   }
   return labels;
 }
@@ -439,7 +498,7 @@ function buildHeatSeries(cells) {
     const x = Math.floor(i / 7);
     const y = i % 7;
     // x 轴格式：对齐 ECharts category，需要字符串 label（周序号）。我们直接用索引做字符串。
-    out.push([String(x), ['日','一','二','三','四','五','六'][y], c.count, c.date]);
+    out.push([String(x), WEEK_SUN_AXIS.value[y], c.count, c.date]);
   }
   return out;
 }
@@ -477,7 +536,7 @@ function buildEmptyOption(original) {
     textStyle: { fontSize: 13, fontWeight: 600, color: 'var(--ink)' },
   });
   titles.push({
-    text: '📊 暂无数据', subtext: '使用系统后自动填充',
+    text: T('emptyTitle'), subtext: T('emptySub'),
     left: 'center', top: 'center',
     textStyle: { color: '#999', fontSize: 16, fontWeight: 600 },
     subtextStyle: { color: '#bbb', fontSize: 12 },
@@ -534,6 +593,9 @@ onBeforeUnmount(() => {
 
 watch(rangeDays, () => loadAll());
 watch([partnerKind, partnerRange, partnerWorst], () => loadPartner());
+// 图表标题/轴/图例是 setOption 时写死进 ECharts 的普通字符串，
+// 不像模板那样能被 Vue 响应式重渲染 —— 切语言必须重跑一次 loadAll 才会生效。
+watch(locale, () => loadAll());
 
 // CSS 热力颜色（GitHub 风格）
 function heatColor(n) {
@@ -569,64 +631,66 @@ const countsBanner = computed(() => {
   <div class="udb-root">
     <header class="udb-head">
       <div>
-        <h2 style="margin:0">🛰️ 用户仪表盘（恐怖级操作监控）</h2>
-        <p class="hint" style="margin:4px 0 0">全量记录 = A 级业务 {{ isAEnabled() ? '✅ 开启' : '⛔ 关闭' }}
-          · B 级 DOM {{ isBEnabled() ? '✅ 开启' : '⛔ 关闭' }}
-          · 所有数据仅存在本地 IndexedDB，支持一键同步 / 导出 / 清空。</p>
+        <h2 style="margin:0">{{ T('title') }}</h2>
+        <p class="hint" style="margin:4px 0 0">{{ T('levelA') }} {{ isAEnabled() ? T('on') : T('off') }}
+          · {{ T('levelB') }} {{ isBEnabled() ? T('on') : T('off') }}
+          · {{ T('localOnly') }}</p>
       </div>
       <div class="udb-head-right">
         <div class="chip-row">
-          <span class="field-label" style="margin:0">时间范围</span>
-          <button v-for="r in [7,14,30,90,365]" :key="r" class="chip" :class="{ on: rangeDays === r }" @click="rangeDays = r">近 {{ r }} 天</button>
+          <span class="field-label" style="margin:0">{{ T('rangeLabel') }}</span>
+          <button v-for="r in [7,14,30,90,365]" :key="r" class="chip" :class="{ on: rangeDays === r }" @click="rangeDays = r">{{ T('rangeDays', { n: r }) }}</button>
         </div>
-        <button class="btn small" :disabled="busy" @click="loadAll">🔄 刷新图表</button>
+        <button class="btn small" :disabled="busy" @click="loadAll">{{ T('refresh') }}</button>
       </div>
     </header>
 
     <!-- 4 个核心 KPI 卡 -->
     <section class="udb-kpis">
       <div class="kpi-card">
-        <div class="kpi-k">365 天总操作</div>
-        <div class="kpi-v">{{ countsBanner.all.toLocaleString() }}</div>
-        <div class="kpi-sub">活跃 {{ countsBanner.active }} / 365 天（{{ (countsBanner.active / 3.65).toFixed(1) }}%）</div>
+        <div class="kpi-k">{{ T('kpiOps365') }}</div>
+        <div class="kpi-v">{{ fmtLocaleNumber(countsBanner.all) }}</div>
+        <div class="kpi-sub">{{ T('kpiOps365Sub', { active: countsBanner.active, pct: (countsBanner.active / 3.65).toFixed(1) }) }}</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-k">当前连续活跃</div>
-        <div class="kpi-v">{{ countsBanner.streak }} 天 🔥</div>
-        <div class="kpi-sub">历史最长连续：{{ countsBanner.longest }} 天</div>
+        <div class="kpi-k">{{ T('kpiStreak') }}</div>
+        <div class="kpi-v">{{ T('kpiStreakVal', { n: countsBanner.streak }) }}</div>
+        <div class="kpi-sub">{{ T('kpiStreakSub', { n: countsBanner.longest }) }}</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-k">图表范围 {{ rangeDays }} 天</div>
-        <div class="kpi-v">{{ status ? status.split(' · ')[0] : '—' }}</div>
-        <div class="kpi-sub">{{ status ? status.split(' · ').slice(1).join(' · ') : '加载中…' }}</div>
+        <div class="kpi-k">{{ T('kpiRange', { n: rangeDays }) }}</div>
+        <div class="kpi-v">{{ stat ? T('summary', { days: stat.days, ops: stat.ops }) : '—' }}</div>
+        <div class="kpi-sub">{{ stat
+          ? [T('summaryModules', { n: stat.modules }), T('summaryTypes', { n: stat.types }), T('active365', { days: stat.active365, ops: stat.total365 })].join(' · ')
+          : T('kpiRangeLoading') }}</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-k">实验室状态</div>
-        <div class="kpi-v">12 图表 + 拍档 16 组合</div>
-        <div class="kpi-sub">📥 数据可在「导出」页面一键打包同步</div>
+        <div class="kpi-k">{{ T('kpiLab') }}</div>
+        <div class="kpi-v">{{ T('kpiLabVal') }}</div>
+        <div class="kpi-sub">{{ T('kpiLabSub') }}</div>
       </div>
     </section>
 
     <!-- CSS 365 天 GitHub 式热力（更符合移动端滑动） -->
     <section class="panel">
-      <h3 style="margin:0 0 8px">📅 近 365 天活跃（CSS 丝滑版）</h3>
+      <h3 style="margin:0 0 8px">{{ T('heat365Title') }}</h3>
       <div class="heat365-wrap">
         <div class="heat-months">
-          <span v-for="(l, i) in ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']" :key="i">{{ l }}</span>
+          <span v-for="(l, i) in MONTH_NAMES" :key="i">{{ l }}</span>
         </div>
-        <div class="heat365-grid" title="365 天活跃度">
+        <div class="heat365-grid" :title="T('heat365Tip')">
           <div v-for="c in heatmapCells" :key="c.date" class="heat-cell"
                :style="{ background: heatColor(c.count), opacity: c.future ? 0.15 : 1 }"
-               :title="`${c.date} · ${c.count} 次`"></div>
+               :title="T('heatCellTip', { date: c.date, n: c.count })"></div>
         </div>
         <div class="heat-legend">
-          <span class="hint">少</span>
+          <span class="hint">{{ T('legendLess') }}</span>
           <span class="legend-cell" style="background:var(--code-bg)"></span>
           <span class="legend-cell" style="background:#c6f0d0"></span>
           <span class="legend-cell" style="background:#5cd66a"></span>
           <span class="legend-cell" style="background:#2cbe4e"></span>
           <span class="legend-cell" style="background:#006d32"></span>
-          <span class="hint">多</span>
+          <span class="hint">{{ T('legendMore') }}</span>
         </div>
       </div>
     </section>
@@ -653,39 +717,37 @@ const countsBanner = computed(() => {
     <section class="panel partner-panel">
       <div class="partner-head">
         <div>
-          <h3 style="margin:0">🤝 近期 / 长期 · 最佳 / 最坏 · 拍档（16 种组合）</h3>
-          <p class="hint" style="margin:4px 0 0">
-            默认：D 类（最活跃单份资产）· 近 7 天 · 最佳。可自由切 A(科目) B(Agent) C(知识对) D(资产) × 近7/长期90 × 最佳/最坏。
-          </p>
+          <h3 style="margin:0">{{ T('partner.head') }}</h3>
+          <p class="hint" style="margin:4px 0 0">{{ T('partner.hint') }}</p>
         </div>
       </div>
 
       <div class="row">
-        <span class="field-label" style="margin:0">类别</span>
-        <button class="chip" :class="{ on: partnerKind === 'A' }" @click="partnerKind = 'A'">A · 高频学习科目</button>
-        <button class="chip" :class="{ on: partnerKind === 'B' }" @click="partnerKind = 'B'">B · 高频 Agent 工具</button>
-        <button class="chip" :class="{ on: partnerKind === 'C' }" @click="partnerKind = 'C'">C · 共现知识对</button>
-        <button class="chip" :class="{ on: partnerKind === 'D' }" @click="partnerKind = 'D'">D · 活跃/僵尸资产</button>
-        <span class="field-label" style="margin-left:8px">区间</span>
-        <button class="chip" :class="{ on: partnerRange === 7 }" @click="partnerRange = 7">近 7 天(近期)</button>
-        <button class="chip" :class="{ on: partnerRange === 90 }" @click="partnerRange = 90">近 90 天(长期)</button>
-        <span class="field-label" style="margin-left:8px">正反</span>
-        <button class="chip" :class="{ on: !partnerWorst }" @click="partnerWorst = false">最佳</button>
-        <button class="chip" :class="{ on: partnerWorst }" @click="partnerWorst = true">最坏</button>
+        <span class="field-label" style="margin:0">{{ T('partner.kindLabel') }}</span>
+        <button class="chip" :class="{ on: partnerKind === 'A' }" @click="partnerKind = 'A'">{{ T('partner.kindA') }}</button>
+        <button class="chip" :class="{ on: partnerKind === 'B' }" @click="partnerKind = 'B'">{{ T('partner.kindB') }}</button>
+        <button class="chip" :class="{ on: partnerKind === 'C' }" @click="partnerKind = 'C'">{{ T('partner.kindC') }}</button>
+        <button class="chip" :class="{ on: partnerKind === 'D' }" @click="partnerKind = 'D'">{{ T('partner.kindD') }}</button>
+        <span class="field-label" style="margin-left:8px">{{ T('partner.rangeLabel') }}</span>
+        <button class="chip" :class="{ on: partnerRange === 7 }" @click="partnerRange = 7">{{ T('partner.range7') }}</button>
+        <button class="chip" :class="{ on: partnerRange === 90 }" @click="partnerRange = 90">{{ T('partner.range90') }}</button>
+        <span class="field-label" style="margin-left:8px">{{ T('partner.polarityLabel') }}</span>
+        <button class="chip" :class="{ on: !partnerWorst }" @click="partnerWorst = false">{{ T('partner.best') }}</button>
+        <button class="chip" :class="{ on: partnerWorst }" @click="partnerWorst = true">{{ T('partner.worst') }}</button>
       </div>
 
-      <div v-if="partnerBusy" class="hint" style="padding:16px;text-align:center">拍档计算中…</div>
+      <div v-if="partnerBusy" class="hint" style="padding:16px;text-align:center">{{ T('partner.busy') }}</div>
       <div v-else class="partner-body">
         <div class="partner-summary" :class="{ dim: partnerData.notEnough }">
-          <div class="partner-title">{{ partnerData.title || '—' }}</div>
-          <div class="partner-desc">{{ partnerData.desc }}</div>
-          <div v-if="partnerData.suggest" class="partner-suggest">💡 {{ partnerData.suggest }}</div>
+          <div class="partner-title">{{ partner.title }}</div>
+          <div class="partner-desc">{{ partner.desc }}</div>
+          <div v-if="partner.suggest" class="partner-suggest">💡 {{ partner.suggest }}</div>
         </div>
         <ul class="partner-list" v-if="partnerData.items && partnerData.items.length">
           <li v-for="(item, i) in partnerData.items" :key="i" class="partner-item" @click="onPartnerItemClick(item)">
             <span class="rank">{{ i + 1 }}</span>
             <span class="p-name">{{ item.key }}</span>
-            <span class="p-count">{{ item.count !== 0 ? item.count + ' 次' : '僵尸' }}</span>
+            <span class="p-count">{{ item.count !== 0 ? T('partner.times', { n: item.count }) : T('partner.zombie') }}</span>
           </li>
         </ul>
       </div>

@@ -60,12 +60,12 @@ async function saveForm() {
 async function toggleStatus(g) {
   const next = g.status === 'active' ? 'archived' : 'active';
   await updateCardGroup(g.id, { status: next });
-  toast(next === 'archived' ? t('views.cardGroups.toArchivedToast', '', { name: g.name }) : t('views.cardGroups.restoreToast', '', { name: g.name }), 'success');
+  toast(next === 'archived' ? t('views.cardGroups.toArchivedToast', undefined, { name: g.name }) : t('views.cardGroups.restoreToast', undefined, { name: g.name }), 'success');
   await reload();
 }
 
 async function remove(g) {
-  if (!(await confirmDialog(t('views.cardGroups.confirmDelete', '', { name: g.name })))) return;
+  if (!(await confirmDialog(t('views.cardGroups.confirmDelete', undefined, { name: g.name })))) return;
   await deleteCardGroup(g.id);
   toast(t('views.cardGroups.deleted'), 'success');
   await reload();
@@ -86,7 +86,7 @@ async function toggleExpand(g) {
 }
 async function removeCard(g, card) {
   await setCardGroups([card.id], [], [g.id]);
-  toast(t('views.cardGroups.movedOut', '', { name: g.name }), 'success');
+  toast(t('views.cardGroups.movedOut', undefined, { name: g.name }), 'success');
   await loadGroupCards(g);
 }
 

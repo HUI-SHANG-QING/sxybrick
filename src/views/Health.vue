@@ -47,35 +47,35 @@ async function load() {
 
 // 合并重复组：保留最新编辑的一张，删除组内其余（复习记录随卡级联清理）
 async function dedupeGroup(g) {
-  if (!(await confirmDialog(t('views.health.dedupeGroupConfirm', '', { n: g.n, m: g.n - 1 })))) return;
+  if (!(await confirmDialog(t('views.health.dedupeGroupConfirm', undefined, { n: g.n, m: g.n - 1 })))) return;
   const sorted = [...g.cards].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const remove = sorted.slice(1);
   for (const c of remove) await deleteCard(c.id);
-  toast(t('views.health.dedupeGroupDone', '', { n: remove.length, name: sorted[0].front.slice(0, 20) }), 'success');
+  toast(t('views.health.dedupeGroupDone', undefined, { n: remove.length, name: sorted[0].front.slice(0, 20) }), 'success');
   await load();
 }
 async function dedupeAll() {
   if (!health.value?.duplicates.length) return;
   const total = health.value.duplicates.reduce((s, g) => s + g.n - 1, 0);
-  if (!(await confirmDialog(t('views.health.dedupeAllConfirm', '', { n: total })))) return;
+  if (!(await confirmDialog(t('views.health.dedupeAllConfirm', undefined, { n: total })))) return;
   let n = 0;
   for (const g of health.value.duplicates) {
     const sorted = [...g.cards].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     for (const c of sorted.slice(1)) { await deleteCard(c.id); n++; }
   }
-  toast(t('views.health.dedupeAllDone', '', { n }), 'success');
+  toast(t('views.health.dedupeAllDone', undefined, { n }), 'success');
   await load();
 }
 async function removeZombies() {
   if (!health.value?.zombies.length) return;
-  if (!(await confirmDialog(t('views.health.removeZombiesConfirm', '', { n: health.value.zombies.length })))) return;
+  if (!(await confirmDialog(t('views.health.removeZombiesConfirm', undefined, { n: health.value.zombies.length })))) return;
   for (const z of health.value.zombies) await deleteCard(z.id);
   toast(t('views.health.zombieCleaned'), 'success');
   await load();
 }
 async function cleanOrphanImages() {
   if (!health.value?.orphanImages.length) return;
-  if (!(await confirmDialog(t('views.health.cleanOrphanConfirm', '', { n: health.value.orphanImages.length })))) return;
+  if (!(await confirmDialog(t('views.health.cleanOrphanConfirm', undefined, { n: health.value.orphanImages.length })))) return;
   for (const i of health.value.orphanImages) await db.images.delete(i.id);
   toast(t('views.health.orphanCleaned'), 'success');
   await load();
@@ -88,9 +88,9 @@ async function fixAll() {
   const zombN = h.zombieCount || 0;
   const orphanN = h.orphanImageCount || 0;
   if (!dupTotal && !zombN && !orphanN) { toast(t('views.health.fixAllHealthy'), 'success'); return; }
-  const detail = t('views.health.fixAllDetail1', '', { d: dupTotal, z: zombN, o: orphanN }) +
-    t('views.health.fixAllDetail2', '', { u: h.untaggedCount || 0 });
-  if (!(await confirmDialog(t('views.health.fixAllConfirm', '', { detail })))) return;
+  const detail = t('views.health.fixAllDetail1', undefined, { d: dupTotal, z: zombN, o: orphanN }) +
+    t('views.health.fixAllDetail2', undefined, { u: h.untaggedCount || 0 });
+  if (!(await confirmDialog(t('views.health.fixAllConfirm', undefined, { detail })))) return;
   busy.value = true;
   try {
     let n = 0;
@@ -100,7 +100,7 @@ async function fixAll() {
     }
     for (const z of h.zombies) await deleteCard(z.id);
     for (const i of h.orphanImages) await db.images.delete(i.id);
-    toast(t('views.health.fixAllDone', '', { n, z: zombN, o: orphanN }), 'success');
+    toast(t('views.health.fixAllDone', undefined, { n, z: zombN, o: orphanN }), 'success');
     await load();
   } catch (e) { toast(e.message || t('views.health.fixFail'), 'error'); }
   finally { busy.value = false; }
@@ -116,7 +116,7 @@ onMounted(load);
       <span class="hint">{{ t('views.health.subtitle') }}</span>
       <span style="flex:1"></span>
       <button class="btn small" :disabled="busy" @click="load">{{ t('views.health.recheck') }}</button>
-      <button class="btn small primary" :disabled="busy || !fixableCount" @click="fixAll">{{ t('views.health.fixAll') }}{{ fixableCount ? t('views.health.fixAllCount', '', { n: fixableCount }) : '' }}</button>
+      <button class="btn small primary" :disabled="busy || !fixableCount" @click="fixAll">{{ t('views.health.fixAll') }}{{ fixableCount ? t('views.health.fixAllCount', undefined, { n: fixableCount }) : '' }}</button>
     </div>
 
     <div v-if="health" class="stat-cards" style="margin-top:14px">
@@ -144,7 +144,7 @@ onMounted(load);
       <div v-if="networth.bySubject.length" style="margin-top:14px">
         <div class="hint" style="margin-bottom:6px">{{ t('views.health.nwBySubjectHint') }}</div>
         <div v-for="s in networth.bySubject" :key="s.subject" class="health-row">
-          <span class="hint" style="flex:1;min-width:150px">{{ s.subject }} <span style="color:var(--ink-2)">{{ t('views.health.countCards', '', { n: s.count }) }}</span></span>
+          <span class="hint" style="flex:1;min-width:150px">{{ s.subject }} <span style="color:var(--ink-2)">{{ t('views.health.countCards', undefined, { n: s.count }) }}</span></span>
           <div class="nw-track"><div class="nw-bar" :style="{ width: Math.max(4, s.retentionRate) + '%' }"></div></div>
           <span class="hint" style="min-width:150px;text-align:right">{{ t('views.health.nwValueLabel') }} {{ s.value }} {{ t('views.health.nwIdealLabel') }} {{ s.ideal }} · {{ s.retentionRate }}%</span>
         </div>
@@ -155,13 +155,13 @@ onMounted(load);
     <div v-if="sources" class="panel" style="margin-top:14px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span class="field-label" style="margin:0">{{ t('views.health.sourcesTitle') }}</span>
-        <span class="hint">{{ t('views.health.sourcesHintPrefix') }}{{ t('views.health.sourcesHintSources', '', { n: sources.totalSources }) }}{{ sources.variantCount ? t('views.health.sourcesHintVariant', '', { n: sources.variantCount }) : '' }}{{ sources.untraced ? t('views.health.sourcesHintUntraced', '', { n: sources.untraced }) : '' }}{{ t('views.health.sourcesHintSuffix') }}</span>
+        <span class="hint">{{ t('views.health.sourcesHintPrefix') }}{{ t('views.health.sourcesHintSources', undefined, { n: sources.totalSources }) }}{{ sources.variantCount ? t('views.health.sourcesHintVariant', undefined, { n: sources.variantCount }) : '' }}{{ sources.untraced ? t('views.health.sourcesHintUntraced', undefined, { n: sources.untraced }) : '' }}{{ t('views.health.sourcesHintSuffix') }}</span>
       </div>
       <div v-if="sources.bySource.length" style="margin-top:10px">
         <div v-for="s in sources.bySource" :key="s.source" class="health-row">
-          <span class="hint" style="flex:1;min-width:150px">{{ s.source }} <span style="color:var(--ink-2)">{{ t('views.health.countCards', '', { n: s.cards }) }}</span></span>
+          <span class="hint" style="flex:1;min-width:150px">{{ s.source }} <span style="color:var(--ink-2)">{{ t('views.health.countCards', undefined, { n: s.cards }) }}</span></span>
           <div class="nw-track"><div class="nw-bar" :style="{ width: Math.max(4, s.mastery) + '%' }"></div></div>
-          <span class="hint" style="min-width:200px;text-align:right">{{ t('views.health.srcValuePrefix') }}{{ s.value }} {{ t('views.health.srcReviewed') }}{{ s.reviewed }}{{ s.due ? t('views.health.srcDue', '', { n: s.due }) : '' }}{{ s.marked ? t('views.health.srcMarked', '', { n: s.marked }) : '' }}</span>
+          <span class="hint" style="min-width:200px;text-align:right">{{ t('views.health.srcValuePrefix') }}{{ s.value }} {{ t('views.health.srcReviewed') }}{{ s.reviewed }}{{ s.due ? t('views.health.srcDue', undefined, { n: s.due }) : '' }}{{ s.marked ? t('views.health.srcMarked', undefined, { n: s.marked }) : '' }}</span>
         </div>
       </div>
       <EmptyState v-else compact icon="🧾" :title="t('views.health.sourceEmptyTitle')" :message="t('views.health.sourceEmptyMsg')" />

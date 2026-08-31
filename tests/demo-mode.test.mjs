@@ -163,20 +163,49 @@ before(async () => {
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  // 排空子进程输出：pipe 不读会填满内核/uv 缓冲区把 hub 卡死，
+  // 同时这些可读流本身也是 libuv handle，需要在收尾时显式销毁。
+  hubProc.stdout?.on('data', () => {});
+  hubProc.stderr?.on('data', () => {});
+
   // 等待端口就绪
   const t0 = Date.now();
   for (;;) {
     try {
-      const r = await fetch(`http://127.0.0.1:${HUB_PORT}/api/ping`);
-      if (r.status !== 501) break; // 任意响应说明已监听
+      const r = await fetch(`http://127.0.0.1:${HUB_PORT}/health`, { signal: AbortSignal.timeout(2000) });
+      // 关键：必须消费/取消响应体。否则 keep-alive 连接不会被释放，
+      // 探测阶段每轮都会泄漏一个 socket handle —— 这是 Windows 下
+      // 主进程收尾时 UV_HANDLE_CLOSING 断言的真实来源之一。
+      await r.arrayBuffer().catch(() => {});
+      if (r.status === 200) break;
     } catch { /* 未就绪 */ }
     if (Date.now() - t0 > 15000) throw new Error('hub 子进程启动超时');
     await new Promise(r => setTimeout(r, 200));
   }
 });
 
+// 关键：kill 只是「发信号」，不代表子进程已退出。
+// 必须等 'exit' 事件再返回，否则 --test-force-exit 会在子进程 handle 还开着时
+// 让主进程收尾，Windows 下触发 `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)`。
+async function stopHub() {
+  if (!hubProc) return;
+  const proc = hubProc;
+  hubProc = null;
+  await new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      // SIGTERM 未果（Windows 无控制台的子进程可能不响应）→ 强杀兜底
+      try { proc.kill('SIGKILL'); } catch { /* 已退出 */ }
+      resolve();
+    }, 3000);
+    proc.once('exit', () => { clearTimeout(timer); resolve(); });
+    try { proc.kill('SIGTERM'); } catch { clearTimeout(timer); resolve(); }
+  });
+  // 显式销毁 stdio 流，确保 libuv handle 在主进程退出前关闭
+  try { proc.stdout?.destroy(); proc.stderr?.destroy(); } catch { /* 已销毁 */ }
+}
+
 after(async () => {
-  if (hubProc) { try { hubProc.kill('SIGTERM'); } catch {} }
+  await stopHub();
   try { rmSync(tmp, { recursive: true, force: true }); } catch {}
 });
 

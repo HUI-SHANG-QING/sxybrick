@@ -77,9 +77,18 @@ function makeCtx(overrides = {}) {
     },
     notify: overrides.notify || (() => {}),
     log: () => {},
+    // 时钟注入点：缺省回落真实时间；测试注入固定时刻后，
+    // 「今日 / 本周」判定不再随真实运行日期漂移（曾导致周一必红的假失败）
+    now: overrides.now || (() => Date.now()),
     pluginId: 'test', scope: 'test',
   };
 }
+
+// 固定参考时刻：2026-08-26（周三）14:00 本地时间。
+// 选周三是因为「今日 / 本周内非今日 / 本周外」三个区间都真实存在，
+// 断言因此与测试的真实运行时刻完全无关。
+const REF = new Date(2026, 7, 26, 14, 0, 0, 0).getTime();
+const HOUR = 3600_000;
 
 test('weekly-review.mistake_report：按天聚合 + 科目归纳 + 正确率', async () => {
   const ctx = makeCtx({
@@ -125,15 +134,15 @@ test('weekly-review.mistake_report：days 越界被钳制在 1~90，0 视为缺�
 });
 
 test('pomo-stats.pomo_stats：今日/本周/标签聚合', async () => {
-  const now = Date.now();
-  const hour = 3600_000;
+  // 时刻由 ctx.now() 注入（固定周三 14:00），与真实运行日期无关
   const sessions = [
-    { startedAt: now - 1 * hour, duration: 25, tag: '数学' },   // 今日
-    { startedAt: now - 3 * hour, duration: 50, tag: '数学' },   // 今日
-    { startedAt: now - 30 * hour, duration: 25, tag: '英语' },  // 本周内（昨天）
-    { startedAt: now - 200 * hour, duration: 25, tag: '数学' }, // 本周外（8天前）
+    { startedAt: REF - 1 * HOUR, duration: 25, tag: '数学' },   // 今日
+    { startedAt: REF - 3 * HOUR, duration: 50, tag: '数学' },   // 今日
+    { startedAt: REF - 30 * HOUR, duration: 25, tag: '英语' },  // 本周内（周二）
+    { startedAt: REF - 200 * HOUR, duration: 25, tag: '数学' }, // 本周外（8 天前）
   ];
   const ctx = makeCtx({
+    now: () => REF,
     data: { listPomoSessions: async () => sessions },
   });
   const r = await pomo.pomo_stats({}, ctx);
@@ -143,11 +152,68 @@ test('pomo-stats.pomo_stats：今日/本周/标签聚合', async () => {
   assert.equal(r.week.minutes, 100);
   assert.equal(r.byTag[0].tag, '数学'); // 按时长降序
   assert.equal(r.byTag[0].minutes, 75);
+  // 周三 → 本周已过 3 天，日均按 3 天折算（而非恒 /7）
+  assert.equal(r.week.avgDailyBasis, 3);
+  assert.equal(r.week.avgDailyMinutes, Math.round(100 / 3));
   // 按标签过滤
   const rEn = await pomo.pomo_stats({ tag: '英语' }, ctx);
   assert.equal(rEn.today.sessions, 0);
   assert.equal(rEn.week.sessions, 1);
   assert.equal(rEn.week.minutes, 25);
+});
+
+test('pomo-stats.pomo_stats：周一凌晨边界（本周起点=当日 00:00，日均分母=1）', async () => {
+  // 2026-08-31（周一）00:30。此刻「本周内非今日」这个区间不存在：
+  // 30h 前（上周日 18:30）已落在本周起点之前。旧实现用 now−30h 当"本周内"样本，
+  // 因此每周一必红——这是本回归用例守护的边界。
+  const monday = new Date(2026, 7, 31, 0, 30, 0, 0).getTime();
+  const sessions = [
+    { startedAt: monday - 0.25 * HOUR, duration: 25, tag: '数学' }, // 今日 00:15
+    { startedAt: monday - 30 * HOUR, duration: 25, tag: '英语' },   // 上周日 → 本周外
+  ];
+  const ctx = makeCtx({ now: () => monday, data: { listPomoSessions: async () => sessions } });
+  const r = await pomo.pomo_stats({}, ctx);
+  assert.equal(r.today.sessions, 1);
+  assert.equal(r.today.minutes, 25);
+  assert.equal(r.week.sessions, 1, '30h 前的记录已属上周，不应计入本周');
+  assert.equal(r.week.avgDailyBasis, 1, '周一已过 1 天');
+  assert.equal(r.week.avgDailyMinutes, 25, '周一日均不应被 /7 稀释成 4 分钟');
+});
+
+test('pomo-stats.pomo_stats：周一起点当日 00:00 精确命中，未来时间戳被排除', async () => {
+  const monday = new Date(2026, 7, 31, 0, 30, 0, 0).getTime();
+  const dayStart = new Date(2026, 7, 31, 0, 0, 0, 0).getTime();
+  const sessions = [
+    { startedAt: dayStart, duration: 25, tag: '数学' },          // 恰好 00:00 → 计入
+    { startedAt: dayStart - 1, duration: 25, tag: '数学' },      // 00:00 前 1ms → 上周
+    { startedAt: monday + 2 * HOUR, duration: 25, tag: '英语' }, // 未来（时钟回拨/脏数据）→ 排除
+  ];
+  const ctx = makeCtx({ now: () => monday, data: { listPomoSessions: async () => sessions } });
+  const r = await pomo.pomo_stats({}, ctx);
+  assert.equal(r.week.sessions, 1, '仅计入落在 [本周一 00:00, now] 内的记录');
+  assert.equal(r.byTag.length, 1);
+  assert.equal(r.byTag[0].tag, '数学');
+});
+
+test('pomo-stats.pomo_stats：数据层返回异常形态时不崩溃', async () => {
+  for (const bad of [null, undefined, {}, 'oops']) {
+    const ctx = makeCtx({ now: () => REF, data: { listPomoSessions: async () => bad } });
+    const r = await pomo.pomo_stats({}, ctx);
+    assert.equal(r.week.sessions, 0, `listPomoSessions 返回 ${String(bad)} 时应降级为空`);
+    assert.equal(r.week.minutes, 0);
+  }
+  // 单条记录 duration 为字符串/缺失时按 0 计，不影响其余记录
+  const ctx2 = makeCtx({
+    now: () => REF,
+    data: { listPomoSessions: async () => [
+      { startedAt: REF - HOUR, duration: '25', tag: '数学' }, // 数值字符串 → 25
+      { startedAt: REF - 2 * HOUR, tag: '数学' },             // 缺 duration → 0
+      { startedAt: null, duration: 25, tag: '英语' },         // 缺 startedAt → 排除
+    ] },
+  });
+  const r2 = await pomo.pomo_stats({}, ctx2);
+  assert.equal(r2.week.sessions, 2);
+  assert.equal(r2.week.minutes, 25);
 });
 
 test('due-alert.due_forecast：峰值与总量', async () => {
