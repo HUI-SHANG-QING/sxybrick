@@ -443,6 +443,35 @@ export async function importBackup(backup) {
     stats.snapshotId = snap.id;
   } catch (e) { console.warn('[sync] 自动快照失败（不阻断导入）:', e?.message || e); }
 
+  // 0b) 卡片去重预判 + 关联引用重定向（round12 数据协同修复）
+  // 先算出【跳过 id → 保留 id】映射。被「异 id 同内容」去重跳过的卡，其关联数据
+  // （reviews 的 cardId / graphEdges 的 fromCardId,toCardId / cardGroupLinks 的 cardId
+  //  / embeddings 的 cardId 等）仍会随数据包进入合并，变成指向不存在卡片的孤儿行。
+  // 故在逐表合并前，把全部入站表内凡引用了「跳过 id」的字段统一重定向到保留 id，
+  // 让关联数据落到保留下来的那张卡上，避免复习/图谱/卡组/向量索引被污染。
+  // 见 src/sync-dedup.js 头部说明。
+  let cardDedupe = { kept: (backup.cards || []).filter(x => x && x.id), duplicated: 0, idRemap: new Map() };
+  if (cardDedupe.kept.length) {
+    const baseCards = await db.cards.toArray();
+    const baseCardsMap = new Map(baseCards.map(x => [x.id, x]));
+    cardDedupe = dedupeIncomingCards(cardDedupe.kept, baseCardsMap, baseCards);
+    if (cardDedupe.idRemap.size) {
+      const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId'];
+      for (const key of Object.keys(backup)) {
+        if (key === 'cards' || !Array.isArray(backup[key])) continue;
+        backup[key] = backup[key].map(r => {
+          let row = r;
+          for (const f of CARD_REF_FIELDS) {
+            if (r[f] != null && cardDedupe.idRemap.has(r[f])) {
+              row = { ...row, [f]: cardDedupe.idRemap.get(r[f]) };
+            }
+          }
+          return row;
+        });
+      }
+    }
+  }
+
   // 1) 墓碑：按 deletedAt 谁新听谁合并（kind 缺失的旧数据按 card 处理）
   // P0 修正：整段合并包裹在 Dexie 事务中，任一子步骤失败整体回滚，
   // 杜绝「部分表写入、部分未写」导致的数据不一致（尤其大批量导入中途中断）。
@@ -467,9 +496,9 @@ export async function importBackup(backup) {
     // 交给下方 mergeRows 做字段级合并（SRS 按 reviewedAt 取新），否则纯复习（SRS 字段变）的卡
     // 会被内容去重静默丢弃 → 跨设备复习进度永不同步（P0 修复，逻辑见 src/sync-dedup.js）。
     if (t.table === 'cards') {
-      const { kept, duplicated: dup } = dedupeIncomingCards(incoming, baseMap, base);
-      stats.duplicated += dup;
-      incoming = kept;
+      // 复用 0b 步提前算好的去重结果（已跳过异 id 同内容卡并生成 idRemap），避免重复计算
+      incoming = cardDedupe.kept;
+      stats.duplicated += cardDedupe.duplicated;
     }
     if (!incoming.length) continue;
     const merged = mergeRows(base, incoming, t.merge);

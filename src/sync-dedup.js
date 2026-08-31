@@ -7,13 +7,19 @@
 //   1) 同 id 的卡【必放行】，交给 sync-manifest 的 mergeRows 做字段级合并（SRS 按 reviewedAt 取新），
 //      这样纯复习（ease/level/interval/dueAt 变）的卡能跨设备传播。
 //   2) 仅「不同 id 且内容雷同」才视为真·重复跳过（避免重复建卡，保留原去重意图）。
+//
+// 2026-08-31（round12）补充：被跳过的「异 id 同内容」卡，其关联数据（复习记录 / 图谱边 / 卡组关联）
+// 仍带着旧 cardId 进入合并 → 变成指向不存在卡片的孤儿行。故返回 idRemap（跳过 id → 保留 id），
+// 由 importBackup 在合并前把引用重定向到保留下来的那张卡，避免复习/图谱污染。
 export function dedupeIncomingCards(incoming, baseById, baseCards = []) {
   const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
-  const localDupKeys = new Set(
-    (baseCards || []).map((c) => `${norm(c.front)}||${norm(c.back)}||${c.subject || ''}`)
-  );
-  const seen = new Set();
+  const keyToKeptId = new Map(); // 内容键 → 保留下来的 id（本地优先，其次批次内首个保留的 incoming）
+  for (const c of (baseCards || [])) {
+    const k = `${norm(c.front)}||${norm(c.back)}||${c.subject || ''}`;
+    if (!keyToKeptId.has(k)) keyToKeptId.set(k, c.id); // 本地卡优先作为重定向目标
+  }
   const kept = [];
+  const idRemap = new Map();
   let duplicated = 0;
   for (const c of incoming || []) {
     if (baseById && baseById.has(c.id)) {
@@ -21,12 +27,14 @@ export function dedupeIncomingCards(incoming, baseById, baseCards = []) {
       continue;
     }
     const k = `${norm(c.front)}||${norm(c.back)}||${c.subject || ''}`;
-    if (localDupKeys.has(k) || seen.has(k)) {
-      duplicated++; // 异 id 同内容（或批次内重复）→ 真重复，跳过
+    if (keyToKeptId.has(k)) {
+      // 异 id 同内容（或批次内重复）→ 真重复，跳过；关联数据重定向到保留 id
+      duplicated++;
+      idRemap.set(c.id, keyToKeptId.get(k));
       continue;
     }
     kept.push(c);
-    seen.add(k);
+    keyToKeptId.set(k, c.id); // 批次内首个：后续同内容 incoming 也重定向到它
   }
-  return { kept, duplicated };
+  return { kept, duplicated, idRemap };
 }
