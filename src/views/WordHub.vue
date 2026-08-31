@@ -70,7 +70,7 @@ async function doCheckIn() {
 const navCards = [
   { key: 'book', icon: '📘', label: t('views.wordHub.navBook'), to: '/english/book' },
   { key: 'groups', icon: '🗂️', label: t('views.wordHub.navGroups'), to: '/english/groups' },
-  { key: 'study', icon: '📊', label: t('views.wordHub.navStudy'), to: '/english/study' },
+  { key: 'study', icon: '📊', label: t('views.wordHub.navStudy'), to: '/english/stats' },
   { key: 'export', icon: '🖨️', label: t('views.wordHub.navExport'), to: '/english/export' },
   { key: 'settings', icon: '⚙️', label: t('views.wordHub.navSettings'), to: '/english/settings' },
 ];

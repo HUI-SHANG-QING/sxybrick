@@ -58,6 +58,7 @@ const routes = [
   { path: '/english/study', component: () => import('./views/WordReview.vue') },
   { path: '/english/groups', component: () => import('./views/WordGroups.vue') },
   { path: '/english/export', component: () => import('./views/WordExport.vue') },
+  { path: '/english/stats', component: () => import('./views/WordStudy.vue') },
   { path: '/english/settings', component: () => import('./views/WordSettings.vue') },
   // 旧路径重定向（向后兼容书签）
   { path: '/words', redirect: '/english/book' },
