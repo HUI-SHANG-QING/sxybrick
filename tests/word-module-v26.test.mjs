@@ -19,7 +19,7 @@ import {
 } from '../src/word-repo.js';
 import { buildWordSheet, rowOf, shuffleCards, PAGE_SIZE } from '../src/services/word-print.js';
 import { isInSyllabus, syllabusSize, listSyllabus, exportSyllabus, getSyllabusMeta } from '../src/services/word-syllabus.js';
-import { generateWordMaterials } from '../src/services/word-llm.js';
+import { generateWordMaterials, testLlmConnection } from '../src/services/word-llm.js';
 
 after(async () => { try { await db.close(); } catch { /* ignore */ } });
 
@@ -281,4 +281,94 @@ test('generateWordMaterials：agent 抛错且无 Key → 回落为未配置错�
   const out = await generateWordMaterials({ word: 'abandon', settings: {}, agentCtx });
   assert.equal(out.ok, false);
   assert.match(out.reason, /未配置 LLM/);
+});
+
+// ---------- D2. P2-27 用量记账（直连 Key 路径） ----------
+// 直连路径此前不记账，英语模块 AI 用量在 AgentWorkbench 面板完全不可见。
+// 用桩 fetch 驱动真实代码路径，断言 db.aiUsage 真的落行（而非只测纯函数）。
+const KEY_SETTINGS = { llmProvider: 'deepseek', llmApiKey: 'sk-test', llmModel: 'deepseek-chat' };
+
+function stubFetch(impl) {
+  const orig = globalThis.fetch;
+  globalThis.fetch = impl;
+  return () => { globalThis.fetch = orig; };
+}
+
+const okResp = (content, usage) => ({
+  ok: true,
+  text: async () => '',
+  json: async () => ({ choices: [{ message: { content } }], ...(usage ? { usage } : {}) }),
+});
+
+const WORD_JSON = JSON.stringify({
+  synonyms: ['desert'], collocations: ['abandon hope'], phrases: [], pos: 'v.', mnemonic: 'a+band+on',
+  examples: [{ level: 'simple', sentence: 'They abandoned it.', translation: '他们放弃了。' }],
+});
+
+test('直连成功：落一条 english-word 用量（token 取响应 usage，est=0）', async () => {
+  const restore = stubFetch(async () => okResp(WORD_JSON, { prompt_tokens: 123, completion_tokens: 45, total_tokens: 168 }));
+  try {
+    await db.aiUsage.clear();
+    const out = await generateWordMaterials({ word: 'abandon', settings: KEY_SETTINGS });
+    assert.equal(out.ok, true, '应生成成功');
+    const row = (await db.aiUsage.toArray()).find((r) => r.source === 'english-word');
+    assert.ok(row, '应落一条 source=english-word 的用量记录');
+    assert.equal(row.model, 'deepseek-chat');
+    assert.equal(row.promptTokens, 123);
+    assert.equal(row.completionTokens, 45);
+    assert.equal(row.totalTokens, 168);
+    assert.equal(row.ok, 1);
+    assert.equal(row.est, 0, '响应带 usage 字段时不应标记为估算');
+    assert.ok(row.durationMs >= 0 && row.durationMs < 60000);
+  } finally {
+    restore();
+    await db.aiUsage.clear();
+  }
+});
+
+test('直连失败：落一条 ok=0 的用量（失败调用也应可见）', async () => {
+  const restore = stubFetch(async () => ({ ok: false, text: async () => 'quota exceeded' }));
+  try {
+    await db.aiUsage.clear();
+    const out = await generateWordMaterials({ word: 'abandon', settings: KEY_SETTINGS });
+    assert.equal(out.ok, false);
+    assert.match(out.reason, /LLM 调用失败/);
+    const row = (await db.aiUsage.toArray()).find((r) => r.source === 'english-word');
+    assert.ok(row, '失败也应留下记录');
+    assert.equal(row.ok, 0);
+    assert.equal(row.est, 1, '失败按估算标记');
+  } finally {
+    restore();
+    await db.aiUsage.clear();
+  }
+});
+
+test('响应无 usage 字段：按字符估算 token，est=1', async () => {
+  const restore = stubFetch(async () => okResp(WORD_JSON, null));
+  try {
+    await db.aiUsage.clear();
+    const out = await generateWordMaterials({ word: 'abandon', settings: KEY_SETTINGS });
+    assert.equal(out.ok, true);
+    const row = (await db.aiUsage.toArray()).find((r) => r.source === 'english-word');
+    assert.ok(row);
+    assert.equal(row.est, 1, '缺 usage 时应标记估算');
+    assert.ok(row.promptTokens > 0, 'prompt 估算值应 > 0');
+    assert.ok(row.completionTokens > 0, 'completion 估算值应 > 0');
+  } finally {
+    restore();
+    await db.aiUsage.clear();
+  }
+});
+
+test('连通性探针 testLlmConnection 不计用量（非内容生成）', async () => {
+  const restore = stubFetch(async () => ({ ok: true, text: async () => '', json: async () => ({ choices: [{ message: { content: 'pong' } }] }) }));
+  try {
+    await db.aiUsage.clear();
+    const r = await testLlmConnection(KEY_SETTINGS);
+    assert.equal(r.ok, true);
+    assert.equal((await db.aiUsage.toArray()).length, 0, '探针不应产生用量记录');
+  } finally {
+    restore();
+    await db.aiUsage.clear();
+  }
 });

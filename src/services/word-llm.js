@@ -125,10 +125,12 @@ export async function generateWordMaterials(req) {
 // P2-27：每次真实 AI 生成都记录用量到 db.aiUsage（与 AgentWorkbench 用量面板打通）。
 //   仅在此直接 fetch 路径记账——agent 通道若经 agent/llm.js 的 chat 入口会自行记录，
 //   这里再记会重复；连通性探针 testLlmConnection 不计（非内容生成，仅 4 token 探测）。
+//   刻意 await 而非 fire-and-forget：recordUsage 内部已吞错不影响主流程，而一次生成
+//   只有一次 ~1ms 写入，await 可保证记录不静默丢失且可被断言（agent/llm.js 仍沿用 void）。
 async function callChatCompletion({ base, apiKey, model, prompt }) {
   const t0 = Date.now();
   const url = `${base}/chat/completions`;
-  let ok = false, content = '', usage = null;
+  let content = '', usage = null;
   try {
     const resp = await fetch(url, {
       method: 'POST',
@@ -153,16 +155,15 @@ async function callChatCompletion({ base, apiKey, model, prompt }) {
     const json = await resp.json();
     content = json?.choices?.[0]?.message?.content || '';
     usage = json?.usage; // OpenAI 兼容：{ prompt_tokens, completion_tokens, total_tokens }
-    ok = true;
   } catch (e) {
-    void recordUsage({
+    await recordUsage({
       source: 'english-word', model,
       promptTokens: estimateTokens(prompt), completionTokens: estimateTokens(content),
       durationMs: Date.now() - t0, ok: false, est: 1,
     });
     throw e;
   }
-  void recordUsage({
+  await recordUsage({
     source: 'english-word', model,
     promptTokens: usage?.prompt_tokens ?? estimateTokens(prompt),
     completionTokens: usage?.completion_tokens ?? estimateTokens(content),
