@@ -52,11 +52,17 @@ const routes = [
   { path: '/materials', component: () => import('./views/LibraryFiles.vue') },
   // UI 组件库：Element Plus × 主题桥接的活样本（验证 11 风格 × 3 模式跟随效果）
   { path: '/uikit', component: () => import('./views/UIKit.vue') },
-  // 英语单词模块（独立表，复用 FSRS 调度）：首页 / 背诵 / 词组 / 导出
-  { path: '/words', component: () => import('./views/WordBook.vue') },
-  { path: '/words/review', component: () => import('./views/WordReview.vue') },
-  { path: '/words/groups', component: () => import('./views/WordGroups.vue') },
-  { path: '/words/export', component: () => import('./views/WordExport.vue') },
+  // 英语模块（独立表，复用 FSRS 调度）：中心页 / 单词本 / 背诵 / 词组 / 导出 / 设置
+  { path: '/english', component: () => import('./views/WordHub.vue') },
+  { path: '/english/book', component: () => import('./views/WordBook.vue') },
+  { path: '/english/study', component: () => import('./views/WordReview.vue') },
+  { path: '/english/groups', component: () => import('./views/WordGroups.vue') },
+  { path: '/english/export', component: () => import('./views/WordExport.vue') },
+  { path: '/english/settings', component: () => import('./views/WordSettings.vue') },
+  // 旧路径重定向（向后兼容书签）
+  { path: '/words', redirect: '/english/book' },
+  { path: '/words/review', redirect: '/english/study' },
+  { path: '/words/export', redirect: '/english/export' },
 ];
 
 export const router = createRouter({

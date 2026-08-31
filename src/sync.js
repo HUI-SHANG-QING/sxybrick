@@ -15,10 +15,20 @@ import {
   mergeRows, mergeTombstones, applyTombstones, kindOf, livenessTs, shouldExportRow,
 } from './sync-manifest.js';
 
-/** 按表读取待导出行（应用清单上的 exportFilter，排除派生/本机专属数据，如 kind='auto' 的图谱边） */
+/** 按表读取待导出行（应用清单上的 exportFilter，排除派生/本机专属数据，如 kind='auto' 的图谱边）
+ *  额外支持 entry.strip: string[] —— 导出前剔除敏感字段（如 wordSettings 的 LLM Key），
+ *  不影响本机存储，仅让同步/备份包不含该字段（对端导入时保留自己的本地值）。 */
 async function exportRows(t) {
   let rows = await db[t.table].toArray();
   if (typeof t.exportFilter === 'function') rows = rows.filter(r => shouldExportRow(t, r));
+  if (Array.isArray(t.strip) && t.strip.length) {
+    rows = rows.map(r => {
+      if (!r) return r;
+      const c = { ...r };
+      for (const k of t.strip) delete c[k];
+      return c;
+    });
+  }
   return rows;
 }
 import { dedupeIncomingCards } from './sync-dedup.js';

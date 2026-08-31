@@ -76,6 +76,22 @@ export async function attachWordSelfExplanation(reviewId, text) {
 }
 
 // ---------- 单词卡 CRUD ----------
+// v26 扩展字段（非索引，按对象属性存；AI 生成填充）
+//   pos(词性) / defs(多义项[{pos,meaning}]) / synonyms / collocations / phrases /
+//   examples(例句[{level,sentence,translation}]) / mnemonics(助记) /
+//   rootAffix(词根词缀) / confusions(混淆项[{word,meaning}]) / syllable(音节) / audio(自定义音频)
+const EXT_FIELDS = [
+  'pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples',
+  'mnemonics', 'rootAffix', 'confusions', 'syllable', 'audio',
+];
+function pickExt(payload) {
+  const out = {};
+  for (const k of EXT_FIELDS) {
+    if (payload[k] !== undefined) out[k] = payload[k];
+  }
+  return out;
+}
+
 export async function createWordCard(payload = {}) {
   const kind = WORD_KINDS.includes(payload.kind) ? payload.kind : 'word';
   const t = now();
@@ -92,6 +108,7 @@ export async function createWordCard(payload = {}) {
     source: String(payload.source || '').trim(),
     subject: String(payload.subject || '').trim(),
     familiar: 0,
+    ...pickExt(payload),
     // SRS 初始状态：新卡立即到期（进入当日复习队列）
     ease: 2.5, level: 0, intervalDays: 0, dueAt: t,
     reviewedAt: 0, consolidation: null, fsrs: null,
@@ -112,6 +129,10 @@ export async function updateWordCard(id, patch = {}) {
   if (patch.kind !== undefined && WORD_KINDS.includes(patch.kind)) next.kind = patch.kind;
   if (patch.tags !== undefined && Array.isArray(patch.tags)) {
     next.tags = patch.tags.map(String).filter(Boolean);
+  }
+  // v26 扩展字段：整体覆盖（AI 生成结果或手动编辑的数组/对象）
+  for (const k of EXT_FIELDS) {
+    if (patch[k] !== undefined) next[k] = patch[k];
   }
   if (!next.word) throw new Error('单词/内容不能为空');
   next.updatedAt = now();
@@ -345,4 +366,110 @@ export async function wordReviewHistory(limit = 200) {
   const cards = await db.wordCards.bulkGet(rows.map(r => r.cardId));
   const byId = new Map(cards.filter(Boolean).map(c => [c.id, c]));
   return rows.map(r => ({ ...r, card: byId.get(r.cardId) || null }));
+}
+
+// 今日已背次数 / 累计复习次数（学习统计页用）
+export async function wordReviewedToday() {
+  const start = new Date(); start.setHours(0, 0, 0, 0);
+  const rows = await db.wordReviews.where('reviewedAt').aboveOrEqual(start.getTime()).toArray();
+  return rows.length;
+}
+export async function wordReviewedTotal() {
+  return db.wordReviews.count();
+}
+
+// ---------- 设置（wordSettings：单行 id='me'） ----------
+// v26 字段：accent(发音口音) / learnPace / recallPace / spellHint(拼写提示) /
+//   exampleLevels(默认生成难度) / aiEnabled(自动生成开关) / llmProvider / llmModel /
+//   llmApiKey(本地，不同步) / llmBase / mnemonicOrder(助记顺序) / splitMnemonic(拆分助记) /
+//   confusion(混淆项辨析) / aiFallback(回退策略) / dailyGoal(每日新学量)
+const WORD_SETTINGS_DEFAULT = {
+  id: 'me',
+  accent: 'en-US',          // 发音口音：en-US / en-GB / auto
+  learnPace: 'normal',      // 学习节奏：slow/normal/fast
+  recallPace: 'normal',     // 复习节奏
+  spellHint: true,          // 拼写提示（默写时显示首字母/长度）
+  exampleLevels: ['simple', 'long', 'en1', 'en2'], // 默认生成例句难度
+  aiEnabled: true,          // AI 自动生成开关
+  llmProvider: '',          // doubao/deepseek/openai
+  llmModel: '',
+  llmApiKey: '',            // 本地凭证，不同步
+  llmBase: '',
+  mnemonicOrder: 'auto',    // 助记顺序：auto/pos-first/example-first
+  splitMnemonic: false,     // 拆分助记（按音节/词根拆）
+  confusion: true,          // 混淆项辨析
+  aiFallback: 'template',   // AI 失败回退：template(本地模板)/silent(静默)
+  dailyGoal: 20,            // 每日新学目标
+  updatedAt: 0,
+};
+
+export async function getWordSettings() {
+  const row = await db.wordSettings.get('me');
+  return { ...WORD_SETTINGS_DEFAULT, ...(row || {}) };
+}
+
+export async function saveWordSettings(patch = {}) {
+  const cur = await getWordSettings();
+  const next = { ...cur, ...patch, id: 'me', updatedAt: now() };
+  await db.wordSettings.put(next);
+  return next;
+}
+
+// ---------- 每日签到（wordCheckins：id=`c-${date}`，date=YYYY-MM-DD） ----------
+export function todayStr(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export async function checkInToday() {
+  const date = todayStr();
+  const id = `c-${date}`;
+  const existing = await db.wordCheckins.get(id);
+  if (existing) return { done: true, streak: await wordCheckinStreak(), date };
+  const streak = await wordCheckinStreak();
+  const rec = { id, date, count: streak + 1, createdAt: now() };
+  await db.wordCheckins.put(rec);
+  return { done: false, streak: rec.count, date, isNew: true };
+}
+
+// 当前连续签到天数（从今天往前数；今天未签则从昨天往前数）
+export async function wordCheckinStreak() {
+  const all = await db.wordCheckins.toArray();
+  const set = new Set(all.map(r => r.date));
+  let streak = 0;
+  const d = new Date();
+  // 若今天未签，从昨天起算
+  if (!set.has(todayStr(d))) d.setDate(d.getDate() - 1);
+  while (set.has(todayStr(d))) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return streak;
+}
+
+// 签到日历数据：返回最近 N 天（默认 35，5 周）的 {date, checked} 数组（含今日）
+export async function wordCheckinCalendar(days = 35) {
+  const all = await db.wordCheckins.toArray();
+  const set = new Set(all.map(r => r.date));
+  const out = [];
+  const d = new Date();
+  d.setDate(d.getDate() - (days - 1));
+  for (let i = 0; i < days; i++) {
+    const date = todayStr(d);
+    out.push({ date, checked: set.has(date), weekday: d.getDay() });
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+// ---------- 大纲词表元信息（wordSyllabusMeta：单行 id='kaoyan2027'，仅展示用） ----------
+export async function saveSyllabusMetaRow(meta = {}) {
+  const row = { id: 'kaoyan2027', ...meta, loadedAt: now() };
+  await db.wordSyllabusMeta.put(row);
+  return row;
+}
+export async function getSyllabusMetaRow() {
+  return db.wordSyllabusMeta.get('kaoyan2027');
 }

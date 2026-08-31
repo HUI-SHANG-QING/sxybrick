@@ -39,7 +39,7 @@ const zh = {
     docs: '文档', weekly: '周报', exam: '模考', genquiz: '生成测验',
     search: '搜索', health: '体检', trash: '回收站', library: '书房',
     materials: '资料库', achievements: '成就', dashboard: '仪表盘',
-    privacy: '超级监控', plugins: '插件', insight: '卡片洞察', uikit: '组件库', words: '单词本',
+    privacy: '超级监控', plugins: '插件',     insight: '卡片洞察', uikit: '组件库', words: '单词本', english: '英语中心',
     more: '更多',
   },
 
@@ -205,7 +205,7 @@ const en = {
     docs: 'Docs', weekly: 'Weekly', exam: 'Exam', genquiz: 'Quiz Gen',
     search: 'Search', health: 'Health', trash: 'Trash', library: 'Library',
     materials: 'Materials', achievements: 'Awards', dashboard: 'Dashboard',
-    privacy: 'Super Monitor', plugins: 'Plugins', insight: 'Insight', uikit: 'UI Kit', words: 'Words',
+    privacy: 'Super Monitor', plugins: 'Plugins',     insight: 'Insight', uikit: 'UI Kit', words: 'Words', english: 'English',
     more: 'More',
   },
   settings: {
@@ -386,7 +386,10 @@ import { zh as weeklyReportZh, en as weeklyReportEn } from './views/weeklyReport
 import { zh as wordBookZh, en as wordBookEn } from './views/wordBook.js';
 import { zh as wordExportZh, en as wordExportEn } from './views/wordExport.js';
 import { zh as wordGroupsZh, en as wordGroupsEn } from './views/wordGroups.js';
+import { zh as wordHubZh, en as wordHubEn } from './views/wordHub.js';
 import { zh as wordReviewZh, en as wordReviewEn } from './views/wordReview.js';
+import { zh as wordSettingsZh, en as wordSettingsEn } from './views/wordSettings.js';
+import { zh as wordStudyZh, en as wordStudyEn } from './views/wordStudy.js';
 import { zh as wrongBookZh, en as wrongBookEn } from './views/wrongBook.js';
 
 zh.views.achievements = achievementsZh;
@@ -463,8 +466,14 @@ zh.views.wordExport = wordExportZh;
 en.views.wordExport = wordExportEn;
 zh.views.wordGroups = wordGroupsZh;
 en.views.wordGroups = wordGroupsEn;
+zh.views.wordHub = wordHubZh;
+en.views.wordHub = wordHubEn;
 zh.views.wordReview = wordReviewZh;
 en.views.wordReview = wordReviewEn;
+zh.views.wordSettings = wordSettingsZh;
+en.views.wordSettings = wordSettingsEn;
+zh.views.wordStudy = wordStudyZh;
+en.views.wordStudy = wordStudyEn;
 zh.views.wrongBook = wrongBookZh;
 en.views.wrongBook = wrongBookEn;
 

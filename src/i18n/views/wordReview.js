@@ -13,8 +13,9 @@ export const zh = {
   scopeSentence: '仅短句',
   scopeGroup: '按词组',
 
-  // 模式（12 种）
+  // 模式（13 种：自适应 + 12）
   modeLabel: '复习模式',
+  modeAdaptive: '不背式·自适应',
   modeChoice: '看词选义',
   modeSpell: '看词写义',
   modeListenChoice: '听音选义',
@@ -29,6 +30,7 @@ export const zh = {
   modeQuiz: '选择题',
 
   // 模式说明
+  hintAdaptive: '先看词，手动揭释义自评；若选「忘记」，立即切到 4 选 1 强化一遍。',
   hintChoice: '看英文单词，从 4 个中文释义中选出正确的一项。',
   hintSpell: '看英文单词，默写出它的中文释义。',
   hintListenChoice: '听发音，从 4 个中文释义中选出正确的一项。',
@@ -41,6 +43,11 @@ export const zh = {
   hintCollocations: '看中文释义与搭配提示，选出正确的英文单词。',
   hintReadAloud: '听发音并大声跟读，然后自评是否读对（不强制录音）。',
   hintQuiz: '综合选择题：看提示，从 4 个选项中选出正确答案。',
+
+  // 两段式自适应
+  adaptiveForgotTitle: '答错了，来一道选择题巩固',
+  adaptiveChoiceLabel: '选择正确释义',
+  adaptiveRevealHint: '点击揭释义，再点「认识 / 模糊 / 忘记」',
 
   // 交互
   selectScope: '选择范围',
@@ -110,6 +117,7 @@ export const en = {
   scopeGroup: 'By group',
 
   modeLabel: 'Mode',
+  modeAdaptive: 'Adaptive (BuBei-style)',
   modeChoice: 'Word → Meaning',
   modeSpell: 'Word → Spell meaning',
   modeListenChoice: 'Listen → Meaning',
@@ -123,6 +131,7 @@ export const en = {
   modeReadAloud: 'Read aloud',
   modeQuiz: 'Quiz',
 
+  hintAdaptive: 'See the word, reveal meaning and self-rate; if “Forgot”, switch to a 4-choice round to reinforce.',
   hintChoice: 'See the English word, pick the right meaning from 4 options.',
   hintSpell: 'See the English word, write its Chinese meaning.',
   hintListenChoice: 'Hear the pronunciation, pick the right meaning from 4 options.',
@@ -135,6 +144,10 @@ export const en = {
   hintCollocations: 'See the meaning and collocation hint, pick the right English word.',
   hintReadAloud: 'Hear and read aloud, then self-rate (no recording required).',
   hintQuiz: 'Mixed quiz: see the prompt, pick the right answer from 4 options.',
+
+  adaptiveForgotTitle: 'Missed it — a quiz to reinforce',
+  adaptiveChoiceLabel: 'Pick the right meaning',
+  adaptiveRevealHint: 'Tap to reveal meaning, then “Known / Blur / Forgot”',
 
   selectScope: 'Select scope',
   selectMode: 'Select mode',

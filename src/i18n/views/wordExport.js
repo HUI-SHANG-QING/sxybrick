@@ -46,7 +46,37 @@ export const zh = {
   fmtMarkdown: 'Markdown 复习卡',
   fmtAnki: 'Anki 导入包（.txt）',
   fmtCsv: 'CSV / Excel',
-  fmtA4: '可打印 A4 单词本（HTML）',
+  fmtPdf: '不背风 A4 打印（PDF）',
+
+  // PDF 三种版式（双栏 20 行 = 40 词/页）
+  pdfTitle: '不背风 A4 打印',
+  pdfA4Write: 'A4 默写',
+  pdfA4WriteDesc: '左英文 → 右留空白线，用来默写中文释义',
+  pdfZhList: '中文词表',
+  pdfZhListDesc: '左中文释义 → 右留空白线，用来默写英文单词',
+  pdfEnList: '英文词表',
+  pdfEnListDesc: '英中对照全部填好，直接通读背诵',
+  shuffleLabel: '乱序',
+  shuffleOn: '已乱序',
+  shuffleOff: '顺序',
+  sheetTitleLabel: '页眉标题',
+  sheetTitlePlaceholder: '如：考研核心词 · 第 3 轮',
+  pagesInfo: '预计 {n} 页 · 每页 40 词（双栏 20 行）',
+
+  // 输出通道
+  channelLabel: '输出方式',
+  channelPrint: '打印 / 另存为 PDF',
+  channelPrintDesc: '弹出系统打印对话框，选「另存为 PDF」即得矢量 PDF。中文由系统字体渲染，排版最准，离线可用。',
+  channelHtml: '下载 A4 网页文件',
+  channelHtmlDesc: '把排好版的 A4 页面存成 .html，换台电脑用浏览器打开再打印也一样。',
+  channelPdf: '直接下载 PDF（仅英文）',
+  channelPdfDesc: '由 jsPDF 直接生成 .pdf 文件，无需打印对话框；但内置字体不含中文字形。',
+  cjkWarn: '⚠️ 直接下载 PDF 用的内置字体不含中文字形，中文释义会打印成空白。需要中文请改用「打印 / 另存为 PDF」。',
+  printBtn: '打开打印对话框',
+  htmlBtn: '下载 A4 网页',
+  pdfBtn: '直接下载 PDF',
+  printOk: '已打开打印对话框（共 {n} 页）',
+  printFailed: '导出失败：{reason}',
 
   // —— 更多选项 ——
   optionsTitle: '更多选项',
@@ -54,6 +84,14 @@ export const zh = {
   includeExample: '包含例句',
   includePhonetic: '包含音标',
   includeSource: '包含来源',
+
+  // —— 导出历史 ——
+  historyTitle: '导出历史',
+  historyEmpty: '暂无导出记录',
+  historyTime: '时间',
+  historyScope: '范围',
+  historyPages: '共 {n} 页',
+  historyKeep: '仅本机保留，约一年',
 
   // —— 操作 ——
   exportBtn: '生成并下载',
@@ -71,7 +109,7 @@ export const zh = {
   fmtMarkdownDesc: '每行一张复习卡，正面英文、背面中文，适合 Markdown 笔记 / Obsidian / 导入 Anki（问答格式）。',
   fmtAnkiDesc: '标准制表符分隔，可直接导入 Anki（文件→导入→字段映射 正面/背面）。',
   fmtCsvDesc: '逗号分隔，Excel / Numbers / WPS 直接打开，含全部字段。',
-  fmtA4Desc: '适合打印的 A4 版式，每页多列，中英文可分栏，便于随身背诵。',
+  fmtPdfDesc: '不背风 A4 双栏版式：页眉含标题 + 二维码占位 + 模版效果图徽标，页脚含水印与页码，适合打印随身背。',
 };
 
 export const en = {
@@ -115,13 +153,48 @@ export const en = {
   fmtMarkdown: 'Markdown review cards',
   fmtAnki: 'Anki deck (.txt)',
   fmtCsv: 'CSV / Excel',
-  fmtA4: 'Printable A4 booklet (HTML)',
+  fmtPdf: 'BuBei-style A4 print (PDF)',
+
+  pdfTitle: 'BuBei-style A4 print',
+  pdfA4Write: 'A4 dictation',
+  pdfA4WriteDesc: 'English on the left, blank line on the right — write the Chinese meaning.',
+  pdfZhList: 'Chinese list',
+  pdfZhListDesc: 'Chinese meaning on the left, blank line on the right — write the English word.',
+  pdfEnList: 'English list',
+  pdfEnListDesc: 'Bilingual, fully filled in — read and memorise directly.',
+  shuffleLabel: 'Shuffle',
+  shuffleOn: 'Shuffled',
+  shuffleOff: 'In order',
+  sheetTitleLabel: 'Header title',
+  sheetTitlePlaceholder: 'e.g. Core vocabulary · Round 3',
+  pagesInfo: '{n} pages · 40 words per page (2 columns × 20 rows)',
+
+  channelLabel: 'Output',
+  channelPrint: 'Print / Save as PDF',
+  channelPrintDesc: 'Opens the system print dialog; choose “Save as PDF” for a vector PDF. CJK is rendered with system fonts, works offline.',
+  channelHtml: 'Download A4 HTML',
+  channelHtmlDesc: 'Saves the laid-out A4 page as .html — open it in any browser on another machine and print.',
+  channelPdf: 'Download PDF directly (English only)',
+  channelPdfDesc: 'jsPDF generates the .pdf file directly, no print dialog — but its built-in fonts contain no CJK glyphs.',
+  cjkWarn: '⚠️ Direct PDF download uses built-in fonts without CJK glyphs, so Chinese meanings print blank. Use “Print / Save as PDF” for Chinese.',
+  printBtn: 'Open print dialog',
+  htmlBtn: 'Download A4 HTML',
+  pdfBtn: 'Download PDF',
+  printOk: 'Print dialog opened ({n} pages)',
+  printFailed: 'Export failed: {reason}',
 
   optionsTitle: 'More options',
   includeNote: 'Include notes',
   includeExample: 'Include examples',
   includePhonetic: 'Include phonetics',
   includeSource: 'Include source',
+
+  historyTitle: 'Export history',
+  historyEmpty: 'No export history',
+  historyTime: 'Time',
+  historyScope: 'Scope',
+  historyPages: '{n} pages',
+  historyKeep: 'Kept on this device, ~1 year',
 
   exportBtn: 'Generate & download',
   copyBtn: 'Copy text',
@@ -137,5 +210,5 @@ export const en = {
   fmtMarkdownDesc: 'One review card per line: English front, Chinese back. Good for Markdown notes / Obsidian / Anki (Q&A).',
   fmtAnkiDesc: 'Tab-separated, import directly into Anki (File → Import → map fields Front/Back).',
   fmtCsvDesc: 'Comma-separated, opens in Excel / Numbers / WPS with all fields.',
-  fmtA4Desc: 'Print-friendly A4 layout, multiple columns per page, bilingual or split.',
+  fmtPdfDesc: 'BuBei-style A4 two-column: header with title + QR placeholder + template badge, footer watermark + page number. Print-friendly.',
 };

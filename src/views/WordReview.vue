@@ -1,463 +1,394 @@
 <script setup>
-// 英语背诵页：13 种复习模式，复用 FSRS 调度。
-// 每卡可随时标记熟词 / 加入词组 / 写批注；支持 TTS 朗读。
+// 背诵页（图14-16：不背式揭释义 + 两段式自适应 + 13 种模式）
+// 默认模式 adaptive：先看词 → 手动揭释义 → 认识/模糊/忘记；
+//   若选「忘记」，立即切到 4 选 1 强化一遍（两段式）。
+// 其余 12 种模式由 mode 决定出题与判分方式。
 import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
-import { confirmDialog } from '../utils/confirm.js';
 import { speak, speechSupported } from '../utils/speak.js';
 import {
-  dueWordCards, listWordCards, reviewWord, markFamiliar, setWordNote,
-  listWordGroups, createWordGroup, setWordGroups, wordGroupsOfCard,
+  dueWordCards, listWordCards, reviewWord, getWordSettings, listWordGroups,
 } from '../word-repo.js';
 
-const canSpeak = speechSupported();
+const route = useRoute();
+const router = useRouter();
 
-// 模式元数据：13 种（≥10）
-const MODES = [
-  { id: 'choice', type: 'choiceMeaning', hint: 'hintChoice' },
-  { id: 'spell', type: 'textMeaning', hint: 'hintSpell' },
-  { id: 'listenChoice', type: 'listenChoiceMeaning', hint: 'hintListenChoice' },
-  { id: 'listenSpell', type: 'textWordListen', hint: 'hintListenSpell' },
-  { id: 'reverseChoice', type: 'choiceWord', hint: 'hintReverseChoice' },
-  { id: 'cloze', type: 'textCloze', hint: 'hintCloze' },
-  { id: 'sentenceCloze', type: 'textSentence', hint: 'hintSentenceCloze' },
-  { id: 'sentenceChoice', type: 'choiceSentence', hint: 'hintEnglishEnglish' },
-  { id: 'flashcard', type: 'flashcard', hint: 'hintFlashcard' },
-  { id: 'ee', type: 'choiceWord', hint: 'hintEnglishEnglish' },
-  { id: 'collocations', type: 'choiceWord', hint: 'hintCollocations' },
-  { id: 'readAloud', type: 'readAloud', hint: 'hintReadAloud' },
-  { id: 'quiz', type: 'quiz', hint: 'hintQuiz' },
-];
-
-const SCOPES = [
-  { value: 'all', key: 'scopeAll' },
-  { value: 'due', key: 'scopeDue' },
-  { value: 'word', key: 'scopeWord' },
-  { value: 'phrase', key: 'scopePhrase' },
-  { value: 'sentence', key: 'scopeSentence' },
-  { value: 'group', key: 'scopeGroup' },
-];
-
-const scope = ref('all');
-const groupId = ref('');
-const mode = ref('choice');
-const groups = ref([]);
-
-// 会话
-const started = ref(false);
+const settings = ref(null);
 const queue = ref([]);
-const pool = ref([]); // 干扰项池
 const idx = ref(0);
-const reviewedCount = ref(0);
-const done = ref(false);
+const phase = ref('setup'); // setup | question | reveal | grade | done
 
-// 当前卡渲染态
-const phase = ref('prompt'); // prompt | result
-const selected = ref('');     // choice 选中
-const inputText = ref('');    // text 输入
-const revealed = ref(false);  // flashcard / readAloud
-const result = ref(null);     // 'correct' | 'wrong' | null
-const current = computed(() => queue.value[idx.value] || null);
+const scope = ref('due');      // due / all / word / phrase / sentence / group
+const groupId = ref('');
+const groups = ref([]);
+const mode = ref('adaptive');  // 见 MODES
 
-const modeMeta = computed(() => MODES.find(m => m.id === mode.value) || MODES[0]);
+const revealed = ref(false);
+const forgiven = ref(false);     // adaptive 段内是否已错过
+const adaptiveStage = ref(1);   // 1=揭释义, 2=选择题强化
 
-// 当前卡正确答案（按模式决定取 word 还是 meaning）
-const answerKey = computed(() => {
-  const c = current.value; if (!c) return '';
-  const ty = modeMeta.value.type;
-  if (ty === 'choiceMeaning' || ty === 'listenChoiceMeaning') return c.meaning;
-  if (ty === 'choiceSentence') return c.word;
-  if (ty === 'choiceWord') return c.word;
-  if (ty === 'quiz') return promptText.value === c.word ? c.meaning : c.word;
-  if (ty === 'textMeaning') return c.meaning;
-  return c.word; // textWordListen / textCloze / textSentence
+// 选择题
+const options = ref([]);
+const chosen = ref(null);
+// 填空 / 听写 / 拼写
+const input = ref('');
+
+const result = ref(null); // {correct, rating}
+const sessionCount = ref(0);
+
+const MODES = [
+  { id: 'adaptive', label: t('views.wordReview.modeAdaptive'), hint: t('views.wordReview.hintAdaptive') },
+  { id: 'choice', label: t('views.wordReview.modeChoice'), hint: t('views.wordReview.hintChoice') },
+  { id: 'listenChoice', label: t('views.wordReview.modeListenChoice'), hint: t('views.wordReview.hintListenChoice') },
+  { id: 'spell', label: t('views.wordReview.modeSpell'), hint: t('views.wordReview.hintSpell') },
+  { id: 'listenSpell', label: t('views.wordReview.modeListenSpell'), hint: t('views.wordReview.hintListenSpell') },
+  { id: 'reverseChoice', label: t('views.wordReview.modeReverseChoice'), hint: t('views.wordReview.hintReverseChoice') },
+  { id: 'cloze', label: t('views.wordReview.modeCloze'), hint: t('views.wordReview.hintCloze') },
+  { id: 'sentenceCloze', label: t('views.wordReview.modeSentenceCloze'), hint: t('views.wordReview.hintSentenceCloze') },
+  { id: 'flashcard', label: t('views.wordReview.modeFlashcard'), hint: t('views.wordReview.hintFlashcard') },
+  { id: 'englishEnglish', label: t('views.wordReview.modeEnglishEnglish'), hint: t('views.wordReview.hintEnglishEnglish') },
+  { id: 'collocations', label: t('views.wordReview.modeCollocations'), hint: t('views.wordReview.hintCollocations') },
+  { id: 'readAloud', label: t('views.wordReview.modeReadAloud'), hint: t('views.wordReview.hintReadAloud') },
+  { id: 'quiz', label: t('views.wordReview.modeQuiz'), hint: t('views.wordReview.hintQuiz') },
+];
+
+onMounted(async () => {
+  settings.value = await getWordSettings();
+  groups.value = await listWordGroups();
+  if (route.query.mode) mode.value = String(route.query.mode);
 });
 
-// 干扰项 + 选项
-const options = ref([]);
-const promptText = ref('');
-const maskText = ref(''); // cloze / sentence 遮罩
-
-function norm(s) {
-  return String(s || '').toLowerCase().replace(/[\s_/.,!?;:'"()]/g, '');
-}
-function shuffle(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-function pickOptions(correct, side) {
-  const others = pool.value.filter(c => c.id !== current.value?.id && (side === 'meaning' ? c.meaning : c.word) && (side === 'meaning' ? c.meaning : c.word) !== (side === 'meaning' ? correct : correct));
-  const distract = shuffle(others).slice(0, 3).map(c => side === 'meaning' ? c.meaning : c.word);
-  const set = new Set(distract);
-  // 池不足时补静态兜底
-  const fallback = side === 'meaning'
-    ? ['记住', '理解', '重要的', '常见的']
-    : ['example', 'important', 'because', 'however'];
-  let i = 0;
-  while (set.size < 3 && i < fallback.length) { set.add(fallback[i]); i++; }
-  return shuffle([correct, ...set]);
-}
-function maskWord(w) {
-  const chars = w.split('');
-  if (chars.length <= 2) return w;
-  const n = Math.max(1, Math.round(chars.length * 0.4));
-  const positions = shuffle(chars.map((_, i) => i)).slice(0, n);
-  return chars.map((c, i) => positions.includes(i) ? '_' : c).join('');
-}
-
-function buildCurrent() {
-  const c = current.value;
-  if (!c) return;
-  phase.value = 'prompt';
-  selected.value = '';
-  inputText.value = '';
-  revealed.value = false;
-  result.value = null;
-  options.value = [];
-  promptText.value = '';
-  maskText.value = '';
-  const ty = modeMeta.value.type;
-  if (ty === 'choiceMeaning') {
-    promptText.value = c.word;
-    options.value = pickOptions(c.meaning, 'meaning');
-  } else if (ty === 'choiceWord') {
-    promptText.value = c.meaning;
-    options.value = pickOptions(c.word, 'word');
-  } else if (ty === 'listenChoiceMeaning') {
-    promptText.value = c.word;
-    options.value = pickOptions(c.meaning, 'meaning');
-    speak(c.word);
-  } else if (ty === 'textMeaning') {
-    promptText.value = c.word;
-  } else if (ty === 'textWordListen') {
-    promptText.value = c.word;
-    speak(c.word);
-  } else if (ty === 'textCloze') {
-    promptText.value = c.word;
-    maskText.value = maskWord(c.word);
-  } else if (ty === 'textSentence' || ty === 'choiceSentence') {
-    const ex = c.example || c.word;
-    maskText.value = ex.replace(new RegExp(norm(c.word), 'i'), '_____');
-    if (ty === 'choiceSentence') options.value = pickOptions(c.word, 'word');
-  } else if (ty === 'flashcard') {
-    promptText.value = c.word;
-  } else if (ty === 'readAloud') {
-    promptText.value = c.word;
-    speak(c.word);
-  } else if (ty === 'quiz') {
-    const showWord = Math.random() < 0.5;
-    if (showWord) { promptText.value = c.word; options.value = pickOptions(c.meaning, 'meaning'); }
-    else { promptText.value = c.meaning; options.value = pickOptions(c.word, 'word'); }
-  }
-}
+const current = computed(() => queue.value[idx.value] || null);
+const remaining = computed(() => Math.max(0, queue.value.length - idx.value));
+const progressPct = computed(() => queue.value.length ? Math.round((idx.value / queue.value.length) * 100) : 0);
 
 async function start() {
-  const filter = {};
-  if (scope.value === 'word') filter.kind = 'word';
-  else if (scope.value === 'phrase') filter.kind = 'phrase';
-  else if (scope.value === 'sentence') filter.kind = 'sentence';
-  else if (scope.value === 'group') filter.groupId = groupId.value;
-  const list = await dueWordCards(filter);
-  queue.value = list;
-  pool.value = await listWordCards({ schedulableOnly: true });
-  if (!pool.value.length) pool.value = list;
-  if (!list.length) { started.value = true; done.value = false; return; }
-  idx.value = 0;
-  reviewedCount.value = 0;
-  done.value = false;
-  started.value = true;
-  buildCurrent();
+  let rows;
+  if (scope.value === 'due') rows = await dueWordCards();
+  else if (scope.value === 'group') rows = await dueWordCards({ groupId: groupId.value });
+  else if (scope.value === 'all') rows = await listWordCards({ schedulableOnly: true });
+  else rows = await listWordCards({ kind: scope.value, schedulableOnly: true });
+  if (!rows.length) { toast(t('views.wordReview.noCards'), 'warn'); return; }
+  queue.value = rows;
+  idx.value = 0; sessionCount.value = 0;
+  phase.value = 'question';
+  setupQuestion();
 }
 
-function revealOrSubmit() {
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+// 生成 4 选 1 干扰项（从队列其余卡取释义/单词）
+function buildChoices(card, pickMeaning) {
+  const pool = queue.value.filter(c => c.id !== card.id);
+  const others = shuffle(pool).slice(0, 3);
+  const correct = pickMeaning ? card.meaning : card.word;
+  const wrongs = others.map(c => pickMeaning ? c.meaning : c.word);
+  const all = shuffle([correct, ...wrongs]);
+  return all.map(v => ({ text: v, ok: v === correct }));
+}
+
+function setupQuestion() {
+  revealed.value = false; forgiven.value = false; adaptiveStage.value = 1;
+  chosen.value = null; input.value = '';
+  result.value = null;
   const c = current.value;
-  if (!c) return;
-  const ty = modeMeta.value.type;
-  if (ty === 'flashcard' || ty === 'readAloud') {
-    revealed.value = true;
+  if (!c) { phase.value = 'done'; return; }
+  phase.value = 'question';
+  // 听音类模式：自动朗读
+  if (mode.value === 'listenChoice' || mode.value === 'listenSpell') speak(c.word, { lang: accentLang() });
+  // 选择题 / 反向 / 英英 / 词组 / 综合：预生成选项
+  if (['choice', 'listenChoice', 'reverseChoice', 'englishEnglish', 'collocations', 'quiz'].includes(mode.value)) {
+    const pickMeaning = mode.value === 'reverseChoice' || mode.value === 'englishEnglish';
+    options.value = buildChoices(c, pickMeaning);
+  }
+  // 挖空拼写：生成带缺口词形
+  if (mode.value === 'cloze') prepareCloze(c);
+  if (mode.value === 'sentenceCloze') prepareSentenceCloze(c);
+}
+
+function accentLang() { return settings.value?.accent === 'auto' ? 'en-US' : (settings.value?.accent || 'en-US'); }
+
+// 挖空拼写：去掉 30%~50% 字母（保留首尾）
+const clozeWord = ref('');
+function prepareCloze(c) {
+  const w = c.word;
+  if (w.length <= 2) { clozeWord.value = w; return; }
+  const keep = Math.max(1, Math.ceil(w.length * 0.4));
+  const blanks = w.length - keep;
+  const positions = shuffle([...Array(w.length).keys()]).slice(0, blanks);
+  clozeWord.value = w.split('').map((ch, i) => positions.includes(i) ? '_' : ch).join('');
+}
+
+const sentenceClozeText = ref('');
+function prepareSentenceCloze(c) {
+  const ex = (c.examples && c.examples[0]) || (c.example ? { sentence: c.example } : null);
+  if (!ex) { sentenceClozeText.value = '（无例句）'; input.value = c.word; return; }
+  sentenceClozeText.value = ex.sentence.replace(new RegExp(c.word, 'gi'), '____');
+}
+
+function reveal() {
+  if (mode.value === 'adaptive') { adaptiveStage.value = 1; }
+  revealed.value = true;
+  phase.value = 'reveal';
+}
+
+// 不背式自评（adaptive / flashcard）
+async function selfRate(rating) {
+  // rating: 2=认识, 1=模糊, 0=忘记
+  if (mode.value === 'adaptive' && rating === 0 && !forgiven.value) {
+    // 两段式：第一次忘记 → 切到 4 选 1 强化
+    forgiven.value = true; adaptiveStage.value = 2;
+    options.value = buildChoices(current.value, true);
+    phase.value = 'question';
+    toast(t('views.wordReview.adaptiveForgotTitle'), 'info');
     return;
   }
-  const correct = answerKey.value;
-  const isChoice = ty.startsWith('choice') || ty === 'listenChoiceMeaning' || ty === 'choiceSentence' || ty === 'quiz';
-  const val = isChoice ? selected.value : inputText.value;
-  result.value = val && norm(val) === norm(correct) ? 'correct' : 'wrong';
-  phase.value = 'result';
-  if (result.value === 'correct') toast(t('views.wordReview.correctToast'), 'success', 1200);
-  else toast(t('views.wordReview.wrongToast'), 'error', 1200);
-}
-function textCorrect(input, answer) {
-  const a = norm(input), b = norm(answer);
-  if (!a) return false;
-  return a === b || a.includes(b) || b.includes(a);
+  await commit(rating);
 }
 
-async function rate(rating) {
+async function submitChoice() {
+  const ok = chosen.value != null && options.value[chosen.value]?.ok;
+  result.value = { correct: !!ok, chosen: chosen.value };
+  await commit(ok ? 2 : 0);
+}
+
+async function submitText() {
   const c = current.value;
-  if (!c) return;
-  try { await reviewWord(c.id, rating); } catch (e) { toast(e.message || 'error', 'error'); }
-  reviewedCount.value++;
-  next();
+  const ans = input.value.trim().toLowerCase();
+  const correct = ans === c.word.toLowerCase();
+  result.value = { correct, your: input.value };
+  // 听写/拼写：写错也算"模糊"，正确算"认识"
+  await commit(correct ? 2 : 1);
 }
-function next() {
-  if (idx.value + 1 >= queue.value.length) { done.value = true; return; }
-  idx.value++;
-  buildCurrent();
-}
-function again() { start(); }
 
-// 每卡动作
-async function toggleFamiliar() {
-  const c = current.value; if (!c) return;
-  await markFamiliar(c.id, c.familiar ? 0 : 1);
-  toast(c.familiar ? t('views.wordBook.unmarkFamiliarToast') : t('views.wordBook.markFamiliarToast'), 'success');
-}
-const groupOpen = ref(false), noteOpen = ref(false), groupList = ref([]), groupChecks = ref({}), groupOwned = ref([]), newGroupName = ref(''), noteCard = ref(null), noteText = ref('');
-async function openGroup() {
-  const c = current.value; if (!c) return;
-  groupCard.value = c;
-  groupList.value = await listWordGroups();
-  const owned = await wordGroupsOfCard(c.id);
-  groupOwned.value = owned.map(g => g.id);
-  groupChecks.value = Object.fromEntries(groupList.value.map(g => [g.id, groupOwned.value.includes(g.id)]));
-  newGroupName.value = '';
-  groupOpen.value = true;
-}
-const groupCard = ref(null);
-async function saveGroup() {
-  const add = [], remove = [];
-  for (const g of groupList.value) {
-    const checked = !!groupChecks.value[g.id];
-    if (checked && !groupOwned.value.includes(g.id)) add.push(g.id);
-    if (!checked && groupOwned.value.includes(g.id)) remove.push(g.id);
+async function commit(rating) {
+  const c = current.value;
+  if (c && c.kind !== 'template') {
+    try { await reviewWord(c.id, rating); sessionCount.value++; } catch { /* ignore */ }
   }
-  if (newGroupName.value.trim()) { const g = await createWordGroup({ name: newGroupName.value.trim() }); add.push(g.id); }
-  await setWordGroups([groupCard.value.id], add, remove);
-  toast(t('views.wordBook.updated'), 'success');
-  groupOpen.value = false;
-}
-function openNote() {
-  const c = current.value; if (!c) return;
-  noteCard.value = c; noteText.value = c.note || ''; noteOpen.value = true;
-}
-async function saveNote() {
-  await setWordNote(noteCard.value.id, noteText.value);
-  toast(t('views.wordBook.updated'), 'success');
-  noteOpen.value = false;
+  phase.value = 'grade';
+  setTimeout(next, 900);
 }
 
-onMounted(async () => { groups.value = await listWordGroups(); });
+function next() {
+  if (idx.value >= queue.value.length - 1) { phase.value = 'done'; return; }
+  idx.value++;
+  setupQuestion();
+}
+
+function restart() { phase.value = 'setup'; }
+function goBook() { router.push('/english/book'); }
+
+const modeHint = computed(() => MODES.find(m => m.id === mode.value)?.hint || '');
+const speakSupported = speechSupported();
 </script>
 
 <template>
-  <div class="rv">
-    <header class="rv-head">
+  <div class="wrev">
+    <div class="wr-head">
+      <button class="back" @click="router.push('/english')">← {{ t('views.wordHub.title') }}</button>
       <h1>{{ t('views.wordReview.title') }}</h1>
-      <p class="sub">{{ t('views.wordReview.subtitle') }}</p>
-    </header>
+    </div>
 
-    <!-- 配置 -->
-    <section v-if="!started" class="cfg">
-      <div class="cfg-row">
-        <label>{{ t('views.wordReview.scopeLabel') }}
-          <el-select v-model="scope" style="width:100%">
-            <el-option v-for="s in SCOPES" :key="s.value" :value="s.value" :label="t('views.wordReview.' + s.key)" />
-          </el-select>
-        </label>
-        <label v-if="scope === 'group'" class="grow">{{ t('views.wordReview.scopeGroup') }}
-          <el-select v-model="groupId" style="width:100%">
-            <el-option v-for="g in groups" :key="g.id" :value="g.id" :label="g.name" />
-          </el-select>
-        </label>
-      </div>
-      <label>{{ t('views.wordReview.modeLabel') }}
-        <el-select v-model="mode" style="width:100%">
-          <el-option v-for="m in MODES" :key="m.id" :value="m.id" :label="t('views.wordReview.' + m.id)" />
-        </el-select>
-      </label>
-      <p class="hint">{{ t('views.wordReview.' + modeMeta.hint) }}</p>
-      <el-button type="primary" size="large" @click="start">{{ t('views.wordReview.startBtn') }}</el-button>
-    </section>
+    <!-- 设置页 -->
+    <div v-if="phase === 'setup'" class="wr-setup">
+      <p class="wr-sub">{{ t('views.wordReview.subtitle') }}</p>
 
-    <!-- 无卡 -->
-    <section v-else-if="!queue.length" class="empty">
-      <p>{{ t('views.wordReview.noCards') }}</p>
-      <p class="hint">{{ t('views.wordReview.noCardsHint') }}</p>
-      <el-button @click="started = false">{{ t('views.wordBook.backHome') }}</el-button>
-    </section>
-
-    <!-- 完成 -->
-    <section v-else-if="done" class="empty done">
-      <h2>🎉 {{ t('views.wordReview.sessionDone') }}</h2>
-      <p>{{ t('views.wordReview.sessionDoneHint', undefined, { n: reviewedCount }) }}</p>
-      <div class="acts">
-        <el-button type="primary" @click="again">{{ t('views.wordReview.againReview') }}</el-button>
-        <el-button @click="started = false">{{ t('views.wordBook.backHome') }}</el-button>
-      </div>
-    </section>
-
-    <!-- 复习卡片 -->
-    <section v-else class="session">
-      <div class="prog">
-        <span>{{ t('views.wordReview.progress') }}：{{ idx + 1 }} / {{ queue.length }}</span>
-        <span class="left">{{ t('views.wordReview.remainingLabel') }}：{{ queue.length - idx - 1 }}</span>
-      </div>
-
-      <div class="qcard">
-        <div class="qtop">
-          <span class="tag">{{ t('views.wordBook.' + ({ word: 'kindWord', phrase: 'kindPhrase', sentence: 'kindSentence', template: 'kindTemplate' }[current.kind] || 'kindWord')) }}</span>
-          <div class="qacts">
-            <button v-if="canSpeak" class="ico" @click="speak(current.word)">🔊</button>
-            <button v-if="canSpeak && modeMeta.type === 'listenChoiceMeaning'" class="ico" @click="speak(current.word)">🔁</button>
-            <button class="ico" :title="t('views.wordReview.addFamiliar')" @click="toggleFamiliar">{{ current.familiar ? '⭐' : '☆' }}</button>
-            <button class="ico" :title="t('views.wordReview.addGroup')" @click="openGroup">📚</button>
-            <button class="ico" :title="t('views.wordReview.note')" @click="openNote">📝</button>
-          </div>
+      <section class="wr-block">
+        <label class="wr-label">{{ t('views.wordReview.scopeLabel') }}</label>
+        <div class="wr-chips">
+          <button class="wc" :class="{ on: scope === 'due' }" @click="scope = 'due'">{{ t('views.wordReview.scopeDue') }}</button>
+          <button class="wc" :class="{ on: scope === 'all' }" @click="scope = 'all'">{{ t('views.wordReview.scopeAll') }}</button>
+          <button class="wc" :class="{ on: scope === 'word' }" @click="scope = 'word'">{{ t('views.wordReview.scopeWord') }}</button>
+          <button class="wc" :class="{ on: scope === 'phrase' }" @click="scope = 'phrase'">{{ t('views.wordReview.scopePhrase') }}</button>
+          <button class="wc" :class="{ on: scope === 'sentence' }" @click="scope = 'sentence'">{{ t('views.wordReview.scopeSentence') }}</button>
         </div>
+      </section>
 
-        <!-- 题干 -->
-        <div class="prompt">
-          <template v-if="modeMeta.type === 'textCloze'">
-            <p class="ptext cloze">{{ maskText }}</p>
-            <p class="sub2">{{ promptText }}</p>
-          </template>
-          <template v-else-if="modeMeta.type === 'textSentence' || modeMeta.type === 'choiceSentence'">
-            <p class="ptext ex">{{ maskText }}</p>
-          </template>
-          <template v-else-if="modeMeta.type === 'flashcard'">
-            <p class="ptext big">{{ promptText }}</p>
-            <p v-if="revealed" class="answer">{{ current.meaning }}</p>
-            <p v-if="current.example" class="ex">{{ current.example }}<template v-if="current.exampleTrans"> —— {{ current.exampleTrans }}</template></p>
-            <button class="flip" @click="revealed = true" v-if="!revealed">{{ t('views.wordReview.flipHint') }}</button>
-          </template>
-          <template v-else-if="modeMeta.type === 'readAloud'">
-            <p class="ptext big">{{ promptText }}</p>
-            <button class="flip" @click="speak(current.word)">🔊 {{ t('views.wordReview.replay') }}</button>
-            <p v-if="revealed" class="answer">{{ current.meaning }}</p>
-          </template>
-          <template v-else>
-            <p class="ptext big">{{ promptText }}</p>
-            <p v-if="current.phonetic && (modeMeta.type === 'choiceMeaning' || modeMeta.type === 'textMeaning' || modeMeta.type === 'quiz')" class="sub2">/{{ current.phonetic }}/</p>
-          </template>
-        </div>
-
-        <!-- 选项（choice 类） -->
-        <div v-if="modeMeta.type.startsWith('choice') || modeMeta.type === 'listenChoiceMeaning' || modeMeta.type === 'choiceSentence' || modeMeta.type === 'quiz'" class="opts">
-          <button v-for="(o, i) in options" :key="i" class="opt" :class="{ sel: selected === o, ok: phase==='result' && norm(o)===norm(answerKey), bad: phase==='result' && selected===o && norm(o)!==norm(answerKey) }" :disabled="phase==='result'" @click="selected = o">
-            <b>{{ t('views.wordReview.option' + ['A','B','C','D'][i]) }}</b> {{ o }}
+      <section class="wr-block">
+        <label class="wr-label">{{ t('views.wordReview.modeLabel') }}</label>
+        <div class="wr-modes">
+          <button v-for="m in MODES" :key="m.id" class="wm" :class="{ on: mode === m.id }" @click="mode = m.id">
+            <b>{{ m.label }}</b><span>{{ m.hint }}</span>
           </button>
         </div>
+      </section>
 
-        <!-- 文本输入（text 类） -->
-        <div v-else-if="modeMeta.type.startsWith('text')" class="textin">
-          <el-input v-model="inputText" :placeholder="t('views.wordReview.' + (modeMeta.type === 'textMeaning' ? 'typeMeaning' : modeMeta.type === 'textWordListen' ? 'listenThenType' : 'fillBlank'))" :disabled="phase==='result'" @keyup.enter="phase==='prompt' && revealOrSubmit()" />
+      <button class="wr-start" @click="start">▶ {{ t('views.wordReview.startBtn') }}</button>
+    </div>
+
+    <!-- 复习中 -->
+    <div v-else-if="phase !== 'done'" class="wr-stage">
+      <div class="wr-progress">
+        <div class="wr-bar"><div class="wr-bar-fill" :style="{ width: progressPct + '%' }"></div></div>
+        <span class="wr-left">{{ t('views.wordReview.remainingLabel') }} {{ remaining }} · {{ t('views.wordReview.countLabel', { total: queue.length }) }}</span>
+      </div>
+
+      <div class="card-flip" :class="{ revealed }">
+        <!-- 题干 -->
+        <div class="q-main">
+          <div v-if="['listenChoice','listenSpell'].includes(mode)" class="q-listen">
+            <button class="q-spk" @click="speak(current.word, { lang: accentLang() })">🔊 {{ t('views.wordReview.replay') }}</button>
+          </div>
+
+          <!-- 不背式 / 闪卡：显示英文词 -->
+          <div v-if="['adaptive','flashcard','choice','spell','cloze','sentenceCloze','readAloud','quiz'].includes(mode)" class="q-word">
+            {{ current.word }}
+            <button class="q-spk2" @click="speak(current.word, { lang: accentLang() })">🔊</button>
+          </div>
+
+          <!-- 反向 / 英英 / 词组：显示释义或提示 -->
+          <div v-if="mode === 'reverseChoice'" class="q-prompt">{{ current.meaning }}</div>
+          <div v-if="mode === 'englishEnglish'" class="q-prompt">{{ current.defs?.[0]?.meaning || current.meaning }}</div>
+          <div v-if="mode === 'collocations'" class="q-prompt">{{ current.meaning }}</div>
+
+          <!-- 挖空拼写 -->
+          <div v-if="mode === 'cloze'" class="q-cloze">{{ clozeWord }}</div>
+          <!-- 例句挖空 -->
+          <div v-if="mode === 'sentenceCloze'" class="q-sent">{{ sentenceClozeText }}</div>
         </div>
 
-        <!-- 结果 / 评分 -->
-        <div class="footer">
-          <template v-if="phase === 'prompt' && !revealed && modeMeta.type !== 'flashcard' && modeMeta.type !== 'readAloud'">
-            <el-button type="primary" @click="revealOrSubmit">{{ t('views.wordReview.reveal') }}</el-button>
-          </template>
-          <template v-else>
-            <div class="answerbox" v-if="modeMeta.type !== 'flashcard' && modeMeta.type !== 'readAloud'">
-              <span class="lab">{{ t('views.wordReview.correctAnswer') }}：</span>
-              <b>{{ answerKey }}</b>
-              <template v-if="phase==='result'">
-                <span class="lab" style="margin-left:12px">{{ t('views.wordReview.yourAnswer') }}：</span>
-                <b :class="result==='correct' ? 'ok' : 'bad'">{{ modeMeta.type.startsWith('choice') || modeMeta.type==='listenChoiceMeaning' || modeMeta.type==='choiceSentence' || modeMeta.type==='quiz' ? selected : inputText }}</b>
-              </template>
-            </div>
-            <div class="rates">
-              <button class="rate again" @click="rate(0)">{{ t('views.wordReview.rateAgain') }}</button>
-              <button class="rate hard" @click="rate(1)">{{ t('views.wordReview.rateHard') }}</button>
-              <button class="rate good" @click="rate(2)">{{ t('views.wordReview.rateGood') }}</button>
-            </div>
-          </template>
+        <!-- 答案区 -->
+        <div class="q-answer">
+          <!-- 选择题 -->
+          <div v-if="['choice','listenChoice','reverseChoice','englishEnglish','collocations','quiz'].includes(mode) && (!revealed || adaptiveStage===2)" class="opts">
+            <button v-for="(o, i) in options" :key="i" class="opt"
+              :class="{ on: chosen===i, correct: result && result.correct && chosen===i, wrong: result && chosen===i && !result.correct }"
+              :disabled="result" @click="chosen = i">{{ o.text }}</button>
+            <button v-if="!result" class="q-submit" @click="submitChoice">{{ t('views.wordReview.submit') }}</button>
+          </div>
+
+          <!-- 填空 / 听写 / 拼写 / 例句挖空 -->
+          <div v-if="['spell','listenSpell','cloze','sentenceCloze'].includes(mode)" class="text-in">
+            <input v-model="input" :placeholder="(settings?.spellHint && mode!=='sentenceCloze') ? current.word[0] + '…(' + current.word.length + ')' : ''" @keyup.enter="submitText" />
+            <button v-if="!result" class="q-submit" @click="submitText">{{ t('views.wordReview.submit') }}</button>
+          </div>
+
+          <!-- 不背式揭释义（段1） -->
+          <div v-if="mode === 'adaptive' && !revealed" class="reveal-area">
+            <button class="q-reveal" @click="reveal">{{ t('views.wordReview.reveal') }}</button>
+            <p class="reveal-hint">{{ t('views.wordReview.adaptiveRevealHint') }}</p>
+          </div>
+
+          <!-- 闪卡翻面 -->
+          <div v-if="(mode === 'flashcard') && !revealed" class="reveal-area">
+            <button class="q-reveal" @click="reveal">{{ t('views.wordReview.reveal') }}</button>
+          </div>
+
+          <!-- 跟读自评 -->
+          <div v-if="mode === 'readAloud' && !result" class="reveal-area">
+            <button class="q-spk" @click="speak(current.word, { lang: accentLang() })">🔊 {{ t('views.wordReview.replay') }}</button>
+          </div>
+
+          <!-- 释义展示（揭开后 / 跟读） -->
+          <div v-if="revealed || (mode==='readAloud' && result)" class="meaning-show">
+            <div class="ms-word">{{ current.word }} <span v-if="current.phonetic" class="ms-phon">/{{ current.phonetic }}/</span></div>
+            <div class="ms-mean">{{ current.meaning }}</div>
+            <div v-if="current.example" class="ms-ex">{{ current.example }} <span class="ms-ext">· {{ current.exampleTrans }}</span></div>
+          </div>
+
+          <!-- 判分后：不背式/闪卡 自评 -->
+          <div v-if="(mode==='adaptive' || mode==='flashcard' || mode==='readAloud') && !result" class="rate-row">
+            <button class="rate rate-good" @click="selfRate(2)">{{ t('views.wordReview.rateGood') }}</button>
+            <button class="rate rate-hard" @click="selfRate(1)">{{ t('views.wordReview.rateHard') }}</button>
+            <button class="rate rate-again" @click="selfRate(0)">{{ t('views.wordReview.rateAgain') }}</button>
+          </div>
+
+          <!-- 结果反馈 -->
+          <div v-if="result" class="grade-fb" :class="result.correct ? 'ok' : 'no'">
+            {{ result.correct ? '✓ ' + t('views.wordReview.correctToast') : '✗ ' + t('views.wordReview.wrongToast') }}
+            <span v-if="!result.correct" class="gf-ans">{{ t('views.wordReview.correctAnswer') }}：{{ current.meaning }}</span>
+          </div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- 加入词组 -->
-    <el-dialog v-model="groupOpen" :title="t('views.wordReview.addGroup')" width="520px">
-      <div v-if="groupList.length" class="glist">
-        <label v-for="g in groupList" :key="g.id" class="grow"><input type="checkbox" v-model="groupChecks[g.id]" /><span class="dot" :style="{ background: g.color }"></span>{{ g.name }}</label>
+    <!-- 完成 -->
+    <div v-else class="wr-done">
+      <div class="done-emoji">🎉</div>
+      <h2>{{ t('views.wordReview.sessionDone') }}</h2>
+      <p>{{ t('views.wordReview.sessionDoneHint', { n: sessionCount }) }}</p>
+      <div class="done-actions">
+        <button class="btn-ghost" @click="restart">{{ t('views.wordReview.againReview') }}</button>
+        <button class="btn-primary" @click="goBook">{{ t('views.wordReview.nextCard') }}</button>
       </div>
-      <p v-else class="hint">{{ t('views.wordBook.empty') }}</p>
-      <label class="newg">{{ t('views.wordBook.createBtn') }}<el-input v-model="newGroupName" :placeholder="t('views.wordBook.namePlaceholder')" /></label>
-      <template #footer>
-        <el-button @click="groupOpen = false">{{ t('views.wordBook.cancel') }}</el-button>
-        <el-button type="primary" @click="saveGroup">{{ t('views.wordBook.save') }}</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 批注 -->
-    <el-dialog v-model="noteOpen" :title="t('views.wordReview.note')" width="520px">
-      <el-input v-model="noteText" type="textarea" :rows="4" :placeholder="t('views.wordBook.formNotePlaceholder')" />
-      <template #footer>
-        <el-button @click="noteOpen = false">{{ t('views.wordBook.cancel') }}</el-button>
-        <el-button type="primary" @click="saveNote">{{ t('views.wordBook.save') }}</el-button>
-      </template>
-    </el-dialog>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.rv { max-width: 760px; margin: 0 auto; padding: 18px 16px 60px; color: var(--el-text-color-primary); }
-.rv-head h1 { font-size: 22px; margin: 0 0 4px; }
-.sub { color: var(--el-text-color-secondary); font-size: 13px; margin: 0 0 16px; }
-.cfg { background: var(--el-bg-color); border: 1px solid var(--el-border-color-lighter); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 14px; }
-.cfg-row { display: flex; gap: 12px; }
-.cfg-row label { flex: 1; display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
-.cfg > label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
-.hint { font-size: 12px; color: var(--el-text-color-secondary); margin: 0; }
+.wrev { padding: 16px 16px 30px; max-width: 640px; margin: 0 auto; }
+.wr-head .back { border: none; background: transparent; color: var(--ink-2); cursor: pointer; font-size: 13px; }
+.wr-head h1 { margin: 6px 0 0; font-size: 20px; color: var(--ink); }
+.wr-sub { font-size: 12px; color: var(--ink-2); margin: 4px 0 14px; }
 
-.session { display: flex; flex-direction: column; gap: 12px; }
-.prog { display: flex; justify-content: space-between; font-size: 13px; color: var(--el-text-color-secondary); }
-.qcard { background: var(--el-bg-color); border: 1px solid var(--el-border-color-lighter); border-radius: var(--radius); padding: 20px; }
-.qtop { display: flex; justify-content: space-between; align-items: center; }
-.tag { font-size: 11px; padding: 1px 8px; border-radius: 10px; background: var(--el-color-primary-light-9); color: var(--el-color-primary); }
-.qacts { display: flex; gap: 6px; }
-.ico { border: 1px solid var(--el-border-color-lighter); background: var(--el-bg-color-page); border-radius: 8px; width: 32px; height: 32px; cursor: pointer; }
-.prompt { margin: 18px 0; text-align: center; }
-.ptext { font-size: 26px; font-weight: 700; margin: 6px 0; }
-.ptext.big { font-size: 30px; }
-.ptext.cloze { letter-spacing: 2px; }
-.ptext.ex { font-size: 18px; font-style: italic; font-weight: 400; }
-.sub2 { color: var(--el-text-color-secondary); font-size: 14px; }
-.answer { font-size: 20px; color: var(--accent); margin-top: 8px; }
-.ex { color: var(--el-text-color-secondary); }
-.flip { margin-top: 12px; border: 1px dashed var(--accent); background: transparent; color: var(--accent); border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+.wr-block { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-bottom: 12px; }
+.wr-label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+.wr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.wc { border: 1px solid var(--line); background: transparent; border-radius: 10px; padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--ink); }
+.wc.on { border-color: var(--accent); background: var(--code-inline); color: var(--accent); }
+.wr-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wm { display: flex; flex-direction: column; gap: 2px; text-align: left; border: 1px solid var(--line); background: transparent; border-radius: 12px; padding: 10px; cursor: pointer; color: var(--ink); }
+.wm.on { border-color: var(--accent); background: var(--code-inline); }
+.wm b { font-size: 13px; }
+.wm span { font-size: 11px; color: var(--ink-2); }
+.wr-start { width: 100%; border: none; background: var(--accent); color: #fff; border-radius: 12px; padding: 13px; font-size: 15px; cursor: pointer; }
 
-.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.opt { text-align: left; border: 1px solid var(--el-border-color-light); background: var(--el-bg-color-page); border-radius: 10px; padding: 12px 14px; cursor: pointer; font-size: 15px; color: var(--el-text-color-primary); }
-.opt.sel { border-color: var(--accent); background: var(--el-color-primary-light-9); }
-.opt.ok { border-color: var(--el-color-success); background: var(--el-color-success-light-9); }
-.opt.bad { border-color: var(--el-color-danger); background: var(--el-color-danger-light-9); }
+.wr-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.wr-bar { flex: 1; height: 6px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.wr-bar-fill { height: 100%; background: var(--accent); transition: width .3s; }
+.wr-left { font-size: 11px; color: var(--ink-2); white-space: nowrap; }
 
-.textin { margin: 6px 0; }
-.textin :deep(.el-input__inner) { font-size: 16px; }
+.card-flip { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 22px 18px; min-height: 320px; display: flex; flex-direction: column; }
+.q-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+.q-word { font-size: 34px; font-weight: 700; color: var(--ink); }
+.q-spk2 { border: none; background: transparent; cursor: pointer; font-size: 22px; margin-left: 8px; vertical-align: middle; }
+.q-prompt { font-size: 22px; color: var(--ink); }
+.q-listen .q-spk { border: 1px solid var(--line); background: transparent; border-radius: 12px; padding: 12px 18px; font-size: 15px; cursor: pointer; color: var(--ink); }
+.q-cloze { font-size: 30px; letter-spacing: 4px; color: var(--accent); font-family: monospace; }
+.q-sent { font-size: 16px; color: var(--ink); line-height: 1.8; }
+.q-sent :deep(__), .q-sent { }
 
-.footer { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
-.answerbox { font-size: 14px; }
-.answerbox .lab { color: var(--el-text-color-secondary); }
-.answerbox .ok { color: var(--el-color-success); }
-.answerbox .bad { color: var(--el-color-danger); }
-.rates { display: flex; gap: 10px; }
-.rate { border: 0; border-radius: 10px; padding: 10px 18px; cursor: pointer; font-size: 15px; color: #fff; }
-.rate.again { background: var(--el-color-danger); }
-.rate.hard { background: var(--el-color-warning); }
-.rate.good { background: var(--el-color-success); }
+.q-answer { margin-top: 16px; }
+.opts { display: flex; flex-direction: column; gap: 8px; }
+.opt { border: 1px solid var(--line); background: transparent; border-radius: 12px; padding: 12px; font-size: 14px; cursor: pointer; color: var(--ink); text-align: left; }
+.opt.on { border-color: var(--accent); }
+.opt.correct { border-color: #34c759; background: #e9f9ee; color: #1f9255; }
+.opt.wrong { border-color: #f0506e; background: #fdeef1; color: #d9534f; }
+.text-in { display: flex; gap: 8px; }
+.text-in input { flex: 1; border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 15px; background: var(--bg, #fff); color: var(--ink); }
+.q-submit { border: none; background: var(--accent); color: #fff; border-radius: 12px; padding: 0 18px; font-size: 14px; cursor: pointer; }
+.reveal-area { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.q-reveal { border: none; background: var(--accent); color: #fff; border-radius: 12px; padding: 12px 28px; font-size: 15px; cursor: pointer; }
+.reveal-hint { font-size: 12px; color: var(--ink-2); margin: 0; }
+.meaning-show { text-align: center; padding: 10px 0; }
+.ms-word { font-size: 24px; font-weight: 700; color: var(--ink); }
+.ms-phon { font-size: 13px; color: var(--ink-2); font-weight: 400; }
+.ms-mean { font-size: 16px; color: var(--ink-2); margin-top: 4px; }
+.ms-ex { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+.ms-ext { color: var(--ink-2); opacity: .8; }
+.rate-row { display: flex; gap: 8px; margin-top: 14px; }
+.rate { flex: 1; border: none; border-radius: 12px; padding: 12px; font-size: 14px; cursor: pointer; color: #fff; }
+.rate-good { background: #34c759; }
+.rate-hard { background: #f0a020; }
+.rate-again { background: #f0506e; }
+.grade-fb { margin-top: 14px; text-align: center; font-size: 15px; font-weight: 600; padding: 10px; border-radius: 12px; }
+.grade-fb.ok { color: #1f9255; background: #e9f9ee; }
+.grade-fb.no { color: #d9534f; background: #fdeef1; }
+.gf-ans { display: block; font-size: 12px; font-weight: 400; margin-top: 4px; }
 
-.empty { text-align: center; color: var(--el-text-color-secondary); padding: 50px 0; }
-.empty.done h2 { color: var(--accent); }
-.empty .acts { display: flex; gap: 10px; justify-content: center; margin-top: 14px; }
-
-.glist { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow: auto; margin-bottom: 10px; }
-.grow { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
-.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.newg { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--el-text-color-regular); }
+.wr-done { text-align: center; padding: 40px 16px; }
+.done-emoji { font-size: 48px; }
+.wr-done h2 { color: var(--ink); margin: 10px 0 4px; }
+.wr-done p { color: var(--ink-2); font-size: 13px; }
+.done-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; }
+.btn-ghost { border: 1px solid var(--line); background: transparent; border-radius: 10px; padding: 10px 16px; cursor: pointer; color: var(--ink); font-size: 14px; }
+.btn-primary { border: none; background: var(--accent); color: #fff; border-radius: 10px; padding: 10px 18px; cursor: pointer; font-size: 14px; }
+@media (max-width: 520px) { .wr-modes { grid-template-columns: 1fr; } }
 </style>

@@ -11,21 +11,41 @@ import {
   mergeCardPair, mergeRows, mergeTombstones, applyTombstones, kindOf,
 } from '../src/sync-manifest.js';
 
-test('清单：28 张表全部登记且策略合法', () => {
+test('清单：31 张表全部登记且策略合法', () => {
   // v19 → 20；v22（M1）cardGroups + cardGroupLinks → 22；v23（M2）analysisSessions + analysisMessages → 24；
-  // v25（英语单词模块）wordCards + wordReviews + wordGroups + wordGroupLinks → 28
-  assert.equal(SYNC_TABLES.length, 28);
+  // v25（英语单词模块）wordCards + wordReviews + wordGroups + wordGroupLinks → 28；
+  // v26（英语模块升级）wordSettings + wordCheckins + wordSyllabusMeta → 31（wordExportHistory 入 EXCLUDED_FROM_SYNC）
+  assert.equal(SYNC_TABLES.length, 31);
   assert.equal(BACKUP_VERSION, 7);
   const names = SYNC_TABLES.map(t => t.table);
   // privacyRecords 不在默认同步清单
   assert.ok(!names.includes('privacyRecords'), 'privacyRecords 不应默认入同步');
-  for (const need of ['cards', 'reviews', 'images', 'aiChats', 'aiMemories', 'memos', 'plans', 'graphEdges', 'docs', 'docFiles', 'pomoSessions', 'mindmaps', 'weeklyReports', 'achievements', 'exams', 'embeddings', 'userOps', 'notes', 'dailyPlans', 'dailyTasks', 'cardGroups', 'cardGroupLinks', 'analysisSessions', 'analysisMessages', 'wordCards', 'wordReviews', 'wordGroups', 'wordGroupLinks']) {
+  // wordExportHistory 是仅本机记录，不入同步
+  assert.ok(!names.includes('wordExportHistory'), 'wordExportHistory 不应入同步');
+  for (const need of ['cards', 'reviews', 'images', 'aiChats', 'aiMemories', 'memos', 'plans', 'graphEdges', 'docs', 'docFiles', 'pomoSessions', 'mindmaps', 'weeklyReports', 'achievements', 'exams', 'embeddings', 'userOps', 'notes', 'dailyPlans', 'dailyTasks', 'cardGroups', 'cardGroupLinks', 'analysisSessions', 'analysisMessages', 'wordCards', 'wordReviews', 'wordGroups', 'wordGroupLinks', 'wordSettings', 'wordCheckins', 'wordSyllabusMeta']) {
     assert.ok(names.includes(need), `缺少表 ${need}`);
   }
   for (const t of SYNC_TABLES) {
     assert.ok(['card', 'updatedAt', 'idOnly', 'review'].includes(t.merge), `${t.table} 策略非法`);
     assert.ok(t.kind, `${t.table} 缺 kind`);
   }
+});
+
+test('v26 钩子：wordSettings 跨设备 strip 敏感字段（llmApiKey/llmBase）', () => {
+  // 导出侧 strip 钩子：同步/全量导出时剔除 LLM Key，对端保留自己的本地 Key，互不泄露
+  const entry = SYNC_TABLES.find(t => t.table === 'wordSettings');
+  assert.ok(entry, 'wordSettings 应登记');
+  assert.deepEqual(entry.strip, ['llmApiKey', 'llmBase'], 'strip 必须精确剔除这两个敏感字段');
+  // 合并策略：按 updatedAt 谁新听谁（设置单行 id='me'）
+  assert.equal(entry.merge, 'updatedAt');
+  // 模拟导出侧剔除：strip 命中字段被删除，其余字段保留
+  const row = { id: 'me', tts: 'edge', dailyGoal: 20, llmApiKey: 'sk-xxxx', llmBase: 'https://api.x', updatedAt: 123 };
+  const exported = { ...row };
+  for (const k of entry.strip || []) delete exported[k];
+  assert.equal(exported.llmApiKey, undefined, 'llmApiKey 必须被剔除');
+  assert.equal(exported.llmBase, undefined, 'llmBase 必须被剔除');
+  assert.equal(exported.tts, 'edge', '非敏感字段保留');
+  assert.equal(exported.dailyGoal, 20, '非敏感字段保留');
 });
 
 test('排除表：notifications/errors 故意不同步', () => {

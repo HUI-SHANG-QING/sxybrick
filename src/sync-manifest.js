@@ -14,7 +14,8 @@ export const BACKUP_VERSION = 7;
 // snapshots：同步快照仅本机回滚用，跨设备无意义且增大包体积
 // plugins：插件为本机扩展，跨设备无意义且可能含敏感配置（API Key 等）
 // aiUsage：AI 用量账本（P2-27），本设备计费上下文，不同步
-export const EXCLUDED_FROM_SYNC = ['notifications', 'errors', 'snapshots', 'plugins', 'aiUsage'];
+// wordExportHistory：英语模块导出历史（仅本机记录，跨设备无意义且增大包体积）
+export const EXCLUDED_FROM_SYNC = ['notifications', 'errors', 'snapshots', 'plugins', 'aiUsage', 'wordExportHistory'];
 
 // 隐私敏感表——默认不入同步/全量导出，需用户显式 opt-in（PIPL 合规）
 export const PRIVACY_SYNC_TABLES = [
@@ -77,6 +78,16 @@ export const SYNC_TABLES = [
   { table: 'wordReviews', kind: 'wordReview', merge: 'review' },
   { table: 'wordGroups', kind: 'wordGroup', merge: 'updatedAt' },
   { table: 'wordGroupLinks', kind: 'wordGroupLink', merge: 'idOnly' },
+  // v26（英语模块升级）新增：设置 / 签到 / 大纲元 / 导出历史
+  //   wordSettings：用户偏好单行（id='me'）。按 updatedAt 合并，谁新听谁；
+  //     但 LLM Key 是敏感本地凭证，跨设备同步/导出时 strip 剔除（见 sync.js exportRows 的 strip 钩子），
+  //     对端导入后保留自己的本地 Key，不会互相泄露。
+  { table: 'wordSettings', kind: 'wordSetting', merge: 'updatedAt', strip: ['llmApiKey', 'llmBase'] },
+  //   wordCheckins：每日签到（id 含 date，不可变追加）→ idOnly 幂等（同日记多次只留一条）
+  { table: 'wordCheckins', kind: 'wordCheckin', merge: 'idOnly' },
+  //   wordSyllabusMeta：大纲词表元信息（id='kaoyan2027'，本机展示用）→ idOnly 幂等
+  { table: 'wordSyllabusMeta', kind: 'wordSyllabusMeta', merge: 'idOnly' },
+  //   wordExportHistory：导出历史，见上方 EXCLUDED_FROM_SYNC（仅本机，不进同步/备份）
 ];
 
 /**

@@ -224,6 +224,31 @@ d.version(25).stores({
   wordGroupLinks: 'id, cardId, groupId, addedAt',
 });
 
+// v26：英语模块升级（不背风 UI + AI 生成 + 自适应复习 + 设置面板 + 学习统计）
+//   wordCards 扩展字段（非索引，按对象属性存）：pos(词性), defs(多义项[{pos,meaning}]),
+//     synonyms(同义词数组), collocations(词组搭配数组), phrases(相关短语数组),
+//     examples(例句数组[{level:'simple'|'long'|'en1'|'en2', sentence, translation}]),
+//     mnemonics(助记数组), rootAffix(词根词缀), confusions(混淆项数组[{word, meaning}]),
+//     syllable(音节拆分), audio(自定义音频 base64/URL,可空)
+//   wordSettings：用户偏好（单行 id='me'）——发音口音/学习节奏/复习节奏/默认例句难度/
+//     自动生成开关/LLM provider & key(本地加密)/拼写提示/助记顺序/拆分助记/混淆项辨析/
+//     AI 失败时回退策略等。跨设备同步（key 不进同步：在 sync-manifest 里走 exportFilter 剔除）
+//   wordCheckins：每日签到（id, date(YYYY-MM-DD 主索引), count(连续天数), createdAt）
+//   wordExportHistory：导出历史（id, kind('a4write'|'zhList'|'enList'|'md'|'anki'|'csv'),
+//     total, scope, lang, ordered, createdAt, fileName, sizeBytes, pageCount）。仅本地。
+//   wordSyllabusMeta：考研大纲词表元信息（id='kaoyan2027', wordCount, loadedAt, source）
+//     ——真实词表走 src/data/kaoyan-vocab-2027.json 动态 import，本表只存元信息以便统计页展示
+d.version(26).stores({
+  wordCards: 'id, kind, subject, dueAt, updatedAt, createdAt, familiar',
+  wordReviews: 'id, cardId, reviewedAt',
+  wordGroups: 'id, name, status, sortOrder, createdAt, updatedAt',
+  wordGroupLinks: 'id, cardId, groupId, addedAt',
+  wordSettings: 'id',
+  wordCheckins: 'id, date',
+  wordExportHistory: 'id, createdAt',
+  wordSyllabusMeta: 'id',
+});
+
 // v23：卡片智能联动分析（M2）——工作台对话历史与分析结果，参与同步（跨设备可回看）
 //   analysisSessions：一次分析会话（选定卡片集合 + 多轮对话）。
 //     id, title(自动摘要或用户命名), cardIds(JSON 数组，会话创建时的卡片快照),
