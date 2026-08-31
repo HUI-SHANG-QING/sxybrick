@@ -11,6 +11,7 @@
 //       受限内容应自行跳过，由调用方 fallback 到本地预设模板。
 
 import { isInSyllabus, getSyllabusMeta } from './word-syllabus.js';
+import { recordUsage, estimateTokens } from '../utils/ai-usage.js';
 
 // ---------- Provider 配置 ----------
 export const LLM_PROVIDERS = [
@@ -121,30 +122,53 @@ export async function generateWordMaterials(req) {
 }
 
 // ---------- HTTP 调用（用户 Key 路径） ----------
+// P2-27：每次真实 AI 生成都记录用量到 db.aiUsage（与 AgentWorkbench 用量面板打通）。
+//   仅在此直接 fetch 路径记账——agent 通道若经 agent/llm.js 的 chat 入口会自行记录，
+//   这里再记会重复；连通性探针 testLlmConnection 不计（非内容生成，仅 4 token 探测）。
 async function callChatCompletion({ base, apiKey, model, prompt }) {
+  const t0 = Date.now();
   const url = `${base}/chat/completions`;
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: '你是原创教学素材生成器。严格输出 JSON，不要任何额外文字。' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.6,
-      max_tokens: 1200,
-    }),
-  });
-  if (!resp.ok) {
-    const txt = await resp.text().catch(() => '');
-    throw new Error(`HTTP ${resp.status} ${txt.slice(0, 200)}`);
+  let ok = false, content = '', usage = null;
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: '你是原创教学素材生成器。严格输出 JSON，不要任何额外文字。' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.6,
+        max_tokens: 1200,
+      }),
+    });
+    if (!resp.ok) {
+      const txt = await resp.text().catch(() => '');
+      throw new Error(`HTTP ${resp.status} ${txt.slice(0, 200)}`);
+    }
+    const json = await resp.json();
+    content = json?.choices?.[0]?.message?.content || '';
+    usage = json?.usage; // OpenAI 兼容：{ prompt_tokens, completion_tokens, total_tokens }
+    ok = true;
+  } catch (e) {
+    void recordUsage({
+      source: 'english-word', model,
+      promptTokens: estimateTokens(prompt), completionTokens: estimateTokens(content),
+      durationMs: Date.now() - t0, ok: false, est: 1,
+    });
+    throw e;
   }
-  const json = await resp.json();
-  const content = json?.choices?.[0]?.message?.content || '';
+  void recordUsage({
+    source: 'english-word', model,
+    promptTokens: usage?.prompt_tokens ?? estimateTokens(prompt),
+    completionTokens: usage?.completion_tokens ?? estimateTokens(content),
+    durationMs: Date.now() - t0, ok: true,
+    est: usage?.prompt_tokens == null ? 1 : 0,
+  });
   return content;
 }
 
