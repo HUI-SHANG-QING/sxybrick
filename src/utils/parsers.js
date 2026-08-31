@@ -1,7 +1,7 @@
 // 解析器纯函数层 + 动态加载器（Phase 6 资料中心）
 // 原则：解析「全量」——逐页/逐行流式拼接，字符一毫不丢；
 //       分块（500 字）只是问答时的检索标签（retrieval.js 的事），与解析完整性无关。
-// 动态 import：pdfjs-dist / xlsx / mammoth 均为懒加载分包，不进首屏 bundle。
+// 动态 import：pdfjs-dist / exceljs / mammoth 均为懒加载分包，不进首屏 bundle。
 
 import { routeParser } from './opfs.js';
 

@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { db } from '../src/db.js';
 import JSZip from 'jszip';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 // ---------- 纯函数 ----------
 import {
@@ -201,12 +201,12 @@ test('formatCitations：引用展示格式', () => {
 
 // ---------- 真实解析器（Node 可执行） ----------
 
-test('extractSheetText：SheetJS 自产 xlsx → 表格文本', async () => {
+test('extractSheetText：exceljs 自产 xlsx → 表格文本', async () => {
   const { extractSheetText } = await import('../src/utils/parsers-sheet.js');
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([['科目', '得分'], ['线代', 95], ['计组', 88]]);
-  XLSX.utils.book_append_sheet(wb, ws, '成绩单');
-  const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('成绩单');
+  ws.addRows([['科目', '得分'], ['线代', 95], ['计组', 88]]);
+  const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const r = await extractSheetText(blob);
   assert.ok(r.text.includes('成绩单'));

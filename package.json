@@ -23,6 +23,7 @@
     "echarts": "^5.5.1",
     "echarts-wordcloud": "^2.1.0",
     "element-plus": "^2.14.5",
+    "exceljs": "^4.4.0",
     "highlight.js": "^11.10.0",
     "jszip": "^3.10.1",
     "katex": "^0.16.11",
@@ -34,8 +35,7 @@
     "tesseract.js": "^7.0.0",
     "three": "^0.180.0",
     "vue": "^3.5.13",
-    "vue-router": "^4.4.5",
-    "xlsx": "^0.18.5"
+    "vue-router": "^4.4.5"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
@@ -48,5 +48,8 @@
     "sharp": "^0.35.3",
     "vite": "^6.0.3",
     "vite-plugin-pwa": "^0.21.1"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

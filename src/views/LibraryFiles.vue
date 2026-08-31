@@ -217,14 +217,13 @@ async function openPreview(f) {
       pdfPage.value = 1;
       pdfPages.value = await renderPdfPage(blob, 1);
     } else if (['xlsx', 'xls', 'csv'].includes(f.ext)) {
-      const XLSX = await import('xlsx');
-      const wb = XLSX.read(await blob.arrayBuffer(), { type: 'array' });
-      const parts = [];
-      for (const name of wb.SheetNames) {
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: false, defval: '' });
+      // 统一走 parsers-sheet（exceljs + 内置 CSV 解析器）；.xls 会被明确拒绝并提示另存为 .xlsx
+      const { extractSheetRows } = await import('../utils/parsers-sheet.js');
+      const { sheets } = await extractSheetRows(blob, { ext: f.ext });
+      const parts = sheets.map((s) => {
         // 工作表名来自外部文件，必须转义后再拼进标签（否则可闭合 <h4> 注入）
-        parts.push(`<h4>${escHtml(name)}</h4><table><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${escHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
-      }
+        return `<h4>${escHtml(s.name)}</h4><table><tbody>${s.rows.map((r) => `<tr>${r.map((c) => `<td>${escHtml(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      });
       // P0 安全：表格内容出自外部文件，净化后再交给 v-html
       sheetHtml.value = sanitizeHtml(parts.join(''));
     } else if (f.ext === 'docx' || f.ext === 'doc') {
