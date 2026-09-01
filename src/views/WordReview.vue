@@ -6,6 +6,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
+import { escapeRegExp } from '../utils/regexp.js';
 import { toast } from '../utils/toast.js';
 import { speak, speechSupported } from '../utils/speak.js';
 import {
@@ -126,10 +127,16 @@ function prepareCloze(c) {
 }
 
 const sentenceClozeText = ref('');
+// P2-D（round14）：c.word 是用户输入（手动/AI 生成，phrase/sentence 可能含 ()、[]、*、+ 等元字符），
+// 直传 new RegExp 会抛 SyntaxError 且调用链无 try/catch → 整个会话启动崩溃。先转义再构造，兜底保留原句。
 function prepareSentenceCloze(c) {
   const ex = (c.examples && c.examples[0]) || (c.example ? { sentence: c.example } : null);
   if (!ex) { sentenceClozeText.value = t('views.wordReview.noExample'); input.value = c.word; return; }
-  sentenceClozeText.value = ex.sentence.replace(new RegExp(c.word, 'gi'), '____');
+  try {
+    sentenceClozeText.value = ex.sentence.replace(new RegExp(escapeRegExp(c.word), 'gi'), '____');
+  } catch {
+    sentenceClozeText.value = ex.sentence; // 挖空失败：保留原句，不阻塞会话
+  }
 }
 
 function reveal() {
