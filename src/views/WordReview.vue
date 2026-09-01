@@ -177,7 +177,15 @@ async function submitText() {
 async function commit(rating) {
   const c = current.value;
   if (c && c.kind !== 'template') {
-    try { await reviewWord(c.id, rating); sessionCount.value++; } catch { /* ignore */ }
+    try {
+      await reviewWord(c.id, rating);
+      sessionCount.value++;
+    } catch (e) {
+      // round17 R17-35：写库失败不再静默吞——否则用户已评级但 dueAt 未推进，
+      // 词下次重复出现、调度状态与 UI 不一致
+      toast(t('views.wordReview.commitFailed', '复习结果保存失败，请重试') + '：' + (e?.message || e), 'error');
+      return; // 留在当前词不推进，等待用户重试
+    }
   }
   phase.value = 'grade';
   setTimeout(next, 900);

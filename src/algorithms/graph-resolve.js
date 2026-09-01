@@ -239,14 +239,18 @@ export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualK
   const visited = new Set();  // 已展开（防环）
   const placed = new Set();   // 已挂进森林（保证一个节点只出现一次）
 
-  const build = (label) => {
-    if (visited.has(label)) return null;
+  // round17 R17-22：递归深度护栏——线性前置链（graphAuto 可生成 A→B→C→… 串联）若链长
+  // 数千，无护栏时递归深度 = 链长 → RangeError 栈溢出，导图/树视图崩溃。
+  // 超深部分降级为叶子（不继续展开），节点不丢、只是不再显示更深的子孙。
+  const MAX_DEPTH = 512;
+  const build = (label, depth = 0) => {
+    if (visited.has(label) || depth > MAX_DEPTH) return null;
     visited.add(label);
     placed.add(label);
     const kids = [];
     for (const k of childrenOf.get(label) || []) {
       if (visited.has(k) || placed.has(k)) continue; // 已在别处出现 → 不重复挂
-      const built = build(k);
+      const built = build(k, depth + 1);
       if (built) kids.push(built);
     }
     // R16-2：节点名走 labelMap 回查显示名（键可能是 cardId），查不到才退回字面量

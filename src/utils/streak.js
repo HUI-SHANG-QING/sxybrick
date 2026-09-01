@@ -3,17 +3,26 @@
 //   - 今日去重卡片数、连续打卡天数：从 db.reviews 推导（reviews 已同步）
 //   - 每日目标 goal：存 db.meta(key='goal')，纳入同步
 import { db } from '../db.js';
+// round17 R17-11：日期 key 统一走 time.dateKey（补零）——本地自实现的无补零格式
+// （2026-9-1）与 word-repo.todayStr（2026-09-01）漂移，任何跨模块合并统计都会错位
+import { dateKey } from './time.js';
 
 const GOAL_KEY = 'goal';
-
-function dayKey(ts) {
-  const d = new Date(ts);
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
 
 export async function getGoal() {
   const row = await db.meta.get(GOAL_KEY);
   return Number(row?.value) || 20;
+}
+
+// 连续打卡天数：从今天（或昨天）往前数连续有复习记录的天数
+export async function getStreak() {
+  const reviews = await db.reviews.toArray();
+  const days = new Set(reviews.map(r => dateKey(r.reviewedAt)));
+  const d = new Date();
+  if (!days.has(dateKey(d.getTime()))) d.setDate(d.getDate() - 1);
+  let streak = 0;
+  while (days.has(dateKey(d.getTime()))) { streak++; d.setDate(d.getDate() - 1); }
+  return streak;
 }
 export async function setGoal(n) {
   await db.meta.put({ key: GOAL_KEY, value: Math.max(1, Math.round(n || 20)), updatedAt: Date.now() });
@@ -31,17 +40,6 @@ export async function getTodayIds() {
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
   const reviews = await db.reviews.where('reviewedAt').aboveOrEqual(dayStart.getTime()).toArray();
   return new Set(reviews.map(r => r.cardId));
-}
-
-// 连续打卡天数：从今天（或昨天）往前数连续有复习记录的天数
-export async function getStreak() {
-  const reviews = await db.reviews.toArray();
-  const days = new Set(reviews.map(r => dayKey(r.reviewedAt)));
-  const d = new Date();
-  if (!days.has(dayKey(d.getTime()))) d.setDate(d.getDate() - 1);
-  let streak = 0;
-  while (days.has(dayKey(d.getTime()))) { streak++; d.setDate(d.getDate() - 1); }
-  return streak;
 }
 
 // —— 2026-08-26 速赢区：智能复习提醒增强所需辅助查询 ——

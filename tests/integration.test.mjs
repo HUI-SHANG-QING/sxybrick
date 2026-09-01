@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { db } from '../src/db.js';
 import { createCard, review, reviewQueue, deleteCard, getStats, attachSelfExplanation, restoreFromTrash } from '../src/repo.js';
 import { getCalibration } from '../src/agent/analytics.js';
-import { buildBackup, importBackup, previewImport, backupScope } from '../src/sync.js';
+import { buildBackup, importBackup, previewImport, backupScope, buildIncrementalBackup } from '../src/sync.js';
 
 const DAY = 86400000;
 
@@ -163,6 +163,23 @@ test('R17-2 导入合并：他机补充的 selfExplanation 必须真正写库（
 
   await db.reviews.delete(r.reviewId);
   await db.cards.delete(c.id);
+});
+
+// ---------- round17 R17-14：增量首包放行全 0 时间戳遗留行 ----------
+
+test('R17-14 增量首包（since=0）含全 0 时间戳卡；水位推进后不再重复导出', async () => {
+  const c = await createCard({ front: 'Q-R17-14', back: 'A', subject: '计组' });
+  // 模拟早期备份/Anki 批导入的遗留行：全部时间戳为 0
+  await db.cards.put({ ...c, updatedAt: 0, reviewedAt: 0, createdAt: 0, wrongReasonAt: 0, dueAt: 0 });
+  try {
+    const b0 = await buildIncrementalBackup(0);
+    assert.ok(b0.cards.some(x => x.id === c.id),
+      '首包应包含全 0 时间戳卡（此前 `0 > 0` 恒假 → 永久漏传）');
+    const b1 = await buildIncrementalBackup(Date.now() + 1000);
+    assert.ok(!b1.cards.some(x => x.id === c.id), '水位推进后 ts=0 行不再重复导出');
+  } finally {
+    await db.cards.delete(c.id);
+  }
 });
 test('黄金路径4：自我解释钩子落盘 + 跨设备同步合并', async () => {
   const c = await createCard({ front: '什么是死锁？', back: '互相等待资源', subject: '操作系统' });

@@ -696,10 +696,16 @@ export async function listDailyPlanSummary(days = 30) {
 
 /** 更新任务（中途调整：加/删/改象限/打卡） */
 export async function updateDailyTask(id, patch) {
-  const old = await db.dailyTasks.get(id);
-  if (!old) throw new Error('任务不存在');
-  const task = { ...old, ...(patch || {}), updatedAt: now() };
-  await db.dailyTasks.put(task);
+  // round17 R17-29：读-改-写包进事务（防并发打卡/编辑互相覆盖 = lost update，
+  // 兄弟函数 checkinDailyTask 已事务化，此路径是漏网）+ patch 脱壳（调用方可能传
+  // Vue reactive 对象，直接展开落库会触发 Dexie structuredClone 的 DataCloneError）
+  let task;
+  await db.transaction('rw', db.dailyTasks, async () => {
+    const old = await db.dailyTasks.get(id);
+    if (!old) throw new Error('任务不存在');
+    task = { ...old, ...(patch ? plain(patch) : {}), updatedAt: now() };
+    await db.dailyTasks.put(task);
+  });
   return task;
 }
 
@@ -774,9 +780,14 @@ async function cascadeDeletePlanTasks(planId, ts = now()) {
 /** 删除整日计划 + 其任务（联级） */
 export async function deleteDailyPlan(planId) {
   const t = now();
-  await db.dailyPlans.delete(planId);
-  await cascadeDeletePlanTasks(planId, t);
-  await db.tombstones.put({ id: planId, kind: 'dailyPlan', deletedAt: t });
+  // round17 R17-10：删计划 + 级联删任务 + 双墓碑包进同一事务（createDailyPlan:606 已事务化，
+  // 删除路径此前漏了同款）——中途任一步异常会留下「计划没了但任务/墓碑残留」的孤儿数据，
+  // 且墓碑缺失会让对端同步把已删任务推回
+  await db.transaction('rw', db.dailyPlans, db.dailyTasks, db.tombstones, async () => {
+    await cascadeDeletePlanTasks(planId, t);
+    await db.dailyPlans.delete(planId);
+    await db.tombstones.put({ id: planId, kind: 'dailyPlan', deletedAt: t });
+  });
 }
 
 /**

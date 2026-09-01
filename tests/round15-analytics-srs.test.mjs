@@ -85,3 +85,28 @@ test('F8 livenessTs：wordSyllabusMeta 的 loadedAt 计入增量判定', () => {
   assert.equal(livenessTs({ loadedAt: ts }), ts, 'loadedAt 应被识别为活跃时间戳');
   assert.ok(livenessTs({ loadedAt: ts }) > livenessTs({}), '有 loadedAt 的行应判定为活跃');
 });
+
+// ---------- round17 R17-6 / R17-7：调度器缺陷回归 ----------
+
+test('R17-6 SM-2 复习也推进 fsrs.last（切回 FSRS 间隔不再异常放大）', async () => {
+  const d = getDb();
+  const { createCard, review } = await import('../src/repo.js');
+  const c = await createCard({ front: 'Q-R17-6', back: 'A', subject: '计组' });
+  const oldLast = T - 40 * DAY;
+  await d.cards.put({ ...c, fsrs: { s: 30, d: 2.5, reps: 3, last: oldLast }, updatedAt: T });
+  await review(c.id, 2); // 默认 SM-2 调度
+  const after = await d.cards.get(c.id);
+  assert.ok(after.fsrs, 'fsrs 状态保留（切换调度器可接续）');
+  assert.ok(after.fsrs.last > oldLast,
+    `SM-2 复习后 fsrs.last 应推进到本次复习时刻（${oldLast} → ${after.fsrs.last}），否则切回 FSRS elapsedDays 横跨整个 SM-2 期`);
+  await d.cards.delete(c.id);
+  await d.reviews.where('cardId').equals(c.id).delete();
+});
+
+test('R17-7 检索强度乘子不突破 365 天上限', () => {
+  const hi = { level: 8, ease: 2.5, intervalDays: 0, dueAt: 0, consolidation: null };
+  const base = scheduleReview(hi, 2, 1, false, { scheduler: 'sm2' });
+  assert.equal(base.intervalDays, 365, 'SM-2 高等级卡无乘子时封顶 365');
+  const explain = scheduleReview(hi, 2, 1, false, { scheduler: 'sm2', retrievalStrength: 'explain' });
+  assert.ok(explain.intervalDays <= 365, `explain(×1.5) 不得把 365 推到 547（实际 ${explain.intervalDays}）`);
+});

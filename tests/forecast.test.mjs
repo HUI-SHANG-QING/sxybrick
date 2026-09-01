@@ -139,3 +139,14 @@ test('rating=2（正常推进）不受当天重学上限影响：间隔按天增
   assert.ok(r.byDay[1].count < 30, `次日不应仍是全量，实际 ${r.byDay[1].count}`);
   assert.ok(r.totalDue < 30 * 30, '总量不应退化成"每天全量"');
 });
+
+// ---------- round17 R17-23：脏数据 dueAt=0 不虚增 backlog ----------
+
+test('R17-23 dueAt=0 视为无有效到期（退回 createdAt），不虚增 backlog', () => {
+  // createdAt 在今天 → dueAt=0 不应被当作「逾期到今天」计入 backlog
+  const r = forecastDue([mkCard({ dueAt: 0, createdAt: NOW })], 30, { now: NOW });
+  assert.equal(r.backlog, 0, 'dueAt=0 不应计为逾期（此前 `0 < start` 恒成立 → 洪峰虚高）');
+  // 对照：createdAt 在过去 → 正常计 backlog
+  const r2 = forecastDue([mkCard({ dueAt: 0, createdAt: NOW - 10 * DAY })], 30, { now: NOW });
+  assert.equal(r2.backlog, 1, 'createdAt 在过去时仍正常计逾期');
+});

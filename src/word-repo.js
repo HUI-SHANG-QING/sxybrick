@@ -16,6 +16,8 @@ import { scheduleReview } from './srs.js';
 import { getSchedConfig, refreshSchedConfig, formatDue, trashItem } from './repo.js';
 import { retrievability } from './fsrs.js';
 import { retrievalGrading } from './algorithms/session.js';
+// round17 R17-11：日期 key 统一走 time.dateKey（补零）——与 streak.js 同源，杜绝两套格式
+import { dateKey } from './utils/time.js';
 
 const now = () => Date.now();
 // 剥离 Vue 响应式代理：Dexie put 前转纯对象，避免 reactive proxy 触发结构化克隆失败
@@ -450,11 +452,9 @@ export async function saveWordSettings(patch = {}) {
 }
 
 // ---------- 每日签到（wordCheckins：id=`c-${date}`，date=YYYY-MM-DD） ----------
+// round17 R17-11：委托给 time.dateKey（同一实现，杜绝与 streak.js 的两套格式漂移）
 export function todayStr(d = new Date()) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return dateKey(d.getTime());
 }
 
 export async function checkInToday() {

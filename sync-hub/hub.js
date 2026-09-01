@@ -151,7 +151,9 @@ function merge(base, incoming) {
     // 之前中枢不过滤 —— 老客户端推上来的 kind='auto' 派生图谱边会被中枢存下来，
     // 再回灌给所有设备（客户端侧是过滤的，两端口径不一致 → 边越同步越多）。
     const inRows = (incoming[t.table] || []).filter(r => shouldExportRow(t, r));
-    out[t.table] = mergeRows(base[t.table], inRows, t.merge);
+    // round17 R17-9/R17-20：透传 strip（wordSettings 的 LLM Key 合并时保留本地值，
+    // 防止旧客户端推送的明文 Key 常驻 hub 数据文件）与 extFields（wordCards AI 扩展字段并集保护）
+    out[t.table] = mergeRows(base[t.table], inRows, t.merge, { strip: t.strip, extFields: t.extFields });
   }
 
   // 卡片：应用墓碑（删除跨设备传播）+ 级联清理复习记录与孤儿图片 + 复活卡清除墓碑

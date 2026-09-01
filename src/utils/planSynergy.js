@@ -87,10 +87,20 @@ async function aggregateReviews(dayStart, dayEnd) {
   const base = { count: 0, bySubject: {}, byGrade: { 0: 0, 1: 0, 2: 0 } };
   const rows = await SAFE(() => db.reviews.where('reviewedAt').between(dayStart, dayEnd, true, true).toArray(), []);
   base.count = rows.length;
+  // round17 R17-4：reviews 不冗余 subject（只存 cardId）——此前 `r.subject || '未分类'`
+  // 让所有复习落「未分类」，科目维度永远失真。一次性 join 卡片表取 subject。
+  const cardIds = [...new Set(rows.map(r => r.cardId).filter(Boolean))];
+  let cards = [];
+  if (cardIds.length) cards = await SAFE(() => db.cards.bulkGet(cardIds), []);
+  const subjOf = new Map(cards.filter(Boolean).map(c => [c.id, c.subject || '未分类']));
+  // round17 R17-3：grade 已从三档数字升级为四档字符串（round13 P2-C）——
+  // 此前 `g === 0/1/2` 对字符串恒 false，评分分布恒空。字符串映射回数字档。
+  const GRADE_NUM = { failed: 0, hard: 0, medium: 1, easy: 2 };
   for (const r of rows) {
-    const subj = r.subject || '未分类';
+    const subj = r.subject || subjOf.get(r.cardId) || '未分类';
     base.bySubject[subj] = (base.bySubject[subj] || 0) + 1;
-    const g = r.grade ?? r.rating ?? r.level;
+    const gRaw = r.grade ?? r.rating ?? r.level;
+    const g = typeof gRaw === 'number' ? gRaw : (GRADE_NUM[gRaw] ?? -1);
     if (g === 0 || g === 1 || g === 2) base.byGrade[g]++;
   }
   return base;

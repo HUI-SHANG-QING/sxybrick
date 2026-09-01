@@ -62,7 +62,9 @@ test('黄金路径：口述 → 解析 → 入库 → 打卡 → 对比 → 删�
   const today = new Date();
   const dayStart = new Date(today.toDateString()).getTime();
   await db.reviews.put({ id: 'r1', cardId: 'c1', reviewedAt: dayStart + 1000 });
-  await db.pomoSessions.put({ id: 'p1', startedAt: dayStart + 2000, durationMs: 25 * 60000 });
+  // round17 R17-1：pomoSessions 真实字段是 duration（分钟，见 addPomoSession）——
+  // 此测试原种 durationMs: 25*60000 是照抄错误读端口径（durationMs 不存在 → 恒 0 也"能过"）
+  await db.pomoSessions.put({ id: 'p1', startedAt: dayStart + 2000, duration: 25 });
   const reality = await getDailyReality();
   assert.equal(reality.reviewsToday, 1);
   assert.equal(reality.pomodoroMinutes, 25);
@@ -148,4 +150,17 @@ test('listDailyPlanSummary：按日期合并去重', async () => {
   assert.equal(d2sum.total, 1);
   assert.equal(d2sum.done, 1);
   assert.ok(sum[0].date === d2 || sum[0].date === d1); // 按 updatedAt 倒序
+});
+
+// ---------- round17 R17-1：番茄专注时长口径（读 duration 分钟，不读不存在的 durationMs） ----------
+
+test('R17-1 每日实况：番茄分钟按 duration(分钟) 聚合', async () => {
+  await clearDaily();
+  const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
+  const dayStart = new Date(today + 'T00:00:00').getTime();
+  await db.pomoSessions.put({ id: 'r17p1', startedAt: dayStart + 3600000, duration: 25, tag: '', createdAt: dayStart });
+  await db.pomoSessions.put({ id: 'r17p2', startedAt: dayStart + 7200000, duration: 10, tag: '', createdAt: dayStart });
+  const r = await getDailyReality(today);
+  assert.equal(r.pomodoroMinutes, 35,
+    '应聚合 duration 字段（分钟）——此前误读 durationMs 并 ÷60000，该字段不存在导致恒 0');
 });

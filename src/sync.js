@@ -119,7 +119,9 @@ export async function buildIncrementalBackup(lastSyncAt = 0, opts = {}) {
   const allCards = await db.cards.toArray();
   const cards = allCards.filter(c => {
     const ts = Math.max(c.updatedAt ?? 0, c.reviewedAt ?? 0, c.wrongReasonAt ?? 0, c.createdAt ?? 0);
-    return ts > since;
+    // round17 R17-14：首包（since=0）放行全 0 时间戳的遗留行（早期备份/Anki 批导入
+    // 缺时间戳）——`0 > 0` 恒假会让它们永久漏传，水位单调递增后再无补传路径
+    return ts > since || (since === 0 && ts === 0);
   });
   const cardIds = new Set(cards.map(c => c.id));
 
@@ -135,7 +137,8 @@ export async function buildIncrementalBackup(lastSyncAt = 0, opts = {}) {
     //   → 判定值恒为 0 → `0 > since` 恒假 → 这两张表永不上传。
     //   livenessTs 取全部已知时间字段的最大值，任一表只要带其中一个字段即可正确判定。
     const rows = await exportRows(t);
-    parts[t.table] = rows.filter(r => livenessTs(r) > since);
+    // round17 R17-14：同卡片过滤——首包放行全 0 时间戳行（防遗留行永久漏传）
+    parts[t.table] = rows.filter(r => livenessTs(r) > since || (since === 0 && livenessTs(r) === 0));
   }
   // 增量包仍带全量墓碑（删除传播不可遗漏）
   const tombstones = await db.tombstones.toArray();
@@ -238,7 +241,9 @@ export async function downloadBackup() {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // round17 R17-37：click 后不能同步 revoke——部分浏览器（Firefox 等）下载未真正开始
+  // 时 URL 已失效 → 偶发下载失败/空文件。延迟 1s 释放。
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // 按科目导出一个卡组（分享给同学），可附带作者/版本/说明（E2 卡组署名）
@@ -262,7 +267,9 @@ export async function downloadSubjectBackup(subject, meta = {}) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // round17 R17-37：click 后不能同步 revoke——部分浏览器（Firefox 等）下载未真正开始
+  // 时 URL 已失效 → 偶发下载失败/空文件。延迟 1s 释放。
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // 导出 CSV（制表符分隔，Anki/Excel 可直接导入）
@@ -280,7 +287,9 @@ export async function downloadCsv() {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // round17 R17-37：click 后不能同步 revoke——部分浏览器（Firefox 等）下载未真正开始
+  // 时 URL 已失效 → 偶发下载失败/空文件。延迟 1s 释放。
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // Anki 互通导出（E2 + P3-1 增强）：制表符分隔纯文本，Anki 桌面版「导入 → 文本文件」直接可用
@@ -306,7 +315,9 @@ export async function downloadAnkiText(cards) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // round17 R17-37：click 后不能同步 revoke——部分浏览器（Firefox 等）下载未真正开始
+  // 时 URL 已失效 → 偶发下载失败/空文件。延迟 1s 释放。
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // Anki 文本解析导入（E2）：Anki 导出的 txt / 分隔行文本 → 卡片
@@ -555,7 +566,7 @@ export async function importBackup(backup) {
       stats.duplicated += cardDedupe.duplicated;
     }
     if (!incoming.length) continue;
-    const merged = mergeRows(base, incoming, t.merge, { strip: t.strip });
+    const merged = mergeRows(base, incoming, t.merge, { strip: t.strip, extFields: t.extFields });
     let added = 0, updated = 0;
     const toWrite = [];
     const incomingMap = new Map(incoming.map(x => [x.id, x])); // O(n) 查表，替代循环内 find 的 O(n²)
@@ -592,16 +603,11 @@ export async function importBackup(backup) {
     if (toAdd.length) { await db.images.bulkPut(toAdd); stats.images = toAdd.length; }
   }
 
-  // 3) 应用墓碑：删除已在其他设备删除的记录；已「复活」（编辑晚于删除）的记录清除墓碑
-  for (const t of effTables) {
-    if (t.kind === 'card') continue; // 卡片单独处理（需级联清复习/图片）
-    const rows = await db[t.table].toArray();
-    const { removed, stale } = applyTombstones(rows, tombstones, t.kind);
-    if (stale.length) await db.tombstones.bulkDelete(stale);
-    if (removed.length) await db[t.table].bulkDelete(removed);
-  }
-
-  // 4) 卡片墓碑：删除卡片 + 级联删复习记录 + 清理孤儿图片
+  // 3) 卡片墓碑：删除卡片 + 级联删复习记录 + 清理孤儿图片
+  //    round17 R17-13：必须先于下方「各表 applyTombstones」执行——若后执行，
+  //    reviews 表的复活判定会先把 review 墓碑清成 stale（如 selfExplainAt > deletedAt），
+  //    随后本块级联又把复习行物理删掉 → 墓碑已丢，对端残留行下次以新行回灌（idOnly 幂等），
+  //    孤儿 review 永久回归，卡墓碑因 kind 不匹配无法拦截。
   const cardsNow = await db.cards.toArray();
   const { removed, stale } = applyTombstones(cardsNow, tombstones, 'card');
   if (stale.length) await db.tombstones.bulkDelete(stale);
@@ -640,6 +646,16 @@ export async function importBackup(backup) {
       if (tb && livenessTs(c) > (tb.deletedAt ?? 0)) toClear.push(c.id);
     }
     if (toClear.length) await db.tombstones.bulkDelete(toClear);
+  }
+
+  // 4) 其余各表墓碑：删除已在其他设备删除的记录；已「复活」（编辑晚于删除）的记录清除墓碑
+  //    （此时卡级联已删完被删卡的复习行，review 墓碑不会再被误判复活而提前清掉）
+  for (const t of effTables) {
+    if (t.kind === 'card') continue; // 卡片已在上方处理
+    const rows = await db[t.table].toArray();
+    const { removed, stale } = applyTombstones(rows, tombstones, t.kind);
+    if (stale.length) await db.tombstones.bulkDelete(stale);
+    if (removed.length) await db[t.table].bulkDelete(removed);
   }
 
   // 5) 打卡元数据（每日目标 goal）：updatedAt 谁新听谁

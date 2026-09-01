@@ -77,7 +77,10 @@ export function forecastDue(cards, days = 30, opts = {}) {
   for (const card of cards || []) {
     if (!card) continue;
     seq++;
-    const firstDue = card.dueAt ?? card.createdAt ?? now;
+    // round17 R17-23：`??` 不兜 dueAt=0 的脏数据——0 会被当作「今天到期」计入 backlog，
+    // 洪峰预测虚高。0 视为无有效到期时间，退回 createdAt。
+    const rawDue = card.dueAt;
+    const firstDue = (Number.isFinite(rawDue) && rawDue > 0) ? rawDue : (card.createdAt ?? now);
     if (firstDue < start) backlog++; // 当前已逾期、待补的卡
 
     let due = firstDue;

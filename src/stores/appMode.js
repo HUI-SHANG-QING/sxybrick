@@ -54,27 +54,13 @@ export const useAppModeStore = defineStore('appMode', {
     async clearTestData() {
       const { db } = await import('../db.js');
       if (this.mode !== 'test') return;
-      await db.transaction('rw',
-        db.cards, db.reviews, db.images, db.tombstones, db.meta,
-        db.aiChats, db.aiMemories, db.memos, db.plans, db.graphEdges,
-        db.docs, db.pomoSessions, db.mindmaps, db.weeklyReports, db.achievements,
-        db.exams, db.embeddings, db.notifications, db.errors, db.userOps,
-        db.privacyRecords, db.snapshots, db.plugins, db.docFiles, db.docTexts,
-        db.notes, db.dailyPlans, db.dailyTasks, db.trash, db.aiUsage,
-        db.cardGroups, db.cardGroupLinks, db.analysisSessions, db.analysisMessages,
-        db.docBlobs,
-        async () => {
-          for (const t of [db.cards, db.reviews, db.images, db.tombstones, db.meta,
-            db.aiChats, db.aiMemories, db.memos, db.plans, db.graphEdges,
-            db.docs, db.pomoSessions, db.mindmaps, db.weeklyReports, db.achievements,
-            db.exams, db.embeddings, db.notifications, db.errors, db.userOps,
-            db.privacyRecords, db.snapshots, db.plugins, db.docFiles, db.docTexts,
-            db.notes, db.dailyPlans, db.dailyTasks, db.trash, db.aiUsage,
-            db.cardGroups, db.cardGroupLinks, db.analysisSessions, db.analysisMessages,
-            db.docBlobs]) {
-            await t.clear();
-          }
-        });
+      // round17 R17-32：此前手写 35 表清单已落后 schema（漏 word 系列 8 表 + wordExportHistory），
+      // 测试库残留单词数据会串到下一次演示。改由 db.tables 动态枚举——新增表不再有漏清风险
+      // （与 stores/reset.js 的 resetAllData 同款思路）。
+      const tables = db.tables.map((t) => t);
+      await db.transaction('rw', tables, async () => {
+        for (const t of tables) await t.clear();
+      });
     },
   },
 });

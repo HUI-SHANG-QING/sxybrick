@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {
   SYNC_TABLES, BACKUP_VERSION,
   EXCLUDED_FROM_SYNC, PRIVACY_SYNC_TABLES,
-  CARD_SRS_FIELDS,
+  CARD_SRS_FIELDS, WORD_EXT_FIELDS,
   mergeCardPair, mergeRows, mergeTombstones, applyTombstones, kindOf,
 } from '../src/sync-manifest.js';
 
@@ -217,4 +217,24 @@ test('filterClearedRows：水位之前的历史行被过滤（隐私删除语义
   assert.equal(filterClearedRows(rows, 0).length, 3, '水位 0 = 未清空，原样返回');
   assert.equal(filterClearedRows(null, 400).length, 0, '空入站安全');
   assert.equal(livenessTs({ updatedAt: 100 }), 100);
+});
+
+// ---------- round17 R17-9：wordCards AI 扩展字段并集保护 ----------
+
+test('R17-9 mergeCardPair：扩展字段并集保留，形状较简的设备不覆盖对端 AI 扩展字段', () => {
+  // 本地：形状较简但 updatedAt 新（设备B 编辑过 word/note → 成为内容赢家）
+  const local = { id: 'w1', word: 'abandon', meaning: '放弃', updatedAt: 2000 };
+  // 远端：形状更全（AI 生成扩展字段），updatedAt 旧
+  const incoming = {
+    id: 'w1', word: 'abandon', meaning: '放弃；遗弃', updatedAt: 1000,
+    defs: [{ meaning: 'v. 放弃；抛弃' }], synonyms: ['give up', 'forsake'],
+    examples: [{ level: 'simple', sentence: 'Never abandon hope.' }], mnemonics: ['a-bandon = 一(ban)顿丢(don)'],
+  };
+  const merged = mergeCardPair(local, incoming, WORD_EXT_FIELDS);
+  assert.equal(merged.meaning, '放弃', '用户可编辑内容按 updatedAt 赢家（本地新）');
+  assert.deepEqual(merged.synonyms, ['give up', 'forsake'], '扩展字段并集保留（远端有值，不能被整行覆盖）');
+  assert.ok(merged.defs && merged.examples && merged.mnemonics, 'defs/examples/mnemonics 保留');
+  // 反向：incoming 更全且更新 → incoming 的扩展字段照样胜出
+  const merged2 = mergeCardPair({ id: 'w1', word: 'abandon', updatedAt: 500 }, { ...incoming, updatedAt: 3000 });
+  assert.deepEqual(merged2.synonyms, ['give up', 'forsake'], 'incoming 新时扩展字段随内容赢家');
 });

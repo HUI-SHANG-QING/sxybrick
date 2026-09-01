@@ -10,6 +10,19 @@
 //
 // 铁律：时刻一律转成「当日分钟数」再比较，禁止字符串比较。
 
+/**
+ * 日期 key：本地时区的 yyyy-MM-dd（月份/日期补零）。
+ * round17 R17-11：全库统一的日期字符串契约——此前 streak.js 用无补零
+ * `${y}-${m}-${d}`（2026-9-1），word-repo 的 todayStr 用补零（2026-09-01），
+ * 同一概念两套格式，任何跨模块合并统计 / 统一日历组件都会产生一天/一整月错位。
+ */
+export function dateKey(ts = Date.now()) {
+  const d = new Date(ts);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 /** 把 Date 转为当日分钟数 0..1439 */
 export function toMinutesOfDay(d) {
   if (!d) return NaN;

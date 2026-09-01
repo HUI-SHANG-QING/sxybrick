@@ -84,7 +84,8 @@ async function doExportUserOps() {
     const d = new Date(); const p = n => String(n).padStart(2, '0');
     a.download = `sxybrick-userOps-${exportOpsMode.value === 'aggregate' ? '聚合' : '全量'}-${range === 'all' ? 'all' : range + 'd'}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.json`;
     a.click();
-    URL.revokeObjectURL(a.href);
+    // round17 R17-37：click 后不能同步 revoke（Firefox 等偶发下载失败/空文件），延迟 1s
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     T.exportRun('userOps.' + exportOpsMode.value, rows.length);
     toast(t('views.export.exportedUserOps', '已导出 userOps {size}（{n} 条）', { size: fmtBytes(blob.size), n: rows.length }), 'success');
   } catch (e) { toast(e.message, 'error'); }
@@ -378,7 +379,8 @@ function doMarkdown() {
   a.href = URL.createObjectURL(blob);
   a.download = `sxybrick-卡片-${exportDate.value}.md`;
   a.click();
-  URL.revokeObjectURL(a.href);
+  // round17 R17-37：延迟释放（Firefox 等偶发下载失败/空文件）
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   toast(t('views.export.exportedMarkdown', '已导出 {n} 张卡片为 Markdown 文件', { n: cards.length }), 'success');
 }
 

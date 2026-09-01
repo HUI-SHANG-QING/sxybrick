@@ -30,6 +30,15 @@ export const PRIVACY_SYNC_TABLES = [
   { table: 'privacyRecords', kind: 'privacy', merge: 'updatedAt' },
 ];
 
+// round17 R17-9：wordCards 的 AI 扩展字段（区别于用户可编辑的 word/meaning/note/tags）——
+// 这类字段是「AI 生成、追加式」的：一个形状较简的设备只要 bump updatedAt 就会成为
+// mergeCardPair 的内容赢家，把对端更全的 pos/defs/examples/mnemonics 等整行覆盖丢失。
+// 合并时对它们做「并集保护」：只要任一端有值就保留（incoming 优先），杜绝整行覆盖。
+// 注意：用户可编辑文本（word/meaning/example/note/tags/source/subject）不在其中，
+// 仍按 updatedAt 内容赢家语义正常传播删除/修改。
+// ⚠️ 必须声明在 SYNC_TABLES 之前（SYNC_TABLES 的 wordCards 条目引用了它，TDZ 约束）。
+export const WORD_EXT_FIELDS = ['pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples', 'mnemonics', 'rootAffix', 'confusions', 'syllable'];
+
 export const SYNC_TABLES = [
   { table: 'cards', kind: 'card', merge: 'card' },
   { table: 'reviews', kind: 'review', merge: 'review' },
@@ -82,7 +91,7 @@ export const SYNC_TABLES = [
   //   wordReviews：复习记录主体不可变 → review 策略（selfExplanation 按 selfExplainAt 字段级合并）。
   //   wordGroups：词组元数据按 updatedAt 合并（重命名/状态/颜色谁新听谁）。
   //   wordGroupLinks：多对多关联，idOnly 幂等；「移出」写 kind=wordGroupLink 墓碑（见 word-repo.js）。
-  { table: 'wordCards', kind: 'wordCard', merge: 'card' },
+  { table: 'wordCards', kind: 'wordCard', merge: 'card', extFields: WORD_EXT_FIELDS },
   { table: 'wordReviews', kind: 'wordReview', merge: 'review' },
   { table: 'wordGroups', kind: 'wordGroup', merge: 'updatedAt' },
   { table: 'wordGroupLinks', kind: 'wordGroupLink', merge: 'idOnly' },
@@ -117,14 +126,6 @@ export function shouldExportRow(entry, row) {
 //       而非复习状态；否则另一台设备单纯复习（reviewedAt 更新）会覆盖本机的难度编辑。
 export const CARD_CONTENT_FIELDS = ['front', 'back', 'subject', 'source', 'type', 'marked', 'mnemonic', 'tags', 'frontChars', 'backChars', 'difficulty'];
 export const CARD_SRS_FIELDS = ['ease', 'level', 'intervalDays', 'dueAt', 'reviewedAt', 'consolidation', 'fsrs'];
-
-// round17 R17-9：wordCards 的 AI 扩展字段（区别于用户可编辑的 word/meaning/note/tags）——
-// 这类字段是「AI 生成、追加式」的：一个形状较简的设备只要 bump updatedAt 就会成为
-// mergeCardPair 的内容赢家，把对端更全的 pos/defs/examples/mnemonics 等整行覆盖丢失。
-// 合并时对它们做「并集保护」：只要任一端有值就保留（incoming 优先），杜绝整行覆盖。
-// 注意：用户可编辑文本（word/meaning/example/note/tags/source/subject）不在其中，
-// 仍按 updatedAt 内容赢家语义正常传播删除/修改。
-export const WORD_EXT_FIELDS = ['pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples', 'mnemonics', 'rootAffix', 'confusions', 'syllable'];
 
 // ---------- 表级「已清空水位」（O(1) 批量删除语义） ----------
 // 背景：userOps（埋点）/ privacyRecords（隐私）这类表行数可达十万级。

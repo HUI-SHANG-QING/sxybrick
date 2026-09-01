@@ -309,3 +309,16 @@ test('shouldExportRow: 未配置 exportFilter 的表全部放行；过滤器抛�
   const boom = { table: 'x', exportFilter: () => { throw new Error('boom'); } };
   assert.equal(shouldExportRow(boom, { a: 1 }), true, '过滤器异常不应导致数据被静默丢弃');
 });
+
+// ---------- round17 R17-22：超深线性链不栈溢出（递归深度护栏） ----------
+
+test('edgesToForest: 600 节点线性链不 RangeError，且节点不丢（round17 R17-22）', () => {
+  const edges = [];
+  for (let i = 0; i < 600; i++) edges.push({ from: `n${i}`, to: `n${i + 1}` });
+  const { root } = edgesToForest(edges); // 修复前：递归深度=链长 → 栈溢出崩溃
+  assert.ok(root, '有根');
+  const seen = new Set();
+  (function walk(n) { if (!n) return; seen.add(n.name); (n.children || []).forEach(walk); })(root);
+  // 深度超限的节点降级为叶子挂在虚拟根下，不丢节点
+  for (let i = 0; i <= 600; i += 100) assert.ok(seen.has(`n${i}`), `n${i} 不应丢失`);
+});

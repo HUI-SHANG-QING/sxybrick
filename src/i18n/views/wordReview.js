@@ -100,6 +100,7 @@ export const zh = {
   sessionDone: '本轮复习完成',
   sessionDoneHint: '辛苦了！已复习 {n} 张。可以去单词本查看，或再来一轮。',
   againReview: '再来一轮',
+  commitFailed: '复习结果保存失败，请重试',
 
   // 题干生成占位
   optionA: 'A', optionB: 'B', optionC: 'C', optionD: 'D',
@@ -197,6 +198,7 @@ export const en = {
   sessionDone: 'Round complete',
   sessionDoneHint: 'Nice work! Reviewed {n} cards. View them in the Word Book or do another round.',
   againReview: 'Another round',
+  commitFailed: 'Failed to save review result, please retry',
 
   optionA: 'A', optionB: 'B', optionC: 'C', optionD: 'D',
 };
