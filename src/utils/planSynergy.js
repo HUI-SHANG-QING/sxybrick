@@ -100,10 +100,12 @@ async function aggregatePomodoro(dayStart, dayEnd) {
   const base = { minutes: 0, sessions: 0, bySubject: {} };
   const rows = await SAFE(() => db.pomoSessions.where('startedAt').between(dayStart, dayEnd, true, true).toArray(), []);
   base.sessions = rows.length;
-  base.minutes = Math.round(rows.reduce((s, x) => s + (x?.durationMs || 0), 0) / 60000);
+  // round17 R17-1：字段是 duration（分钟，见 repo.js addPomoSession）——此前误读
+  // durationMs 并 ÷60000，该字段不存在 → 协同雷达「专注分钟」恒 0。与 analytics.js:144 对齐。
+  base.minutes = Math.round(rows.reduce((s, x) => s + (x?.duration || 0), 0));
   for (const r of rows) {
     const subj = r.subject || '未分类';
-    base.bySubject[subj] = (base.bySubject[subj] || 0) + Math.round((r?.durationMs || 0) / 60000);
+    base.bySubject[subj] = (base.bySubject[subj] || 0) + Math.round(r?.duration || 0);
   }
   return base;
 }

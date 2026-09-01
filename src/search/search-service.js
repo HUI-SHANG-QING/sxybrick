@@ -20,6 +20,12 @@ export function plain(md) {
 
 const norm = s => String(s || '').toLowerCase();
 
+// round15 P3-10：匹配窗口上限——docs.content / mindmaps.root / exams.questions 可达百 KB，
+// 逐行 toLowerCase + includes 全量长串在万卡+长文场景每次搜索都卡顿。
+// 先截断再转小写（避免对全串做 toLowerCase），只匹配每字段前 MATCH_WINDOW 字符。
+// 取舍：关键词落在窗口之外时漏命中（近似匹配，文档正文开头通常已覆盖检索意图）。
+const MATCH_WINDOW = 20000;
+
 /**
  * 多字段匹配：任意一个字段命中即匹配。
  * @param {object} row 数据行
@@ -28,13 +34,28 @@ const norm = s => String(s || '').toLowerCase();
  */
 export function rowMatches(row, kw, fields) {
   if (!row || !kw) return false;
-  return fields.some(f => {
-    let v = row[f];
+  const hit = (t) => String(t ?? '').slice(0, MATCH_WINDOW).toLowerCase().includes(kw);
+  // round16 R16-4：对象/数组字段不再「先全量 JSON.stringify 再截窗」——
+  // 导图 root / 考题 questions 可达百 KB，全量序列化成本 O(全量) 会抵消截窗省下的匹配成本。
+  // 改为深度优先遍历叶子值逐串匹配：每条字符串先截窗再小写，序列化与匹配都受控；
+  // 只匹配值不匹配键（字段名命中毫无检索意义，反而是噪音）。
+  // 超过 4 层深的稀有结构退回 stringify 保底（行为与旧实现一致）。
+  const walk = (v, depth = 0) => {
     if (v == null) return false;
-    // 数组元素可能是对象（考题 questions / 导图 children）：对象须序列化，否则 String() 得 [object Object]
-    if (Array.isArray(v)) return v.some(x => norm(typeof x === 'object' && x !== null ? JSON.stringify(x) : x).includes(kw));
-    if (typeof v === 'object') v = JSON.stringify(v);
-    return norm(v).includes(kw);
+    const t = typeof v;
+    if (t === 'string') return hit(v);
+    if (t === 'number' || t === 'boolean') return hit(String(v));
+    if (t === 'object' && depth < 4) {
+      if (Array.isArray(v)) return v.some(x => walk(x, depth + 1));
+      for (const k of Object.keys(v)) if (walk(v[k], depth + 1)) return true;
+      return false;
+    }
+    return hit(JSON.stringify(v)); // 深层兜底
+  };
+  return fields.some(f => {
+    const v = row[f];
+    if (v == null) return false;
+    return walk(v);
   });
 }
 
@@ -43,7 +64,9 @@ export function rowMatches(row, kw, fields) {
  * 输入先做 HTML 转义，杜绝 XSS（搜索结果可能含用户输入）。
  */
 export function highlight(text, keyword) {
-  const esc = String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  // round15 P2：补齐单引号转义（此前与 WordBook.escHtml 口径不一致，
+  // 单引号场景下 v-html 渲染可被属性注入利用）
+  const esc = String(text ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const kw = String(keyword ?? '').trim();
   if (!kw) return esc;
   const kEsc = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

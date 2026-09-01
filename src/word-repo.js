@@ -31,10 +31,12 @@ export async function reviewWord(cardId, rating, opts = {}) {
   const card = await db.wordCards.get(cardId);
   if (!card) throw new Error('单词卡不存在');
   if (card.kind === 'template') {
-    // 范文不参与调度：仅记录一次浏览（reviewedAt bump），不重排 dueAt
+    // 范文不参与调度：仅记录一次浏览（reviewedAt bump），不重排 dueAt。
+    // round15 P1：不 bump updatedAt（与下方普通复习路径一致）——浏览范文是「复习动作」，
+    // bump 会让跨设备同步用旧副本覆盖对端对范文的编辑。
     const t = now();
     await db.transaction('rw', db.wordCards, async () => {
-      await db.wordCards.put({ ...plain(card), reviewedAt: t, updatedAt: t });
+      await db.wordCards.put({ ...plain(card), reviewedAt: t });
     });
     return { skipped: true, dueText: '—', reviewId: null };
   }
@@ -43,6 +45,10 @@ export async function reviewWord(cardId, rating, opts = {}) {
     scheduler: cfg.scheduler,
     weights: cfg.weights,
     desiredRetention: opts.desiredRetention,
+    // round16 R16-3：检索强度信号透传——采集(WordReview)/落库(wordReviews 字段)/同步(manifest)
+    // 三段早已打通，唯独这最后一段断：不传的话单词侧 SRS 间隔永远享受不到
+    // generate(×1.25)/explain(×1.5) 乘子（卡片侧 repo.review 早已透传，此处对齐）
+    retrievalStrength: opts.retrievalStrength,
   });
   const nowTs = now();
   const predR = (card.fsrs && Number.isFinite(card.fsrs.s) && Number.isFinite(card.fsrs.last))
@@ -62,11 +68,14 @@ export async function reviewWord(cardId, rating, opts = {}) {
   // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt（与 repo.review 一致：
   // 否则跨设备同步时「复习动作」会覆盖另一台设备对文字/批注的编辑）
   await db.transaction('rw', db.wordCards, db.wordReviews, async () => {
+    // round17 R17-6：SM-2 路径同样推进 fsrs.last（与 repo.review 对齐）——
+    // 否则切回 FSRS 时 elapsedDays 横跨整个 SM-2 期，间隔异常放大
+    const fsrsNext = next.fsrs ?? (card.fsrs ? { ...card.fsrs, last: nowTs } : undefined);
     await db.wordCards.put({
       ...plain(card),
       ease: next.ease, level: next.level, intervalDays: next.intervalDays,
       dueAt: next.dueAt, consolidation: next.consolidation,
-      fsrs: next.fsrs ?? card.fsrs, reviewedAt: nowTs,
+      fsrs: fsrsNext, reviewedAt: nowTs,
     });
     await db.wordReviews.put({
       id: reviewId, cardId, reviewedAt: nowTs, rating,
@@ -164,6 +173,11 @@ export async function deleteWordCard(id) {
     const links = await db.wordGroupLinks.where('cardId').equals(id).toArray();
     await trashItem(id, 'wordCard', { ...plain(old), _reviews: reviews, _groupLinks: links });
     await db.tombstones.put({ id, kind: 'wordCard', deletedAt: now() });
+    // round15 P1：wordReviews 是 idOnly 幂等表——本端删除行不写墓碑的话，
+    // 对端残留的复习记录会随每次增量包反复回传（孤儿行常驻 + 统计污染）。
+    if (reviews.length) {
+      await db.tombstones.bulkPut(reviews.map(r => ({ id: r.id, kind: 'wordReview', deletedAt: now() })));
+    }
     if (links.length) {
       await db.tombstones.bulkPut(links.map(l => ({ id: l.id, kind: 'wordGroupLink', deletedAt: now() })));
     }

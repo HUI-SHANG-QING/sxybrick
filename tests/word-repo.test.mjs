@@ -75,13 +75,30 @@ test('reviewWord：P2-C grade 口径与记忆卡对齐（retrievalGrading 四档
   for (const r of [r1, r2, r3]) assert.ok(ALL.includes(r.grade), `grade 必须是四档之一（实际 ${r.grade}）`);
 });
 
+test('reviewWord：R16-3 检索强度信号透传给调度器（explain ×1.5 间隔大于无信号）', async () => {
+  // 两张全新同构卡，只差 retrievalStrength：有信号的一张间隔必须更大
+  const base = await mk({ word: 'perceive', meaning: '感知' });
+  const withSig = await mk({ word: 'conceive', meaning: '构想' });
+  const rBase = await reviewWord(base.id, 2);
+  const rSig = await reviewWord(withSig.id, 2, { retrievalStrength: 'explain', responseMs: 600 });
+  assert.ok(rSig.intervalDays > rBase.intervalDays, `explain(×1.5) 间隔应大于无信号（${rBase.intervalDays} vs ${rSig.intervalDays}）`);
+  // 信号同时落库（此前只在 wordReviews 存，现在调度也消费）
+  const rev = await db.wordReviews.where('cardId').equals(withSig.id).first();
+  assert.equal(rev.retrievalStrength, 'explain');
+  assert.equal(rev.responseMs, 600);
+  assert.equal(rev.grade, 'easy', 'explain 检索强度应 easy');
+});
+
 test('reviewWord：范文(template) 不参与调度', async () => {
   const c = await mk({ word: 'My Essay', meaning: '范文', kind: 'template' });
+  const beforeUpdated = c.updatedAt;
   const res = await reviewWord(c.id, 2);
   assert.ok(res.skipped);
   const after = await db.wordCards.get(c.id);
   assert.ok(after.reviewedAt > 0);
   assert.ok((after.dueAt || 0) <= Date.now() + 10); // dueAt 未被重排
+  // round15 P1：浏览范文是复习动作，不 bump updatedAt（否则跨设备同步用旧副本覆盖对端编辑）
+  assert.equal(after.updatedAt, beforeUpdated, 'template 浏览不应 bump updatedAt');
 });
 
 test('markFamiliar：标记熟词并移出活跃队列', async () => {

@@ -89,11 +89,16 @@ test('idRemap：同 id 卡不产生重定向（SRS 合并路径）', () => {
   assert.equal(idRemap.size, 0, '同 id 放行不应产生任何重定向');
 });
 
-test('导入前关联引用重定向：reviews/graphEdges/cardGroupLinks/embeddings 的卡 id 被改写', () => {
+test('导入前关联引用重定向：标量+数组+JSON+嵌套字段的卡 id 被改写', () => {
   // 复刻 importBackup 0b 步的重定向逻辑（与 src/sync.js 保持一致；
-  // CARD_REF_FIELDS 含 sourceId——embeddings 的卡片引用字段，N-6 曾漏掉）
+  // CARD_REF_FIELDS 含 sourceId——embeddings 的卡片引用字段，N-6 曾漏掉；
+  // round15 P2：数组（linkedCardIds）/JSON（cardIds）/嵌套（questions[].cardId）引用字段）
   const cardDedupe = { idRemap: new Map([['C2', 'C1']]) };
   const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId', 'sourceId'];
+  const ARRAY_REF_FIELDS = ['linkedCardIds'];
+  const JSON_REF_FIELDS = ['cardIds'];
+  const NESTED_REF_FIELDS = ['questions'];
+  const remap = (v) => (cardDedupe.idRemap.has(v) ? cardDedupe.idRemap.get(v) : v);
   const remapBackup = (backup) => {
     for (const key of Object.keys(backup)) {
       if (key === 'cards' || !Array.isArray(backup[key])) continue;
@@ -101,6 +106,22 @@ test('导入前关联引用重定向：reviews/graphEdges/cardGroupLinks/embeddi
         let row = r;
         for (const f of CARD_REF_FIELDS) {
           if (r[f] != null && cardDedupe.idRemap.has(r[f])) row = { ...row, [f]: cardDedupe.idRemap.get(r[f]) };
+        }
+        for (const f of ARRAY_REF_FIELDS) {
+          if (Array.isArray(r[f])) row = { ...row, [f]: r[f].map(x => remap(x)) };
+        }
+        for (const f of JSON_REF_FIELDS) {
+          if (typeof r[f] === 'string') {
+            try {
+              const arr = JSON.parse(r[f]);
+              if (Array.isArray(arr)) row = { ...row, [f]: JSON.stringify(arr.map(x => remap(x))) };
+            } catch { /* 原样保留 */ }
+          }
+        }
+        for (const f of NESTED_REF_FIELDS) {
+          if (Array.isArray(r[f])) {
+            row = { ...row, [f]: r[f].map(q => (q && typeof q === 'object' && q.cardId != null && cardDedupe.idRemap.has(q.cardId)) ? { ...q, cardId: remap(q.cardId) } : q) };
+          }
         }
         return row;
       });
@@ -116,6 +137,10 @@ test('导入前关联引用重定向：reviews/graphEdges/cardGroupLinks/embeddi
       { id: 'V1', sourceType: 'card', sourceId: 'C2' }, // N-6：向量索引引用字段
       { id: 'V2', sourceType: 'doc', sourceId: 'DOC1' }, // 非卡片源不受影响
     ],
+    notes: [{ id: 'N1', linkedCardIds: ['C2', 'C3'], title: '笔记' }], // round15 P2：数组引用
+    plans: [{ id: 'P1', linkedCardIds: ['C2'], title: '计划' }],
+    analysisSessions: [{ id: 'S1', cardIds: '["C2","C3"]' }],           // JSON 串数组
+    exams: [{ id: 'X1', questions: [{ front: 'a', cardId: 'C2' }, { front: 'b' }] }], // 嵌套
   };
   const out = remapBackup(backup);
   assert.equal(out.reviews[0].cardId, 'C1', '复习记录重定向到保留卡');
@@ -124,4 +149,9 @@ test('导入前关联引用重定向：reviews/graphEdges/cardGroupLinks/embeddi
   assert.equal(out.cardGroupLinks[0].cardId, 'C1', '卡组关联重定向到保留卡');
   assert.equal(out.embeddings[0].sourceId, 'C1', 'embeddings.sourceId 重定向到保留卡（N-6）');
   assert.equal(out.embeddings[1].sourceId, 'DOC1', '非卡片源 sourceId 不受影响');
+  assert.deepEqual(out.notes[0].linkedCardIds, ['C1', 'C3'], 'notes.linkedCardIds 数组重定向（round15 P2）');
+  assert.deepEqual(out.plans[0].linkedCardIds, ['C1'], 'plans.linkedCardIds 数组重定向');
+  assert.equal(out.analysisSessions[0].cardIds, '["C1","C3"]', 'analysisSessions.cardIds JSON 串重定向');
+  assert.equal(out.exams[0].questions[0].cardId, 'C1', 'exams.questions[].cardId 嵌套重定向');
+  assert.equal(out.exams[0].questions[1].cardId, undefined, '无 cardId 的题目不受影响');
 });

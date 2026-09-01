@@ -15,7 +15,15 @@ export const BACKUP_VERSION = 7;
 // plugins：插件为本机扩展，跨设备无意义且可能含敏感配置（API Key 等）
 // aiUsage：AI 用量账本（P2-27），本设备计费上下文，不同步
 // wordExportHistory：英语模块导出历史（仅本机记录，跨设备无意义且增大包体积）
-export const EXCLUDED_FROM_SYNC = ['notifications', 'errors', 'snapshots', 'plugins', 'aiUsage', 'wordExportHistory'];
+export const EXCLUDED_FROM_SYNC = [
+  'notifications', 'errors', 'snapshots', 'plugins', 'aiUsage', 'wordExportHistory',
+  // round15 P2：本地表补登记（此前在 db 存在但不进同步、也不在排除清单——
+  // 破坏「清单 = 唯一事实来源」不变量，未来误加 SYNC_TABLES 无防护）。
+  //   docTexts：解析全文（大字段，id 与 docFiles 一一对应）
+  //   docBlobs：OPFS 降级时暂存的原文件二进制（v24）
+  //   trash：回收站快照（删除语义由墓碑表达，快照仅本机恢复用）
+  'docTexts', 'docBlobs', 'trash',
+];
 
 // 隐私敏感表——默认不入同步/全量导出，需用户显式 opt-in（PIPL 合规）
 export const PRIVACY_SYNC_TABLES = [
@@ -110,6 +118,14 @@ export function shouldExportRow(entry, row) {
 export const CARD_CONTENT_FIELDS = ['front', 'back', 'subject', 'source', 'type', 'marked', 'mnemonic', 'tags', 'frontChars', 'backChars', 'difficulty'];
 export const CARD_SRS_FIELDS = ['ease', 'level', 'intervalDays', 'dueAt', 'reviewedAt', 'consolidation', 'fsrs'];
 
+// round17 R17-9：wordCards 的 AI 扩展字段（区别于用户可编辑的 word/meaning/note/tags）——
+// 这类字段是「AI 生成、追加式」的：一个形状较简的设备只要 bump updatedAt 就会成为
+// mergeCardPair 的内容赢家，把对端更全的 pos/defs/examples/mnemonics 等整行覆盖丢失。
+// 合并时对它们做「并集保护」：只要任一端有值就保留（incoming 优先），杜绝整行覆盖。
+// 注意：用户可编辑文本（word/meaning/example/note/tags/source/subject）不在其中，
+// 仍按 updatedAt 内容赢家语义正常传播删除/修改。
+export const WORD_EXT_FIELDS = ['pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples', 'mnemonics', 'rootAffix', 'confusions', 'syllable'];
+
 // ---------- 表级「已清空水位」（O(1) 批量删除语义） ----------
 // 背景：userOps（埋点）/ privacyRecords（隐私）这类表行数可达十万级。
 //   「一键清空」若给每一行写墓碑，墓碑表瞬间爆炸，而且前端每次增量同步都会**全量**带墓碑，
@@ -143,7 +159,7 @@ export function kindOf(t) { return t?.kind || 'card'; }
 // 卡片字段级合并：内容、SRS、错因各自独立取「新者」，
 // 解决「复习动作 bump updatedAt 会把另一台设备的文字编辑覆盖掉」的数据丢失问题，
 // 同时解决「错因随复习写入但不 bump updatedAt，另一台设备编辑文字后错因被丢」的问题
-export function mergeCardPair(local, incoming) {
+export function mergeCardPair(local, incoming, extFields = []) {
   const incTs = incoming.updatedAt ?? 0;
   const locTs = local.updatedAt ?? 0;
   const incRev = incoming.reviewedAt ?? incTs; // 旧数据无 reviewedAt：退化为 updatedAt
@@ -173,6 +189,13 @@ export function mergeCardPair(local, incoming) {
   }
   out.wrongReason = chosen.wrongReason ?? '';
   if (chosenTs) out.wrongReasonAt = chosenTs;
+  // round17 R17-9：AI 扩展字段并集保护（wordCards 用）——任一端有值即保留，incoming 优先
+  for (const f of extFields) {
+    const iv = incoming[f];
+    const lv = local[f];
+    if (iv !== undefined) out[f] = iv;
+    else if (lv !== undefined) out[f] = lv;
+  }
   return out;
 }
 
@@ -186,15 +209,22 @@ export function mergeRows(base, incoming, strategy, opts = {}) {
     if (!x || x.id == null) continue;
     const cur = m.get(x.id);
     if (!cur) { m.set(x.id, x); continue; }
-    if (strategy === 'card') { m.set(x.id, mergeCardPair(cur, x)); continue; }
+    if (strategy === 'card') { m.set(x.id, mergeCardPair(cur, x, opts.extFields)); continue; }
     if (strategy === 'review') {
       // 复习记录主体不可变（idOnly 语义），但 selfExplanation 是错题后补充的反思，
       // 按 selfExplainAt 谁新听谁做字段级合并（否则跨设备只同步到主体、丢失反思）
+      //
+      // round17 R17-2（P1）：**必须先浅拷贝再改，绝不能原地改 cur**。
+      //   cur 与 base 数组元素是同一引用（Map 由 (base||[]).map(x=>[x.id,x]) 构造），
+      //   而调用方（sync.js importBackup）用 `JSON.stringify(old) !== JSON.stringify(row)`
+      //   判定是否写库，old 与 row 都指向 cur → 差异恒为 0 → 合并结果只在内存、从不落库。
+      //   表现为「跨设备错题反思同步后消失」，而 hub 侧（整包保存 data 对象）正常，难以察觉。
+      const next = { ...cur };
       if (x.selfExplanation !== undefined && (x.selfExplainAt ?? 0) >= (cur.selfExplainAt ?? 0)) {
-        cur.selfExplanation = x.selfExplanation;
-        if (x.selfExplainAt) cur.selfExplainAt = x.selfExplainAt;
+        next.selfExplanation = x.selfExplanation;
+        if (x.selfExplainAt) next.selfExplainAt = x.selfExplainAt;
       }
-      m.set(x.id, cur);
+      m.set(x.id, next);
       continue;
     }
     if (strategy === 'updatedAt') {
@@ -249,6 +279,9 @@ const LIVENESS_FIELDS = [
   // addedAt —— cardGroupLinks（M1）：加入时间即该行的唯一活跃时间戳，
   // 缺则关联行永不进增量包（墓碑判定值恒 0）
   'addedAt',
+  // loadedAt —— wordSyllabusMeta（v26）：大纲词表元信息的活跃时间戳，
+  // 缺则增量包每轮滤掉（与已修的「reviews 永不上传」同类），全量包才带上
+  'loadedAt',
 ];
 
 /**

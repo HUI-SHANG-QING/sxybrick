@@ -13,6 +13,7 @@ import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES, EXCLUDED_FROM_SYNC,
   CARD_CONTENT_FIELDS, CARD_SRS_FIELDS,
   mergeRows, mergeTombstones, applyTombstones, kindOf, livenessTs, shouldExportRow,
+  clearedBeforeKey, filterClearedRows,
 } from './sync-manifest.js';
 
 /** 按表读取待导出行（应用清单上的 exportFilter，排除派生/本机专属数据，如 kind='auto' 的图谱边）
@@ -468,14 +469,47 @@ export async function importBackup(backup) {
     const baseCardsMap = new Map(baseCards.map(x => [x.id, x]));
     cardDedupe = dedupeIncomingCards(cardDedupe.kept, baseCardsMap, baseCards);
     if (cardDedupe.idRemap.size) {
-      const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId', 'sourceId'];
+      // round17 R17-8：补 sourceCardId（变式卡链）——去重跳过卡后，保留卡的
+      // sourceCardId 仍指向已不存在的被跳卡 id，变式链路/血缘统计永久断裂
+      const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId', 'sourceId', 'sourceCardId'];
+      // round15 P2：数组/嵌套引用字段也要重定向——notes.linkedCardIds、plans.linkedCardIds
+      // （字符串数组）、analysisSessions.cardIds（JSON 串数组）、exams.questions（[{cardId}]）。
+      // 此前只重定向标量字段，去重跳过的卡在这些表里留下孤儿引用。
+      const ARRAY_REF_FIELDS = ['linkedCardIds'];
+      const JSON_REF_FIELDS = ['cardIds'];
+      const NESTED_REF_FIELDS = ['questions'];
+      const remap = (v) => (cardDedupe.idRemap.has(v) ? cardDedupe.idRemap.get(v) : v);
       for (const key of Object.keys(backup)) {
-        if (key === 'cards' || !Array.isArray(backup[key])) continue;
+        if (!Array.isArray(backup[key])) continue;
         backup[key] = backup[key].map(r => {
           let row = r;
+          // round17 R17-8：cards 表自身只重定向 sourceCardId 单字段——绝不能对
+          // cards 行做整行级 cardId 重定向（那会把保留卡的自身 id 改掉）
+          if (key === 'cards') {
+            if (r.sourceCardId != null && cardDedupe.idRemap.has(r.sourceCardId)) {
+              row = { ...row, sourceCardId: cardDedupe.idRemap.get(r.sourceCardId) };
+            }
+            return row;
+          }
           for (const f of CARD_REF_FIELDS) {
             if (r[f] != null && cardDedupe.idRemap.has(r[f])) {
               row = { ...row, [f]: cardDedupe.idRemap.get(r[f]) };
+            }
+          }
+          for (const f of ARRAY_REF_FIELDS) {
+            if (Array.isArray(r[f])) row = { ...row, [f]: r[f].map(x => remap(x)) };
+          }
+          for (const f of JSON_REF_FIELDS) {
+            if (typeof r[f] === 'string') {
+              try {
+                const arr = JSON.parse(r[f]);
+                if (Array.isArray(arr)) row = { ...row, [f]: JSON.stringify(arr.map(x => remap(x))) };
+              } catch { /* 非 JSON 字符串：原样保留 */ }
+            }
+          }
+          for (const f of NESTED_REF_FIELDS) {
+            if (Array.isArray(r[f])) {
+              row = { ...row, [f]: r[f].map(q => (q && typeof q === 'object' && q.cardId != null && cardDedupe.idRemap.has(q.cardId)) ? { ...q, cardId: remap(q.cardId) } : q) };
             }
           }
           return row;
@@ -502,6 +536,14 @@ export async function importBackup(backup) {
     if (t.table === 'images') continue;
     let incoming = (backup[t.table] || []).filter(x => x && x.id);
     if (!incoming.length) continue;
+    // F10（round15 P2）：隐私/埋点表「已清空水位」——用户点过「清空埋点/清空隐私」后，
+    // 把水位之前的入站行过滤掉，防止 hub/对端把历史行灌回（此前 wipe 只 clear 本地
+    // 不写水位，下轮同步数据全部复活，「撤销监控」失效）。仅浏览器端有 localStorage。
+    if (typeof localStorage !== 'undefined') {
+      const clearedBefore = Number(localStorage.getItem(clearedBeforeKey(t.table)) || 0);
+      if (clearedBefore) incoming = filterClearedRows(incoming, clearedBefore);
+      if (!incoming.length) continue;
+    }
     const base = await db[t.table].toArray();
     const baseMap = new Map(base.map(x => [x.id, x]));
     // E1 去重合并：内容雷同的异 id 卡视为重复跳过；但【同 id 卡必须放行】，
@@ -572,6 +614,11 @@ export async function importBackup(backup) {
     }
     await db.cards.bulkDelete(removed);
     await db.reviews.where('cardId').anyOf(removed).delete(); // 一次范围删除替代逐卡 delete
+    // round15 P1：级联远端孤儿——卡片删除在源端已删 embeddings（sourceId 索引 + sourceType='card'）
+    // 并写 graphEdge 墓碑；但对端若在墓碑同步之前就存在这些行（旧包/增量竞态），此处兜底清理，
+    // 避免「删卡后对端 RAG 检索到幽灵向量、图谱挂着悬空边」。
+    await db.embeddings.where('sourceId').anyOf(removed).and(e => e.sourceType === 'card').delete();
+    await db.graphEdges.filter(e => removedSet.has(e.fromCardId) || removedSet.has(e.toCardId)).delete();
     stats.deleted = removed.length;
     if (goneImgIds.size) {
       const rest = await db.cards.toArray();

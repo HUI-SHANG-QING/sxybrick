@@ -1,0 +1,34 @@
+/* =============================================================================
+ * 英语模块品牌色层（2026-09-01）
+ * -----------------------------------------------------------------------------
+ * 目的：把整个「英语模块」(/english/* 七个视图) 的强调色钉死为设计稿的茶绿品牌色，
+ *       覆盖全局主题强调色，使不背单词风的英语子产品有独立的品牌识别。
+ *
+ * 作用域：仅在 App.vue 给 <router-view> 外层加 .eng-brand 类时生效（暗色补
+ *        .eng-brand-dark）。不污染导航栏 / 全局主题 / 其它模块。
+ *
+ * 为什么这样覆盖就够：
+ *   1. element-bridge.css 把 --el-color-primary* 全部桥接为 var(--accent) 派生，
+ *      故覆盖 --accent 即让 EP 主按钮 / 标签页 / 进度条等同步茶绿；唯一例外是
+ *      --el-color-primary-rgb（裸三元组，由 theme.apply 写进 :root，无法被 var 反解），
+ *      所以这里一并覆盖 --accent-rgb，保证 EP 内部 rgba() 组合的主色也跟着变。
+ *   2. 普通 .vue 里所有 var(--accent) / var(--accent-soft) 自然落到茶绿。
+ *
+ * 茶绿色值（来自 word-module-ui-mockup.html）：
+ *   亮色  --accent #2f6f5e / --accent-soft #e7f0ec / rgb(47,111,94)
+ *   暗色  --accent #5fb89c / --accent-soft #1d2c28 / rgb(95,184,156)
+ * ========================================================================== */
+
+.eng-brand {
+  --accent: #2f6f5e;
+  --accent-soft: #e7f0ec;
+  --accent-rgb: 47, 111, 94;
+  --on-accent: #ffffff;
+}
+
+.eng-brand.eng-brand-dark {
+  --accent: #5fb89c;
+  --accent-soft: #1d2c28;
+  --accent-rgb: 95, 184, 156;
+  --on-accent: #06251d;
+}

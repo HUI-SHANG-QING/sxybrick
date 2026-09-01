@@ -244,9 +244,13 @@ async function newMap() {
 async function fromGraph() {
   const [rawEdges, cards] = await Promise.all([listGraphEdges(), db.cards.toArray()]);
   if (!rawEdges.length) { toast(t('views.mindmap.graphNoEdges'), 'error'); return; }
-  const { edges } = resolveGraph(rawEdges, cards);
+  const { edges, nodes } = resolveGraph(rawEdges, cards);
   const usable = edges.length ? edges : rawEdges; // 全是失效边时退回原样，至少不静默空转
-  const { root } = edgesToForest(usable, { rootLabel: '📚 知识图谱' });
+  // round16 R16-2：resolveGraph 的边端点现在是稳定键（cardId 优先），
+  // 必须用 nodes 的 id→label 映射把键翻译回人类可读名称，
+  // 否则导图树上节点显示成 card_xxx 内部 id（P2-7 引入的静默回归，KnowledgeGraph 已适配、此处漏了）
+  const labelMap = new Map((nodes || []).map(n => [n.id, n.label]));
+  const { root } = edgesToForest(usable, { rootLabel: '📚 知识图谱', labelMap });
   if (!root) { toast(t('views.mindmap.graphNoUsable'), 'error'); return; }
   const withIds = n => ({ id: uid(), label: String(n.name || '主题').slice(0, 30), children: (n.children || []).map(withIds) });
   const mm = await createMindmap({ title: t('views.mindmap.defaultFromGraph'), root: withIds(root) });

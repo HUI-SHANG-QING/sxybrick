@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { db } from '../src/db.js';
 import { createCard, review, reviewQueue, deleteCard, getStats, attachSelfExplanation, restoreFromTrash } from '../src/repo.js';
 import { getCalibration } from '../src/agent/analytics.js';
-import { buildBackup, importBackup, previewImport } from '../src/sync.js';
+import { buildBackup, importBackup, previewImport, backupScope } from '../src/sync.js';
 
 const DAY = 86400000;
 
@@ -106,10 +106,12 @@ test('黄金路径3：删除→墓碑→另一设备导入后级联删除', asyn
   await deleteCard(c.id);
   assert.equal(await db.cards.get(c.id), undefined, '本地卡片已删除');
   assert.equal((await db.reviews.where('cardId').equals(c.id).toArray()).length, 0, '本地复习记录级联删除');
+  // round16 R16-1：删除级联从「只写卡墓碑」升级为「卡墓碑 + 每条复习记录的 review 墓碑」
+  // （此前与 word 侧 deleteWordCard 的 wordReview 墓碑不对称，记忆卡侧漏写 → 对端孤儿复习）
   const ts = await db.tombstones.toArray();
-  assert.equal(ts.length, 1);
-  assert.equal(ts[0].id, c.id);
-  assert.equal(ts[0].kind, 'card');
+  assert.equal(ts.length, 2, '应写 2 条墓碑：卡片 1 + 复习记录 1');
+  assert.equal(ts.find(t => t.id === c.id)?.kind, 'card', '卡片墓碑');
+  assert.ok(ts.some(t => t.kind === 'review' && t.id !== c.id), '复习记录也写 review 墓碑（R16-1）');
 
   // 设备 A 导出「删除后」备份（含墓碑）
   const backupAfter = await buildBackup();
@@ -129,7 +131,39 @@ test('黄金路径3：删除→墓碑→另一设备导入后级联删除', asyn
   assert.ok(st2.deleted >= 1, '导入统计应记录删除数');
 });
 
-// ---------- 黄金路径 4：自我解释落盘 + 跨设备同步 ----------
+// ---------- round17 R17-2（P1）：客户端导入时 review 的错题反思字段级合并必须落库 ----------
+
+test('R17-2 导入合并：他机补充的 selfExplanation 必须真正写库（mergeRows 不得原地改引用）', async () => {
+  const c = await createCard({ front: 'Q-R17-2', back: 'A', subject: '操作系统' });
+  const r = await review(c.id, 0); // 答错，便于后续补反思
+  // 本机先写一条反思（selfExplainAt = T1）
+  await attachSelfExplanation(r.reviewId, '本机反思 v1');
+  const local = await db.reviews.get(r.reviewId);
+  assert.equal(local.selfExplanation, '本机反思 v1');
+  const T1 = local.selfExplainAt;
+
+  // 模拟他机备份：同一 review id，反思更新（selfExplainAt 更晚）
+  const mkBackup = (expl, at) => ({
+    app: 'sxybrick', scope: backupScope(), version: 7, exportedAt: Date.now(),
+    tombstones: [], images: [],
+    reviews: [{ ...local, selfExplanation: expl, selfExplainAt: at }],
+  });
+
+  await importBackup(mkBackup('他机反思 v2（更晚）', T1 + 5000));
+  let cur = await db.reviews.get(r.reviewId);
+  assert.equal(cur.selfExplanation, '他机反思 v2（更晚）',
+    '他机更晚的反思必须落库（R17-2：此前 mergeRows 原地改 cur，JSON 差异恒 0 导致从不写库）');
+  assert.equal(cur.selfExplainAt, T1 + 5000);
+
+  // 反向：他机更旧的反思不应覆盖本机更新的内容
+  await importBackup(mkBackup('他机旧反思（更早）', T1 + 1000));
+  cur = await db.reviews.get(r.reviewId);
+  assert.equal(cur.selfExplanation, '他机反思 v2（更晚）', '更旧的入站反思不应覆盖本机内容');
+  assert.equal(cur.selfExplainAt, T1 + 5000);
+
+  await db.reviews.delete(r.reviewId);
+  await db.cards.delete(c.id);
+});
 test('黄金路径4：自我解释钩子落盘 + 跨设备同步合并', async () => {
   const c = await createCard({ front: '什么是死锁？', back: '互相等待资源', subject: '操作系统' });
   const r = await review(c.id, 0); // 答错

@@ -184,7 +184,13 @@ export const TRASH_TTL_DAYS = 30;
 //   _edges      资料→卡片图谱边 → graphEdges
 export async function trashItem(id, kind, data) {
   if (!id || !data) return;
-  try { await db.trash.put({ id, kind, deletedAt: now(), data }); } catch { /* trash 不可用不阻塞删除 */ }
+  try {
+    await db.trash.put({ id, kind, deletedAt: now(), data });
+  } catch (e) {
+    // round15 P2：快照失败不再静默——删除照常完成，但回收站无快照 = 恢复不可能。
+    // 至少留痕（存储配额/IndexedDB 异常等），便于排障而非用户一脸懵。
+    console.warn('[trash] 回收站快照写入失败（该记录将无法从回收站恢复）:', kind, id, e?.message || e);
+  }
 }
 
 /**
@@ -249,6 +255,9 @@ export async function restoreFromTrash(t) {
     if (reviews && reviews.length) {
       // 复习快照的 cardId 即本卡 id，原样还原（review 自带 id 用于幂等覆盖）
       await reviewsTable.bulkPut(reviews.map(r => ({ ...r })));
+      // round16 R16-1：恢复时清掉为这些复习记录写的墓碑，否则下次同步
+      // 会被自己的墓碑重新删掉（与下方 groupLink 墓碑清理同机制）
+      await db.tombstones.bulkDelete(reviews.map(r => r.id));
     }
     if (links && links.length) {
       await linksTable.bulkPut(links.map(l => ({ ...l })));
@@ -280,7 +289,7 @@ export async function deleteCard(id) {
   // 事务内一次性完成 回收站快照 + 墓碑 + 删卡 + 删复习 + 删卡组关联 + 切断图谱边，保证原子、无悬空引用
   // 注：cardGroupLinks 此前漏删 —— 删卡后关联行原样留在库里（还进同步包跨设备传播），
   //     卡组详情页会统计到已被删除的「幽灵卡」，且永不清理。
-  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, async () => {
+  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.embeddings, async () => {
     // 1) 回收站快照（含复习记录 + 卡组关联，便于恢复时一并还原）
     const reviews = await db.reviews.where('cardId').equals(id).toArray();
     const links = await db.cardGroupLinks.where('cardId').equals(id).toArray();
@@ -292,6 +301,19 @@ export async function deleteCard(id) {
     if (links.length) {
       await db.tombstones.bulkPut(links.map(l => ({ id: l.id, kind: 'groupLink', deletedAt: now() })));
     }
+    // round15 P1：图谱边必须写墓碑——本端 filter 删除后，若不写墓碑，
+    // 对端旧边会在下次同步按 updatedAt 合并被推回，幽灵边复活。
+    const edges = await db.graphEdges.filter(e => e.fromCardId === id || e.toCardId === id).toArray();
+    if (edges.length) {
+      await db.tombstones.bulkPut(edges.map(e => ({ id: e.id, kind: 'graphEdge', deletedAt: now() })));
+    }
+    // round16 R16-1：复习记录（同步表 kind='review'）同样必须写墓碑——
+    // round15 只给 deleteWordCard 的 wordReviews 补了墓碑，记忆卡侧 deleteCard 漏了同款。
+    // 物理删行不写墓碑 → 对端残留的 review 行随每次增量包反复回传（idOnly 幂等表），
+    // 形成「卡没了、复习还在」的孤儿行；恢复卡片后与卡 id 不匹配成为永久垃圾。
+    if (reviews.length) {
+      await db.tombstones.bulkPut(reviews.map(r => ({ id: r.id, kind: 'review', deletedAt: now() })));
+    }
     // 3) 删卡
     await db.cards.delete(id);
     // 4) 删复习记录
@@ -300,6 +322,8 @@ export async function deleteCard(id) {
     await db.cardGroupLinks.where('cardId').equals(id).delete();
     // 6) 切断关联图谱边（fromCardId/toCardId 未建索引，用 filter 全表扫）
     await db.graphEdges.filter(e => e.fromCardId === id || e.toCardId === id).delete();
+    // 7) 删向量索引（round15 P1：此前漏删，本端 RAG 检索到已删卡的幽灵向量）
+    await db.embeddings.where('sourceId').equals(id).and(e => e.sourceType === 'card').delete();
   });
   await cleanupOrphanImages(imgIds);
   fireHook('onCardDeleted', { id });
@@ -461,7 +485,12 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   // 任何一步失败都整体回滚，避免「卡片更新了但复习记录没写」的半残状态。
   const reviewId = uid();
   await db.transaction('rw', db.cards, db.reviews, async () => {
-    await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: next.fsrs ?? card.fsrs, wrongReason: nextWrongReason, wrongReasonAt, reviewedAt: nowTs });
+    // round17 R17-6：SM-2 路径 next.fsrs 为 undefined 时，不能原样保留 card.fsrs——
+    // 那样 fsrs.last 永远停在「最后一次 FSRS 复习」时刻，用户切回 FSRS 后 elapsedDays
+    // 横跨整个 SM-2 期 → 预测 R≈0 → stabilityAfterRecall 的 e^(w9(1-R))-1 被异常放大。
+    // 正确语义：无论哪种调度器，last 都应推进到「本次实际复习时刻」；s/d 保持 FSRS 上次状态。
+    const fsrsNext = next.fsrs ?? (card.fsrs ? { ...card.fsrs, last: nowTs } : undefined);
+    await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: fsrsNext, wrongReason: nextWrongReason, wrongReasonAt, reviewedAt: nowTs });
     await db.reviews.put({
       id: reviewId, cardId, reviewedAt: now(), rating,
       predR,
@@ -585,33 +614,17 @@ export async function createDailyPlan(payload) {
   const date = payload?.date || localDateStr();
   const t = now();
 
-  // 覆盖重建：删除当天已有的全部旧计划（含任务），保证每天只有一份最新计划
-  const existing = await db.dailyPlans.where('date').equals(date).toArray();
-  for (const p of existing) {
-    // 级联删任务必须逐条写墓碑，否则对端会把旧任务推回来、与新计划混在一起
-    await cascadeDeletePlanTasks(p.id, t);
-    await db.dailyPlans.delete(p.id);
-    await db.tombstones.put({ id: p.id, kind: 'dailyPlan', deletedAt: t });
-  }
-
-  const plan = {
-    id: uid(),
-    date,
-    rawInput,
-    status: 'active',
-    createdAt: t, updatedAt: t,
-  };
-  await db.dailyPlans.put(plan);
-
-  // 优先使用调用方解析好的任务（预览一致），否则离线解析
+  // 优先使用调用方解析好的任务（预览一致），否则离线解析。
+  // 解析是纯计算且含动态 import，必须在 Dexie 事务外完成（事务 Zone 内不能 await 非库 promise）。
   let parsed = Array.isArray(payload.tasks) && payload.tasks.length ? payload.tasks : null;
   if (!parsed) {
     const { parsePlan } = await import('./utils/plan-parser.js');
     parsed = parsePlan(rawInput);
   }
+  const planId = uid();
   const tasks = parsed.map(task => ({
     id: uid(),
-    planId: plan.id,
+    planId,
     date,
     ...task,
     status: 'pending',
@@ -619,7 +632,21 @@ export async function createDailyPlan(payload) {
     completionNote: '',
     createdAt: t, updatedAt: t,
   }));
-  await db.dailyTasks.bulkPut(tasks);
+  const plan = { id: planId, date, rawInput, status: 'active', createdAt: t, updatedAt: t };
+
+  // 覆盖重建 + 新建全部包进单个事务（round15 P1：任一步失败整体回滚，
+  // 杜绝「旧计划已清空但新计划未建成」的半残态——此前逐条删除无事务保护）
+  await db.transaction('rw', db.dailyPlans, db.dailyTasks, db.tombstones, async () => {
+    const existing = await db.dailyPlans.where('date').equals(date).toArray();
+    for (const p of existing) {
+      // 级联删任务必须逐条写墓碑，否则对端会把旧任务推回来、与新计划混在一起
+      await cascadeDeletePlanTasks(p.id, t);
+      await db.dailyPlans.delete(p.id);
+      await db.tombstones.put({ id: p.id, kind: 'dailyPlan', deletedAt: t });
+    }
+    await db.dailyPlans.put(plan);
+    if (tasks.length) await db.dailyTasks.bulkPut(tasks);
+  });
   fireHook('onDailyPlanSaved', { plan, tasks });
   return { plan, tasks };
 }
@@ -678,8 +705,12 @@ export async function updateDailyTask(id, patch) {
 
 /** 删除任务 */
 export async function deleteDailyTask(id) {
-  await db.dailyTasks.delete(id);
-  await db.tombstones.put({ id, kind: 'dailyTask', deletedAt: now() });
+  // round15 P2：delete + 墓碑包进同一事务——此前无事务，墓碑写失败时对端无墓碑
+  // 会把已删任务推回，删除永不生效。
+  await db.transaction('rw', db.dailyTasks, db.tombstones, async () => {
+    await db.dailyTasks.delete(id);
+    await db.tombstones.put({ id, kind: 'dailyTask', deletedAt: now() });
+  });
 }
 
 /**
@@ -795,7 +826,10 @@ export async function getDailyReality(date = localDateStr()) {
   let pomodoroMinutes = 0;
   try {
     const sessions = await db.pomoSessions.where('startedAt').between(dayStart, dayEnd, true, true).toArray();
-    pomodoroMinutes = Math.round(sessions.reduce((s, x) => s + (x?.durationMs || 0), 0) / 60000);
+    // round17 R17-1：pomoSessions 的字段是 duration（单位：分钟，见 addPomoSession），
+    // 此前误读 durationMs 并再 ÷60000 —— 该字段根本不存在，专注分钟恒为 0。
+    // 与 analytics.js:144 / intelligence.js / WeeklyReport 的已有口径对齐。
+    pomodoroMinutes = Math.round(sessions.reduce((s, x) => s + (x?.duration || 0), 0));
   } catch { pomodoroMinutes = 0; }
 
   // 今日新建资料（docFiles 表，createdAt）
@@ -967,8 +1001,11 @@ export async function createGraphEdge(payload) {
   return e;
 }
 export async function deleteGraphEdge(id) {
-  await db.graphEdges.delete(id);
-  await db.tombstones.put({ id, kind: 'graphEdge', deletedAt: now() }); // 墓碑：跨设备同步删除
+  // round15 P2：delete + 墓碑同事务（防墓碑写失败导致对端回灌已删边）
+  await db.transaction('rw', db.graphEdges, db.tombstones, async () => {
+    await db.graphEdges.delete(id);
+    await db.tombstones.put({ id, kind: 'graphEdge', deletedAt: now() }); // 墓碑：跨设备同步删除
+  });
 }
 
 // ---------- AI 文档（可持久化、随数据包同步） ----------
@@ -1093,8 +1130,11 @@ export async function saveWeeklyReport(payload) {
   return row;
 }
 export async function deleteWeeklyReport(id) {
-  await db.weeklyReports.delete(id);
-  await db.tombstones.put({ id, kind: 'weeklyReport', deletedAt: now() }); // 墓碑：跨设备同步删除
+  // round15 P2：delete + 墓碑同事务
+  await db.transaction('rw', db.weeklyReports, db.tombstones, async () => {
+    await db.weeklyReports.delete(id);
+    await db.tombstones.put({ id, kind: 'weeklyReport', deletedAt: now() }); // 墓碑：跨设备同步删除
+  });
 }
 
 // ---------- 成就（可持久化、随数据包同步；id 为确定性 ack-<key>，各设备幂等） ----------
@@ -1122,7 +1162,9 @@ export async function saveExam(payload) {
     id: uid(),
     title: String(payload?.title || '模拟考试').trim().slice(0, 40),
     subject: String(payload?.subject || '').trim(),
-    questions: Array.isArray(payload?.questions) ? payload.questions : [],
+    // round15 P2：与其它写库一致 plain() 脱壳——此前直接存 payload.questions，
+    // 调用方若传 Vue reactive 数组，Dexie structuredClone 抛 DataCloneError 整单写不进
+    questions: Array.isArray(payload?.questions) ? plain(payload.questions) : [],
     score: Number(payload?.score) || 0,
     total: Number(payload?.total) || 0,
     createdAt: t, updatedAt: t,
@@ -1132,8 +1174,11 @@ export async function saveExam(payload) {
   return e;
 }
 export async function deleteExam(id) {
-  await db.exams.delete(id);
-  await db.tombstones.put({ id, kind: 'exam', deletedAt: now() }); // 墓碑：跨设备同步删除
+  // round15 P2：delete + 墓碑同事务
+  await db.transaction('rw', db.exams, db.tombstones, async () => {
+    await db.exams.delete(id);
+    await db.tombstones.put({ id, kind: 'exam', deletedAt: now() }); // 墓碑：跨设备同步删除
+  });
 }
 export async function updateExam(id, patch) {
   const old = await db.exams.get(id);
@@ -1413,8 +1458,11 @@ export async function listPrivacyRecords({ fromDate, toDate, type, limit = 500 }
 }
 export async function getPrivacyRecord(id) { return (await db.privacyRecords.get(id)) || null; }
 export async function deletePrivacyRecord(id) {
-  await db.privacyRecords.delete(id);
-  await db.tombstones.put({ id, kind: 'privacy', deletedAt: Date.now() });
+  // round15 P2：delete + 墓碑同事务（隐私表默认不入同步，但 opt-in 后墓碑必须可靠）
+  await db.transaction('rw', db.privacyRecords, db.tombstones, async () => {
+    await db.privacyRecords.delete(id);
+    await db.tombstones.put({ id, kind: 'privacy', deletedAt: Date.now() });
+  });
 }
 
 // 6) 隐私人物画像报告（启发式本地算法 + 可选 AI 增强）

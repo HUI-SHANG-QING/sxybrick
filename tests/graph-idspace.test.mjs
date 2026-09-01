@@ -73,12 +73,13 @@ test('resolveGraph: 卡片ID 型边 与 标签型边 收敛到同一节点（核
   assert.equal(edges.length, 2);
   assert.equal(stats.missing, 0);
   // C2 同时被两种写法引用 → 图是连通的（度=2）
+  // round15 P2：edges.from/to 是节点键（cardId 优先），不再是 label 文本
   const deg = new Map();
   for (const e of edges) {
     deg.set(e.from, (deg.get(e.from) || 0) + 1);
     deg.set(e.to, (deg.get(e.to) || 0) + 1);
   }
-  assert.equal(deg.get(C2.front), 2, 'C2 是两条边的桥梁 → 说明两套 ID 空间真的打通了');
+  assert.equal(deg.get(C2.id), 2, 'C2 是两条边的桥梁 → 说明两套 ID 空间真的打通了（端点键=cardId）');
 });
 
 test('resolveGraph: subject 从卡片补回，不再全落「未分类」', () => {
@@ -122,6 +123,27 @@ test('edgesToForest: 森林（多根）会包一层虚拟根', () => {
   const { root, virtual } = edgesToForest([{ from: 'A', to: 'B' }, { from: 'C', to: 'D' }]);
   assert.equal(virtual, true);
   assert.equal(root.children.length, 2);
+});
+
+test('edgesToForest: labelMap 把键翻译回显示名（R16-2，P2-7 后 from/to 是 cardId 的回归锚点）', () => {
+  // resolveGraph 输出：from/to = 稳定键（cardId 优先），nodes = [{id, label}]
+  const cards = [
+    { id: 'card-1', front: '死锁的四个必要条件' },
+    { id: 'card-2', front: '银行家算法' },
+  ];
+  const raw = [
+    { id: 'e1', from: '死锁的四个必要条件', to: '银行家算法', fromCardId: 'card-1', toCardId: 'card-2', label: '相关', subject: 'OS' },
+  ];
+  const { edges, nodes } = resolveGraph(raw, cards);
+  const labelMap = new Map((nodes || []).map(n => [n.id, n.label]));
+  const { root, virtual } = edgesToForest(edges, { rootLabel: '📚 知识图谱', labelMap });
+  assert.equal(virtual, false, '单条边不成森林');
+  // 节点显示名必须是中文 label，绝不能是 cardId 内部键
+  assert.equal(root.name, '死锁的四个必要条件', '根节点显示 label 而非 cardId');
+  assert.equal(root.children[0].name, '银行家算法', '子节点显示 label 而非 cardId');
+  // 不传 labelMap 时退回字面量（保持旧行为）
+  const { root: rawRoot } = edgesToForest(edges);
+  assert.equal(rawRoot.name, 'card-1', '无 labelMap 时键字面量原样（即 R16-2 修复前的表现）');
 });
 
 // ---------- ECharts graph 端点归一化 ----------

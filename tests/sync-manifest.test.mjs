@@ -196,3 +196,25 @@ test('applyTombstones：旧行删除 / 新行复活标记 stale / kind 隔离', 
   assert.deepEqual(rDoc.stale, ['b']); // b 编辑晚于删除 → 复活，墓碑应清除
   assert.deepEqual(rDoc.removed, []);
 });
+
+// ---------- round15 P2：清空水位 + 本地表登记 ----------
+
+test('EXCLUDED_FROM_SYNC：本地表 docTexts/docBlobs/trash 已登记（清单=唯一事实来源）', () => {
+  for (const t of ['docTexts', 'docBlobs', 'trash', 'aiUsage', 'wordExportHistory']) {
+    assert.ok(EXCLUDED_FROM_SYNC.includes(t), `本地表 ${t} 应登记在排除清单`);
+  }
+});
+
+test('filterClearedRows：水位之前的历史行被过滤（隐私删除语义）', async () => {
+  const { filterClearedRows, livenessTs } = await import('../src/sync-manifest.js');
+  const rows = [
+    { id: 'a', updatedAt: 100 },           // 水位前：应被滤掉
+    { id: 'b', updatedAt: 500 },           // 水位后：保留
+    { id: 'c', createdAt: 600 },           // 无 updatedAt，用 createdAt（水位后保留）
+  ];
+  const out = filterClearedRows(rows, 400);
+  assert.deepEqual(out.map(r => r.id), ['b', 'c'], '水位 400 之前的历史行被过滤，之后保留');
+  assert.equal(filterClearedRows(rows, 0).length, 3, '水位 0 = 未清空，原样返回');
+  assert.equal(filterClearedRows(null, 400).length, 0, '空入站安全');
+  assert.equal(livenessTs({ updatedAt: 100 }), 100);
+});

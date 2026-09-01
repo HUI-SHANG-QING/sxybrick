@@ -78,7 +78,7 @@ export function resolveEdgeEnds(e, cardById) {
     || String(fromCard?.subject || '').trim()
     || String(toCard?.subject || '').trim();
 
-  return { fromLabel, toLabel, subject, fromMissing, toMissing };
+  return { fromLabel, toLabel, subject, fromMissing, toMissing, fromKey, toKey };
 }
 
 /**
@@ -96,24 +96,26 @@ export function resolveGraph(rawEdges, cards, opts = {}) {
   const edges = [];
   let resolved = 0, missing = 0;
 
-  const putNode = (label, subject) => {
-    const key = String(label || '').trim();
-    if (!key) return;
-    const hit = nodeMap.get(key);
+  const putNode = (label, subject, key) => {
+    // round15 P2：节点键 = 卡 id 优先（同 front 前 30 字相同的不同卡此前被合并成单节点，
+    // 关系错画）。key 为空（资料型 label 边）退回显示文本。
+    const nodeKey = key || String(label || '').trim();
+    if (!nodeKey) return;
+    const hit = nodeMap.get(nodeKey);
     if (hit) {
       // 同一节点被多条边引用时，用第一次拿到的非空 subject 补全
       if (!hit.subject && subject) hit.subject = subject;
       return;
     }
-    nodeMap.set(key, { id: key, label: key, subject: subject || '' });
+    nodeMap.set(nodeKey, { id: nodeKey, label: String(label || '').trim() || nodeKey, subject: subject || '' });
   };
 
   for (const e of rawEdges || []) {
-    const { fromLabel, toLabel, subject, fromMissing, toMissing } = resolveEdgeEnds(e, cardById);
+    const { fromLabel, toLabel, subject, fromMissing, toMissing, fromKey, toKey } = resolveEdgeEnds(e, cardById);
     const bad = fromMissing || toMissing;
     if (bad) missing++; else resolved++;
-    putNode(fromLabel, subject);
-    putNode(toLabel, subject);
+    putNode(fromLabel, subject, fromKey);
+    putNode(toLabel, subject, toKey);
     // ⚠️ 2026-08-31（round11b N-3 残留）：边 label 兜底不再写中文 '相关'。
     //   - 来源显式带 labelKind（graphAuto 派生边）→ 沿用，view 按当前语言翻译；
     //   - 空 label → label='related' + labelKind='related'（语义 code，进字典）；
@@ -124,8 +126,10 @@ export function resolveGraph(rawEdges, cards, opts = {}) {
     const labelKind = e.labelKind || (isFallback ? 'related' : undefined);
     edges.push({
       id: e.id,
-      from: fromLabel,
-      to: toLabel,
+      // round15 P2：端点用节点键（cardId 优先），与 nodes[].id 一致（ECharts 节点带 id 则连线用 id）；
+      // 下游 nodeById() 回查 label 渲染显示名，无 cardId 的资料型边退回应文本。
+      from: fromKey || fromLabel,
+      to: toKey || toLabel,
       label,
       labelKind,
       subject,
@@ -146,8 +150,9 @@ export function resolveGraph(rawEdges, cards, opts = {}) {
   for (const e of visibleEdges) { used.add(e.from); used.add(e.to); }
   const nodes = [...nodeMap.values()].filter(n => used.has(n.id));
 
+  // round15 P2：bySubject 按 visibleEdges 统计（此前含 missing 边，脏边存在时口径不一致）
   const bySubject = new Map();
-  for (const e of edges) {
+  for (const e of visibleEdges) {
     const k = e.subject || '未分类';
     bySubject.set(k, (bySubject.get(k) || 0) + 1);
   }
@@ -199,8 +204,15 @@ export function normalizeGraphEnds(nodes, edges) {
 /**
  * 有向边 → 森林（防环），供「树状 / 导图」复用。
  * 与旧实现一致：入度为 0 的点都作为子树根，多个不连通子树包一层虚拟根。
+ *
+ * @param {Array} edges 有向边（from/to 为节点键）
+ * @param {object} opts
+ *   - rootLabel / virtualKey：虚拟根显示名与键
+ *   - labelMap?: Map<key,label> 键 → 显示名。round15 P2-7 后 from/to 可能是
+ *     cardId 而非正文文本——没有 labelMap 时导图节点会显示内部 id（R16-2 回归）。
+ *     调用方（Mindmap 等）应传 resolveGraph 的 nodes 构造的 id→label 映射。
  */
-export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualKey = '__virtual_root__' } = {}) {
+export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualKey = '__virtual_root__', labelMap } = {}) {
   const childrenOf = new Map();
   const all = new Set();
   const inDeg = new Map();
@@ -237,7 +249,8 @@ export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualK
       const built = build(k);
       if (built) kids.push(built);
     }
-    return { name: label, children: kids };
+    // R16-2：节点名走 labelMap 回查显示名（键可能是 cardId），查不到才退回字面量
+    return { name: labelMap?.get(label) ?? label, children: kids };
   };
 
   const subTrees = [];
@@ -248,7 +261,7 @@ export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualK
   }
   // 环内 / 孤立残留节点（既非根又没被任何子树覆盖）单独补上，避免静默丢节点
   for (const n of all) {
-    if (!placed.has(n)) subTrees.push({ name: n, children: [] });
+    if (!placed.has(n)) subTrees.push({ name: labelMap?.get(n) ?? n, children: [] });
   }
 
   if (subTrees.length === 1) return { root: subTrees[0], virtual: false };

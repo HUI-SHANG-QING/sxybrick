@@ -323,7 +323,11 @@ export async function getForgetRisk(limit = 5) {
     const t = total.get(c.id) || 0;
     if (t < 2) continue; // 样本太少不预测
     const failRate = (fail.get(c.id) || 0) / t;
-    const dueIn = (c.dueAt ?? 0) - nowTs;
+    // round15 P2：dueAt 缺失/非有限（同步/导入旧卡）时 (0 - now) ≈ -2 万天 → overdueDays≈20700
+    // 恒过 0.35 阈值霸榜预警与自动计划。无排期数据的卡不算逾期，跳过。
+    const due = c.dueAt;
+    if (!Number.isFinite(due) || due <= 0) continue;
+    const dueIn = due - nowTs;
     // ⚠️ 2026-08-30 修复：原实现 `if (dueIn < 0 …) continue` 把**逾期卡整类跳过** ——
     //   而逾期卡恰恰是风险最高、最该被预警的一批（已经过了最佳复习窗口还没背）。
     //   修正：逾期 → 临近度直接拉满；只排除「3 天后才到期」的远期卡。
@@ -351,7 +355,6 @@ async function _getSubjectDiagnosis() {
   const [stats, pairs] = await Promise.all([getStats(), getConfusablePairs(300)]);
   const cards = await db.cards.toArray();
   const nowTs = now();
-  const masteryMap = new Map((stats.mastery || []).map(m => [m.subject, m.mastery]));
   const subjects = [...new Set(cards.map(c => c.subject || '未分类'))];
   const diag = [];
   for (const subject of subjects) {
@@ -359,9 +362,12 @@ async function _getSubjectDiagnosis() {
     const due = subjCards.filter(c => c.dueAt <= nowTs).length;
     const marked = subjCards.filter(c => c.marked).length;
     const pairN = pairs.filter(p => p.a.subject === subject || p.b.subject === subject).length;
-    const m = masteryMap.get(subject) || 0;
+    const mItem = (stats.mastery || []).find(x => x.subject === subject);
+    const m = mItem ? mItem.mastery : 0;
+    const mHasData = mItem ? !mItem.noData : subjCards.some(c => c.reviewedAt > 0);
     const advices = [];
-    if (m < 50) advices.push('掌握度偏低，先回看基础概念、放慢加卡速度');
+    // round15 P2：零复习科目（noData）不等于掌握度 0——此前误判「学得最差」给用户错误引导
+    if (mHasData && m < 50) advices.push('掌握度偏低，先回看基础概念、放慢加卡速度');
     if (marked >= 3) advices.push(`${marked} 张手动错题，优先清理错题本`);
     if (pairN >= 3) advices.push(`有 ${pairN} 组易混点，多做「易混对决」`);
     if (due >= 10) advices.push(`今日待背 ${due} 张，先集中清到期卡`);

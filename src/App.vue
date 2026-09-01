@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, defineAsyncComponent, watch, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { t, locale, setLocale, LOCALES } from './i18n/index.js';
 import { toast } from './utils/toast.js';
 import { confirmDialog } from './utils/confirm.js';
@@ -40,6 +41,10 @@ import { serializeUserWeights } from './fsrs.js';
 import { parseHm, hasReached } from './utils/time.js';
 
 const theme = useThemeStore();
+// 英语模块品牌色：仅当当前路由属于 /english/* 时，给路由出口加 .eng-brand 类
+// （暗色模式补 .eng-brand-dark），由 styles/english-brand.css 钉死茶绿强调色
+const route = useRoute();
+const isEnglishBrand = computed(() => !!route.meta?.englishBrand);
 
 const appMode = useAppModeStore();
 const showSettings = ref(false);
@@ -456,7 +461,7 @@ async function enableReminder() {
     </div>
     <NavBar :variant="theme.style === 'custom' ? 'focus' : theme.style" :navItems="i18nNavItems" :coreNavs="coreNavs" :hasCoreSetting="hasCoreSetting" />
 
-    <main class="app-main">
+    <main class="app-main" :class="{ 'eng-brand': isEnglishBrand, 'eng-brand-dark': isEnglishBrand && theme.mode === 'dark' }">
       <router-view v-slot="{ Component }">
         <transition name="page" mode="out-in">
           <ErrorBoundary><component :is="Component" /></ErrorBoundary>

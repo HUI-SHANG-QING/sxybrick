@@ -41,6 +41,8 @@ test('highlight：关键词包裹 mark，且先做 HTML 转义（防 XSS）', ()
   assert.equal(highlight('no kw', ''), 'no kw', '空关键词原样转义返回');
   // 关键词含正则元字符不炸
   assert.equal(highlight('a.b c', 'a.b'), '<mark>a.b</mark> c');
+  // round15 P2：单引号也转义（与 WordBook.escHtml 口径一致，防属性注入）
+  assert.equal(highlight("it's fine", ''), 'it&#39;s fine');
 });
 
 test('plain：去 Markdown 语法保留可读文本', () => {
@@ -170,4 +172,31 @@ test('listCards：q 覆盖标签/科目/来源/助记（原 front/back 兼容）
   } finally {
     await d.cards.delete(cid);
   }
+});
+
+test('rowMatches：大字段匹配窗口截断（round15 P3-10，防超长串卡顿）', () => {
+  // 超长 content：关键词在前 20000 字符内 → 命中
+  const big = { id: 'big', content: '目标关键词TCP'.padEnd(50000, 'x') };
+  assert.equal(rowMatches(big, 'tcp', ['content']), true, '窗口内关键词应命中');
+  // 关键词只出现在窗口之外（前 20000 全 x，之后才出现）→ 漏命中（取舍：近似匹配）
+  const far = { id: 'far', content: 'x'.repeat(21000) + 'TCP' };
+  assert.equal(rowMatches(far, 'tcp', ['content']), false, '窗口外关键词按近似匹配取舍漏命中');
+  // 数组对象字段同样受窗口保护且行为正确
+  const arr = { id: 'a', questions: [{ front: '中值定理' }, { front: '死锁条件辨析' }] };
+  assert.equal(rowMatches(arr, '死锁', ['questions']), true, '数组对象字段命中');
+  // 与旧行为一致：短字段不受影响
+  assert.equal(rowMatches({ id: 's', title: 'TCP 传输层' }, 'tcp', ['title']), true);
+});
+
+test('rowMatches：R16-4 对象按叶子值匹配（不再全量 stringify），键不参与匹配，深层结构兜底', () => {
+  // 嵌套对象叶子值可命中（行为与旧 stringify 一致）
+  assert.equal(rowMatches({ root: { label: '操作系统', children: [{ label: '进程管理' }] } }, '进程管理', ['root']), true);
+  // 数组套对象
+  assert.equal(rowMatches({ questions: [{ q: '虚拟内存', a: '分页' }] }, '分页', ['questions']), true);
+  // 键名不再参与匹配（旧 JSON.stringify 会把字段名也算进去；新实现只匹配值，避免噪音命中）
+  assert.equal(rowMatches({ root: { name: 'n1', children: [] } }, 'children', ['root']), false, '字段名不应被当作可检索内容');
+  assert.equal(rowMatches({ questions: [{ question: 'x' }] }, 'question', ['questions']), false);
+  // 深层（≥4 层）结构退回 stringify 保底，行为与旧实现一致
+  const deep = { root: { a: { b: { c: { d: { e: '深层关键词xyz' } } } } } };
+  assert.equal(rowMatches(deep, '深层关键词', ['root']), true, '超深结构 stringify 兜底仍可命中');
 });

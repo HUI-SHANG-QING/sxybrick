@@ -108,6 +108,12 @@ test('当天重复创建 → 覆盖重建（历史"全是今日"根因修复）'
   assert.equal(listed.plan.id, b.plan.id);
   assert.equal(listed.tasks.length, 1);
   assert.equal(listed.tasks[0].targetCount, 20);
+  // round15 P1：覆盖重建在单个事务内完成；旧计划/旧任务都写墓碑（跨设备删除语义不丢）
+  assert.equal((await db.tombstones.get(a.plan.id))?.kind, 'dailyPlan', '旧计划写了墓碑');
+  const legacyTasks = await db.dailyTasks.where('planId').equals(a.plan.id).toArray();
+  if (legacyTasks.length) {
+    assert.equal((await db.tombstones.get(legacyTasks[0].id))?.kind, 'dailyTask', '旧任务写了墓碑');
+  }
 });
 
 test('tasks 透传：预览任务原样入库（预览=入库一致）', async () => {

@@ -42,6 +42,8 @@ import '@fontsource-variable/inter';
 import 'element-plus/dist/index.css';
 import './styles.css';
 import './styles/element-bridge.css';
+// 英语模块品牌色层：须在 element-bridge 之后引入，钉死 /english/* 茶绿强调色
+import './styles/english-brand.css';
 
 const app = createApp(App);
 const pinia = createPinia();

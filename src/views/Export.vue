@@ -10,6 +10,7 @@ import {
   queryUserOps, listPrivacyRecords,
 } from '../repo.js';
 import { downloadCsv, downloadAnkiText, downloadBackup as doDownloadBackup, countData } from '../sync.js';
+import { clearedBeforeKey } from '../sync-manifest.js';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
 import { encodeShareCode, decodeShareCode, estimateSize } from '../utils/shareCode.js';
 import { parseApkg } from '../utils/apkg.js';
@@ -136,6 +137,9 @@ async function wipeUserOps() {
   if (dangerConfirm.value !== '清空埋点') return toast(t('views.export.wipeOpsPrompt'), 'warn');
   try {
     await db.userOps.clear();
+    // F10（round15 P2）：写「已清空水位」——否则下轮同步把 hub/对端的历史埋点灌回，
+    // 「撤销监控」失效（此前 clearedBeforeKey/filterClearedRows 是死代码）。
+    localStorage.setItem(clearedBeforeKey('userOps'), String(Date.now()));
     dangerConfirm.value = '';
     await refreshCounts();
     toast(t('views.export.wipeOpsDone'), 'success');
@@ -145,6 +149,8 @@ async function wipePrivacy() {
   if (dangerConfirm.value !== '清空隐私') return toast(t('views.export.wipePrivacyPrompt'), 'warn');
   try {
     await db.privacyRecords.clear();
+    // F10：同上，写水位防隐私数据从同步回流
+    localStorage.setItem(clearedBeforeKey('privacyRecords'), String(Date.now()));
     dangerConfirm.value = '';
     await refreshCounts();
     toast(t('views.export.wipePrivacyDone'), 'success');

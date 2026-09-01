@@ -519,7 +519,28 @@ function highlightWord(example, word) {
 </template>
 
 <style scoped>
-.wbook { padding-bottom: 90px; }
+.wbook {
+  /* 不背风：标志性流动渐变「墙」背景——以主题 token 派生，自适应 11 风格 × 3 模式 */
+  --wb-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 16%, transparent);
+  padding-bottom: 90px;
+  min-height: 100vh;
+  background-image: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 9%, var(--bg)),
+    var(--bg) 45%,
+    color-mix(in srgb, var(--accent) 6%, var(--bg))
+  );
+  background-size: 220% 220%;
+  animation: wbwall 22s ease infinite;
+}
+@keyframes wbwall {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wbook { animation: none; }
+}
 .wb-head { padding: 16px 16px 4px; }
 .wb-head .back { border: none; background: transparent; color: var(--ink-2); cursor: pointer; font-size: 13px; }
 .wb-head h1 { margin: 6px 0 2px; font-size: 20px; color: var(--ink); }
@@ -531,7 +552,7 @@ function highlightWord(example, word) {
   flex: 1; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2);
   border-radius: 12px; padding: 9px 10px; font-size: 13px; cursor: pointer; transition: .15s;
 }
-.wv.on { border-color: var(--accent); background: var(--code-inline); color: var(--accent); font-weight: 600; }
+.wv.on { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
 
 /* ---- 考研大纲词书 ---- */
 .wb-syllabus { padding: 8px 16px 0; display: flex; flex-direction: column; gap: 10px; }
@@ -580,27 +601,29 @@ function highlightWord(example, word) {
 .syl-pager .spi { font-size: 12px; color: var(--ink-2); }
 .wb-empty .syl-guide { color: var(--accent); margin-top: 10px; }
 
-.wb-stats { display: flex; gap: 8px; padding: 10px 16px; overflow-x: auto; }
-.wbs { flex: 1; min-width: 64px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px; text-align: center; }
-.wbs b { display: block; font-size: 18px; color: var(--ink); }
+.wb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px 16px; }
+.wbs { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 6px; text-align: center; box-shadow: var(--wb-shadow); }
+.wbs b { display: block; font-size: 20px; font-weight: 700; color: var(--ink); }
 .wbs span { font-size: 11px; color: var(--ink-2); }
 
 .wb-toolbar { padding: 6px 16px 10px; display: flex; flex-direction: column; gap: 8px; }
-.wb-kinds { display: flex; gap: 6px; flex-wrap: wrap; }
-.kchip { border: 1px solid var(--line); background: transparent; border-radius: 10px; padding: 5px 12px; font-size: 13px; cursor: pointer; color: var(--ink); }
-.kchip.on { border-color: var(--accent); background: var(--code-inline); color: var(--accent); }
+.wb-kinds { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
+.wb-kinds::-webkit-scrollbar { display: none; }
+.kchip { border: none; background: transparent; border-radius: 16px; padding: 6px 14px; font-size: 12px; cursor: pointer; color: var(--ink-2); white-space: nowrap; transition: .15s; }
+.kchip.on { background: var(--accent); color: #fff; }
 .wb-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.wb-search { flex: 1; min-width: 140px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--panel); color: var(--ink); font-size: 13px; }
+.wb-search { flex: 1; min-width: 140px; border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px; background: var(--panel); color: var(--ink); font-size: 13px; }
 .wb-rev, .fam-toggle { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--panel); color: var(--ink); font-size: 13px; cursor: pointer; }
 .fam-toggle.on { border-color: var(--accent); color: var(--accent); }
 .wb-add { border: none; background: var(--accent); color: #fff; border-radius: 10px; padding: 8px 14px; font-size: 13px; cursor: pointer; white-space: nowrap; }
 
 .wb-list { padding: 0 16px; display: flex; flex-direction: column; gap: 12px; }
 .wb-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
-  padding: 14px 16px 0; cursor: pointer; transition: .15s; overflow: hidden;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+  padding: 16px 16px 0; cursor: pointer; transition: .15s; overflow: hidden;
+  box-shadow: var(--wb-shadow);
 }
-.wb-card:hover { border-color: var(--accent); }
+.wb-card:hover { border-color: var(--accent); transform: translateY(-2px); }
 .wb-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .wb-word { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
 .wb-wtext { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: .3px; }

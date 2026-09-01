@@ -183,19 +183,21 @@ function buildOption(nds, eds, style) {
   };
   if (style === 'tree') {
     // 树状：把有向边转成树（防环），用 ECharts tree 系列；每个节点携带 subject 便于后续跳转
-    const subjOf = new Map(nds.map(n => [n.label, n.subject || '']));
+    // round15 P2：edges.from/to 现在是节点键（cardId 优先，不再是 label 文本），
+    // 树节点 name 必须回查 label 显示，不能直接用键。
+    const subjOf = new Map(nds.map(n => [n.id, n.subject || '']));
+    const nameOf = new Map(nds.map(n => [n.id, n.label]));
     const childrenOf = new Map();
     for (const e of eds) { if (!childrenOf.has(e.from)) childrenOf.set(e.from, []); childrenOf.get(e.from).push(e.to); }
     const all = new Set([...eds.map(e => e.from), ...eds.map(e => e.to)]);
     const inDeg = new Map(); for (const e of eds) inDeg.set(e.to, (inDeg.get(e.to) || 0) + 1);
-    // 兼容旧数据：edges.from/to 可能是 label（字符串本身）或 新id（=label），统一按 label 走
     const roots = [...all].filter(n => !inDeg.has(n));
     const forest = roots.length ? roots : [...all];
-    const build = (label, visited) => {
-      if (visited.has(label)) return null;
-      visited.add(label);
-      const kids = (childrenOf.get(label) || []).map(k => build(k, new Set(visited))).filter(Boolean);
-      return { name: label, value: { subject: subjOf.get(label) || '' }, children: kids };
+    const build = (key, visited) => {
+      if (visited.has(key)) return null;
+      visited.add(key);
+      const kids = (childrenOf.get(key) || []).map(k => build(k, new Set(visited))).filter(Boolean);
+      return { name: nameOf.get(key) || key, value: { subject: subjOf.get(key) || '' }, children: kids };
     };
     const rootsBuilt = forest.map(r => build(r, new Set())).filter(Boolean);
     // 多个不连通的树：用一个虚拟根包一层，避免只剩一个“N0”

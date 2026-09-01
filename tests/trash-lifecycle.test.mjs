@@ -256,3 +256,58 @@ test('P1-A 删词组：进回收站（此前无快照），恢复后成员关联
   await db.wordGroupLinks.where('groupId').equals('wg2').delete();
   await db.wordCards.delete('wc2');
 });
+
+// ---------- round15 P1：删除级联完整化 ----------
+
+test('删卡：级联删的图谱边写墓碑 + 卡片向量删除（round15 P1，防对端回灌幽灵边/幽灵向量）', async () => {
+  await resetTrash();
+  const card = await createCard({ front: 'Q-级联删', back: 'A', subject: '计网' });
+  await db.graphEdges.put({ id: 'edge-delcard', from: 'Q-级联删', to: 'X', fromCardId: card.id, toCardId: 'other', label: 'related', subject: '计网', kind: 'manual', updatedAt: REF, createdAt: REF });
+  await db.embeddings.put({ id: 'emb-delcard', sourceType: 'card', sourceId: card.id, updatedAt: REF });
+
+  await deleteCard(card.id);
+  assert.equal(await db.graphEdges.get('edge-delcard'), undefined, '本端边已删');
+  assert.equal((await db.tombstones.get('edge-delcard'))?.kind, 'graphEdge', '边写了墓碑（对端不回灌）');
+  assert.equal(await db.embeddings.get('emb-delcard'), undefined, '卡片向量已删（RAG 无幽灵）');
+  await db.tombstones.clear();
+});
+
+test('删词卡：级联删的 wordReviews 写墓碑（round15 P1，否则对端 idOnly 幂等反复回传孤儿）', async () => {
+  await resetTrash();
+  const { createWordCard, deleteWordCard, reviewWord } = await import('../src/word-repo.js');
+  const w = await createWordCard({ kind: 'word', word: 'cascade', meaning: '级联' });
+  await reviewWord(w.id, 2);
+  const rev = await db.wordReviews.where('cardId').equals(w.id).first();
+  assert.ok(rev, '有复习记录');
+
+  await deleteWordCard(w.id);
+  assert.equal(await db.wordReviews.where('cardId').equals(w.id).count(), 0, '本端复习记录已删');
+  assert.equal((await db.tombstones.get(rev.id))?.kind, 'wordReview', '复习记录写了墓碑（对端不残留）');
+  await db.trash.clear();
+});
+
+// ---------- round16 R16-1：记忆卡侧复习墓碑（word 侧 round15 已修，卡侧漏了同款） ----------
+
+test('R16-1 删记忆卡：级联删的 reviews 写墓碑；恢复时清墓碑（防对端回灌孤儿复习）', async () => {
+  await resetTrash();
+  await db.tombstones.clear();
+  const card = await createCard({ front: 'Q-R16-1', back: 'A', subject: '计组' });
+  const t = REF;
+  await db.reviews.put({ id: 'rv-r16-1', cardId: card.id, rating: 2, reviewedAt: t, updatedAt: t });
+  await db.reviews.put({ id: 'rv-r16-2', cardId: card.id, rating: 0, reviewedAt: t, updatedAt: t });
+
+  await deleteCard(card.id);
+  assert.equal(await db.reviews.where('cardId').equals(card.id).count(), 0, '本端复习记录已删');
+  assert.equal((await db.tombstones.get('rv-r16-1'))?.kind, 'review', '复习记录 1 写了 review 墓碑');
+  assert.equal((await db.tombstones.get('rv-r16-2'))?.kind, 'review', '复习记录 2 写了 review 墓碑');
+
+  // 恢复：复习记录与卡一起回来，墓碑清除（否则下次同步被自己的墓碑重新删掉）
+  const snap = await db.trash.get(card.id);
+  assert.equal(await restoreFromTrash(snap), true);
+  assert.equal(await db.reviews.where('cardId').equals(card.id).count(), 2, '复习记录恢复');
+  assert.equal(await db.tombstones.get('rv-r16-1'), undefined, '恢复后 review 墓碑清除');
+  assert.equal(await db.tombstones.get('rv-r16-2'), undefined, '恢复后 review 墓碑清除');
+  await db.trash.clear(); await db.tombstones.clear();
+  await db.reviews.where('cardId').equals(card.id).delete();
+  await db.cards.delete(card.id);
+});

@@ -217,18 +217,22 @@ const RETRIEVAL_FACTOR = Object.fromEntries(RETRIEVAL_STRENGTH_OPTIONS.map(o => 
 export function scheduleReview(card, rating, intensity = 1, guessed = false, opts = {}) {
   let r;
   if (opts.scheduler === 'fsrs') {
-    r = fsrsSchedule(card, rating, { weights: opts.weights, desiredRetention: opts.desiredRetention, initialStability: opts.initialStability });
-    // 蒙对：FSRS grade 仍记 good，但缩短间隔（与 SM-2 一致语义：不算真掌握）
-    if (guessed && rating === 2) {
-      r.intervalDays = Math.max(1, r.intervalDays * 0.6);
-    }
+    // round15 P2：蒙对不算真掌握——FSRS 按 hard（rating=1）推进状态。
+    // 此前仅缩 intervalDays×0.6，但 S 仍按 good 完整提升（stabilityAfterRecall 单步≈2.6×），
+    // 蒙对卡与真记住同速增长 → 远期间隔系统性放大；与 SM-2 路径「蒙对不升级、降 ease」语义不一致。
+    // FSRS 的 hard 档本身已给短间隔（提取不流畅），无需再叠加乘子。
+    const fsrsRating = (guessed && rating === 2) ? 1 : rating;
+    r = fsrsSchedule(card, fsrsRating, { weights: opts.weights, desiredRetention: opts.desiredRetention, initialStability: opts.initialStability });
   } else {
     r = computeNext(card, rating, intensity, guessed, opts);
   }
   // P1-3 检索强度分级：在调度结果上统一应用乘子
   const rs = opts.retrievalStrength;
   if (rs && RETRIEVAL_FACTOR[rs] !== undefined && RETRIEVAL_FACTOR[rs] !== 1.0) {
-    r.intervalDays = Math.max(10 / 1440, r.intervalDays * RETRIEVAL_FACTOR[rs]);
+    // round17 R17-7：乘子后必须同步封顶 365 天（与 computeNext:164 / fsrs.MAX_STABILITY=365
+    // 的既有上限一致）——此前只保下界，explain(×1.5) 可把 365 天卡推到 547.5 天，
+    // 卡片离下次复习超过一年，设计上限被旁路
+    r.intervalDays = Math.min(365, Math.max(10 / 1440, r.intervalDays * RETRIEVAL_FACTOR[rs]));
     r.dueAt = Date.now() + Math.round(r.intervalDays * DAY);
   }
   // 考试窗口感知：标注紧迫度（不改 FSRS 真实状态，仅在排程优先级层面生效）
