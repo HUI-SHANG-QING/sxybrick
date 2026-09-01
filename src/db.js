@@ -199,6 +199,20 @@ d.version(22).stores({
   cardGroupLinks: 'id, cardId, groupId, addedAt',
 });
 
+// v23：卡片智能联动分析（M2）——工作台对话历史与分析结果，参与同步（跨设备可回看）
+//   analysisSessions：一次分析会话（选定卡片集合 + 多轮对话）。
+//     id, title(自动摘要或用户命名), cardIds(JSON 数组，会话创建时的卡片快照),
+//     mode('local' | 'ai' | 'mixed'), createdAt, updatedAt
+//   analysisMessages：会话内的消息（问题 + 结构化结果）。
+//     id, sessionId, role('user' | 'assistant'), question,
+//     resultType('graph' | 'list' | 'text' | 'timeline'), resultData(JSON 串),
+//     engine('local' | 'ai' | 'fallback'), t(毫秒时间戳主索引)
+//   同步：两表均按 updatedAt/t 合并（见 sync-manifest v23 条目）
+d.version(23).stores({
+  analysisSessions: 'id, createdAt, updatedAt',
+  analysisMessages: 'id, sessionId, t',
+});
+
 // v24：资料文件降级存储（本地表，**不进同步**）。
 //   OPFS 不可用时（Firefox/Safari 无 createWritable、无痕模式、配额不足），
 //   ≤10MB 的文件降级存 IndexedDB。此前把 Blob 直接塞进 docFiles，
@@ -249,19 +263,6 @@ d.version(26).stores({
   wordSyllabusMeta: 'id',
 });
 
-// v23：卡片智能联动分析（M2）——工作台对话历史与分析结果，参与同步（跨设备可回看）
-//   analysisSessions：一次分析会话（选定卡片集合 + 多轮对话）。
-//     id, title(自动摘要或用户命名), cardIds(JSON 数组，会话创建时的卡片快照),
-//     mode('local' | 'ai' | 'mixed'), createdAt, updatedAt
-//   analysisMessages：会话内的消息（问题 + 结构化结果）。
-//     id, sessionId, role('user' | 'assistant'), question,
-//     resultType('graph' | 'list' | 'text' | 'timeline'), resultData(JSON 串),
-//     engine('local' | 'ai' | 'fallback'), t(毫秒时间戳主索引)
-//   同步：两表均按 updatedAt/t 合并（见 sync-manifest v23 条目）
-d.version(23).stores({
-  analysisSessions: 'id, createdAt, updatedAt',
-  analysisMessages: 'id, sessionId, t',
-});
 } // end defineSchema
 
 // 两个实例各自应用全量 schema（惰性 open：首次访问才真正连接 IndexedDB）

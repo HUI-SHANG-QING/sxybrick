@@ -162,6 +162,17 @@ function maskCallArgs(src, names) {
 const HAS_CJK = /[一-鿿]/;
 // 行内最长连续中文字符数（用于去噪：超过阈值视为 AI prompt / 长数据串，跳过）
 const maxCJKRun = (line) => Math.max(0, ...[...line.matchAll(/[一-鿿]+/g)].map(m => m[0].length));
+// N-9 补充：AI prompt 常夹杂英文/标点/变量（如 '你是知识图谱生成器。提取 8~20 个核心知识点…只输出 JSON。'），
+// 单行连续中文可能只有 10+ 字，maxCJKRun>24 漏网。改为看「行内字符串字面量」：
+// 存在长度 ≥40 且中文 ≥8 个的引号字符串 → 视为 prompt / 长数据串豁免（UI 文案短且已走 t()，不会误伤）。
+const promptLike = (line) => {
+  for (const m of line.matchAll(/(['"`])(?:\\.|(?!\1).)*\1/g)) {
+    const s = m[0];
+    const cjk = (s.match(/[一-鿿]/g) || []).length;
+    if (s.length >= 40 && cjk >= 8) return true;
+  }
+  return false;
+};
 
 function scanHardcoded(file) {
   let src = readFileSync(join(viewsDir, file), 'utf8');
@@ -186,8 +197,9 @@ function scanHardcoded(file) {
   src.split(/\r?\n/).forEach((line, i) => {
     if (!HAS_CJK.test(line)) return;
     // N-9：与 js 闸同款豁免——行内最长连续中文 > 24 字视为 AI prompt 模板 / 长数据串，
-    // 翻译会破坏 prompt 结构，豁免（KnowledgeGraph 3 处 system prompt 曾长期误报）。
-    if (maxCJKRun(line) > 24) return;
+    // 翻译会破坏 prompt 结构，豁免（KnowledgeGraph 3 处 system prompt 曾长期误报）；
+    // promptLike 兜底「长字符串字面量」型 prompt（连续中文被英文打断的情形）。
+    if (maxCJKRun(line) > 24 || promptLike(line)) return;
     hits.push({ line: i + 1, text: line.trim().slice(0, 160) });
   });
   return hits;
@@ -244,7 +256,7 @@ function scanJsHardcoded(abs) {
   const hits = [];
   src.split(/\r?\n/).forEach((line, i) => {
     if (!HAS_CJK.test(line)) return;
-    if (maxCJKRun(line) > 24) return;                          // 长串（AI prompt）跳过
+    if (maxCJKRun(line) > 24 || promptLike(line)) return;       // 长串（AI prompt）跳过
     if (/throw\s+new\s+Error/.test(line)) return;              // 错误码非文案
     hits.push({ line: i + 1, text: line.trim().slice(0, 160) });
   });

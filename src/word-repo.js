@@ -15,6 +15,7 @@ import { db, uid } from './db.js';
 import { scheduleReview } from './srs.js';
 import { getSchedConfig, refreshSchedConfig, formatDue, trashItem } from './repo.js';
 import { retrievability } from './fsrs.js';
+import { retrievalGrading } from './algorithms/session.js';
 
 const now = () => Date.now();
 // 剥离 Vue 响应式代理：Dexie put 前转纯对象，避免 reactive proxy 触发结构化克隆失败
@@ -47,7 +48,16 @@ export async function reviewWord(cardId, rating, opts = {}) {
   const predR = (card.fsrs && Number.isFinite(card.fsrs.s) && Number.isFinite(card.fsrs.last))
     ? Number(retrievability(card.fsrs.s, (nowTs - card.fsrs.last) / 86400000).toFixed(4))
     : null;
-  const grade = rating >= 2 ? 'easy' : rating === 1 ? 'hard' : 'failed';
+  // P2-C 口径对齐（round13）：与 repo.review 同用 retrievalGrading 定级
+  // （failed/hard/medium/easy 四档 + gradeScore 0-1 + guessed/responseMs/retrievalStrength 信号），
+  // 替换原单维三档（easy/hard/failed）。旧数据无 'medium'，与四档无冲突，读取无需迁移。
+  const g = retrievalGrading({
+    rating,
+    guessed: !!opts.guessed,
+    responseMs: opts.responseMs || 0,
+    retrievalStrength: opts.retrievalStrength || '',
+  });
+  const grade = g.level;
   const reviewId = uid();
   // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt（与 repo.review 一致：
   // 否则跨设备同步时「复习动作」会覆盖另一台设备对文字/批注的编辑）
@@ -61,6 +71,10 @@ export async function reviewWord(cardId, rating, opts = {}) {
     await db.wordReviews.put({
       id: reviewId, cardId, reviewedAt: nowTs, rating,
       predR, levelAfter: next.level, grade,
+      gradeScore: g.score,
+      guessed: !!opts.guessed,
+      responseMs: opts.responseMs || 0,
+      retrievalStrength: opts.retrievalStrength || '',
     });
   });
   return { ...next, dueText: formatDue(next.dueAt), reviewId };
@@ -353,6 +367,10 @@ export async function wordStats() {
     if (r.familiar) { familiar++; continue; }
     if ((r.createdAt || 0) >= dayStart) newToday++;
     if ((r.dueAt || 0) <= t) due++;
+    // N-8（审计口径说明）：mastered 用 level>=4 || intervalDays>=21 双条件。
+    //   FSRS 路径 level 封顶 4（需 S≥15 天）；SM-2 路径 level 无上限——两套调度器
+    //   「已掌握」的实际门槛不同（FSRS 更严）。UI 统计口径可接受，但跨模块对比
+    //   （如 P2-B union 视图的成就/周报）需知晓此差异。
     if (r.level >= 4 || (r.intervalDays || 0) >= 21) mastered++;
   }
   return {

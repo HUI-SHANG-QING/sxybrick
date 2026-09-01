@@ -51,6 +51,30 @@ test('reviewWord：复用底层算法推进 SRS 状态 + 写复习记录', async
   assert.equal(revs[0].rating, 2);
 });
 
+test('reviewWord：P2-C grade 口径与记忆卡对齐（retrievalGrading 四档 + gradeScore + 信号字段）', async () => {
+  const c = await mk({ word: 'advocate', meaning: '提倡' });
+  // rating=2 无信号：recall 基准 → medium（旧实现是三档直接 easy，这是口径差异的回归锚点）
+  await reviewWord(c.id, 2);
+  // rating=0：failed
+  const c2 = await mk({ word: 'allocate', meaning: '分配' });
+  await reviewWord(c2.id, 0);
+  // 带检索强度信号 + 蒙对 + 耗时
+  const c3 = await mk({ word: 'anticipate', meaning: '预期' });
+  await reviewWord(c3.id, 2, { retrievalStrength: 'generate', responseMs: 1200 });
+  const r1 = await db.wordReviews.where('cardId').equals(c.id).first();
+  const r2 = await db.wordReviews.where('cardId').equals(c2.id).first();
+  const r3 = await db.wordReviews.where('cardId').equals(c3.id).first();
+  assert.equal(r1.grade, 'medium', 'rating=2 无信号应落 medium（retrievalGrading recall 基准）');
+  assert.equal(r2.grade, 'failed', 'rating=0 应 failed');
+  assert.equal(r3.grade, 'easy', 'generate 强度应 easy');
+  assert.equal(r3.gradeScore, 0.95, 'gradeScore 与 retrievalGrading 一致');
+  assert.equal(r3.retrievalStrength, 'generate');
+  assert.equal(r3.responseMs, 1200);
+  assert.ok(r1.guessed === false, '未传 guessed 默认 false');
+  const ALL = ['failed', 'hard', 'medium', 'easy'];
+  for (const r of [r1, r2, r3]) assert.ok(ALL.includes(r.grade), `grade 必须是四档之一（实际 ${r.grade}）`);
+});
+
 test('reviewWord：范文(template) 不参与调度', async () => {
   const c = await mk({ word: 'My Essay', meaning: '范文', kind: 'template' });
   const res = await reviewWord(c.id, 2);

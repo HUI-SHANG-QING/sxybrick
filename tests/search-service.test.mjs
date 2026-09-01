@@ -59,8 +59,8 @@ function card(id, front, subject, tags) {
 before(async () => {
   setDbInstance('real');
   const d = getDb();
-  await d.transaction('rw', d.cards, d.docs, d.memos, d.mindmaps, d.exams, d.notes, d.plans, d.analysisSessions, async () => {
-    for (const t of [d.cards, d.docs, d.memos, d.mindmaps, d.exams, d.notes, d.plans, d.analysisSessions]) await t.clear();
+  await d.transaction('rw', d.cards, d.docs, d.memos, d.mindmaps, d.exams, d.notes, d.plans, d.analysisSessions, d.wordCards, async () => {
+    for (const t of [d.cards, d.docs, d.memos, d.mindmaps, d.exams, d.notes, d.plans, d.analysisSessions, d.wordCards]) await t.clear();
     await d.cards.bulkAdd([
       card('sc-c1', '死锁的四个必要条件', '操作系统', ['同步']),
       card('sc-c2', '特征值与特征向量', '高数', ['线性代数']),
@@ -72,6 +72,11 @@ before(async () => {
     await d.notes.put({ id: 'sc-n1', title: '复习方法笔记', content: '模考前先复习死锁专题，再用卡组分组', category: '方法', tags: ['复习'], createdAt: T, updatedAt: T });
     await d.plans.put({ id: 'sc-p1', title: '周末冲刺计划：死锁 + 级数', task: '死锁 + 级数', status: 'pending', date: '2026-09-05', createdAt: T, updatedAt: T });
     await d.analysisSessions.put({ id: 'sc-s1', title: '死锁与同步 等 2 卡', cardIds: '["sc-c1"]', mode: 'local', createdAt: T, updatedAt: T });
+    // P2-B：单词模块纳入全局搜索（word/meaning 等字段）
+    await d.wordCards.bulkPut([
+      { id: 'sc-w1', kind: 'word', word: 'deadlock', phonetic: "'dedlɒk", meaning: '死锁；僵局', subject: '考研', familiar: 0, ease: 2.5, level: 1, intervalDays: 1, dueAt: T, reviewedAt: 0, createdAt: T, updatedAt: T },
+      { id: 'sc-w2', kind: 'word', word: 'abandon', phonetic: 'əˈbændən', meaning: '放弃；抛弃', subject: '考研', familiar: 0, ease: 2.5, level: 1, intervalDays: 1, dueAt: T, reviewedAt: 0, createdAt: T, updatedAt: T },
+    ]);
   });
 });
 
@@ -86,6 +91,7 @@ test('search(all)：全量聚合命中所有模块，按分组返回', async () 
   assert.ok(byKey.mindmaps?.some(i => i.id === 'sc-mm1'), '导图应命中（title）');
   assert.ok(byKey.exams?.some(i => i.id === 'sc-e1'), '考题应命中（questions 对象数组序列化匹配）');
   assert.ok(byKey.notes?.some(i => i.id === 'sc-n1'), '笔记应命中（content）');
+  assert.ok(byKey.words?.some(i => i.id === 'sc-w1'), '单词本应命中（meaning 含死锁）');
   assert.ok(byKey.docs?.every(i => i.id !== 'sc-d1'), '文档不应命中（内容无死锁）');
 });
 
@@ -97,6 +103,11 @@ test('search(指定模块)：只在该模块内检索', async () => {
 
   const r2 = await search('memos', '死锁');
   assert.equal(r2.total, 1, '备忘模块内唯一命中');
+
+  const r3 = await search('words', 'abandon');
+  assert.equal(r3.modules.length, 1);
+  assert.equal(r3.modules[0].key, 'words');
+  assert.ok(r3.modules[0].items.some(i => i.id === 'sc-w2'), '单词本模块内命中（word 字段）');
 });
 
 test('search：空关键词/未知 scope 安全返回', async () => {
@@ -105,12 +116,13 @@ test('search：空关键词/未知 scope 安全返回', async () => {
   assert.equal((await search('all', 'zzz不存在zzz')).total, 0);
 });
 
-test('SCOPE 元数据：8 个模块登记完整，标签可用', () => {
-  assert.equal(SCOPE_ORDER.length, 8);
+test('SCOPE 元数据：9 个模块登记完整，标签可用', () => {
+  assert.equal(SCOPE_ORDER.length, 9);
   for (const k of SCOPE_ORDER) {
     assert.ok(SEARCH_ADAPTERS[k], `适配器 ${k} 缺失`);
     assert.ok(SCOPE_LABELS[k], `标签 ${k} 缺失`);
   }
+  assert.ok(SCOPE_ORDER.includes('words'), '单词本 scope 应存在（P2-B）');
 });
 
 // ---------- 4) 演示模式联动：search 跟随当前实例 ----------

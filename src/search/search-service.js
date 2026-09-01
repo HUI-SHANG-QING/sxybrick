@@ -90,6 +90,18 @@ export const SEARCH_ADAPTERS = {
       go: '/cards',
     }),
   }),
+  words: makeAdapter({
+    key: 'words', label: '单词本', icon: '🔤', cap: 30,
+    load: () => db.wordCards.toArray(),
+    // P2-B：单词模块纳入全局搜索（word/meaning/phonetic/example/note/tags/subject/source 全字段）
+    fields: ['word', 'meaning', 'phonetic', 'example', 'note', 'tags', 'subject', 'source'],
+    map: w => ({
+      id: w.id,
+      title: `${w.word || '（空词）'}${w.phonetic ? ` /${w.phonetic}/` : ''}`,
+      sub: `[${w.subject || '单词'}] ${String(w.meaning || '').slice(0, 60)}`,
+      go: '/english/book',
+    }),
+  }),
   docs: makeAdapter({
     key: 'docs', label: 'AI 文档', icon: '📄', cap: 20,
     load: () => db.docs.toArray(),
@@ -138,7 +150,7 @@ export const SEARCH_ADAPTERS = {
 };
 
 /** 全量聚合顺序（搜索页分组展示顺序） */
-export const SCOPE_ORDER = ['cards', 'docs', 'mindmaps', 'memos', 'exams', 'notes', 'plans', 'analysis'];
+export const SCOPE_ORDER = ['cards', 'words', 'docs', 'mindmaps', 'memos', 'exams', 'notes', 'plans', 'analysis'];
 
 export const SCOPE_LABELS = Object.fromEntries(SCOPE_ORDER.map(k => [k, SEARCH_ADAPTERS[k].label]));
 

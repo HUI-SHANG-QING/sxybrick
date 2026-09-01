@@ -189,6 +189,13 @@ export async function getModuleSummary() {
   const L = [];
   L.push(`- 跨模块概况：计划 ${insight.plans.active}/${insight.plans.total}（进行中/总数）、AI文档 ${insight.docs.total} 篇、知识图谱边 ${insight.graphEdges.total} 条、备忘 ${insight.memos.total} 条`);
   L.push(`- 学习行为：费曼练习 ${insight.ai.feynman} 次、Agent 工作台会话 ${insight.ai.agent} 次、普通问答 ${insight.ai.chat} 次、番茄专注 ${insight.pomodoro.totalSessions} 次（累计 ${insight.pomodoro.totalMinutes} 分钟，今日 ${insight.pomodoro.today} 次）`);
+  // P2-B：单词模块纳入模块概览（wordCards/wordCheckins 轻量读取；表不可用按 0）
+  try {
+    const [wc, wr, wCheckins] = await Promise.all([db.wordCards.count(), db.wordReviews.count(), db.wordCheckins.count()]);
+    if (wc > 0 || wr > 0 || wCheckins > 0) {
+      L.push(`- 单词模块：词条 ${wc} 个、累计背词 ${wr} 次、打卡 ${wCheckins} 天`);
+    }
+  } catch { /* 单词表不可用：跳过 */ }
   if (insight.recentMistakeCount) {
     const top = insight.recentMistakes.slice(0, 8).map(m => `[${m.subject}] ${m.front}（错${m.wrongCount}次）`).join('；');
     L.push(`- 最近 24h 答错：${top}`);

@@ -24,6 +24,11 @@ export const ACHIEVEMENTS = [
   { key: 'feynman_1', icon: '👨‍🏫', name: '费曼学徒', desc: '完成一次费曼练习', goal: 1, value: s => s.feynman, category: '费曼' },
   { key: 'mindmap_1', icon: '🗺️', name: '导图师', desc: '创建第一张思维导图', goal: 1, value: s => s.mindmaps, category: '导图' },
   { key: 'report_1', icon: '📈', name: '复盘者', desc: '生成第一份每周学习报告', goal: 1, value: s => s.reports, category: '复盘' },
+  // P2-B：单词模块维度（wordCards / wordReviews / wordCheckins 接入成就体系）
+  { key: 'words_20', icon: '🔤', name: '词海拾贝', desc: '单词本累计 20 个词条', goal: 20, value: s => s.words, category: '单词' },
+  { key: 'words_100', icon: '📚', name: '百词斩', desc: '单词本累计 100 个词条', goal: 100, value: s => s.words, category: '单词' },
+  { key: 'word_reviews_50', icon: '✏️', name: '勤记单词', desc: '累计背单词 50 次', goal: 50, value: s => s.wordReviews, category: '单词' },
+  { key: 'word_streak_7', icon: '🗓️', name: '单词七日连击', desc: '单词连续打卡 7 天', goal: 7, value: s => s.wordStreak, category: '单词' },
 ];
 
 // 汇总成就判定所需的全部本地数据（只读）
@@ -37,6 +42,25 @@ export async function collectAchievementStats() {
     db.graphEdges.count(), db.aiMemories.count(), db.aiChats.toArray(),
     db.mindmaps.count(), db.weeklyReports.count(),
   ]);
+  // P2-B：单词模块维度（表缺失/异常时按 0 处理，不阻断成就页——旧库升级过渡期安全）
+  let words = 0; let wordReviews = 0; let wordCheckins = [];
+  try {
+    [words, wordReviews, wordCheckins] = await Promise.all([
+      db.wordCards.count(), db.wordReviews.count(), db.wordCheckins.toArray(),
+    ]);
+  } catch { /* 单词表不可用：跳过单词成就 */ }
+  // P2-B：单词连续签到天数（与 word-repo 的 wordCheckinStreak 同逻辑，避免重依赖）
+  let wordStreak = 0;
+  try {
+    const set = new Set(wordCheckins.map(r => r.date));
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (!set.has(today)) d.setDate(d.getDate() - 1);
+    while (set.has(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)) {
+      wordStreak++;
+      d.setDate(d.getDate() - 1);
+    }
+  } catch { wordStreak = 0; }
   return {
     cards,
     reviews: reviews.length,
@@ -52,6 +76,7 @@ export async function collectAchievementStats() {
     mindmaps,
     reports,
     earlyBird: earlyCount,
+    words, wordReviews, wordStreak,
   };
 }
 
