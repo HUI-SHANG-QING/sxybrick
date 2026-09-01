@@ -126,7 +126,7 @@ onMounted(async () => { await load(); await buildTrend(); });
       <!-- 签到日历 -->
       <section class="block">
         <h2>{{ t('views.wordStudy.calendarTitle') }}</h2>
-        <p class="cal-streak" v-if="streak > 0">{{ t('views.wordStudy.calendarStreak', { n: streak }) }}</p>
+        <p class="cal-streak" v-if="streak > 0">{{ t('views.wordStudy.calendarStreak', undefined, { n: streak }) }}</p>
         <p class="cal-streak" v-else>{{ t('views.wordStudy.calendarEmpty') }}</p>
         <div class="checkin-calendar">
           <div v-for="(c, i) in calendar" :key="i"

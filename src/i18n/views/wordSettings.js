@@ -54,6 +54,7 @@ export const zh = {
 
   saveBtn: '保存',
   savedToast: '设置已保存',
+  saveFailedToast: '保存失败：{msg}',
 };
 
 export const en = {
@@ -110,4 +111,5 @@ export const en = {
 
   saveBtn: 'Save',
   savedToast: 'Settings saved',
+  saveFailedToast: 'Save failed: {msg}',
 };

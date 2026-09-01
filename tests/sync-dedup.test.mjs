@@ -89,10 +89,11 @@ test('idRemap：同 id 卡不产生重定向（SRS 合并路径）', () => {
   assert.equal(idRemap.size, 0, '同 id 放行不应产生任何重定向');
 });
 
-test('导入前关联引用重定向：reviews/graphEdges/cardGroupLinks 的卡 id 被改写', () => {
-  // 复刻 importBackup 0b 步的重定向逻辑（与 src/sync.js 保持一致）
+test('导入前关联引用重定向：reviews/graphEdges/cardGroupLinks/embeddings 的卡 id 被改写', () => {
+  // 复刻 importBackup 0b 步的重定向逻辑（与 src/sync.js 保持一致；
+  // CARD_REF_FIELDS 含 sourceId——embeddings 的卡片引用字段，N-6 曾漏掉）
   const cardDedupe = { idRemap: new Map([['C2', 'C1']]) };
-  const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId'];
+  const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId', 'sourceId'];
   const remapBackup = (backup) => {
     for (const key of Object.keys(backup)) {
       if (key === 'cards' || !Array.isArray(backup[key])) continue;
@@ -111,10 +112,16 @@ test('导入前关联引用重定向：reviews/graphEdges/cardGroupLinks 的卡 
     reviews: [{ id: 'R1', cardId: 'C2', rating: 4 }], // 孤儿：本指向被跳过的 C2
     graphEdges: [{ id: 'E1', fromCardId: 'C2', toCardId: 'C3', label: '相关' }],
     cardGroupLinks: [{ id: 'L1', cardId: 'C2', groupId: 'G1' }],
+    embeddings: [
+      { id: 'V1', sourceType: 'card', sourceId: 'C2' }, // N-6：向量索引引用字段
+      { id: 'V2', sourceType: 'doc', sourceId: 'DOC1' }, // 非卡片源不受影响
+    ],
   };
   const out = remapBackup(backup);
   assert.equal(out.reviews[0].cardId, 'C1', '复习记录重定向到保留卡');
   assert.equal(out.graphEdges[0].fromCardId, 'C1', '图谱边起点重定向到保留卡');
   assert.equal(out.graphEdges[0].toCardId, 'C3', '无关引用保持不变');
   assert.equal(out.cardGroupLinks[0].cardId, 'C1', '卡组关联重定向到保留卡');
+  assert.equal(out.embeddings[0].sourceId, 'C1', 'embeddings.sourceId 重定向到保留卡（N-6）');
+  assert.equal(out.embeddings[1].sourceId, 'DOC1', '非卡片源 sourceId 不受影响');
 });

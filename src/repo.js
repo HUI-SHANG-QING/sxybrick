@@ -223,6 +223,7 @@ export async function restoreFromTrash(t) {
   const table = {
     card: 'cards', memo: 'memos', note: 'notes', plan: 'plans',
     doc: 'docs', mindmap: 'mindmaps', docFile: 'docFiles',
+    wordCard: 'wordCards', wordGroup: 'wordGroups',
   }[t.kind];
   if (!table) return false;
   const data = { ...t.data };
@@ -234,19 +235,24 @@ export async function restoreFromTrash(t) {
   const transform = RESTORE_TRANSFORMS[t.kind];
   const row = { ...(transform ? transform(data) : data), id: t.id, updatedAt: Date.now() };
   const tables = [db[table], db.tombstones, db.trash];
-  if (reviews && reviews.length) tables.push(db.reviews);
-  if (links && links.length) tables.push(db.cardGroupLinks);
+  // P1-A：单词模块的附表与记忆卡不同（wordReviews / wordGroupLinks），按 kind 分流；
+  // 记忆卡走 reviews / cardGroupLinks（原逻辑）。
+  const isWord = t.kind === 'wordCard' || t.kind === 'wordGroup';
+  const reviewsTable = t.kind === 'wordCard' ? db.wordReviews : db.reviews;
+  const linksTable = isWord ? db.wordGroupLinks : db.cardGroupLinks;
+  if (reviews && reviews.length) tables.push(reviewsTable);
+  if (links && links.length) tables.push(linksTable);
   if (text) tables.push(db.docTexts);
   if (edges && edges.length) tables.push(db.graphEdges);
   await db.transaction('rw', ...tables, async () => {
     await db[table].put(row);
     if (reviews && reviews.length) {
       // 复习快照的 cardId 即本卡 id，原样还原（review 自带 id 用于幂等覆盖）
-      await db.reviews.bulkPut(reviews.map(r => ({ ...r })));
+      await reviewsTable.bulkPut(reviews.map(r => ({ ...r })));
     }
     if (links && links.length) {
-      await db.cardGroupLinks.bulkPut(links.map(l => ({ ...l })));
-      // 连带清除「删卡时为这些关联行写的 groupLink 墓碑」，否则恢复后
+      await linksTable.bulkPut(links.map(l => ({ ...l })));
+      // 连带清除「删卡/删词组时为这些关联行写的墓碑」，否则恢复后
       // 下次同步会被自己的墓碑重新删掉（墓碑 deletedAt > link.addedAt）
       await db.tombstones.bulkDelete(links.map(l => l.id));
     }

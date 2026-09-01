@@ -17,6 +17,7 @@ function kindLabel(k) {
     note: 'views.recycleBin.kindNote', plan: 'views.recycleBin.kindPlan',
     doc: 'views.recycleBin.kindDoc', mindmap: 'views.recycleBin.kindMindmap',
     docFile: 'views.recycleBin.kindDocFile',
+    wordCard: 'views.recycleBin.kindWordCard', wordGroup: 'views.recycleBin.kindWordGroup',
   };
   return m[k] ? t(m[k]) : k;
 }
@@ -38,6 +39,9 @@ function previewOf(t) {
     const base = (d.name || '').slice(0, 70);
     return n ? `${base}（全文 ${n} 字）` : base;
   }
+  // 单词卡 / 词组（v26 英语模块）：显示词条与释义，不再落到裸 JSON
+  if (t.kind === 'wordCard') return `[${d.subject || '未分类'}] ${d.word || ''} — ${(d.meaning || '').slice(0, 60)}`.slice(0, 90);
+  if (t.kind === 'wordGroup') return (d.name || '').slice(0, 90);
   return (JSON.stringify(d) || '').slice(0, 90);
 }
 function daysLeft(t) {

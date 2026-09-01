@@ -61,7 +61,7 @@ async function save() {
     });
     toast(t('views.wordSettings.savedToast'), 'success');
   } catch (e) {
-    toast('保存失败：' + (e?.message || e), 'error');
+    toast(t('views.wordSettings.saveFailedToast', undefined, { msg: e?.message || e }), 'error');
   } finally {
     saving.value = false;
   }
@@ -78,7 +78,7 @@ async function testConn() {
   try {
     const r = await testLlmConnection(form.value);
     if (r.ok) toast(t('views.wordSettings.testOk'), 'success');
-    else toast(t('views.wordSettings.testFail', { msg: r.reason || '' }), 'error');
+    else toast(t('views.wordSettings.testFail', undefined, { msg: r.reason || '' }), 'error');
   } finally {
     testing.value = false;
   }

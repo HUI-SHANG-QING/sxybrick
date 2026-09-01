@@ -110,6 +110,11 @@ export const zh = {
   fmtAnkiDesc: '标准制表符分隔，可直接导入 Anki（文件→导入→字段映射 正面/背面）。',
   fmtCsvDesc: '逗号分隔，Excel / Numbers / WPS 直接打开，含全部字段。',
   fmtPdfDesc: '不背风 A4 双栏版式：页眉含标题 + 二维码占位 + 模版效果图徽标，页脚含水印与页码，适合打印随身背。',
+
+  // CSV 表头（跟随界面语言：英文 locale 导出的文件不应是中文表头）
+  csvHeaderBoth: ['单词', '音标', '释义', '例句', '例句翻译', '批注', '来源', '考试类别', '类型', '标签'],
+  csvHeaderEn: ['单词', '音标', '例句', '例句翻译', '批注', '来源', '考试类别', '类型'],
+  csvHeaderZh: ['释义', '例句翻译', '批注', '来源', '考试类别', '类型'],
 };
 
 export const en = {
@@ -211,4 +216,9 @@ export const en = {
   fmtAnkiDesc: 'Tab-separated, import directly into Anki (File → Import → map fields Front/Back).',
   fmtCsvDesc: 'Comma-separated, opens in Excel / Numbers / WPS with all fields.',
   fmtPdfDesc: 'BuBei-style A4 two-column: header with title + QR placeholder + template badge, footer watermark + page number. Print-friendly.',
+
+  // CSV 表头（跟随界面语言）
+  csvHeaderBoth: ['Word', 'Phonetic', 'Meaning', 'Example', 'Example translation', 'Note', 'Source', 'Exam category', 'Type', 'Tags'],
+  csvHeaderEn: ['Word', 'Phonetic', 'Example', 'Example translation', 'Note', 'Source', 'Exam category', 'Type'],
+  csvHeaderZh: ['Meaning', 'Example translation', 'Note', 'Source', 'Exam category', 'Type'],
 };

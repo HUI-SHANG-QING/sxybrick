@@ -177,7 +177,10 @@ export function mergeCardPair(local, incoming) {
 }
 
 // 通用行合并（按清单 merge 策略）
-export function mergeRows(base, incoming, strategy) {
+// opts.strip: string[] —— 带 strip 钩子的表（如 wordSettings 的 LLM Key）合并时，
+//   即使 incoming 的 updatedAt 更新（整行替换），strip 字段也保留本地值。
+//   否则对端导出前剔除的敏感字段会在合并侧把本机凭证清成 undefined。
+export function mergeRows(base, incoming, strategy, opts = {}) {
   const m = new Map((base || []).map(x => [x.id, x]));
   for (const x of incoming || []) {
     if (!x || x.id == null) continue;
@@ -197,7 +200,19 @@ export function mergeRows(base, incoming, strategy) {
     if (strategy === 'updatedAt') {
       const a = cur.updatedAt ?? cur.createdAt ?? 0;
       const b = x.updatedAt ?? x.createdAt ?? 0;
-      if (b >= a) m.set(x.id, x);
+      if (b >= a) {
+        if (Array.isArray(opts.strip) && opts.strip.length) {
+          // P1-C：整行采用 incoming，但 strip 字段保留本地值（对端导出前已剔除，
+          // 不能让它把本机 LLM Key 清成 undefined；本地没有才落 incoming 的值）
+          const out = { ...x };
+          for (const k of opts.strip) {
+            if (cur[k] !== undefined) out[k] = cur[k];
+          }
+          m.set(x.id, out);
+        } else {
+          m.set(x.id, x);
+        }
+      }
     }
     // idOnly：不可变记录，已存在则保留
   }

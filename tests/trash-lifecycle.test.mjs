@@ -195,3 +195,64 @@ test('restoreFromTrash：未知 kind 返回 false 且不改动数据', async () 
   assert.equal(await restoreFromTrash(null), false);
   assert.equal(await restoreFromTrash({ id: 'x', kind: 'unknownKind', data: { a: 1 } }), false);
 });
+
+// ---------- 6) P1-A：单词卡 / 词组回收站恢复（wordCard / wordGroup） ----------
+
+test('P1-A 删单词卡：进回收站，恢复后 wordReviews/wordGroupLinks 一并回来、墓碑清除', async () => {
+  await resetTrash();
+  const t = REF;
+  // 造一张单词卡 + 一条复习 + 一个词组关联
+  await db.wordCards.put({ id: 'wc1', kind: 'word', word: 'abandon', meaning: 'v. 放弃', subject: '考研', createdAt: t, updatedAt: t, reviewedAt: 0, familiar: 0 });
+  await db.wordReviews.put({ id: 'wr1', cardId: 'wc1', rating: 2, reviewedAt: t, updatedAt: t });
+  await db.wordGroups.put({ id: 'wg1', name: '高频动词', sortOrder: 0, createdAt: t, updatedAt: t });
+  await db.wordGroupLinks.put({ id: 'wgl1', cardId: 'wc1', groupId: 'wg1', addedAt: t, updatedAt: t });
+
+  // 删除：走 word-repo 的 deleteWordCard（快照 + 墓碑双写）
+  const { deleteWordCard } = await import('../src/word-repo.js');
+  assert.equal(await deleteWordCard('wc1'), true);
+  assert.equal(await db.wordCards.get('wc1'), undefined, '单词卡已删');
+  assert.equal((await db.wordReviews.where('cardId').equals('wc1').toArray()).length, 0, '复习已删');
+  assert.equal((await db.wordGroupLinks.where('cardId').equals('wc1').toArray()).length, 0, '词组关联已删');
+
+  const snap = await db.trash.get('wc1');
+  assert.equal(snap.kind, 'wordCard', '快照 kind=wordCard（回收站可识别）');
+  assert.equal(snap.data._reviews.length, 1, '快照带复习记录');
+  assert.equal(snap.data._groupLinks.length, 1, '快照带词组关联');
+  assert.equal((await db.tombstones.get('wgl1'))?.kind, 'wordGroupLink', '关联行写了 wordGroupLink 墓碑');
+
+  // 恢复：wordCard 走 wordCards 表，附表还原到 wordReviews / wordGroupLinks
+  assert.equal(await restoreFromTrash(snap), true);
+  const back = await db.wordCards.get('wc1');
+  assert.ok(back, '单词卡回来了');
+  assert.equal(back.word, 'abandon');
+  assert.equal((await db.wordReviews.where('cardId').equals('wc1').toArray()).length, 1, '复习记录回来了');
+  assert.equal((await db.wordGroupLinks.where('cardId').equals('wc1').toArray()).length, 1, '词组关联回来了');
+  assert.equal(await db.tombstones.get('wgl1'), undefined, '关联墓碑清除（否则下次同步又被删）');
+  assert.equal(await db.tombstones.get('wc1'), undefined, '卡墓碑清除');
+  await db.trash.delete('wc1'); await db.wordCards.delete('wc1');
+  await db.wordReviews.where('cardId').equals('wc1').delete();
+  await db.wordGroupLinks.where('cardId').equals('wc1').delete();
+});
+
+test('P1-A 删词组：进回收站（此前无快照），恢复后成员关联回来', async () => {
+  await resetTrash();
+  const t = REF;
+  const { deleteWordGroup } = await import('../src/word-repo.js');
+  await db.wordGroups.put({ id: 'wg2', name: '核心短语', sortOrder: 1, createdAt: t, updatedAt: t });
+  await db.wordCards.put({ id: 'wc2', kind: 'phrase', word: 'break the ice', meaning: '破冰', subject: '考研', createdAt: t, updatedAt: t, reviewedAt: 0, familiar: 0 });
+  await db.wordGroupLinks.put({ id: 'wgl2', cardId: 'wc2', groupId: 'wg2', addedAt: t, updatedAt: t });
+
+  assert.equal(await deleteWordGroup('wg2'), true);
+  assert.equal(await db.wordGroups.get('wg2'), undefined);
+  const snap = await db.trash.get('wg2');
+  assert.equal(snap.kind, 'wordGroup', '词组也写回收站快照（P1-A 新增）');
+  assert.equal(snap.data._groupLinks.length, 1, '快照带成员关联');
+
+  assert.equal(await restoreFromTrash(snap), true);
+  assert.equal((await db.wordGroups.get('wg2'))?.name, '核心短语', '词组恢复');
+  assert.equal((await db.wordGroupLinks.where('groupId').equals('wg2').toArray()).length, 1, '成员关联恢复');
+  assert.equal(await db.tombstones.get('wgl2'), undefined, '关联墓碑清除');
+  await db.trash.delete('wg2'); await db.wordGroups.delete('wg2');
+  await db.wordGroupLinks.where('groupId').equals('wg2').delete();
+  await db.wordCards.delete('wc2');
+});

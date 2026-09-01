@@ -128,7 +128,7 @@ function prepareCloze(c) {
 const sentenceClozeText = ref('');
 function prepareSentenceCloze(c) {
   const ex = (c.examples && c.examples[0]) || (c.example ? { sentence: c.example } : null);
-  if (!ex) { sentenceClozeText.value = '（无例句）'; input.value = c.word; return; }
+  if (!ex) { sentenceClozeText.value = t('views.wordReview.noExample'); input.value = c.word; return; }
   sentenceClozeText.value = ex.sentence.replace(new RegExp(c.word, 'gi'), '____');
 }
 
@@ -227,7 +227,7 @@ const speakSupported = speechSupported();
     <div v-else-if="phase !== 'done'" class="wr-stage">
       <div class="wr-progress">
         <div class="wr-bar"><div class="wr-bar-fill" :style="{ width: progressPct + '%' }"></div></div>
-        <span class="wr-left">{{ t('views.wordReview.remainingLabel') }} {{ remaining }} · {{ t('views.wordReview.countLabel', { total: queue.length }) }}</span>
+        <span class="wr-left">{{ t('views.wordReview.remainingLabel') }} {{ remaining }} · {{ t('views.wordReview.countLabel', undefined, { total: queue.length }) }}</span>
       </div>
 
       <div class="card-flip" :class="{ revealed }">
@@ -313,7 +313,7 @@ const speakSupported = speechSupported();
     <div v-else class="wr-done">
       <div class="done-emoji">🎉</div>
       <h2>{{ t('views.wordReview.sessionDone') }}</h2>
-      <p>{{ t('views.wordReview.sessionDoneHint', { n: sessionCount }) }}</p>
+      <p>{{ t('views.wordReview.sessionDoneHint', undefined, { n: sessionCount }) }}</p>
       <div class="done-actions">
         <button class="btn-ghost" @click="restart">{{ t('views.wordReview.againReview') }}</button>
         <button class="btn-primary" @click="goBook">{{ t('views.wordReview.nextCard') }}</button>

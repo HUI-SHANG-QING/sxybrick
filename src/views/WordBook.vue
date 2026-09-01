@@ -11,7 +11,7 @@ import {
   markFamiliar, setWordNote, getWordSettings, listWordGroups,
 } from '../word-repo.js';
 import { generateWordMaterials } from '../services/word-llm.js';
-import { isInSyllabus, getSyllabusMeta } from '../services/word-syllabus.js';
+import { isInSyllabus, getSyllabusMeta, listSyllabus } from '../services/word-syllabus.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
 
 const router = useRouter();
@@ -24,6 +24,83 @@ const filterKind = ref('all');     // all/word/phrase/sentence/template
 const filterReviewed = ref('all'); // all/reviewed/unreviewed
 const filterFamiliar = ref(false);
 const q = ref('');
+
+// ---- 视图：我的词本 / 考研大纲词书 ----
+const view = ref('book');          // book | syllabus
+const PAGE_SIZE = 60;
+const syllabusMeta = getSyllabusMeta();
+const sylAll = listSyllabus();                    // 4956 词（按字母序）
+const sylQuery = ref('');
+const sylPage = ref(1);
+const addedWords = ref(new Set());                // 已加入单词本的词（小写）
+const sylBusy = ref(false);
+
+const sylFiltered = computed(() => {
+  const kw = String(sylQuery.value || '').trim().toLowerCase();
+  if (!kw) return sylAll;
+  return sylAll.filter((w) => w.toLowerCase().includes(kw));
+});
+const sylPages = computed(() => Math.max(1, Math.ceil(sylFiltered.value.length / PAGE_SIZE)));
+const sylSlice = computed(() => {
+  const p = Math.min(Math.max(1, sylPage.value), sylPages.value);
+  return sylFiltered.value.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE);
+});
+const sylAddedCount = computed(() => addedWords.value.size);
+// 首字母索引：只列当前列表中真实存在的首字母
+const sylLetters = computed(() => {
+  const set = new Set();
+  for (const w of sylAll) set.add(w.charAt(0).toUpperCase());
+  return [...set].sort();
+});
+watch(sylQuery, () => { sylPage.value = 1; });
+
+function jumpLetter(letter) {
+  const idx = sylAll.findIndex((w) => w.charAt(0).toUpperCase() === letter);
+  if (idx < 0) return;
+  sylQuery.value = '';
+  sylPage.value = Math.floor(idx / PAGE_SIZE) + 1;
+}
+
+async function switchView(v) {
+  view.value = v;
+  if (v === 'syllabus') await refreshAdded();
+}
+
+/** 刷新「已加入」集合（按 word 小写匹配本地卡） */
+async function refreshAdded() {
+  const rows = await listWordCards({});
+  addedWords.value = new Set(rows.map((r) => String(r.word || '').trim().toLowerCase()));
+}
+
+function isAdded(w) { return addedWords.value.has(String(w || '').trim().toLowerCase()); }
+
+async function addWord(w) {
+  try {
+    await createWordCard({ kind: 'word', word: w, subject: '考研', source: syllabusMeta.title });
+    addedWords.value = new Set(addedWords.value).add(String(w).trim().toLowerCase());
+    await load();
+  } catch (e) {
+    toast(t('views.wordBook.syllabusAddFailed', undefined, { msg: e?.message || e }), 'error');
+  }
+}
+
+async function addPage() {
+  const todo = sylSlice.value.filter((w) => !isAdded(w));
+  if (!todo.length) return;
+  sylBusy.value = true;
+  try {
+    for (const w of todo) {
+      await createWordCard({ kind: 'word', word: w, subject: '考研', source: syllabusMeta.title });
+    }
+    toast(t('views.wordBook.syllabusAddedToast', undefined, { n: todo.length }), 'success');
+    await load();
+    await refreshAdded();
+  } catch (e) {
+    toast(t('views.wordBook.syllabusAddFailed', undefined, { msg: e?.message || e }), 'error');
+  } finally {
+    sylBusy.value = false;
+  }
+}
 
 const showAdd = ref(false);
 const showDetail = ref(false);
@@ -58,8 +135,19 @@ async function load() {
   stats.value = await wordStats();
   groups.value = await listWordGroups();
   settings.value = await getWordSettings();
+  // 大纲视图的「已加入」状态要保持同步（加入/删除词后都会走这里）
+  if (view.value === 'syllabus') {
+    addedWords.value = new Set(cards.value.map((r) => String(r.word || '').trim().toLowerCase()));
+  }
 }
-onMounted(load);
+onMounted(async () => {
+  await load();
+  // 首次进入：本地一个词都没有 → 直接落到考研大纲，让默认词库可见
+  if (!cards.value.length) {
+    view.value = 'syllabus';
+    await refreshAdded();
+  }
+});
 watch([filterKind, filterReviewed, filterFamiliar], load);
 
 async function onSearch() { await load(); }
@@ -72,7 +160,7 @@ function openEdit(c) { editing.value = c; form.value = { ...blankForm(), ...c, t
 
 async function genMaterials() {
   const word = form.value.word.trim();
-  if (!word) { toast('请先填写单词', 'warn'); return; }
+  if (!word) { toast(t('views.wordBook.wordRequired'), 'warn'); return; }
   if (!settings.value?.aiEnabled) { toast(t('views.wordBook.aiGenOff'), 'warn'); return; }
   if (!isInSyllabus(word)) { toast(t('views.wordBook.aiGenSkip'), 'warn'); return; }
   genRunning.value = true;
@@ -87,7 +175,7 @@ async function genMaterials() {
       form.value.mnemonics = d.mnemonic ? [d.mnemonic] : [];
       toast(t('views.wordBook.aiGenDone'), 'success');
     } else {
-      toast(t('views.wordBook.aiGenFailed', { msg: r.reason || '' }), 'error');
+      toast(t('views.wordBook.aiGenFailed', undefined, { msg: r.reason || '' }), 'error');
     }
   } finally {
     genRunning.value = false;
@@ -129,7 +217,7 @@ async function save() {
 }
 
 async function remove(c) {
-  if (!(await confirmDialog(t('views.wordBook.confirmDelete', { word: c.word })))) return;
+  if (!(await confirmDialog(t('views.wordBook.confirmDelete', undefined, { word: c.word })))) return;
   await deleteWordCard(c.id);
   toast(t('views.wordBook.deleted'), 'success');
   await load();
@@ -148,6 +236,29 @@ const exampleLevelLabels = {
   simple: t('views.wordBook.exSimple'), long: t('views.wordBook.exLong'),
   en1: t('views.wordBook.exEn1'), en2: t('views.wordBook.exEn2'),
 };
+
+// HTML 转义（外部数据拼进 v-html 前必须转义，防注入）
+function escHtml(v) {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/**
+ * 例句高亮目标词（先转义再包裹 <b>，顺序不能反——否则转义会把 <b> 吃掉）。
+ * 词本身来自用户输入/AI 生成，同样需转义后再进正则（防正则元字符破坏匹配）。
+ */
+function highlightWord(example, word) {
+  const safe = escHtml(example);
+  const w = String(word || '').trim();
+  if (!w) return safe;
+  const pattern = escHtml(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try {
+    return safe.replace(new RegExp(pattern, 'gi'), (m) => `<b>${m}</b>`);
+  } catch {
+    return safe; // 正则异常时退回纯转义文本，不打断渲染
+  }
+}
 </script>
 
 <template>
@@ -158,14 +269,70 @@ const exampleLevelLabels = {
       <p>{{ t('views.wordBook.subtitle') }}</p>
     </div>
 
+    <!-- 视图切换：我的词本 / 考研大纲（默认词库） -->
+    <div class="wb-viewsw">
+      <button class="wv" :class="{ on: view === 'book' }" @click="switchView('book')">
+        {{ t('views.wordBook.myBookTab') }}<span v-if="stats"> · {{ stats.total }}</span>
+      </button>
+      <button class="wv" :class="{ on: view === 'syllabus' }" @click="switchView('syllabus')">
+        {{ t('views.wordBook.syllabusTab') }} · {{ sylAll.length }}
+      </button>
+    </div>
+
     <!-- 统计卡 -->
     <div class="wb-stats" v-if="stats">
       <div class="wbs"><b>{{ stats.due }}</b><span>{{ t('views.wordBook.statDue') }}</span></div>
       <div class="wbs"><b>{{ stats.mastered }}</b><span>{{ t('views.wordBook.statMastered') }}</span></div>
       <div class="wbs"><b>{{ stats.newToday }}</b><span>{{ t('views.wordBook.statNewToday') }}</span></div>
       <div class="wbs"><b>{{ stats.familiar }}</b><span>{{ t('views.wordBook.statFamiliar') }}</span></div>
+      <div class="wbs"><b>{{ stats.templates ?? 0 }}</b><span>{{ t('views.wordBook.statTemplate') }}</span></div>
       <div class="wbs"><b>{{ stats.total }}</b><span>{{ t('views.wordBook.statTotal') }}</span></div>
     </div>
+
+    <!-- 考研大纲词书：4956 词按需分页浏览（不落库，点「加入」才进单词本） -->
+    <div class="wb-syllabus" v-if="view === 'syllabus'">
+      <div class="syl-head">
+        <div class="syl-title">{{ t('views.wordBook.syllabusTitle') }}</div>
+        <div class="syl-meta">
+          {{ t('views.wordBook.syllabusMeta', undefined, { n: sylAll.length, version: syllabusMeta.version || 'v1.0' }) }}
+          · {{ t('views.wordBook.syllabusProgress', undefined, { n: sylAddedCount, total: sylAll.length }) }}
+        </div>
+        <div class="syl-disc">{{ t('views.wordBook.syllabusDisclaimer') }}</div>
+      </div>
+
+      <div class="syl-tools">
+        <input
+          class="syl-search" v-model="sylQuery"
+          :placeholder="t('views.wordBook.syllabusSearch')" />
+        <button class="syl-addpage" :disabled="sylBusy" @click="addPage">
+          {{ t('views.wordBook.syllabusAddPage', undefined, { n: sylSlice.filter((w) => !isAdded(w)).length }) }}
+        </button>
+      </div>
+
+      <div class="syl-letters">
+        <button
+          v-for="L in sylLetters" :key="L" class="sl"
+          @click="jumpLetter(L)">{{ L }}</button>
+      </div>
+
+      <div class="syl-grid" v-if="sylSlice.length">
+        <div v-for="w in sylSlice" :key="w" class="syl-item" :class="{ added: isAdded(w) }">
+          <span class="sw">{{ w }}</span>
+          <button
+            v-if="!isAdded(w)" class="sa" @click.stop="addWord(w)">{{ t('views.wordBook.syllabusAdd') }}</button>
+          <span v-else class="sd">{{ t('views.wordBook.syllabusAdded') }}</span>
+        </div>
+      </div>
+      <div class="syl-empty" v-else>{{ t('views.wordBook.syllabusEmpty') }}</div>
+
+      <div class="syl-pager">
+        <button class="sp" :disabled="sylPage <= 1" @click="sylPage--">{{ t('views.wordBook.syllabusPrev') }}</button>
+        <span class="spi">{{ t('views.wordBook.syllabusPageInfo', undefined, { page: Math.min(sylPage, sylPages), pages: sylPages }) }}</span>
+        <button class="sp" :disabled="sylPage >= sylPages" @click="sylPage++">{{ t('views.wordBook.syllabusNext') }}</button>
+      </div>
+    </div>
+
+    <template v-else>
 
     <!-- 筛选 + 搜索 + 添加 -->
     <div class="wb-toolbar">
@@ -184,28 +351,45 @@ const exampleLevelLabels = {
       </div>
     </div>
 
-    <!-- 列表 -->
+    <!-- 列表（不背风卡片：单词 / 音标 / 类型 + 释义 + 例句(高亮) + 翻译 + 批注来源标签 + 四操作） -->
     <div class="wb-list" v-if="cards.length">
       <div v-for="c in cards" :key="c.id" class="wb-card" @click="openDetail(c)">
-        <div class="wb-card-main">
+        <div class="wb-card-top">
           <div class="wb-word">
             <span class="wb-wtext">{{ c.word }}</span>
             <span v-if="c.phonetic" class="wb-phon">/{{ c.phonetic }}/</span>
-            <button class="wb-spk" @click.stop="speakWord(c.word)" title="朗读">🔊</button>
           </div>
-          <div class="wb-meaning">{{ c.meaning }}</div>
-        </div>
-        <div class="wb-badges">
           <span class="bdg" :class="'bdg-' + c.kind">{{ t('views.wordBook.kind' + c.kind.charAt(0).toUpperCase() + c.kind.slice(1)) }}</span>
-          <span v-if="c.familiar" class="bdg bdg-fam">{{ t('views.wordBook.familiarBadge') }}</span>
-          <span v-if="c.note" class="bdg bdg-note">📝</span>
+        </div>
+        <div class="wb-meaning" v-if="c.meaning">{{ c.meaning }}</div>
+        <div class="wb-ex" v-if="c.example" v-html="highlightWord(c.example, c.word)"></div>
+        <div class="wb-ex wb-ex-tr" v-if="c.exampleTrans">{{ c.exampleTrans }}</div>
+        <div class="wb-meta" v-if="c.note || c.source || (c.tags && c.tags.length) || c.familiar">
+          <span v-if="c.note" class="tag tag-note">📝 {{ c.note }}</span>
+          <span v-if="c.source" class="tag">📚 {{ c.source }}</span>
+          <span v-for="tg in (c.tags || [])" :key="tg" class="tag">#{{ tg }}</span>
+          <span v-if="c.familiar" class="tag tag-fam">★ {{ t('views.wordBook.familiarBadge') }}</span>
+        </div>
+        <div class="wb-acts">
+          <button @click.stop="speakWord(c.word)">🔊 <span>{{ t('views.wordBook.speak') }}</span></button>
+          <button :class="{ on: c.familiar }" @click.stop="toggleFamiliar(c)">
+            {{ c.familiar ? '★' : '☆' }} <span>{{ c.familiar ? t('views.wordBook.unmarkFamiliar') : t('views.wordBook.markFamiliar') }}</span>
+          </button>
+          <button @click.stop="openDetail(c)">📚 <span>{{ t('views.wordBook.addToGroup') }}</span></button>
+          <button @click.stop="openEdit(c)">📝 <span>{{ t('views.wordBook.editNote') }}</span></button>
         </div>
       </div>
     </div>
     <div class="wb-empty" v-else>
       <p>{{ t('views.wordBook.empty') }}</p>
       <p class="hint">{{ t('views.wordBook.emptyHint') }}</p>
+      <p class="hint syl-guide">{{ t('views.wordBook.syllabusGuide') }}</p>
+      <button class="btn-primary" style="margin-top:12px" @click="switchView('syllabus')">
+        {{ t('views.wordBook.syllabusTab') }}
+      </button>
     </div>
+
+    </template>
 
     <!-- 添加 / 编辑 弹窗 -->
     <div v-if="showAdd" class="modal-mask" @click.self="showAdd = false">
@@ -341,6 +525,61 @@ const exampleLevelLabels = {
 .wb-head h1 { margin: 6px 0 2px; font-size: 20px; color: var(--ink); }
 .wb-head p { margin: 0; font-size: 12px; color: var(--ink-2); }
 
+/* ---- 视图切换 ---- */
+.wb-viewsw { display: flex; gap: 8px; padding: 10px 16px 2px; }
+.wv {
+  flex: 1; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2);
+  border-radius: 12px; padding: 9px 10px; font-size: 13px; cursor: pointer; transition: .15s;
+}
+.wv.on { border-color: var(--accent); background: var(--code-inline); color: var(--accent); font-weight: 600; }
+
+/* ---- 考研大纲词书 ---- */
+.wb-syllabus { padding: 8px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+.syl-head {
+  background: var(--panel); border: 1px dashed var(--line); border-radius: 14px; padding: 12px 14px;
+}
+.syl-title { font-size: 15px; font-weight: 700; color: var(--ink); }
+.syl-meta { font-size: 12px; color: var(--accent); margin-top: 4px; }
+.syl-disc { font-size: 11px; color: var(--ink-2); margin-top: 6px; line-height: 1.6; }
+.syl-tools { display: flex; gap: 8px; }
+.syl-search {
+  flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+  background: var(--panel); color: var(--ink); font-size: 13px;
+}
+.syl-addpage {
+  border: none; background: var(--accent); color: #fff; border-radius: 10px;
+  padding: 9px 12px; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.syl-addpage:disabled { opacity: .5; cursor: default; }
+.syl-letters { display: flex; flex-wrap: wrap; gap: 4px; }
+.syl-letters .sl {
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink-2);
+  border-radius: 8px; padding: 3px 7px; font-size: 11px; cursor: pointer;
+}
+.syl-letters .sl:hover { border-color: var(--accent); color: var(--accent); }
+.syl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.syl-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px;
+}
+.syl-item.added { opacity: .6; }
+.syl-item .sw { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.syl-item .sa {
+  border: 1px solid var(--accent); background: transparent; color: var(--accent);
+  border-radius: 8px; padding: 2px 7px; font-size: 11px; cursor: pointer; flex-shrink: 0;
+}
+.syl-item .sa:hover { background: var(--accent); color: #fff; }
+.syl-item .sd { font-size: 11px; color: var(--ink-2); flex-shrink: 0; }
+.syl-empty { padding: 26px 0; text-align: center; color: var(--ink-2); font-size: 13px; }
+.syl-pager { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 4px 0 10px; }
+.syl-pager .sp {
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+  border-radius: 9px; padding: 6px 14px; font-size: 12px; cursor: pointer;
+}
+.syl-pager .sp:disabled { opacity: .4; cursor: default; }
+.syl-pager .spi { font-size: 12px; color: var(--ink-2); }
+.wb-empty .syl-guide { color: var(--accent); margin-top: 10px; }
+
 .wb-stats { display: flex; gap: 8px; padding: 10px 16px; overflow-x: auto; }
 .wbs { flex: 1; min-width: 64px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px; text-align: center; }
 .wbs b { display: block; font-size: 18px; color: var(--ink); }
@@ -356,16 +595,45 @@ const exampleLevelLabels = {
 .fam-toggle.on { border-color: var(--accent); color: var(--accent); }
 .wb-add { border: none; background: var(--accent); color: #fff; border-radius: 10px; padding: 8px 14px; font-size: 13px; cursor: pointer; white-space: nowrap; }
 
-.wb-list { padding: 0 16px; display: flex; flex-direction: column; gap: 8px; }
-.wb-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; cursor: pointer; transition: .15s; }
+.wb-list { padding: 0 16px; display: flex; flex-direction: column; gap: 12px; }
+.wb-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+  padding: 14px 16px 0; cursor: pointer; transition: .15s; overflow: hidden;
+}
 .wb-card:hover { border-color: var(--accent); }
-.wb-word { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.wb-wtext { font-size: 17px; font-weight: 600; color: var(--ink); }
-.wb-phon { font-size: 12px; color: var(--ink-2); }
+.wb-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.wb-word { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.wb-wtext { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: .3px; }
+.wb-phon { font-size: 13px; color: var(--ink-2); }
+.wb-meaning { margin-top: 8px; font-size: 15px; line-height: 1.55; color: var(--ink); }
+.wb-ex {
+  margin-top: 8px; font-size: 13px; line-height: 1.65; color: var(--ink-2);
+  border-left: 3px solid var(--line); padding-left: 10px;
+}
+.wb-ex :deep(b) { color: var(--accent); font-weight: 700; }
+.wb-ex-tr { border-left-color: var(--accent-soft, var(--line)); }
+.wb-meta { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.wb-meta .tag {
+  font-size: 11px; color: var(--ink-2); background: var(--line);
+  border-radius: 8px; padding: 2px 8px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wb-meta .tag-note { color: var(--accent); }
+.wb-meta .tag-fam { color: #b7791f; background: #fff0d6; }
+.wb-acts {
+  display: flex; margin: 12px -16px 0; border-top: 1px solid var(--line);
+}
+.wb-acts button {
+  flex: 1; border: none; background: transparent; color: var(--ink-2);
+  font-size: 12px; padding: 9px 2px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; gap: 3px; transition: .15s;
+}
+.wb-acts button + button { border-left: 1px solid var(--line); }
+.wb-acts button:hover { background: var(--code-inline); color: var(--accent); }
+.wb-acts button.on { color: #b7791f; }
+.wb-acts button span { white-space: nowrap; }
+@media (max-width: 420px) { .wb-acts button span { display: none; } .wb-acts button { font-size: 15px; } }
 .wb-spk { border: none; background: transparent; cursor: pointer; font-size: 15px; }
-.wb-meaning { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
-.wb-badges { display: flex; gap: 4px; flex-wrap: wrap; flex-shrink: 0; }
-.bdg { font-size: 11px; padding: 2px 7px; border-radius: 8px; background: var(--line); color: var(--ink-2); }
+.bdg { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--code-inline); color: var(--accent); flex-shrink: 0; }
 .bdg-word { background: #e7eefe; color: #2f5bd0; }
 .bdg-phrase { background: #e6f6ec; color: #1f9255; }
 .bdg-sentence { background: #fdeede; color: #c47f1a; }

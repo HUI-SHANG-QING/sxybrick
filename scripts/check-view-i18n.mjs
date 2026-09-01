@@ -47,8 +47,15 @@ const vueFiles = readdirSync(viewsDir).filter(f => f.endsWith('.vue')).sort();
 const dictCache = new Map();
 for (const f of vueFiles) {
   const src = readFileSync(join(viewsDir, f), 'utf8');
-  // 捕获 t('views.<module>.<path>')：首段是字典模块名，其后是 zh 字典内的点号路径
-  const calls = [...src.matchAll(/t\(\s*'views\.([A-Za-z0-9_.-]+)'/g)].map(m => m[1].split('.'));
+  // 捕获 t('views.<module>.<path>')：首段是字典模块名，其后是 zh 字典内的点号路径。
+  // 前瞻 (?=[,)]) 排除动态拼接（t('views.wordBook.kind' + c.kind…) 引号后是 + 而非逗号/闭括号）
+  const calls = [...src.matchAll(/t\(\s*'views\.([A-Za-z0-9_.-]+)'(?=[,)])/g)].map(m => m[1].split('.'));
+  // t(key, {…})：第二实参是对象字面量时会被当作 fallback，占位符永不插值
+  // （t(key, fallback, params) 三参签名；漏写 undefined 是常见隐性 bug，2026-09-01 一次性修复 15 处）
+  for (const m of src.matchAll(/t\(\s*'views\.[A-Za-z0-9_.-]+',\s*\{/g)) {
+    const lineNo = src.slice(0, m.index).split('\n').length;
+    fail(`${f}:${lineNo} t() 第二实参是对象字面量（{…} 被当作 fallback，占位符不插值）——应写作 t(key, undefined, {…})`);
+  }
   for (const parts of calls) {
     const modName = parts[0];
     const keyPath = parts.slice(1).join('.');
@@ -168,6 +175,9 @@ function scanHardcoded(file) {
   src = src.replace(/\/\*[\s\S]*?\*\//g, blankKeepNewlines);   // 块注释
   src = src.replace(/<!--[\s\S]*?-->/g, blankKeepNewlines);    // HTML 注释
   src = src.replace(/<style[\s\S]*?<\/style>/g, blankKeepNewlines); // 样式表里的中文不是文案
+  // N-9：行内最长连续中文 > 24 字视为 AI prompt 模板 / 长数据串（与 js 闸同款豁免），
+  // 翻译会破坏 prompt 结构。注意不能整体挖反引号模板——正则字面量（如 /[*_#>`~|-]/g）
+  // 里的反引号会让配对错乱，反而误伤；prompt 类存量走基线认领（--update-baseline）。
   src = maskCallArgs(src, names);
   // 行注释：要求 // 前面是行首或空白，避免误伤 'https://'
   src = src.replace(/(^|[ \t])\/\/[^\n]*/gm, (m, p1) => p1 + ' '.repeat(m.length - p1.length));
@@ -175,6 +185,9 @@ function scanHardcoded(file) {
   const hits = [];
   src.split(/\r?\n/).forEach((line, i) => {
     if (!HAS_CJK.test(line)) return;
+    // N-9：与 js 闸同款豁免——行内最长连续中文 > 24 字视为 AI prompt 模板 / 长数据串，
+    // 翻译会破坏 prompt 结构，豁免（KnowledgeGraph 3 处 system prompt 曾长期误报）。
+    if (maxCJKRun(line) > 24) return;
     hits.push({ line: i + 1, text: line.trim().slice(0, 160) });
   });
   return hits;

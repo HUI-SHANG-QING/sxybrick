@@ -456,17 +456,19 @@ export async function importBackup(backup) {
   // 0b) 卡片去重预判 + 关联引用重定向（round12 数据协同修复）
   // 先算出【跳过 id → 保留 id】映射。被「异 id 同内容」去重跳过的卡，其关联数据
   // （reviews 的 cardId / graphEdges 的 fromCardId,toCardId / cardGroupLinks 的 cardId
-  //  / embeddings 的 cardId 等）仍会随数据包进入合并，变成指向不存在卡片的孤儿行。
+  //  / embeddings 的 sourceId 等）仍会随数据包进入合并，变成指向不存在卡片的孤儿行。
   // 故在逐表合并前，把全部入站表内凡引用了「跳过 id」的字段统一重定向到保留 id，
   // 让关联数据落到保留下来的那张卡上，避免复习/图谱/卡组/向量索引被污染。
   // 见 src/sync-dedup.js 头部说明。
+  // ⚠️ 字段名枚举易漏（N-6：embeddings.sourceId 曾漏掉）——任何新卡片引用字段
+  // 都必须同步加进 CARD_REF_FIELDS，否则被去重跳过的卡在对应表里留下孤儿行。
   let cardDedupe = { kept: (backup.cards || []).filter(x => x && x.id), duplicated: 0, idRemap: new Map() };
   if (cardDedupe.kept.length) {
     const baseCards = await db.cards.toArray();
     const baseCardsMap = new Map(baseCards.map(x => [x.id, x]));
     cardDedupe = dedupeIncomingCards(cardDedupe.kept, baseCardsMap, baseCards);
     if (cardDedupe.idRemap.size) {
-      const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId'];
+      const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId', 'sourceId'];
       for (const key of Object.keys(backup)) {
         if (key === 'cards' || !Array.isArray(backup[key])) continue;
         backup[key] = backup[key].map(r => {
@@ -511,7 +513,7 @@ export async function importBackup(backup) {
       stats.duplicated += cardDedupe.duplicated;
     }
     if (!incoming.length) continue;
-    const merged = mergeRows(base, incoming, t.merge);
+    const merged = mergeRows(base, incoming, t.merge, { strip: t.strip });
     let added = 0, updated = 0;
     const toWrite = [];
     const incomingMap = new Map(incoming.map(x => [x.id, x])); // O(n) 查表，替代循环内 find 的 O(n²)

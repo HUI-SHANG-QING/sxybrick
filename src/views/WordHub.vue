@@ -126,7 +126,7 @@ onMounted(load);
       <section class="checkin-card">
         <div class="checkin-head">
           <span>🔥 {{ t('views.wordHub.checkinTitle') }}</span>
-          <span class="checkin-streak">{{ t('views.wordHub.checkinStreak', { n: streak }) }}</span>
+          <span class="checkin-streak">{{ t('views.wordHub.checkinStreak', undefined, { n: streak }) }}</span>
         </div>
         <div class="checkin-calendar">
           <div v-for="(d, i) in calendar" :key="i"

@@ -458,7 +458,7 @@ async function doImport() {
         n++;
       } catch { fail++; }
     }
-    toast(t('views.export.importedCards', '已导入 {n} 张卡片{failPart}（可在「我的卡片」查看）', { n, failPart: fail ? `，失败 ${fail} 张` : '' }), 'success');
+    toast(t('views.export.importedCards', undefined, { n, failPart: fail ? t('views.export.importedFailPart', undefined, { n: fail }) : '' }), 'success');
     shareOpen.value = false;
     await loadMeta();
   } catch (e) { toast(t('views.export.importFail', '导入失败：{msg}', { msg: e.message }), 'error'); }
@@ -503,7 +503,7 @@ async function doApkgImport() {
         n++;
       } catch { fail++; }
     }
-    toast(t('views.export.importedCards', '已导入 {n} 张卡片{failPart}（可在「我的卡片」查看）', { n, failPart: fail ? `，失败 ${fail} 张` : '' }), 'success');
+    toast(t('views.export.importedCards', undefined, { n, failPart: fail ? t('views.export.importedFailPart', undefined, { n: fail }) : '' }), 'success');
     apkgOpen.value = false;
     await loadMeta();
   } catch (err) { toast(t('views.export.importFail', '导入失败：{msg}', { msg: err?.message || err }), 'error'); }

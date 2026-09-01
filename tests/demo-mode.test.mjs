@@ -73,17 +73,23 @@ test('testDataSeeder：空测试库自动播种完整示例数据', async () => 
   setDbInstance('test');
   const db = getDb();
   const { testDbEmpty, seedTestDatabase } = await import('../src/utils/testDataSeeder.js');
-  // 先清空测试库模拟首次进入
-  await db.transaction('rw', db.cards, db.reviews, db.cardGroups, db.cardGroupLinks, db.memos, db.notes, async () => {
-    for (const t of [db.cards, db.reviews, db.cardGroups, db.cardGroupLinks, db.memos, db.notes]) await t.clear();
-  });
+  // 先清空测试库模拟首次进入（覆盖 seeder 写入的全部表）
+  await db.transaction('rw',
+    db.cards, db.reviews, db.cardGroups, db.cardGroupLinks, db.memos, db.notes,
+    db.plans, db.docs, db.docFiles, db.docTexts, db.graphEdges, db.meta,
+    db.wordCards, db.wordReviews, db.wordGroups, db.wordGroupLinks, db.wordCheckins,
+    async () => {
+      for (const t of [db.cards, db.reviews, db.cardGroups, db.cardGroupLinks, db.memos, db.notes,
+        db.plans, db.docs, db.docFiles, db.docTexts, db.graphEdges, db.meta,
+        db.wordCards, db.wordReviews, db.wordGroups, db.wordGroupLinks, db.wordCheckins]) await t.clear();
+    });
   assert.ok(await testDbEmpty(), '清空后应为空');
 
   await seedTestDatabase();
   assert.ok(!(await testDbEmpty()), '播种后非空');
 
   const cardCount = await db.cards.count();
-  assert.equal(cardCount, 20, '20 张演示卡');
+  assert.equal(cardCount, 60, '60 张演示卡（20→60 扩充，覆盖 5 科各 12 张）');
   const groupCount = await db.cardGroups.count();
   assert.equal(groupCount, 3, '3 个演示卡组');
   const archGroups = (await db.cardGroups.toArray()).filter(g => g.status === 'archived');
@@ -113,6 +119,26 @@ test('testDataSeeder：空测试库自动播种完整示例数据', async () => 
   // 复习记录：已背过的卡有 reviews
   const revCount = await db.reviews.count();
   assert.ok(revCount > 10, `演示复习记录应较多，实际 ${revCount}`);
+
+  // ---- 全模块演示数据（round：单词本/计划/资料库/知识图谱/AI 文档） ----
+  assert.equal(await db.wordCards.count(), 36, '36 张单词卡（word20+phrase8+sentence5+template3）');
+  const wKinds = new Set((await db.wordCards.toArray()).map(w => w.kind));
+  for (const k of ['word', 'phrase', 'sentence', 'template']) assert.ok(wKinds.has(k), `单词卡类型 ${k} 应存在`);
+  assert.equal(await db.wordGroups.count(), 3, '3 个单词词组');
+  assert.ok(await db.wordGroupLinks.count() >= 20, `单词-词组关联应较多，实际 ${await db.wordGroupLinks.count()}`);
+  assert.ok(await db.wordReviews.count() > 30, `单词复习历史应较多，实际 ${await db.wordReviews.count()}`);
+  const checkins = await db.wordCheckins.toArray();
+  assert.ok(checkins.length >= 21, `连续打卡应 ≥21 天，实际 ${checkins.length}`);
+  assert.equal(checkins[checkins.length - 1].count, checkins.length, '打卡连续天数应为累计值');
+  assert.equal(await db.plans.count(), 4, '4 条计划');
+  assert.equal(await db.docs.count(), 2, '2 篇 AI 文档');
+  assert.equal(await db.docFiles.count(), 2, '2 份资料文件');
+  const files = await db.docFiles.toArray();
+  assert.ok(files.every(f => f.status === 'ready'), '资料文件应为 ready（演示直接可预览）');
+  assert.ok((await db.docTexts.count()) >= 2, '资料全文已入库');
+  assert.ok((await db.graphEdges.count()) >= 8, `知识图谱边应 ≥8，实际 ${await db.graphEdges.count()}`);
+  const edges = await db.graphEdges.toArray();
+  assert.ok(edges.every(e => e.fromCardId && e.toCardId && e.label), '图谱边应带 cardId 键与 label');
 });
 
 test('testDataSeeder：非空测试库不重复播种（幂等）', async () => {
@@ -138,7 +164,10 @@ test('buildBackup：数据包带 scope 标记，跟随当前实例', async () =>
   const testBak = await buildBackup();
   assert.equal(testBak.scope, 'test');
   // test 包应包含演示卡片
-  assert.ok(testBak.cards.length >= 20, `演示数据应入包，实际 ${testBak.cards.length}`);
+  assert.ok(testBak.cards.length >= 60, `演示数据应入包，实际 ${testBak.cards.length}`);
+  assert.ok(testBak.wordCards.length >= 36, `演示单词卡应入包，实际 ${testBak.wordCards.length}`);
+  assert.ok(testBak.wordCheckins.length >= 21, `演示打卡应入包，实际 ${testBak.wordCheckins.length}`);
+  assert.ok(testBak.graphEdges.length >= 8, `演示图谱边应入包，实际 ${testBak.graphEdges.length}`);
   assert.equal(testBak.app, 'sxybrick');
   setDbInstance('real');
 });
@@ -340,6 +369,6 @@ test('appMode：enterTestMode 空测试库自动播种（演示数据立即可�
   }
   setDbInstance('test');
   const n = await db.cards.count();
-  assert.equal(n, 20, '进入演示模式后测试库应自动填充 20 张示例卡');
+  assert.equal(n, 60, '进入演示模式后测试库应自动填充 60 张示例卡');
   setDbInstance('real');
 });

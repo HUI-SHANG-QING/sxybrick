@@ -221,8 +221,10 @@ export async function updateWordGroup(id, patch = {}) {
 export async function deleteWordGroup(id) {
   const g = await db.wordGroups.get(id);
   if (!g) return false;
-  await db.transaction('rw', db.wordGroups, db.wordGroupLinks, db.tombstones, async () => {
+  await db.transaction('rw', db.wordGroups, db.wordGroupLinks, db.tombstones, db.trash, async () => {
     const links = await db.wordGroupLinks.where('groupId').equals(id).toArray();
+    // P1-A：词组删除也写回收站快照（含成员关联），否则回收站永远无法恢复词组
+    await trashItem(id, 'wordGroup', { ...plain(g), _groupLinks: links });
     await db.wordGroupLinks.where('groupId').equals(id).delete();
     await db.wordGroups.delete(id);
     await db.tombstones.put({ id, kind: 'wordGroup', deletedAt: now() });

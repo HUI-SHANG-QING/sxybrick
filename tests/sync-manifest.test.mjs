@@ -133,6 +133,27 @@ test('mergeRows：updatedAt 谁新听谁 / idOnly 幂等', () => {
   assert.equal(r2[0].unlockedAt, 1); // 已存在即保留
 });
 
+test('mergeRows：strip 表合并保留本地敏感字段（P1-C 回归）', () => {
+  // 本地有 LLM Key；对端导出前 strip 剔除该字段，且 updatedAt 更新 → 整行替换会清空 Key
+  const local = [{ id: 's1', llmApiKey: 'sk-local-abc', llmBase: 'https://local', mode: 'off', updatedAt: 100 }];
+  const incoming = [{ id: 's1', mode: 'on', updatedAt: 200 }]; // 无 Key（已被 strip）
+  const m = mergeRows(local, incoming, 'updatedAt', { strip: ['llmApiKey', 'llmBase'] });
+  assert.equal(m[0].mode, 'on'); // 非敏感字段正常取新
+  assert.equal(m[0].llmApiKey, 'sk-local-abc'); // 敏感字段保留本地值
+  assert.equal(m[0].llmBase, 'https://local');
+  // 本地无该字段时（首装导入对端行）→ 落 incoming 的值（undefined 保持）
+  const m2 = mergeRows([], incoming, 'updatedAt', { strip: ['llmApiKey', 'llmBase'] });
+  assert.equal(m2[0].llmApiKey, undefined);
+  // 无 strip 参数时行为不变（不破坏旧调用）
+  const m3 = mergeRows(local, incoming, 'updatedAt');
+  assert.equal(m3[0].llmApiKey, undefined);
+  assert.equal(m3[0].mode, 'on');
+  // 对端旧版未 strip（带 Key）时：仍保留本地值（本地凭证优先，互不泄露）
+  const incomingLegacy = [{ id: 's1', mode: 'on', llmApiKey: 'sk-remote', updatedAt: 200 }];
+  const m4 = mergeRows(local, incomingLegacy, 'updatedAt', { strip: ['llmApiKey', 'llmBase'] });
+  assert.equal(m4[0].llmApiKey, 'sk-local-abc');
+});
+
 test('mergeRows：review 策略——主体不可变、selfExplanation 按 selfExplainAt 取新', () => {
   // 本地已有复习记录（无反思）；远端来了同一 id、带更新的反思
   const local = [{ id: 'r1', rating: 0, reviewedAt: 1000 }];

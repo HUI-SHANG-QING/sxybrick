@@ -181,15 +181,16 @@ function genAnki(list) {
 }
 function genCsv(list) {
   let cols; let header;
+  // 表头跟随界面语言（英文 locale 导出的文件不应该是中文表头，P2-A）
   if (lang.value === 'en') {
     cols = ['word', 'phonetic', 'example', 'exampleTrans', 'note', 'source', 'subject', 'kind'];
-    header = ['单词', '音标', '例句', '例句翻译', '批注', '来源', '考试类别', '类型'];
+    header = t('views.wordExport.csvHeaderEn');
   } else if (lang.value === 'zh') {
     cols = ['meaning', 'exampleTrans', 'note', 'source', 'subject', 'kind'];
-    header = ['释义', '例句翻译', '批注', '来源', '考试类别', '类型'];
+    header = t('views.wordExport.csvHeaderZh');
   } else {
     cols = ['word', 'phonetic', 'meaning', 'example', 'exampleTrans', 'note', 'source', 'subject', 'kind', 'tags'];
-    header = ['单词', '音标', '释义', '例句', '例句翻译', '批注', '来源', '考试类别', '类型', '标签'];
+    header = t('views.wordExport.csvHeaderBoth');
   }
   const escq = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   let out = `${metaComment('# ')}\n`;
