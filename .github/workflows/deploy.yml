@@ -47,6 +47,7 @@ jobs:
         id: tests
         run: |
           set +e
+          # 用文件重定向而非 tee，避免管道缓冲导致日志被截断（Run #72 只记了 262/777 条）
           {
             echo "=== node version ==="
             node --version
@@ -61,9 +62,8 @@ jobs:
             npm test
             code=$?
             echo "=== npm test exit=$code ==="
-            exit 0
-          } 2>&1 | tee npm-test.log
-          echo "step done"
+          } > npm-test.log 2>&1
+          echo "step done (npm test exit recorded in log)"
         shell: bash
       - run: npm run build
       - name: Build paper static pages
