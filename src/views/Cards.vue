@@ -608,7 +608,9 @@ async function loadRisk() { riskCards.value = await getForgetRisk(5); }
 async function rescueCard(r) {
   const card = await db.cards.get(r.id);
   if (!card) return;
-  await db.cards.put({ ...card, dueAt: Date.now() }); // 提前到今天（内容未变，不动 updatedAt）
+  // M1 时间戳铁律：对齐 WrongBook「加入今日复习」口径 —— 调度字段因 reviewedAt 走 SRS 侧同步，
+  // 只 put dueAt 的话本端排期变更不进增量包（dueAt 不在 LIVENESS_FIELDS）。不碰 updatedAt（内容侧）。
+  await db.cards.put({ ...card, dueAt: Date.now(), reviewedAt: Date.now() });
   toast(t('views.cards.rescued', '已把「{front}…」加入今日复习', { front: r.front.slice(0, 16) }), 'success');
   await loadRisk();
   loadCards();
@@ -618,7 +620,7 @@ async function rescueAll() {
   for (const r of riskCards.value) {
     const card = await db.cards.get(r.id);
     if (!card) continue;
-    await db.cards.put({ ...card, dueAt: Date.now() });
+    await db.cards.put({ ...card, dueAt: Date.now(), reviewedAt: Date.now() });
     n++;
   }
   toast(t('views.cards.rescuedAll', '已把 {n} 张高危卡加入今日复习，去「背诵」页巩固', { n }), 'success');

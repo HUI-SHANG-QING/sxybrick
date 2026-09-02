@@ -59,7 +59,9 @@ export default defineConfig({
   base: '/sxybrick/',
   plugins: [
     vue(),
-    // P3-2 PWA 离线优化：registerType=autoUpdate 让新版本后台预缓存完毕后激活；
+    // P3-2 PWA 离线优化：registerType=prompt —— 新版本下载完毕后由用户确认再刷新，
+    //   不自动 reload（autoUpdate 会在激活后无条件 location.reload，正在编辑的内容会丢；
+    //   且 pwa.js 的 onNeedRefresh / App.vue「有新版本可用」横幅在 autoUpdate 下是死代码）。
     //   workbox.runtimeCaching 分层缓存策略——
     //   · CDN 字体（Google Fonts）：CacheFirst（高频稳定、长期不变）
     //   · 图片源（图床/icon）：StaleWhileRevalidate（秒级可用、后台回源更新）
@@ -67,7 +69,7 @@ export default defineConfig({
     //   · 同源静态资源（assets）：StaleWhileRevalidate（构建产物带 hash，离线优先，后台回源校对）
     // manifest.shortcuts：让 PWA 桌面图标长按 / 拖出菜单直达「背诵 / 添加卡片 / 模考」
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['icon.svg'],
       manifest: {
         name: 'SxyBrick 记忆卡片',

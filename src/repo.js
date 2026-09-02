@@ -521,7 +521,9 @@ export async function applyCardFeedback(cardId, signal = {}) {
   const card = await db.cards.get(cardId);
   if (!card) return null;
   const f = applyFeedback(card, signal);
-  await db.cards.put({ ...card, ease: f.ease, dueAt: f.dueAt });
+  // M1 时间戳铁律：ease/dueAt 属 SRS 调度字段，按 reviewedAt 决定同步水位——
+  // 不 bump reviewedAt 则本次排期变更不进增量包，对端回滚。不碰 updatedAt（内容侧）。
+  await db.cards.put({ ...card, ease: f.ease, dueAt: f.dueAt, reviewedAt: Date.now() });
   return f;
 }
 

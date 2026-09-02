@@ -50,6 +50,9 @@ export async function recordQuickCheck(cardId, remembered) {
   // 在卡片上标记本次校验时间（Dexie 动态字段，不需 schema 变更）
   const card = await db.cards.get(cardId);
   if (card) {
-    await db.cards.put({ ...card, quickCheckedAt: now });
+    // M1 时间戳漏 bump：只写 quickCheckedAt 的话，该校验动作无任何活跃时间字段推进，
+    // 卡片不随内容侧增量包上传、对端永远看不到这次校验。quickCheckedAt 随内容侧合并
+    // （非 SRS 排期字段），故 bump updatedAt 而非 reviewedAt。
+    await db.cards.put({ ...card, quickCheckedAt: now, updatedAt: now });
   }
 }

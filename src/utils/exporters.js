@@ -79,10 +79,21 @@ function escMdPipe(s) {
 }
 
 /**
- * CSV 单元安全转义（双引号 " 需重复一次；含 , " 换行 → 整个加双引号）。
+ * 电子表格公式注入防御：以 = + - @ 制表符/回车 开头的单元格前置单引号中和。
+ * 卡片内容来自用户输入/apkg 导入/AI 生成/资料解析，不可信；不加前缀时，
+ * 导出文件用 Excel/WPS 打开会把内容当公式执行（=HYPERLINK 钓鱼 / DDE 载荷）。
+ * 纯函数，供 CSV/TSV/Anki 文本导出共用（Node 可测）。
+ */
+export function sheetCellGuard(v) {
+  const s = String(v ?? '');
+  return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+}
+
+/**
+ * CSV 单元安全转义（双引号 " 需重复一次；含 , " 换行 → 整个加双引号；首字符 = + - @ → 前置单引号中和）。
  */
 function csvEscape(v) {
-  const s = String(v ?? '');
+  const s = sheetCellGuard(v);
   if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }

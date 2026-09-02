@@ -238,7 +238,13 @@ function toggleGraph() {
   loadQueue();
 }
 
+// R4 复习评分重入锁：键盘 1/2/3 连按/长按会在上一笔 review 写入完成前再次进入 rate()，
+// 造成双写 review 记录、idx 推进两次跳过卡片、错题重复入队。flag 在 finally 复位。
+const ratingBusy = ref(false);
+
 async function rate(card, rating, guessed = false, meta = {}) {
+  if (ratingBusy.value) return;
+  ratingBusy.value = true;
   try {
     const res = await review(card.id, rating, intensity.value, guessed, { ...meta, adaptive: adaptiveOn.value, retrievalStrength: retrievalStrength.value, examAt: examAtTs.value || 0, responseMs: Date.now() - cardShownAt.value, desiredRetention: retentionFor(subjectRetention.value, card.subject) });
     todayCount.value = await getTodayCount(); // 从 db.reviews 推导（跨会话/跨设备同步）
@@ -265,6 +271,7 @@ async function rate(card, rating, guessed = false, meta = {}) {
     checkComplete();
     try { T.reviewRate(rating, card.id, card.front); } catch { /* 埋点失败不阻塞业务 */ }
   } catch (e) { toast(e.message, 'error'); }
+  finally { ratingBusy.value = false; }
 }
 
 // 弹出反思卡，返回 Promise，用户提交/跳过时 resolve

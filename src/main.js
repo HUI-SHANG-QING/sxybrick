@@ -15,6 +15,13 @@ import { warmupPlugins } from './plugins/registry.js';
 // P1·7 + P2·10：启动恐怖级埋点采集器（A 级业务事件 + B 级 DOM 点击）
 import { startTelemetry, pageView } from './utils/telemetry.js';
 
+// R2 模块求值期错误守卫：import 阶段（懒加载 chunk、路由组件、顶层副作用）抛错发生在
+// createApp 之前，app.config.errorHandler 覆盖不到 —— 这里兜底记录，避免白屏无痕。
+// 必须放在所有模块 import 之后、createApp 之前尽早注册。
+window.addEventListener('error', (e) => {
+  logError(e.error || e.message || e, { severity: 'error', stage: 'module-eval' });
+});
+
 // —— Element Plus（2026-08-29 起作为主力 UI 库全量接入）——
 // 组件全量注册：本项目界面风格/视图众多，按需引入会拖累开发效率；
 // 构建时由 vite manualChunks 拆成独立 chunk 做长期缓存，首屏只加载用到的分包。

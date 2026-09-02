@@ -301,6 +301,40 @@ export function getDb() {
   return db;
 }
 
+// ---------- R3 IndexedDB 故障可见性 ----------
+// 无痕模式 / 配额写满 / 另一标签页占着旧版本连接 时，db.* 操作会静默 reject，
+// 而业务侧大量空 catch → UI 空列表且零提示（用户误判"数据丢了"）。
+// 把 blocked / versionchange / open 失败收口成一个状态，由 App.vue 顶部横幅消费。
+let _dbStatus = 'ok';
+const _dbStatusListeners = new Set();
+/** 当前库状态：'ok' | 'blocked' | 'versionchange' | 'error:...' */
+export function getDbStatus() {
+  return _dbStatus;
+}
+/** 订阅状态变化，返回退订函数（App 横幅挂载时订阅、卸载时退订） */
+export function onDbStatusChange(fn) {
+  _dbStatusListeners.add(fn);
+  return () => _dbStatusListeners.delete(fn);
+}
+function setDbStatus(s) {
+  _dbStatus = s;
+  for (const fn of _dbStatusListeners) {
+    try { fn(s); } catch { /* 订阅方异常不影响状态机 */ }
+  }
+}
+for (const inst of Object.values(instances)) {
+  // blocked：另一个标签页持旧版本连接不放，本页升级被阻塞（多见于双开）
+  inst.on('blocked', () => setDbStatus('blocked'));
+  // versionchange：本页被要求关闭以让位新版连接（另一标签页升级了库版本）
+  inst.on('versionchange', (e) => { setDbStatus('versionchange'); try { e?.close?.(); } catch { /* 关闭失败不阻塞 */ } });
+}
+// 显式打开：尽早暴露 open 失败（隐私模式/配额写满），成功后被 Dexie 内部缓存，
+// 后续业务调用不再重复握手。失败只改状态不抛出——业务调用自行 catch 走空列表兜底。
+Promise.all(Object.values(instances).map((inst) => inst.open())).catch((err) => {
+  setDbStatus(`error:${err?.name || 'open-failed'}`);
+});
+
+
 export function uid() {
   return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
 }

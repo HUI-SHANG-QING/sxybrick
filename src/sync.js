@@ -9,6 +9,7 @@
 import { db, uid, currentDbMode } from './db.js';
 import { base64ToBlob, blobToBase64, extractImageIds } from './images.js';
 import { triggerHook } from './plugins/registry.js';
+import { sheetCellGuard } from './utils/exporters.js';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES, EXCLUDED_FROM_SYNC,
   CARD_CONTENT_FIELDS, CARD_SRS_FIELDS,
@@ -297,11 +298,13 @@ export async function downloadSubjectBackup(subject, meta = {}) {
 }
 
 // 导出 CSV（制表符分隔，Anki/Excel 可直接导入）
+// S1 公式注入防御：单元格前置 sheetCellGuard（= + - @ 开头 → 加单引号中和），
+// 防止 WPS/Excel 直接打开 .tsv 时把用户可控内容当公式执行
 export async function downloadCsv() {
   const cards = await db.cards.toArray();
   const rows = [['正面', '背面', '科目', '标签', '来源']];
   for (const c of cards) rows.push([c.front, c.back, c.subject || '', (c.tags || []).join(' '), c.source || '']);
-  const tsv = rows.map(r => r.map(cell => String(cell ?? '').replace(/\t/g, ' ').replace(/"/g, '""')).join('\t')).join('\n');
+  const tsv = rows.map(r => r.map(cell => sheetCellGuard(String(cell ?? '').replace(/\t/g, ' ').replace(/"/g, '""'))).join('\t')).join('\n');
   const blob = new Blob(['\ufeff' + tsv], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -324,8 +327,9 @@ export async function downloadAnkiText(cards) {
   const arr = Array.isArray(cards) ? cards : await db.cards.toArray();
   const lines = ['#separator:tab', '#html:false', '#tags column:3'];
   for (const c of arr) {
-    const front = String(c.front || '').replace(/[\r\n\t]+/g, ' ').trim();
-    const back = String(c.back || '').replace(/[\r\n\t]+/g, ' ').trim();
+    // S1 公式注入防御：与 CSV/TSV 同口径前置单引号中和（WPS 直接打开 .txt 表格化时同理）
+    const front = sheetCellGuard(String(c.front || '').replace(/[\r\n\t]+/g, ' ').trim());
+    const back = sheetCellGuard(String(c.back || '').replace(/[\r\n\t]+/g, ' ').trim());
     // Anki 标签用空格分隔，需清洗标签内空格
     const tags = (c.tags || []).map(t => String(t).replace(/\s+/g, '_')).join(' ');
     if (front) lines.push(`${front}\t${back}\t${tags}`);

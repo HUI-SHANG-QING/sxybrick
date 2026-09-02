@@ -34,7 +34,7 @@ import {
 // P1·7 埋点开关：在设置面板允许用户开/关 A/B 级
 import { isAEnabled, isBEnabled, setAEnabled, setBEnabled } from './utils/telemetry.js';
 // P1-1 FSRS 调度器 opt-in：在设置面板切换 SM-2 ↔ FSRS，并允许用户用真实评分历史训练 19 权重
-import { db } from './db.js';
+import { db, getDbStatus, onDbStatusChange } from './db.js';
 import { refreshSchedConfig } from './repo.js';
 import { trainFsrsModel } from './agent/analytics.js';
 import { serializeUserWeights } from './fsrs.js';
@@ -80,6 +80,17 @@ const storageUnsupported = ref(null);    // 'insecure' | 'no-api' | null（配�
 // 用户主动忽略本次新版本提示后，不再弹（直到下次出新版本）
 const swUpdateDismissed = ref(false);
 let unsubOnline, unsubSwUpdate, unsubOfflineReady, unsubQuotaWarn;
+
+// R3：IndexedDB 故障横幅（blocked/versionchange/error → 顶部红条提示，不静默空列表）
+const dbHealth = ref(getDbStatus());
+const dbHealthMsg = computed(() => {
+  const s = dbHealth.value;
+  if (s === 'blocked') return '数据被其它打开的页面占用，请关闭旧页面后刷新';
+  if (s === 'versionchange') return '数据版本正在升级，本页已让位，请刷新';
+  if (s === 'error') return '本地数据库打开失败（可能处于无痕模式或存储已满），请检查浏览器设置';
+  return s;
+});
+let unsubDbHealth = null;
 
 async function reloadForUpdate() {
   swNeedRefresh.value = false;
@@ -302,6 +313,8 @@ onMounted(() => {
   window.addEventListener('beforeinstallprompt', onBeforeInstall);
   if (!localStorage.getItem('sxy_onboarding_done')) beginOnboarding();
   startReminderLoop();
+  // R3：IndexedDB 状态订阅（db.js 顶层已把 blocked/versionchange/open 失败收口成状态）
+  unsubDbHealth = onDbStatusChange((s) => { dbHealth.value = s; });
   // 日程表到点提醒（全局调度，任何路由打开都生效）
   stopPlanReminder = startReminderScheduler();
   // 主动智能体：后台轮询学习数据，主动推送建议到通知中心
@@ -336,6 +349,7 @@ onBeforeUnmount(() => {
   stopPlanReminder?.();
   getProactiveScheduler().stop();
   unsubOnline?.(); unsubSwUpdate?.(); unsubOfflineReady?.(); unsubQuotaWarn?.();
+  unsubDbHealth?.();
 });
 
 // ---- C6 复习提醒（2026-08-26 速赢区升级）：3 条件独立触发 + 丰富通知内容 ----
@@ -427,6 +441,11 @@ async function enableReminder() {
       <div v-else-if="quotaWarn" class="pwa-chip pwa-quota" :title="`已用 ${quotaWarn.usagePercent}%（${fmtBytes(quotaWarn.usage)} / ${fmtBytes(quotaWarn.quota)}），建议导出备份后清理旧数据`">
         <span>💾</span><span>本地存储已用 {{ quotaWarn.usagePercent }}%</span>
       </div>
+      <!-- R3 IndexedDB 故障横幅：打开失败/被其它标签页阻塞时明确提示，
+           替代原先静默空列表（用户会误以为数据丢了） -->
+      <div v-if="dbHealth !== 'ok'" class="pwa-chip pwa-db" role="alert" :title="dbHealth">
+        <span>⚠️</span><span>{{ dbHealthMsg }}</span>
+      </div>
     </div>
     <!-- M3 演示模式横幅：测试数据与真实数据完全隔离，退出后回到真实数据 -->
     <div v-if="appMode.isTest" class="demo-banner no-print" role="status">
@@ -453,12 +472,13 @@ async function enableReminder() {
       @pointerdown="fabDown" @touchstart="fabDown" @mousedown="fabDown">🎨</button>
 
     <div v-if="degraded" class="hint" style="position:fixed;bottom:8px;right:12px;z-index:200">已启用性能优化模式</div>
-    <FloatAssistant />
-    <NotificationBell />
-    <!-- 日程表到点提醒视觉浮层（全局，任何路由生效） -->
-    <PlanReminderLayer />
-    <Intro v-if="showIntro" @done="onIntroEnd" />
-    <Guide v-if="showGuide" @done="onGuideEnd" />
+    <!-- R2：路由外的全局组件各自包一层 ErrorBoundary，任一崩溃只降级自身，
+         不再裸奔到根组件（App 是根，自身抛错 = 挂载失败 = 整页白屏） -->
+    <ErrorBoundary><FloatAssistant /></ErrorBoundary>
+    <ErrorBoundary><NotificationBell /></ErrorBoundary>
+    <ErrorBoundary><PlanReminderLayer /></ErrorBoundary>
+    <ErrorBoundary><Intro v-if="showIntro" @done="onIntroEnd" /></ErrorBoundary>
+    <ErrorBoundary><Guide v-if="showGuide" @done="onGuideEnd" /></ErrorBoundary>
 
     <!-- 设置面板：标签页组织（外观 / 提醒与监控 / 学习引擎 / 导航 / 存储） -->
     <teleport to="body">
@@ -625,6 +645,7 @@ async function enableReminder() {
 .pwa-offline { background: #6b7280; }
 .pwa-update { background: #16a34a; }
 .pwa-quota { background: #d97706; }
+.pwa-db { background: #dc2626; }
 .pwa-act { margin-left: 4px; padding: 1px 8px; border: none; border-radius: 8px; background: rgba(255,255,255,.22); color: #fff; font-size: 12px; cursor: pointer; }
 .pwa-act:hover { background: rgba(255,255,255,.34); }
 .pwa-dismiss { margin-left: 2px; width: 18px; height: 18px; border: none; border-radius: 50%; background: rgba(255,255,255,.22); color: #fff; font-size: 14px; line-height: 1; cursor: pointer; }
