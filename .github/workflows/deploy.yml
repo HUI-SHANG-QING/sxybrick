@@ -38,11 +38,14 @@ jobs:
           node --test "tests/*.test.mjs" > _ci-test.log 2>&1
           echo "=== test exit=$? ==="
           tail -120 _ci-test.log
-      - name: Stash CI diagnostics to dist
+      - run: npm run build
+      - name: Stash CI diagnostics to dist (after build so dist exists and isn't wiped)
         run: |
           mkdir -p dist/_ci
-          cp _ci-pretest.log _ci-test.log dist/_ci/ 2>/dev/null || echo "no logs" > dist/_ci/none.txt
-      - run: npm run build
+          cp _ci-pretest.log dist/_ci/pretest.log 2>/dev/null || echo "no log" > dist/_ci/pretest.log
+          cp _ci-test.log dist/_ci/test.log 2>/dev/null || echo "no log" > dist/_ci/test.log
+          echo "pretest size: $(wc -c < dist/_ci/pretest.log)"
+          echo "test size: $(wc -c < dist/_ci/test.log)"
       - name: Build paper static pages
         # 将 paper/*.md 渲染为自包含 HTML，部署到 /paper（中文）与 /paper-en（英文）。
         # continue-on-error 作为安全网：论文渲染失败时仍保证主应用正常上线。
