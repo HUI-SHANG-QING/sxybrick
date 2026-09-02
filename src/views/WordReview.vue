@@ -127,11 +127,19 @@ function prepareCloze(c) {
 }
 
 const sentenceClozeText = ref('');
+const sentenceClozeFallback = ref(false); // 例句挖空无例句时退化为「看释义拼单词」
 // P2-D（round14）：c.word 是用户输入（手动/AI 生成，phrase/sentence 可能含 ()、[]、*、+ 等元字符），
 // 直传 new RegExp 会抛 SyntaxError 且调用链无 try/catch → 整个会话启动崩溃。先转义再构造，兜底保留原句。
 function prepareSentenceCloze(c) {
   const ex = (c.examples && c.examples[0]) || (c.example ? { sentence: c.example } : null);
-  if (!ex) { sentenceClozeText.value = t('views.wordReview.noExample'); input.value = c.word; return; }
+  if (!ex) {
+    // 无例句：退化为「看释义拼单词」——题干显示释义、输入框留空（绝不预填答案，否则答案直接泄露）
+    sentenceClozeFallback.value = true;
+    sentenceClozeText.value = c.meaning || '';
+    input.value = '';
+    return;
+  }
+  sentenceClozeFallback.value = false;
   try {
     sentenceClozeText.value = ex.sentence.replace(new RegExp(escapeRegExp(c.word), 'gi'), '____');
   } catch {
@@ -253,7 +261,7 @@ const speakSupported = speechSupported();
           </div>
 
           <!-- 不背式 / 闪卡：显示英文词 -->
-          <div v-if="['adaptive','flashcard','choice','spell','cloze','sentenceCloze','readAloud','quiz'].includes(mode)" class="q-word">
+          <div v-if="['adaptive','flashcard','choice','spell','readAloud','quiz'].includes(mode)" class="q-word">
             {{ current.word }}
             <button class="q-spk2" @click="speak(current.word, { lang: accentLang() })">🔊</button>
           </div>
@@ -265,8 +273,14 @@ const speakSupported = speechSupported();
 
           <!-- 挖空拼写 -->
           <div v-if="mode === 'cloze'" class="q-cloze">{{ clozeWord }}</div>
-          <!-- 例句挖空 -->
-          <div v-if="mode === 'sentenceCloze'" class="q-sent">{{ sentenceClozeText }}</div>
+          <!-- 例句挖空（无例句时退化为看释义拼单词） -->
+          <div v-if="mode === 'sentenceCloze'" class="q-sent">
+            <template v-if="sentenceClozeFallback">
+              <span class="scl-fb">{{ t('views.wordReview.noExampleFallback') }}</span>
+              <span class="scl-mean">{{ current.meaning }}</span>
+            </template>
+            <template v-else>{{ sentenceClozeText }}</template>
+          </div>
         </div>
 
         <!-- 答案区 -->
@@ -368,6 +382,8 @@ const speakSupported = speechSupported();
 .q-listen .q-spk { border: 1px solid var(--line); background: transparent; border-radius: 12px; padding: 12px 18px; font-size: 15px; cursor: pointer; color: var(--ink); }
 .q-cloze { font-size: 30px; letter-spacing: 4px; color: var(--accent); font-family: monospace; }
 .q-sent { font-size: 16px; color: var(--ink); line-height: 1.8; }
+.scl-fb { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+.scl-mean { font-size: 20px; color: var(--ink); }
 .q-sent :deep(__), .q-sent { }
 
 .q-answer { margin-top: 16px; }

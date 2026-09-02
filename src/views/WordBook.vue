@@ -34,6 +34,18 @@ const sylQuery = ref('');
 const sylPage = ref(1);
 const addedWords = ref(new Set());                // 已加入单词本的词（小写）
 const sylBusy = ref(false);
+// Exam type for the syllabus (English I / English II). Officially English I and II share
+// one ~5,500-word syllabus (identical scope, different depth), so the word list itself is
+// shared; this toggle only changes the label and the explanatory copy, not the data.
+const SYL_EXAM_KEY = 'sxy_word_exam';
+const sylExam = ref('en1'); // en1=English I (default), en2=English II
+const sylTitle = computed(() => sylExam.value === 'en2'
+  ? t('views.wordBook.syllabusTitleEn2')
+  : t('views.wordBook.syllabusTitleEn1'));
+function setExam(v) {
+  sylExam.value = v;
+  try { localStorage.setItem(SYL_EXAM_KEY, v); } catch { /* ignore persistence failure */ }
+}
 
 const sylFiltered = computed(() => {
   const kw = String(sylQuery.value || '').trim().toLowerCase();
@@ -141,6 +153,7 @@ async function load() {
   }
 }
 onMounted(async () => {
+  try { sylExam.value = localStorage.getItem(SYL_EXAM_KEY) || 'en1'; } catch { /* ignore */ }
   await load();
   // 首次进入：本地一个词都没有 → 直接落到考研大纲，让默认词库可见
   if (!cards.value.length) {
@@ -292,12 +305,16 @@ function highlightWord(example, word) {
     <!-- 考研大纲词书：4956 词按需分页浏览（不落库，点「加入」才进单词本） -->
     <div class="wb-syllabus" v-if="view === 'syllabus'">
       <div class="syl-head">
-        <div class="syl-title">{{ t('views.wordBook.syllabusTitle') }}</div>
+        <div class="syl-exam">
+          <button class="se" :class="{ on: sylExam === 'en1' }" @click="setExam('en1')">{{ t('views.wordBook.syllabusExamEn1') }}</button>
+          <button class="se" :class="{ on: sylExam === 'en2' }" @click="setExam('en2')">{{ t('views.wordBook.syllabusExamEn2') }}</button>
+        </div>
+        <div class="syl-title">{{ sylTitle }}</div>
         <div class="syl-meta">
           {{ t('views.wordBook.syllabusMeta', undefined, { n: sylAll.length, version: syllabusMeta.version || 'v1.0' }) }}
           · {{ t('views.wordBook.syllabusProgress', undefined, { n: sylAddedCount, total: sylAll.length }) }}
         </div>
-        <div class="syl-disc">{{ t('views.wordBook.syllabusDisclaimer') }}</div>
+        <div class="syl-disc">{{ t('views.wordBook.syllabusSharedHint') }}</div>
       </div>
 
       <div class="syl-tools">
@@ -559,6 +576,12 @@ function highlightWord(example, word) {
 .syl-head {
   background: var(--panel); border: 1px dashed var(--line); border-radius: 14px; padding: 12px 14px;
 }
+.syl-exam { display: flex; gap: 6px; margin-bottom: 8px; }
+.syl-exam .se {
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink-2);
+  border-radius: 16px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+}
+.syl-exam .se.on { border-color: var(--accent); background: var(--accent); color: #fff; font-weight: 600; }
 .syl-title { font-size: 15px; font-weight: 700; color: var(--ink); }
 .syl-meta { font-size: 12px; color: var(--accent); margin-top: 4px; }
 .syl-disc { font-size: 11px; color: var(--ink-2); margin-top: 6px; line-height: 1.6; }
