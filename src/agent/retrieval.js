@@ -74,12 +74,20 @@ export async function indexCard(card) {
 }
 
 /** 索引单篇文档：分块后逐块生成 embedding */
+/** 文档 subject 提取（round19 R19-4 根治）：调用方统一传 doc.subject，
+ *  旧路径也可能传 doc.title；二者皆空则归入「未分类」。避免 subject 恒空导致
+ *  带 subject 的检索（loadEmbeddingRows 走 subject 索引）永远命中不到。 */
+export function docSubject(doc) {
+  return String(doc?.subject || doc?.title || '').trim();
+}
+
 export async function indexDoc(doc) {
   if (!doc?.id) return;
   const chunks = chunkText(doc.content || doc.text || '');
   const modelSig = getModelSig();
   await db.embeddings.where('sourceId').equals(doc.id).delete(); // 删除旧 chunk
   if (!chunks.length) return;
+  const subject = docSubject(doc);
   for (let i = 0; i < chunks.length; i += BATCH) {
     const batch = chunks.slice(i, i + BATCH);
     const vecs = await embedBatch(batch);
@@ -92,7 +100,7 @@ export async function indexDoc(doc) {
         chunkIdx: i + j,
         text: batch[j],
         vector: vecs[j],
-        subject: doc.title || '',
+        subject,
         updatedAt: now,
         modelSig,
       });
@@ -116,10 +124,21 @@ export async function getStaleCards(limit = 200) {
   return computeStaleItems(cards, embById, modelSig, limit);
 }
 
-/** 找出需要重新索引的文档 */
+/** 找出需要重新索引的文档（round19 R19-3 修复：联合扫描 db.docs 与 db.docFiles）。
+ *  知识库文档存于 db.docFiles（docs-lib.js 的 indexDoc 以 docFiles.id 写 embedding），
+ *  而 db.docs 是卡片笔记（repo.createDoc）。若只扫 db.docs，rebuildIndex 清空
+ *  embeddings 后知识库向量永不重建 → 资料库问答静默失效。两表合并、按 id 去重。 */
 export async function getStaleDocs(limit = 50) {
   const modelSig = getModelSig();
-  const docs = await db.docs.limit(limit * 2).toArray();
+  const [docRows, fileRows] = await Promise.all([
+    db.docs.limit(limit * 2).toArray(),
+    db.docFiles.limit(limit * 2).toArray(),
+  ]);
+  const seen = new Set();
+  const docs = [];
+  for (const d of [...docRows, ...fileRows]) {
+    if (d?.id && !seen.has(d.id)) { seen.add(d.id); docs.push(d); }
+  }
   const ids = docs.map((d) => d.id);
   const embById = new Map(
     ids.length
@@ -272,13 +291,17 @@ export async function retrieveContext(query, opts = {}) {
 
 // ---------- 索引状态 ----------
 
-/** 获取索引健康状态（供 UI 展示） */
+/** 获取索引健康状态（供 UI / get_index_status 展示） */
 export async function getIndexStatus() {
-  const [totalCards, totalDocs, indexedRows] = await Promise.all([
+  const [totalCards, totalDocs, totalFiles, indexedRows] = await Promise.all([
     db.cards.count(),
     db.docs.count(),
+    db.docFiles.count(),
     db.embeddings.count(),
   ]);
+  // R19-3 延伸：可索引文档有两源（db.docs 卡片笔记 + db.docFiles 知识库文件），
+  // 分母只数 db.docs 会让 docCoverage 失真（docSources 含 docFiles.id 时可超 100%）。
+  const docTotal = totalDocs + totalFiles;
   const cardSources = new Set(
     (await db.embeddings.where('sourceType').equals('card').toArray()).map((r) => r.sourceId),
   );
@@ -289,9 +312,9 @@ export async function getIndexStatus() {
     totalCards,
     indexedCards: cardSources.size,
     cardCoverage: totalCards ? Math.round((cardSources.size / totalCards) * 100) : 0,
-    totalDocs,
+    totalDocs: docTotal,
     indexedDocs: docSources.size,
-    docCoverage: totalDocs ? Math.round((docSources.size / totalDocs) * 100) : 0,
+    docCoverage: docTotal ? Math.round((docSources.size / docTotal) * 100) : 0,
     totalChunks: indexedRows,
     modelSig: getModelSig(),
   };

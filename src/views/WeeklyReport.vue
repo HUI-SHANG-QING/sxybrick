@@ -5,7 +5,7 @@ import { t } from '../i18n/index.js';
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../db.js';
-import { listWeeklyReports, getWeeklyReportByWeek, saveWeeklyReport, deleteWeeklyReport } from '../repo.js';
+import { listWeeklyReports, getWeeklyReportByWeek, saveWeeklyReport, deleteWeeklyReport, isPomoCountable } from '../repo.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import EmptyState from '../components/EmptyState.vue';
@@ -61,7 +61,7 @@ async function aggregate(ws) {
     wrong: rWeek.filter(r => r.rating === 0).length,
     fuzzy: rWeek.filter(r => r.rating === 1).length,
     newCards: newCards.length,
-    pomo: pomosWeek.length,
+    pomo: pomosWeek.filter(isPomoCountable).length,
     pomoMinutes: pomosWeek.reduce((s, p) => s + (p.duration || 0), 0),
     docs: docs.filter(d => d.createdAt >= from && d.createdAt < to).length,
     plansDone: plans.filter(p => p.status === 'done' && (p.updatedAt >= from && p.updatedAt < to)).length,

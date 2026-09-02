@@ -3,6 +3,7 @@
 // 把新解锁的成就落库（id 确定性 ach-<key>，随数据包同步，跨设备幂等）。
 import { db } from './db.js';
 import { getStreak } from './utils/streak.js';
+import { isPomoCountable } from './repo.js';
 
 // 成就目录：value(input) 返回当前数值，>= goal 即解锁
 // category：用于"学习成长树"按枝分组（P4 可视化）
@@ -41,7 +42,7 @@ export async function collectAchievementStats() {
     db.cards.count(),
     // round18 R18-6：番茄成就只认「完整番茄」——未跑满的 partial 会话不入数，
     // 否则开 2 分钟关页也能刷出 pomo_1/pomo_50。
-    db.pomoSessions.toArray().then((arr) => arr.filter((s) => !s.partial).length),
+    db.pomoSessions.toArray().then((arr) => arr.filter(isPomoCountable).length),
     db.docs.count(), db.plans.toArray(),
     db.graphEdges.count(), db.aiMemories.count(), db.aiChats.toArray(),
     db.mindmaps.count(), db.weeklyReports.count(),

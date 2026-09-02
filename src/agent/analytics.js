@@ -4,7 +4,7 @@
 // 全部只读，纯前端查询 IndexedDB，零服务器。
 
 import { db } from '../db.js';
-import { getStats, weakCards } from '../repo.js';
+import { getStats, weakCards, isPomoCountable } from '../repo.js';
 import { trainWeights } from '../fsrs.js';
 
 const DAY = 86400000;
@@ -142,7 +142,7 @@ async function _getCrossModuleInsight() {
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
   // round18 R18-6：与 repo.countPomoToday 同口径——未跑满的「部分专注」不计入今日番茄数，
   // 否则开 2 分钟关页、数小时后再回来就能白拿一个番茄（专注分钟 pomoMinutes 仍照实累加）。
-  const pomoToday = pomoSessions.filter(s => s.startedAt >= dayStart.getTime() && !s.partial).length;
+  const pomoToday = pomoSessions.filter(s => s.startedAt >= dayStart.getTime() && isPomoCountable(s)).length;
   const pomoMinutes = pomoSessions.reduce((s, x) => s + (x.duration || 0), 0);
   const activePlans = plans.filter(p => p.status === 'active').length;
   return {

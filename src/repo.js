@@ -1086,10 +1086,21 @@ export async function listPomoSessions(limit = 200) {
  * 今日**完整**番茄数（partial 不计）。
  * 数据源 = pomoSessions 表（随同步跨设备一致），跨天自动归零。
  */
+/**
+ * 单一事实源（round19 R19-2 根治）：一个番茄会话是否计入「完整番茄数/成就」。
+ * 未跑满一个完整番茄的 partial 会话（中途关页、提前结束）不计入——否则开 2 分钟关页
+ * 也能刷出 pomo_1/pomo_50。countPomoToday / achievements / analytics / WeeklyReport
+ * 全部走它，避免口径再次分裂。
+ * @param {object} p pomoSessions 行（需含 partial 字段；旧数据无该字段视为完整番茄）
+ */
+export function isPomoCountable(p) {
+  return !p || !p.partial;
+}
+
 export async function countPomoToday() {
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
   const rows = await db.pomoSessions.where('startedAt').aboveOrEqual(dayStart.getTime()).toArray();
-  return rows.filter((s) => !s.partial).length;
+  return rows.filter(isPomoCountable).length;
 }
 
 // ---------- 思维导图（可持久化、随数据包同步；借鉴 Progress AI 的本地化实现） ----------
