@@ -266,6 +266,10 @@ export function trainWeights(reviews, cardsById, opts = {}) {
 
   let best = lossOf(w0);
   let weights = w0;
+  let rate = lr; // 训练循环内可衰减的学习率（round19 R19-5）
+  let plateau = 0;
+  const LR_FLOOR = 1e-4;
+  const PATIENCE = 4;
   for (let it = 0; it < iters; it++) {
     const grad = new Array(weights.length).fill(0);
     for (let i = 0; i < weights.length; i++) {
@@ -277,16 +281,19 @@ export function trainWeights(reviews, cardsById, opts = {}) {
     }
     // 归一化梯度（避免量纲不一致导致发散）
     const gn = Math.hypot(...grad) || 1;
-    const next = weights.map((wi, i) => wi - lr * (grad[i] / gn));
-    // 投影约束：权重非负、稳定度类参数下界 0.01
-    for (let i = 0; i < next.length; i++) next[i] = Math.max(0.01, next[i]);
+    const next = weights.map((wi, i) => Math.max(0.01, wi - rate * (grad[i] / gn)));
     const cand = lossOf(next);
-    if (cand.loss != null && (best.loss == null || cand.loss < best.loss)) {
+    if (cand.loss != null && (best.loss == null || cand.loss < best.loss - 1e-9)) {
       weights = next;
       best = cand;
+      plateau = 0;
     } else {
-      // 不再下降：缩小学习率继续尝试一轮，或提前结束
-      break;
+      // round19 R19-5：注释承诺「缩小 lr 继续」，原代码却直接 break（首步不降即停、
+      // 个性化权重≈默认）。改为：连续不降时衰减学习率继续探索，学习率见底或连续
+      // plateau 达耐心上限才收尾，让有限差分训练真正收敛到个性化权重。
+      plateau++;
+      if (rate <= LR_FLOOR || plateau >= PATIENCE) break;
+      rate *= 0.5;
     }
   }
   return { weights, loss: best.loss, samples: best.n };
