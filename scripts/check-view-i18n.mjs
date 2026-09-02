@@ -17,10 +17,14 @@
 // 写进库的枚举值（如 PrivacyData 的 ['早餐','午餐','晚餐']）。它们不是界面文案，
 // 翻译了反而污染数据。基线把存量固化并标注理由，之后只卡「新增」，防止债务继续扩大。
 import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(fileURLToPath(new URL('..', import.meta.url)));
+// 关键：把相对路径一律归一为 POSIX 斜杠形式。否则 Windows Git 生成 baseline
+// 时存的是反斜杠/绝对盘符，Linux CI checkout 后 collectJsFiles 产出正斜杠，
+// base[f] 永远 undefined → 所有 404 条硬编码全部判新增 → npm test exit=1 阻塞门禁。
+const rel = (abs) => relative(root, abs).replace(/\\/g, '/');
 const viewsDir = join(root, 'src/views');
 const dictDir = join(root, 'src/i18n/views');
 const baselineFile = join(root, 'scripts/i18n-hardcode-baseline.json');
@@ -238,7 +242,7 @@ function collectJsFiles() {
       out.push(abs);
     }
   }
-  return out.map(abs => ({ rel: abs.replace(root + (root.endsWith('/') ? '' : '/'), ''), abs }));
+  return out.map(abs => ({ rel: rel(abs), abs }));
 }
 function lstatSyncSafe(abs) {
   try { return statSync(abs).isDirectory() ? 'dir' : 'file'; } catch { return 'file'; }
@@ -268,7 +272,7 @@ if (STRICT || UPDATE_BASELINE) {
   const found = {};
   for (const f of vueFiles) {
     const hits = scanHardcoded(f);
-    if (hits.length) found[f] = hits;
+    if (hits.length) found[f] = hits;  // vueFiles 已经是 "xxx.vue" 简单名，不需要 rel
     scanTotal += hits.length;
   }
 
