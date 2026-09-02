@@ -24,28 +24,14 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      # 临时诊断（2026-09-02）：本地全绿但 CI 1 秒崩，拆 pretest/test 拿 Linux 真实错误。
-      # 拿到错误修复后，恢复为 `npm test`（阻塞门禁）并删除诊断日志收集。
-      - name: Run pretest (i18n gate) — capture Linux errors
-        continue-on-error: true
-        run: |
-          npm run pretest > _ci-pretest.log 2>&1
-          echo "=== pretest exit=$? ==="
-          cat _ci-pretest.log
-      - name: Run tests — capture Linux errors
-        continue-on-error: true
-        run: |
-          node --test "tests/*.test.mjs" > _ci-test.log 2>&1
-          echo "=== test exit=$? ==="
-          tail -120 _ci-test.log
+      # 门禁：同步/SRS/英语模块/算法回归测试失败则不构建不发布。
+      # 说明：scripts.test 内含 i18n 闸门（pretest 两道 + tests 一道串行执行，
+      # 见 package.json：用 && 显式串联而非依赖 npm lifecycle pretest 钩子，
+      # 是因为 npm lifecycle 在 CI Linux + Node 20 下会因进程初始化时序问题
+      # 提前 1 秒崩溃；--test-concurrency=1 是强制串行，堵住不同子进程
+      # import dexie/fake-indexeddb 时偶发全局竞争导致的非确定性失败。
+      - run: npm test
       - run: npm run build
-      - name: Stash CI diagnostics to dist (after build so dist exists and isn't wiped)
-        run: |
-          mkdir -p dist/_ci
-          cp _ci-pretest.log dist/_ci/pretest.log 2>/dev/null || echo "no log" > dist/_ci/pretest.log
-          cp _ci-test.log dist/_ci/test.log 2>/dev/null || echo "no log" > dist/_ci/test.log
-          echo "pretest size: $(wc -c < dist/_ci/pretest.log)"
-          echo "test size: $(wc -c < dist/_ci/test.log)"
       - name: Build paper static pages
         # 将 paper/*.md 渲染为自包含 HTML，部署到 /paper（中文）与 /paper-en（英文）。
         # continue-on-error 作为安全网：论文渲染失败时仍保证主应用正常上线。
