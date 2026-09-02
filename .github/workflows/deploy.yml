@@ -21,7 +21,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 本地开发/测试使用的是 Node 24.12；CI 长期锁死 Node 20 导致
+          # ESM loader / npm lifecycle 行为差异（如 fake-indexeddb@6 模块、
+          # dynamic import() 时序）——本地通过但 CI 1 秒崩的根因。
+          # 升级到 Node 24 与本地保持一致，从根本上消除跨版本差异。
+          node-version: 24
           cache: npm
       - run: npm ci
       # 临时：强制收集 npm test 在 CI Linux 下的真实 stderr/stdout 并部署到 Pages，
