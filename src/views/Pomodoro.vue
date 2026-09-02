@@ -7,6 +7,7 @@ import { toast } from '../utils/toast.js';
 import { speak } from '../utils/tts.js';
 import { sendNotify } from '../utils/notify.js';
 import { addPomoSession, countPomoToday } from '../repo.js';
+import { makePomoRoundId, isRoundRecorded, markRoundRecorded } from '../utils/pomoDedup.js';
 import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
 
@@ -133,10 +134,14 @@ async function finish() {
     const netMin = Math.max(0, Math.floor(netMs / 60000));
     const complete = netMin >= FULL_FOCUS_MIN;
     const focusStartedAt = roundStartTs || (endTs - MODES.focus * 1000); // 真正开始时刻（跨天归属正确）
-    if (Date.now() - lastPeerFinish < 5000) {
-      // 另一标签页刚刚完成并已入账：本页不重复记
+    // round19 R19-1：以 roundStartTs 派生稳定 roundId，跨标签页幂等——同一轮专注只入账一次，
+    // 不再依赖 lastPeerFinish 的 5s 墙钟窗口（后台节流会击穿它导致双写）。
+    const rid = makePomoRoundId(focusStartedAt);
+    const peerJustFinished = Date.now() - lastPeerFinish < 5000;
+    if (peerJustFinished || isRoundRecorded(rid)) {
+      // 已入账（同标签页重复触发，或另一标签页刚完成并已标记）：跳过，避免双写
     } else {
-      bc?.postMessage({ type: 'pomo-finish', at: Date.now() });
+      bc?.postMessage({ type: 'pomo-finish', at: Date.now(), rid });
       // 少于 1 分钟不入库（避免误触产生噪声行）；不足 FULL_FOCUS_MIN 标 partial，
       // 只贡献「专注分钟」统计，不计入今日番茄数/成就（countPomoToday 会排除）。
       if (netMin >= 1) {
@@ -144,6 +149,7 @@ async function finish() {
           duration: Math.min(25, netMin), startedAt: focusStartedAt, tag: '',
           partial: complete ? 0 : 1,
         }); // 入库，随数据包同步
+        markRoundRecorded(rid); // 立即标记，防止本标签页或另一标签页晚于 5s 双写
       }
       try { T.pomodoroEnd(Math.min(25, netMin), 'focus'); } catch {}
     }
@@ -217,6 +223,7 @@ onMounted(async () => {
       const d = e.data || {};
       if (d.type === 'pomo-finish') {
         lastPeerFinish = Date.now();
+        if (d.rid) markRoundRecorded(d.rid); // 跨标签页即时标记，防本页晚于 5s 双写同一轮
         if (running.value && mode.value === 'focus') switchMode('short');
         refreshDone();
       }
