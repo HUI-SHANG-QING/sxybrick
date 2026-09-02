@@ -38,6 +38,7 @@ import { db } from './db.js';
 import { refreshSchedConfig } from './repo.js';
 import { trainFsrsModel } from './agent/analytics.js';
 import { serializeUserWeights } from './fsrs.js';
+import { useFabDrag } from './composables/useFabDrag.js';
 import { parseHm, hasReached } from './utils/time.js';
 
 const theme = useThemeStore();
@@ -287,35 +288,13 @@ function onIntroEnd() { showIntro.value = false; showGuide.value = true; }
 function onGuideEnd() { showGuide.value = false; localStorage.setItem('sxy_onboarding_done', '1'); }
 function replayOnboarding() { showSettings.value = false; beginOnboarding(); }
 
-// 设置按钮拖拽（pointer 事件，统一鼠标/触摸，与 AI 助手一致）
+// 设置按钮拖拽：与通知中心 / AI 对话共用 useFabDrag（rAF 节流 + transform 合成层 + 边界收敛 + 位置持久化）
 const fabEl = ref(null);
-const fabPos = ref(null);
-let fDrag = false, fMoved = false, fSx = 0, fSy = 0, fOx = 0, fOy = 0, fDownAt = 0;
-const FAB_CLICK_DIST = 14; // 移动端手指点按天然抖动：曼哈顿距离放宽到 14（≈ 欧式 ~10px）
-const FAB_CLICK_MS = 250;   // 按下-抬起在 250ms 内无条件当点击（避免抖动误判）
-function fabDown(e) {
-  fDrag = true; fMoved = false; fSx = e.clientX; fSy = e.clientY; fDownAt = Date.now();
-  const r = fabEl.value.getBoundingClientRect(); fOx = r.left; fOy = r.top;
-  try { e.currentTarget.setPointerCapture?.(e.pointerId); } catch {}
-}
-function fabMove(e) {
-  if (!fDrag) return;
-  const dx = e.clientX - fSx, dy = e.clientY - fSy;
-  // 仅当超过判定阈值 + 超出点击短按时窗 才认为是真的拖动
-  const dist = Math.abs(dx) + Math.abs(dy);
-  const elapsed = Date.now() - fDownAt;
-  if (dist > FAB_CLICK_DIST && elapsed > 80) fMoved = true;
-  if (fMoved) {
-    e.preventDefault?.();
-    fabPos.value = { left: fOx + dx, top: fOy + dy };
-  }
-}
-function fabUp() {
-  const elapsed = Date.now() - fDownAt;
-  fDrag = false;
-  // 250ms 内的短按，或者没有超过距离阈值 → 视为点击
-  if (elapsed <= FAB_CLICK_MS || !fMoved) showSettings.value = !showSettings.value;
-}
+const { dragging: fabDragging, onDown: fabDown } = useFabDrag({
+  root: fabEl,
+  storageKey: 'sxy_fab_pos',
+  onTap: () => { showSettings.value = !showSettings.value; },
+});
 
 onMounted(() => {
   theme.apply();
@@ -470,8 +449,8 @@ async function enableReminder() {
     </main>
 
     <!-- 全局设置入口（可拖动） -->
-    <button ref="fabEl" class="settings-fab no-print" :style="fabPos ? { left: fabPos.left + 'px', top: fabPos.top + 'px', right: 'auto' } : {}"
-      @pointerdown="fabDown" @pointermove="fabMove" @pointerup="fabUp" @pointercancel="fabUp">🎨</button>
+    <button ref="fabEl" class="settings-fab no-print" :class="{ dragging: fabDragging }"
+      @pointerdown="fabDown" @touchstart="fabDown" @mousedown="fabDown">🎨</button>
 
     <div v-if="degraded" class="hint" style="position:fixed;bottom:8px;right:12px;z-index:200">已启用性能优化模式</div>
     <FloatAssistant />
@@ -636,7 +615,9 @@ async function enableReminder() {
 </template>
 
 <style scoped>
-.settings-fab { position: fixed; top: 12px; right: 14px; z-index: 70; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.12); touch-action: none; -webkit-user-select: none; user-select: none; }
+.settings-fab { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: 14px; z-index: 70; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); cursor: pointer; font-size: 20px; box-shadow: 0 2px 10px rgba(0,0,0,.12); touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+/* 拖动中提升为合成层，位移只走合成不重排重绘（与通知中心 / AI 对话一致） */
+.settings-fab.dragging { will-change: transform; transition: none; }
 /* P3-2 PWA 状态条：顶部非遮挡式横条，离线 / 新版本 / 配额告警 */
 .pwa-bar { position: sticky; top: 0; z-index: 90; display: flex; gap: 8px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); pointer-events: none; min-height: 0; }
 .pwa-bar:empty { display: none; }

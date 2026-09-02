@@ -1,7 +1,7 @@
 <script setup>
 // 通知铃铛：主动智能体推送的建议/提醒入口。
 // 浮动在右上角（紧邻设置 FAB 左侧），跨主题通用，使用 CSS 变量适配所有风格。
-import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   listNotifications,
@@ -13,87 +13,34 @@ import {
 } from '../agent/proactive.js';
 import { getProactiveScheduler } from '../agent/proactive.js';
 
+import { useFabDrag } from '../composables/useFabDrag.js';
+
 const router = useRouter();
 const open = ref(false);
 const unread = ref(0);
 const list = ref([]);
 const loading = ref(false);
 
-// 可拖动：位置存 localStorage；用 moved 标志区分拖动/点击（拖动不触发 toggle）
+// 可拖动：与设置中心 / AI 对话共用 useFabDrag，位置存 localStorage，
+// 由 composable 统一判定拖动/点击（曼哈顿位移 14px 或 250ms 短按 → 点击）
 const DRAG_KEY = 'sxy_nb_pos';
-function loadPos() {
-  try {
-    const p = JSON.parse(localStorage.getItem(DRAG_KEY) || 'null');
-    if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) return p;
-  } catch {}
-  return null;
-}
-const bellStyle = reactive({});
-function clampPos(x, y) {
-  const mx = window.innerWidth - 52, my = window.innerHeight - 52;
-  return { x: Math.max(8, Math.min(mx, x)), y: Math.max(8, Math.min(my, y)) };
-}
-function applyPos() {
-  const p = loadPos();
-  if (!p) { bellStyle.left = undefined; bellStyle.top = undefined; bellStyle.right = undefined; bellStyle.bottom = undefined; return; }
-  const c = clampPos(p.x, p.y);
-  bellStyle.position = 'fixed';
-  bellStyle.left = c.x + 'px'; bellStyle.top = c.y + 'px';
-  bellStyle.right = 'auto'; bellStyle.bottom = 'auto';
-}
 const bellEl = ref(null);
-const BELL_CLICK_DIST = 14; // 曼哈顿总位移 14 以下视为点击（手指点按天然抖动）
-const BELL_CLICK_MS = 250;   // 250ms 内按-抬无条件算点击
-let dragging = false, moved = false, startX = 0, startY = 0, origX = 0, origY = 0, downAt = 0, activePointerId = null;
-function onBellDown(e) {
-  const pt = e.clientX != null ? e : (e.touches ? e.touches[0] : e);
-  dragging = true; moved = false; startX = pt.clientX; startY = pt.clientY; downAt = Date.now();
-  const rect = bellEl.value.getBoundingClientRect();
-  origX = rect.left; origY = rect.top;
-  bellStyle.position = 'fixed'; bellStyle.left = origX + 'px'; bellStyle.top = origY + 'px';
-  bellStyle.right = 'auto'; bellStyle.bottom = 'auto';
-  // 指针捕获：手指滑出按钮也能继续收到事件（触屏拖动丝滑的关键）
-  try {
-    if (e.pointerId != null && bellEl.value?.setPointerCapture) {
-      bellEl.value.setPointerCapture(e.pointerId); activePointerId = e.pointerId;
-    }
-  } catch {}
-  // pointermove 必须 passive:false，否则 e.preventDefault 会被浏览器静默忽略 → 页面跟着滚动
-  document.addEventListener('pointermove', onBellMove, { passive: false });
-  document.addEventListener('pointerup', onBellUp, { once: true });
-  document.addEventListener('pointercancel', onBellUp, { once: true });
-  // 拖动时临时锁定页面滚动，避免页面一起滚
-  try { document.body.style.touchAction = 'none'; document.documentElement.style.overflow = 'hidden'; } catch {}
+const nbRoot = ref(null);
+// 面板默认朝右下展开；球被拖到左/下边缘时翻转方向，避免溢出视口
+const flipX = ref(false);
+const flipY = ref(false);
+const PANEL_W = 360, PANEL_H = 420, PANEL_GAP = 48;
+function onBellSettled(x, y, box) {
+  flipX.value = (x + box.w / 2) <= box.vw / 2;
+  flipY.value = (y + PANEL_GAP + PANEL_H) > box.vh;
 }
-function onBellMove(e) {
-  if (!dragging) return;
-  const pt = e.clientX != null ? e : (e.touches ? e.touches[0] : e);
-  const dx = pt.clientX - startX, dy = pt.clientY - startY;
-  const dist = Math.abs(dx) + Math.abs(dy);
-  const elapsed = Date.now() - downAt;
-  if (!moved && dist > BELL_CLICK_DIST && elapsed > 60) moved = true;
-  if (!moved) return;
-  // 关键：禁用浏览器默认滚动/缩放手势，否则拖动卡顿
-  try { e.preventDefault(); } catch {}
-  const c = clampPos(origX + dx, origY + dy);
-  bellStyle.left = c.x + 'px'; bellStyle.top = c.y + 'px';
-}
-function onBellUp() {
-  dragging = false;
-  document.removeEventListener('pointermove', onBellMove);
-  try {
-    if (activePointerId != null && bellEl.value?.releasePointerCapture) {
-      bellEl.value.releasePointerCapture(activePointerId);
-    }
-  } catch {}
-  activePointerId = null;
-  // 恢复页面滚动
-  try { document.body.style.touchAction = ''; document.documentElement.style.overflow = ''; } catch {}
-  if (bellEl.value) {
-    const r = bellEl.value.getBoundingClientRect();
-    localStorage.setItem(DRAG_KEY, JSON.stringify({ x: r.left, y: r.top }));
-  }
-}
+const { dragging, onDown: fabOnDown } = useFabDrag({
+  root: nbRoot,
+  handle: bellEl,
+  storageKey: DRAG_KEY,
+  onTap: toggle,
+  onSettled: onBellSettled,
+});
 
 const hasItems = computed(() => list.value.length > 0);
 
@@ -107,16 +54,22 @@ async function loadList() {
   loading.value = false;
 }
 
+// 点击/拖动的判定已由 useFabDrag 完成，toggle 只负责开合面板。
+// @click 仅为键盘可达保留（Enter/Space 只派发 click，不派发 pointer 事件）。
+// 指针交互的点击会被 pointer capture 重定向到按钮 → 拖动结束浏览器也会补发一个 click，
+// 若直接绑 toggle 会把「刚拖完的球」误开关一次面板，因此这里只放行非指针序列的 click。
+let lastPointerSeqAt = 0;
+function onDown(e) {
+  lastPointerSeqAt = Date.now();
+  fabOnDown(e);
+}
+function onKeyboardToggle() {
+  if (Date.now() - lastPointerSeqAt < 600) return; // 指针序列的残留 click，忽略
+  toggle();
+}
 async function toggle() {
-  const elapsed = Date.now() - downAt;
-  // 250ms 内的短按 或者 没超过位移阈值 → 视为点击；清理 moved 避免污染下次状态
-  const isClick = (elapsed <= BELL_CLICK_MS) || !moved;
-  moved = false;
-  if (!isClick) return;
   open.value = !open.value;
-  if (open.value) {
-    await loadList();
-  }
+  if (open.value) await loadList();
 }
 
 async function onItemClick(n) {
@@ -177,31 +130,29 @@ function closeOnOutside(e) {
 }
 
 onMounted(() => {
-  applyPos();
   refreshUnread();
   pollTimer = setInterval(refreshUnread, 30000);
   document.addEventListener('click', closeOnOutside);
-  window.addEventListener('resize', applyPos);
 });
 onBeforeUnmount(() => {
   if (pollTimer) clearInterval(pollTimer);
   document.removeEventListener('click', closeOnOutside);
-  window.removeEventListener('resize', applyPos);
-  document.removeEventListener('pointermove', onBellMove);
 });
 
 defineExpose({ refreshUnread, loadList });
 </script>
 
 <template>
-  <div class="nb-root no-print" :style="bellStyle">
+  <div class="nb-root no-print" ref="nbRoot" :class="{ dragging, 'flip-x': flipX, 'flip-y': flipY }">
     <button
       ref="bellEl"
       class="nb-bell"
-      :class="{ hasunread: unread > 0, dragging: dragging }"
+      :class="{ hasunread: unread > 0 }"
       :style="{ cursor: dragging ? 'grabbing' : 'grab' }"
-      @pointerdown="onBellDown"
-      @click="toggle"
+      @pointerdown="onDown"
+      @touchstart="onDown"
+      @mousedown="onDown"
+      @click="onKeyboardToggle"
       :title="unread > 0 ? `${unread} 条未读（可拖动）` : '通知（可拖动）'"
     >
       <span class="nb-icon">🔔</span>
@@ -249,10 +200,14 @@ defineExpose({ refreshUnread, loadList });
 </template>
 
 <style scoped>
-.nb-root { position: fixed; top: 12px; right: 64px; z-index: 70; touch-action: none; }
+.nb-root { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: 64px; z-index: 70; touch-action: none; }
+/* 拖动中提升为合成层（位移只走合成不重排重绘），并停掉摇铃动画与过渡，
+   否则无限 transform 动画会和拖动抢合成层、视觉上出现滞后 */
+.nb-root.dragging { will-change: transform; }
+.nb-root.dragging .nb-bell { transition: none; animation: none; }
 .nb-bell { position: relative; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); cursor: grab; font-size: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.12); transition: transform .18s, box-shadow .18s; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
-.nb-bell.dragging { cursor: grabbing; transition: none; }
 .nb-bell:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,.16); }
+.nb-root.dragging .nb-bell:hover { transform: none; }
 .nb-bell.hasunread { animation: nb-ring 1.6s ease-in-out infinite; }
 @keyframes nb-ring {
   0%, 70%, 100% { transform: rotate(0); }
@@ -295,9 +250,15 @@ defineExpose({ refreshUnread, loadList });
 
 .nb-enter-active, .nb-leave-active { transition: opacity .18s, transform .18s; transform-origin: top right; }
 .nb-enter-from, .nb-leave-to { opacity: 0; transform: translateY(-6px) scale(.96); }
+/* 球体被拖到左/下边缘时翻转面板展开方向，保证桌面窄窗口与手机窄屏都不溢出视口 */
+.nb-root.flip-x .nb-panel { left: 0; right: auto; }
+.nb-root.flip-x .nb-enter-active, .nb-root.flip-x .nb-leave-active { transform-origin: top left; }
+.nb-root.flip-y .nb-panel { bottom: 48px; top: auto; }
+.nb-root.flip-y .nb-enter-active, .nb-root.flip-y .nb-leave-active { transform-origin: bottom right; }
+.nb-root.flip-y.flip-x .nb-enter-active, .nb-root.flip-y.flip-x .nb-leave-active { transform-origin: bottom left; }
 
 @media (max-width: 720px) {
-  .nb-root { top: 12px; right: 60px; }
+  .nb-root { top: calc(12px + env(safe-area-inset-top, 0px)); right: 60px; }
   .nb-panel { width: calc(100vw - 24px); }
 }
 </style>
