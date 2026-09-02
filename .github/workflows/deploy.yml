@@ -26,6 +26,11 @@ jobs:
       - run: npm ci
       - run: npm test      # 门禁：同步/SRS 回归测试失败则不构建不发布
       - run: npm run build
+      - name: Build paper static pages
+        # 将 paper/*.md 渲染为自包含 HTML，部署到 /paper（中文）与 /paper-en（英文）。
+        # continue-on-error 作为安全网：论文渲染失败时仍保证主应用正常上线。
+        continue-on-error: true
+        run: node paper/build-paper.mjs
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
         with:

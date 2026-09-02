@@ -1,0 +1,8 @@
+# 实验过程中的中间/重复产物，非规范结果（规范结果见 results-large.json / results-integrity.json）
+*-rerun.json
+*-backup.json
+results-smoke.json
+results.json
+gen-figures.mjs
+run.mjs
+_audit-*.mjs

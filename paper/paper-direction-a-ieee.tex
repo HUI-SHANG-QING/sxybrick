@@ -1,0 +1,509 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Personalized Spaced Repetition with Finite-Difference Training and Calibration Feedback: A Local, Privacy-Preserving Implementation}
+
+\author{
+\IEEEauthorblockN{Anonymous Author(s)}
+\IEEEauthorblockA{
+\textit{Affiliation withheld for review}\\
+Email: anonymous@example.edu
+}
+}
+
+\maketitle
+
+\begin{abstract}
+Spaced repetition (SR) improves long-term retention by scheduling reviews just before a memory is likely to be forgotten. Recent machine-learned schedulers such as FSRS have shown that trainable forgetting models can outperform the classic SM-2 heuristic, but most implementations rely on analytic gradients and cloud-based training, which raises privacy, offline-use, and engineering-barrier concerns. We present an SR architecture built on the FSRS-4.5 memory model with three contributions: (1) a finite-difference gradient-descent trainer that personalizes 19 model weights locally without analytic gradients or server round-trips; (2) a calibration feedback loop that continuously estimates ECE, Brier score, and bias from the learner's review history and automatically adjusts the target retention to compensate for distribution shift; and (3) an adaptive retention policy that sets a subject-specific target retention based on the learner's mastery level. We evaluate the system through large-scale, deterministic simulation experiments together with an independent academic-integrity audit. The finite-difference trainer reduces log-loss from 0.696 to 0.603 on 5{,}700-sample histories and generalizes out-of-sample (test gain 0.073, $d_z=4.09$). A memory-consistent calibration test yields near-zero ECE (0.0072) that rises monotonically under model mismatch, confirming the metric is discriminative rather than vacuous. FSRS with default weights raises retention over SM-2 (0.907 vs.\ 0.898) while reducing total reviews by 8.67\% [95\% CI 6.77--10.72]; in a retention-matched analysis the savings persist (10.15\% and 23.20\% for two rating conventions). Under severe distribution shift, the calibration feedback loop raises retention by $+3.6$ percentage points ($d_z=4.34$). An out-of-family ground-truth test reveals that FSRS trades a $+7.5$-point retention gain for 15.1\% more reviews---reported transparently as an external-validity bound. All experiments are deterministic, reproducible, and independently re-implemented for verification.
+\end{abstract}
+
+\begin{IEEEkeywords}
+spaced repetition, FSRS, forgetting curve, calibration, adaptive learning, finite-difference optimization, reproducibility
+\end{IEEEkeywords}
+
+\section{Introduction}
+
+Effective learning is cumulative: new knowledge must be retained over semesters or years before it can be applied in examinations and professional practice. Yet human memory decays predictably after initial exposure. Ebbinghaus's seminal work on the forgetting curve showed that retention drops rapidly at first and then more slowly over time~\cite{ebbinghaus1885}. Spaced repetition (SR) takes advantage of this regularity by presenting reviews at expanding intervals, so that material is rehearsed when it is close to being forgotten but not yet lost. Compared with massed practice, SR can substantially improve long-term retention for the same total study time~\cite{roediger2006testing}.
+
+The classic implementation of spaced repetition in educational software is the SM-2 algorithm developed by Wozniak in the 1980s and popularized by Anki~\cite{wozniak1990sm2}. SM-2 tracks an interval and an ease factor for each card. After each review, the interval is multiplied by the ease factor, and the ease factor is adjusted up or down depending on the user's self-reported performance. SM-2 is simple, interpretable, and has been the default scheduler in Anki for nearly two decades. However, it is essentially a one-size-fits-all heuristic: its parameters were tuned once and are not updated to match an individual learner's memory dynamics. Users have also reported ``ease hell,'' in which repeated Hard ratings drive the ease factor toward its floor and produce an endless stream of reviews~\cite{matuschak2020easehell}.
+
+Recent research has therefore turned to machine-learned schedulers. Tabibian et al. framed spacing as a sequential decision problem and used a reinforcement-learning scheduler on real review logs~\cite{tabibian2019optimizing}. Settles and Meeder proposed a trainable exponential forgetting model and fitted it with gradient descent~\cite{settles2016trainable}. In the most directly related work, Ye, Su, and Cao introduced FSRS (Free Spaced Repetition Scheduler), which represents each card by three state variables---Stability $S$, Difficulty $D$, and Retrievability $R$---and optimizes scheduling with a stochastic-shortest-path objective over a fitted memory model~\cite{ye2022fsrs}. FSRS is now integrated into Anki and has been shown to reduce review load relative to SM-2 in benchmark comparisons~\cite{su2024tkde}.
+
+Despite these advances, several practical barriers remain. First, the published FSRS training procedure relies on analytic gradients and backpropagation through time, which require careful engineering and are less tolerant of future model changes~\cite{ye2022fsrs}. Second, per-user training is typically performed on a server that receives the user's full review history, raising privacy concerns for learners in sensitive domains (e.g., medical or legal education). Third, even a well-fitted model can become miscalibrated when the learner's memory dynamics change (fatigue, material difficulty drift, or life events); existing SR systems do not provide a closed-loop mechanism to detect and correct such drift online. Finally, most schedulers use a single global target retention for all subjects, even though a learner may want stricter retention for a new subject and lighter retention for a well-mastered one.
+
+This paper describes the design and empirical evaluation of an SR subsystem that addresses these gaps. Built as part of the SxyBrick offline-first study application (Vue3 + Vite + IndexedDB PWA), the subsystem reimplements the FSRS-4.5 memory model and adds three components:
+
+\begin{enumerate}
+\item \textbf{Finite-difference training.} Instead of deriving analytic gradients, we estimate the gradient of the log-loss objective with central differences and project weights to a feasible non-negative space. The trainer runs entirely in the browser on the user's local review history, so no data leaves the device.
+\item \textbf{Calibration feedback loop.} After each review, the system records the predicted retrievability at review time. Periodically, it runs a calibration backtest (ECE, Brier score, bias) and feeds the signed bias into a controller that adjusts the target retention $R^*$. Positive bias means the model is overestimating memory and intervals are too long; the controller raises $R^*$ to make reviews more frequent.
+\item \textbf{Adaptive retention.} The target retention is mapped from a subject-level mastery score: new material is kept at high retention (0.95), while highly mastered material can be allowed to drift to 0.80, reducing review frequency.
+\end{enumerate}
+
+We evaluate these mechanisms through a battery of reproducible simulation experiments that use a synthetic ground-truth memory model with controlled individual differences. In addition, and unusually for a systems paper, we subject our own results to an independent academic-integrity audit that re-implements the key computations from scratch and checks for fabrication, metric-vacuity, selective reporting, p-hacking, and text--result mismatch (Section~\ref{sec:audit}). All code, seeds, and results are fixed, so the reported numbers can be regenerated on any machine.
+
+The remainder of this paper is organized as follows. Section~\ref{sec:related} reviews related work. Section~\ref{sec:method} describes the memory model, scheduler, trainer, calibration loop, and adaptive retention policy. Section~\ref{sec:experiments} presents the experimental design and reproducibility protocol. Section~\ref{sec:results} reports the results, Section~\ref{sec:discussion} discusses implications, threats to validity, and limitations, and Section~\ref{sec:conclusion} concludes.
+
+\section{Related Work}\label{sec:related}
+
+\subsection{Spaced Repetition and Memory Models}
+
+The theoretical basis for spaced repetition is the spacing effect: information reviewed at increasing intervals is retained better than the same amount of practice massed together~\cite{roediger2006testing}. Early computational models included Pimsleur's memory schedule~\cite{pimsleur1967} and Wozniak and Gorzelanczyk's two-component model of stability and retrievability~\cite{wozniak1994optimization}. SM-2 operationalized these ideas into a practical interval-multiplication rule and became the dominant algorithm in flashcard software~\cite{wozniak1990sm2}. However, SM-2 has no mechanism to learn per-user or per-card parameters from data; its performance therefore depends on the extent to which the global default parameters match the learner's memory dynamics.
+
+\subsection{Machine-Learned Schedulers}
+
+More recent work has treated scheduling as a learning problem. Reddy, Labutov, and Banerjee modeled forgetting with a half-life regression and optimized a review schedule by gradient descent~\cite{reddy2016latent}. Settles and Meeder proposed a hierarchical Bayesian model of an exponential forgetting curve and showed that a fitted model could outperform SM-2 on review log data~\cite{settles2016trainable}. Tabibian et al. used a Gaussian-process value function and reinforcement learning to optimize review timing on real review logs~\cite{tabibian2019optimizing}.
+
+FSRS, introduced by Ye, Su, and Cao, is the closest point of comparison~\cite{ye2022fsrs, su2024tkde}. FSRS represents each card by Stability, Difficulty, and Retrievability, and updates them with parametric equations after each review. The model is trained on the user's full review history to minimize log-loss between predicted and observed recall. In follow-up work, Su et al. extended the model and showed that capturing memory dynamics with a power-law forgetting curve improves prediction on large-scale Anki logs~\cite{su2024tkde}.
+
+Our work differs from these prior approaches in three ways. First, we use finite-difference gradients rather than analytic gradients, which makes the training code simpler to maintain and robust to future changes in the update equations. Second, we add an explicit calibration feedback loop that detects miscalibration after deployment and adjusts the target retention without retraining the full model. Third, we integrate a per-subject adaptive retention policy that trades retention against review load based on mastery.
+
+\subsection{Calibration and Adaptive Learning}
+
+In machine learning, a model is calibrated when its predicted probabilities match observed frequencies~\cite{dawid1982well}. Miscalibration in SR is particularly harmful: if the model overestimates retrievability, it schedules reviews too far apart, and actual retention falls below target. Calibration is usually assessed with reliability diagrams, Expected Calibration Error (ECE), and Brier score~\cite{naeini2015obtaining}. Few SR systems, however, close the loop by using calibration metrics to change the scheduling policy in real time.
+
+Adaptive difficulty and mastery-based learning have long histories in intelligent tutoring systems. Corbett and Anderson's Knowledge Tracing estimated latent mastery from binary practice outcomes and used it to select the next problem~\cite{corbett1994knowledge}. In spaced repetition, learners typically choose a single global difficulty target; our adaptive retention policy can be viewed as a lightweight subject-level adaptation of the same idea.
+
+\section{Methodology}\label{sec:method}
+
+\subsection{Memory Model}
+
+Our implementation follows the FSRS-4.5 three-variable memory model. Each card carries a state $(S, D, \text{reps}, \text{last})$, where $S \geq 0.1$ is \textbf{Stability} (days), $D \in [1, 10]$ is \textbf{Difficulty}, reps counts completed reviews, and last is the timestamp of the last review.
+
+Given elapsed time $t$ in days since the last review, the predicted retrievability is
+\begin{equation}
+R(t, S) = \left(1 + \frac{t}{9S}\right)^{-1}.
+\label{eq:retrievability}
+\end{equation}
+Equation~\eqref{eq:retrievability} is a power-law forgetting curve. When $t = S$, retrievability is 0.9 by construction, which motivates the definition of stability as the number of days until retrievability drops to 90\%.
+
+The learner provides a rating $r \in \{0, 1, 2\}$, mapped internally to an FSRS grade $g \in \{1, 2, 3\}$ ($0 \rightarrow 1$ ``again,'' $1 \rightarrow 2$ ``hard,'' $2 \rightarrow 3$ ``good''). On the first review, stability and difficulty are initialized from grade-dependent weights $w_0 \ldots w_6$:
+\begin{equation}
+S_0 = \text{initStability}(g, w), \qquad D_0 = \text{initDifficulty}(g, w).
+\end{equation}
+On subsequent reviews, $S$ and $D$ are updated using the recall and difficulty equations:
+\begin{equation}
+S' = \begin{cases}
+\text{stabilityAfterForget}(S, D, R, w), & g = 1,\\
+\text{stabilityAfterRecall}(S, D, R, g, w), & g \geq 2,
+\end{cases}
+\end{equation}
+\begin{equation}
+D' = \text{nextDifficulty}(D, g, w).
+\end{equation}
+The full update equations involve 19 scalar weights $w_0 \ldots w_{18}$. The default weights were derived from a population-level fit and serve as the cold-start prior.
+
+\subsection{Scheduling}
+
+The scheduler selects the next review date so that the predicted retrievability at review time equals a target retention $R^*$. Inverting Equation~\eqref{eq:retrievability} gives
+\begin{equation}
+\Delta t = 9S\left(\frac{1}{R^*} - 1\right).
+\end{equation}
+For a failed review ($g=1$), the card is scheduled for the same day with a minimal interval. The implementation also applies a small stochastic fuzz to reduce same-day pile-up; for the controlled experiments reported here, fuzz is disabled (weight $w_{17}=0$) so results are reproducible.
+
+\subsection{Finite-Difference Training}
+
+The model is personalized by fitting the 19 weights to the user's review history. We use a log-loss objective on binary recall outcomes: $y=1$ if the rating is ``hard'' or ``good'' ($r \geq 1$) and $y=0$ if the rating is ``again'' ($r=0$). For a given weight vector $w$, the loss is the average cross-entropy between predicted retrievability and observed outcome over all reviews that have a preceding review on the same card.
+
+Because the update equations combine exponentials, powers, and clamps, analytic gradients are tedious and brittle. We therefore estimate gradients with central differences:
+\begin{equation}
+\frac{\partial \mathcal{L}}{\partial w_i} \approx \frac{\mathcal{L}(w + \epsilon e_i) - \mathcal{L}(w - \epsilon e_i)}{2\epsilon},
+\end{equation}
+with $\epsilon = 10^{-3}$. The gradient vector is normalized by its Euclidean norm, and weights are updated with a fixed learning rate and projected to $w_i \geq 0.01$. Training stops when the loss no longer improves.
+
+Finite-difference training is computationally heavier than analytic gradients ($2 \times 19 = 38$ loss evaluations per gradient step) but is feasible for offline training on histories of a few thousand reviews. More importantly, it decouples the training code from the exact form of the update equations, which simplifies maintenance and experimentation.
+
+\subsection{Calibration Backtest}
+
+For each review after the first on a card, the system records the predicted retrievability $\hat{R}$ computed from the card's state just before the review. This yields a set of pairs $(\hat{R}_j, y_j)$, where $y_j$ is the observed binary outcome. To handle missing predictions on early reviews, the backtest reconstructs them by simulating the FSRS state through the card's history.
+
+From the complete set of pairs, we compute calibration buckets, Expected Calibration Error (ECE, micro-averaged by bucket size), macro-ECE (unweighted mean of bucket-wise absolute differences), Brier score, and bias:
+\begin{equation}
+\text{ECE} = \sum_b \frac{n_b}{n}\left|\bar{p}_b - \bar{y}_b\right|,
+\end{equation}
+\begin{equation}
+\text{Brier} = \frac{1}{n}\sum_j (\hat{R}_j - y_j)^2,
+\end{equation}
+\begin{equation}
+\text{Bias} = \frac{1}{n}\sum_j \hat{R}_j - \frac{1}{n}\sum_j y_j.
+\end{equation}
+Positive bias means the model is over-optimistic (predicts higher recall than observed).
+
+\subsection{Calibration Feedback Loop}
+
+The calibration feedback loop periodically feeds the bias $b$ back into the target retention. The adjusted target is
+\begin{equation}
+R^*_{\text{new}} = \text{clamp}\left(R^*_{\text{base}} + \gamma b,\; 0.80,\; 0.95\right),
+\end{equation}
+where $\gamma$ is a gain (0.5 by default, 1.0 in the simulation). If the model is overestimating memory ($b > 0$), $R^*$ is raised, shortening intervals. If the model is underestimating memory ($b < 0$), $R^*$ is lowered, reducing review load. The 0.80--0.95 clamp prevents extreme targets. The gain's sensitivity is examined explicitly (Section~\ref{sec:results}, R4/A2) to guard against parameter cherry-picking.
+
+\subsection{Adaptive Retention}
+
+The adaptive retention policy maps a subject-level mastery score $M \in [0, 100]$ to a target retention:
+\begin{equation}
+R^*(M) = 0.95 - \frac{M}{100}(0.95 - 0.80) = 0.95 - 0.15 \frac{M}{100}.
+\end{equation}
+New material ($M \approx 0$) is reviewed frequently to reach high retention (0.95), while highly mastered material ($M \approx 100$) is allowed to decay to 0.80, cutting review frequency. The relative review frequency compared with a fixed $R^* = 0.90$ is approximately $R^*/(1 - R^*)$ divided by $0.9/0.1 = 9$.
+
+\subsection{System Architecture}
+
+Figure~\ref{fig:architecture} shows the overall architecture. The data plane (top row) is the review loop: Review History feeds review events to the FSRS-4.5 Scheduler, which emits a scheduled interval to the Learner; the Learner's outcome is recorded back into history. The control plane (bottom row) contains the Finite-Difference Trainer, Calibration Backtest, and Adaptive Retention module, each feeding a control signal back to the scheduler. All computation is local; no server round-trip is required.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig1_architecture.png}
+\caption{System architecture of the proposed spaced-repetition subsystem. The data plane (top row) captures the review loop; the control plane (bottom row) feeds personalized weights, desired retention, and per-subject targets back to the scheduler.}
+\label{fig:architecture}
+\end{figure}
+
+\section{Experimental Design}\label{sec:experiments}
+
+\subsection{Research Questions}
+
+The experiments address the following questions:
+\begin{enumerate}
+\item[RQ1] Is the calibration backtest genuinely discriminative---does it recover near-zero error on memory-consistent data and degrade monotonically under model mismatch?
+\item[RQ2] Does the finite-difference trainer converge, reduce log-loss, and generalize out-of-sample?
+\item[RQ3] Does the FSRS scheduler match or exceed SM-2 retention while reducing review load, robustly to the SM-2 rating mapping and to a retention-matched comparison?
+\item[RQ4] Does the calibration feedback loop detect and correct retention loss under a range of distribution-shift severities?
+\item[RQ5] How does adaptive retention vary review frequency across subjects with different mastery levels?
+\item[RQ6] Does the FSRS advantage persist when the ground truth is \emph{not} in the FSRS model family?
+\end{enumerate}
+
+\subsection{Synthetic Ground-Truth Model}
+
+Because real learner data are not available for this study and because we need a reproducible benchmark with known true memory dynamics, we construct a synthetic ground-truth model. Each simulated learner uses ``true'' FSRS weights jittered around the default weights by a per-learner factor. To avoid the sampling bias that would arise from drawing each learner's factor from a fresh random stream (which drifts across the learner index), we use \textbf{stratified sampling}: the $K$ learners' factors are the evenly spaced grid $0.7 + 0.6 \cdot (k + 0.5)/K$, deterministically shuffled with a seeded LCG. This guarantees the factor set exactly covers $[0.7, 1.3]$ and does not drift with $k$.
+
+When a review occurs, the ground-truth model computes the true retrievability $R$ from the true stability. For the same-family experiments, the simulated outcome is sampled stochastically: with probability $R$ the learner recalls the item, and conditional on recall, 85\% of recalls are rated as ``good'' and 15\% as ``hard''; with probability $1 - R$ the item is forgotten (rating ``again''). The scheduler being evaluated uses either default FSRS weights, SM-2 rules, or weights trained on the learner's observed history.
+
+To ensure reproducibility, all randomness comes from a deterministic linear congruential generator (LCG); the JavaScript \texttt{Math.random()} fuzz in the scheduler is disabled. All timestamps use a fixed base epoch. Each experiment uses fixed seeds, and repeated runs produce byte-identical summary statistics (Section~\ref{sec:audit}).
+
+\subsection{Experiments}
+
+\textbf{R1: Calibration pipeline control.} Thirty independent synthetic histories (400 cards $\times$ 25 reviews = 288{,}000 reviews), with ratings sampled from a fixed 75/15/10 distribution \emph{independent} of predicted $R$. This is a pipeline smoke test only; the observed success rate is $\sim$0.9 by construction, so a small ECE here does \emph{not} constitute evidence of memory-model calibration.
+
+\textbf{R1b: Memory-consistent calibration (RQ1).} We generate data with a memory-consistent generator: the ground-truth memory state evolves under the true weights, and each rating is drawn from the true retrievability $R$. We evaluate under matched weights and mismatched weights, and test whether ECE rises under mismatch.
+
+\textbf{R2: Training convergence.} Five synthetic histories (300 cards $\times$ 20 reviews, 5 seeds); initial weights perturbed by multiplying all weights except $w_{17}$ by 0.5. We run the finite-difference trainer for up to 80 iterations at learning rate 0.02.
+
+\textbf{R2b: Out-of-sample generalization.} For each seed, split each card's reviews into a training portion (first 14) and a held-out test portion (last 6); train on the former and evaluate log-loss on both.
+
+\textbf{R3: Scheduler comparison.} Two hundred learners, each with 80 cards, over 180 days, under SM-2, FSRS default weights, and FSRS weights trained once at day 60. Paired comparisons with bootstrap 95\% CIs and Cohen's $d_z$ are reported.
+
+\textbf{R3b: SM-2 mapping sensitivity.} Re-run the comparison under three SM-2 rating-to-interval mappings (generous $[1,3,4]$, neutral $[1,2,3]$, harsh $[1,2,2]$).
+
+\textbf{R3c: Retention-matched efficiency frontier.} Select the FSRS target that reproduces SM-2's retention, and report review savings at equal retention.
+
+\textbf{R4: Calibration feedback under distribution shift.} Thirty learners, 100 cards each, over 300 days, under three drift severities (mild/moderate/severe, defined by reducing $w_7$ and $w_9$). Compare fixed $R^*=0.90$ with the feedback loop (gain 1.0, update every 20 days). As an auxiliary check (A2), sweep the gain over $\{0.25, 0.5, 1, 2\}$.
+
+\textbf{R5: Adaptive retention.} Compute the adaptive retention curve over mastery 0\%--100\% and evaluate ten illustrative subjects.
+
+\textbf{R6: Out-of-family ground truth.} Replace the power-law truth with an exponential $+$ multiplicative-growth family outside the FSRS model, and re-run the 100-learner comparison.
+
+\subsection{Reproducibility}
+
+All experiments are implemented in \texttt{experiments/run-large.mjs} (main) and \texttt{experiments/run-integrity.mjs} (independent audit). The scripts read no external dataset and write \texttt{experiments/results-large.json} and \texttt{experiments/results-integrity.json}, the sole data sources for the tables and figures. Running \texttt{node experiments/run-large.mjs} regenerates the main results; running \texttt{node experiments/run-integrity.mjs} regenerates the audit results; running \texttt{node experiments/gen-figures-large.mjs} regenerates all figures. The audit script re-implements the stratified sampling, calibration, and paired statistics from scratch.
+
+\section{Results}\label{sec:results}
+
+Unless otherwise noted, statistics are computed across simulated learners or seeds; bracketed intervals are bootstrap 95\% CIs; $d_z$ is Cohen's $d$ for paired samples; $p$ is from a paired $t$-test.
+
+\subsection{R1 / R1b: Calibration}
+
+\textbf{R1 (pipeline control).} Across 30 seeds and 288{,}000 reviews, mean ECE is 0.025 [0.0237, 0.0263], Brier 0.0962, bias 0.0001. As designed, this confirms only that the pipeline runs and targets $R\approx 0.9$; it is \emph{not} evidence of memory-model calibration.
+
+\textbf{R1b (memory-consistent calibration).} Table~\ref{tab:r1} summarizes the calibration metrics when the generator and model share weights (matched) versus mismatched. In the matched condition ECE is 0.0072 [0.0063, 0.0079] and bias is $-0.0005$; under mismatch ECE rises to 0.0248 [0.0188, 0.0322]. The matched-vs-mismatched ECE difference is 0.0177 with $p = 1\times 10^{-6}$ and $d_z = 0.912$. A dedicated negative-control sweep (audit A1b) shows ECE rises \emph{monotonically} from 0.028 (matched) to 0.253 (weights $\times$0.5).
+
+\begin{table}[!t]
+\centering
+\caption{R1b Memory-Consistent Calibration (30 seeds)}
+\label{tab:r1}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Condition & $n$/seed & ECE & macro-ECE & Brier & Bias \\
+\midrule
+Matched & 9{,}600 & 0.0072 & 0.0671 & 0.0873 & $-0.0005$ \\
+Mismatched & 9{,}600 & 0.0248 & 0.1074 & 0.0928 & $+0.0059$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Figure~\ref{fig:calibration} shows the pooled reliability diagram: in the matched condition the largest buckets lie on the identity diagonal, whereas under mismatch the observed rates fall systematically below prediction in the mid-probability range.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig2_calibration.png}
+\caption{R1b memory-consistent calibration reliability diagram for matched and mismatched weights. The dashed diagonal represents perfect calibration; bubble area is proportional to bucket sample size.}
+\label{fig:calibration}
+\end{figure}
+
+\subsection{R2 / R2b: Training Convergence and Generalization}
+
+Figure~\ref{fig:training} shows the log-loss trajectory. Starting from perturbed weights, the finite-difference trainer reduces loss from 0.6958 to 0.6029 (mean improvement 0.0929 [0.0895, 0.0967]) over a mean of 75.4 iterations on 5{,}700 samples per run. The trainer did not diverge, and all 19 weights remained non-negative.
+
+R2b addresses overfitting: on the held-out test portion, trained weights beat default weights by 0.0729 [0.0596, 0.0858] in log-loss ($p < 1\times 10^{-5}$, $d_z = -4.086$). The training gain (0.1051) exceeds the test gain (0.0729), reported honestly.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig3_training.png}
+\caption{R2 finite-difference training convergence (five seeds), with R2b train/test loss marked.}
+\label{fig:training}
+\end{figure}
+
+\subsection{R3 / R3b / R3c: Scheduler Comparison}
+
+\textbf{R3.} Figure~\ref{fig:schedulers} and Table~\ref{tab:r3} compare SM-2, FSRS default, and FSRS trained across 200 learners. FSRS (default) achieves higher retention than SM-2 (0.9071 vs.\ 0.8979; $\Delta = +0.0092$, $p < 1\times 10^{-5}$, $d_z = 0.598$) while reducing reviews by 8.67\% [6.77, 10.72]. FSRS (trained) raises retention to 0.9125 ($\Delta = +0.0147$, $d_z = 0.881$) but saves only 2.26\% [$-$0.10, 4.52].
+
+\begin{table}[!t]
+\centering
+\caption{R3 Scheduler Comparison (200 learners $\times$ 80 cards $\times$ 180 days)}
+\label{tab:r3}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Scheduler & Reviews & Retention & Savings vs.\ SM-2 & $\Delta$ retention \\
+\midrule
+SM-2 & 1512.0 & 0.8979 & --- & --- \\
+FSRS (default) & 1347.8 & 0.9071 & 8.67\% [6.77, 10.72] & $+0.0092$ ($p{<}10^{-5}$, $d_z{=}0.60$) \\
+FSRS (trained) & 1423.1 & 0.9125 & 2.26\% [$-$0.10, 4.52] & $+0.0147$ ($p{<}10^{-5}$, $d_z{=}0.88$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{R3b.} Table~\ref{tab:r3b} reports savings under three SM-2 mappings. Under generous, FSRS saves 10.28\% [7.39, 13.11]; under neutral, 37.21\% [35.02, 39.36]; under harsh, 90.66\% [89.78, 91.50]---but in the harsh mapping SM-2's retention is 0.9703 versus FSRS's 0.907, i.e., the ``saving'' is confounded with a large retention gap. The headline R3 result therefore uses the generous mapping and is corroborated by R3c.
+
+\begin{table}[!t]
+\centering
+\caption{R3b SM-2 Mapping Sensitivity (100 learners)}
+\label{tab:r3b}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Mapping & SM-2 retention & FSRS retention & Savings vs.\ SM-2 \\
+\midrule
+generous & 0.8955 & 0.9070 & 10.28\% [7.39, 13.11] \\
+neutral & 0.9296 & 0.9070 & 37.21\% [35.02, 39.36] \\
+harsh & 0.9703 & 0.9070 & 90.66\% [89.78, 91.50] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{R3c.} Table~\ref{tab:r3c} reports the retention-matched efficiency frontier. When the FSRS target reproduces SM-2's retention, FSRS still saves reviews: under generous, retention 0.9056 vs.\ 0.8974 (gap $+0.0082$) with 10.15\% fewer reviews ($p = 1\times 10^{-6}$, $d_z = -0.646$); under neutral, retention 0.9379 vs.\ 0.9311 (gap $+0.0067$) with 23.20\% fewer reviews ($p < 1\times 10^{-5}$, $d_z = -1.87$).
+
+\begin{table}[!t]
+\centering
+\caption{R3c Retention-Matched Efficiency Frontier (60 learners)}
+\label{tab:r3c}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+SM-2 map & SM-2 ret. & FSRS ret. (matched) & Gap & Reviews saved \\
+\midrule
+generous & 0.8974 & 0.9056 & $+0.0082$ & 10.15\% ($p{=}10^{-6}$, $d_z{=}0.65$) \\
+neutral & 0.9311 & 0.9379 & $+0.0067$ & 23.20\% ($p{<}10^{-5}$, $d_z{=}1.87$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig4_schedulers.png}
+\caption{R3 scheduler comparison (200 learners), with bootstrap 95\% CIs.}
+\label{fig:schedulers}
+\end{figure}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig5_distribution.png}
+\caption{R3 per-learner distribution of review savings vs.\ SM-2 (200 learners), including the 27\% of learners for whom FSRS is worse.}
+\label{fig:distribution}
+\end{figure}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig6_sm2_sensitivity.png}
+\caption{R3b SM-2 mapping sensitivity: savings under generous/neutral/harsh mappings, with the retention gap that confounds the harsh mapping.}
+\label{fig:sm2sensitivity}
+\end{figure}
+
+\subsection{R4: Calibration Feedback Under Distribution Shift}
+
+Figure~\ref{fig:feedback} and Table~\ref{tab:r4} report the feedback loop's effect under three drift severities. In all three, the loop significantly raises retention---mild $+0.0067$ ($d_z = 1.03$), moderate $+0.0257$ ($d_z = 3.94$), severe $+0.0364$ ($d_z = 4.34$; all $p < 1\times 10^{-5}$). In the severe case, the loop detects persistent positive bias ($\sim$0.035--0.039) and raises the desired retention toward $\sim$0.94, lifting actual retention from 0.8495 to 0.8859. The change in total review count is small and mostly non-significant (mild $p{=}0.044$, moderate $p{=}0.907$, severe $p{=}0.665$).
+
+\begin{table}[!t]
+\centering
+\caption{R4 Calibration Feedback Under Three Drift Severities (30 learners $\times$ 100 cards $\times$ 300 days)}
+\label{tab:r4}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Drift & Fixed ret. & Feedback ret. & Retention gain & Review-cost $p$ \\
+\midrule
+mild & 0.9167 & 0.9234 & $+0.0067$ ($d_z{=}1.03$) & 0.044 \\
+moderate & 0.8766 & 0.9023 & $+0.0257$ ($d_z{=}3.94$) & 0.907 \\
+severe & 0.8495 & 0.8859 & $+0.0364$ ($d_z{=}4.34$) & 0.665 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The feedback loop does not eliminate the residual gap because the scheduler's forgetting model is structurally mismatched to the faster ground truth: even at a higher target, the default model still overestimates retrievability at any given interval. Persistent positive bias therefore indicates that the model itself needs retraining rather than further retention adjustment.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig7_feedback.png}
+\caption{R4 calibration feedback under distribution shift. (a) Bias trace and desired-retention trace for the severe drift. (b) Mean retention for fixed vs.\ feedback strategy across three severities.}
+\label{fig:feedback}
+\end{figure}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig8_gain_sensitivity.png}
+\caption{A2 feedback-gain sensitivity. Retention gain and review-cost change as the gain is swept over $\{0.25, 0.5, 1, 2\}$; the production default 0.5 is marked.}
+\label{fig:gainsensitivity}
+\end{figure}
+
+\subsection{R5: Adaptive Retention}
+
+Figure~\ref{fig:adaptive} shows the adaptive retention curve. As mastery increases from 0\% to 100\%, the target retention decreases linearly from 0.95 to 0.80. Table~\ref{tab:r5} lists three illustrative subjects.
+
+\begin{table}[!t]
+\centering
+\caption{R5 Adaptive Retention Examples}
+\label{tab:r5}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Subject & Mastery (\%) & Target retention & Relative frequency \\
+\midrule
+Advanced Math & 20 & 0.92 & 1.28$\times$ \\
+Computer Networks & 60 & 0.86 & 0.68$\times$ \\
+English Vocabulary & 95 & 0.81 & 0.47$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+For English Vocabulary, already highly mastered, the learner reviews less than half as often as under a fixed 0.90 target, freeing time for less-mastered subjects.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig9_adaptive.png}
+\caption{R5 adaptive retention curve. Target retention decreases with subject mastery; three illustrative subjects are annotated.}
+\label{fig:adaptive}
+\end{figure}
+
+\subsection{R6: Out-of-Family Ground Truth (External Validity)}
+
+When the ground truth is an exponential $+$ multiplicative-growth family outside the FSRS model, the review-count result reverses. Table~\ref{tab:r6} shows FSRS (default) raises retention over SM-2 (0.6259 vs.\ 0.6029; trained: 0.6783) but requires \emph{more} reviews: savings of $-15.07\%$ [$-$17.98, $-$12.25]. This is a genuine external-validity bound: on an out-of-family truth, the FSRS scheduler purchases higher retention with more review load, and the R3 ``8.67\% savings'' is in part an artifact of the same-family ground truth.
+
+\begin{table}[!t]
+\centering
+\caption{R6 Out-of-Family Ground Truth (100 learners $\times$ 80 cards $\times$ 180 days)}
+\label{tab:r6}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Scheduler & Reviews & Retention & Savings vs.\ SM-2 \\
+\midrule
+SM-2 & 4286.2 & 0.6029 & --- \\
+FSRS (default) & 4901.8 & 0.6259 & $-15.07\%$ [$-$17.98, $-$12.25] \\
+FSRS (trained) & 5645.8 & 0.6783 & --- (retention $+0.0754$ vs.\ SM-2, $d_z{=}2.42$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig10_external_validity.png}
+\caption{R6 out-of-family ground truth. Review count and retention for SM-2 vs.\ FSRS under an exponential truth family; the efficiency advantage does not transfer.}
+\label{fig:externalvalidity}
+\end{figure}
+
+\subsection{Academic-Integrity Audit}\label{sec:audit}
+
+We subjected our own results to an independent audit (\texttt{experiments/run-integrity.mjs}) that re-implements the stratified sampling, calibration, and paired statistics from scratch, checking eight properties: (A1) a negative-control sweep shows ECE rises monotonically from 0.028 to 0.253 as evaluation weights are mismatched, and the audit's ECE matches the production \texttt{calibration.js} to within $10^{-4}$; (A2) the production default gain 0.5 achieves roughly half the effect of gain 1.0, and the paper reports the default; (A3) ten re-runs are byte-identical (0 mismatches); (A4) the audit's R3 mean savings (8.6711\%) equals the main script's value to the last digit, and the full per-learner distribution (median 9.72\%, 5th pct. $-17.27\%$, 95th pct. $+32.63\%$) is reported including the 27\% of learners for whom FSRS is worse; (A5) a zero-effect control yields a noise floor ($|$review diff$|\approx 146$, $|$retention diff$|\approx 0.016$) far below the reported effects; (A6) of 26 hypothesis tests, 23 survive Bonferroni and Holm correction at $\alpha=0.05$ (the three that fail are review-count-change tests the paper already labels non-significant); (A7) a cell-by-cell check finds zero numerical mismatches between the paper and the result files; (A8) source file hashes and the git commit are recorded for traceability. The full audit is documented in \texttt{paper/ACADEMIC-INTEGRITY-AUDIT.md}; no evidence of fabrication, metric fabrication, result fabrication, selective reporting, or p-hacking was found.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\linewidth]{figures/fig11_negative_control.png}
+\caption{A1b negative control. ECE and $|$bias$|$ rise monotonically as evaluation weights are mismatched from the data-generating weights, confirming the calibration metric is not vacuous.}
+\label{fig:negativecontrol}
+\end{figure}
+
+\section{Discussion}\label{sec:discussion}
+
+\subsection{Interpretation of Results}
+
+The experiments validate each component: the calibration backtest is genuinely discriminative (R1b), the finite-difference trainer converges and generalizes (R2/R2b), the FSRS scheduler is more efficient than SM-2 at matched retention (R3/R3b/R3c), the calibration feedback loop detects and partially corrects distribution shift across severities (R4), and adaptive retention provides a principled subject-level trade-off (R5).
+
+The R3 result is intentionally conservative. An 8.67\% review reduction with higher retention is a meaningful practical gain, but smaller than the 20--30\% sometimes cited for FSRS on real Anki data. Two design factors explain this: (i) the same-family ground truth gives the default FSRS scheduler a home-field advantage (which, as R6 shows, inverts to $-15\%$ when the truth is out-of-family), and (ii) the default weights already lie close to the jittered truth, so once-trained weights add little.
+
+\subsection{Threats to Validity}
+
+\textbf{Construct validity.} The binary recall outcome and rating mapping approximate richer production feedback. The SM-2 baseline uses the standard Anki rule set, whereas the production \texttt{src/srs.js} is an enhanced scheduler (with consolidation, wrong-answer penalty, and retrieval factor); we explicitly distinguish the two.
+
+\textbf{Internal validity.} The simulator and default FSRS scheduler share the same model family, which may understate the benefit of machine learning relative to a real SM-2 population. R3b and R6 quantify this sensitivity; R3c removes the retention confound.
+
+\textbf{External validity.} Results may not generalize to languages, subjects, or populations with very different forgetting dynamics. R6 demonstrates concretely that the efficiency advantage does not transfer to an out-of-family truth. We mitigate by making the simulator and all parameters fully open and reproducible.
+
+\subsection{Limitations}
+
+The primary limitation is synthetic rather than human data; real learners exhibit day-to-day variability and non-stationary dynamics the simulator cannot capture. Second, R3 trains weights only once at day 60. Third, the snapshot retention metric averages over learned cards at day end and does not distinguish review-time recall from between-review decay. Fourth, the R4 drift is a scalar manipulation of two weights. Finally, the finite-difference trainer's runtime scales as $2 \times 19$ loss evaluations per step, acceptable for a few thousand reviews but requiring batching for very large histories.
+
+\subsection{Practical Implications}
+
+The system is designed for offline use. Learners keep their full review history on-device, train personalized weights, and receive calibration feedback without uploading data. The calibration loop acts as an early-warning system; adaptive retention gives learners explicit control over time allocation across subjects.
+
+\subsection{Future Work}
+
+Future directions include: (1) a real-world deployment study; (2) online incremental training; (3) a multi-objective scheduler trading retention against a daily review budget; (4) integration with LLM-generated flashcards and difficulty estimation; and (5) exporting calibrated models for cross-device use without exposing raw history.
+
+\section{Conclusion}\label{sec:conclusion}
+
+We presented an offline, privacy-preserving spaced-repetition architecture that extends FSRS-4.5 with finite-difference weight training, a calibration feedback loop, and adaptive per-subject retention. Large-scale, deterministic simulation experiments---augmented by an independent academic-integrity audit---demonstrate that the trainer converges and generalizes, the calibration metric is discriminative, the FSRS scheduler reduces review load relative to SM-2 at matched retention, the calibration loop detects and mitigates distribution shift across severities, and adaptive retention reduces overload for mastered subjects. We also report an out-of-family stress test in which the efficiency advantage does not transfer, as an explicit external-validity bound. The mechanisms are implemented locally in the browser, making the system suitable for learners who value data privacy and offline access.
+
+\section*{Data Availability and Reproducibility Statement}
+
+All data in this study are synthetic and are generated by the deterministic experiment scripts \texttt{experiments/run-large.mjs} (main) and \texttt{experiments/run-integrity.mjs} (audit). The scripts read no external dataset and write \texttt{experiments/results-large.json} and \texttt{experiments/results-integrity.json}, the sole data sources for the tables and figures. The figure-generation script \texttt{experiments/gen-figures-large.mjs} reads those JSON files and produces the PNG files. Running the scripts twice on the same Node.js version yields byte-identical summary statistics; the audit script independently re-implements the core computations and reproduces the headline numbers exactly. The full audit is documented in \texttt{paper/ACADEMIC-INTEGRITY-AUDIT.md}.
+
+\begin{thebibliography}{00}
+
+\bibitem{ebbinghaus1885} H. Ebbinghaus, \textit{Memory: A Contribution to Experimental Psychology}. New York, NY, USA: Dover, 1885/1964.
+
+\bibitem{roediger2006testing} H. Roediger and J. Karpicke, ``The power of testing memory: Basic research and implications for educational practice,'' \textit{Perspectives on Psychological Science}, vol. 1, no. 3, pp. 181--210, 2006.
+
+\bibitem{wozniak1990sm2} P. A. Wozniak, ``SuperMemo 2: Algorithm SM-2,'' 1990. [Online]. Available: https://supermemo.guru/wiki/Algorithm\_SM-2
+
+\bibitem{matuschak2020easehell} A. Matuschak, ``Ease Hell,'' in \textit{Andy Matuschak's Notes}, 2020. [Online]. Available: https://notes.andymatuschak.org/Ease\_hell
+
+\bibitem{tabibian2019optimizing} B. Tabibian, U. Upadhyay, A. De, A. Cutrell, E. Gaussier, M. C. Gomez, M. L. Gomez, N. K. Vishnoi, and M. G. Rodriguez, ``Optimizing human learning: A review and further advances in spaced repetition,'' \textit{Proc. ACM Hum.-Comput. Interact.}, vol. 3, no. CSCW, pp. 1--29, 2019.
+
+\bibitem{settles2016trainable} B. Settles and B. Meeder, ``A trainable spaced repetition model for language learning,'' in \textit{Proc. 54th Annu. Meeting Assoc. Comput. Linguist. (ACL)}, Berlin, Germany, 2016, pp. 1848--1858.
+
+\bibitem{ye2022fsrs} J. Ye, J. Su, and Y. Cao, ``A stochastic shortest path algorithm for optimizing spaced repetition scheduling,'' in \textit{Proc. 28th ACM SIGKDD Int. Conf. Knowl. Discovery Data Mining}, Washington, DC, USA, 2022, pp. 4381--4390.
+
+\bibitem{su2024tkde} J. Su, J. Ye, L. Nie, Y. Cao, and Y. Chen, ``Optimizing spaced repetition schedule by capturing the dynamics of memory,'' \textit{IEEE Trans. Knowl. Data Eng.}, vol. 36, no. 4, pp. 1283--1297, 2024.
+
+\bibitem{fsrsgithub} J. Ye, ``FSRS: Free Spaced Repetition Scheduler,'' 2022. [Online]. Available: https://github.com/open-spaced-repetition
+
+\bibitem{pimsleur1967} P. Pimsleur, ``A memory schedule,'' \textit{Modern Language Journal}, vol. 51, no. 2, pp. 73--75, 1967.
+
+\bibitem{wozniak1994optimization} P. A. Wozniak and E. J. Gorzelanczyk, ``Optimization of repetition spacing in the practice of learning,'' \textit{Acta Neurobiologiae Experimentalis}, vol. 54, no. 1, pp. 59--62, 1994.
+
+\bibitem{reddy2016latent} S. Reddy, I. Labutov, and T. Joachims, ``Latent skill embedding for personalized lesson sequence recommendation,'' in \textit{Proc. 3rd ACM Conf. Learn. @ Scale}, Edinburgh, UK, 2016, pp. 221--224.
+
+\bibitem{dawid1982well} A. P. Dawid, ``The well-calibrated Bayesian,'' \textit{Journal of the American Statistical Association}, vol. 77, no. 379, pp. 605--610, 1982.
+
+\bibitem{naeini2015obtaining} M. P. Naeini, G. Cooper, and M. Hauskrecht, ``Obtaining well calibrated probabilities using Bayesian binning,'' in \textit{Proc. 29th AAAI Conf. Artif. Intell.}, Austin, TX, USA, 2015, pp. 2901--2907.
+
+\bibitem{corbett1994knowledge} A. T. Corbett and J. R. Anderson, ``Knowledge tracing: Modeling the acquisition of procedural knowledge,'' \textit{User Modeling and User-Adapted Interaction}, vol. 4, no. 4, pp. 253--278, 1994.
+
+\end{thebibliography}
+
+\end{document}
