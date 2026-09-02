@@ -307,6 +307,13 @@ function serveStatic(req, res, pathname) {
   // 前缀比较必须带分隔符，否则 ../dist-evil 这类同级目录会被判为合法
   if (p !== DIST && !p.startsWith(DIST + sep)) p = join(DIST, 'index.html');
   if (!existsSync(p) || extname(p) === '') p = join(DIST, 'index.html'); // SPA 回退
+  // dist 尚未构建（如 CI 上 npm test 在 npm run build 之前跑）时，
+  // readFileSync 会抛 ENOENT → 异步 handler 未 catch → 响应不发送 →
+  // 客户端 SocketError: other side closed。回退 404 让测试通过。
+  if (!existsSync(p)) {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('Not found');
+  }
   const body = readFileSync(p);
   const origin = req?.headers?.origin;
   const cors = isOriginAllowed(origin, { host: req?.headers?.host, allowList: ALLOW_ORIGIN })
