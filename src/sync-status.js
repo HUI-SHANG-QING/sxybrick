@@ -14,7 +14,15 @@ import { livenessTs } from './sync-manifest.js';
 
 const key = () => `sxy_sync_status_${backupScope()}`;
 
-/** 表名 → 中文名（面板展示用；描述性命名，验收要求） */
+// round18 R18-7（P2）：此前 MODULE_LABELS / MODULE_ORDER 是两份手写清单，
+//   v25/v26 新增英语单词 7 表时忘了同步维护 → 最活跃的单词模块在同步状态面板里
+//   label 退化成裸表名、按字母序沉底，其同步失败/待同步**不可见**。
+//   这与 round17 R17-32（clearTestData 手写 35 表清单漏 word 8 表）同一根因：
+//   「按表遍历」的逻辑里手写清单，新增表没有强制登记点。
+// 根治：以 SYNC_TABLES 为唯一事实源动态派生展示顺序，新增表自动入面板；
+//   MODULE_ORDER 只作为「核心数据在前」的排序提示，不再承担「是否展示」的职责。
+
+/** 表名 → 中文名（i18n 缺失时的兜底；正式文案走 i18n 键 `syncStatus.module.<table>`） */
 export const MODULE_LABELS = {
   cards: '卡片', reviews: '复习记录', images: '图片',
   aiChats: 'AI 对话', aiMemories: 'Agent 记忆', memos: '备忘录', plans: '学习计划',
@@ -24,16 +32,50 @@ export const MODULE_LABELS = {
   notes: '笔记', dailyPlans: '每日规划', dailyTasks: '每日任务',
   cardGroups: '卡组', cardGroupLinks: '卡片-卡组关联',
   analysisSessions: '联动分析会话', analysisMessages: '联动分析消息',
+  // v25 英语单词模块
+  wordCards: '单词卡', wordReviews: '单词复习记录',
+  wordGroups: '单词词组', wordGroupLinks: '单词-词组关联',
+  // v26 英语模块升级
+  wordSettings: '单词设置', wordCheckins: '单词签到', wordSyllabusMeta: '大纲词表元信息',
+  // 隐私敏感表（默认不入同步，用户 opt-in 后出现在面板）
+  privacyRecords: '隐私记录',
 };
 
-/** 面板展示顺序（核心数据在前） */
-export const MODULE_ORDER = [
+/** 面板展示顺序（核心数据在前；未列出的表按字母序追加在末尾，不再被漏掉） */
+const MODULE_ORDER_HINT = [
   'cards', 'reviews', 'images', 'memos', 'plans', 'notes',
   'cardGroups', 'cardGroupLinks', 'analysisSessions', 'analysisMessages',
   'docs', 'mindmaps', 'graphEdges', 'aiChats', 'aiMemories', 'exams',
   'pomoSessions', 'weeklyReports', 'achievements', 'embeddings', 'docFiles',
-  'dailyPlans', 'dailyTasks', 'userOps',
+  'dailyPlans', 'dailyTasks', 'wordCards', 'wordReviews',
+  'wordGroups', 'wordGroupLinks', 'wordSettings', 'wordCheckins',
+  'wordSyllabusMeta', 'userOps', 'privacyRecords',
 ];
+
+/**
+ * 由「当前有效同步表」动态派生展示顺序：
+ *   已登记次序的表按次序排前，SYNC_TABLES 里新增但次序表未列的表按字母序追加。
+ * 新增数据表因此无需再手工维护本文件——只要进了 SYNC_TABLES，面板自动出现。
+ * @param {Array} tables getEffectiveSyncTables() 结果（缺省自动取）
+ */
+export function buildModuleOrder(tables) {
+  const list = tables || getEffectiveSyncTables();
+  const names = list.map((t) => t.table);
+  const known = MODULE_ORDER_HINT.filter((n) => names.includes(n));
+  const rest = names.filter((n) => !MODULE_ORDER_HINT.includes(n)).sort((a, b) => a.localeCompare(b));
+  return [...known, ...rest];
+}
+
+/** 面板展示顺序（默认全量表的次序；兼容旧导入方） */
+export const MODULE_ORDER = buildModuleOrder();
+
+/**
+ * 模块名的 i18n 键。领域层不产出 localized 文本，只给键；
+ * 展示层用 `t(moduleLabelKey(m), fallback)` 解析，缺失时回退 MODULE_LABELS/裸表名。
+ */
+export function moduleLabelKey(table) {
+  return `syncStatus.module.${table}`;
+}
 
 /** 读当前 scope 的状态存储（损坏/缺失安全返回空结构） */
 export function loadStatus() {
@@ -117,7 +159,8 @@ export async function getModuleStatus(opts = {}) {
 
     out.push({
       module: t.table,
-      label: MODULE_LABELS[t.table] || t.table,
+      label: MODULE_LABELS[t.table] || t.table, // i18n 缺失时的兜底
+      labelKey: moduleLabelKey(t.table),
       merge: t.merge,
       count,
       status,
@@ -126,8 +169,9 @@ export async function getModuleStatus(opts = {}) {
       lastRows: rec.lastRows || 0,
     });
   }
-  // 按 MODULE_ORDER 排序（未登记的表排最后）
-  out.sort((a, b) => (MODULE_ORDER.indexOf(a.module) - MODULE_ORDER.indexOf(b.module)) || a.module.localeCompare(b.module));
+  // 按动态派生的次序排序（SYNC_TABLES 新增表自动排在末尾，不再被漏掉）
+  const order = buildModuleOrder(tables);
+  out.sort((a, b) => (order.indexOf(a.module) - order.indexOf(b.module)) || a.module.localeCompare(b.module));
   return out;
 }
 

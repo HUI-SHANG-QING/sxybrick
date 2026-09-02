@@ -158,6 +158,9 @@ export const zh = {
   scopeTest: '演示',
   scopeReal: '真实',
   gistPulled: '✅ 已从 Gist 拉取并合并：{stats}',
+  // round18 R18-2：推送前先合并云端（pull-merge-push），读不到云端时拒绝盲覆盖
+  gistMergedHint: '（推送前已合并云端 {n} 条变更）',
+  pushBlocked: '已阻止推送：读不到云端现有备份（{msg}）。为避免覆盖未拉取的数据，请先修复连接后重试。',
   pullFail: '拉取失败：{msg}',
   confirmResetGist: '清空本机的 Gist 配置（不影响云端 Gist）？',
   gistCfgCleared: '已清空 Gist 配置',
@@ -178,6 +181,11 @@ export const zh = {
   ankiExported: '已导出 Anki 文本（可在 Anki 桌面版「导入 → 文本文件」使用）',
   noAnkiRows: '未解析出卡片行',
   ankiImported: '已从 Anki 文本导入 {n} 张卡片',
+  // round18 R18-10：Anki 导入的坏行/截断如实汇报
+  ankiRowsBad: '文件共 {total} 行，但没有任何「正面{sep}背面」格式的有效行（{skipped} 行缺少背面内容被跳过）',
+  ankiFailPart: '{n} 行失败（{first}）',
+  ankiSkippedBad: '跳过 {n} 行无背面内容',
+  ankiTruncated: '超过 {n} 行上限被截断',
   ankiFileFormat: '文件格式不正确',
   importFail: '导入失败：{msg}',
   noChannel: '未配置同步通道：请先填写电脑端中枢地址（或配置 Gist 云备份），再执行同步',
@@ -216,6 +224,29 @@ export const zh = {
     mindmaps: '导图 +{n}', weeklyReports: '周报 +{n}', achievements: '成就 +{n}', exams: '模考 +{n}',
     join: '，',
   },
+
+  // ——— 同步状态面板：模块名（round18 R18-7）———
+  // 与 SYNC_TABLES（src/sync-manifest.js）一一对应。新增表必须在此补键，
+  // tests/sync-status-coverage.test.mjs 会断言「SYNC_TABLES 每张表都有 zh/en 模块名」。
+  syncStatus: {
+    module: {
+      cards: '卡片', reviews: '复习记录', images: '图片',
+      aiChats: 'AI 对话', aiMemories: 'Agent 记忆', memos: '备忘录', plans: '学习计划',
+      graphEdges: '知识图谱边', docs: 'AI 文档', pomoSessions: '番茄专注',
+      mindmaps: '思维导图', weeklyReports: '每周报告', achievements: '成就', exams: '模考成绩',
+      embeddings: '向量嵌入', userOps: '操作记录', docFiles: '资料文件',
+      notes: '笔记', dailyPlans: '每日规划', dailyTasks: '每日任务',
+      cardGroups: '卡组', cardGroupLinks: '卡片-卡组关联',
+      analysisSessions: '联动分析会话', analysisMessages: '联动分析消息',
+      wordCards: '单词卡', wordReviews: '单词复习记录',
+      wordGroups: '单词词组', wordGroupLinks: '单词-词组关联',
+      wordSettings: '单词设置', wordCheckins: '单词签到', wordSyllabusMeta: '大纲词表元信息',
+      privacyRecords: '隐私记录',
+    },
+  },
+
+  // ——— 快照回滚：旧快照缺表提示（round18 R18-3）———
+  restoreSkipHint: '\n\n⚠️ 该快照不含以下模块（生成时点早于这些功能），回滚时将原样保留、不覆盖：\n{modules}',
 };
 
 export const en = {
@@ -373,6 +404,9 @@ export const en = {
   scopeTest: 'demo',
   scopeReal: 'real',
   gistPulled: '✅ Pulled & merged from Gist: {stats}',
+  // round18 R18-2: pull-merge-push; refuse to blind-overwrite when the remote is unreadable
+  gistMergedHint: ' (merged {n} remote changes before pushing)',
+  pushBlocked: 'Push blocked: cannot read the existing cloud backup ({msg}). To avoid overwriting data you have not pulled, fix the connection and retry.',
   pullFail: 'Pull failed: {msg}',
   confirmResetGist: 'Clear this device’s Gist config (cloud Gist unaffected)?',
   gistCfgCleared: 'Gist config cleared',
@@ -393,6 +427,11 @@ export const en = {
   ankiExported: 'Anki text exported (usable in Anki desktop "Import → Text file")',
   noAnkiRows: 'No card rows parsed',
   ankiImported: 'Imported {n} cards from Anki text',
+  // round18 R18-10: report skipped/truncated Anki rows honestly
+  ankiRowsBad: 'The file has {total} lines, but none match the "front{sep}back" format ({skipped} lines without a back side were skipped)',
+  ankiFailPart: '{n} rows failed ({first})',
+  ankiSkippedBad: '{n} rows without a back side skipped',
+  ankiTruncated: 'truncated at the {n}-row cap',
   ankiFileFormat: 'Incorrect file format',
   importFail: 'Import failed: {msg}',
   noChannel: 'No sync channel configured: please fill in the PC hub address (or configure Gist cloud backup) before syncing',
@@ -430,4 +469,27 @@ export const en = {
     mindmaps: 'Mindmaps +{n}', weeklyReports: 'Weekly +{n}', achievements: 'Achievements +{n}', exams: 'Exams +{n}',
     join: ', ',
   },
+
+  // ——— sync status panel: module names (round18 R18-7) ———
+  // Mirrors SYNC_TABLES (src/sync-manifest.js). New tables must add keys here;
+  // tests/sync-status-coverage.test.mjs asserts every SYNC_TABLES entry has a zh/en label.
+  syncStatus: {
+    module: {
+      cards: 'Cards', reviews: 'Reviews', images: 'Images',
+      aiChats: 'AI chats', aiMemories: 'Agent memory', memos: 'Memos', plans: 'Study plans',
+      graphEdges: 'Graph edges', docs: 'AI docs', pomoSessions: 'Pomodoro',
+      mindmaps: 'Mindmaps', weeklyReports: 'Weekly reports', achievements: 'Achievements', exams: 'Mock exams',
+      embeddings: 'Embeddings', userOps: 'Activity log', docFiles: 'Library files',
+      notes: 'Notes', dailyPlans: 'Daily plans', dailyTasks: 'Daily tasks',
+      cardGroups: 'Decks', cardGroupLinks: 'Card-deck links',
+      analysisSessions: 'Analysis sessions', analysisMessages: 'Analysis messages',
+      wordCards: 'Word cards', wordReviews: 'Word reviews',
+      wordGroups: 'Word groups', wordGroupLinks: 'Word-group links',
+      wordSettings: 'Word settings', wordCheckins: 'Word check-ins', wordSyllabusMeta: 'Syllabus metadata',
+      privacyRecords: 'Privacy records',
+    },
+  },
+
+  // ——— snapshot rollback: modules missing from an old snapshot (round18 R18-3) ———
+  restoreSkipHint: '\n\n⚠️ This snapshot predates the following modules, so they will be left untouched rather than overwritten:\n{modules}',
 };

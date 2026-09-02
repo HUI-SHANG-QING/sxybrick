@@ -3,7 +3,7 @@
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
-import { downloadBackup, importBackup, previewImport, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup, backupScope } from '../sync.js';
+import { downloadBackup, importBackup, previewImport, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup, backupScope, planSnapshotRestore } from '../sync.js';
 import { useAppModeStore } from '../stores/appMode.js';
 import { getSubjects, createCard } from '../repo.js';
 import { getErrors, clearErrors } from '../utils/errorLog.js';
@@ -59,7 +59,19 @@ async function doManualSnapshot() {
   finally { snapshotBusy.value = false; }
 }
 async function doRestore(id, label) {
-  if (!(await confirmDialog(t('views.sync.confirmRestore', '确定回滚到该快照吗？\n\n{label}\n\n回滚后当前所有非图片数据会被该快照覆盖，请谨慎操作。', { label })))) return;
+  // round18 R18-3：旧快照（生成时点早于某些表）不含那些表的键。
+  // 回滚前先算清「哪些会被覆盖、哪些会被原样保留」，把后者写进确认框——
+  // 此前确认框只笼统说「所有非图片数据会被覆盖」，用户无从得知旧快照的覆盖范围。
+  const snap = snapshots.value.find((s) => s.id === id) || null;
+  const { skip } = planSnapshotRestore(snap, getEffectiveSyncTables());
+  const skipNames = skip
+    .filter((n) => n !== 'images') // images 恒不入快照，不是「缺失」，不提示
+    .map((n) => t(`views.sync.syncStatus.module.${n}`, MODULE_LABELS[n] || n));
+  let msg = t('views.sync.confirmRestore', '确定回滚到该快照吗？\n\n{label}\n\n回滚后当前所有非图片数据会被该快照覆盖，请谨慎操作。', { label });
+  if (skipNames.length) {
+    msg += t('views.sync.restoreSkipHint', undefined, { modules: skipNames.join('、') });
+  }
+  if (!(await confirmDialog(msg))) return;
   snapshotBusy.value = true;
   try {
     // 回滚前再保存一次「回滚前自动快照」，避免回滚动作本身不可逆
@@ -120,12 +132,48 @@ async function uploadToGist() {
   if (gistBusy.value) return;
   gistBusy.value = true;
   try {
+    // round18 R18-2（P2）：Gist 通道改为 **pull → merge → push**。
+    //   此前直接把本地全量 PATCH 覆盖云端文件，语义是 last-writer-wins：
+    //   设备 A 推送后，设备 B 用自己那份「不含 A 增量」的全量覆盖 gist → A 的新增被抹，
+    //   B 下次拉取又把本地污染成缺 A 数据的状态，且不可逆（除非翻 gist 历史版本）。
+    //   UI 把它叫「云备份」，多设备共用一个 gist 时却是互相覆盖，与用户预期相反。
+    //   修法：推送前先把云端拉下来合并进本地（复用 importBackup 的字段级合并），
+    //   再以合并后的本地全量推送——与 hub 通道的「先合并再写入」语义对齐。
+    let mergedFromRemote = 0;
+    if (gistId.value) {
+      let remote = null;
+      try {
+        remote = await fetchGistBackup(ghToken.value, gistId.value, { scope: backupScope() });
+      } catch (e) {
+        // 只有「云端确实还没有备份」才允许继续（按首次推送处理）；
+        // 网络错误/权限错误时**绝不推送**——读不到的东西不能覆盖，那正是丢数据的路径。
+        const noRemoteYet = e?.status === 404 || e?.code === 'NO_BACKUP_FILE' || e?.code === 'EMPTY_BACKUP';
+        if (!noRemoteYet) {
+          toast(t('views.sync.pushBlocked', '已阻止推送：读不到云端现有备份（{msg}）。为避免覆盖未拉取的数据，请先修复连接后重试。', { msg: e?.message || e }), 'error');
+          return;
+        }
+      }
+      if (remote?.scope && remote.scope !== backupScope()) {
+        toast(t('views.sync.scopeMismatch', '数据域不匹配：该 Gist 存的是「{remote}」数据，当前是「{local}」模式', {
+          remote: remote.scope === 'test' ? t('views.sync.scopeTest') : t('views.sync.scopeReal'),
+          local: backupScope() === 'test' ? t('views.sync.scopeTest') : t('views.sync.scopeReal'),
+        }), 'error');
+        return;
+      }
+      if (remote) {
+        const st = await importBackup(remote, { skipSnapshot: true });
+        mergedFromRemote = (st.cards || 0) + (st.reviews || 0)
+          + getEffectiveSyncTables().reduce((s, tb) => s + (st[tb.table] || 0), 0);
+        await loadCounts(); // 合并后本地行数变了，刷新展示与后续包体
+      }
+    }
     const payload = await buildBackup();
     const modeText = appMode.isTest ? t('views.sync.demoData') : t('views.sync.realData');
     if (gistId.value) {
       // 已有 gist：PATCH 更新（payload.scope 决定写入哪个文件名）
       const r = await updateGistBackup(ghToken.value, gistId.value, payload);
-      toast(t('views.sync.gistUpdated', '✅ 已更新 Gist 备份（{cards} 张卡 · {mode} · 更新于 {time}）', { cards: counts.value.cards, mode: modeText, time: fmtLocaleDateTime(r.updatedAt) }), 'success');
+      toast(t('views.sync.gistUpdated', '✅ 已更新 Gist 备份（{cards} 张卡 · {mode} · 更新于 {time}）', { cards: counts.value.cards, mode: modeText, time: fmtLocaleDateTime(r.updatedAt) })
+        + (mergedFromRemote ? t('views.sync.gistMergedHint', '（推送前已合并云端 {n} 条变更）', { n: mergedFromRemote }) : ''), 'success');
     } else {
       // 首次：创建新 secret gist
       const r = await createGistBackup(ghToken.value, payload);
@@ -408,12 +456,33 @@ async function onAnkiFile(e) {
   if (!f) return;
   ankiBusy.value = true;
   try {
-    const pairs = parseAnkiLines(await f.text());
-    if (!pairs.length) { toast(t('views.sync.noAnkiRows'), 'error'); return; }
-    let n = 0;
-    for (const p of pairs) { await createCard({ front: p.front, back: p.back, subject: '', tags: [], type: 'basic', source: 'Anki 导入' }); n++; }
+    // round18 R18-10：解析层预校验（剔除空背面行、截断超限行并计数），
+    // 循环内逐行 try/catch——坏行不再中断整批，失败行数/行号如实汇报，可二次导入不重复建卡。
+    const parsed = parseAnkiLines(await f.text());
+    const pairs = parsed.pairs;
+    if (!pairs.length) {
+      const why = parsed.skippedEmptyBack
+        ? t('views.sync.ankiRowsBad', '文件共 {total} 行，但没有任何「正面{sep}背面」格式的有效行（{skipped} 行缺少背面内容被跳过）', { total: parsed.total, skipped: parsed.skippedEmptyBack, sep: '/tab' })
+        : t('views.sync.noAnkiRows');
+      toast(why, 'error');
+      return;
+    }
+    let n = 0, fail = 0, firstErr = '';
+    for (const p of pairs) {
+      try {
+        await createCard({ front: p.front, back: p.back, subject: '', tags: [], type: 'basic', source: 'Anki 导入' });
+        n++;
+      } catch (err) {
+        fail++;
+        if (!firstErr) firstErr = `${String(p.front).slice(0, 40)}：${err?.message || err}`;
+      }
+    }
     await loadCounts();
-    toast(t('views.sync.ankiImported', '已从 Anki 文本导入 {n} 张卡片', { n }), 'success');
+    const hints = [];
+    if (fail) hints.push(t('views.sync.ankiFailPart', '{n} 行失败（{first}）', { n: fail, first: firstErr }));
+    if (parsed.skippedEmptyBack) hints.push(t('views.sync.ankiSkippedBad', '跳过 {n} 行无背面内容', { n: parsed.skippedEmptyBack }));
+    if (parsed.truncated) hints.push(t('views.sync.ankiTruncated', '超过 {n} 行上限被截断', { n: parsed.truncated }));
+    toast(t('views.sync.ankiImported', '已从 Anki 文本导入 {n} 张卡片', { n }) + (hints.length ? `（${hints.join('；')}）` : ''), fail ? 'warning' : 'success');
   } catch (err) { toast(t('views.sync.importFail', '导入失败：{msg}', { msg: err.message || t('views.sync.ankiFileFormat') }), 'error'); }
   finally { ankiBusy.value = false; }
 }
@@ -536,7 +605,7 @@ async function refreshStatus() { await loadModuleStatus(); }
         <thead><tr><th>{{ t('views.sync.thModule') }}</th><th>{{ t('views.sync.thCount') }}</th><th>{{ t('views.sync.thLastSync') }}</th><th>{{ t('views.sync.thStatus') }}</th><th></th></tr></thead>
         <tbody>
           <tr v-for="m in moduleStatus" :key="m.module">
-            <td>{{ m.label }}</td>
+            <td :title="m.module">{{ t(m.labelKey, m.label) }}</td>
             <td class="num">{{ m.count }}</td>
             <td class="ts">{{ fmtTs(m.lastSyncAt) }}<span v-if="m.lastRows" class="hint">（+{{ m.lastRows }}）</span></td>
             <td><span class="st" :class="'st-' + m.status" :title="m.status === 'error' ? m.error : ''">{{ statusIcon(m.status) }} {{ statusLabel(m.status) }}</span></td>

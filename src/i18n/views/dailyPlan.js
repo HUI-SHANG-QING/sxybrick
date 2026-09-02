@@ -105,6 +105,8 @@ export const zh = {
   checkinFailed: '打卡失败：{msg}',
   confirmDeleteTask: '删除这个任务？',
   confirmDeletePlan: '删除这份规划及所有任务？',
+  // round18 R18-15：重新规划需确认，且保留输入框原文
+  confirmReplan: '重新规划将清除当前已解析的计划视图（原始文本会保留在输入框，可继续修改后重新解析）。继续？',
   emptyComplete: '暂无完成数据',
   emptyRisk: '暂无风险任务 🎉',
   emptyTasks: '暂无任务',
@@ -223,6 +225,8 @@ export const en = {
   checkinFailed: 'Check-in failed: {msg}',
   confirmDeleteTask: 'Delete this task?',
   confirmDeletePlan: 'Delete this plan and all its tasks?',
+  // round18 R18-15: confirm before re-planning; the typed text stays in the box
+  confirmReplan: 'Re-planning clears the currently parsed plan view (your original text stays in the box so you can edit and re-parse). Continue?',
   emptyComplete: 'No completion data yet',
   emptyRisk: 'No risk tasks 🎉',
   emptyTasks: 'No tasks yet',

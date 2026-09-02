@@ -109,6 +109,11 @@ const EXT_FIELDS = [
   'pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples',
   'mnemonics', 'rootAffix', 'confusions', 'syllable', 'audio',
 ];
+// round18 R18-1 防回归闸：导出给测试断言「repo 层扩展字段清单」与「同步层
+// WORD_EXT_FIELDS」的差集只允许由用户内容字段构成（见 tests/round18-regression.test.mjs）。
+// 含义：AI 生成、追加式、形状简设备整行覆盖会丢的字段 → 必须进 WORD_EXT_FIELDS 并集保护；
+// 用户手工内容字段（audio 自定义发音等）→ 刻意走 updatedAt 整行赢家语义，保持删除可传播。
+export { EXT_FIELDS };
 function pickExt(payload) {
   const out = {};
   for (const k of EXT_FIELDS) {

@@ -346,6 +346,16 @@ async function clearToday() {
   await loadHistoryList();
 }
 
+// round18 R18-15：「重新规划」不再一键销毁——先确认，且保留输入框里的原始文本供重填。
+// 此前 `rawInput=''; plan=null` 无确认：误触就把当日已解析的计划视图连口述文本一起清掉，
+// 若计划已入库，用户以为数据被删还会重复建（createDailyPlan 覆盖重建，repo.js:639-649）。
+async function replan() {
+  if (!plan.value) return; // 没有已解析计划时按钮本就不该有破坏性
+  if (!(await confirmDialog(t('views.dailyPlan.confirmReplan', '重新规划将清除当前已解析的计划视图（原始文本会保留在输入框，可继续修改后重新解析）。继续？')))) return;
+  plan.value = null;
+  synergy.value = null;
+}
+
 // ──────────────── 图表渲染 ────────────────
 const quadEl = ref(null);
 const previewQuadEl = ref(null);
@@ -548,7 +558,7 @@ function handleResize() {
         </div>
         <div v-if="canEdit" style="display:flex;gap:8px">
           <button class="btn" @click="showAddTask = !showAddTask">{{ t('views.dailyPlan.addTaskMidway') }}</button>
-          <button class="btn" @click="rawInput=''; plan=null">{{ t('views.dailyPlan.replan') }}</button>
+          <button class="btn" @click="replan">{{ t('views.dailyPlan.replan') }}</button>
           <button class="btn danger" @click="clearToday">{{ t('views.dailyPlan.delete') }}</button>
         </div>
       </div>

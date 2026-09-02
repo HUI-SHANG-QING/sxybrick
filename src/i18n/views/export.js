@@ -126,6 +126,8 @@ export const zh = {
   parseFirst: '请先解析预览',
   importedCards: '已导入 {n} 张卡片{failPart}（可在「我的卡片」查看）',
   importedFailPart: '，失败 {n} 张',
+  // round18 R18-13：部分失败时 toast 降级 warning 并附首条失败原因
+  importedFailDetail: '；首条失败：{msg}',
   importFail: '导入失败：{msg}',
   apkgParseSuccess: '解析成功：{n} 张卡片（下方预览前 8 张）',
   pickApkgFirst: '请先选择 .apkg 文件',
@@ -266,6 +268,8 @@ export const en = {
   parseFirst: 'Please parse the preview first',
   importedCards: 'Imported {n} cards{failPart} (view in "My Cards")',
   importedFailPart: ', {n} failed',
+  // round18 R18-13: downgrade toast to warning and attach the first failure when any card fails
+  importedFailDetail: '; first failure: {msg}',
   importFail: 'Import failed: {msg}',
   apkgParseSuccess: 'Parsed successfully: {n} cards (first 8 shown below)',
   pickApkgFirst: 'Please choose an .apkg file first',

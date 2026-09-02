@@ -13,7 +13,7 @@ import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES, EXCLUDED_FROM_SYNC,
   CARD_CONTENT_FIELDS, CARD_SRS_FIELDS,
   mergeRows, mergeTombstones, applyTombstones, kindOf, livenessTs, shouldExportRow,
-  clearedBeforeKey, filterClearedRows,
+  clearedBeforeKey, filterClearedRows, sanitizeStripRows,
 } from './sync-manifest.js';
 
 /** 按表读取待导出行（应用清单上的 exportFilter，排除派生/本机专属数据，如 kind='auto' 的图谱边）
@@ -22,14 +22,9 @@ import {
 async function exportRows(t) {
   let rows = await db[t.table].toArray();
   if (typeof t.exportFilter === 'function') rows = rows.filter(r => shouldExportRow(t, r));
-  if (Array.isArray(t.strip) && t.strip.length) {
-    rows = rows.map(r => {
-      if (!r) return r;
-      const c = { ...r };
-      for (const k of t.strip) delete c[k];
-      return c;
-    });
-  }
+  // round18 R18-5：与合并侧（mergeRows）/ 中枢（hub merge）共用同一个净化函数，
+  // 三处口径一致，避免「导出剔了、合并又放进来」的半程保护。
+  if (Array.isArray(t.strip) && t.strip.length) rows = sanitizeStripRows(rows, t.strip);
   return rows;
 }
 import { dedupeIncomingCards } from './sync-dedup.js';
@@ -193,12 +188,38 @@ export async function listSnapshots() {
   return await db.snapshots.orderBy('createdAt').reverse().toArray();
 }
 
+/**
+ * 规划一次快照回滚：区分「快照里有、会被覆盖的表」与「快照里没有、必须跳过不动的表」。
+ *
+ * round18 R18-3（P2）：旧快照（生成时点早于某张表的引入）在 `snap.rows` 里没有该表的键，
+ * 若按 `snap.rows?.[t] || []` 兜底，就会走「clear + 空 bulkPut」= 把这张表整表抹掉。
+ * v25 之前生成的快照回滚一次 → 单词模块 7 张表全灭，且这类表往往是当时最活跃的新模块。
+ * 语义修正：**快照里没有的表 = 当时还不存在，回滚不该倒退它的历史**，一律跳过原样保留。
+ *
+ * 纯函数（无 db 依赖），便于单测与 UI 预览。
+ * @param {object} snap 快照对象
+ * @param {Array} tables getEffectiveSyncTables() 的结果
+ * @returns {{ restore: string[], skip: string[] }} 表名数组（images 恒跳过：快照不存图片）
+ */
+export function planSnapshotRestore(snap, tables) {
+  const rows = snap?.rows || {};
+  const restore = [];
+  const skip = [];
+  for (const t of tables || []) {
+    if (t.table === 'images') { skip.push(t.table); continue; }
+    if (Object.prototype.hasOwnProperty.call(rows, t.table)) restore.push(t.table);
+    else skip.push(t.table);
+  }
+  return { restore, skip };
+}
+
 // 回滚到指定快照：用快照里的 rows 覆盖当前 db 各表（保留 images 不动，避免图片丢失）
-//   注意：回滚是「破坏性」操作，会覆盖当前所有非图片表数据；调用方应先二次确认
+//   注意：回滚是「破坏性」操作，会覆盖快照所含表的全部数据；调用方应先二次确认
 export async function restoreSnapshot(id) {
   const snap = await db.snapshots.get(id);
   if (!snap) throw new Error('快照不存在或已被删除');
   const tables = getEffectiveSyncTables();
+  const { restore, skip } = planSnapshotRestore(snap, tables);
   // P0 修正：整段回滚包裹在 Dexie 事务中，clear + bulkPut 中途中断时整体回滚，
   // 避免「部分表已清空、部分未写」的不可逆全库半残。
   const _seen = new Set();
@@ -208,20 +229,23 @@ export async function restoreSnapshot(id) {
   }
   await db.transaction('rw', ...txTables, async () => {
     for (const t of tables) {
-      if (t.table === 'images') continue;
-      const rows = (snap.rows?.[t.table] || []);
+      // R18-3：只回滚快照里实际存在的表键；缺失键 = 旧快照，跳过以免整表抹空
+      if (!restore.includes(t.table)) continue;
+      const rows = snap.rows[t.table] || [];
       await db[t.table].clear();
       if (rows.length) await db[t.table].bulkPut(rows);
     }
-    // 墓碑也回滚
-    await db.tombstones.clear();
-    if (snap.rows?.tombstones?.length) await db.tombstones.bulkPut(snap.rows.tombstones);
+    // 墓碑也回滚（快照内墓碑缺失时同理：旧快照没有墓碑键 → 跳过，不清空当前墓碑）
+    if (Object.prototype.hasOwnProperty.call(snap.rows || {}, 'tombstones')) {
+      await db.tombstones.clear();
+      if (snap.rows.tombstones?.length) await db.tombstones.bulkPut(snap.rows.tombstones);
+    }
     // 打卡目标回滚
     if (snap.rows?.goal != null) {
       await db.meta.put({ key: 'goal', value: snap.rows.goal, updatedAt: snap.createdAt });
     }
   });
-  return { restoredAt: snap.createdAt, label: snap.label };
+  return { restoredAt: snap.createdAt, label: snap.label, restored: restore, skipped: skip };
 }
 
 export async function deleteSnapshot(id) {
@@ -320,9 +344,22 @@ export async function downloadAnkiText(cards) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// Anki 文本解析导入（E2）：Anki 导出的 txt / 分隔行文本 → 卡片
+// round18 R18-10（P3）：Anki 导入上限具名常量 + 行数截断可见。
+// 300 行是防呆上限（单次导入一次建 300 张卡已是重操作），截断时调用方应提示用户。
+const ANKI_MAX_ROWS = 300;
+
+/**
+ * 解析 Anki 文本导入（E2）：Anki 导出的 txt / 分隔行文本 → 卡片行数组。
+ *
+ * round18 R18-10：返回结构化结果而非裸数组，导入前就剔除会崩的坏行：
+ *   - 无分隔符行 back 为空 → createCard 会 throw「背面内容不能为空」（repo-core.js:29）
+ *     且整循环中断、已入库的前 N 张不回滚（二次导入重复建卡）。这里直接跳过并计数，
+ *     不再让坏行打断整批。
+ *   - 超 ANKI_MAX_ROWS 的行截断并如实计数，避免「文件 3000 行、只导了 300 张」无任何告知。
+ * @returns {{ pairs: Array<{front,back}>, truncated: number, skippedEmptyBack: number, total: number }}
+ */
 export function parseAnkiLines(text) {
-  return String(text || '').split(/\r?\n/)
+  const all = String(text || '').split(/\r?\n/)
     .map(line => {
       const l = line.trim();
       if (!l || l.startsWith('#')) return null;
@@ -331,8 +368,11 @@ export function parseAnkiLines(text) {
       if (m && m[2]) { front = m[1].trim(); back = m[2].trim(); }
       return { front, back };
     })
-    .filter(Boolean)
-    .slice(0, 300);
+    .filter(Boolean);
+  const skippedEmptyBack = all.filter((p) => !p.back).length;
+  const valid = all.filter((p) => !!p.back);
+  const truncated = valid.length > ANKI_MAX_ROWS ? valid.length - ANKI_MAX_ROWS : 0;
+  return { pairs: valid.slice(0, ANKI_MAX_ROWS), truncated, skippedEmptyBack, total: all.length };
 }
 
 // 局域网一键同步：把本地数据包 PUT 给电脑端中枢（hub），hub 合并后返回全量数据，再本地导入
@@ -451,7 +491,7 @@ export function assertBackupScope(backup) {
 // P3-3 增强：合并前自动 saveSnapshot（kind=backup-before-import），合并后返回 stats.conflicts
 //   conflicts: [{ id, front(摘要), winner: 'incoming'|'local'|'mixed', fields: ['front','ease',...], reason }]
 //   让用户在 Sync.vue 直观看到「哪张卡的哪个字段被谁覆盖了」
-export async function importBackup(backup) {
+export async function importBackup(backup, opts = {}) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
   assertBackupScope(backup);
   const stats = { cards: 0, reviews: 0, overridden: 0, deleted: 0, duplicated: 0, conflicts: [], snapshotId: null };
@@ -459,11 +499,15 @@ export async function importBackup(backup) {
   for (const t of effTables) if (t.table !== 'cards' && t.table !== 'reviews') stats[t.table] = 0;
 
   // P3-3 0) 合并前自动保存快照（便于事后回滚）；失败不阻断导入
-  try {
-    const label = `导入前自动快照 · ${fmtLocaleDateTime(Date.now())}`;
-    const snap = await saveSnapshot(label, 'backup-before-import');
-    stats.snapshotId = snap.id;
-  } catch (e) { console.warn('[sync] 自动快照失败（不阻断导入）:', e?.message || e); }
+  //   opts.skipSnapshot —— round18 R18-2：推送前的 pull-merge 由代码自动触发，
+  //   每次推送都存一份全量快照既浪费配额也让快照列表被噪声淹没（用户并没有主动导入）。
+  if (!opts.skipSnapshot) {
+    try {
+      const label = `导入前自动快照 · ${fmtLocaleDateTime(Date.now())}`;
+      const snap = await saveSnapshot(label, 'backup-before-import');
+      stats.snapshotId = snap.id;
+    } catch (e) { console.warn('[sync] 自动快照失败（不阻断导入）:', e?.message || e); }
+  }
 
   // 0b) 卡片去重预判 + 关联引用重定向（round12 数据协同修复）
   // 先算出【跳过 id → 保留 id】映射。被「异 id 同内容」去重跳过的卡，其关联数据

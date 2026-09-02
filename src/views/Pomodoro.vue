@@ -12,11 +12,27 @@ import { t } from '../i18n/index.js';
 
 const MODES = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
 const STATE_KEY = 'sxy_pomo_state';
+// round18 R18-6：结算口径常量。
+//   HEARTBEAT_CAP_MS —— 单次「心跳空档」最多计入的专注时长。页面被关闭/系统休眠时
+//     setInterval 不执行，回来后若不设上限，整段空档会被当成专注时间（开 2 分钟关页、
+//     数小时后回来即记满 25 分钟 → 专注数据可无限刷）。后台标签页的 setInterval 会被
+//     节流到分钟级，90s 上限足以覆盖正常节流，又不会给「人已离开」的空档发工资。
+//   FULL_FOCUS_MIN —— 净专注达到该分钟数才算「一个完整番茄」（计入今日番茄数/成就）；
+//     不足则只按实际分钟记录专注时长，不冒充完成。
+const HEARTBEAT_CAP_MS = 90_000;
+const FULL_FOCUS_MIN = 20;
 const mode = ref('focus');
 const left = ref(MODES.focus);
 const running = ref(false);
 let timer = null;
-let endTs = 0; // 本轮结束时间戳（唯一计时事实来源；开始时刻 = endTs - 本轮时长）
+let endTs = 0; // 本轮结束时间戳（计时事实来源；开始时刻另用 roundStartTs 持久化，见下）
+// 本轮净专注时长（毫秒）与心跳锚点：
+//   netMs    —— 已结算的净专注毫秒；只有真正在跑（未被节流成静默空档）的时间才计入
+//   lastSeen —— 上一次结算的时刻；>0 表示「有正在计时的段」，暂停/结算后置 0
+//   roundStartTs —— 本轮首次开始（或首次恢复）的时刻，暂停不推后，保证跨天归属正确
+let netMs = 0;
+let lastSeen = 0;
+let roundStartTs = 0;
 const doneToday = ref(0); // 今日完成番茄数，从 db 推导（跨天自动重置，跨设备同步）
 
 // 多标签页协调：同一台设备的两个标签页都开着番茄钟时，防止重复计时/重复入账
@@ -36,10 +52,36 @@ function saveState() {
   localStorage.setItem(STATE_KEY, JSON.stringify({
     mode: mode.value, left: left.value, running: running.value,
     endTs: running.value ? endTs : 0,
+    // R18-6：净专注与心跳必须跨刷新存活，否则「关页再回来」时无从判断实际专注了多久
+    netMs, lastSeen, roundStartTs,
   }));
 }
 
+/** 重置本轮净专注账本（切模式 / 手动重置 / 一轮结算完毕时调用） */
+function resetRoundLedger() {
+  netMs = 0;
+  lastSeen = 0;
+  roundStartTs = 0;
+}
+
+/**
+ * 把「上次心跳 → 现在」这段时间结算进 netMs。
+ * 关键：空档以 endTs 为上限（到点之后的时间不算专注），且单次空档最多计 HEARTBEAT_CAP_MS。
+ * @param {number} now
+ * @param {boolean} ignoreCap 关页恢复时仍要按上限截断（默认 false），仅测试可放开
+ */
+function creditElapsed(now = Date.now(), ignoreCap = false) {
+  if (!lastSeen) return; // 没有正在计时的段（已暂停或尚未开始）
+  const capAt = endTs || now; // 到点后不再累积
+  const ref = Math.min(lastSeen, capAt);
+  const delta = Math.max(0, capAt - ref);
+  netMs += ignoreCap ? delta : Math.min(delta, HEARTBEAT_CAP_MS);
+  lastSeen = Math.min(now, capAt);
+}
+
 function stop() {
+  creditElapsed(); // 结算当前段（暂停期间不再计时）
+  lastSeen = 0;
   clearInterval(timer);
   timer = null;
   running.value = false;
@@ -51,12 +93,15 @@ function start() {
   if (running.value) return;
   running.value = true;
   endTs = Date.now() + left.value * 1000; // 以当前剩余时间为本轮时长（暂停恢复后自动顺延）
+  if (!roundStartTs) roundStartTs = Date.now(); // 首启才记开始时刻，暂停恢复不推后
+  lastSeen = Date.now(); // 心跳锚点：从现在开始计时（关页期间的空档不予计入）
   saveState();
   timer = setInterval(tick, 1000);
 }
 
 function switchMode(m) {
   stop();
+  resetRoundLedger();
   mode.value = m;
   left.value = MODES[m];
   endTs = 0;
@@ -65,6 +110,7 @@ function switchMode(m) {
 
 function resetCur() {
   stop();
+  resetRoundLedger();
   left.value = MODES[mode.value];
   saveState();
 }
@@ -73,22 +119,42 @@ function tick() {
   if (!running.value) return;
   // 从 endTs 反推剩余时间：即使 setInterval 被后台节流/锁屏暂停，回来也是准的
   left.value = Math.max(0, Math.ceil((endTs - Date.now()) / 1000));
+  // R18-6：每次心跳结算一次净专注（被节流时单次补时也有 90s 上限，不会把「人已离开」
+  // 的整段空档记成专注；真正跑满的过程由连续心跳逐段累加，总额仍等于真实专注时长）
+  creditElapsed();
   if (left.value <= 0) { stop(); finish(); } else saveState();
 }
 
 async function finish() {
   if (mode.value === 'focus') {
-    const focusStartedAt = endTs - MODES.focus * 1000; // 真正开始时刻（跨天归属正确）
+    // R18-6：按**净专注时长**结算，而不是「到点即满记 25 分钟」。
+    // 状态里现在持久化了 netMs（逐心跳累加、关页空档不计），
+    // 所以「开了 2 分钟就关页、几小时后才回来」只会记到 2 分钟，且不计为完整番茄。
+    const netMin = Math.max(0, Math.floor(netMs / 60000));
+    const complete = netMin >= FULL_FOCUS_MIN;
+    const focusStartedAt = roundStartTs || (endTs - MODES.focus * 1000); // 真正开始时刻（跨天归属正确）
     if (Date.now() - lastPeerFinish < 5000) {
       // 另一标签页刚刚完成并已入账：本页不重复记
     } else {
       bc?.postMessage({ type: 'pomo-finish', at: Date.now() });
-      await addPomoSession({ duration: 25, startedAt: focusStartedAt, tag: '' }); // 入库，随数据包同步
-      try { T.pomodoroEnd(25, 'focus'); } catch {}
+      // 少于 1 分钟不入库（避免误触产生噪声行）；不足 FULL_FOCUS_MIN 标 partial，
+      // 只贡献「专注分钟」统计，不计入今日番茄数/成就（countPomoToday 会排除）。
+      if (netMin >= 1) {
+        await addPomoSession({
+          duration: Math.min(25, netMin), startedAt: focusStartedAt, tag: '',
+          partial: complete ? 0 : 1,
+        }); // 入库，随数据包同步
+      }
+      try { T.pomodoroEnd(Math.min(25, netMin), 'focus'); } catch {}
     }
     await refreshDone();
-    toast(t('views.pomodoro.focusDone'), 'success'); speak(t('views.pomodoro.focusDoneSpeech'));
-    sendNotify(t('views.pomodoro.notifyTitle'), t('views.pomodoro.notifyMsg'));
+    if (complete) {
+      toast(t('views.pomodoro.focusDone'), 'success'); speak(t('views.pomodoro.focusDoneSpeech'));
+      sendNotify(t('views.pomodoro.notifyTitle'), t('views.pomodoro.notifyMsg'));
+    } else {
+      // 中断/提前结束：如实告诉用户记了多少，不假装完成了一个番茄
+      toast(t('views.pomodoro.focusPartial', '本轮只专注了 {min} 分钟，未计为完整番茄（已按实际时长记录）', { min: netMin }), 'warning');
+    }
     // 每 4 个专注一个长休（用今日总数判断，跨页面/跨天一致）
     switchMode(doneToday.value % 4 === 0 ? 'long' : 'short');
   } else {
@@ -107,20 +173,29 @@ function restore() {
     const s = JSON.parse(localStorage.getItem(STATE_KEY) || 'null');
     if (!s) return;
     mode.value = s.mode || 'focus';
+    netMs = Number.isFinite(s.netMs) ? Math.max(0, s.netMs) : 0;
+    roundStartTs = Number.isFinite(s.roundStartTs) ? s.roundStartTs : 0;
     if (s.running && s.endTs) {
       const remain = Math.ceil((s.endTs - Date.now()) / 1000);
       if (remain > 0) {
         left.value = remain;
         endTs = s.endTs;
         running.value = false; // 交给 start() 统一建计时器
+        // start() 会把心跳锚点重置为「现在」：关页/重载期间的空档不予计入专注，
+        // 用户回来后从剩余时间继续跑，跑多久记多久。
         start();
       } else {
-        // 离开期间已到点：结算
+        // 离开期间已到点：先把「最后一次心跳 → 到点」这段按上限结算，再按净时长入账。
+        // lastSeen 为空（旧版本状态没有该字段）时退化为「从现在起算」，宁少记不多记。
         endTs = s.endTs;
+        lastSeen = Number.isFinite(s.lastSeen) ? s.lastSeen : 0;
+        creditElapsed();
+        lastSeen = 0;
         left.value = 0;
         finish();
       }
     } else {
+      lastSeen = 0;
       left.value = (typeof s.left === 'number' ? s.left : MODES[mode.value]);
       if (left.value < 0 || left.value > MODES[mode.value]) left.value = MODES[mode.value];
     }

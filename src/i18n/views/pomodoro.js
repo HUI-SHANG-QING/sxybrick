@@ -15,6 +15,8 @@ export const zh = {
   doneToday: '今日已完成 {n} 个番茄钟',
   focusDone: '专注完成，休息一下！',
   focusDoneSpeech: '专注完成，休息一下吧',
+  // round18 R18-6：未跑满一个完整番茄时如实告知（此前「到点即满记」，中断也记 25 分钟）
+  focusPartial: '本轮只专注了 {min} 分钟，未计为完整番茄（已按实际时长记录）',
   restDone: '休息结束，继续加油！',
   restDoneSpeech: '休息结束，继续加油',
   notifyTitle: '番茄钟完成',
@@ -36,6 +38,8 @@ export const en = {
   doneToday: '{n} pomodoros completed today',
   focusDone: 'Focus done — take a break!',
   focusDoneSpeech: 'Focus complete, take a break',
+  // round18 R18-6: report the honest net focus time when a round did not run its full length
+  focusPartial: 'Only {min} min of actual focus this round — not counted as a full pomodoro (actual time was recorded)',
   restDone: 'Break over — keep going!',
   restDoneSpeech: 'Break over, keep going',
   notifyTitle: 'Pomodoro complete',

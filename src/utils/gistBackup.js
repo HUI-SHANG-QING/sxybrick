@@ -37,7 +37,11 @@ async function gh(path, token, method = 'GET', body = null) {
       const j = await res.json();
       if (j.message) msg += `: ${j.message}`;
     } catch {}
-    throw new Error(msg);
+    // round18 R18-2：带上 HTTP 状态码，调用方据此区分
+    //   「404 = 云端还没有备份（可按首次推送处理）」与「5xx/网络错误 = 读不到，禁止盲覆盖」。
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
   }
   if (res.status === 204) return null;
   return res.json();
@@ -106,9 +110,19 @@ export async function fetchGistBackup(token, gistId, opts = {}) {
   // 优先按 scope 找文件；找不到时回退到另一 scope（兼容手动操作），但包内 scope 由调用方校验
   const wanted = fileNameFor(opts.scope);
   let f = r.files?.[wanted] || r.files?.[FILENAME] || r.files?.[TEST_FILENAME];
-  if (!f) throw new Error(`Gist 中未找到备份文件（${wanted}）`);
+  if (!f) {
+    // round18 R18-2：与「gist 整个没了（HTTP 404）」同义——云端还没有可合并的备份。
+    // 给个可判别的 code，调用方据此按「首次推送」处理，而不是当成致命错误。
+    const err = new Error(`Gist 中未找到备份文件（${wanted}）`);
+    err.code = 'NO_BACKUP_FILE';
+    throw err;
+  }
   const content = f.content || '';
-  if (!content.trim()) throw new Error('Gist 内容为空');
+  if (!content.trim()) {
+    const err = new Error('Gist 内容为空');
+    err.code = 'EMPTY_BACKUP';
+    throw err;
+  }
   try {
     return JSON.parse(content);
   } catch (e) {

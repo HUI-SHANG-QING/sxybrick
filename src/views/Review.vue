@@ -411,8 +411,10 @@ function applyFilter() { filterOpen.value = false; repeatMode = false; saveFilte
 function clearFilter() { fSubjects.value = []; fTags.value = []; fWrongReasons.value = []; fLogic.value = 'OR'; fGroups.value = []; fArchivedOnly.value = false; repeatMode = false; saveFilter(); loadQueue(); }
 
 async function loadMeta() {
-  subjects.value = await getSubjects();
-  allTags.value = await getTags();
+  // round18 R18-16（P3）：与 loadQueue 同款兜底——科目/标签读取失败（db 异常）时
+  // 不能留下 unhandled rejection + 筛选面板永久空白；降级为空集合并提示一次。
+  try { subjects.value = await getSubjects(); } catch (e) { subjects.value = []; toast(t('views.review.subjectLoadFail', '科目加载失败：{msg}', { msg: e?.message || e }), 'error'); }
+  try { allTags.value = await getTags(); } catch (e) { allTags.value = []; toast(t('views.review.tagLoadFail', '标签加载失败：{msg}', { msg: e?.message || e }), 'error'); }
   try { cardGroups.value = await listCardGroups(); } catch { cardGroups.value = []; }
 }
 
@@ -657,11 +659,15 @@ function pickDuel(card) {
 }
 // 易混对决错选记录（D1）：存入 db.meta，analytics 读取后加权该易混对
 async function recordDuelWrong(idA, idB) {
+  // round18 R18-14（P3）：读-改-写包进事务，避免 1.2s 对决节奏下快速连错的丢记录
+  //（与 round17 R17-29 修过的 updateDailyTask 同款缺陷——非事务读改写并发丢写）。
   const key = [idA, idB].sort().join('|');
-  const row = await db.meta.get('duelWrongs');
-  const list = (Array.isArray(row?.value) ? row.value : []).filter(k => k !== key);
-  list.push(key);
-  await db.meta.put({ key: 'duelWrongs', value: list.slice(-200), updatedAt: Date.now() });
+  await db.transaction('rw', db.meta, async () => {
+    const row = await db.meta.get('duelWrongs');
+    const list = (Array.isArray(row?.value) ? row.value : []).filter(k => k !== key);
+    list.push(key);
+    await db.meta.put({ key: 'duelWrongs', value: list.slice(-200), updatedAt: Date.now() });
+  });
 }
 </script>
 

@@ -318,6 +318,11 @@ async function generate() {
 }
 
 function doPrint() {
+  // round18 R18-8（P3）：onAfterPrint 写好了却从未接线 —— 「增量导出」水位 lastExport
+  // 永不推进 → 该模式按钮因 :disabled="!lastExport" 永久置灰，"上次导出时间"也永不显示。
+  // afterprint 在打印对话框关闭后触发（含取消，口径取「本次打印已消费」的简化版；
+  // 若追求「取消不记」，需接入 onbeforeprint/onafterprint 配对判断，收益不大）。
+  window.addEventListener('afterprint', onAfterPrint, { once: true });
   window.print();
 }
 
@@ -453,7 +458,7 @@ async function doImport() {
   if (!importPreview.value?.cards?.length) { toast(t('views.export.parseFirst'), 'error'); return; }
   if (shareBusy.value) return;
   shareBusy.value = true;
-  let n = 0, fail = 0;
+  let n = 0, fail = 0, firstErr = '';
   try {
     for (const c of importPreview.value.cards) {
       try {
@@ -464,9 +469,14 @@ async function doImport() {
           source: '分享码导入',
         });
         n++;
-      } catch { fail++; }
+      } catch (err) {
+        // round18 R18-13：记下首条失败原因，最后如实汇报（此前 catch 后只数数，toast 恒 success）
+        fail++;
+        if (!firstErr) firstErr = `${String(c.front || '').slice(0, 40)}：${err?.message || err}`;
+      }
     }
-    toast(t('views.export.importedCards', undefined, { n, failPart: fail ? t('views.export.importedFailPart', undefined, { n: fail }) : '' }), 'success');
+    toast(t('views.export.importedCards', undefined, { n, failPart: fail ? t('views.export.importedFailPart', undefined, { n: fail }) : '' })
+      + (fail ? t('views.export.importedFailDetail', '；首条失败：{msg}', { msg: firstErr }) : ''), fail ? 'warning' : 'success');
     shareOpen.value = false;
     await loadMeta();
   } catch (e) { toast(t('views.export.importFail', '导入失败：{msg}', { msg: e.message }), 'error'); }
@@ -500,7 +510,7 @@ async function doApkgImport() {
   if (!apkgPreview.value?.cards?.length) { toast(t('views.export.pickApkgFirst'), 'error'); return; }
   if (apkgBusy.value) return;
   apkgBusy.value = true;
-  let n = 0, fail = 0;
+  let n = 0, fail = 0, firstErr = '';
   try {
     for (const c of apkgPreview.value.cards) {
       try {
@@ -509,9 +519,14 @@ async function doApkgImport() {
           tags: c.tags || [], type: 'basic', source: 'Anki 导入',
         });
         n++;
-      } catch { fail++; }
+      } catch (err) {
+        // round18 R18-13：与分享码导入同口径——失败不再静默、toast 降级为 warning 并附首条原因
+        fail++;
+        if (!firstErr) firstErr = `${String(c.front || '').slice(0, 40)}：${err?.message || err}`;
+      }
     }
-    toast(t('views.export.importedCards', undefined, { n, failPart: fail ? t('views.export.importedFailPart', undefined, { n: fail }) : '' }), 'success');
+    toast(t('views.export.importedCards', undefined, { n, failPart: fail ? t('views.export.importedFailPart', undefined, { n: fail }) : '' })
+      + (fail ? t('views.export.importedFailDetail', '；首条失败：{msg}', { msg: firstErr }) : ''), fail ? 'warning' : 'success');
     apkgOpen.value = false;
     await loadMeta();
   } catch (err) { toast(t('views.export.importFail', '导入失败：{msg}', { msg: err?.message || err }), 'error'); }

@@ -1058,6 +1058,14 @@ export async function deleteDoc(id) {
 }
 
 // ---------- 番茄专注记录（可持久化、随数据包同步） ----------
+/**
+ * 记录一次专注。
+ * duration 单位**分钟**（与 analytics/intelligence/WeeklyReport 口径一致，见 round17 R17-1）。
+ * partial=1 表示「未跑满一个完整番茄」（如中途关页、提前结束）：
+ *   其 duration 仍计入「专注分钟」统计（真实付出，不该抹掉），
+ *   但不计入「今日番茄数 / 成就进度」——否则开 2 分钟关页也能刷满成就（round18 R18-6）。
+ * 旧数据无 partial 字段 → 视为完整番茄，向后兼容。
+ */
 export async function addPomoSession(payload) {
   const t = now();
   const s = {
@@ -1065,6 +1073,7 @@ export async function addPomoSession(payload) {
     startedAt: payload?.startedAt || t,
     duration: Number(payload?.duration) || 0, // 分钟
     tag: String(payload?.tag || '').trim().slice(0, 30),
+    partial: payload?.partial ? 1 : 0,
     createdAt: t,
   };
   await db.pomoSessions.put(s);
@@ -1073,9 +1082,14 @@ export async function addPomoSession(payload) {
 export async function listPomoSessions(limit = 200) {
   return db.pomoSessions.orderBy('startedAt').reverse().limit(limit).toArray();
 }
+/**
+ * 今日**完整**番茄数（partial 不计）。
+ * 数据源 = pomoSessions 表（随同步跨设备一致），跨天自动归零。
+ */
 export async function countPomoToday() {
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  return db.pomoSessions.where('startedAt').aboveOrEqual(dayStart.getTime()).count();
+  const rows = await db.pomoSessions.where('startedAt').aboveOrEqual(dayStart.getTime()).toArray();
+  return rows.filter((s) => !s.partial).length;
 }
 
 // ---------- 思维导图（可持久化、随数据包同步；借鉴 Progress AI 的本地化实现） ----------

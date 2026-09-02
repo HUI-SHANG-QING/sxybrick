@@ -12,7 +12,7 @@ import { networkInterfaces } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES,
-  mergeRows, mergeTombstones, applyTombstones, shouldExportRow,
+  mergeRows, mergeTombstones, applyTombstones, shouldExportRow, sanitizeStripRows,
 } from '../src/sync-manifest.js';
 import {
   AUTH_VERSION, signPayload, safeEqual, createChallengeStore,
@@ -153,7 +153,13 @@ function merge(base, incoming) {
     const inRows = (incoming[t.table] || []).filter(r => shouldExportRow(t, r));
     // round17 R17-9/R17-20：透传 strip（wordSettings 的 LLM Key 合并时保留本地值，
     // 防止旧客户端推送的明文 Key 常驻 hub 数据文件）与 extFields（wordCards AI 扩展字段并集保护）
-    out[t.table] = mergeRows(base[t.table], inRows, t.merge, { strip: t.strip, extFields: t.extFields });
+    //
+    // round18 R18-5：base 侧也要净化。中枢的 hub-data.json 里可能驻留着 R17-20 之前
+    // 老客户端推上来的明文 Key（那时中枢不过滤 strip），mergeRows 只挡 incoming，
+    // 挡不住从 base 原样带出来的历史残留 —— 于是「A 清空本地 Key」后中枢仍会回灌。
+    // 中枢不是任何人的本地设备，strip 字段对它一律无意义：存进来即丢弃。
+    const baseRows = sanitizeStripRows(base[t.table], t.strip);
+    out[t.table] = mergeRows(baseRows, inRows, t.merge, { strip: t.strip, extFields: t.extFields });
   }
 
   // 卡片：应用墓碑（删除跨设备传播）+ 级联清理复习记录与孤儿图片 + 复活卡清除墓碑
@@ -177,10 +183,10 @@ function merge(base, incoming) {
     if (t.kind === 'card') continue;
     const res = applyTombstones(out[t.table] || [], out.tombstones, t.kind);
     out[t.table] = res.rows;
-    for (const id of res.stale) staleIds.add(`${t.kind} ${id}`);
+    for (const id of res.stale) staleIds.add(`${t.kind}\u0000${id}`);
   }
   if (staleIds.size) {
-    out.tombstones = out.tombstones.filter(tb => !staleIds.has(`${tb.kind || 'card'} ${tb.id}`));
+    out.tombstones = out.tombstones.filter(tb => !staleIds.has(`${tb.kind || 'card'}\u0000${tb.id}`));
   }
 
   // 墓碑 GC（默认关闭，用 HUB_TOMBSTONE_TTL_DAYS=90 开启）：

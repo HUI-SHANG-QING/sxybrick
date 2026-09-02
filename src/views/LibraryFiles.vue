@@ -166,6 +166,9 @@ async function onPick(e) {
   // 等待解析队列消化后刷新列表（轮询）
   const t0 = Date.now();
   // P1-12：轮询定时器必须在组件卸载时清除，否则离开页面后继续跑且向已卸载组件写 files.value
+  // round18 R18-12：30s 窗口内二次上传会覆盖 pollTimer 引用，旧 interval 变成孤儿
+  // （卸载后仍向已卸载组件写 files.value、资源不释放）——建新轮询前先清掉旧的。
+  if (pollTimer) clearInterval(pollTimer);
   pollTimer = setInterval(async () => {
     if (Date.now() - t0 > 30000) { clearInterval(pollTimer); return; }
     const rows = await listDocFiles();

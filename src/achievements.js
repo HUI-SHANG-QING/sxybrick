@@ -38,7 +38,11 @@ export async function collectAchievementStats() {
   const correct = reviews.filter(r => r.rating === 2).length;
   const earlyCount = reviews.filter(r => { const h = new Date(r.reviewedAt).getHours(); return h >= 5 && h < 9; }).length;
   const [cards, pomo, docs, plans, graphEdges, aiMemories, aiChats, mindmaps, reports] = await Promise.all([
-    db.cards.count(), db.pomoSessions.count(), db.docs.count(), db.plans.toArray(),
+    db.cards.count(),
+    // round18 R18-6：番茄成就只认「完整番茄」——未跑满的 partial 会话不入数，
+    // 否则开 2 分钟关页也能刷出 pomo_1/pomo_50。
+    db.pomoSessions.toArray().then((arr) => arr.filter((s) => !s.partial).length),
+    db.docs.count(), db.plans.toArray(),
     db.graphEdges.count(), db.aiMemories.count(), db.aiChats.toArray(),
     db.mindmaps.count(), db.weeklyReports.count(),
   ]);

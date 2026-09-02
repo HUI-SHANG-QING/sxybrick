@@ -84,6 +84,9 @@ export const zh = {
   smartHintTpl: '🎯 {name}：{desc}',
   confusableHint: '⚠ 易混提醒：这张卡常与「{front}」一起出错，建议紧接着复习对比。',
   sourcePrefix: '📄 来源：',
+  // round18 R18-16：科目/标签加载失败提示（此前 loadMeta 无兜底，db 异常时筛选面板永久空白）
+  subjectLoadFail: '科目加载失败：{msg}',
+  tagLoadFail: '标签加载失败：{msg}',
 
   // ---- 空态 / 完成 ----
   roundDone: '本轮复习完成',
@@ -247,6 +250,9 @@ export const en = {
   smartHintTpl: '🎯 {name}: {desc}',
   confusableHint: '⚠ Confusable alert: this card is often missed together with "{front}" — review them back to back.',
   sourcePrefix: '📄 Source: ',
+  // round18 R18-16: subject/tag load failure hint (loadMeta had no fallback before — a db error left the filter panel blank forever)
+  subjectLoadFail: 'Failed to load subjects: {msg}',
+  tagLoadFail: 'Failed to load tags: {msg}',
 
   // ---- Empty / complete ----
   roundDone: 'Round complete',

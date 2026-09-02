@@ -72,7 +72,8 @@ async function execute() {
   try {
     const r = await resetAllData();
     done.value = true;
-    toast(`已清空 ${r.tables} 张表 / ${r.keys} 项本地标记，正在重新加载…`);
+    // round18 R18-9：提示里带上已清理的资料库原文件数（OPFS），让用户确认配额真的释放了
+    toast(`已清空 ${r.tables} 张表 / ${r.keys} 项本地标记 / ${r.files} 份资料原文件${r.filesFailed ? `（${r.filesFailed} 份删除失败）` : ''}，正在重新加载…`);
     setTimeout(() => { location.reload(); }, 900);
   } catch (e) {
     error.value = '清空失败：' + (e && e.message ? e.message : e);

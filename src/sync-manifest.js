@@ -200,17 +200,47 @@ export function mergeCardPair(local, incoming, extFields = []) {
   return out;
 }
 
+/**
+ * 剔除行上的 strip 字段（返回浅拷贝；无 strip 字段时返回原对象，零分配）。
+ * 供导出侧（sync.js exportRows）、合并侧（mergeRows）与中枢（hub.js merge）共用，
+ * 保证「敏感字段永不出域」在三处口径一致。
+ */
+export function sanitizeStripRow(row, strip) {
+  if (!row || !Array.isArray(strip) || !strip.length) return row;
+  let hit = false;
+  for (const k of strip) { if (row[k] !== undefined) { hit = true; break; } }
+  if (!hit) return row;
+  const out = { ...row };
+  for (const k of strip) delete out[k];
+  return out;
+}
+
+/** 批量剔除（数组映射版） */
+export function sanitizeStripRows(rows, strip) {
+  if (!Array.isArray(rows) || !Array.isArray(strip) || !strip.length) return rows || [];
+  return rows.map((r) => sanitizeStripRow(r, strip));
+}
+
 // 通用行合并（按清单 merge 策略）
-// opts.strip: string[] —— 带 strip 钩子的表（如 wordSettings 的 LLM Key）合并时，
-//   即使 incoming 的 updatedAt 更新（整行替换），strip 字段也保留本地值。
-//   否则对端导出前剔除的敏感字段会在合并侧把本机凭证清成 undefined。
+// opts.strip: string[] —— 带 strip 钩子的表（如 wordSettings 的 LLM Key）：
+//   **strip 字段永不采纳 incoming**，本地有值则保留本地值，本地为空则留空。
+//
+// round18 R18-5（P2）：此前本分支的语义是「本地有值才保留」（`if (cur[k] !== undefined)`），
+//   本地没值时 incoming 的值照常落库 —— 于是导出侧剔除了、合并侧又放进来，
+//   strip 退化成「半程保护」。在「本机从未配置 Key + 中枢/旧包里驻留过他人 Key」的组合下，
+//   凭证会被灌进本机（且 A 清空本地 Key 后中枢旧值仍会回灌）。
+//   与导出侧同口径即可根治：incoming 的 strip 字段一律丢弃。
 export function mergeRows(base, incoming, strategy, opts = {}) {
+  const strip = Array.isArray(opts.strip) ? opts.strip.filter(Boolean) : [];
   const m = new Map((base || []).map(x => [x.id, x]));
   for (const x of incoming || []) {
     if (!x || x.id == null) continue;
+    // incoming 的 strip 字段在此处统一出局：无论「新行直接入」还是「整行替换」，
+    // 都不可能把对端的凭证带进来（导出侧已剔除，这里兜住旧包/旧客户端/中枢驻留残留）
+    const xr = sanitizeStripRow(x, strip);
     const cur = m.get(x.id);
-    if (!cur) { m.set(x.id, x); continue; }
-    if (strategy === 'card') { m.set(x.id, mergeCardPair(cur, x, opts.extFields)); continue; }
+    if (!cur) { m.set(x.id, xr); continue; }
+    if (strategy === 'card') { m.set(x.id, mergeCardPair(cur, xr, opts.extFields)); continue; }
     if (strategy === 'review') {
       // 复习记录主体不可变（idOnly 语义），但 selfExplanation 是错题后补充的反思，
       // 按 selfExplainAt 谁新听谁做字段级合并（否则跨设备只同步到主体、丢失反思）
@@ -221,27 +251,28 @@ export function mergeRows(base, incoming, strategy, opts = {}) {
       //   判定是否写库，old 与 row 都指向 cur → 差异恒为 0 → 合并结果只在内存、从不落库。
       //   表现为「跨设备错题反思同步后消失」，而 hub 侧（整包保存 data 对象）正常，难以察觉。
       const next = { ...cur };
-      if (x.selfExplanation !== undefined && (x.selfExplainAt ?? 0) >= (cur.selfExplainAt ?? 0)) {
-        next.selfExplanation = x.selfExplanation;
-        if (x.selfExplainAt) next.selfExplainAt = x.selfExplainAt;
+      if (xr.selfExplanation !== undefined && (xr.selfExplainAt ?? 0) >= (cur.selfExplainAt ?? 0)) {
+        next.selfExplanation = xr.selfExplanation;
+        if (xr.selfExplainAt) next.selfExplainAt = xr.selfExplainAt;
       }
       m.set(x.id, next);
       continue;
     }
     if (strategy === 'updatedAt') {
       const a = cur.updatedAt ?? cur.createdAt ?? 0;
-      const b = x.updatedAt ?? x.createdAt ?? 0;
+      const b = xr.updatedAt ?? xr.createdAt ?? 0;
       if (b >= a) {
-        if (Array.isArray(opts.strip) && opts.strip.length) {
-          // P1-C：整行采用 incoming，但 strip 字段保留本地值（对端导出前已剔除，
-          // 不能让它把本机 LLM Key 清成 undefined；本地没有才落 incoming 的值）
-          const out = { ...x };
-          for (const k of opts.strip) {
+        if (strip.length) {
+          // P1-C + round18 R18-5：整行采用 incoming，但 strip 字段**只认本地值**——
+          // 本地有值 → 保留（对端导出前已剔除，不能让它把本机 LLM Key 清成 undefined）；
+          // 本地为空 → 留空（绝不回填 incoming 的凭证，见函数头注释）。
+          const out = { ...xr };
+          for (const k of strip) {
             if (cur[k] !== undefined) out[k] = cur[k];
           }
           m.set(x.id, out);
         } else {
-          m.set(x.id, x);
+          m.set(x.id, xr);
         }
       }
     }
