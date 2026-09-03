@@ -202,7 +202,7 @@ function parseExt() {
     pos: f.pos || '', defs: f.defs || [], synonyms: f.synonyms || [],
     collocations: f.collocations || [], phrases: f.phrases || [], examples: f.examples || [],
     mnemonics: f.mnemonics || [], rootAffix: f.rootAffix || '', confusions: f.confusions || [],
-    syllable: f.syllable || '',
+    syllable: f.syllable || '', derived: f.derived || [],
   };
   return out;
 }
@@ -232,10 +232,14 @@ async function autoGenerateSilent() {
     const d = r.data;
     form.value.meaning = form.value.meaning || (d.defs?.[0]?.meaning || '');
     form.value.pos = form.value.pos || d.pos || '';
+    form.value.syllable = form.value.syllable || d.syllable || '';
+    form.value.defs = form.value.defs?.length ? form.value.defs : (d.defs || []);
     form.value.synonyms = form.value.synonyms || d.synonyms;
     form.value.collocations = form.value.collocations || d.collocations;
     form.value.phrases = form.value.phrases || d.phrases;
     form.value.examples = form.value.examples || d.examples;
+    form.value.derived = form.value.derived?.length ? form.value.derived : (d.derived || []);
+    form.value.rootAffix = form.value.rootAffix || d.rootAffix || '';
     form.value.mnemonics = form.value.mnemonics || (d.mnemonic ? [d.mnemonic] : []);
     return true;
   } catch {
@@ -284,7 +288,28 @@ async function toggleFamiliar(c) {
   await load();
 }
 
-function openDetail(c) { detail.value = c; showDetail.value = true; }
+function openDetail(c) { detail.value = c; detailTab.value = 'collocations'; showDetail.value = true; }
+
+// ---- 详情卡（对标成熟单词 App：音节大字 / 多词性释义 / 例句高亮 / 四 Tab） ----
+const detailTab = ref('collocations'); // collocations | derived | root | synonyms
+const detailTabs = computed(() => [
+  { id: 'collocations', label: t('views.wordBook.detailCollocations') },
+  { id: 'derived', label: t('views.wordBook.tabDerived') },
+  { id: 'root', label: t('views.wordBook.tabRoot') },
+  { id: 'synonyms', label: t('views.wordBook.detailSynonyms') },
+]);
+// 词条主显示：优先 AI 生成的音节拆分（al·ter·na·tive），无则原词
+function displaySyllable(c) { return c?.syllable || c?.word || ''; }
+// 多义项释义：defs（[{pos,meaning}]）优先；老数据退化为 [{pos, meaning}] 单条
+function detailDefs(c) {
+  if (c?.defs?.length) return c.defs.filter((d) => d && (d.pos || d.meaning));
+  return (c?.meaning || c?.pos) ? [{ pos: c?.pos || '', meaning: c?.meaning || '' }] : [];
+}
+// 例句数组：examples 优先，老数据退化为 example/exampleTrans 单条
+function detailExamples(c) {
+  if (c?.examples?.length) return c.examples;
+  return c?.example ? [{ level: '', sentence: c.example, translation: c.exampleTrans || '' }] : [];
+}
 
 function speakWord(w) { speak(w, { lang: settings.value?.accent === 'auto' ? 'en-US' : settings.value?.accent }); }
 
@@ -549,7 +574,7 @@ async function addOcrWords() {
           </div>
           <span class="bdg" :class="'bdg-' + c.kind">{{ t('views.wordBook.kind' + c.kind.charAt(0).toUpperCase() + c.kind.slice(1)) }}</span>
         </div>
-        <div class="wb-meaning" v-if="c.meaning">{{ c.meaning }}</div>
+        <div class="wb-meaning" v-if="cardMeaning(c)">{{ cardMeaning(c) }}</div>
         <div class="wb-ex" v-if="c.example" v-html="highlightWord(c.example, c.word)"></div>
         <div class="wb-ex wb-ex-tr" v-if="c.exampleTrans">{{ c.exampleTrans }}</div>
         <div class="wb-meta" v-if="c.note || c.source || (c.tags && c.tags.length) || c.familiar">
@@ -650,46 +675,108 @@ async function addOcrWords() {
       </div>
     </div>
 
-    <!-- 详情抽屉 -->
+    <!-- 详情抽屉（对标成熟单词 App：音节大字 + 多词性释义 + 例句高亮 + 四 Tab） -->
     <div v-if="showDetail && detail" class="modal-mask" @click.self="showDetail = false">
       <div class="modal detail-modal">
         <div class="detail-head">
-          <div>
-            <h3 class="detail-word">{{ detail.word }} <span v-if="detail.phonetic" class="detail-phon">/{{ detail.phonetic }}/</span></h3>
-            <p class="detail-meaning">{{ detail.meaning }}</p>
+          <div class="detail-head-main">
+            <h3 class="detail-word">{{ displaySyllable(detail) }}</h3>
+            <div class="detail-phon-line" v-if="detail.phonetic">
+              <span class="detail-phon">/{{ detail.phonetic }}/</span>
+              <button class="wb-spk" @click="speakWord(detail.word)">🔊</button>
+            </div>
+            <div class="detail-defs">
+              <div v-for="(d, i) in detailDefs(detail)" :key="i" class="ddef">
+                <span v-if="d.pos" class="ddef-pos">{{ d.pos }}</span>{{ d.meaning }}
+              </div>
+            </div>
           </div>
-          <button class="wb-spk" @click="speakWord(detail.word)">🔊</button>
+          <span v-if="detail.familiar" class="tag tag-fam">★ {{ t('views.wordBook.familiarBadge') }}</span>
         </div>
 
-        <div class="detail-sec" v-if="detail.pos"><span class="ds-label">{{ t('views.wordBook.formKind') }}</span>{{ detail.pos }}</div>
-        <div class="detail-sec" v-if="detail.synonyms && detail.synonyms.length">
-          <span class="ds-label">{{ t('views.wordBook.detailSynonyms') }}</span>{{ detail.synonyms.join('、') }}
-        </div>
-        <div class="detail-sec" v-if="detail.collocations && detail.collocations.length">
-          <span class="ds-label">{{ t('views.wordBook.detailCollocations') }}</span>{{ detail.collocations.join('、') }}
-        </div>
-        <div class="detail-sec" v-if="detail.phrases && detail.phrases.length">
-          <span class="ds-label">{{ t('views.wordBook.detailPhrases') }}</span>{{ detail.phrases.join('、') }}
-        </div>
-        <div class="detail-sec" v-if="detail.rootAffix"><span class="ds-label">{{ t('views.wordBook.detailRootAffix') }}</span>{{ detail.rootAffix }}</div>
-        <div class="detail-sec" v-if="detail.mnemonics && detail.mnemonics.length">
-          <span class="ds-label">{{ t('views.wordBook.detailMnemonics') }}</span>{{ detail.mnemonics.join('；') }}
-        </div>
-        <div class="detail-sec" v-if="detail.confusions && detail.confusions.length">
-          <span class="ds-label">{{ t('views.wordBook.detailConfusions') }}</span>
-          <span v-for="(cf, i) in detail.confusions" :key="i" class="cf">{{ cf.word }}（{{ cf.meaning }}）</span>
-        </div>
-
-        <div class="detail-examples" v-if="detail.examples && detail.examples.length">
+        <!-- 例句：目标词加粗 + 中英对照 -->
+        <div class="detail-examples" v-if="detailExamples(detail).length">
           <div class="de-title">{{ t('views.wordBook.detailExamples') }}</div>
-          <div v-for="(ex, i) in detail.examples" :key="i" class="de-item">
-            <span class="de-lv" :class="'lv-' + ex.level">{{ exampleLevelLabels[ex.level] }}</span>
+          <div v-for="(ex, i) in detailExamples(detail)" :key="i" class="de-item">
+            <span v-if="ex.level" class="de-lv" :class="'lv-' + ex.level">{{ exampleLevelLabels[ex.level] || ex.level }}</span>
             <div class="de-body">
-              <div class="de-sent">{{ ex.sentence }}</div>
-              <div class="de-trans">{{ ex.translation }}</div>
+              <div class="de-sent" v-html="highlightWord(ex.sentence, detail.word)"></div>
+              <div class="de-trans" v-if="ex.translation">{{ ex.translation }}</div>
             </div>
             <button class="de-spk" @click="speak(ex.sentence)">🔊</button>
           </div>
+        </div>
+
+        <!-- 四 Tab：词组搭配 / 派生 / 词根 / 近义 -->
+        <div class="detail-tabs">
+          <button v-for="tb in detailTabs" :key="tb.id" class="dtab" :class="{ on: detailTab === tb.id }" @click="detailTab = tb.id">
+            {{ tb.label }}
+          </button>
+        </div>
+
+        <div class="detail-tab-body">
+          <!-- 词组搭配 -->
+          <template v-if="detailTab === 'collocations'">
+            <div class="dtb-sec" v-if="detail.collocations && detail.collocations.length">
+              <div class="ds-label">{{ t('views.wordBook.detailCollocations') }}</div>
+              <div class="dtb-chips">
+                <span v-for="c in detail.collocations" :key="c" class="dtb-chip">{{ c }}</span>
+              </div>
+            </div>
+            <div class="dtb-sec" v-if="detail.phrases && detail.phrases.length">
+              <div class="ds-label">{{ t('views.wordBook.detailPhrases') }}</div>
+              <div class="dtb-chips">
+                <span v-for="p in detail.phrases" :key="p" class="dtb-chip dtb-chip-p">{{ p }}</span>
+              </div>
+            </div>
+            <p v-if="!(detail.collocations || []).length && !(detail.phrases || []).length" class="dtb-empty">{{ t('views.wordBook.tabEmpty') }}</p>
+          </template>
+
+          <!-- 派生 -->
+          <template v-else-if="detailTab === 'derived'">
+            <div class="dtb-sec" v-if="detail.derived && detail.derived.length">
+              <div v-for="(dv, i) in detail.derived" :key="i" class="dtb-row">
+                <span class="dtb-word">{{ dv.word }}</span>
+                <span class="dtb-mean">{{ dv.meaning }}</span>
+              </div>
+            </div>
+            <p v-else class="dtb-empty">{{ t('views.wordBook.tabEmpty') }}</p>
+          </template>
+
+          <!-- 词根（词根词缀 + 音节 + 助记） -->
+          <template v-else-if="detailTab === 'root'">
+            <div class="dtb-sec" v-if="detail.rootAffix">
+              <div class="ds-label">{{ t('views.wordBook.detailRootAffix') }}</div>
+              <p class="dtb-text">{{ detail.rootAffix }}</p>
+            </div>
+            <div class="dtb-sec" v-if="detail.syllable">
+              <div class="ds-label">{{ t('views.wordBook.detailSyllable') }}</div>
+              <p class="dtb-text">{{ detail.syllable }}</p>
+            </div>
+            <div class="dtb-sec" v-if="detail.mnemonics && detail.mnemonics.length">
+              <div class="ds-label">{{ t('views.wordBook.detailMnemonics') }}</div>
+              <p class="dtb-text">{{ detail.mnemonics.join('；') }}</p>
+            </div>
+            <p v-if="!detail.rootAffix && !detail.syllable && !(detail.mnemonics || []).length" class="dtb-empty">{{ t('views.wordBook.tabEmpty') }}</p>
+          </template>
+
+          <!-- 近义（同义词 + 易混淆） -->
+          <template v-else-if="detailTab === 'synonyms'">
+            <div class="dtb-sec" v-if="detail.synonyms && detail.synonyms.length">
+              <div class="ds-label">{{ t('views.wordBook.detailSynonyms') }}</div>
+              <div class="dtb-chips">
+                <span v-for="s in detail.synonyms" :key="s" class="dtb-chip">{{ s }}</span>
+              </div>
+            </div>
+            <div class="dtb-sec" v-if="detail.confusions && detail.confusions.length">
+              <div class="ds-label">{{ t('views.wordBook.detailConfusions') }}</div>
+              <div v-for="(cf, i) in detail.confusions" :key="i" class="dtb-row">
+                <span class="dtb-word">{{ cf.word }}</span>
+                <span class="dtb-mean">{{ cf.meaning }}</span>
+              </div>
+            </div>
+            <p v-if="!(detail.synonyms || []).length && !(detail.confusions || []).length" class="dtb-empty">{{ t('views.wordBook.tabEmpty') }}</p>
+          </template>
         </div>
 
         <div class="detail-foot">

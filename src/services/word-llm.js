@@ -1,5 +1,6 @@
 // 英语单词 AI 生成服务
-// 功能：用户只输入单词 → 自动生成同义词 / 相关词组 / 短语 / 2 种难度的例句（简单句 / 长难句）
+// 功能：用户只输入单词 → 自动生成同义词 / 相关词组 / 短语 / 派生词 / 音节 / 词根词缀 /
+//      多义项释义 / 2 种难度的例句（简单句 / 长难句）
 // 设计：
 //   1. 优先复用项目 agent 系统（如果 ctx.agent 可用）；
 //   2. 降级到用户自填 LLM Key（豆包/DeepSeek/OpenAI 兼容）；
@@ -46,7 +47,9 @@ function buildPrompt(word, opts) {
     `1. 全部内容为原创教学素材，不得照搬任何教材原文、考题节选、词典释义原句；`,
     `2. 同义词 (synonyms) 4-6 个；词组搭配 (collocations) 4-6 个；相关短语 (phrases) 2-4 个；`,
     `3. 例句 (examples) 必须覆盖难度：${only}，每条对应：${Object.entries(levelNotes).map(([k, v]) => `${k}=${v}`).join('；')}`,
-    `4. 输出严格 JSON（不要 Markdown 代码块、不要多余文字、不要注释）：`,
+    `4. syllable 用「·」分隔音节（如 al·ter·na·tive）；defs 按词性拆多义项；`,
+    `5. derived 是派生词/相关词形 2-5 个（[{word,meaning}]，含简要中文释义）；rootAffix 给词根词缀拆解；`,
+    `6. 输出严格 JSON（不要 Markdown 代码块、不要多余文字、不要注释）：`,
     SCHEMA_OUTPUT,
   ].join('\n');
 }
@@ -191,9 +194,23 @@ function parseJsonSafe(raw) {
 
 function normalize(data, levels) {
   const out = {
+    syllable: typeof data.syllable === 'string' ? data.syllable.trim() : '',
+    defs: Array.isArray(data.defs)
+      ? data.defs
+          .filter((d) => d && (d.pos || d.meaning))
+          .slice(0, 6)
+          .map((d) => ({ pos: String(d.pos || '').trim(), meaning: String(d.meaning || '').trim() }))
+      : [],
     synonyms: Array.isArray(data.synonyms) ? data.synonyms.slice(0, 6).map(String) : [],
     collocations: Array.isArray(data.collocations) ? data.collocations.slice(0, 6).map(String) : [],
     phrases: Array.isArray(data.phrases) ? data.phrases.slice(0, 4).map(String) : [],
+    derived: Array.isArray(data.derived)
+      ? data.derived
+          .filter((d) => d && d.word)
+          .slice(0, 5)
+          .map((d) => ({ word: String(d.word).trim(), meaning: String(d.meaning || '').trim() }))
+      : [],
+    rootAffix: typeof data.rootAffix === 'string' ? data.rootAffix.trim() : '',
     examples: [],
     pos: typeof data.pos === 'string' ? data.pos : '',
     mnemonic: typeof data.mnemonic === 'string' ? data.mnemonic : '',

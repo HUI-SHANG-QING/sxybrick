@@ -108,6 +108,7 @@ export async function attachWordSelfExplanation(reviewId, text) {
 const EXT_FIELDS = [
   'pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples',
   'mnemonics', 'rootAffix', 'confusions', 'syllable', 'audio',
+  'derived', // v27：派生词 [{word, meaning}]（详情卡「派生」Tab 数据源，AI 生成填充）
 ];
 // round18 R18-1 防回归闸：导出给测试断言「repo 层扩展字段清单」与「同步层
 // WORD_EXT_FIELDS」的差集只允许由用户内容字段构成（见 tests/round18-regression.test.mjs）。
@@ -417,6 +418,36 @@ export async function wordReviewedToday() {
 }
 export async function wordReviewedTotal() {
   return db.wordReviews.count();
+}
+
+// ---------- 学习时长（wordStudyLog：id=`t-${date}`，date=YYYY-MM-DD，ms 当日累计） ----------
+// 仅本机累计（不进同步）：时长是设备使用语境数据，跨设备相加会虚增同一人的实际学习时间。
+// 写入侧（WordReview.commit）每答一题累加一次，单次增量封顶 5 分钟——防挂机页面虚增时长。
+const STUDY_TIME_MAX_DELTA = 5 * 60 * 1000;
+export async function recordWordStudyTime(deltaMs) {
+  const ms = Math.max(0, Math.min(Number(deltaMs) || 0, STUDY_TIME_MAX_DELTA));
+  if (!ms) return 0;
+  const date = todayStr();
+  const id = `t-${date}`;
+  await db.transaction('rw', db.wordStudyLog, async () => {
+    const cur = await db.wordStudyLog.get(id);
+    await db.wordStudyLog.put({
+      id, date,
+      ms: (cur?.ms || 0) + ms,
+      updatedAt: now(),
+    });
+  });
+  return ms;
+}
+// 今日学习时长（毫秒）
+export async function wordStudyTimeToday() {
+  const row = await db.wordStudyLog.get(`t-${todayStr()}`);
+  return row?.ms || 0;
+}
+// 累计学习时长（毫秒）——全表 ms 求和
+export async function wordStudyTimeTotal() {
+  const rows = await db.wordStudyLog.toArray();
+  return rows.reduce((s, r) => s + (r?.ms || 0), 0);
 }
 
 // ---------- 设置（wordSettings：单行 id='me'） ----------

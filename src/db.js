@@ -263,6 +263,23 @@ d.version(26).stores({
   wordSyllabusMeta: 'id',
 });
 
+// v27：英语模块对标成熟单词 App 补全
+//   wordCards 扩展字段（非索引）：derived(派生词数组[{word,meaning}]，与 rootAffix/syllable 配套)
+//   wordStudyLog：学习时长流水（id=`t-${date}`, date, ms 当日累计毫秒, updatedAt）。
+//     仅本机（EXCLUDED_FROM_SYNC）：时长按设备使用语境累计，跨设备相加会虚增
+//     （同一人在两台设备交替学与同步串数据不同），与 wordExportHistory 同口径。
+d.version(27).stores({
+  wordCards: 'id, kind, subject, dueAt, updatedAt, createdAt, familiar',
+  wordReviews: 'id, cardId, reviewedAt',
+  wordGroups: 'id, name, status, sortOrder, createdAt, updatedAt',
+  wordGroupLinks: 'id, cardId, groupId, addedAt',
+  wordSettings: 'id',
+  wordCheckins: 'id, date',
+  wordExportHistory: 'id, createdAt',
+  wordSyllabusMeta: 'id',
+  wordStudyLog: 'id, date',
+});
+
 } // end defineSchema
 
 // 两个实例各自应用全量 schema（惰性 open：首次访问才真正连接 IndexedDB）

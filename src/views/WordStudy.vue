@@ -3,7 +3,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
-import { wordStats, getWordSettings, wordCheckinStreak, wordCheckinCalendar, wordReviewedToday, wordReviewedTotal, todayStr } from '../word-repo.js';
+import { wordStats, getWordSettings, wordCheckinStreak, wordCheckinCalendar, wordReviewedToday, wordReviewedTotal, todayStr, wordStudyTimeToday, wordStudyTimeTotal, listWordCards } from '../word-repo.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
 
 const router = useRouter();
@@ -13,6 +13,12 @@ const streak = ref(0);
 const calendar = ref([]);
 const reviewedToday = ref(0);
 const reviewedTotal = ref(0);
+// 时长统计（图2：今日总时长 / 累计时长，单位分钟，v27 wordStudyLog）
+const timeToday = ref(0);
+const timeTotal = ref(0);
+// 计划进度（图2：已学习 X / 总词数 Y + 进度条）
+const learnedCount = ref(0);
+const totalCount = ref(0);
 
 // 掌握度分布（按 level 与 interval 估算）
 const mastery = ref({ new: 0, learning: 0, familiar: 0, mastered: 0 });
@@ -24,16 +30,21 @@ async function load() {
   calendar.value = await wordCheckinCalendar(35);
   reviewedToday.value = await wordReviewedToday();
   reviewedTotal.value = await wordReviewedTotal();
+  timeToday.value = Math.round(await wordStudyTimeToday() / 60000);
+  timeTotal.value = Math.round(await wordStudyTimeTotal() / 60000);
 
-  const all = await (await import('../word-repo.js')).listWordCards();
-  let n = 0, l = 0, f = 0, m = 0;
+  const all = await listWordCards();
+  let n = 0, l = 0, f = 0, m = 0, learned = 0;
   for (const c of all) {
     if (c.kind === 'template') continue;
+    if ((c.reviewedAt || 0) > 0) learned++;
     if (c.familiar) { f++; continue; }
     if ((c.reviewedAt || 0) === 0) { n++; continue; }
     if ((c.intervalDays || 0) >= 21 || (c.level || 0) >= 4) m++;
     else l++;
   }
+  learnedCount.value = learned;
+  totalCount.value = n + l + f + m;
   mastery.value = { new: n, learning: l, familiar: f, mastered: m };
 }
 
@@ -71,6 +82,18 @@ onMounted(async () => { await load(); await buildTrend(); });
     </div>
 
     <div class="study-body" v-if="stats">
+      <!-- 学习计划（图2：已学习 X / 总词数 Y + 进度条） -->
+      <section class="block plan-block">
+        <h2>{{ t('views.wordStudy.planTitle') }}</h2>
+        <div class="plan-nums">
+          <span class="pn-learned">{{ t('views.wordStudy.planLearned', undefined, { n: learnedCount }) }}</span>
+          <span class="pn-total">/ {{ t('views.wordStudy.planTotal', undefined, { n: totalCount }) }}</span>
+        </div>
+        <div class="plan-bar">
+          <div class="plan-bar-fill" :style="{ width: (totalCount ? Math.min(100, Math.round(learnedCount / totalCount * 100)) : 0) + '%' }"></div>
+        </div>
+      </section>
+
       <!-- 今日 -->
       <section class="block">
         <h2>{{ t('views.wordStudy.todayTitle') }}</h2>
@@ -78,6 +101,7 @@ onMounted(async () => { await load(); await buildTrend(); });
           <div class="mini"><b>{{ reviewedToday }}</b><span>{{ t('views.wordStudy.todayReviewed') }}</span></div>
           <div class="mini"><b>{{ stats.newToday }}</b><span>{{ t('views.wordStudy.todayNew') }}</span></div>
           <div class="mini"><b>{{ settings?.dailyGoal || 20 }}</b><span>{{ t('views.wordStudy.todayGoal') }}</span></div>
+          <div class="mini"><b>{{ timeToday }}</b><span>{{ t('views.wordStudy.timeToday') }}</span></div>
         </div>
       </section>
 
@@ -90,6 +114,7 @@ onMounted(async () => { await load(); await buildTrend(); });
           <div class="mini"><b>{{ stats.mastered }}</b><span>{{ t('views.wordStudy.totalMastered') }}</span></div>
           <div class="mini"><b>{{ stats.familiar }}</b><span>{{ t('views.wordStudy.totalFamiliar') }}</span></div>
           <div class="mini"><b>{{ stats.templates }}</b><span>{{ t('views.wordStudy.totalTemplates') }}</span></div>
+          <div class="mini"><b>{{ timeTotal }}</b><span>{{ t('views.wordStudy.timeTotal') }}</span></div>
         </div>
       </section>
 
@@ -148,10 +173,18 @@ onMounted(async () => { await load(); await buildTrend(); });
 .study-body { padding: 8px 16px; display: flex; flex-direction: column; gap: 14px; }
 .block { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
 .block h2 { margin: 0 0 10px; font-size: 14px; color: var(--ink); }
-.mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mini-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 520px) { .mini-grid { grid-template-columns: repeat(2, 1fr); } }
 .mini { background: var(--bg, #f6f7fb); border-radius: 12px; padding: 12px 8px; text-align: center; }
 .mini b { display: block; font-size: 20px; color: var(--ink); }
 .mini span { font-size: 11px; color: var(--ink-2); }
+
+/* 学习计划进度条 */
+.plan-nums { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
+.pn-learned { font-size: 22px; font-weight: 700; color: var(--accent); }
+.pn-total { font-size: 13px; color: var(--ink-2); }
+.plan-bar { height: 8px; background: var(--line); border-radius: 6px; overflow: hidden; }
+.plan-bar-fill { height: 100%; background: var(--accent); transition: width .4s; }
 
 .m-bar { display: flex; height: 16px; border-radius: 8px; overflow: hidden; }
 .m-seg { height: 100%; }

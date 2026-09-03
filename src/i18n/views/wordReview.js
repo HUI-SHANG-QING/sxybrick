@@ -103,6 +103,23 @@ export const zh = {
   againReview: '再来一轮',
   commitFailed: '复习结果保存失败，请重试',
 
+  // 拼写收尾页（图5）
+  spellFinishTitle: '继续拼写，加强记忆',
+  spellFilteredHint: '已为你过滤标熟单词',
+  spellAll: '拼写全部',
+  spellAllCount: '{n} 词',
+  spellWrong: '拼写错误',
+  spellWrongCount: '{n} 词',
+  spellSkip: '跳过拼写',
+  spellNoCards: '没有可重拼的单词（均已标熟）',
+
+  // 小结页（图6）
+  stFamiliar: '已标熟',
+  stDone: '复习完成',
+  stDays: '{n} 天后复习',
+  todayReviewed: '今日已复习 {n} 词',
+  todayRemaining: '还剩 {n} 词',
+
   // 题干生成占位
   optionA: 'A', optionB: 'B', optionC: 'C', optionD: 'D',
 };
@@ -201,6 +218,23 @@ export const en = {
   sessionDoneHint: 'Nice work! Reviewed {n} cards. View them in the Word Book or do another round.',
   againReview: 'Another round',
   commitFailed: 'Failed to save review result, please retry',
+
+  // Spell finish (image 5)
+  spellFinishTitle: 'Keep spelling to reinforce',
+  spellFilteredHint: 'Familiar words are filtered out for you',
+  spellAll: 'Spell all',
+  spellAllCount: '{n} words',
+  spellWrong: 'Spell mistakes',
+  spellWrongCount: '{n} words',
+  spellSkip: 'Skip spelling',
+  spellNoCards: 'No words to re-spell (all marked familiar)',
+
+  // Summary (image 6)
+  stFamiliar: 'Familiar',
+  stDone: 'Completed',
+  stDays: 'in {n} days',
+  todayReviewed: 'Reviewed {n} today',
+  todayRemaining: '{n} left',
 
   optionA: 'A', optionB: 'B', optionC: 'C', optionD: 'D',
 };

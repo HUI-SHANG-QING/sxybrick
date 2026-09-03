@@ -8,6 +8,11 @@ export const zh = {
   todayReviewed: '今日已背',
   todayNew: '今日新学',
   todayGoal: '新学目标',
+  timeToday: '今日时长（分）',
+
+  planTitle: '学习计划',
+  planLearned: '已学习 {n} 词',
+  planTotal: '总词数 {n}',
 
   totalTitle: '累计',
   totalCards: '单词总数',
@@ -15,6 +20,7 @@ export const zh = {
   totalMastered: '已掌握',
   totalFamiliar: '熟词',
   totalTemplates: '范文',
+  timeTotal: '累计时长（分）',
 
   masteryTitle: '掌握度分布',
   levelNew: '新词',
@@ -48,6 +54,11 @@ export const en = {
   todayReviewed: 'Reviewed today',
   todayNew: 'New today',
   todayGoal: 'New goal',
+  timeToday: 'Today (min)',
+
+  planTitle: 'Plan',
+  planLearned: 'Learned {n} words',
+  planTotal: 'of {n} total',
 
   totalTitle: 'Total',
   totalCards: 'Total words',
@@ -55,6 +66,7 @@ export const en = {
   totalMastered: 'Mastered',
   totalFamiliar: 'Familiar',
   totalTemplates: 'Templates',
+  timeTotal: 'Total (min)',
 
   masteryTitle: 'Mastery distribution',
   levelNew: 'New',

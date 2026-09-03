@@ -41,6 +41,7 @@ export const zh = {
 
   // 模块导航
   navBook: '单词本',
+  navLearned: '全部已学',
   navGroups: '词组',
   navStudy: '学习统计',
   navExport: '导出',
@@ -85,6 +86,7 @@ export const en = {
   quickExport: 'Export',
 
   navBook: 'Word Book',
+  navLearned: 'All Learned',
   navGroups: 'Groups',
   navStudy: 'Stats',
   navExport: 'Export',

@@ -17,6 +17,8 @@ export const BACKUP_VERSION = 7;
 // wordExportHistory：英语模块导出历史（仅本机记录，跨设备无意义且增大包体积）
 export const EXCLUDED_FROM_SYNC = [
   'notifications', 'errors', 'snapshots', 'plugins', 'aiUsage', 'wordExportHistory',
+  // v27：英语学习时长流水——本机使用语境累计，跨设备相加会虚增，不同步
+  'wordStudyLog',
   // round15 P2：本地表补登记（此前在 db 存在但不进同步、也不在排除清单——
   // 破坏「清单 = 唯一事实来源」不变量，未来误加 SYNC_TABLES 无防护）。
   //   docTexts：解析全文（大字段，id 与 docFiles 一一对应）
@@ -37,7 +39,7 @@ export const PRIVACY_SYNC_TABLES = [
 // 注意：用户可编辑文本（word/meaning/example/note/tags/source/subject）不在其中，
 // 仍按 updatedAt 内容赢家语义正常传播删除/修改。
 // ⚠️ 必须声明在 SYNC_TABLES 之前（SYNC_TABLES 的 wordCards 条目引用了它，TDZ 约束）。
-export const WORD_EXT_FIELDS = ['pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples', 'mnemonics', 'rootAffix', 'confusions', 'syllable'];
+export const WORD_EXT_FIELDS = ['pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples', 'mnemonics', 'rootAffix', 'confusions', 'syllable', 'derived'];
 
 export const SYNC_TABLES = [
   { table: 'cards', kind: 'card', merge: 'card' },

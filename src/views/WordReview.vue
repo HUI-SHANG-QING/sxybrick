@@ -3,6 +3,12 @@
 // 默认模式 adaptive：先看词 → 手动揭释义 → 认识/模糊/忘记；
 //   若选「忘记」，立即切到 4 选 1 强化一遍（两段式）。
 // 其余 12 种模式由 mode 决定出题与判分方式。
+// 对标成熟单词 App 补全（v27）：
+//   · 闪卡/自适应题干带音标（看词 → 音标 → 揭释义）
+//   · 进度计数 N/M（图3 的 0/20）
+//   · 学习时长记录（wordStudyLog，每题累加、单次封顶 5 分钟）
+//   · 拼写类模式收尾页（图5：拼写全部/拼写错误/跳过，过滤标熟）
+//   · 小结页（图6：每词下次复习时间 + 今日已复习 X 词还剩 Y 词）
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
@@ -11,6 +17,7 @@ import { toast } from '../utils/toast.js';
 import { speak, speechSupported } from '../utils/speak.js';
 import {
   dueWordCards, listWordCards, reviewWord, getWordSettings, listWordGroups,
+  wordStats, wordReviewedToday, recordWordStudyTime,
 } from '../word-repo.js';
 
 const route = useRoute();
@@ -38,6 +45,15 @@ const input = ref('');
 
 const result = ref(null); // {correct, rating}
 const sessionCount = ref(0);
+
+// ---- 会话级追踪（拼写收尾 + 小结 + 学习时长，v27） ----
+// 拼写类模式：结束后进「继续拼写」收尾页（拼写全部/拼写错误/跳过）
+const SPELL_MODES = ['spell', 'listenSpell', 'cloze', 'sentenceCloze'];
+const wrongCards = ref([]);        // 本轮答错的卡（重拼写用）
+// 每题日志：{word, dueAt, intervalDays, level, familiar} —— 小结页「N天后复习/复习完成」数据源
+const sessionLog = ref([]);
+let lastActiveTs = 0;              // 上次活跃时刻（学习时长增量分母）
+const doneStats = ref(null);       // {reviewedToday, remaining} 小结页底部统计
 
 const MODES = [
   { id: 'adaptive', label: t('views.wordReview.modeAdaptive'), hint: t('views.wordReview.hintAdaptive') },
@@ -189,10 +205,25 @@ async function submitText() {
 
 async function commit(rating) {
   const c = current.value;
+  const t0 = Date.now();
   if (c && c.kind !== 'template') {
     try {
-      await reviewWord(c.id, rating);
+      const res = await reviewWord(c.id, rating);
       sessionCount.value++;
+      // 会话日志：记录调度后的下次到期/间隔/级别，供小结页展示「N天后复习 / 复习完成」
+      sessionLog.value.push({
+        word: c.word,
+        dueAt: res?.dueAt ?? null,
+        intervalDays: res?.intervalDays ?? 0,
+        level: res?.level ?? 0,
+        familiar: !!c.familiar,
+      });
+      // 答错（0 档）记入错词集，拼写收尾页「拼写错误」用
+      if (!rating) wrongCards.value.push(c);
+      // 学习时长：本答间隔封顶 5 分钟（recordWordStudyTime 内截断），静默失败不影响主流程
+      const delta = Date.now() - lastActiveTs;
+      lastActiveTs = Date.now();
+      try { await recordWordStudyTime(delta); } catch { /* 时长记录失败不影响复习 */ }
     } catch (e) {
       // round17 R17-35：写库失败不再静默吞——否则用户已评级但 dueAt 未推进，
       // 词下次重复出现、调度状态与 UI 不一致
@@ -205,9 +236,55 @@ async function commit(rating) {
 }
 
 function next() {
-  if (idx.value >= queue.value.length - 1) { phase.value = 'done'; return; }
+  if (idx.value >= queue.value.length - 1) { finishSession(); return; }
   idx.value++;
   setupQuestion();
+}
+
+// 一轮结束：拼写类模式 → 「继续拼写」收尾页；其余 → 小结页
+async function finishSession() {
+  lastActiveTs = Date.now();
+  if (SPELL_MODES.includes(mode.value)) {
+    phase.value = 'spellFinish';
+    return;
+  }
+  await showSummary();
+}
+
+// 拼写收尾页（图5）：拼写全部 / 拼写错误 / 跳过
+// 重拼写队列过滤标熟（familiar=1）——标熟词刻意不再消耗时间（图5「已为你过滤标熟单词」）
+function restartSpell(kind) {
+  let rows;
+  if (kind === 'wrong') rows = wrongCards.value.filter((c) => !c.familiar);
+  else rows = queue.value.filter((c) => !c.familiar);
+  if (!rows.length) { toast(t('views.wordReview.spellNoCards'), 'info'); return; }
+  queue.value = rows;
+  idx.value = 0;
+  lastActiveTs = Date.now();
+  phase.value = 'question';
+  setupQuestion();
+}
+
+// 小结页（图6）：每词下次复习时间 + 今日已复习 X 词 · 还剩 Y 词
+async function showSummary() {
+  phase.value = 'done';
+  try {
+    const [s, rt] = await Promise.all([wordStats(), wordReviewedToday()]);
+    doneStats.value = { reviewedToday: rt, remaining: s.due };
+  } catch {
+    doneStats.value = null;
+  }
+}
+
+// 小结页每词状态文本：已标熟 > 复习完成（间隔≥21天或级别≥4）> N天后复习
+function nextReviewText(log) {
+  if (log.familiar) return { text: t('views.wordReview.stFamiliar'), cls: 'st-fam' };
+  if ((log.intervalDays || 0) >= 21 || (log.level || 0) >= 4) {
+    return { text: t('views.wordReview.stDone'), cls: 'st-done' };
+  }
+  if (!log.dueAt) return { text: '—', cls: 'st-wait' };
+  const days = Math.max(1, Math.ceil((log.dueAt - Date.now()) / 86400000));
+  return { text: t('views.wordReview.stDays', undefined, { n: days }), cls: 'st-wait' };
 }
 
 function restart() { phase.value = 'setup'; }
@@ -263,8 +340,9 @@ const speakSupported = speechSupported();
     </div>
 
     <!-- 复习中 -->
-    <div v-else-if="phase !== 'done'" class="wr-stage">
+    <div v-else-if="phase !== 'done' && phase !== 'spellFinish'" class="wr-stage">
       <div class="wr-progress">
+        <span class="wr-count">{{ idx + 1 }}/{{ queue.length }}</span>
         <div class="wr-bar"><div class="wr-bar-fill" :style="{ width: progressPct + '%' }"></div></div>
         <span class="wr-left">{{ t('views.wordReview.remainingLabel') }} {{ remaining }} · {{ t('views.wordReview.countLabel', undefined, { total: queue.length }) }}</span>
       </div>
@@ -276,10 +354,14 @@ const speakSupported = speechSupported();
             <button class="q-spk" @click="speak(current.word, { lang: accentLang() })">🔊 {{ t('views.wordReview.replay') }}</button>
           </div>
 
-          <!-- 不背式 / 闪卡：显示英文词 -->
+          <!-- 不背式 / 闪卡：显示英文词 + 音标（图3：看词 → 音标 → 揭释义） -->
           <div v-if="['adaptive','flashcard','choice','spell','readAloud','quiz'].includes(mode)" class="q-word">
-            {{ current.word }}
-            <button class="q-spk2" @click="speak(current.word, { lang: accentLang() })">🔊</button>
+            <div class="q-word-text">{{ current.word }}</div>
+            <div v-if="current.phonetic" class="q-phon">
+              /{{ current.phonetic }}/
+              <button class="q-spk2" @click="speak(current.word, { lang: accentLang() })">🔊</button>
+            </div>
+            <button v-else class="q-spk2" @click="speak(current.word, { lang: accentLang() })">🔊</button>
           </div>
 
           <!-- 反向 / 英英 / 词组：显示释义或提示 -->
@@ -354,11 +436,44 @@ const speakSupported = speechSupported();
       </div>
     </div>
 
-    <!-- 完成 -->
-    <div v-else class="wr-done">
+    <!-- 拼写收尾（图5）：继续拼写加强记忆 -->
+    <div v-else-if="phase === 'spellFinish'" class="wr-done wr-spellfinish">
+      <div class="done-emoji">✍️</div>
+      <h2>{{ t('views.wordReview.spellFinishTitle') }}</h2>
+      <p class="sf-filtered">{{ t('views.wordReview.spellFilteredHint') }}</p>
+      <div class="sf-actions">
+        <button class="sf-btn" @click="restartSpell('all')">
+          <b>{{ t('views.wordReview.spellAll') }}</b>
+          <span>{{ t('views.wordReview.spellAllCount', undefined, { n: queue.filter(c => !c.familiar).length }) }}</span>
+        </button>
+        <button class="sf-btn" :disabled="!wrongCards.filter(c => !c.familiar).length" @click="restartSpell('wrong')">
+          <b>{{ t('views.wordReview.spellWrong') }}</b>
+          <span>{{ t('views.wordReview.spellWrongCount', undefined, { n: wrongCards.filter(c => !c.familiar).length }) }}</span>
+        </button>
+        <button class="sf-btn sf-skip" @click="showSummary">
+          <b>{{ t('views.wordReview.spellSkip') }}</b>
+        </button>
+      </div>
+    </div>
+
+    <!-- 小结（图6）：每词下次复习时间 + 今日已复习 X 词 · 还剩 Y 词 -->
+    <div v-else class="wr-done wr-summary">
       <div class="done-emoji">🎉</div>
       <h2>{{ t('views.wordReview.sessionDone') }}</h2>
       <p>{{ t('views.wordReview.sessionDoneHint', undefined, { n: sessionCount }) }}</p>
+
+      <div class="sum-list" v-if="sessionLog.length">
+        <div v-for="(lg, i) in sessionLog" :key="i" class="sum-row">
+          <span class="sum-word">{{ lg.word }}</span>
+          <span class="sum-st" :class="nextReviewText(lg).cls">{{ nextReviewText(lg).text }}</span>
+        </div>
+      </div>
+
+      <div class="sum-stats" v-if="doneStats">
+        {{ t('views.wordReview.todayReviewed', undefined, { n: doneStats.reviewedToday }) }}
+        · {{ t('views.wordReview.todayRemaining', undefined, { n: doneStats.remaining }) }}
+      </div>
+
       <div class="done-actions">
         <button class="btn-ghost" @click="restart">{{ t('views.wordReview.againReview') }}</button>
         <button class="btn-primary" @click="goBook">{{ t('views.wordReview.nextCard') }}</button>
@@ -386,13 +501,16 @@ const speakSupported = speechSupported();
 .wr-start { width: 100%; border: none; background: var(--accent); color: #fff; border-radius: 12px; padding: 13px; font-size: 15px; cursor: pointer; }
 
 .wr-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.wr-count { font-size: 12px; font-weight: 700; color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .wr-bar { flex: 1; height: 6px; background: var(--line); border-radius: 4px; overflow: hidden; }
 .wr-bar-fill { height: 100%; background: var(--accent); transition: width .3s; }
 .wr-left { font-size: 11px; color: var(--ink-2); white-space: nowrap; }
 
 .card-flip { background: var(--panel); border: 1px solid var(--line); border-radius: 20px; padding: 22px 18px; min-height: 320px; display: flex; flex-direction: column; }
 .q-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
-.q-word { font-size: 34px; font-weight: 700; color: var(--ink); }
+.q-word { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.q-word-text { font-size: 34px; font-weight: 700; color: var(--ink); }
+.q-phon { font-size: 15px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
 .q-spk2 { border: none; background: transparent; cursor: pointer; font-size: 22px; margin-left: 8px; vertical-align: middle; }
 .q-prompt { font-size: 22px; color: var(--ink); }
 .q-listen .q-spk { border: 1px solid var(--line); background: transparent; border-radius: 12px; padding: 12px 18px; font-size: 15px; cursor: pointer; color: var(--ink); }
