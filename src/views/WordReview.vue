@@ -142,19 +142,35 @@ function setupQuestion() {
   const c = current.value;
   if (!c) { phase.value = 'done'; return; }
   phase.value = 'question';
-  // 听音类模式：自动朗读
-  if (mode.value === 'listenChoice' || mode.value === 'listenSpell') speak(c.word, { lang: accentLang() });
+  // 听音类模式 + 跟读朗读：进入即自动朗读一遍（跟读模式契约要求「听发音并大声跟读」）
+  if (['listenChoice', 'listenSpell', 'readAloud'].includes(mode.value)) {
+    speak(c.word, { lang: accentLang() });
+  }
+  // 综合选择题：每题随机方向，避免与「看词选义」完全重复（此前 quiz 固定看词选义 = 与 choice 同题）
+  if (mode.value === 'quiz') quizDir.value = Math.random() < 0.5 ? 'en2zh' : 'zh2en';
   // 选择题 / 反向 / 英英 / 词组 / 综合：预生成选项
-  // pickMeaning=true → 题干显示英文词，选项列释义（看词选义）；false → 题干显示释义/英英，选项列单词（看义选词）。
+  // pickMeaning=true → 题干显示英文词，选项列释义（看词选义）；false → 题干显示释义，选项列单词（看义选词）。
   // 此前把 reverseChoice/englishEnglish 误设为 pickMeaning=true，导致题干与选项同为英文/同为释义，答案倒挂。
   if (['choice', 'listenChoice', 'reverseChoice', 'englishEnglish', 'collocations', 'quiz'].includes(mode.value)) {
-    const pickMeaning = ['choice', 'listenChoice', 'quiz'].includes(mode.value);
+    const pickMeaning = ['choice', 'listenChoice'].includes(mode.value)
+      || (mode.value === 'quiz' && quizDir.value === 'en2zh');
     options.value = buildChoices(c, pickMeaning);
   }
   // 挖空拼写：生成带缺口词形
   if (mode.value === 'cloze') prepareCloze(c);
   if (mode.value === 'sentenceCloze') prepareSentenceCloze(c);
+  if (mode.value === 'englishEnglish') prepareEnglishEnglish(c);
+  if (mode.value === 'collocations') prepareCollocations(c);
 }
+
+// 词组搭配提示 / 英英释义提示（构造出的题干，避免直接显示答案造成"题目空白"或答案泄露）
+const collocMeaning = ref('');   // 搭配模式的中文释义
+const collocPrompt = ref('');    // 搭配提示（目标词已挖空）
+const collocFallback = ref(false); // 无搭配数据
+const eePrompt = ref('');        // 英英模式的英文提示
+const eeFallback = ref(false);   // 无英文素材，已退回中文释义
+// 综合选择题：每题在「看词选义 / 看义选词」间随机，体现"综合"（否则与"看词选义"完全重复）
+const quizDir = ref('en2zh');
 
 function accentLang() { return settings.value?.accent === 'auto' ? 'en-US' : (settings.value?.accent || 'en-US'); }
 
@@ -187,6 +203,54 @@ function prepareSentenceCloze(c) {
     sentenceClozeText.value = ex.sentence.replace(new RegExp(escapeRegExp(c.word), 'gi'), '____');
   } catch {
     sentenceClozeText.value = ex.sentence; // 挖空失败：保留原句，不阻塞会话
+  }
+}
+
+/**
+ * 英英释义：题干必须是「英文释义/英文语境」，绝不能直接显示 word 本身（等于泄露答案）。
+ * 素材优先级：英文同义词 → 英文例句语境（挖去目标词）→ 中文释义（显式标注退回）。
+ * 此前实现用 defs[].meaning（中文）甚至 word 兜底 → 既不符契约，又会在无数据时把答案摆在题干。
+ */
+function prepareEnglishEnglish(c) {
+  const w = String(c.word || '').trim();
+  let prompt = '';
+  const syn = (c.synonyms || []).map((s) => String(s).trim()).filter(Boolean);
+  if (syn.length) {
+    prompt = t('views.wordReview.eeSynonymPrefix') + syn.slice(0, 3).join(', ');
+    eeFallback.value = false;
+  } else {
+    const ex = (c.examples || []).map((e) => e?.sentence).find(Boolean) || String(c.example || '');
+    if (ex && w) {
+      try {
+        const masked = String(ex).replace(new RegExp(escapeRegExp(w), 'gi'), '____');
+        if (masked !== ex) { prompt = masked; eeFallback.value = false; }
+      } catch { /* 正则异常：改用兜底 */ }
+    }
+  }
+  if (!prompt) {
+    prompt = String(c.meaning || '').trim() || t('views.wordReview.noMeaningHint');
+    eeFallback.value = true;
+  }
+  eePrompt.value = prompt;
+}
+
+/**
+ * 词组搭配：题干 = 中文释义 + 搭配提示（搭配短语里的目标词挖空，避免泄露）。
+ * 无搭配数据时退回中文释义并显式标注，绝不显示空白。
+ */
+function prepareCollocations(c) {
+  const w = String(c.word || '').trim();
+  collocMeaning.value = String(c.meaning || '').trim() || t('views.wordReview.noMeaningHint');
+  const cols = (c.collocations || []).map((x) => String(x).trim()).filter(Boolean);
+  if (cols.length) {
+    collocPrompt.value = cols.slice(0, 2).map((s) => {
+      if (!w) return s;
+      try { return String(s).replace(new RegExp(escapeRegExp(w), 'gi'), '____'); } catch { return s; }
+    }).join(' / ');
+    collocFallback.value = false;
+  } else {
+    collocPrompt.value = '';
+    collocFallback.value = true;
   }
 }
 
@@ -342,6 +406,22 @@ const spellPlaceholder = computed(() => {
   }
   return '';
 });
+// 题干是否显示英文词（正面）：
+//   · 闪卡翻面后正面必须翻走，否则「翻面后仍显示英文单词」（契约：翻面看释义）
+//   · 综合选择题按本轮随机方向决定看词还是看义
+const showQWord = computed(() => {
+  if (mode.value === 'flashcard') return !revealed.value;
+  if (mode.value === 'quiz') return quizDir.value === 'en2zh';
+  return ['adaptive', 'flashcard', 'choice', 'spell', 'readAloud'].includes(mode.value);
+});
+// 综合选择题「看义选词」方向：题干显示中文释义
+const showQPromptZh = computed(() => mode.value === 'quiz' && quizDir.value === 'zh2en');
+// 答案区是否补显示英文词：题干已显示过词的不重复显示；闪卡翻面后、综合「看义选词」后需要补
+const showMsWord = computed(() => {
+  if (mode.value === 'flashcard') return revealed.value;
+  if (mode.value === 'quiz') return quizDir.value === 'zh2en';
+  return !['adaptive', 'choice', 'spell', 'readAloud'].includes(mode.value);
+});
 const speakSupported = speechSupported();
 </script>
 
@@ -394,8 +474,9 @@ const speakSupported = speechSupported();
             <button class="q-spk" @click="speak(current.word, { lang: accentLang() })">🔊 {{ t('views.wordReview.replay') }}</button>
           </div>
 
-          <!-- 不背式 / 闪卡：显示英文词 + 音标（图3：看词 → 音标 → 揭释义） -->
-          <div v-if="['adaptive','flashcard','choice','spell','readAloud','quiz'].includes(mode)" class="q-word">
+          <!-- 不背式 / 闪卡 / 看词类：显示英文词 + 音标（图3：看词 → 音标 → 揭释义） -->
+          <!-- showQWord：闪卡翻面后翻走英文词（正面翻面 = 看中文释义）；综合题按随机方向决定看词/看义 -->
+          <div v-if="showQWord" class="q-word">
             <div class="q-word-text">{{ current.word }}</div>
             <div v-if="current.phonetic" class="q-phon">
               /{{ current.phonetic }}/
@@ -404,10 +485,24 @@ const speakSupported = speechSupported();
             <button v-else class="q-spk2" @click="speak(current.word, { lang: accentLang() })">🔊</button>
           </div>
 
-          <!-- 反向 / 英英 / 词组：显示释义或提示（空值兜底） -->
+          <!-- 综合选择题「看义选词」方向：题干显示中文释义（与看词选义交替，体现"综合"） -->
+          <div v-if="showQPromptZh" class="q-prompt">{{ current.meaning || t('views.wordReview.noMeaningHint', '（该单词暂无释义）') }}</div>
+
+          <!-- 反向选择：题干显示中文释义 -->
           <div v-if="mode === 'reverseChoice'" class="q-prompt">{{ current.meaning || current.word || t('views.wordReview.noMeaningHint', '（该单词暂无释义）') }}</div>
-          <div v-if="mode === 'englishEnglish'" class="q-prompt">{{ current.defs?.length ? current.defs.map(d => d.meaning).join('; ') : (current.meaning || current.word || t('views.wordReview.noMeaningHint', '（该单词暂无释义）')) }}</div>
-          <div v-if="mode === 'collocations'" class="q-prompt">{{ current.meaning || current.word || t('views.wordReview.noMeaningHint', '（该单词暂无释义）') }}</div>
+
+          <!-- 英英释义：题干 = 英文素材（同义词/挖空例句），绝不显示 word 本身（泄露答案） -->
+          <div v-if="mode === 'englishEnglish'" class="q-prompt">
+            {{ eePrompt }}
+            <span v-if="eeFallback" class="fb-hint">{{ t('views.wordReview.eeFallbackHint', '（暂无英文释义素材，已退回中文提示）') }}</span>
+          </div>
+
+          <!-- 词组搭配：题干 = 中文释义 + 目标词挖空的搭配短语 -->
+          <div v-if="mode === 'collocations'" class="q-prompt cl-prompt">
+            <span class="cl-mean">{{ collocMeaning }}</span>
+            <span v-if="collocPrompt" class="cl-hint">{{ collocPrompt }}</span>
+            <span v-else class="fb-hint">{{ t('views.wordReview.collocFallbackHint', '（该词暂无搭配数据）') }}</span>
+          </div>
 
           <!-- 挖空拼写 -->
           <div v-if="mode === 'cloze'" class="q-cloze">{{ clozeWord }}</div>
@@ -423,8 +518,8 @@ const speakSupported = speechSupported();
 
         <!-- 答案区 -->
         <div class="q-answer">
-          <!-- 选择题 -->
-          <div v-if="['choice','listenChoice','reverseChoice','englishEnglish','collocations','quiz'].includes(mode) && (!revealed || adaptiveStage===2)" class="opts">
+          <!-- 选择题（含自适应两段式的第二段强化题——此前清单漏 'adaptive'，第二段切回 question 后选项区空白） -->
+          <div v-if="['choice','listenChoice','reverseChoice','englishEnglish','collocations','quiz'].includes(mode) || (mode==='adaptive' && adaptiveStage===2)" class="opts">
             <button v-for="(o, i) in options" :key="i" class="opt"
               :class="{ on: chosen===i, correct: result && result.correct && chosen===i, wrong: result && chosen===i && !result.correct }"
               :disabled="result" @click="chosen = i">{{ o.text }}</button>
@@ -443,9 +538,10 @@ const speakSupported = speechSupported();
             <p class="reveal-hint">{{ t('views.wordReview.adaptiveRevealHint') }}</p>
           </div>
 
-          <!-- 闪卡翻面 -->
+          <!-- 闪卡翻面：正面=英文词，翻面后 showQWord 翻走词、meaning-show 显示中文释义 -->
           <div v-if="(mode === 'flashcard') && !revealed" class="reveal-area">
             <button class="q-reveal" @click="reveal">{{ t('views.wordReview.reveal') }}</button>
+            <p class="reveal-hint">{{ t('views.wordReview.flipHint') }}</p>
           </div>
 
           <!-- 跟读自评 -->
@@ -454,9 +550,9 @@ const speakSupported = speechSupported();
           </div>
 
           <!-- 释义展示（揭开后 / 跟读） -->
-          <!-- adaptive/flashcard 已在 q-word 显示英文词，此处只显示中文释义，避免英文词重复出现 -->
+          <!-- showMsWord：题干没显示过英文词的模式（闪卡翻面后、反向/英英/搭配/听写/综合看义）在此补显词+音标 -->
           <div v-if="revealed || (mode==='readAloud' && result)" class="meaning-show">
-            <div v-if="!['adaptive','flashcard','choice','spell','readAloud','quiz'].includes(mode)" class="ms-word">{{ current.word }} <span v-if="current.phonetic" class="ms-phon">/{{ current.phonetic }}/</span></div>
+            <div v-if="showMsWord" class="ms-word">{{ current.word }} <span v-if="current.phonetic" class="ms-phon">/{{ current.phonetic }}/</span></div>
             <div class="ms-mean">{{ current.meaning || t('views.wordReview.noMeaningHint', '（该单词暂无释义）') }}</div>
             <div v-if="current.example" class="ms-ex">{{ current.example }} <span class="ms-ext">· {{ current.exampleTrans }}</span></div>
           </div>
@@ -560,6 +656,10 @@ const speakSupported = speechSupported();
 .q-phon { font-size: 15px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
 .q-spk2 { border: none; background: transparent; cursor: pointer; font-size: 22px; margin-left: 8px; vertical-align: middle; }
 .q-prompt { font-size: 22px; color: var(--ink); }
+.fb-hint { display: block; font-size: 12px; color: var(--ink-2); margin-top: 6px; font-weight: 400; }
+.cl-prompt { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.cl-mean { font-size: 20px; }
+.cl-hint { font-size: 15px; color: var(--ink-2); letter-spacing: 1px; }
 .q-listen .q-spk { border: 1px solid var(--line); background: transparent; border-radius: 12px; padding: 12px 18px; font-size: 15px; cursor: pointer; color: var(--ink); }
 .q-cloze { font-size: 30px; letter-spacing: 4px; color: var(--accent); font-family: monospace; }
 .q-sent { font-size: 16px; color: var(--ink); line-height: 1.8; }

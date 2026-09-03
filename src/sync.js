@@ -696,16 +696,26 @@ export async function importBackup(backup, opts = {}) {
   }
 
   // 2b) 图片：base64 解码为 Blob 后按 id 幂等写入（bulkGet 已存在 id + 一次 bulkPut，替代逐张 get/put）
+  // round18：逐张容错——base64ToBlob 对脏数据（截断/手改包/旧版带前缀）抛错发生在事务内，
+  // 一张坏图会让整个 31 表导入事务 AbortError 中止（同步模块报错的实证根因）。
+  // 坏图跳过 + console.warn，绝不阻断其余表与好图的合并。
   stats.images = 0;
   const incomingImgs = (backup.images || []).filter(img => img && img.id && img.data);
   if (incomingImgs.length) {
     const existing = await db.images.bulkGet(incomingImgs.map(i => i.id));
     const toAdd = [];
+    let badImgs = 0;
     incomingImgs.forEach((img, i) => {
       if (existing[i]) return;
-      toAdd.push({ id: img.id, blob: base64ToBlob(img.data, img.mime), mime: img.mime || 'image/png', createdAt: Date.now() });
+      try {
+        toAdd.push({ id: img.id, blob: base64ToBlob(img.data, img.mime), mime: img.mime || 'image/png', createdAt: Date.now() });
+      } catch (e) {
+        badImgs++;
+        console.warn('[sync] 跳过无法解码的图片', img.id, e?.message || e);
+      }
     });
     if (toAdd.length) { await db.images.bulkPut(toAdd); stats.images = toAdd.length; }
+    if (badImgs) stats.skippedImages = badImgs;
   }
 
   // 3) 卡片墓碑：删除卡片 + 级联删复习记录 + 清理孤儿图片

@@ -52,7 +52,15 @@ export async function putImage(id, blob, mime) {
 }
 
 export function base64ToBlob(b64, mime = 'image/png') {
-  const bin = atob(b64);
+  // round18：容错解码——容忍 data URL 前缀（"data:image/png;base64,xxx"）、
+  // 换行/空白（部分工具导出的 base64 带换行）。此前 atob 直接抛 "Invalid character"，
+  // 且该异常发生在 importBackup 事务内 → 整个 31 表导入大事务被中止，
+  // 用户侧表现为同步模块报 AbortError（"The transaction was aborted..."）。
+  let s = String(b64 || '').trim();
+  const comma = s.indexOf(',');
+  if (s.startsWith('data:') && comma > 0) s = s.slice(comma + 1);
+  s = s.replace(/\s+/g, '');
+  const bin = atob(s);
   const len = bin.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);

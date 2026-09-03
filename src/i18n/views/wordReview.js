@@ -94,6 +94,9 @@ export const zh = {
   wrongToast: '答错了',
   noTargetHint: '此单词缺少释义/拼写，无法判分，请跳过',
   noMeaningHint: '（该单词暂无释义）',
+  eeSynonymPrefix: '与以下词语义相近：',
+  eeFallbackHint: '（暂无英文释义素材，已退回中文提示）',
+  collocFallbackHint: '（该词暂无搭配数据）',
   partialToast: '部分正确',
 
   // 每卡动作
@@ -219,6 +222,9 @@ export const en = {
   wrongToast: 'Wrong',
   noTargetHint: 'This word is missing meaning/spelling, cannot grade — please skip',
   noMeaningHint: '(No meaning available for this word)',
+  eeSynonymPrefix: 'Close in meaning to: ',
+  eeFallbackHint: '(No English definition material — fell back to a Chinese hint)',
+  collocFallbackHint: '(No collocation data for this word)',
   partialToast: 'Partly correct',
 
   addFamiliar: 'Mark familiar',

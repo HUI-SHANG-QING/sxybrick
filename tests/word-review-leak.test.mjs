@@ -18,13 +18,16 @@ const SRC = new URL('../src', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/
 const src = readFileSync(join(SRC, 'views', 'WordReview.vue'), 'utf8');
 
 test('题干 q-word 显示完整单词的模式列表，不含挖空类 cloze / sentenceCloze', () => {
-  const m = src.match(/<div v-if="\[([^\]]*)\]\.includes\(mode\)" class="q-word">/);
-  assert.ok(m, '应存在 q-word 的 mode 列表');
-  const list = m[1];
+  // v29+ 改为 showQWord computed 属性控制（支持 flashcard 翻面后隐藏词、quiz 随机方向）
+  const m = src.match(/const showQWord\s*=\s*computed\(\(\)\s*=>\s*\{([\s\S]*?)\}\);/);
+  assert.ok(m, '应存在 showQWord computed 属性');
+  const body = m[1];
   // 看词写义（spell）仍需显示英文词——它是「看英文写中文」，不是答案泄露
-  assert.ok(list.includes("'spell'"), 'spell 看词写义应保留显示英文词');
-  assert.ok(!list.includes('cloze'), 'cloze 挖空拼写：题干不应再露完整单词');
-  assert.ok(!list.includes('sentenceCloze'), 'sentenceCloze 例句挖空：题干不应再露完整单词');
+  assert.ok(body.includes("'spell'"), 'spell 看词写义应保留显示英文词');
+  assert.ok(!body.includes("'cloze'"), 'cloze 挖空拼写：题干不应再露完整单词');
+  assert.ok(!body.includes("'sentenceCloze'"), 'sentenceCloze 例句挖空：题干不应再露完整单词');
+  assert.ok(body.includes("'flashcard'"), '闪卡模式应包含在 showQWord（翻面前显示词）');
+  assert.ok(!body.includes("'listenChoice'"), '听音模式题干不显示文字（只有播音按钮）');
 });
 
 test('例句挖空无例句时不得预填完整单词到输入框', () => {
@@ -34,19 +37,20 @@ test('例句挖空无例句时不得预填完整单词到输入框', () => {
   );
 });
 
-test('选择题 pickMeaning 方向正确：看词选义（choice/listenChoice/quiz），看义选词（reverse/englishEnglish/collocations）', () => {
-  // 修复（2026-08-29）：此前 pickMeaning 只对 reverseChoice/englishEnglish 为 true，
-  // 导致 choice/listenChoice/quiz 题干显示英文词、选项也列英文词（题干=答案倒挂）。
-  // 锁死正确写法：pickMeaning = [...看词选义...].includes(mode.value)。
-  const m = src.match(/const pickMeaning\s*=\s*\[([^\]]*)\]\.includes\(mode\.value\);/);
-  assert.ok(m, '应存在 pickMeaning = [...].includes(mode.value) 的写法');
+test('选择题 pickMeaning 方向正确：看词选义（choice/listenChoice/quiz-en2zh），看义选词（reverse/englishEnglish/collocations/quiz-zh2en）', () => {
+  // v29+ quiz 模式改为随机方向（en2zh / zh2en），pickMeaning 写法变为
+  // const pickMeaning = ['choice','listenChoice'].includes(mode.value) || (mode.value==='quiz' && quizDir.value==='en2zh');
+  const m = src.match(/const pickMeaning\s*=\s*\[([^\]]*)\]\.includes\(mode\.value\)/);
+  assert.ok(m, '应存在 pickMeaning = [...].includes(mode.value) 的基础写法');
   const list = m[1];
   assert.ok(list.includes("'choice'"), 'choice 看词选义 → pickMeaning=true');
   assert.ok(list.includes("'listenChoice'"), 'listenChoice 听音选义 → pickMeaning=true');
-  assert.ok(list.includes("'quiz'"), 'quiz 看词选义 → pickMeaning=true');
-  assert.ok(!list.includes('reverseChoice'), 'reverseChoice 看义选词 → 不应在 pickMeaning 列表');
-  assert.ok(!list.includes('englishEnglish'), 'englishEnglish 看英英选词 → 不应在 pickMeaning 列表');
-  assert.ok(!list.includes('collocations'), 'collocations 看义选词 → 不应在 pickMeaning 列表');
+  assert.ok(!list.includes('reverseChoice'), 'reverseChoice 看义选词 → 不应在 pickMeaning 基础列表');
+  assert.ok(!list.includes('englishEnglish'), 'englishEnglish 看英英选词 → 不应在 pickMeaning 基础列表');
+  assert.ok(!list.includes('collocations'), 'collocations 看义选词 → 不应在 pickMeaning 基础列表');
+  // quiz 随机方向：en2zh 时 pickMeaning=true，zh2en 时 pickMeaning=false
+  assert.ok(/mode\.value\s*===\s*'quiz'/.test(src.match(/const pickMeaning[\s\S]*?options\.value\s*=\s*buildChoices/)?.[0] || ''),
+    'quiz 模式应有随机方向判定');
 });
 
 test('看词写义（spell）答案比对中文释义，不比对英文单词', () => {
