@@ -289,7 +289,7 @@ export async function deleteCard(id) {
   // 事务内一次性完成 回收站快照 + 墓碑 + 删卡 + 删复习 + 删卡组关联 + 切断图谱边，保证原子、无悬空引用
   // 注：cardGroupLinks 此前漏删 —— 删卡后关联行原样留在库里（还进同步包跨设备传播），
   //     卡组详情页会统计到已被删除的「幽灵卡」，且永不清理。
-  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.embeddings, async () => {
+  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.embeddings, db.notes, async () => {
     // 1) 回收站快照（含复习记录 + 卡组关联，便于恢复时一并还原）
     const reviews = await db.reviews.where('cardId').equals(id).toArray();
     const links = await db.cardGroupLinks.where('cardId').equals(id).toArray();
@@ -324,18 +324,33 @@ export async function deleteCard(id) {
     await db.graphEdges.filter(e => e.fromCardId === id || e.toCardId === id).delete();
     // 7) 删向量索引（round15 P1：此前漏删，本端 RAG 检索到已删卡的幽灵向量）
     await db.embeddings.where('sourceId').equals(id).and(e => e.sourceType === 'card').delete();
+    // 8) M5 残余：剔除所有笔记 linkedCardIds 里对该卡的引用（删卡后留 [[cardId]]
+    //    结构上仍是悬空引用；笔记侧把引用数组清洗掉并 bump updatedAt 随内容侧同步）
+    const linkedNotes = (await db.notes.toArray())
+      .filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.includes(id));
+    for (const n of linkedNotes) {
+      await db.notes.put({ ...n, linkedCardIds: n.linkedCardIds.filter(x => x !== id), updatedAt: now() });
+    }
   });
-  await cleanupOrphanImages(imgIds);
+  // 9) 清理不再被任何卡片引用的孤儿图片：物理删 + 写墓碑（kind='image'）。
+  //    只物理删不写墓碑 → 对端 images 行永久残留（idOnly 幂等表，删不掉还随每次增量回传）。
+  //    墓碑带 deletedAt，对端 applyTombstones(images, kind='image') 会同步清掉。
+  const removedImages = await cleanupOrphanImages(imgIds);
+  if (removedImages.length) {
+    await db.tombstones.bulkPut(removedImages.map(i => ({ id: i, kind: 'image', deletedAt: now() })));
+  }
   fireHook('onCardDeleted', { id });
 }
 
-// 删除卡片后，清理不再被任何卡片引用的图片
+// 删除卡片后，清理不再被任何卡片引用的图片；返回实际被删的图片 id（供写墓碑）
 async function cleanupOrphanImages(ids) {
-  if (!ids.length) return;
+  if (!ids.length) return [];
   const cards = await allCards();
   const used = new Set();
   for (const c of cards) for (const i of extractImageIds((c.front || '') + '\n' + (c.back || ''))) used.add(i);
-  for (const id of new Set(ids)) if (!used.has(id)) await db.images.delete(id);
+  const removed = [];
+  for (const id of new Set(ids)) if (!used.has(id)) { await db.images.delete(id); removed.push(id); }
+  return removed;
 }
 
 // 手动标记 / 取消标记错题

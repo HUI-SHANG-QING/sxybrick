@@ -73,12 +73,25 @@ function emptyData() {
   return out;
 }
 
+// M3：数据文件损坏时把现场改名留证 + 打日志，再重置为空数据 ——
+// 禁止静默 emptyData()（旧实现会直接覆盖损坏现场，无法取证排障）。
+function recoverCorrupt(file) {
+  const backup = `${file}.corrupt-${Date.now()}`;
+  try {
+    renameSync(file, backup);
+    console.error(`[hub] ${file} JSON 解析失败，已改名留证：${backup}（用空数据继续，损坏现场未丢失）`);
+  } catch (e) {
+    console.error(`[hub] ${file} JSON 解析失败，且改名留证也失败：${e?.message || e}（用空数据继续）`);
+  }
+}
+
 function loadData() {
   if (!existsSync(DATA_FILE)) return emptyData();
   try {
     const raw = JSON.parse(readFileSync(DATA_FILE, 'utf8'));
     return { ...emptyData(), ...raw }; // 旧版本数据文件缺新表时自动补齐空数组
   } catch {
+    recoverCorrupt(DATA_FILE);
     return emptyData();
   }
 }
@@ -101,6 +114,7 @@ function loadScopedData(scope) {
     const raw = JSON.parse(readFileSync(f, 'utf8'));
     return { ...emptyData(), ...raw };
   } catch {
+    recoverCorrupt(f);
     return emptyData();
   }
 }
@@ -396,12 +410,27 @@ const server = createServer(async (req, res) => {
     if (!auth.ok) return unauthorized(req, res, auth);
 
     if (req.method === 'GET') {
-      return json(req, res, 200, { version: BACKUP_VERSION, app: 'sxybrick', scope, exportedAt: Date.now(), ...loadScopedData(scope) });
+      const data = loadScopedData(scope);
+      // M7：隐私 opt-in 只在客户端有效——默认不下发隐私表（隐私记录不进任何
+      // 未显式声明的设备/备份）；客户端确认要同步隐私时带 ?includePrivacy=1。
+      const includePrivacy = url.searchParams.get('includePrivacy') === '1';
+      if (!includePrivacy) {
+        for (const t of PRIVACY_SYNC_TABLES) data[t.table] = [];
+      }
+      return json(req, res, 200, { version: BACKUP_VERSION, app: 'sxybrick', scope, exportedAt: Date.now(), ...data });
     }
     if (req.method === 'PUT') {
       try {
         const incoming = JSON.parse(raw || 'null');
         if (!incoming || incoming.app !== 'sxybrick') return json(req, res, 400, { error: '无效数据包' });
+        // M4：版本校验——旧中枢收新版包会静默丢新表且返回 200，客户端毫无感知。
+        // 包内 version 与中枢不一致即 400，提示升级，绝不静默吞数据。
+        const incomingVer = Number(incoming.version);
+        if (!Number.isInteger(incomingVer) || incomingVer !== BACKUP_VERSION) {
+          return json(req, res, 400, {
+            error: `版本不匹配：包内 version=${incoming.version ?? '(缺失)'}，中枢 BACKUP_VERSION=${BACKUP_VERSION}。请把电脑端中枢与前端都升级到同一版本后再同步`,
+          });
+        }
         // scope 校验：数据包声明的 scope 必须与请求路径一致，防止测试包混入真实域（反之亦然）
         if (incoming.scope && incoming.scope !== scope) {
           return json(req, res, 409, { error: `数据域不匹配：包内 scope=${incoming.scope}，端点 scope=${scope}` });
