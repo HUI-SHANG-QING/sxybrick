@@ -142,6 +142,7 @@ export const zh = {
   ocrAdding: '正在加入…',
   ocrDone: '已加入 {n} 个，其中 {m} 个自动生成资料',
   ocrSource: '图片识别',
+  defaultSubject: '英语',
 
   detailTitle: '单词详情',
   detailSynonyms: '同义词',
@@ -295,6 +296,7 @@ export const en = {
   ocrAdding: 'Adding…',
   ocrDone: 'Added {n}, auto-generated {m}',
   ocrSource: 'OCR',
+  defaultSubject: 'English',
 
   detailTitle: 'Word detail',
   detailSynonyms: 'Synonyms',

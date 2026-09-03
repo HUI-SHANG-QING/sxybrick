@@ -4,17 +4,19 @@
 //   已标熟   familiar=1（用户主动标记，已移出复习队列）
 //   复习完成 !familiar && intervalDays>=21 或 level>=4（调度意义上的「掌握」）
 //   复习中   其余（含未复习的新词）
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
-import { listWordCards } from '../word-repo.js';
+import { listWordCards, wordStats, wordReviewedToday } from '../word-repo.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
 
 const router = useRouter();
-const all = ref([]);          // 全量卡（不含 template）
+const tabCards = ref([]);     // 当前 tab 的卡片列表（非全量）
 const tab = ref('learning');  // learning | done | familiar
 const dateRange = ref('all'); // all | today | d7 | d30（按最近复习时间过滤）
 const q = ref('');
+const counts = ref({ learning: 0, done: 0, familiar: 0 });
+const todayCount = ref(0);
 
 const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
 
@@ -25,18 +27,6 @@ function statusOf(c) {
   return 'learning';
 }
 
-const counts = computed(() => {
-  const o = { learning: 0, done: 0, familiar: 0 };
-  for (const c of all.value) o[statusOf(c)]++;
-  return o;
-});
-
-// 今日已复习词数（图1「今天 N词」）
-const todayCount = computed(() => {
-  const t0 = startOfToday.getTime();
-  return all.value.filter((c) => (c.reviewedAt || 0) >= t0).length;
-});
-
 const dateOptions = [
   { id: 'all', label: t('views.wordLearned.dateAll') },
   { id: 'today', label: t('views.wordLearned.dateToday') },
@@ -45,7 +35,7 @@ const dateOptions = [
 ];
 
 const rows = computed(() => {
-  let list = all.value.filter((c) => statusOf(c) === tab.value);
+  let list = tabCards.value;
   const range = dateRange.value;
   if (range !== 'all') {
     const now = Date.now();
@@ -64,10 +54,27 @@ const rows = computed(() => {
   return [...list].sort((a, b) => (b.reviewedAt || b.createdAt || 0) - (a.reviewedAt || a.createdAt || 0));
 });
 
-async function load() {
-  const list = await listWordCards({ schedulableOnly: true });
-  all.value = list;
+// O-2：tab 计数走 wordStats()（轻量单次扫描），不加载全量卡到内存。
+// 切换 tab 时只加载该 tab 的卡片列表。
+async function loadCounts() {
+  const [s, rt] = await Promise.all([wordStats(), wordReviewedToday()]);
+  const learning = Math.max(0, (s.schedulable || 0) - (s.mastered || 0) - (s.familiar || 0));
+  counts.value = { learning, done: s.mastered || 0, familiar: s.familiar || 0 };
+  todayCount.value = rt;
 }
+
+async function loadTab() {
+  // 按当前 tab 过滤：familiar 有索引可走，learning/done 需内存过滤
+  const list = await listWordCards({ schedulableOnly: true });
+  tabCards.value = list.filter((c) => statusOf(c) === tab.value);
+}
+
+async function load() {
+  await Promise.all([loadCounts(), loadTab()]);
+}
+
+// tab 切换时重载当前 tab 列表（计数不变，无需重载）
+watch(tab, () => loadTab());
 
 onMounted(load);
 </script>

@@ -724,7 +724,12 @@ export async function importBackup(backup, opts = {}) {
     // 并写 graphEdge 墓碑；但对端若在墓碑同步之前就存在这些行（旧包/增量竞态），此处兜底清理，
     // 避免「删卡后对端 RAG 检索到幽灵向量、图谱挂着悬空边」。
     await db.embeddings.where('sourceId').anyOf(removed).and(e => e.sourceType === 'card').delete();
-    await db.graphEdges.filter(e => removedSet.has(e.fromCardId) || removedSet.has(e.toCardId)).delete();
+    // round26 H-2：fromCardId/toCardId 已建索引（v28），双 anyOf 查询替代全表 filter。
+    const removedEdgeIds = [
+      ...(await db.graphEdges.where('fromCardId').anyOf(removed).primaryKeys()),
+      ...(await db.graphEdges.where('toCardId').anyOf(removed).primaryKeys()),
+    ];
+    if (removedEdgeIds.length) await db.graphEdges.bulkDelete([...new Set(removedEdgeIds)]);
     stats.deleted = removed.length;
     if (goneImgIds.size) {
       const rest = await db.cards.toArray();

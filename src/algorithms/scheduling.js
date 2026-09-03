@@ -44,7 +44,8 @@ export function nextWorkDay(ts, restCfg = {}) {
  */
 export function examWindowUrgency(card, examAt, opts = {}) {
   const nowTs = opts.now || Date.now();
-  const desiredR = opts.desiredRetention || DEFAULT_DESIRED_RETENTION;
+  // H-1：同 fsrs.js：|| 对 0 回退错误，统一 ?? 口径。
+  const desiredR = Math.max(0.01, opts.desiredRetention ?? DEFAULT_DESIRED_RETENTION);
   const daysToExam = (examAt - nowTs) / DAY_MS;
   const s = card?.fsrs?.s ?? 1;
   const last = card?.fsrs?.last ?? nowTs;

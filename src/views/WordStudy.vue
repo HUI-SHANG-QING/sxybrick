@@ -51,11 +51,13 @@ async function load() {
 // 近 14 天复习趋势（按本地记录估算：这里用累计曲线近似展示）
 const trend = ref([]);
 async function buildTrend() {
-  // 用 wordReviews 的 reviewedAt 按日聚合（最多 14 天）
+  // O-1：只取近 14 天复习记录（用 reviewedAt 索引裁剪），避免全量 toArray 加载全部历史。
   const { db } = await import('../db.js');
-  const rows = await db.wordReviews.toArray();
-  const days = [];
   const d = new Date(); d.setHours(0, 0, 0, 0);
+  const cutoff = new Date(d); cutoff.setDate(d.getDate() - 13);
+  cutoff.setHours(0, 0, 0, 0);
+  const rows = await db.wordReviews.where('reviewedAt').aboveOrEqual(cutoff.getTime()).toArray();
+  const days = [];
   for (let i = 13; i >= 0; i--) {
     const day = new Date(d); day.setDate(d.getDate() - i);
     const key = todayStr(day);

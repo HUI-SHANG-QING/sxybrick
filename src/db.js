@@ -193,7 +193,8 @@ d.version(21).stores({
 //   cardGroups：卡组元数据。id, name(名称), description(可选描述), color(可选颜色标签),
 //     status('active' 背诵中 | 'archived' 备用/暂停), sortOrder(手动排序), createdAt, updatedAt
 //   cardGroupLinks：卡片-卡组关联（多对多）。id, cardId, groupId, addedAt；
-//     删除即移出（无墓碑：移出操作按 updatedAt 谁新听谁合并，见 sync-manifest）
+//     卡片删除（deleteCard）会为每条关联写 kind='groupLink' 墓碑（防对端回灌幽灵行）；
+//     用户手动「移出卡组」不删行而是按 updatedAt 谁新听谁合并（见 sync-manifest）。
 d.version(22).stores({
   cardGroups: 'id, name, status, sortOrder, createdAt, updatedAt',
   cardGroupLinks: 'id, cardId, groupId, addedAt',
@@ -278,6 +279,26 @@ d.version(27).stores({
   wordExportHistory: 'id, createdAt',
   wordSyllabusMeta: 'id',
   wordStudyLog: 'id, date',
+});
+
+// v28：索引补齐（round26 H-2/H-3）
+//   graphEdges 新增 fromCardId/toCardId 索引——deleteCard 与 importBackup 墓碑级联
+//     原用 .filter() 全表扫描（千边级以上每删一次卡 O(n)）；
+//     加索引后改 .where('fromCardId')/anyOf 范围查询。
+//   pomoSessions 无新列：partial 判定在内存（round19 R19-2），countPomoToday
+//     原取今日全部行后 .filter，改用 where().aboveOrEqual + .and() 在索引游标上过滤，
+//     不走全量 toArray；故 v28 只需重声明 graphEdges 索引，pomoSessions 不动。
+d.version(28).stores({
+  graphEdges: 'id, from, to, fromCardId, toCardId, updatedAt',
+  pomoSessions: 'id, startedAt, roundId', // roundId 幂等键索引（round26 M-1）
+});
+
+// v29：embeddings 索引重排——sourceId 提前至 sourceType 之前。
+//   旧顺序 'id, sourceType, sourceId, ...' 导致 where('sourceId').equals(id) 无法命中
+//   复合索引前缀，退化为全表扫描 + 内存过滤（deleteCard/importBackup 级联清理受影响）。
+//   新顺序 sourceId 在前，where('sourceId').equals(id) 直接走索引。
+d.version(29).stores({
+  embeddings: 'id, sourceId, sourceType, subject, updatedAt, modelSig',
 });
 
 } // end defineSchema

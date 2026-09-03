@@ -104,10 +104,35 @@ function shuffle(arr) {
 function buildChoices(card, pickMeaning) {
   const pool = queue.value.filter(c => c.id !== card.id);
   const others = shuffle(pool).slice(0, 3);
-  const correct = pickMeaning ? card.meaning : card.word;
-  const wrongs = others.map(c => pickMeaning ? c.meaning : c.word);
-  const all = shuffle([correct, ...wrongs]);
-  return all.map(v => ({ text: v, ok: v === correct }));
+  let correct = pickMeaning ? card.meaning : card.word;
+  // 空值防护：correct 为空/undefined 时，所有选项 v===correct 恒 true → 选什么都对。
+  // 兜底到另一侧字段（meaning 空则用 word，word 空则用 meaning），仍空则跳过本题。
+  if (!correct || !String(correct).trim()) {
+    correct = pickMeaning ? card.word : card.meaning;
+  }
+  if (!correct || !String(correct).trim()) return []; // 无有效内容，调用方应跳过本题
+  const correctStr = String(correct).trim();
+
+  let wrongs = others
+    .map(c => pickMeaning ? c.meaning : c.word)
+    .filter(v => v && String(v).trim() && String(v).trim() !== correctStr);
+
+  // 去重
+  const seen = new Set([correctStr]);
+  wrongs = wrongs.filter(v => { const s = String(v).trim(); if (seen.has(s)) return false; seen.add(s); return true; });
+
+  // 兜底：队列不足时用占位干扰项，保证至少 3 个干扰（否则正确答案一目了然）
+  if (wrongs.length < 3) {
+    const placeholders = pickMeaning
+      ? [t('views.wordReview.choicePlaceholder1'), t('views.wordReview.choicePlaceholder2'), t('views.wordReview.choicePlaceholder3')]
+      : ['placeholder_a', 'placeholder_b', 'placeholder_c'];
+    for (const ph of placeholders) {
+      if (wrongs.length >= 3) break;
+      if (!seen.has(ph)) { wrongs.push(ph); seen.add(ph); }
+    }
+  }
+  const all = shuffle([correctStr, ...wrongs.slice(0, 3)]);
+  return all.map(v => ({ text: v, ok: v === correctStr }));
 }
 
 function setupQuestion() {
@@ -182,6 +207,9 @@ async function selfRate(rating) {
     toast(t('views.wordReview.adaptiveForgotTitle'), 'info');
     return;
   }
+  // readAloud/flashcard：自评后立即展示释义（result 触发 meaning-show 渲染），
+  // 让用户在判分前可核对词义——此前 selfRate 不设 result，释义永不展示。
+  result.value = { correct: rating >= 2, selfRated: true, rating };
   await commit(rating);
 }
 
@@ -195,8 +223,20 @@ async function submitText() {
   const c = current.value;
   const ans = input.value.trim().toLowerCase();
   // 看词写义（spell）：答案应比对中文释义；其余（听音写词/填空拼写/例句挖空）：比对英文单词。
-  // 此前一律比对 c.word，导致 spell 模式题干已亮出英文词、却还要求「重打一遍英文词」= 答案泄露 + 问答不合理。
-  const target = mode.value === 'spell' ? String(c.meaning || '').trim() : c.word;
+  const target = mode.value === 'spell' ? String(c.meaning || '').trim() : String(c.word || '').trim();
+  // target 为空防护：meaning/word 都为空时空输入 ''==='' 恒 true → 误判正确。
+  // 此时视为作答失败，rating=0（忘记），不给虚假正反馈。
+  if (!target) {
+    result.value = { correct: false, your: input.value, noTarget: true };
+    await commit(0);
+    return;
+  }
+  if (!ans) {
+    // 空输入：不判正确，给"忘记"评级（拼写类必须有输入才给分）
+    result.value = { correct: false, your: input.value };
+    await commit(0);
+    return;
+  }
   const correct = ans === target.toLowerCase();
   result.value = { correct, your: input.value };
   // 听写/拼写：写错也算"模糊"，正确算"认识"
@@ -366,7 +406,7 @@ const speakSupported = speechSupported();
 
           <!-- 反向 / 英英 / 词组：显示释义或提示 -->
           <div v-if="mode === 'reverseChoice'" class="q-prompt">{{ current.meaning }}</div>
-          <div v-if="mode === 'englishEnglish'" class="q-prompt">{{ current.defs?.[0]?.meaning || current.meaning }}</div>
+          <div v-if="mode === 'englishEnglish'" class="q-prompt">{{ current.defs?.length ? current.defs.map(d => d.meaning).join('; ') : current.meaning }}</div>
           <div v-if="mode === 'collocations'" class="q-prompt">{{ current.meaning }}</div>
 
           <!-- 挖空拼写 -->

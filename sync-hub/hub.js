@@ -224,7 +224,7 @@ function merge(base, incoming) {
  * 读取请求体。同时返回原始字符串——HMAC 签名是对原始字节做的，
  * 若先 JSON.parse 再 stringify，键序变化会导致摘要不一致。
  */
-function readBody(req, limitBytes = 200 * 1024 * 1024) {
+function readBody(req, limitBytes = 50 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;

@@ -300,6 +300,11 @@ const detailTabs = computed(() => [
 ]);
 // 词条主显示：优先 AI 生成的音节拆分（al·ter·na·tive），无则原词
 function displaySyllable(c) { return c?.syllable || c?.word || ''; }
+// 列表卡片释义：defs 优先（多义项拼接），老数据退化为 meaning 字段
+function cardMeaning(c) {
+  if (c?.defs?.length) return c.defs.filter(d => d?.meaning).map(d => d.pos ? `${d.pos} ${d.meaning}` : d.meaning).join('；');
+  return c?.meaning || '';
+}
 // 多义项释义：defs（[{pos,meaning}]）优先；老数据退化为 [{pos, meaning}] 单条
 function detailDefs(c) {
   if (c?.defs?.length) return c.defs.filter((d) => d && (d.pos || d.meaning));
@@ -426,7 +431,7 @@ async function addOcrWord(word) {
   if (!w) return { word: w, status: 'empty' };
   const exists = cards.value.some((c) => String(c.word || '').trim().toLowerCase() === w.toLowerCase());
   if (exists) return { word: w, status: 'skip' };
-  const card = await createWordCard({ kind: 'word', word: w, subject: '考研', source: t('views.wordBook.ocrSource') });
+  const card = await createWordCard({ kind: 'word', word: w, subject: t('views.wordBook.defaultSubject'), source: t('views.wordBook.ocrSource') });
   if (settings.value?.aiEnabled && isInSyllabus(w)) {
     try {
       const r = await generateWordMaterials({ word: w, levels: settings.value.exampleLevels, settings: settings.value });

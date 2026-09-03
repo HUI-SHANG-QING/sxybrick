@@ -55,6 +55,11 @@ function cosine(a, b) {
   return dot;
 }
 
+// round26 M-5：O(n²) 两两余弦的输入上限——500 卡 = 12.5 万对比较，主线程可感卡顿。
+// 超出时按 subject 分桶分别聚类再合并结果（错题按科目聚类本就语义更准：
+// 「操作系统-死锁」与「数据结构-二叉树」不应被 TF-IDF 跨科误并）。
+const MAX_CLUSTER_INPUT = 500;
+
 /**
  * 对一批错题做概念聚类
  * @param {Array} cards [{ id, front, back, subject, tags?, wrongReason? }]
@@ -66,6 +71,19 @@ export function attributeMistakes(cards, opts = {}) {
   const threshold = opts.threshold ?? 0.32;
   if (!cards || cards.length < 2) {
     return cards.map(c => ({ concept: c.subject || '未分类', cardIds: [c.id], size: 1, score: 1, representative: summarize(c) }));
+  }
+  if (cards.length > MAX_CLUSTER_INPUT) {
+    const buckets = new Map();
+    for (const c of cards) {
+      const key = c?.subject || '未分类';
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(c);
+    }
+    const merged = [];
+    for (const bucket of buckets.values()) {
+      merged.push(...attributeMistakes(bucket.slice(0, MAX_CLUSTER_INPUT), opts));
+    }
+    return merged.sort((a, b) => b.size - a.size);
   }
   const texts = cards.map(c => `${c.front || ''} ${c.back || ''} ${(c.tags || []).join(' ')} ${(c.wrongReason || '')}`);
   const vecs = buildVectors(texts);

@@ -44,6 +44,11 @@ export const zh = {
   hintReadAloud: '听发音并大声跟读，然后自评是否读对（不强制录音）。',
   hintQuiz: '综合选择题：看提示，从 4 个选项中选出正确答案。',
 
+  // 选择题兜底占位符（队列不足时干扰项不足4个，用占位文本填充）
+  choicePlaceholder1: '（无其他释义）',
+  choicePlaceholder2: '（请添加更多单词）',
+  choicePlaceholder3: '（空）',
+
   // 两段式自适应
   adaptiveForgotTitle: '答错了，来一道选择题巩固',
   adaptiveChoiceLabel: '选择正确释义',
@@ -164,6 +169,10 @@ export const en = {
   hintCollocations: 'See the meaning and collocation hint, pick the right English word.',
   hintReadAloud: 'Hear and read aloud, then self-rate (no recording required).',
   hintQuiz: 'Mixed quiz: see the prompt, pick the right answer from 4 options.',
+
+  choicePlaceholder1: '(No other definitions)',
+  choicePlaceholder2: '(Add more words)',
+  choicePlaceholder3: '(Empty)',
 
   adaptiveForgotTitle: 'Missed it — a quiz to reinforce',
   adaptiveChoiceLabel: 'Pick the right meaning',

@@ -186,13 +186,15 @@ export const TRASH_TTL_DAYS = 30;
 //   _text/_textLen 资料解析全文 → docTexts（本地表，不同步）
 //   _edges      资料→卡片图谱边 → graphEdges
 export async function trashItem(id, kind, data) {
-  if (!id || !data) return;
+  if (!id || !data) return false;
   try {
     await db.trash.put({ id, kind, deletedAt: now(), data });
+    return true;
   } catch (e) {
     // round15 P2：快照失败不再静默——删除照常完成，但回收站无快照 = 恢复不可能。
-    // 至少留痕（存储配额/IndexedDB 异常等），便于排障而非用户一脸懵。
+    // L-2：返回 false 让调用方（deleteCard）可提示用户，而非仅 console.warn。
     console.warn('[trash] 回收站快照写入失败（该记录将无法从回收站恢复）:', kind, id, e?.message || e);
+    return false;
   }
 }
 
@@ -306,7 +308,12 @@ export async function deleteCard(id) {
     }
     // round15 P1：图谱边必须写墓碑——本端 filter 删除后，若不写墓碑，
     // 对端旧边会在下次同步按 updatedAt 合并被推回，幽灵边复活。
-    const edges = await db.graphEdges.filter(e => e.fromCardId === id || e.toCardId === id).toArray();
+    // round26 H-2：fromCardId/toCardId 已建索引（v28），改走索引范围查询替代全表 filter。
+    // 自环边（fromCardId===toCardId）会被两条索引各命中一次，Map 按 id 去重。
+    const edgeMap = new Map();
+    for (const e of await db.graphEdges.where('fromCardId').equals(id).toArray()) edgeMap.set(e.id, e);
+    for (const e of await db.graphEdges.where('toCardId').equals(id).toArray()) edgeMap.set(e.id, e);
+    const edges = [...edgeMap.values()];
     if (edges.length) {
       await db.tombstones.bulkPut(edges.map(e => ({ id: e.id, kind: 'graphEdge', deletedAt: now() })));
     }
@@ -323,8 +330,8 @@ export async function deleteCard(id) {
     await db.reviews.where('cardId').equals(id).delete();
     // 5) 删卡组关联（此前漏删 → 指向已删卡的悬空行常驻并进同步包）
     await db.cardGroupLinks.where('cardId').equals(id).delete();
-    // 6) 切断关联图谱边（fromCardId/toCardId 未建索引，用 filter 全表扫）
-    await db.graphEdges.filter(e => e.fromCardId === id || e.toCardId === id).delete();
+    // 6) 切断关联图谱边（round26 H-2：复用上面已查出的 edges，bulkDelete 一次删净）
+    if (edges.length) await db.graphEdges.bulkDelete(edges.map(e => e.id));
     // 7) 删向量索引（round15 P1：此前漏删，本端 RAG 检索到已删卡的幽灵向量）
     await db.embeddings.where('sourceId').equals(id).and(e => e.sourceType === 'card').delete();
     // 8) M5 残余：剔除所有笔记 linkedCardIds 里对该卡的引用（删卡后留 [[cardId]]
@@ -1012,12 +1019,19 @@ export async function createGraphEdge(payload) {
   const docId = String(payload?.docId || '');
   const type = String(payload?.type || '');
   // 去重优先级：docId（资料边）> cardId（卡片边）> label（遗留兼容）
-  const exists = await db.graphEdges.filter(e => {
-    const sameLabel = (e.label || '相关') === label;
-    if (docId) return e.docId === docId && e.to === to && sameLabel;
-    if (fromCardId && toCardId) return e.fromCardId === fromCardId && e.toCardId === toCardId && sameLabel;
-    return e.from === from && e.to === to && sameLabel;
-  }).first();
+  // round26 H-2：卡片边走 fromCardId 索引范围查询（每卡出边量小），
+  // docId/遗留 label 边保留 filter 全表扫（调用频次低，全表边数千以内可接受）。
+  let exists = null;
+  if (docId) {
+    exists = await db.graphEdges.filter(e => e.docId === docId && e.to === to && (e.label || '相关') === label).first();
+  } else if (fromCardId && toCardId) {
+    exists = await db.graphEdges
+      .where('fromCardId').equals(fromCardId)
+      .and(e => e.toCardId === toCardId && (e.label || '相关') === label)
+      .first();
+  } else {
+    exists = await db.graphEdges.filter(e => e.from === from && e.to === to && (e.label || '相关') === label).first();
+  }
   if (exists) return null;
   const t = now();
   const e = {
@@ -1096,6 +1110,9 @@ export async function addPomoSession(payload) {
     partial: payload?.partial ? 1 : 0,
     createdAt: t,
   };
+  // M-1：roundId 存入数据库——即便 localStorage 被清，同 roundId 拒绝二次入账。
+  // v28 schema 已建 roundId 索引，Pomodoro.vue finish() 传入 roundId 参数。
+  if (payload?.roundId) s.roundId = String(payload.roundId);
   await db.pomoSessions.put(s);
   return s;
 }
@@ -1119,8 +1136,11 @@ export function isPomoCountable(p) {
 
 export async function countPomoToday() {
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  const rows = await db.pomoSessions.where('startedAt').aboveOrEqual(dayStart.getTime()).toArray();
-  return rows.filter(isPomoCountable).length;
+  // H-3：原实现先把今日全部行 toArray() 再内存 .filter(partial) —— partial 行多时
+  // 整批拉回内存。改为 .and() 在索引游标上过滤 + count()，全程流式不物化。
+  return db.pomoSessions.where('startedAt').aboveOrEqual(dayStart.getTime())
+    .and((p) => isPomoCountable(p))
+    .count();
 }
 
 // ---------- 思维导图（可持久化、随数据包同步；借鉴 Progress AI 的本地化实现） ----------

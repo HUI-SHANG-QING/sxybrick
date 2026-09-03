@@ -53,7 +53,7 @@ test('看词写义（spell）答案比对中文释义，不比对英文单词', 
   // spell 模式题干已显示英文词，作答应比对 c.meaning（中文释义）；
   // 此前 submitText 一律比对 c.word，等于要求把已亮出的英文词重打一遍（答案泄露 + 问答不合理）。
   assert.ok(
-    /mode\.value\s*===\s*'spell'\s*\?\s*String\(c\.meaning\s*\|\|\s*''\)\.trim\(\)\s*:\s*c\.word/.test(src),
+    /mode\.value\s*===\s*'spell'\s*\?\s*String\(c\.meaning\s*\|\|\s*''\)\.trim\(\)\s*:\s*String\(c\.word\s*\|\|\s*''\)\.trim\(\)/.test(src),
     'spell 应比对 c.meaning（中文释义），其余模式比对 c.word',
   );
 });

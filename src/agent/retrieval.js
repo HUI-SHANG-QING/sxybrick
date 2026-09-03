@@ -134,10 +134,15 @@ export async function getStaleDocs(limit = 50) {
     db.docs.limit(limit * 2).toArray(),
     db.docFiles.limit(limit * 2).toArray(),
   ]);
+  // round26 M-3：原实现 docRows 优先于 fileRows 串行入列，docs 满额时 docFiles 被挤压
+  // → 重建索引时知识库资料可能排队饿死。改交错取样（两表配额对称），公平轮转。
   const seen = new Set();
   const docs = [];
-  for (const d of [...docRows, ...fileRows]) {
-    if (d?.id && !seen.has(d.id)) { seen.add(d.id); docs.push(d); }
+  const maxLen = Math.max(docRows.length, fileRows.length);
+  for (let i = 0; i < maxLen; i++) {
+    const a = docRows[i], b = fileRows[i];
+    if (a?.id && !seen.has(a.id)) { seen.add(a.id); docs.push(a); }
+    if (b?.id && !seen.has(b.id)) { seen.add(b.id); docs.push(b); }
   }
   const ids = docs.map((d) => d.id);
   const embById = new Map(

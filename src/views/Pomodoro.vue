@@ -145,11 +145,14 @@ async function finish() {
       // 少于 1 分钟不入库（避免误触产生噪声行）；不足 FULL_FOCUS_MIN 标 partial，
       // 只贡献「专注分钟」统计，不计入今日番茄数/成就（countPomoToday 会排除）。
       if (netMin >= 1) {
+        // round26 M-2：先本地标记再入库——标记与 postMessage 之间被 kill 是常态窗口，
+        // 标记丢失比 session 丢失更危险（对端会判 isRoundRecorded=false → 双写）。
+        markRoundRecorded(rid);
         await addPomoSession({
           duration: Math.min(25, netMin), startedAt: focusStartedAt, tag: '',
           partial: complete ? 0 : 1,
+          roundId: rid, // 数据库层幂等键：即便 localStorage 被清，同 roundId 拒绝二次入账
         }); // 入库，随数据包同步
-        markRoundRecorded(rid); // 立即标记，防止本标签页或另一标签页晚于 5s 双写
       }
       try { T.pomodoroEnd(Math.min(25, netMin), 'focus'); } catch {}
     }

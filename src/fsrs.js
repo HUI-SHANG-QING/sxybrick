@@ -153,7 +153,9 @@ export function nextInterval(S, desiredR = DEFAULT_DESIRED_RETENTION, w = DEFAUL
  */
 export function schedule(card, rating, opts = {}) {
   const w = opts.weights || DEFAULT_WEIGHTS;
-  const desiredR = opts.desiredRetention || DEFAULT_DESIRED_RETENTION;
+  // H-1：|| 会把显式传 0（语义：极低目标保持率/不复习）误替换为 0.9——与调用方意图相反。
+  // ?? 只对 undefined/null 回退：0 是合法取值，保持一致口径（forecast.js 早已用 ??）。
+  const desiredR = opts.desiredRetention ?? DEFAULT_DESIRED_RETENTION;
   const nowTs = opts.now || Date.now();
   const grade = toFsrsGrade(rating);
   // NaN 防护：typeof NaN === 'number' 会让坏状态一路传播到 dueAt=NaN，
