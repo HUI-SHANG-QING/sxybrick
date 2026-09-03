@@ -9,7 +9,7 @@ import {
   getSubjects, getTags, listCards, createCard,
   queryUserOps, listPrivacyRecords,
 } from '../repo.js';
-import { downloadCsv, downloadAnkiText, downloadBackup as doDownloadBackup, countData } from '../sync.js';
+import { downloadCsv, downloadAnkiText, downloadBackup as doDownloadBackup, downloadEncryptedBackup, countData } from '../sync.js';
 import { clearedBeforeKey } from '../sync-manifest.js';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
 import { encodeShareCode, decodeShareCode, estimateSize } from '../utils/shareCode.js';
@@ -52,6 +52,27 @@ async function doFullBackup() {
   } catch (e) { toast(e.message, 'error'); }
   finally { backupBusy.value = false; }
 }
+// M14：加密备份（.sxybrick）——离设备流转的文件不再明文，落盘/传输均带 AES-GCM 保护
+async function doEncryptedBackup() {
+  if (backupBusy.value) return;
+  const pw = prompt(t('views.export.encBackupPwPrompt'));
+  if (pw == null) return;
+  if (String(pw).length < 8) { toast(t('views.export.encBackupPwShort'), 'warn'); return; }
+  if (prompt(t('views.export.encBackupConfirm')) !== String(pw)) {
+    toast(t('views.export.encBackupPwMismatch'), 'error');
+    return;
+  }
+  backupBusy.value = true;
+  try {
+    await flushTelemetry();
+    await downloadEncryptedBackup(String(pw));
+    T.exportRun('encrypted', null);
+    toast(t('views.export.encBackupDone'), 'success');
+    await refreshCounts();
+  } catch (e) { toast(e.message || t('views.export.encBackupFail'), 'error'); }
+  finally { backupBusy.value = false; }
+}
+
 function fmtBytes(n) {
   if (!Number.isFinite(n)) return '';
   if (n < 1024) return `${n} B`;
@@ -778,6 +799,10 @@ async function doApkgImport() {
       <div class="row" style="margin-bottom:0">
         <button class="btn primary" :disabled="backupBusy" @click="doFullBackup">
           {{ backupBusy ? t('views.export.packing') : t('views.export.fullBackupBtn') }}
+        </button>
+        <!-- M14：加密备份——离设备文件不带明文（隐私记录含位置/睡眠/财务等 PIPL 敏感项） -->
+        <button class="btn" :disabled="backupBusy" @click="doEncryptedBackup" :title="t('views.export.encBackupTitle')">
+          {{ t('views.export.encBackupBtn') }}
         </button>
         <button class="chip" @click="refreshCounts">{{ t('views.export.refreshStats') }}</button>
       </div>

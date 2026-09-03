@@ -167,6 +167,10 @@ export const zh = {
   backupExported: '数据包已导出，请把文件发到另一台设备导入',
   fileInvalid: '文件无效',
   parseFileFail: '文件解析失败，请检查格式',
+  // M14 加密备份导入（.sxybrick）
+  encPasswordPrompt: '这是加密备份包，请输入加密口令',
+  encImportDone: '加密备份已导入（口令校验通过）',
+  importEncryptedBackup: '导入加密备份',
   importDone: '导入完成：{stats}{meta}{conflict}{snap}',
   importFailFile: '导入失败，请检查文件格式',
   hubSaved: '已保存电脑端地址和密码',
@@ -413,6 +417,10 @@ export const en = {
   backupExported: 'Data package exported; send the file to another device to import',
   fileInvalid: 'Invalid file',
   parseFileFail: 'File parse failed, please check the format',
+  // M14 encrypted backup import (.sxybrick)
+  encPasswordPrompt: 'This is an encrypted backup package, please enter the password',
+  encImportDone: 'Encrypted backup imported (password verified)',
+  importEncryptedBackup: 'Import encrypted backup',
   importDone: 'Import complete: {stats}{meta}{conflict}{snap}',
   importFailFile: 'Import failed, please check the file format',
   hubSaved: 'PC address and password saved',

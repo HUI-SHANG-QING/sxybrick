@@ -3,7 +3,7 @@
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
-import { downloadBackup, importBackup, previewImport, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup, backupScope, planSnapshotRestore } from '../sync.js';
+import { downloadBackup, importBackup, importEncryptedBackup, previewImport, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup, backupScope, planSnapshotRestore } from '../sync.js';
 import { useAppModeStore } from '../stores/appMode.js';
 import { getSubjects, createCard } from '../repo.js';
 import { getErrors, clearErrors } from '../utils/errorLog.js';
@@ -284,7 +284,20 @@ async function onFile(e) {
   if (!f) return;
   importing.value = true;
   try {
-    const backup = JSON.parse(await f.text());
+    const text = await f.text();
+    // M14：.sxybrick 是加密容器（非 JSON），走口令解密通道
+    if (/\.sxybrick$/i.test(f.name || '')) {
+      const pw = prompt(t('views.sync.encPasswordPrompt'));
+      if (pw == null) return;
+      const stats = await importEncryptedBackup(text, pw);
+      await loadCounts();
+      await loadSnapshots();
+      saveReport(t('views.sync.importEncryptedBackup'), stats);
+      await loadModuleStatus();
+      toast(t('views.sync.encImportDone'), 'success');
+      return;
+    }
+    const backup = JSON.parse(text);
     // P2-23：先 dry-run 预览（新增/覆盖/跳过/重复/墓碑删除），确认后再写库
     const pv = await previewImport(backup);
     if (!pv.valid) { toast(pv.error || t('views.sync.fileInvalid'), 'error'); return; }

@@ -10,6 +10,7 @@ import { db, uid, currentDbMode } from './db.js';
 import { base64ToBlob, blobToBase64, extractImageIds } from './images.js';
 import { triggerHook } from './plugins/registry.js';
 import { sheetCellGuard } from './utils/exporters.js';
+import { encryptBackup, decryptBackup } from './utils/crypto.js';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES, EXCLUDED_FROM_SYNC,
   CARD_CONTENT_FIELDS, CARD_SRS_FIELDS,
@@ -269,6 +270,52 @@ export async function downloadBackup() {
   // round17 R17-37：click 后不能同步 revoke——部分浏览器（Firefox 等）下载未真正开始
   // 时 URL 已失效 → 偶发下载失败/空文件。延迟 1s 释放。
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ---------- M14 加密备份（.sxybrick）----------
+// 判定：privacyRecords「落盘静态加密」与既有跨设备隐私同步(opt-in)语义冲突——
+// 设备密钥加密后，对端设备无同一密钥无法解密，opt-in 隐私同步将名存实亡；
+// 改为共享口令派生密钥则需要新增「设置隐私口令」UX 流程，超出本次修复边界。
+// 故采用审计列出的最小可接受方案：离设备流转的备份文件走 AES-GCM + PBKDF2 加密，
+// 明文不再落到磁盘文件里（crypto.js 由此从死代码变为真实被调用）。
+// 备份内容范围沿用 buildBackup 的当前语义（需在包含隐私记录时先开启隐私同步）。
+
+/** 生成加密备份（AES-GCM + PBKDF2，返回 base64 容器） */
+export async function buildEncryptedBackup(password) {
+  if (!password) throw new Error('请先设置加密口令');
+  const backup = await buildBackup();
+  const enc = await encryptBackup(backup, password);
+  return { payload: enc, cardCount: (backup.cards || []).length, bytes: enc.length };
+}
+
+/** 下载加密备份文件（.sxybrick，非明文 JSON） */
+export async function downloadEncryptedBackup(password) {
+  const { payload } = await buildEncryptedBackup(password);
+  const blob = new Blob([payload], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const d = new Date();
+  const scopeTag = backupScope() === 'test' ? '-test' : '';
+  a.href = url;
+  a.download = `sxybrick-加密备份${scopeTag}-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}.sxybrick`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // round17 R17-37：click 后不能同步 revoke（Firefox 等偶发下载失败/空文件），延迟 1s
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** 解密并导入 .sxybrick 加密备份（口令错误/文件损坏 → 明确报错） */
+export async function importEncryptedBackup(b64, password) {
+  if (!password) throw new Error('请输入加密口令');
+  let data;
+  try {
+    data = await decryptBackup(String(b64 || '').trim(), password);
+  } catch {
+    throw new Error('解密失败：口令错误或备份文件已损坏');
+  }
+  if (!data || data.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 加密备份包');
+  return importBackup(data);
 }
 
 // 按科目导出一个卡组（分享给同学），可附带作者/版本/说明（E2 卡组署名）
