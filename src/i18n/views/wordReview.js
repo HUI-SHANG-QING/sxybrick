@@ -60,6 +60,7 @@ export const zh = {
   startBtn: '开始',
   noCards: '当前范围没有可复习的单词。',
   noCardsHint: '换个范围，或先去单词本添加一些生词。',
+  noTargetHint: '此单词缺少释义/拼写，无法判分，请跳过',
   reveal: '显示答案',
   submit: '提交',
   skip: '跳过',
@@ -89,8 +90,9 @@ export const zh = {
 
   correctAnswer: '正确答案',
   yourAnswer: '你的答案',
-  correctToast: '答对了', 
+  correctToast: '答对了',
   wrongToast: '答错了',
+  noTargetHint: '此单词缺少释义/拼写，无法判分，请跳过',
   partialToast: '部分正确',
 
   // 每卡动作
@@ -183,6 +185,7 @@ export const en = {
   startBtn: 'Start',
   noCards: 'No due words in this scope.',
   noCardsHint: 'Try another scope, or add new words in the Word Book.',
+  noTargetHint: 'This word lacks a meaning/spelling, cannot be scored; please skip it.',
   reveal: 'Reveal',
   submit: 'Submit',
   skip: 'Skip',
@@ -213,6 +216,7 @@ export const en = {
   yourAnswer: 'Your answer',
   correctToast: 'Correct',
   wrongToast: 'Wrong',
+  noTargetHint: 'This word is missing meaning/spelling, cannot grade — please skip',
   partialToast: 'Partly correct',
 
   addFamiliar: 'Mark familiar',
