@@ -1,5 +1,5 @@
 // 英语单词 AI 生成服务
-// 功能：用户只输入单词 → 自动生成同义词 / 相关词组 / 短语 / 4 种难度的例句
+// 功能：用户只输入单词 → 自动生成同义词 / 相关词组 / 短语 / 2 种难度的例句（简单句 / 长难句）
 // 设计：
 //   1. 优先复用项目 agent 系统（如果 ctx.agent 可用）；
 //   2. 降级到用户自填 LLM Key（豆包/DeepSeek/OpenAI 兼容）；
@@ -21,16 +21,14 @@ export const LLM_PROVIDERS = [
 ];
 
 // ---------- Schema（与 AI 输出对齐） ----------
-const SCHEMA_EXAMPLE = `{"level":"simple|long|en1|en2","sentence":"...","translation":"..."}`;
+const SCHEMA_EXAMPLE = `{"level":"simple|long","sentence":"...","translation":"..."}`;
 const SCHEMA_OUTPUT = `{
   "synonyms": ["..."],
   "collocations": ["..."],
   "phrases": ["..."],
   "examples": [
     {"level":"simple",   "sentence":"...","translation":"..."},
-    {"level":"long",     "sentence":"...","translation":"..."},
-    {"level":"en1",      "sentence":"...","translation":"..."},
-    {"level":"en2",      "sentence":"...","translation":"..."}
+    {"level":"long",     "sentence":"...","translation":"..."}
   ],
   "pos": "n./v./adj./...",
   "mnemonic": "..."
@@ -40,10 +38,8 @@ function buildPrompt(word, opts) {
   const levelNotes = {
     simple: '简单句（10 词以内，初中难度）',
     long: '长难句（25-40 词，含从句/分词/倒装等结构）',
-    en1: '考研英语一难度（学术阅读风格，长句、抽象名词、从句嵌套）',
-    en2: '考研英语二难度（商业/管理/社会类话题，句法中等）',
   };
-  const only = (opts?.levels || ['simple', 'long', 'en1', 'en2']).join(', ');
+  const only = (opts?.levels || ['simple', 'long']).join(', ');
   return [
     `你是英语学习辅助助手。请为单词「${word}」生成结构化学习资料。`,
     `要求：`,
@@ -59,7 +55,7 @@ function buildPrompt(word, opts) {
 /**
  * @param {object} req
  * @param {string} req.word         待生成单词/短语
- * @param {string[]} [req.levels]   需要哪些难度（默认 4 种全要）
+ * @param {string[]} [req.levels]   需要哪些难度（默认 2 种：simple/long）
  * @param {object}   req.settings   wordSettings 单行（含 provider/key/model 等）
  * @param {object}   [req.agentCtx] 项目 agent ctx（如果有；优先调用）
  * @returns {Promise<{ok:boolean, skipped?:string, reason?:string, data?:object}>}
@@ -77,7 +73,7 @@ export async function generateWordMaterials(req) {
   }
   const levels = Array.isArray(req.levels) && req.levels.length
     ? req.levels
-    : ['simple', 'long', 'en1', 'en2'];
+    : ['simple', 'long'];
   const settings = req.settings || {};
   const agentCtx = req.agentCtx;
 
@@ -225,8 +221,6 @@ function localTemplate(level) {
   const bank = {
     simple: { sentence: 'Please use this word in your own sentence.', translation: '请用这个单词造一个你自己的句子。' },
     long:   { sentence: 'Although the word may look simple at first glance, its usage in academic writing often requires careful attention to context, register, and collocation.', translation: '尽管这个单词乍看简单，但在学术写作中使用时往往需要仔细关注语境、语域与搭配。' },
-    en1:    { sentence: 'The term has been widely employed in scholarly discourse to denote a phenomenon that, while seemingly self-evident, resists straightforward operationalization.', translation: '该术语在学术话语中被广泛使用，以指称一种看似不言自明、却难以直接操作化的现象。' },
-    en2:    { sentence: 'From a managerial perspective, the underlying principle informs how organizations allocate resources, balance competing objectives, and respond to shifting market conditions.', translation: '从管理视角看，这一基本原理有助于理解企业如何配置资源、平衡相互冲突的目标并应对不断变化的市场环境。' },
   };
   return { level, ...(bank[level] || bank.simple) };
 }

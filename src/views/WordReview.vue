@@ -104,8 +104,10 @@ function setupQuestion() {
   // 听音类模式：自动朗读
   if (mode.value === 'listenChoice' || mode.value === 'listenSpell') speak(c.word, { lang: accentLang() });
   // 选择题 / 反向 / 英英 / 词组 / 综合：预生成选项
+  // pickMeaning=true → 题干显示英文词，选项列释义（看词选义）；false → 题干显示释义/英英，选项列单词（看义选词）。
+  // 此前把 reverseChoice/englishEnglish 误设为 pickMeaning=true，导致题干与选项同为英文/同为释义，答案倒挂。
   if (['choice', 'listenChoice', 'reverseChoice', 'englishEnglish', 'collocations', 'quiz'].includes(mode.value)) {
-    const pickMeaning = mode.value === 'reverseChoice' || mode.value === 'englishEnglish';
+    const pickMeaning = ['choice', 'listenChoice', 'quiz'].includes(mode.value);
     options.value = buildChoices(c, pickMeaning);
   }
   // 挖空拼写：生成带缺口词形
@@ -176,7 +178,10 @@ async function submitChoice() {
 async function submitText() {
   const c = current.value;
   const ans = input.value.trim().toLowerCase();
-  const correct = ans === c.word.toLowerCase();
+  // 看词写义（spell）：答案应比对中文释义；其余（听音写词/填空拼写/例句挖空）：比对英文单词。
+  // 此前一律比对 c.word，导致 spell 模式题干已亮出英文词、却还要求「重打一遍英文词」= 答案泄露 + 问答不合理。
+  const target = mode.value === 'spell' ? String(c.meaning || '').trim() : c.word;
+  const correct = ans === target.toLowerCase();
   result.value = { correct, your: input.value };
   // 听写/拼写：写错也算"模糊"，正确算"认识"
   await commit(correct ? 2 : 1);
@@ -209,6 +214,17 @@ function restart() { phase.value = 'setup'; }
 function goBook() { router.push('/english/book'); }
 
 const modeHint = computed(() => MODES.find(m => m.id === mode.value)?.hint || '');
+// 文本作答的输入框提示：
+//   spell（看词写义）→ 提示写中文释义；listenSpell/cloze（听写/填空拼写）→ 首字母+长度提示；
+//   sentenceCloze（例句挖空）→ 无提示（避免泄露答案）。
+const spellPlaceholder = computed(() => {
+  if (mode.value === 'spell') return t('views.wordReview.typeMeaning');
+  if (['listenSpell', 'cloze'].includes(mode.value) && settings.value?.spellHint) {
+    const c = current.value;
+    return c ? c.word[0] + '…(' + c.word.length + ')' : '';
+  }
+  return '';
+});
 const speakSupported = speechSupported();
 </script>
 
@@ -295,7 +311,7 @@ const speakSupported = speechSupported();
 
           <!-- 填空 / 听写 / 拼写 / 例句挖空 -->
           <div v-if="['spell','listenSpell','cloze','sentenceCloze'].includes(mode)" class="text-in">
-            <input v-model="input" :placeholder="(settings?.spellHint && mode!=='sentenceCloze') ? current.word[0] + '…(' + current.word.length + ')' : ''" @keyup.enter="submitText" />
+            <input v-model="input" :placeholder="spellPlaceholder" @keyup.enter="submitText" />
             <button v-if="!result" class="q-submit" @click="submitText">{{ t('views.wordReview.submit') }}</button>
           </div>
 

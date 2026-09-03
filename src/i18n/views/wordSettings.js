@@ -20,11 +20,9 @@ export const zh = {
   exampleLevelsLabel: '默认生成例句难度',
   levelSimple: '简单句',
   levelLong: '长难句',
-  levelEn1: '英语一难度',
-  levelEn2: '英语二难度',
 
   aiEnabledLabel: 'AI 自动生成',
-  aiEnabledHint: '只填单词即自动生成同义词 / 词组 / 短语 / 4 档例句（仅大纲内单词）',
+  aiEnabledHint: '只填单词即自动生成同义词 / 词组 / 短语 / 例句（简单句 + 长难句，仅大纲内单词）',
 
   aiKeyTitle: 'AI 生成密钥',
   providerLabel: '服务商',
@@ -77,11 +75,9 @@ export const en = {
   exampleLevelsLabel: 'Default example difficulty',
   levelSimple: 'Simple',
   levelLong: 'Long & hard',
-  levelEn1: 'English I',
-  levelEn2: 'English II',
 
   aiEnabledLabel: 'AI auto-generation',
-  aiEnabledHint: 'Entering only a word auto-generates synonyms / collocations / phrases / 4-level examples (syllabus words only)',
+  aiEnabledHint: 'Entering only a word auto-generates synonyms / collocations / phrases / examples (simple + long, syllabus words only)',
 
   aiKeyTitle: 'AI generation key',
   providerLabel: 'Provider',

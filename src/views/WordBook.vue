@@ -12,6 +12,7 @@ import {
 } from '../word-repo.js';
 import { generateWordMaterials } from '../services/word-llm.js';
 import { isInSyllabus, getSyllabusMeta, listSyllabus } from '../services/word-syllabus.js';
+import { ocrImageText } from '../docs-lib.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
 
 const router = useRouter();
@@ -206,8 +207,50 @@ function parseExt() {
   return out;
 }
 
+// 判断当前表单是否「仅填单词」：有单词、但其余学习内容字段（释义/音标/例句/同义词/词组/短语等）全空。
+function isWordOnly() {
+  const f = form.value;
+  const word = String(f.word || '').trim();
+  if (!word) return false;
+  const contentEmpty = !(
+    String(f.meaning || '').trim() || String(f.phonetic || '').trim() ||
+    String(f.example || '').trim() || String(f.note || '').trim() ||
+    (f.synonyms && f.synonyms.length) || (f.collocations && f.collocations.length) ||
+    (f.phrases && f.phrases.length) || (f.examples && f.examples.length)
+  );
+  return contentEmpty;
+}
+
+// 静默自动生成（save 时调用）：仅回填空缺字段，绝不覆盖用户已填内容；
+// 失败/未开启/超纲都静默跳过，不阻塞保存，也不弹错误（由 save 侧决定是否提示）。
+async function autoGenerateSilent() {
+  const word = String(form.value.word || '').trim();
+  if (!settings.value?.aiEnabled || !isInSyllabus(word)) return false;
+  try {
+    const r = await generateWordMaterials({ word, levels: settings.value.exampleLevels, settings: settings.value });
+    if (!r.ok || !r.data) return false;
+    const d = r.data;
+    form.value.meaning = form.value.meaning || (d.defs?.[0]?.meaning || '');
+    form.value.pos = form.value.pos || d.pos || '';
+    form.value.synonyms = form.value.synonyms || d.synonyms;
+    form.value.collocations = form.value.collocations || d.collocations;
+    form.value.phrases = form.value.phrases || d.phrases;
+    form.value.examples = form.value.examples || d.examples;
+    form.value.mnemonics = form.value.mnemonics || (d.mnemonic ? [d.mnemonic] : []);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function save() {
   const f = form.value;
+  // 仅填单词 → 自动生成同义词/词组/短语/例句（AI 已开启且在大纲内），补齐后再落库
+  let autoFilled = false;
+  if (!editing.value && isWordOnly()) {
+    genRunning.value = true;
+    try { autoFilled = await autoGenerateSilent(); } finally { genRunning.value = false; }
+  }
   const base = {
     kind: f.kind, word: f.word, phonetic: f.phonetic, meaning: f.meaning,
     example: f.example, exampleTrans: f.exampleTrans, note: f.note,
@@ -220,7 +263,7 @@ async function save() {
       toast(t('views.wordBook.updated'), 'success');
     } else {
       await createWordCard(base);
-      toast(t('views.wordBook.created'), 'success');
+      toast(autoFilled ? t('views.wordBook.createdWithAi') : t('views.wordBook.created'), 'success');
     }
     showAdd.value = false;
     await load();
@@ -247,7 +290,6 @@ function speakWord(w) { speak(w, { lang: settings.value?.accent === 'auto' ? 'en
 
 const exampleLevelLabels = {
   simple: t('views.wordBook.exSimple'), long: t('views.wordBook.exLong'),
-  en1: t('views.wordBook.exEn1'), en2: t('views.wordBook.exEn2'),
 };
 
 // HTML 转义（外部数据拼进 v-html 前必须转义，防注入）
@@ -270,6 +312,133 @@ function highlightWord(example, word) {
     return safe.replace(new RegExp(pattern, 'gi'), (m) => `<b>${m}</b>`);
   } catch {
     return safe; // 正则异常时退回纯转义文本，不打断渲染
+  }
+}
+
+// ---- 拍照识字：图片 → OCR → 抽取英文单词 → 批量建卡并自动补全缺失字段 ----
+
+const ocrBusy = ref(false);       // OCR 识别中
+const ocrAdding = ref(false);     // 批量加入中
+const ocrShow = ref(false);       // 结果弹窗
+const ocrError = ref('');
+const ocrWords = ref([]);         // 识别到的候选单词（去重、按出现顺序）
+const ocrSelected = ref(new Set());
+const ocrFileInput = ref(null);
+
+// 常见功能词：图片若为整段文字，过滤掉冠词/介词/代词等，只保留实义词，减少噪音。
+const OCR_STOP = new Set([
+  'the', 'and', 'for', 'are', 'was', 'were', 'this', 'that', 'these', 'those',
+  'with', 'from', 'have', 'has', 'had', 'not', 'but', 'you', 'your', 'they',
+  'their', 'them', 'his', 'her', 'its', 'our', 'all', 'can', 'will', 'would',
+  'should', 'could', 'may', 'might', 'shall', 'about', 'into', 'over', 'after',
+  'before', 'between', 'under', 'again', 'then', 'than', 'there', 'here', 'when',
+  'where', 'which', 'what', 'who', 'whom', 'whose', 'why', 'how', 'also', 'such',
+  'only', 'very', 'just', 'more', 'most', 'some', 'any', 'each', 'both', 'other',
+  'another', 'been', 'being', 'does', 'did', 'doing', 'a', 'an', 'of', 'to', 'in',
+  'on', 'at', 'by', 'as', 'is', 'it', 'be', 'or', 'so', 'if', 'we', 'he', 'she',
+  'i', 'do', 'up', 'out', 'off', 'no', 'nor', 'too', 'yet', 'own', 'same', 'am',
+]);
+
+// 从 OCR 文本抽取英文单词：字母（可含连字符/撇号），长度≥2，去重 + 过滤功能词 + 上限截断
+function extractWords(text) {
+  const seen = new Set();
+  const out = [];
+  const re = /[A-Za-z]+(?:['’-][A-Za-z]+)*/g;
+  let m;
+  while ((m = re.exec(text)) && out.length < 300) {
+    const raw = m[0];
+    const low = raw.toLowerCase();
+    if (low.length < 2) continue;
+    if (OCR_STOP.has(low)) continue;
+    if (seen.has(low)) continue;
+    seen.add(low);
+    out.push(raw);
+  }
+  return out;
+}
+
+function openOcrPicker() {
+  ocrFileInput.value?.click();
+}
+
+async function onOcrFile(e) {
+  const file = e.target.files?.[0];
+  e.target.value = ''; // 允许重复选择同一文件
+  if (!file) return;
+  ocrBusy.value = true;
+  ocrError.value = '';
+  ocrWords.value = [];
+  ocrSelected.value = new Set();
+  ocrShow.value = true;
+  try {
+    const text = await ocrImageText(file);
+    const words = extractWords(text);
+    ocrWords.value = words;
+    ocrSelected.value = new Set(words.map((_, i) => i));
+    if (!words.length) ocrError.value = t('views.wordBook.ocrEmpty');
+  } catch (err) {
+    ocrError.value = t('views.wordBook.ocrFailed', undefined, { msg: err?.message || err });
+  } finally {
+    ocrBusy.value = false;
+  }
+}
+
+function toggleOcrAll() {
+  if (ocrSelected.value.size === ocrWords.value.length) ocrSelected.value = new Set();
+  else ocrSelected.value = new Set(ocrWords.value.map((_, i) => i));
+}
+
+function toggleOcr(i) {
+  const s = new Set(ocrSelected.value);
+  if (s.has(i)) s.delete(i);
+  else s.add(i);
+  ocrSelected.value = s;
+}
+
+// 加入单个词：已有同词跳过；大纲内且 AI 开启则自动生成同义词/词组/短语/例句补齐
+async function addOcrWord(word) {
+  const w = String(word || '').trim();
+  if (!w) return { word: w, status: 'empty' };
+  const exists = cards.value.some((c) => String(c.word || '').trim().toLowerCase() === w.toLowerCase());
+  if (exists) return { word: w, status: 'skip' };
+  const card = await createWordCard({ kind: 'word', word: w, subject: '考研', source: t('views.wordBook.ocrSource') });
+  if (settings.value?.aiEnabled && isInSyllabus(w)) {
+    try {
+      const r = await generateWordMaterials({ word: w, levels: settings.value.exampleLevels, settings: settings.value });
+      if (r.ok && r.data) {
+        const d = r.data;
+        await updateWordCard(card.id, {
+          meaning: d.defs?.[0]?.meaning || '',
+          pos: d.pos || '',
+          synonyms: d.synonyms, collocations: d.collocations,
+          phrases: d.phrases, examples: d.examples,
+          mnemonics: d.mnemonic ? [d.mnemonic] : [],
+        });
+        return { word: w, status: 'ok' };
+      }
+    } catch { /* 生成失败仅保留单词卡，不中断批量流程 */ }
+  }
+  return { word: w, status: 'wordOnly' };
+}
+
+async function addOcrWords() {
+  const idxs = [...ocrSelected.value].filter((i) => i >= 0 && i < ocrWords.value.length);
+  if (!idxs.length) { toast(t('views.wordBook.ocrEmpty'), 'warn'); return; }
+  ocrAdding.value = true;
+  let added = 0, generated = 0;
+  try {
+    for (const i of idxs) {
+      const r = await addOcrWord(ocrWords.value[i]);
+      if (r.status === 'ok') { added++; generated++; }
+      else if (r.status === 'wordOnly') added++;
+    }
+    toast(t('views.wordBook.ocrDone', undefined, { n: added, m: generated }), 'success');
+    ocrShow.value = false;
+    await load();
+  } catch (err) {
+    toast(t('views.wordBook.ocrFailed', undefined, { msg: err?.message || err }), 'error');
+  } finally {
+    ocrAdding.value = false;
   }
 }
 </script>
@@ -364,7 +533,9 @@ function highlightWord(example, word) {
           <option value="reviewed">{{ t('views.wordBook.showReviewed') }}</option>
           <option value="unreviewed">{{ t('views.wordBook.showUnreviewed') }}</option>
         </select>
+        <button class="wb-add wb-ocr" @click="openOcrPicker">📷 {{ t('views.wordBook.ocrAdd') }}</button>
         <button class="wb-add" @click="openAdd">＋ {{ t('views.wordBook.addBtn') }}</button>
+        <input ref="ocrFileInput" type="file" accept="image/*" class="ocr-input" @change="onOcrFile" />
       </div>
     </div>
 
@@ -528,6 +699,38 @@ function highlightWord(example, word) {
           <div class="spacer"></div>
           <button class="btn-primary" @click="showDetail = false">{{ t('views.wordBook.cancel') }}</button>
         </div>
+      </div>
+    </div>
+
+    <!-- 拍照识字结果 -->
+    <div v-if="ocrShow" class="modal-mask" @click.self="!ocrAdding && (ocrShow = false)">
+      <div class="modal ocr-modal">
+        <h3>{{ t('views.wordBook.ocrTitle') }}</h3>
+        <p class="ocr-hint">{{ t('views.wordBook.ocrHint') }}</p>
+
+        <div v-if="ocrBusy" class="ocr-state">{{ t('views.wordBook.ocrBusy') }}</div>
+        <div v-else-if="ocrError && !ocrWords.length" class="ocr-state err">{{ ocrError }}</div>
+        <template v-else>
+          <div class="ocr-tools">
+            <span class="ocr-count">{{ t('views.wordBook.ocrFound', undefined, { n: ocrWords.length }) }}</span>
+            <div class="spacer"></div>
+            <button class="btn-ghost" @click="toggleOcrAll">{{ t('views.wordBook.ocrToggleAll') }}</button>
+            <button class="btn-ghost" @click="openOcrPicker">{{ t('views.wordBook.ocrRescan') }}</button>
+          </div>
+          <div class="ocr-words">
+            <label v-for="(w, i) in ocrWords" :key="w + '-' + i" class="ocr-word" :class="{ on: ocrSelected.has(i) }">
+              <input type="checkbox" :checked="ocrSelected.has(i)" @change="toggleOcr(i)" />
+              <span>{{ w }}</span>
+            </label>
+          </div>
+          <div class="ocr-foot">
+            <button class="btn-ghost" :disabled="ocrAdding" @click="ocrShow = false">{{ t('views.wordBook.cancel') }}</button>
+            <div class="spacer"></div>
+            <button class="btn-primary" :disabled="ocrAdding || !ocrSelected.size" @click="addOcrWords">
+              {{ ocrAdding ? t('views.wordBook.ocrAdding') : t('views.wordBook.ocrAddSelected', undefined, { n: ocrSelected.size }) }}
+            </button>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -725,5 +928,25 @@ function highlightWord(example, word) {
 .de-sent { font-size: 13px; color: var(--ink); }
 .de-trans { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
 .detail-foot { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+
+/* ---- 拍照识字 ---- */
+.ocr-input { display: none; }
+.wb-ocr { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+.ocr-modal h3 { margin: 0 0 4px; font-size: 16px; color: var(--ink); }
+.ocr-hint { margin: 0 0 12px; font-size: 12px; color: var(--ink-2); line-height: 1.6; }
+.ocr-state { padding: 26px 10px; text-align: center; font-size: 13px; color: var(--ink-2); }
+.ocr-state.err { color: #d9534f; }
+.ocr-tools { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ocr-count { font-size: 12px; color: var(--ink-2); }
+.ocr-words { display: flex; flex-wrap: wrap; gap: 6px; max-height: 320px; overflow-y: auto; padding: 2px; }
+.ocr-word {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  border: 1px solid var(--line); border-radius: 16px; font-size: 13px;
+  color: var(--ink); cursor: pointer; user-select: none;
+}
+.ocr-word.on { border-color: var(--accent); background: var(--code-inline); color: var(--accent); }
+.ocr-word input { width: 15px; height: 15px; margin: 0; }
+.ocr-foot { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+.ocr-foot .btn-primary:disabled { opacity: .55; cursor: default; }
 @media (max-width: 520px) { .add-grid { grid-template-columns: 1fr; } .ag-wide { grid-column: span 1; } }
 </style>

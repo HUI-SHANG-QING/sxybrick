@@ -430,7 +430,7 @@ const WORD_SETTINGS_DEFAULT = {
   learnPace: 'normal',      // 学习节奏：slow/normal/fast
   recallPace: 'normal',     // 复习节奏
   spellHint: true,          // 拼写提示（默写时显示首字母/长度）
-  exampleLevels: ['simple', 'long', 'en1', 'en2'], // 默认生成例句难度
+  exampleLevels: ['simple', 'long'], // 默认生成例句难度（简单句 / 长难句）
   aiEnabled: true,          // AI 自动生成开关
   llmProvider: '',          // doubao/deepseek/openai
   llmModel: '',

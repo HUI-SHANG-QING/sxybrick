@@ -141,7 +141,7 @@ test('wordSettings：默认值完整 + 补丁合并 + updatedAt 推进', async (
   assert.equal(d.accent, 'en-US');
   assert.equal(d.aiEnabled, true);
   assert.equal(d.dailyGoal, 20);
-  assert.deepEqual(d.exampleLevels, ['simple', 'long', 'en1', 'en2']);
+  assert.deepEqual(d.exampleLevels, ['simple', 'long']);
 
   const s1 = await saveWordSettings({ accent: 'en-GB', dailyGoal: 35 });
   assert.equal(s1.accent, 'en-GB');
@@ -270,8 +270,8 @@ test('generateWordMaterials：agent 通道解析 ```json 包裹并补齐缺失�
   assert.equal(out.ok, true);
   assert.equal(out.data.pos, 'v.');
   assert.equal(out.data.synonyms.length, 6, '同义词应截断到 6 个');
-  // 非法难度档被丢弃，四档全部补齐
-  assert.deepEqual(out.data.examples.map((e) => e.level).sort(), ['en1', 'en2', 'long', 'simple']);
+  // 非法难度档被丢弃，两档（simple/long）全部补齐
+  assert.deepEqual(out.data.examples.map((e) => e.level).sort(), ['long', 'simple']);
   assert.equal(out.data.examples.find((e) => e.level === 'simple').sentence, 'They abandoned the car.');
   assert.ok(out.data.examples.every((e) => e.sentence && e.translation));
 });

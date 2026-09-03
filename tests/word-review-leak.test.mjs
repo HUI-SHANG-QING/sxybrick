@@ -33,3 +33,27 @@ test('例句挖空无例句时不得预填完整单词到输入框', () => {
     'prepareSentenceCloze 无例句分支不得 input.value = c.word 预填答案',
   );
 });
+
+test('选择题 pickMeaning 方向正确：看词选义（choice/listenChoice/quiz），看义选词（reverse/englishEnglish/collocations）', () => {
+  // 修复（2026-08-29）：此前 pickMeaning 只对 reverseChoice/englishEnglish 为 true，
+  // 导致 choice/listenChoice/quiz 题干显示英文词、选项也列英文词（题干=答案倒挂）。
+  // 锁死正确写法：pickMeaning = [...看词选义...].includes(mode.value)。
+  const m = src.match(/const pickMeaning\s*=\s*\[([^\]]*)\]\.includes\(mode\.value\);/);
+  assert.ok(m, '应存在 pickMeaning = [...].includes(mode.value) 的写法');
+  const list = m[1];
+  assert.ok(list.includes("'choice'"), 'choice 看词选义 → pickMeaning=true');
+  assert.ok(list.includes("'listenChoice'"), 'listenChoice 听音选义 → pickMeaning=true');
+  assert.ok(list.includes("'quiz'"), 'quiz 看词选义 → pickMeaning=true');
+  assert.ok(!list.includes('reverseChoice'), 'reverseChoice 看义选词 → 不应在 pickMeaning 列表');
+  assert.ok(!list.includes('englishEnglish'), 'englishEnglish 看英英选词 → 不应在 pickMeaning 列表');
+  assert.ok(!list.includes('collocations'), 'collocations 看义选词 → 不应在 pickMeaning 列表');
+});
+
+test('看词写义（spell）答案比对中文释义，不比对英文单词', () => {
+  // spell 模式题干已显示英文词，作答应比对 c.meaning（中文释义）；
+  // 此前 submitText 一律比对 c.word，等于要求把已亮出的英文词重打一遍（答案泄露 + 问答不合理）。
+  assert.ok(
+    /mode\.value\s*===\s*'spell'\s*\?\s*String\(c\.meaning\s*\|\|\s*''\)\.trim\(\)\s*:\s*c\.word/.test(src),
+    'spell 应比对 c.meaning（中文释义），其余模式比对 c.word',
+  );
+});

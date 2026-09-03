@@ -28,12 +28,10 @@ const mnemonicOrders = [
   { id: 'pos', label: t('views.wordSettings.orderPos') },
   { id: 'example', label: t('views.wordSettings.orderExample') },
 ];
-const exampleLevels = ['simple', 'long', 'en1', 'en2'];
+const exampleLevels = ['simple', 'long'];
 const levelLabels = {
   simple: t('views.wordSettings.levelSimple'),
   long: t('views.wordSettings.levelLong'),
-  en1: t('views.wordSettings.levelEn1'),
-  en2: t('views.wordSettings.levelEn2'),
 };
 
 onMounted(async () => { form.value = await getWordSettings(); });

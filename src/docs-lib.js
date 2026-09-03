@@ -425,6 +425,20 @@ export async function ocrDoc(docId, opts = {}) {
   }
 }
 
+/**
+ * 识别单张图片的文本（轻量入口，供单词模块「拍照识字」等复用）。
+ * 不走 docFiles 资料库流水线，直接对 File/Blob 做 OCR 并返回清洗后的文本。
+ * @param {File|Blob} file
+ * @param {object} [opts] { lang?, onProgress?, signal?, recognize? }
+ * @returns {Promise<string>}
+ */
+export async function ocrImageText(file, opts = {}) {
+  const recognize = opts.recognize || defaultRecognize;
+  const lang = opts.lang || getOcrSettings().lang;
+  const text = await ocrImageBlob(file, { recognize, lang, onProgress: opts.onProgress, signal: opts.signal });
+  return cleanOcrText(text);
+}
+
 // ---------- 知识图谱联动（Phase 6.6：资料 → 覆盖卡片「涵盖」边） ----------
 
 /**
