@@ -545,6 +545,11 @@ export function assertBackupScope(backup) {
 export async function importBackup(backup, opts = {}) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
   assertBackupScope(backup);
+  // 防御性深拷贝：调用方可能经 Vue ref/reactive 包装（如 Sync.vue 的 pendingBackup）传入 Proxy。
+  // 深响应式 Proxy 会随 mergeRows 的零拷贝路径（sanitizeStripRow 无 strip 时原样返回行）进入 bulkPut，
+  // structuredClone 遇 Proxy 抛 DataCloneError。JSON 往返能剥掉 Proxy（structuredClone 不行——它遇 Proxy 直接抛错）。
+  // 数据包本身是 JSON 纯数据（images 此时仍是 base64 字符串，Blob 在写入时才解码），往返安全。
+  backup = JSON.parse(JSON.stringify(backup));
   const stats = { cards: 0, reviews: 0, overridden: 0, deleted: 0, duplicated: 0, conflicts: [], snapshotId: null };
   const effTables = getEffectiveSyncTables();
   for (const t of effTables) if (t.table !== 'cards' && t.table !== 'reviews') stats[t.table] = 0;

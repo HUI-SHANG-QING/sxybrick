@@ -1,7 +1,7 @@
 <script setup>
 // 数据同步：手动导出/导入（数据包文件）+ 局域网一键同步（电脑端中枢）
 import { confirmDialog } from '../utils/confirm.js';
-import { ref, computed, onMounted } from 'vue';
+import { ref, shallowRef, computed, onMounted } from 'vue';
 import { toast } from '../utils/toast.js';
 import { downloadBackup, importBackup, importEncryptedBackup, previewImport, syncWithHub, countData, downloadSubjectBackup, downloadAnkiText, parseAnkiLines, buildBackup, saveSnapshot, listSnapshots, restoreSnapshot, deleteSnapshot, buildIncrementalBackup, backupScope, planSnapshotRestore } from '../sync.js';
 import { useAppModeStore } from '../stores/appMode.js';
@@ -34,7 +34,9 @@ const hubStatus = ref(null); // { ok, tips, tokenOk, error }
 const importing = ref(false);
 // P2-23 导入去重预览：选文件后先算分类，确认后才真正写入
 const importPreview = ref(null);
-const pendingBackup = ref(null);
+// 数据包对象只做「暂存→导入」的透传，绝不能被 Vue 深度响应式包装成 Proxy：
+// reactive 代理会随 mergeRows 的零拷贝路径进入 bulkPut，structuredClone 遇 Proxy 抛 DataCloneError。
+const pendingBackup = shallowRef(null);
 const previewTables = computed(() => (importPreview.value?.tables || []).filter(t => t.added || t.overwritten || t.skipped || t.duplicated || t.deleted));
 const lastBackup = ref(null);
 const lastReport = ref(JSON.parse(localStorage.getItem('sxy_last_sync_report') || 'null'));
