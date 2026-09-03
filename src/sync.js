@@ -669,7 +669,12 @@ export async function importBackup(backup, opts = {}) {
       const old = baseMap.get(row.id);
       if (!old) { added++; toWrite.push(row); }
       else {
-        if (JSON.stringify(old) !== JSON.stringify(row)) { updated++; toWrite.push(row); }
+        // M12：先比「键数量 + 时间水位」快速淘汰无变化行（占绝大多数）——
+        // 避免每条都 JSON.stringify 全串（千卡导入 = 数千次全量序列化 + O(n²) 字符串分配）。
+        // mergeRows 语义下「内容变则水位变」；水位/键结构不同 → 必然变化，直接写入无需序列化；
+        // 只有水位与键数都相同（罕见，如无活跃字段的 idOnly 行值被改写）才做全串兜底比较。
+        const sameShape = Object.keys(old).length === Object.keys(row).length && livenessTs(old) === livenessTs(row);
+        if (!sameShape || JSON.stringify(old) !== JSON.stringify(row)) { updated++; toWrite.push(row); }
         // P3-3 卡片冲突可视化：对 cards 表逐字段比对，记录哪些字段被谁覆盖
         if (t.table === 'cards') {
           const inc = incomingMap.get(row.id);
@@ -825,8 +830,12 @@ export async function previewImport(backup) {
     for (const row of incoming) {
       const old = baseMap.get(row.id);
       if (!old) { added++; if (samples.length < 5) samples.push({ title: previewSample(t, row), status: 'new' }); }
-      else if (JSON.stringify(old) !== JSON.stringify(row)) { overwritten++; if (samples.length < 5) samples.push({ title: previewSample(t, row), status: 'overwrite' }); }
-      else { skipped++; }
+      else {
+        // M12：同 importBackup 主路径——键数+水位快速判定，避免每条 JSON.stringify 全串
+        const sameShape = Object.keys(old).length === Object.keys(row).length && livenessTs(old) === livenessTs(row);
+        if (!sameShape || JSON.stringify(old) !== JSON.stringify(row)) { overwritten++; if (samples.length < 5) samples.push({ title: previewSample(t, row), status: 'overwrite' }); }
+        else { skipped++; }
+      }
     }
     let deleted = 0;
     if (tombstones.length) { const { removed } = applyTombstones(base, tombstones, t.kind); deleted = removed.length; }

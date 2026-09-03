@@ -178,7 +178,11 @@ async function onPick(e) {
 }
 
 let pollTimer = null;
-onUnmounted(() => { if (pollTimer) clearInterval(pollTimer); });
+onUnmounted(() => {
+  if (pollTimer) clearInterval(pollTimer);
+  releaseImgUrl(); // M9：组件卸载时释放预览资源
+  releasePdf();
+});
 
 async function onDelete(f) {
   try {
@@ -210,9 +214,27 @@ function escHtml(v) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// M9：预览资源释放——图片 objectURL 与 pdf 文档对象都持有大块内存，
+// 旧实现切换文件/关闭/卸载时从不 revoke/destroy：几十 MB PDF 常驻、Blob URL 泄漏。
+function releaseImgUrl() {
+  if (imgUrl.value) { try { URL.revokeObjectURL(imgUrl.value); } catch { /* 已释放 */ } imgUrl.value = ''; }
+}
+function releasePdf() {
+  if (pdfDocCache) { try { pdfDocCache.destroy?.(); } catch { /* 已销毁 */ } pdfDocCache = null; }
+}
+function closePreview() {
+  releaseImgUrl();
+  releasePdf();
+  preview.value = null;
+  pdfPages.value = 0;
+  pdfPage.value = 1;
+}
+
 async function openPreview(f) {
+  releaseImgUrl(); // 切换文件：先 revoke 上一张 objectURL
+  releasePdf();    // 切换文件：销毁上一份 pdf 文档，避免大文件常驻内存
   preview.value = { row: f };
-  sheetHtml.value = ''; docxHtml.value = ''; imgUrl.value = ''; textPreview.value = '';
+  sheetHtml.value = ''; docxHtml.value = ''; textPreview.value = '';
   const blob = await getFileBlob(f);
   if (!blob) { toast(t('views.libraryFiles.previewNoFile'), 'error'); return; }
   try {
@@ -449,7 +471,7 @@ onMounted(async () => {
     <div v-if="preview" class="mat-section">
       <div class="mat-title">
         {{ t('views.libraryFiles.previewTitle', undefined, { name: preview.row.name }) }}
-        <button class="btn small" style="margin-left:8px" @click="preview = null; pdfDocCache = null">{{ t('views.libraryFiles.previewClose') }}</button>
+        <button class="btn small" style="margin-left:8px" @click="closePreview">{{ t('views.libraryFiles.previewClose') }}</button>
       </div>
       <div v-if="preview.row.ext === 'pdf'" class="pdf-box">
         <div class="pdf-toolbar">

@@ -54,7 +54,11 @@ export const zh = {
   emptyMasteryMsg: '开始复习后这里会显示各科掌握度',
   weakTitle: '薄弱点 TOP3',
   weakTitleTip: '查看并编辑该卡',
-  weakFail: '错 {n} 次',
+  weakFail: '答错 {n} 次',
+  // 首屏 loading / 错误兜底（根路由）
+  loadingTip: '正在汇总学习数据…',
+  loadFail: '首页数据加载失败',
+  retry: '重试',
   emptyWeakTitle: '暂无薄弱点',
   emptyWeakMsg: '保持节奏，薄弱点会自动出现在这里',
 
@@ -122,6 +126,10 @@ export const en = {
   weakTitle: 'Top 3 weak points',
   weakTitleTip: 'View & edit this card',
   weakFail: '{n} wrong',
+  // first-screen loading / error fallback (root route)
+  loadingTip: 'Aggregating learning data…',
+  loadFail: 'Dashboard failed to load',
+  retry: 'Retry',
   emptyWeakTitle: 'No weak points yet',
   emptyWeakMsg: 'Keep the pace; weak points appear here automatically',
 

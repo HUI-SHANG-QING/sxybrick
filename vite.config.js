@@ -74,6 +74,7 @@ export default defineConfig({
       manifest: {
         name: 'SxyBrick 记忆卡片',
         short_name: 'SxyBrick',
+        lang: 'zh-CN',
         description: '离线记忆卡片 · 手动导出/导入同步',
         theme_color: '#16202c',
         background_color: '#f5f6f8',

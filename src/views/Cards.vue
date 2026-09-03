@@ -51,6 +51,14 @@ const total = ref(0);
 const dueCount = ref(0);
 const loading = ref(false);
 
+// E3：非虚拟分支真分页（viewMode='page' 时 v-for 只渲染当页，1 万卡不再一次性建 1 万个 DOM 节点）
+const PAGE_SIZE = 50;
+const pageNo = ref(1);
+const pageCount = computed(() => Math.max(1, Math.ceil(items.value.length / PAGE_SIZE)));
+const pagedItems = computed(() => items.value.slice((pageNo.value - 1) * PAGE_SIZE, pageNo.value * PAGE_SIZE));
+// 列表变短（过滤/删除）导致页码越界时自动收回到最后一页
+watch(pageCount, (c) => { if (pageNo.value > c) pageNo.value = c; });
+
 // ---------- 资产体检跳转支持（?zombie=1 / ?dupGroup=key / ?orphan=1 / ?expandAll=1） ----------
 const activeFilterBanner = ref('');   // 顶部提示：当前是从资产体检跳过来的哪一组
 // collapsedIds 语义：集合中的 id = 当前卡详情被“收起”（看不见 front+back 全 Markdown）
@@ -798,7 +806,7 @@ async function rescueAll() {
           <div class="tags">
             <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
             <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
-            <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '遗忘{n}次', { n: item.failCount }) }}</span>
+            <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '答错{n}次', { n: item.failCount }) }}</span>
             <span style="flex:1"></span>
             <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)" :title="(expandAllByDefault ? (collapsedIds.has(item.id) ? t('views.cards.expandDetailTitle') : t('views.cards.collapseDetailTitle')) : (collapsedIds.has(item.id) ? t('views.cards.collapseDetailTitle') : t('views.cards.expandDetailTitle')))">
               {{ expandAllByDefault ? (collapsedIds.has(item.id) ? t('views.cards.expandDetail') : t('views.cards.collapseDetail')) : (collapsedIds.has(item.id) ? t('views.cards.collapseDetail') : t('views.cards.expandDetail')) }}
@@ -821,19 +829,25 @@ async function rescueAll() {
           </template>
           <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:8px;flex-wrap:wrap">
             <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? t('views.cards.unmark') : t('views.cards.mark') }}</button> <button class="btn small" @click="openEdit(item)">{{ t('views.cards.edit') }}</button>
-            <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? t('views.cards.generating') : t('views.cards.variant') }}</button> <button class="btn small" @click="openDiagnose(item)">{{ t('views.cards.diagnose') }}</button> <button class="btn small" @click="openHistory(item)">{{ t('views.cards.history') }}</button> <button class="btn small danger" @click="remove(item)">{{ t('views.cards.del') }}</button>
-          </div>
+            <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? t('views.cards.generating') : t('views.cards.variant') }}</button> <button class="btn small" @click="openDiagnose(item)">{{ t('views.cards.diagnose') }}</button> <button class="btn small" @click="openHistory(item)">{{ t('views.cards.history') }}</button>           <button class="btn small danger" @click="remove(item)">{{ t('views.cards.del') }}</button>
         </div>
-      </template>
+      </div>
+      <!-- E3：分页条（仅 page 视图且多于一页时显示；scroll 视图走 VirtualList 不在此） -->
+      <div v-if="pageCount > 1" class="pager no-print" style="display:flex;align-items:center;justify-content:center;gap:10px;margin:14px 0">
+        <button class="chip mini" :disabled="pageNo <= 1" @click="pageNo--">{{ t('views.cards.pagePrev', '上一页') }}</button>
+        <span class="hint">{{ pageNo }} / {{ pageCount }} · {{ t('views.cards.totalN', '共 {n} 张', { n: items.length }) }}</span>
+        <button class="chip mini" :disabled="pageNo >= pageCount" @click="pageNo++">{{ t('views.cards.pageNext', '下一页') }}</button>
+      </div>
+    </template>
     </VirtualList>
 
     <template v-else>
-      <div v-for="item in items" :key="item.id" class="card-item" :class="{ highlight: highlightId === item.id }" @click="openPreview(item, $event)" style="cursor:pointer">
+      <div v-for="item in pagedItems" :key="item.id" class="card-item" :class="{ highlight: highlightId === item.id }" @click="openPreview(item, $event)" style="cursor:pointer">
         <label v-if="selectMode" class="chk" @click.stop><input type="checkbox" :checked="selectedIds.has(item.id)" @change="toggleSelect(item.id)" /></label>
         <div class="tags">
           <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
           <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
-          <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '遗忘{n}次', { n: item.failCount }) }}</span>
+          <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '答错{n}次', { n: item.failCount }) }}</span>
           <span style="flex:1"></span>
           <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)">
             {{ expandAllByDefault ? (collapsedIds.has(item.id) ? t('views.cards.expandDetail') : t('views.cards.collapseDetail')) : (collapsedIds.has(item.id) ? t('views.cards.collapseDetail') : t('views.cards.expandDetail')) }}
@@ -871,7 +885,7 @@ async function rescueAll() {
       <div v-if="!orphanImages.length" class="hint">{{ t('views.cards.noOrphan') }}</div>
       <div v-else class="orphan-grid">
         <div v-for="img in orphanImages" :key="img.id" class="orphan-cell">
-          <img :src="dataUrlOf(img)" :alt="img.id" />
+          <img :src="dataUrlOf(img)" :alt="img.id" loading="lazy" decoding="async" />
           <div class="orphan-meta">
             <span class="hint">{{ new Date(img.createdAt || Date.now()).toLocaleDateString() }}</span>
             <span style="flex:1"></span>

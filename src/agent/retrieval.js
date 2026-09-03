@@ -197,12 +197,24 @@ export async function rebuildIndex() {
  * （embeddings 表已建 'subject'/'sourceType' 索引）做范围裁剪，避免全表扫描。
  * 未提供时退回全表扫描，行为与旧实现完全一致（向后兼容）。
  */
+/**
+ * 无过滤条件（全库检索）的安全上限：超过则拒绝而不是一次性载入。
+ * 1536 维向量 ≈ 6KB/条，3 万条 ≈ 180MB 进 JS 堆，低端机必崩（M10）。
+ * 全库语义检索是正当需求（Agent 跨科目找知识），因此不禁止，但用显式报错
+ * 逼调用方在「限定范围」与「接受不完整检索」间做选择，而不是默默 OOM。
+ */
+export const FULLSCAN_ROW_LIMIT = 3000;
+
 async function loadEmbeddingRows(opts = {}) {
   const subject = opts.subject && String(opts.subject).trim();
   if (subject) return db.embeddings.where('subject').equals(subject).toArray();
   if (opts.sourceType) return db.embeddings.where('sourceType').equals(opts.sourceType).toArray();
   // 单文件问答：限定 sourceId（Phase 6.4 资料问答——embeddings 已建 sourceId 索引）
   if (opts.sourceId) return db.embeddings.where('sourceId').equals(opts.sourceId).toArray();
+  const total = await db.embeddings.count();
+  if (total > FULLSCAN_ROW_LIMIT) {
+    throw new Error(`全库检索需限定 subject / sourceType / sourceId（当前 ${total} 条 embedding 行，超过 ${FULLSCAN_ROW_LIMIT} 的安全上限，全表载入会耗尽内存）`);
+  }
   return db.embeddings.toArray();
 }
 

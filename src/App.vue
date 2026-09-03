@@ -529,7 +529,7 @@ async function enableReminder() {
                 <el-button type="primary" size="small" @click="enableReminder">开启提醒</el-button>
                 <span class="hint">提醒时未达标会通知你差几张</span>
               </div>
-              <div class="field-label" style="margin-top:16px">🛰️ 操作监控（恐怖级埋点）</div>
+              <div class="field-label" style="margin-top:16px">🛰️ 操作记录统计</div>
               <div class="hint" style="margin-bottom:8px">
                 A 级 = 业务大事件（背诵评分、导出、同步、AI 调用、番茄、模考等）；B 级 = DOM 级点击/选择（按钮、chip、卡片、选择框）。<br/>
                 数据仅存本地 IndexedDB，可跨设备同步；一键导出 / 一键清空都在「导出打印」页面的危险区。
@@ -551,7 +551,7 @@ async function enableReminder() {
               <div class="hint" style="margin-bottom:12px">{{ t('engine.intro') }}</div>
 
               <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
-                <span>启用 FSRS 调度（opt-in，默认 SM-2）</span>
+                <span>启用 FSRS 调度（可选项，默认 SM-2）</span>
                 <el-switch :model-value="scheduler === 'fsrs'" @change="onToggleScheduler" />
               </div>
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
@@ -602,7 +602,7 @@ async function enableReminder() {
 
             <el-tab-pane :label="t('settings.storage')" name="storage">
               <div class="field-label">离线与存储</div>
-              <div class="hint" style="margin-bottom:8px">应用已注册为 PWA，可「装到桌面」断网使用。本地数据保存在浏览器 IndexedDB。</div>
+              <div class="hint" style="margin-bottom:8px">已支持离线安装（PWA），可「装到桌面」断网使用。本地数据保存在浏览器 IndexedDB。</div>
               <div v-if="storageEstimate && !storageEstimate.unsupported" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
                 <el-progress
                   :percentage="Math.round(storageEstimate.usagePercent)"

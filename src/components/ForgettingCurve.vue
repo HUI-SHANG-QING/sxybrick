@@ -122,10 +122,20 @@ function render() {
   chart.setOption(buildOption(), true);
 }
 
-onMounted(() => { render(); });
+onMounted(() => {
+  render();
+  // E4：resize 监听必须挂载后注册、卸载时移除——此前写在 setup 顶层，永不移除，
+  // 闭包持有已 dispose 的 chart（滚动条出现/窗口变化触发 resize 时对已销毁实例调
+  // resize() 抛错，实例也因闭包无法被 GC，每进出一次泄漏一份）
+  window.addEventListener('resize', onResize);
+});
 watch(() => [props.card, props.reviews, props.examAt], () => render(), { deep: true });
-onBeforeUnmount(() => { if (chart) chart.dispose(); });
-window.addEventListener('resize', () => chart && chart.resize());
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize);
+  if (chart) chart.dispose();
+  chart = null;
+});
+function onResize() { if (chart) chart.resize(); }
 </script>
 
 <style scoped>

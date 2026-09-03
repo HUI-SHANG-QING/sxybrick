@@ -721,22 +721,27 @@ toolRegistry.register({
     if (!query) return { ok: false, error: '查询为空' };
     const opts = { topK: Number(args?.topK) || 6 };
     if (args?.subject && String(args.subject).trim()) opts.subject = String(args.subject).trim();
-    const results = await hybridSearch(query, opts);
-    return {
-      ok: true,
-      data: {
-        count: results.length,
-        items: results.map((r) => ({
-          sourceType: r.row.sourceType,
-          sourceId: r.row.sourceId,
-          subject: r.row.subject,
-          text: String(r.row.text).slice(0, 120),
-          fusedScore: Math.round(r.fused * 100),
-          semScore: Math.round((r.semScore || 0) * 100),
-          kwScore: Math.round((r.kwScore || 0) * 100),
-        })),
-      },
-    };
+    try {
+      const results = await hybridSearch(query, opts);
+      return {
+        ok: true,
+        data: {
+          count: results.length,
+          items: results.map((r) => ({
+            sourceType: r.row.sourceType,
+            sourceId: r.row.sourceId,
+            subject: r.row.subject,
+            text: String(r.row.text).slice(0, 120),
+            fusedScore: Math.round(r.fused * 100),
+            semScore: Math.round((r.semScore || 0) * 100),
+            kwScore: Math.round((r.kwScore || 0) * 100),
+          })),
+        },
+      };
+    } catch (e) {
+      // M10：全库超上限被拒时给出可操作反馈（建议带 subject 重试），不让错误静默吞掉
+      return { ok: false, error: e?.message || '检索失败' };
+    }
   },
 });
 
@@ -754,8 +759,13 @@ toolRegistry.register({
     if (!query) return { ok: false, error: '查询为空' };
     const opts = { topK: Number(args?.topK) || 6 };
     if (args?.subject && String(args.subject).trim()) opts.subject = String(args.subject).trim();
-    const text = await retrieveContext(query, opts);
-    return { ok: true, data: { context: text, hasResults: !!text } };
+    try {
+      const text = await retrieveContext(query, opts);
+      return { ok: true, data: { context: text, hasResults: !!text } };
+    } catch (e) {
+      // M10：全库超上限被拒 → 明确反馈（Agent 可带 subject 缩小范围重试）
+      return { ok: false, error: e?.message || '检索失败' };
+    }
   },
 });
 

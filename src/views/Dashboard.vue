@@ -15,6 +15,8 @@ const stats = ref(null);
 const weak = ref([]);
 const plans = ref([]);
 const assets = ref({});
+const loading = ref(true);   // 首屏数据加载中
+const loadErr = ref('');     // 首屏加载错误信息（IndexedDB 故障等）
 const coachMsg = ref('');
 const coachLoading = ref(false);
 const trendEl = ref(null);
@@ -25,22 +27,32 @@ const todayDone = computed(() => stats.value?.todayReviews || 0);
 const avgMastery = computed(() => stats.value?.avgMastery || 0);
 
 async function load() {
-  const [s, w, p, mm, ge, pomo, ach, docs, exams] = await Promise.all([
-    getStats(), weakCards(3), listPlans(),
-    listMindmaps(), listGraphEdges(), countPomoToday(),
-    listAchievements(), listDocs(), listExams(),
-  ]);
-  stats.value = s;
-  weak.value = w;
-  plans.value = (p || []).filter(x => x.status === 'active').slice(0, 4);
-  const reviewsCount = await db.reviews.count();
-  assets.value = {
-    cards: s.totalCards, reviews: reviewsCount, plans: p?.length || 0,
-    mindmaps: mm.length, graphEdges: ge.length, pomoToday: pomo,
-    achievements: ach.length, docs: docs.length, exams: exams.length,
-  };
-  renderTrend();
+  try {
+    const [s, w, p, mm, ge, pomo, ach, docs, exams] = await Promise.all([
+      getStats(), weakCards(3), listPlans(),
+      listMindmaps(), listGraphEdges(), countPomoToday(),
+      listAchievements(), listDocs(), listExams(),
+    ]);
+    stats.value = s;
+    weak.value = w;
+    plans.value = (p || []).filter(x => x.status === 'active').slice(0, 4);
+    const reviewsCount = await db.reviews.count();
+    assets.value = {
+      cards: s.totalCards, reviews: reviewsCount, plans: p?.length || 0,
+      mindmaps: mm.length, graphEdges: ge.length, pomoToday: pomo,
+      achievements: ach.length, docs: docs.length, exams: exams.length,
+    };
+    loadErr.value = '';
+    renderTrend();
+  } catch (e) {
+    // 根路由首屏兜底：数据查询失败（IndexedDB 不可用等）时给出明确错误与重试，
+    // 不让整页白屏 / 静默空列表（R3 横幅之外的第二道提示）
+    loadErr.value = e?.message || String(e);
+    console.warn('[dashboard] load failed:', e);
+  } finally { loading.value = false; }
 }
+
+function retryLoad() { loading.value = true; load(); }
 
 function renderTrend() {
   if (!trendEl.value || !stats.value?.trend) return;
@@ -124,7 +136,18 @@ onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
 </script>
 
 <template>
-  <div class="ds-wrap">
+  <!-- 首屏加载 / 错误兜底（根路由：IndexedDB 故障时明确提示可重试，不白屏不静默空列表） -->
+  <div v-if="loading" class="ds-wrap no-print">
+    <div class="ds-loading"><span class="hint">{{ t('views.dashboard.loadingTip', '正在汇总学习数据…') }}</span></div>
+  </div>
+  <div v-else-if="loadErr" class="ds-wrap no-print" role="alert">
+    <div class="ds-loading">
+      <div style="color:var(--red)">⚠️ {{ t('views.dashboard.loadFail', '首页数据加载失败') }}</div>
+      <div class="hint" style="margin:6px 0 10px">{{ loadErr }}</div>
+      <button class="btn small primary" @click="retryLoad">{{ t('views.dashboard.retry', '重试') }}</button>
+    </div>
+  </div>
+  <div v-else class="ds-wrap">
     <!-- Hero：今日聚焦 -->
     <div class="ds-hero">
       <div class="ds-hero-main">

@@ -69,7 +69,7 @@ function render(src) {
   // 3) 本地图片：![alt](sxy-img://id) → <img src="blobURL">
   // alt 来自用户输入，必须转义后再拼进属性，否则 `x" onerror="alert(1)` 可闭合标签注入
   text = text.replace(/!\[([^\]]*)\]\(sxy-img:\/\/([0-9a-fA-F-]+)\)/g, (m, alt, id) =>
-    put(`<img src="${escapeAttr(imgUrl(id) || '')}" alt="${escapeAttr(alt)}" class="md-img" />`));
+    put(`<img src="${escapeAttr(imgUrl(id) || '')}" alt="${escapeAttr(alt)}" class="md-img" loading="lazy" decoding="async" />`));
 
   // 4) 公式保护（仅当 katex 已加载时才渲染，否则保留原始 $$..$$ / $..$）
   text = text.replace(/\$\$([\s\S]+?)\$\$/g, (m, tex) => {

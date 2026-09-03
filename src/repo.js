@@ -97,7 +97,10 @@ export async function getTags(subject = '') {
 
 // ---------- 卡片列表 ----------
 export async function listCards({ q = '', subject = '', tags = [], logic = 'AND', mode = 'all', sortBy = 'updated' } = {}) {
-  let cards = await allCards();
+  // M11：全量只读一次——dueCount 是全局到期数（与过滤条件无关），
+  // 旧实现末尾再 allCards() 一次 = 每次列表查询 2 次全表扫描，万卡级约翻倍耗时
+  const all = await allCards();
+  let cards = all;
   if (subject) cards = cards.filter(c => c.subject === subject);
   // M4 搜索扩展：q 覆盖 标题/正面/背面/标签/科目/来源/助记（大小写不敏感），
   // 原「仅 front/back 子串」行为是它的子集，向后兼容
@@ -117,7 +120,7 @@ export async function listCards({ q = '', subject = '', tags = [], logic = 'AND'
   else if (sortBy === 'due') cards.sort((a, b) => (a.dueAt - b.dueAt) || (a.id < b.id ? -1 : 1));
   else if (sortBy === 'subject') cards.sort((a, b) => String(a.subject || '').localeCompare(String(b.subject || '')) || (b.updatedAt - a.updatedAt));
   else cards.sort((a, b) => (b.updatedAt - a.updatedAt) || (b.id > a.id ? 1 : -1));
-  const dueCount = (await allCards()).filter(c => c.dueAt <= now()).length;
+  const dueCount = all.filter(c => c.dueAt <= now()).length;
   return { items: cards, total: cards.length, dueCount };
 }
 
