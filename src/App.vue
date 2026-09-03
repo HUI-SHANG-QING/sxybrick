@@ -301,11 +301,19 @@ function replayOnboarding() { showSettings.value = false; beginOnboarding(); }
 
 // 设置按钮拖拽：与通知中心 / AI 对话共用 useFabDrag（rAF 节流 + transform 合成层 + 边界收敛 + 位置持久化）
 const fabEl = ref(null);
+// 除指针/触摸外补 @click：① 键盘可达（Enter/Space 只派发 click，不派发 pointer 事件）；
+// ② 极端 WebView 连 touchend 都不派发时的最后兜底。指针序列结束浏览器会补发一个 click，
+// 若直接绑 toggle 会把刚拖完的球误开关一次面板，故按时间窗忽略指针序列残留 click
+// （与通知中心 onKeyboardToggle 同策略）。
+let lastFabPointerSeqAt = 0;
 const { dragging: fabDragging, onDown: fabDown } = useFabDrag({
   root: fabEl,
   storageKey: 'sxy_fab_pos',
-  onTap: () => { showSettings.value = !showSettings.value; },
+  onTap: toggleSettings,
 });
+function onFabDown(e) { lastFabPointerSeqAt = Date.now(); fabDown(e); }
+function onFabClick() { if (Date.now() - lastFabPointerSeqAt < 600) return; toggleSettings(); }
+function toggleSettings() { showSettings.value = !showSettings.value; }
 
 onMounted(() => {
   theme.apply();
@@ -469,7 +477,7 @@ async function enableReminder() {
 
     <!-- 全局设置入口（可拖动） -->
     <button ref="fabEl" class="settings-fab no-print" :class="{ dragging: fabDragging }"
-      @pointerdown="fabDown" @touchstart="fabDown" @mousedown="fabDown">🎨</button>
+      @pointerdown="onFabDown" @touchstart="onFabDown" @mousedown="onFabDown" @click="onFabClick">🎨</button>
 
     <div v-if="degraded" class="hint" style="position:fixed;bottom:8px;right:12px;z-index:200">已启用性能优化模式</div>
     <!-- R2：路由外的全局组件各自包一层 ErrorBoundary，任一崩溃只降级自身，

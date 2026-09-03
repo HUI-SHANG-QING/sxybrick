@@ -166,6 +166,15 @@ export function useFabDrag({ root, handle = null, storageKey = null, margin = 8,
       document.addEventListener('pointermove', onMove, { passive: false });
       document.addEventListener('pointerup', onUp);
       document.addEventListener('pointercancel', onUp);
+      // 部分平板/WebView（尤其 iPadOS/Safari 在 touch 的 pointerdown 阶段调用
+      // setPointerCapture 后、或某些国产 Android WebView）对 touch 的 Pointer Events
+      // 支持不完整：pointerdown 正常派发，但 pointerup/pointercancel 可能被吞掉，而
+      // 原生 touch 事件不受影响、touchend/touchcancel 仍会派发。这里补上 touch 监听
+      // 兜底，确保点按（onTap）与拖动落位不会被漏掉。onUp 已用 dragging 做幂等守卫，
+      // 正常设备上 pointerup 与 touchend 双触发只会执行一次、不会二次触发 onTap。
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', onUp);
+      document.addEventListener('touchcancel', onUp);
       // 鼠标拖出浏览器窗口外松开时 pointerup 不会回到页面，dragging 会永久卡住 →
       // 用 window 的 blur / pointerup 兜底收尾（触屏手指移出屏幕同理）
       window.addEventListener('blur', onUp);
@@ -204,6 +213,9 @@ export function useFabDrag({ root, handle = null, storageKey = null, margin = 8,
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
       document.removeEventListener('pointercancel', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+      document.removeEventListener('touchcancel', onUp);
       window.removeEventListener('blur', onUp);
     } else {
       document.removeEventListener('touchmove', onMove);
@@ -274,6 +286,9 @@ export function useFabDrag({ root, handle = null, storageKey = null, margin = 8,
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
       document.removeEventListener('pointercancel', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+      document.removeEventListener('touchcancel', onUp);
       window.removeEventListener('blur', onUp);
     } else {
       document.removeEventListener('touchmove', onMove);
