@@ -469,8 +469,13 @@ const speakSupported = speechSupported();
 
           <!-- 结果反馈 -->
           <div v-if="result" class="grade-fb" :class="result.correct ? 'ok' : 'no'">
-            {{ result.correct ? '✓ ' + t('views.wordReview.correctToast') : '✗ ' + t('views.wordReview.wrongToast') }}
-            <span v-if="!result.correct" class="gf-ans">{{ t('views.wordReview.correctAnswer') }}：{{ current.meaning }}</span>
+            <template v-if="result.noTarget">
+              ⚠️ {{ t('views.wordReview.noTargetHint', '此单词缺少释义/拼写，无法判分，请跳过') }}
+            </template>
+            <template v-else>
+              {{ result.correct ? '✓ ' + t('views.wordReview.correctToast') : '✗ ' + t('views.wordReview.wrongToast') }}
+              <span v-if="!result.correct" class="gf-ans">{{ t('views.wordReview.correctAnswer') }}：{{ ['reverseChoice','englishEnglish','collocations','listenSpell','cloze','sentenceCloze'].includes(mode) ? current.word : current.meaning }}</span>
+            </template>
           </div>
         </div>
       </div>
