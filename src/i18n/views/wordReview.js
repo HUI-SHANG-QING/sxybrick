@@ -93,6 +93,7 @@ export const zh = {
   correctToast: '答对了',
   wrongToast: '答错了',
   noTargetHint: '此单词缺少释义/拼写，无法判分，请跳过',
+  noMeaningHint: '（该单词暂无释义）',
   partialToast: '部分正确',
 
   // 每卡动作
@@ -217,6 +218,7 @@ export const en = {
   correctToast: 'Correct',
   wrongToast: 'Wrong',
   noTargetHint: 'This word is missing meaning/spelling, cannot grade — please skip',
+  noMeaningHint: '(No meaning available for this word)',
   partialToast: 'Partly correct',
 
   addFamiliar: 'Mark familiar',

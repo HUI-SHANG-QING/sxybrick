@@ -404,10 +404,10 @@ const speakSupported = speechSupported();
             <button v-else class="q-spk2" @click="speak(current.word, { lang: accentLang() })">🔊</button>
           </div>
 
-          <!-- 反向 / 英英 / 词组：显示释义或提示 -->
-          <div v-if="mode === 'reverseChoice'" class="q-prompt">{{ current.meaning }}</div>
-          <div v-if="mode === 'englishEnglish'" class="q-prompt">{{ current.defs?.length ? current.defs.map(d => d.meaning).join('; ') : current.meaning }}</div>
-          <div v-if="mode === 'collocations'" class="q-prompt">{{ current.meaning }}</div>
+          <!-- 反向 / 英英 / 词组：显示释义或提示（空值兜底） -->
+          <div v-if="mode === 'reverseChoice'" class="q-prompt">{{ current.meaning || current.word || t('views.wordReview.noMeaningHint', '（该单词暂无释义）') }}</div>
+          <div v-if="mode === 'englishEnglish'" class="q-prompt">{{ current.defs?.length ? current.defs.map(d => d.meaning).join('; ') : (current.meaning || current.word || t('views.wordReview.noMeaningHint', '（该单词暂无释义）')) }}</div>
+          <div v-if="mode === 'collocations'" class="q-prompt">{{ current.meaning || current.word || t('views.wordReview.noMeaningHint', '（该单词暂无释义）') }}</div>
 
           <!-- 挖空拼写 -->
           <div v-if="mode === 'cloze'" class="q-cloze">{{ clozeWord }}</div>
@@ -454,14 +454,16 @@ const speakSupported = speechSupported();
           </div>
 
           <!-- 释义展示（揭开后 / 跟读） -->
+          <!-- adaptive/flashcard 已在 q-word 显示英文词，此处只显示中文释义，避免英文词重复出现 -->
           <div v-if="revealed || (mode==='readAloud' && result)" class="meaning-show">
-            <div class="ms-word">{{ current.word }} <span v-if="current.phonetic" class="ms-phon">/{{ current.phonetic }}/</span></div>
-            <div class="ms-mean">{{ current.meaning }}</div>
+            <div v-if="!['adaptive','flashcard','choice','spell','readAloud','quiz'].includes(mode)" class="ms-word">{{ current.word }} <span v-if="current.phonetic" class="ms-phon">/{{ current.phonetic }}/</span></div>
+            <div class="ms-mean">{{ current.meaning || t('views.wordReview.noMeaningHint', '（该单词暂无释义）') }}</div>
             <div v-if="current.example" class="ms-ex">{{ current.example }} <span class="ms-ext">· {{ current.exampleTrans }}</span></div>
           </div>
 
-          <!-- 判分后：不背式/闪卡 自评 -->
-          <div v-if="(mode==='adaptive' || mode==='flashcard' || mode==='readAloud') && !result" class="rate-row">
+          <!-- 判分后：不背式/闪卡 自评（必须先揭释义再自评，否则用户看到英文词就直接点"记住了"跳过检索） -->
+          <!-- readAloud 无揭释义步骤，自评按钮直接显示 -->
+          <div v-if="(mode==='adaptive' || mode==='flashcard') && revealed && !result || mode==='readAloud' && !result" class="rate-row">
             <button class="rate rate-good" @click="selfRate(2)">{{ t('views.wordReview.rateGood') }}</button>
             <button class="rate rate-hard" @click="selfRate(1)">{{ t('views.wordReview.rateHard') }}</button>
             <button class="rate rate-again" @click="selfRate(0)">{{ t('views.wordReview.rateAgain') }}</button>
