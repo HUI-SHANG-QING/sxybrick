@@ -538,6 +538,25 @@ export function assertBackupScope(backup) {
   throw new Error(`数据域不匹配：当前是「${name(cur)}」，却要导入「${name(scope)}」的数据包。请先在设置里切换到${name(scope)}再导入。`);
 }
 
+// round11 N1 方案 A：导入进度回调 6 阶段 + 图片解码外置
+//   阶段名按导入实际顺序：snapshot → dedupe → tombstones → tables → cascade → images
+//   与 importBackup 内的执行顺序严格对应，UI 可据此展示进度条与当前阶段名。
+//   fireProgress 兜底：opts.onProgress 缺省或非函数时静默跳过；回调内异常
+//   仅 console.warn，绝不阻断导入（导入主链容错优先于进度可视化）。
+const PHASE = Object.freeze({
+  SNAPSHOT: 'snapshot',
+  DEDUPE: 'dedupe',
+  TOMBSTONES: 'tombstones',
+  TABLES: 'tables',
+  CASCADE: 'cascade',
+  IMAGES: 'images',
+});
+function fireProgress(opts, phase, progress, info) {
+  if (!opts || typeof opts.onProgress !== 'function') return;
+  try { opts.onProgress(phase, progress, info); }
+  catch (e) { console.warn(`[sync] onProgress(${phase}) 回调异常（不阻断导入）:`, e?.message || e); }
+}
+
 // 各表合并 + 墓碑应用（与中枢 hub.js 的 merge 使用同一套 sync-manifest 纯函数，保证两端一致）
 // P3-3 增强：合并前自动 saveSnapshot（kind=backup-before-import），合并后返回 stats.conflicts
 //   conflicts: [{ id, front(摘要), winner: 'incoming'|'local'|'mixed', fields: ['front','ease',...], reason }]
@@ -557,6 +576,7 @@ export async function importBackup(backup, opts = {}) {
   // P3-3 0) 合并前自动保存快照（便于事后回滚）；失败不阻断导入
   //   opts.skipSnapshot —— round18 R18-2：推送前的 pull-merge 由代码自动触发，
   //   每次推送都存一份全量快照既浪费配额也让快照列表被噪声淹没（用户并没有主动导入）。
+  fireProgress(opts, PHASE.SNAPSHOT, 0);
   if (!opts.skipSnapshot) {
     try {
       const label = `导入前自动快照 · ${fmtLocaleDateTime(Date.now())}`;
@@ -564,6 +584,7 @@ export async function importBackup(backup, opts = {}) {
       stats.snapshotId = snap.id;
     } catch (e) { console.warn('[sync] 自动快照失败（不阻断导入）:', e?.message || e); }
   }
+  fireProgress(opts, PHASE.SNAPSHOT, 1);
 
   // 0b) 卡片去重预判 + 关联引用重定向（round12 数据协同修复）
   // 先算出【跳过 id → 保留 id】映射。被「异 id 同内容」去重跳过的卡，其关联数据
@@ -574,6 +595,7 @@ export async function importBackup(backup, opts = {}) {
   // 见 src/sync-dedup.js 头部说明。
   // ⚠️ 字段名枚举易漏（N-6：embeddings.sourceId 曾漏掉）——任何新卡片引用字段
   // 都必须同步加进 CARD_REF_FIELDS，否则被去重跳过的卡在对应表里留下孤儿行。
+  fireProgress(opts, PHASE.DEDUPE, 0);
   let cardDedupe = { kept: (backup.cards || []).filter(x => x && x.id), duplicated: 0, idRemap: new Map() };
   if (cardDedupe.kept.length) {
     const baseCards = await db.cards.toArray();
@@ -586,6 +608,7 @@ export async function importBackup(backup, opts = {}) {
       backup = remapCardRefs(backup, cardDedupe.idRemap);
     }
   }
+  fireProgress(opts, PHASE.DEDUPE, 1);
 
   // 1) 墓碑：按 deletedAt 谁新听谁合并（kind 缺失的旧数据按 card 处理）
   // P0 修正：整段合并包裹在 Dexie 事务中，任一子步骤失败整体回滚，
@@ -597,10 +620,15 @@ export async function importBackup(backup, opts = {}) {
     if (!_seen.has(tb.name)) { _seen.add(tb.name); txTables.push(tb); }
   }
   await db.transaction('rw', ...txTables, async () => {
+  fireProgress(opts, PHASE.TOMBSTONES, 0);
   const tombstones = mergeTombstones(await db.tombstones.toArray(), backup.tombstones || []);
   if (tombstones.length) await db.tombstones.bulkPut(tombstones);
+  fireProgress(opts, PHASE.TOMBSTONES, 1);
 
   // 2) 各数据表按清单策略合并（图片单独处理：base64→Blob 且存在即跳过，避免覆盖本地 Blob）
+  // round11 N1：TABLES 阶段仅触发 0/1 两端——30+ 表中绝大多数为空，per-table 细粒度
+  // 反馈价值低，UI 只需知道「正在合并各表」即可。0/1 两端足以驱动进度条。
+  fireProgress(opts, PHASE.TABLES, 0, { total: effTables.length });
   for (const t of effTables) {
     if (t.table === 'images') continue;
     let incoming = (backup[t.table] || []).filter(x => x && x.id);
@@ -652,35 +680,23 @@ export async function importBackup(backup, opts = {}) {
     else if (t.table === 'reviews') { stats.reviews = added; }
     else stats[t.table] = added + updated;
   }
+  fireProgress(opts, PHASE.TABLES, 1);
 
-  // 2b) 图片：base64 解码为 Blob 后按 id 幂等写入（bulkGet 已存在 id + 一次 bulkPut，替代逐张 get/put）
-  // round18：逐张容错——base64ToBlob 对脏数据（截断/手改包/旧版带前缀）抛错发生在事务内，
-  // 一张坏图会让整个 31 表导入事务 AbortError 中止（同步模块报错的实证根因）。
-  // 坏图跳过 + console.warn，绝不阻断其余表与好图的合并。
-  stats.images = 0;
-  const incomingImgs = (backup.images || []).filter(img => img && img.id && img.data);
-  if (incomingImgs.length) {
-    const existing = await db.images.bulkGet(incomingImgs.map(i => i.id));
-    const toAdd = [];
-    let badImgs = 0;
-    incomingImgs.forEach((img, i) => {
-      if (existing[i]) return;
-      try {
-        toAdd.push({ id: img.id, blob: base64ToBlob(img.data, img.mime), mime: img.mime || 'image/png', createdAt: Date.now() });
-      } catch (e) {
-        badImgs++;
-        console.warn('[sync] 跳过无法解码的图片', img.id, e?.message || e);
-      }
-    });
-    if (toAdd.length) { await db.images.bulkPut(toAdd); stats.images = toAdd.length; }
-    if (badImgs) stats.skippedImages = badImgs;
-  }
+  // round11 N1 方案 A：原 2b 块（图片 base64→Blob）已从大事务拆出到事务外，
+  // 见本函数尾部 `}); // end db.transaction` 之后追加的新 2b 块。理由：
+  //   ① base64ToBlob 是同步 atob，大包导入时阻塞主线程数百毫秒；
+  //   ② 单张坏图抛错发生在事务内会回滚整个 31 表导入（round18 实证），
+  //      拆出后坏图仅 console.warn + stats.skippedImages，不污染主数据。
+  //   ③ 写入是按 id 幂等的，与主事务无强依赖，可独立执行。
+  //   ④ cascade 仍需事务内访问 db.images（删孤儿），故 txTables 保留 db.images
+  //      —— 事务内只读/删 images 表，不写。
 
   // 3) 卡片墓碑：删除卡片 + 级联删复习记录 + 清理孤儿图片
   //    round17 R17-13：必须先于下方「各表 applyTombstones」执行——若后执行，
   //    reviews 表的复活判定会先把 review 墓碑清成 stale（如 selfExplainAt > deletedAt），
   //    随后本块级联又把复习行物理删掉 → 墓碑已丢，对端残留行下次以新行回灌（idOnly 幂等），
   //    孤儿 review 永久回归，卡墓碑因 kind 不匹配无法拦截。
+  fireProgress(opts, PHASE.CASCADE, 0);
   const cardsNow = await db.cards.toArray();
   const { removed, stale } = applyTombstones(cardsNow, tombstones, 'card');
   if (stale.length) await db.tombstones.bulkDelete(stale);
@@ -725,6 +741,7 @@ export async function importBackup(backup, opts = {}) {
     }
     if (toClear.length) await db.tombstones.bulkDelete(toClear);
   }
+  fireProgress(opts, PHASE.CASCADE, 0.5);
 
   // 4) 其余各表墓碑：删除已在其他设备删除的记录；已「复活」（编辑晚于删除）的记录清除墓碑
   //    （此时卡级联已删完被删卡的复习行，review 墓碑不会再被误判复活而提前清掉）
@@ -735,6 +752,7 @@ export async function importBackup(backup, opts = {}) {
     if (stale.length) await db.tombstones.bulkDelete(stale);
     if (removed.length) await db[t.table].bulkDelete(removed);
   }
+  fireProgress(opts, PHASE.CASCADE, 1);
 
   // 5) 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
   if (backup.streakMeta && typeof backup.streakMeta.goal === 'number') {
@@ -744,6 +762,38 @@ export async function importBackup(backup, opts = {}) {
     }
   }
   }); // end db.transaction（P0：整段导入原子化）
+
+  // round11 N1 方案 A：图片 base64→Blob 拆出事务外
+  //   拆出前提：图片写入按 id 幂等（bulkGet 已存在 id 跳过），与主事务无强依赖。
+  //   收益：
+  //   ① base64ToBlob 同步 atob 大包不再阻塞主事务（千图导入可节省数百毫秒 UI 卡顿）；
+  //   ② 单张坏图抛错不再回滚整 31 表导入（round18 实证根因）——坏图仅
+  //      console.warn + stats.skippedImages，主数据安然落库。
+  //   顺序：放在 cascade 之后——cascade 会从 db.images 删孤儿图，图片写入放 cascade
+  //   之后可避免「新写入图被 cascade 误删」边界（orphan 候选集只来自被删卡的引用，
+  //   新卡引用的图不在 orphan 集，安全）。
+  fireProgress(opts, PHASE.IMAGES, 0);
+  stats.images = 0;
+  const incomingImgs = (backup.images || []).filter(img => img && img.id && img.data);
+  if (incomingImgs.length) {
+    const existing = await db.images.bulkGet(incomingImgs.map(i => i.id));
+    fireProgress(opts, PHASE.IMAGES, 0.5);
+    const toAdd = [];
+    let badImgs = 0;
+    incomingImgs.forEach((img, i) => {
+      if (existing[i]) return;
+      try {
+        toAdd.push({ id: img.id, blob: base64ToBlob(img.data, img.mime), mime: img.mime || 'image/png', createdAt: Date.now() });
+      } catch (e) {
+        badImgs++;
+        console.warn('[sync] 跳过无法解码的图片', img.id, e?.message || e);
+      }
+    });
+    if (toAdd.length) await db.images.bulkPut(toAdd);
+    stats.images = toAdd.length;
+    if (badImgs) stats.skippedImages = badImgs;
+  }
+  fireProgress(opts, PHASE.IMAGES, 1);
 
   return stats;
 }
