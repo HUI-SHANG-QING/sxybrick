@@ -140,6 +140,7 @@ async function runPreset(key) {
     const result = await runAnalysis(cards.value, { preset: key, mode: mode.value }, getAIConfig(), {});
     await pushResult(result, userMsg.question);
   } catch (e) {
+    console.error('[CardLinkAnalysis] preset analysis failed:', key, e?.message || e);
     await pushResult({ type: 'text', data: { text: t('views.cardLinkAnalysis.analysisFailed') + (e.message || e) }, engine: 'local' }, userMsg.question);
   } finally {
     busy.value = false;
@@ -164,18 +165,48 @@ async function ask() {
     const result = await runAnalysis(cards.value, { question: q, mode: mode.value, history }, getAIConfig(), {});
     await pushResult(result, q);
   } catch (e) {
+    console.error('[CardLinkAnalysis] free-ask analysis failed:', e?.message || e);
     await pushResult({ type: 'text', data: { text: t('views.cardLinkAnalysis.analysisFailed') + (e.message || e) }, engine: 'local' }, q);
   } finally {
     busy.value = false;
   }
 }
 
+// 结果归一化：任何空结果/异常结构都降级成可读文本，绝不让前端出现「空白行」。
+// 历史上 graph 数据缺失、list 为空数组、timeline 缺 steps 都会渲染成一片空白，
+// 用户无法区分「分析失败」与「确实没有结果」。
+const EMPTY_RESULT_TEXT = () => t('views.cardLinkAnalysis.emptyResult');
+function normalizeResult(result) {
+  if (!result || typeof result !== 'object') {
+    console.warn('[CardLinkAnalysis] result is not an object, degraded to hint text', result);
+    return { type: 'text', data: { text: EMPTY_RESULT_TEXT() }, engine: 'local' };
+  }
+  const { type, data, engine, note } = result;
+  if (!type || data == null) {
+    console.warn('[CardLinkAnalysis] result missing type/data, degraded to hint text', { type, engine });
+    return { type: 'text', data: { text: EMPTY_RESULT_TEXT() }, engine: engine || 'local', note };
+  }
+  const isEmpty =
+    Array.isArray(data) ? data.length === 0
+      : type === 'graph' ? !(data.nodes || []).length
+        : type === 'timeline' ? !(data.steps || []).length
+          : type === 'list' ? !((data.items || []).length || (data.same || []).length || (data.diff || []).length)
+            : !String(data.text || '').trim();
+  if (isEmpty) {
+    console.warn('[CardLinkAnalysis] result is empty, degraded to hint text', { type, engine });
+    return { type: 'text', data: { text: EMPTY_RESULT_TEXT() }, engine: engine || 'local', note };
+  }
+  return result;
+}
+
 async function pushResult(result, q) {
+  const r = normalizeResult(result);
   const s = currentSession.value;
+  if (!s) { console.error('[CardLinkAnalysis] pushResult missing current session, result dropped'); return; }
   const msg = {
     id: uid(), sessionId: s.id, role: 'assistant', question: q,
-    resultType: result.type, resultData: JSON.stringify(result.data ?? {}),
-    engine: result.engine, note: result.note || null,
+    resultType: r.type, resultData: JSON.stringify(r.data ?? {}),
+    engine: r.engine, note: r.note || null,
     t: Date.now(),
   };
   s.updatedAt = Date.now();
@@ -183,7 +214,7 @@ async function pushResult(result, q) {
     await db.analysisMessages.add(dbRow(msg));
     await db.analysisSessions.put(dbRow(s));
   });
-  messages.value.push({ ...msg, resultData: result.data ?? null });
+  messages.value.push({ ...msg, resultData: r.data ?? null });
   await nextTick();
   renderGraphs();
   scrollBottom();
@@ -199,7 +230,7 @@ async function createGroupFromResult() {
   const ids = (d.steps || d.items || d.order || (Array.isArray(d) ? d : [])).map ? (d.steps || d.items || d.order || []).map(x => x.id ?? x) : [];
   const valid = ids.filter(id => cards.value.some(c => c.id === id));
   if (!valid.length) return toast(t('views.cardLinkAnalysis.toastNoValidCards'), 'info');
-  const g = await createCardGroup({ name: `分析顺序 · ${new Date().toLocaleDateString()}`, status: 'active' });
+  const g = await createCardGroup({ name: t('views.cardLinkAnalysis.groupNameFromAnalysis', undefined, { date: new Date().toLocaleDateString() }), status: 'active' });
   await import('../repo.js').then(r => r.setCardGroups(valid, [g.id], []));
   toast(t('views.cardLinkAnalysis.toastGroupCreated', undefined, { n: valid.length }), 'success');
 }
@@ -210,38 +241,60 @@ const scrollAnchor = ref(null);
 function registerGraph(el) {
   if (!el) return;
   if (!el._chart) el._chart = echarts.init(el);
-  requestAnimationFrame(() => renderGraphs());
 }
 async function scrollBottom() {
   await nextTick();
   scrollAnchor.value?.scrollIntoView({ behavior: 'smooth', block: 'end' });
 }
+// 历史缺陷（本次修复）：原实现先 `charts.forEach(c => c.dispose())` 销毁全部实例，
+// 却把已销毁实例的引用留在 el._chart 上；下一轮走进 `if (!el._chart) el._chart = init(el)`
+// 时判定「已存在」→ 复用死实例。ECharts 对已 dispose 的实例调 setOption 会静默失效，
+// 且 dispose 会把容器内的 canvas 一并清掉 → 页面上只剩一个 380px 的空白块。
+// 修法：dispose 后必须把 el._chart 置空，强制下一轮重新 init。
 function renderGraphs() {
-  charts.forEach(c => c.dispose());
+  document.querySelectorAll('.al-graph').forEach(el => {
+    if (!el._chart) return;
+    try { el._chart.dispose(); } catch { /* 已销毁，忽略 */ }
+    el._chart = null; // 关键：清引用，杜绝复用死实例
+  });
   charts = [];
-  // 从 DOM 收集（v-for 更新后 DOM 顺序 = 消息顺序）；实例挂在 el._chart 上复用
   requestAnimationFrame(() => {
-    document.querySelectorAll('.al-graph').forEach(el => {
-      if (!el._chart) el._chart = echarts.init(el);
-      charts.push(el._chart);
-    });
     // 按出现顺序把 graph 消息与 .al-graph DOM 一一对应渲染
     const graphMsgs = messages.value.filter(m => m.role === 'assistant' && m.resultType === 'graph');
     const els = [...document.querySelectorAll('.al-graph')];
     graphMsgs.forEach((m, i) => {
       const el = els[i];
-      if (!el || !el._chart) return;
-      el._chart.setOption(graphOption(m.resultData), true);
+      if (!el) return;
+      try {
+        if (!el._chart) el._chart = echarts.init(el);
+        charts.push(el._chart);
+        el._chart.setOption(graphOption(m.resultData), true);
+        // 容器在 init 那一刻可能尚未完成布局（clientWidth/Height=0）→ 画布被建成 0x0 不可见。
+        // 渲染后强制按当前容器尺寸 resize，确保真实节点/边数据真正绘制出来（而非一片空白）。
+        el._chart.resize();
+      } catch (e) {
+        // 单图失败不得连坐其它图，也不得静默成空白
+        console.error('[CardLinkAnalysis] graph render failed:', e?.message || e, m.resultData);
+      }
     });
   });
 }
 
 function graphOption(d) {
   const rawNodes = d?.nodes || [];
+  // 空数据不再返回一块空白画布，而是渲染可读提示（避免「打了预设却是一片空白」）
+  if (!rawNodes.length) {
+    return {
+      graphic: {
+        type: 'text', left: 'center', top: 'middle',
+        style: { text: t('views.cardLinkAnalysis.graphNoNodes'), fontSize: 13, fill: '#909399' },
+      },
+    };
+  }
   // 端点归一化：本地分析器（relationGraph）用卡片 id 建边，AI 却常常按语义返回节点名。
   // ECharts 在节点带 id 时只按 id 匹配边，不归一化 → 边被静默丢弃，图变成一堆散点。
   const { edges: normEdges, dropped } = normalizeGraphEnds(rawNodes, d?.edges || []);
-  if (dropped) console.warn(`[CardLinkAnalysis] ${dropped} 条边的端点定位不到节点，已丢弃`);
+  if (dropped) console.warn(`[CardLinkAnalysis] ${dropped} edge(s) endpoint not found on any node, dropped`);
   const layout = d?.layout || 'force';
 
   // 拓扑排序：固定坐标（x=学习顺序，y=科目聚类），有向箭头链
@@ -427,8 +480,9 @@ onBeforeUnmount(() => {
               <button v-if="m.resultType === 'graph' && m.resultData?.order" class="btn mini-btn" @click="createGroupFromResult">{{ t('views.cardLinkAnalysis.createGroupBtn') }}</button>
               <!-- timeline -->
               <div v-else-if="m.resultType === 'timeline'" class="timeline">
-                <div v-for="s in (m.resultData?.steps || [])" :key="s.step" class="tl-item">
-                  <span class="tl-step">{{ s.step }}</span>
+                <!-- 兼容两种结构：新版 {steps:[{step,front,...}]}；历史/降级数据可能是裸数组 [{id,front}] -->
+                <div v-for="(s, i) in (m.resultData?.steps || normalizeList(m.resultData))" :key="s.id || i" class="tl-item">
+                  <span class="tl-step">{{ s.step || i + 1 }}</span>
                   <span class="tl-text">{{ s.front || s.title || s.detail }}</span>
                   <span v-if="s.weak" class="tl-weak">{{ t('views.cardLinkAnalysis.weak') }}</span>
                 </div>

@@ -30,7 +30,14 @@ export function jaccard(a, b) {
   return uni ? inter / uni : 0;
 }
 
-/** 共同知识点：出现卡数占比 >= threshold 的关键词（按覆盖卡数降序） */
+/** 共同知识点：出现卡数占比 >= threshold 的关键词（按覆盖卡数降序）
+ *
+ * 阈值兜底（本次修复）：严格阈值（默认覆盖 ≥50% 卡片）在「卡片多且跨科目」时几乎必然无解
+ *   —— 30 张跨科卡片要求 15 张共有一个关键词，实测永远返回空，
+ *   「共同知识点」预设于是长期表现为空白列表。
+ * 故严格阈值无结果时，退而求其次返回覆盖 ≥2 张卡的高频词，让预设始终有可展示内容；
+ * 调用方（runPreset）会依据 ratio 判断命中档位并在 note 里如实说明口径。
+ */
 export function commonKeywords(cards, threshold = 0.5, topN = 12) {
   const n = cards.length;
   if (!n) return [];
@@ -42,11 +49,15 @@ export function commonKeywords(cards, threshold = 0.5, topN = 12) {
       if (!seen.has(w)) { seen.add(w); cover.set(w, (cover.get(w) || 0) + 1); }
     }
   }
+  const sortTop = (arr) => arr.sort((a, b) => b.cards - a.cards || a.term.localeCompare(b.term)).slice(0, topN);
   const out = [];
   for (const [w, k] of cover) {
     if (k >= Math.max(2, Math.ceil(n * threshold))) out.push({ term: w, cards: k, ratio: +(k / n).toFixed(2) });
   }
-  return out.sort((a, b) => b.cards - a.cards || a.term.localeCompare(b.term)).slice(0, topN);
+  if (out.length) return sortTop(out);
+  const loose = [];
+  for (const [w, k] of cover) if (k >= 2) loose.push({ term: w, cards: k, ratio: +(k / n).toFixed(2) });
+  return sortTop(loose);
 }
 
 /** 关键词共现相似度矩阵（大集合截断：仅取每卡 top-40 高频词，控制 O(n²) 成本） */
@@ -230,18 +241,47 @@ export function runPreset(preset, cards) {
     }
     case 'common': {
       const kw = commonKeywords(cards);
+      // 判定命中档位：有词覆盖过半 = 强命中；否则是阈值兜底（覆盖 ≥2 张卡的高频词）
+      const strong = kw.some(k => k.ratio >= 0.5);
       return {
         type: 'list', engine: 'local',
-        data: kw.length
-          ? kw.map(k => ({ term: k.term, cards: k.cards, ratio: k.ratio }))
-          : [],
-        note: kw.length ? `共同知识点（覆盖 ≥50% 卡片，共 ${kw.length} 个）` : '未发现显著共同知识点（标签/关键词重叠不足）',
+        data: kw.map(k => ({ term: k.term, cards: k.cards, ratio: k.ratio })),
+        note: !kw.length
+          ? '未发现显著共同知识点（所选卡片内容重叠不足，可多选几张同科目卡片再试）'
+          : strong
+            ? `共同知识点（覆盖 ≥50% 卡片，共 ${kw.length} 个）`
+            : `未发现覆盖过半的共同知识点；以下为覆盖 ≥2 张卡的高频词（共 ${kw.length} 个，卡片跨科目时属正常）`,
       };
     }
-    case 'path':
-      return { type: 'timeline', engine: 'local', data: learningPath(cards, matrix), note: '学习顺序：基础在前 + 薄弱优先' };
-    case 'compare':
-      return { engine: 'local', ...compareCards(cards) };
+    case 'path': {
+      // ⚠️ CardLinkAnalysis.vue timeline 模板读 m.resultData?.steps，
+      //   每个 step 需要 .step（序号）和 .front 字段。learningPath 原返回裸数组
+      //   [{id,front,weak}]，直接赋给 .data → .steps===undefined → 渲染为空（Bug）。
+      const steps = learningPath(cards, matrix).map((s, i) => ({ step: i + 1, ...s }));
+      return {
+        type: 'timeline', engine: 'local',
+        data: { steps, order: steps.map(s => s.id) },
+        note: '学习顺序：基础在前 + 薄弱优先',
+      };
+    }
+    case 'compare': {
+      // ⚠️ compareCards 原返回 {same:[{text},{text}],diff:[{text},{text}],similarity,...}，
+      //   normalizeList 把 same/diff 两个子数组当作 Object.values 的「对象元素」产出，
+      //   每个 v-for it 是外层数组 → it.term/it.text 全 undefined → 整列表空白。
+      //   重写为 items 结构，每项对应 list 模板的 {term, text, detail} 字段。
+      const cmp = compareCards(cards);
+      const d = cmp.data || {};
+      const jac = jaccard(cardProfile(cards[0]), cardProfile(cards[1]));
+      const items = [
+        {
+          term: '卡片对比',
+          detail: `A「${(cards[0]?.front || '').slice(0, 24)}」 vs B「${(cards[1]?.front || '').slice(0, 24)}」 · 内容相似度 ${(Number(d.similarity ?? jac) * 100).toFixed(1)}%`,
+        },
+        { term: '### 共同点', text: (d.same || []).map(x => `- ${typeof x === 'object' && x.text ? x.text : String(x)}`).join('\n') || '（未发现显著共同点）' },
+        { term: '### 差异点', text: (d.diff || []).map(x => `- ${typeof x === 'object' && x.text ? x.text : String(x)}`).join('\n') || '（内容非常接近）' },
+      ];
+      return { type: 'list', engine: 'local', data: { items }, note: `内容相似度：${(Number(d.similarity ?? jac) * 100).toFixed(1)}%` };
+    }
     default:
       return { type: 'text', data: { text: `未知预设：${preset}` }, engine: 'local' };
   }

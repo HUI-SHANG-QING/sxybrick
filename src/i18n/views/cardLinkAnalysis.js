@@ -59,6 +59,12 @@ export const zh = {
   // ——— 脚本内结果 / 错误 ———
   analysisFailed: '分析失败：',
   graphEdgeTopo: '学习顺序 →',
+  // 结果归一化：空结果/异常结构降级为可读文本，避免前端空白行
+  emptyResult: '本次分析没有产出可展示的结果（数据量不足或内容差异过大）。可换一个预设，或补充几张同科目卡片再试。',
+  // 把分析结果顺序建成卡组时的默认名称（{date} 为当日日期）
+  groupNameFromAnalysis: '分析顺序 · {date}',
+  // ECharts 图谱空节点数据时的可读提示
+  graphNoNodes: '本次分析没有可绘制的节点数据',
 };
 
 export const en = {
@@ -117,4 +123,10 @@ export const en = {
   // ——— Script results / errors ———
   analysisFailed: 'Analysis failed: ',
   graphEdgeTopo: 'Learning order →',
+  // Result normalization: empty/abnormal results degrade to readable text instead of blank lines
+  emptyResult: 'This analysis produced no displayable result (too little data or too large a difference). Try another preset, or add a few cards of the same subject.',
+  // Default name when building a review group from analysis order ({date} = today)
+  groupNameFromAnalysis: 'Analysis order · {date}',
+  // Readable hint when ECharts graph has no node data
+  graphNoNodes: 'No node data to draw for this analysis',
 };
