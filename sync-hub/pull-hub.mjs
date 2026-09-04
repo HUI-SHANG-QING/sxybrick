@@ -1,7 +1,7 @@
 // 从中枢拉取全量数据包并做结构校验（node sync-hub/pull-hub.mjs <hubUrl> <token> [输出文件]）
 import { writeFileSync } from 'node:fs';
 
-const B = process.argv[2] || 'http://localhost:4780';
+const B = process.argv[2] || 'http://localhost:18080';
 const TOKEN = process.argv[3];
 const OUT = process.argv[4] || `hub-export-${new Date().toISOString().slice(0, 10)}.json`;
 if (!TOKEN) { console.error('用法: node sync-hub/pull-hub.mjs <hubUrl> <token> [输出文件]'); process.exit(1); }

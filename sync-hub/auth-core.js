@@ -207,7 +207,7 @@ export function isOriginAllowed(origin, ctx = {}) {
     return false; // 非法 Origin
   }
   const hostname = host.split(':')[0];
-  // 本地回环（允许任意端口，便于 npm run dev 5173 → hub 4780 的本地调试）
+  // 本地回环（允许任意端口，便于 npm run dev 5173 → hub 18080 的本地调试）
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1') return true;
   // 与请求的 Host 一致 = 同源
   if (ctx.host && host === ctx.host) return true;

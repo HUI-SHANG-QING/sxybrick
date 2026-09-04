@@ -140,12 +140,12 @@ test('CORS: 无 Origin（同源/非浏览器）放行', () => {
 });
 
 test('CORS: localhost 与同源放行，恶意站点拒绝', () => {
-  assert.equal(isOriginAllowed('http://localhost:5173', { host: '192.168.1.5:4780' }), true, '本地 dev 需放行');
-  assert.equal(isOriginAllowed('http://127.0.0.1:8080', { host: '192.168.1.5:4780' }), true);
-  assert.equal(isOriginAllowed('http://192.168.1.5:4780', { host: '192.168.1.5:4780' }), true, '同源');
+  assert.equal(isOriginAllowed('http://localhost:5173', { host: '192.168.1.5:18080' }), true, '本地 dev 需放行');
+  assert.equal(isOriginAllowed('http://127.0.0.1:8080', { host: '192.168.1.5:18080' }), true);
+  assert.equal(isOriginAllowed('http://192.168.1.5:18080', { host: '192.168.1.5:18080' }), true, '同源');
   // 关键：恶意站点不得被放行（否则可跨域穷举口令并读取响应）
-  assert.equal(isOriginAllowed('https://evil.test', { host: '192.168.1.5:4780' }), false);
-  assert.equal(isOriginAllowed('http://attacker.example:9000', { host: '192.168.1.5:4780' }), false);
+  assert.equal(isOriginAllowed('https://evil.test', { host: '192.168.1.5:18080' }), false);
+  assert.equal(isOriginAllowed('http://attacker.example:9000', { host: '192.168.1.5:18080' }), false);
 });
 
 test('CORS: 环境变量白名单生效', () => {
@@ -154,9 +154,9 @@ test('CORS: 环境变量白名单生效', () => {
 });
 
 test('CORS: 被拒来源不返回 Access-Control-Allow-Origin', () => {
-  const h = corsHeaders('https://evil.test', { host: '192.168.1.5:4780' });
+  const h = corsHeaders('https://evil.test', { host: '192.168.1.5:18080' });
   assert.equal(h['Access-Control-Allow-Origin'], undefined, '恶意来源不应拿到 CORS 头');
-  const ok = corsHeaders('http://localhost:5173', { host: '192.168.1.5:4780' });
+  const ok = corsHeaders('http://localhost:5173', { host: '192.168.1.5:18080' });
   assert.equal(ok['Access-Control-Allow-Origin'], 'http://localhost:5173');
 });
 

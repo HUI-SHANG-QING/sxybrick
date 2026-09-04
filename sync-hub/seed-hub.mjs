@@ -1,6 +1,6 @@
 // 生成 100 张随机卡片 + 全模块数据，PUT 到局域网中枢（node sync-hub/seed-hub.mjs <hubUrl> <token>）
 // 用途：为主机/手机的真机同步验证准备源头数据。
-const B = process.argv[2] || 'http://localhost:4780';
+const B = process.argv[2] || 'http://localhost:18080';
 const TOKEN = process.argv[3];
 if (!TOKEN) { console.error('用法: node sync-hub/seed-hub.mjs <hubUrl> <token>'); process.exit(1); }
 

@@ -33,7 +33,7 @@ async function hmacHex(secret, payload) {
 
 /**
  * 取一次性挑战。失败返回 null（调用方据此退回旧式明文 token）。
- * @param {string} hub 形如 http://192.168.1.5:4780（尾部斜杠会被清理）
+ * @param {string} hub 形如 http://192.168.1.5:18080（尾部斜杠会被清理）
  */
 export async function fetchChallenge(hub, { timeoutMs = 8000 } = {}) {
   const base = String(hub || '').replace(/\/+$/, '');

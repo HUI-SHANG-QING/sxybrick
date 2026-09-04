@@ -3,7 +3,7 @@
 // 作用：
 //   1) 提供 GET/PUT /backup 接口，与前端共用 src/sync-manifest.js 的合并规则，
 //      把多台设备的数据合并到一起（卡片=内容/SRS 双时间戳，其余=updatedAt 或 id 幂等，删除走墓碑）；
-//   2) 同时把打包好的前端（dist/）直接提供出来，手机浏览器打开 http://<电脑IP>:4780 即用。
+//   2) 同时把打包好的前端（dist/）直接提供出来，手机浏览器打开 http://<电脑IP>:18080 即用。
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -29,7 +29,11 @@ const DATA_FILE = process.env.HUB_DATA_FILE
   ? resolve(process.env.HUB_DATA_FILE) : join(__dirname, 'hub-data.json');
 const TOKEN_FILE = process.env.HUB_TOKEN_FILE
   ? resolve(process.env.HUB_TOKEN_FILE) : join(__dirname, 'hub-token.txt');
-const PORT = Number(process.env.PORT || process.argv[2] || 4780);
+// 默认端口 18080：刻意避开 4780——后者落在 Windows 的 Hyper-V/WSL2/Docker
+// 「排除端口范围」4682–4781 内，普通用户无权限监听（报 EACCES 而非「端口占用」）。
+// 也不选 8787 这类小端口：本机动态出站范围 1024–15000（netsh int ipv4 show dynamicport tcp）
+// 会随机抢占它们做源端口，导致偶发 EADDRINUSE。18080 在动态范围之外、避开全部保留段。
+const PORT = Number(process.env.PORT || process.argv[2] || 18080);
 // 监听地址：Hub 的用途就是让同网段设备访问，默认 0.0.0.0。
 // 若只想让某张网卡可达（如在不可信网络下），用 HUB_HOST=192.168.1.5 指定。
 const HOST = String(process.env.HUB_HOST || '0.0.0.0');
@@ -453,11 +457,11 @@ server.on('error', (err) => {
       console.error('   该端口被 Windows 系统保留（Hyper-V / WSL2 / Docker 的「排除端口范围」）或需要管理员权限。');
       console.error('   可用命令查保留范围：netsh interface ipv4 show excludedportrange protocol=tcp');
     } else {
-      console.error('   该端口已被其他程序占用，可用 netstat -ano | findstr :PORT 排查。');
+      console.error(`   该端口已被其他程序占用，可用 netstat -ano | findstr :${PORT} 排查。`);
     }
-    console.error('   换一个不在保留范围内的端口即可，例如 8787：');
-    console.error('     PowerShell：$env:PORT=8787; npm run hub');
-    console.error('     或：npm run hub -- 8787');
+    console.error('   换一个不在保留范围内的端口即可，例如 18081：');
+    console.error('     PowerShell：$env:PORT=18081; npm run hub');
+    console.error('     或：npm run hub -- 18081');
     console.error('   换好后，手机「同步」页里的电脑端地址端口也要改成对应值。\n');
     process.exit(1);
   }

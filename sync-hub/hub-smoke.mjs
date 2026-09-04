@@ -1,5 +1,5 @@
 // 局域网中枢冒烟测试（node sync-hub/hub-smoke.mjs，需先 npm run hub）
-const B = process.argv[2] || 'http://localhost:4780';
+const B = process.argv[2] || 'http://localhost:18080';
 const TOKEN = process.argv[3];
 const out = [];
 const log = (...a) => { out.push(a.join(' ')); console.log(...a); };
