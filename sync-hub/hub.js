@@ -100,11 +100,31 @@ function loadData() {
   }
 }
 
+// O2（round13）：Windows 上目标文件正被其他进程读取时 renameSync 抛 EBUSY/EPERM。
+// 重试 3 次、每次间隔递增，覆盖「另一个 hub 实例或浏览器正在读」的瞬态争用。
+function safeRenameSync(from, to) {
+  const errs = ['EBUSY', 'EPERM', 'ENOTEMPTY', 'EACCES'];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      renameSync(from, to);
+      return;
+    } catch (e) {
+      if (attempt < 3 && errs.includes(e.code)) {
+        // 同步自旋等待（毫秒级，不引入 async）
+        const deadline = Date.now() + 50 * (attempt + 1);
+        while (Date.now() < deadline) { /* spin */ }
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 // 原子写入：先写临时文件再改名，避免写入中途崩溃损坏数据文件
 function saveData(data) {
   const tmp = DATA_FILE + '.tmp';
   writeFileSync(tmp, JSON.stringify(data));
-  renameSync(tmp, DATA_FILE);
+  safeRenameSync(tmp, DATA_FILE);
 }
 
 // M3：按 scope 加载/保存独立数据文件（real → 原文件；test → hub-data-test.json）
@@ -126,7 +146,7 @@ function saveScopedData(scope, data) {
   const f = scopedFile(scope);
   const tmp = f + '.tmp';
   writeFileSync(tmp, JSON.stringify(data));
-  renameSync(tmp, f);
+  safeRenameSync(tmp, f);
 }
 
 // 提取正文中的 sxy-img:// 图片 id（hub 运行于 Node，不能 import 浏览器模块，此处内联同款正则）
@@ -207,12 +227,11 @@ function merge(base, incoming) {
     out.tombstones = out.tombstones.filter(tb => !staleIds.has(`${tb.kind || 'card'}\u0000${tb.id}`));
   }
 
-  // 墓碑 GC（默认关闭，用 HUB_TOMBSTONE_TTL_DAYS=90 开启）：
+  // 墓碑 GC（N2/round13：默认 30 天自动开启，可用 HUB_TOMBSTONE_TTL_DAYS 覆盖；=0 强制关闭）：
   //   墓碑只增不减，而前端每次增量同步都会全量带上墓碑（sync.js 里 tombstones 不走 since 过滤），
-  //   删得越多包越大。安全 GC 需要「各设备已确认收到」的水位协议，这里退而求其次：
-  //   只清理「早已过期 且 目标行在中枢侧已不存在」的墓碑 ——
-  //   仍存在的行说明还有设备在用，一条都不删。
-  const ttlDays = Number(process.env.HUB_TOMBSTONE_TTL_DAYS || 0);
+  //   删得越多包越大。安全 GC 只清理「早已过期 且 目标行在中枢侧已不存在」的墓碑 ——
+  //   仍存在的行说明还有设备在用，一条都不删。30 天未同步的设备墓碑可安全回收。
+  const ttlDays = Number(process.env.HUB_TOMBSTONE_TTL_DAYS ?? 30);
   if (ttlDays > 0) out.tombstones = gcTombstones(out, ttlDays);
 
   // 打卡元数据（每日目标 goal）：updatedAt 谁新听谁

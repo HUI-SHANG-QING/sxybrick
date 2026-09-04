@@ -14,8 +14,11 @@
 export function dedupeIncomingCards(incoming, baseById, baseCards = []) {
   const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
   const keyToKeptId = new Map(); // 内容键 → 保留下来的 id（本地优先，其次批次内首个保留的 incoming）
+  // O1（round13）：用 \x01 不可打印分隔符替代 ||——卡面本身含 || 时
+  // 不同卡会生成相同内容键被误判为重复，\x01 不会出现在正常文本中。
+  const SEP = '\x01';
   for (const c of (baseCards || [])) {
-    const k = `${norm(c.front)}||${norm(c.back)}||${c.subject || ''}`;
+    const k = `${norm(c.front)}${SEP}${norm(c.back)}${SEP}${c.subject || ''}`;
     if (!keyToKeptId.has(k)) keyToKeptId.set(k, c.id); // 本地卡优先作为重定向目标
   }
   const kept = [];
@@ -26,7 +29,7 @@ export function dedupeIncomingCards(incoming, baseById, baseCards = []) {
       kept.push(c); // 同 id → 走 mergeRows 合并 SRS，绝不被内容去重丢弃
       continue;
     }
-    const k = `${norm(c.front)}||${norm(c.back)}||${c.subject || ''}`;
+    const k = `${norm(c.front)}${SEP}${norm(c.back)}${SEP}${c.subject || ''}`;
     if (keyToKeptId.has(k)) {
       // 异 id 同内容（或批次内重复）→ 真重复，跳过；关联数据重定向到保留 id
       duplicated++;
