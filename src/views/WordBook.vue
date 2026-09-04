@@ -1,6 +1,6 @@
 <script setup>
 // 单词本（图2-5：不背风列表 + 添加/口述 + AI 自动生成 + 已背/熟词/批注/词组 + 详情抽屉）
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
@@ -12,6 +12,7 @@ import {
 } from '../word-repo.js';
 import { generateWordMaterials } from '../services/word-llm.js';
 import { isInSyllabus, getSyllabusMeta, listSyllabus } from '../services/word-syllabus.js';
+import { getMeanings, meaningCoverage, syncWithSyllabus } from '../services/word-meaning.js';
 import { ocrImageText } from '../docs-lib.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
 
@@ -48,6 +49,42 @@ function setExam(v) {
   try { localStorage.setItem(SYL_EXAM_KEY, v); } catch { /* ignore persistence failure */ }
 }
 
+// ---- 词条中文释义（db 优先 → 内置种子兜底）----
+// 只加载当前页的释义（60 条/页）：4956 词全量 bulkGet 在首次渲染会白屏数百毫秒，
+// 且绝大多数页面用户根本不会翻到。按页懒取 + Map 缓存，翻回已看页零 IO。
+const sylMeanings = shallowRef(new Map());
+const meaningCache = new Map();
+const meanCoverage = ref(null);
+async function loadPageMeanings(words) {
+  const need = words.filter((w) => !meaningCache.has(String(w).toLowerCase()));
+  if (need.length) {
+    let got = new Map();
+    try { got = await getMeanings(need); } catch { got = new Map(); }
+    for (const [k, v] of got) meaningCache.set(k, v);
+    // 未命中的也记空值，避免同一批缺失词每翻页都重复查库
+    for (const w of need) {
+      const k = String(w).toLowerCase();
+      if (!meaningCache.has(k)) meaningCache.set(k, { meaning: '', source: '' });
+    }
+  }
+  const m = new Map();
+  for (const w of words) {
+    const k = String(w).toLowerCase();
+    const hit = meaningCache.get(k);
+    if (hit) m.set(k, hit);
+  }
+  sylMeanings.value = m;
+}
+async function refreshCoverage() {
+  try { meanCoverage.value = await meaningCoverage(); } catch { meanCoverage.value = null; }
+}
+function meaningOf(w) {
+  return sylMeanings.value.get(String(w).toLowerCase())?.meaning || '';
+}
+function meaningSource(w) {
+  return sylMeanings.value.get(String(w).toLowerCase())?.source || '';
+}
+
 const sylFiltered = computed(() => {
   const kw = String(sylQuery.value || '').trim().toLowerCase();
   if (!kw) return sylAll;
@@ -66,6 +103,8 @@ const sylLetters = computed(() => {
   return [...set].sort();
 });
 watch(sylQuery, () => { sylPage.value = 1; });
+// 翻页/搜索后按页加载中文释义（watch 必须在 sylSlice 声明之后，否则 TDZ 报错）
+watch(sylSlice, async (rows) => { await loadPageMeanings(rows || []); }, { immediate: true });
 
 function jumpLetter(letter) {
   const idx = sylAll.findIndex((w) => w.charAt(0).toUpperCase() === letter);
@@ -76,7 +115,7 @@ function jumpLetter(letter) {
 
 async function switchView(v) {
   view.value = v;
-  if (v === 'syllabus') await refreshAdded();
+  if (v === 'syllabus') { await refreshAdded(); await refreshCoverage(); }
 }
 
 /** 刷新「已加入」集合（按 word 小写匹配本地卡） */
@@ -513,6 +552,9 @@ async function addOcrWords() {
           {{ t('views.wordBook.syllabusMeta', undefined, { n: sylAll.length, version: syllabusMeta.version || 'v1.0' }) }}
           · {{ t('views.wordBook.syllabusProgress', undefined, { n: sylAddedCount, total: sylAll.length }) }}
         </div>
+        <div v-if="meanCoverage" class="syl-cov">
+          {{ t('views.wordBook.syllabusMeaningCoverage', '中文释义覆盖：{covered}/{total}（{pct}%）', { covered: meanCoverage.covered, total: meanCoverage.total, pct: meanCoverage.coverage }) }}
+        </div>
         <div class="syl-disc">{{ t('views.wordBook.syllabusSharedHint') }}</div>
       </div>
 
@@ -534,6 +576,8 @@ async function addOcrWords() {
       <div class="syl-grid" v-if="sylSlice.length">
         <div v-for="w in sylSlice" :key="w" class="syl-item" :class="{ added: isAdded(w) }">
           <span class="sw">{{ w }}</span>
+          <span v-if="meaningOf(w)" class="sm" :class="'src-' + (meaningSource(w) || 'ai')">{{ meaningOf(w) }}</span>
+          <span v-else class="sm sm-empty">{{ t('views.wordBook.syllabusNoMeaning', '（待补释义）') }}</span>
           <button
             v-if="!isAdded(w)" class="sa" @click.stop="addWord(w)">{{ t('views.wordBook.syllabusAdd') }}</button>
           <span v-else class="sd">{{ t('views.wordBook.syllabusAdded') }}</span>
@@ -902,7 +946,16 @@ async function addOcrWords() {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px;
 }
 .syl-item.added { opacity: .6; }
-.syl-item .sw { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.syl-item .sw { font-size: 13px; color: var(--ink); font-weight: 600; flex: 0 0 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 中文释义：占满剩余宽度，超出省略；种子来源用弱化色区分（AI 生成 vs 内置种子） */
+.syl-item .sm {
+  flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.syl-item .sm.src-seed { color: var(--ink-2); opacity: .85; }
+.syl-item .sm.src-manual { color: var(--accent); }
+.syl-item .sm-empty { font-size: 11px; opacity: .55; font-style: italic; }
+.syl-cov { font-size: 11px; color: var(--ink-2); margin: 3px 0 0; }
 .syl-item .sa {
   border: 1px solid var(--accent); background: transparent; color: var(--accent);
   border-radius: 8px; padding: 2px 7px; font-size: 11px; cursor: pointer; flex-shrink: 0;

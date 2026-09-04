@@ -56,12 +56,74 @@ function buildPrompt(word, opts) {
 
 // ---------- 主入口 ----------
 /**
+ * 通用 LLM JSON 通道——所有英语智能模块的统一入口（round31 抽出，供 AI 智能出题复用）。
+ * 复用维度：agent 优先 → 用户 Key 兜底 → callChatCompletion（HTTP + 用量记账）→ parseJsonSafe。
+ * 新智能模块一律走这里，避免各自拼 provider/key/base 导致配置漂移与记账漏记。
+ *
+ * @param {object}   o
+ * @param {string}   o.prompt       完整提示词
+ * @param {object}  [o.settings]    wordSettings 单行（provider/key/model/base）
+ * @param {object}  [o.agentCtx]    项目 agent ctx（优先使用）
+ * @param {string}  [o.source]      用量记账来源标签（默认 english-word）
+ * @param {string}  [o.task]        agent 任务名（默认 word-llm）
+ * @param {string}  [o.agentInput]  传给 agent 的 input（默认取 prompt；单素材生成传 word 便于路由）
+ * @param {string}  [o.system]      system 提示词
+ * @returns {Promise<{ok:boolean, data?:object, reason?:string, via?:'agent'|'key'}>}
+ */
+export async function callLlmJson(o) {
+  const prompt = String(o?.prompt || '').trim();
+  if (!prompt) return { ok: false, reason: 'empty-prompt' };
+  const settings = o?.settings || {};
+  const agentCtx = o?.agentCtx;
+  const source = o?.source || 'english-word';
+  const task = o?.task || 'word-llm';
+  const system = o?.system || '你是原创教学素材生成器。严格输出 JSON，不要任何额外文字。';
+
+  // 1) 优先项目 agent（不消耗用户 Key）
+  if (agentCtx && typeof agentCtx.runAgent === 'function') {
+    try {
+      const raw = await agentCtx.runAgent({ task, input: o?.agentInput ?? prompt, prompt });
+      const data = parseJsonSafe(raw);
+      if (data) return { ok: true, data, via: 'agent' };
+    } catch (e) {
+      console.warn(`[word-llm:${task}] agent failed, fallback to key:`, e?.message || e);
+    }
+  }
+
+  // 2) 用户自填 Key
+  const provider = (settings.llmProvider || '').toLowerCase();
+  const apiKey = settings.llmApiKey || '';
+  const model = settings.llmModel || '';
+  const baseOverride = settings.llmBase || '';
+  if (!provider || !apiKey || !model) {
+    return { ok: false, reason: '未配置 LLM：项目 agent 不可用且未填入 provider/key/model（设置 → AI 生成）。' };
+  }
+  const providerDef = LLM_PROVIDERS.find((p) => p.id === provider) || LLM_PROVIDERS[2];
+  const base = (baseOverride || providerDef.base).replace(/\/+$/, '');
+  try {
+    const raw = await callChatCompletion({ base, apiKey, model, prompt, system, source });
+    const data = parseJsonSafe(raw);
+    if (!data) return { ok: false, reason: 'LLM 返回非 JSON，无法解析。' };
+    return { ok: true, data, via: 'key' };
+  } catch (e) {
+    return { ok: false, reason: `LLM 调用失败：${e?.message || e}` };
+  }
+}
+
+/** 是否具备可用生成通道（agent 或用户 Key 任一）——UI 点击前先判，避免用户空等一轮才发现没配 Key */
+export function hasLlmChannel(settings, agentCtx) {
+  if (agentCtx && typeof agentCtx.runAgent === 'function') return true;
+  const s = settings || {};
+  return !!(s.llmProvider && s.llmApiKey && s.llmModel);
+}
+
+/**
  * @param {object} req
  * @param {string} req.word         待生成单词/短语
  * @param {string[]} [req.levels]   需要哪些难度（默认 2 种：simple/long）
  * @param {object}   req.settings   wordSettings 单行（含 provider/key/model 等）
  * @param {object}   [req.agentCtx] 项目 agent ctx（如果有；优先调用）
- * @returns {Promise<{ok:boolean, skipped?:string, reason?:string, data?:object}>}
+ * @returns {Promise<{ok:boolean, skipped?:string, reason?:string, data?:object, via?:string}>}
  */
 export async function generateWordMaterials(req) {
   const word = String(req?.word || '').trim();
@@ -77,47 +139,16 @@ export async function generateWordMaterials(req) {
   const levels = Array.isArray(req.levels) && req.levels.length
     ? req.levels
     : ['simple', 'long'];
-  const settings = req.settings || {};
-  const agentCtx = req.agentCtx;
-
-  // 1) 优先项目 agent
-  if (agentCtx && typeof agentCtx.runAgent === 'function') {
-    try {
-      const raw = await agentCtx.runAgent({
-        task: 'word-material-gen',
-        input: word,
-        prompt: buildPrompt(word, { levels }),
-      });
-      const data = parseJsonSafe(raw);
-      if (data) return { ok: true, data: normalize(data, levels) };
-    } catch (e) {
-      // fallthrough 到用户 Key
-      console.warn('[word-llm] agent failed, fallback to key:', e?.message);
-    }
-  }
-
-  // 2) 用户自填 Key
-  const provider = (settings.llmProvider || '').toLowerCase();
-  const apiKey = settings.llmApiKey || '';
-  const model = settings.llmModel || '';
-  const baseOverride = settings.llmBase || '';
-  if (!provider || !apiKey || !model) {
-    return {
-      ok: false,
-      reason: '未配置 LLM：项目 agent 不可用且未填入 provider/key/model（设置 → AI 生成）。',
-    };
-  }
-  const providerDef = LLM_PROVIDERS.find((p) => p.id === provider) || LLM_PROVIDERS[2];
-  const base = (baseOverride || providerDef.base).replace(/\/+$/, '');
-
-  try {
-    const raw = await callChatCompletion({ base, apiKey, model, prompt: buildPrompt(word, { levels }) });
-    const data = parseJsonSafe(raw);
-    if (!data) return { ok: false, reason: 'LLM 返回非 JSON，无法解析。' };
-    return { ok: true, data: normalize(data, levels) };
-  } catch (e) {
-    return { ok: false, reason: `LLM 调用失败：${e?.message || e}` };
-  }
+  const res = await callLlmJson({
+    prompt: buildPrompt(word, { levels }),
+    settings: req.settings || {},
+    agentCtx: req.agentCtx,
+    agentInput: word,
+    source: 'english-word',
+    task: 'word-material-gen',
+  });
+  if (!res.ok) return { ok: false, reason: res.reason };
+  return { ok: true, data: normalize(res.data, levels), via: res.via };
 }
 
 // ---------- HTTP 调用（用户 Key 路径） ----------
@@ -126,7 +157,7 @@ export async function generateWordMaterials(req) {
 //   这里再记会重复；连通性探针 testLlmConnection 不计（非内容生成，仅 4 token 探测）。
 //   刻意 await 而非 fire-and-forget：recordUsage 内部已吞错不影响主流程，而一次生成
 //   只有一次 ~1ms 写入，await 可保证记录不静默丢失且可被断言（agent/llm.js 仍沿用 void）。
-async function callChatCompletion({ base, apiKey, model, prompt }) {
+async function callChatCompletion({ base, apiKey, model, prompt, system, source = 'english-word' }) {
   const t0 = Date.now();
   const url = `${base}/chat/completions`;
   let content = '', usage = null;
@@ -140,7 +171,7 @@ async function callChatCompletion({ base, apiKey, model, prompt }) {
       body: JSON.stringify({
         model,
         messages: [
-          { role: 'system', content: '你是原创教学素材生成器。严格输出 JSON，不要任何额外文字。' },
+          { role: 'system', content: system || '你是原创教学素材生成器。严格输出 JSON，不要任何额外文字。' },
           { role: 'user', content: prompt },
         ],
         temperature: 0.6,
@@ -156,14 +187,14 @@ async function callChatCompletion({ base, apiKey, model, prompt }) {
     usage = json?.usage; // OpenAI 兼容：{ prompt_tokens, completion_tokens, total_tokens }
   } catch (e) {
     await recordUsage({
-      source: 'english-word', model,
+      source, model,
       promptTokens: estimateTokens(prompt), completionTokens: estimateTokens(content),
       durationMs: Date.now() - t0, ok: false, est: 1,
     });
     throw e;
   }
   await recordUsage({
-    source: 'english-word', model,
+    source, model,
     promptTokens: usage?.prompt_tokens ?? estimateTokens(prompt),
     completionTokens: usage?.completion_tokens ?? estimateTokens(content),
     durationMs: Date.now() - t0, ok: true,

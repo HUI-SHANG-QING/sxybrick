@@ -37,6 +37,7 @@ export const MODULE_LABELS = {
   wordGroups: '单词词组', wordGroupLinks: '单词-词组关联',
   // v26 英语模块升级
   wordSettings: '单词设置', wordCheckins: '单词签到', wordSyllabusMeta: '大纲词表元信息',
+  syllabusMeanings: '大纲词中文释义',
   // 隐私敏感表（默认不入同步，用户 opt-in 后出现在面板）
   privacyRecords: '隐私记录',
 };
@@ -49,7 +50,7 @@ const MODULE_ORDER_HINT = [
   'pomoSessions', 'weeklyReports', 'achievements', 'embeddings', 'docFiles',
   'dailyPlans', 'dailyTasks', 'wordCards', 'wordReviews',
   'wordGroups', 'wordGroupLinks', 'wordSettings', 'wordCheckins',
-  'wordSyllabusMeta', 'userOps', 'privacyRecords',
+  'wordSyllabusMeta', 'syllabusMeanings', 'userOps', 'privacyRecords',
 ];
 
 /**

@@ -301,6 +301,17 @@ d.version(29).stores({
   embeddings: 'id, sourceId, sourceType, subject, updatedAt, modelSig',
 });
 
+// v30：syllabusMeanings——考研大纲词的中文释义（AI 批量生成 / 用户手工编辑）。
+//   设计要点：
+//   · 主键 = 归一化后的英文词（小写、去空白），保证「词 → 释义」一对一，天然幂等；
+//   · 与大纲词表（src/data/kaoyan-vocab-2027.json）解耦：词表是只读静态资产，
+//     释义是可增长的用户/AI 产出，故单独建表而非改词表结构（改词表会牵动
+//     isInSyllabus/filterBySyllabus 的字符串集合语义与既有测试）；
+//   · syllabusVersion 记录生成时的词表版本，词表升级后可据此标记「释义待复核」。
+d.version(30).stores({
+  syllabusMeanings: 'id, word, updatedAt, source, syllabusVersion',
+});
+
 } // end defineSchema
 
 // 两个实例各自应用全量 schema（惰性 open：首次访问才真正连接 IndexedDB）

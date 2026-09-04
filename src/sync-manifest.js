@@ -39,7 +39,10 @@ export const PRIVACY_SYNC_TABLES = [
 // 注意：用户可编辑文本（word/meaning/example/note/tags/source/subject）不在其中，
 // 仍按 updatedAt 内容赢家语义正常传播删除/修改。
 // ⚠️ 必须声明在 SYNC_TABLES 之前（SYNC_TABLES 的 wordCards 条目引用了它，TDZ 约束）。
-export const WORD_EXT_FIELDS = ['pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples', 'mnemonics', 'rootAffix', 'confusions', 'syllable', 'derived'];
+// v31：新增 modeQuestions（AI 智能模块为 13 种背诵模式生成的题目/答案）。
+//   它是「AI 生成、追加式」的：形状较简的设备只要 bump updatedAt 就会成为内容赢家，
+//   把对端更全的各模式题目整行覆盖丢失 → 必须受并集保护。
+export const WORD_EXT_FIELDS = ['pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples', 'mnemonics', 'rootAffix', 'confusions', 'syllable', 'derived', 'modeQuestions'];
 
 export const SYNC_TABLES = [
   { table: 'cards', kind: 'card', merge: 'card' },
@@ -94,6 +97,9 @@ export const SYNC_TABLES = [
   //   wordGroups：词组元数据按 updatedAt 合并（重命名/状态/颜色谁新听谁）。
   //   wordGroupLinks：多对多关联，idOnly 幂等；「移出」写 kind=wordGroupLink 墓碑（见 word-repo.js）。
   { table: 'wordCards', kind: 'wordCard', merge: 'card', extFields: WORD_EXT_FIELDS },
+  // v30 新增：大纲词中文释义（AI 批量生成 / 用户编辑）。跨设备共享，
+  // 否则在手机补齐的释义回到电脑端会整表缺失、覆盖率统计与 UI 反复「待补齐」。
+  { table: 'syllabusMeanings', kind: 'syllabusMeaning', merge: 'updatedAt' },
   { table: 'wordReviews', kind: 'wordReview', merge: 'review' },
   { table: 'wordGroups', kind: 'wordGroup', merge: 'updatedAt' },
   { table: 'wordGroupLinks', kind: 'wordGroupLink', merge: 'idOnly' },

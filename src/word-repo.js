@@ -109,6 +109,10 @@ const EXT_FIELDS = [
   'pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples',
   'mnemonics', 'rootAffix', 'confusions', 'syllable', 'audio',
   'derived', // v27：派生词 [{word, meaning}]（详情卡「派生」Tab 数据源，AI 生成填充）
+  // v31：AI 智能模块产出——13 种背诵模式的题目/答案
+  //   modeQuestions = { [modeId]: { q, a, options?, tip? } }，字段语义严格对齐
+  //   WordReview.vue 的渲染口径（见 services/word-ai-modes.js REVIEW_MODES）。
+  'modeQuestions',
 ];
 // round18 R18-1 防回归闸：导出给测试断言「repo 层扩展字段清单」与「同步层
 // WORD_EXT_FIELDS」的差集只允许由用户内容字段构成（见 tests/round18-regression.test.mjs）。

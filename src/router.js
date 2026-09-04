@@ -62,6 +62,8 @@ const routes = [
   { path: '/english/export', component: () => import('./views/WordExport.vue'), meta: { englishBrand: true } },
   { path: '/english/stats', component: () => import('./views/WordStudy.vue'), meta: { englishBrand: true } },
   { path: '/english/settings', component: () => import('./views/WordSettings.vue'), meta: { englishBrand: true } },
+  // v31 AI 智能模块：复用 AI 助手为 13 种背诵模式出题 + 大纲释义批量补齐
+  { path: '/english/ai-modes', component: () => import('./views/WordAIModes.vue'), meta: { englishBrand: true } },
   // 旧路径重定向（向后兼容书签）
   { path: '/words', redirect: '/english/book' },
   { path: '/words/review', redirect: '/english/study' },

@@ -44,6 +44,7 @@ export const zh = {
   navLearned: '全部已学',
   navGroups: '词组',
   navStudy: '学习统计',
+  navAiModes: 'AI 智能模块',
   navExport: '导出',
   navSettings: '设置',
 
@@ -89,6 +90,7 @@ export const en = {
   navLearned: 'All Learned',
   navGroups: 'Groups',
   navStudy: 'Stats',
+  navAiModes: 'AI Smart Module',
   navExport: 'Export',
   navSettings: 'Settings',
 

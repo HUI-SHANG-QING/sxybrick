@@ -11,11 +11,12 @@ import {
   mergeCardPair, mergeRows, mergeTombstones, applyTombstones, kindOf,
 } from '../src/sync-manifest.js';
 
-test('清单：31 张表全部登记且策略合法', () => {
+test('清单：32 张表全部登记且策略合法', () => {
   // v19 → 20；v22（M1）cardGroups + cardGroupLinks → 22；v23（M2）analysisSessions + analysisMessages → 24；
   // v25（英语单词模块）wordCards + wordReviews + wordGroups + wordGroupLinks → 28；
   // v26（英语模块升级）wordSettings + wordCheckins + wordSyllabusMeta → 31（wordExportHistory 入 EXCLUDED_FROM_SYNC）
-  assert.equal(SYNC_TABLES.length, 31);
+  // v30（大纲中文释义）syllabusMeanings → 32
+  assert.equal(SYNC_TABLES.length, 32);
   assert.equal(BACKUP_VERSION, 7);
   const names = SYNC_TABLES.map(t => t.table);
   // privacyRecords 不在默认同步清单

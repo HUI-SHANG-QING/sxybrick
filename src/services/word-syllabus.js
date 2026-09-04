@@ -12,6 +12,9 @@
 // 注意 `with { type: 'json' }`：Vite/Rollup 与 Node ESM 都要求（Node 缺属性会直接
 // 抛 ERR_IMPORT_ATTRIBUTE_MISSING），加上后本模块才能被 node --test 直接覆盖。
 import vocabData from '../data/kaoyan-vocab-2027.json' with { type: 'json' };
+// 内置中文释义种子（离线兜底）：仅覆盖最高频的一批大纲词，
+// 其余由「AI 智能模块」批量生成后写入本地库（优先级高于种子，见 services/word-meaning.js）。
+import seedData from '../data/kaoyan-vocab-meanings-seed.json' with { type: 'json' };
 
 let _words = null;
 let _set = null;
@@ -42,6 +45,37 @@ export function getSyllabusMeta() {
 export function syllabusSize() {
   ensure();
   return _words.length;
+}
+
+// ---------- 中文释义（内置种子层，纯数据、无 db 依赖） ----------
+// 与词表保持「同一套归一化口径」：小写 + 去首尾空白，保证 db 层与种子层键一致。
+function ensureSeed() {
+  if (_seed) return _seed;
+  try {
+    _seed = seedData?.meanings && typeof seedData.meanings === 'object' ? seedData.meanings : {};
+  } catch {
+    _seed = {};
+  }
+  return _seed;
+}
+let _seed = null;
+
+/** 内置种子释义（无则返回 ''） */
+export function builtinMeaning(word) {
+  ensureSeed();
+  const k = normalizeWordKey(word);
+  return k ? String(_seed[k] || '').trim() : '';
+}
+
+/** 内置种子元信息（条数 / 版本 / 覆盖率） */
+export function getMeaningSeedMeta() {
+  ensureSeed();
+  return { ...(seedData?.meta || {}), count: Object.keys(_seed).length };
+}
+
+/** 释义键归一化：小写 + 去首尾空白 + 折叠内部连续空白 */
+export function normalizeWordKey(word) {
+  return String(word || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
 /** 取全部词（按字母排序的副本；用于查看页/导出） */

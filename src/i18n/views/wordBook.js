@@ -115,6 +115,8 @@ export const zh = {
   syllabusPageInfo: '第 {page} / {pages} 页',
   syllabusPrev: '上一页',
   syllabusNext: '下一页',
+  syllabusMeaningCoverage: '中文释义覆盖：{covered}/{total}（{pct}%）',
+  syllabusNoMeaning: '（待补释义）',
 
   // AI 生成 + 详情抽屉（v26）
   addByVoice: '口述添加',
@@ -271,6 +273,8 @@ export const en = {
   syllabusPageInfo: 'Page {page} / {pages}',
   syllabusPrev: 'Prev',
   syllabusNext: 'Next',
+  syllabusMeaningCoverage: 'Chinese meanings: {covered}/{total} ({pct}%)',
+  syllabusNoMeaning: '(meaning pending)',
 
   addByVoice: 'Voice add',
   voiceHint: 'Dictate the word with your IME and press Enter (or just enter the word and let AI fill the rest)',
