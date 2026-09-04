@@ -7,13 +7,6 @@
       "44": ""
     }
   },
-  "AgentWorkbench.vue": {
-    "count": 1,
-    "note": "Agent 示例 system prompt。",
-    "reasons": {
-      "127": ""
-    }
-  },
   "AIAssistant.vue": {
     "count": 3,
     "note": "AI system prompt 与示例对话。",
@@ -24,11 +17,10 @@
     }
   },
   "CardLinkAnalysis.vue": {
-    "count": 2,
+    "count": 1,
     "note": "AI 分析 prompt 模板。",
     "reasons": {
-      "86": "",
-      "202": ""
+      "86": ""
     }
   },
   "Cards.vue": {

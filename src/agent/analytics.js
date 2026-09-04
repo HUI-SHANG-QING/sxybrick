@@ -5,6 +5,7 @@
 
 import { db } from '../db.js';
 import { getStats, weakCards, isPomoCountable } from '../repo.js';
+import { getReplyStats } from './reply.js';
 import { trainWeights } from '../fsrs.js';
 
 const DAY = 86400000;
@@ -158,7 +159,7 @@ async function _getCrossModuleInsight() {
     docs: { total: docs.length },
     graphEdges: { total: graphEdges.length },
     memos: { total: memos.length },
-    ai: { feynman: feynmanCount, agent: agentCount, chat: chatCount },
+    ai: { feynman: feynmanCount, agent: agentCount, chat: chatCount, replyQuality: getReplyStats() },
     pomodoro: { today: pomoToday, totalSessions: pomoSessions.length, totalMinutes: pomoMinutes },
   };
 }
