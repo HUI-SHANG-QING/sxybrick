@@ -43,7 +43,7 @@ test('短期巩固中评级 0/1 → 退出巩固回正常流程', () => {
 test('没记住：等级回退到 0、10 分钟后重学、ease 下降', () => {
   const n = computeNext({ level: 4, ease: 2.5 }, 0, 1, false, {});
   assert.equal(n.level, 2); // 遗忘回退 level-2
-  assert.ok(n.intervalDays < 0.01); // 10 分钟级
+  assert.ok(n.intervalDays >= 10/1440 && n.intervalDays <= 0.25); // D7: 遗忘间隔随 ease 微弱变化（10min~6h）
   assert.ok(n.ease < 2.5);
 });
 

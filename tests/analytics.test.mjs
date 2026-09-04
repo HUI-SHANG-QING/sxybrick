@@ -104,7 +104,7 @@ test('consolidation 中断：阶段中评级 0/1 → 退出巩固回正常流程
   const forgot = computeNext({ level: 1, ease: 2.5, consolidation: 2 }, 0, 1, false, {});
   assert.equal(forgot.consolidation, null);
   assert.equal(forgot.level, 0);
-  assert.ok(forgot.intervalDays < 0.01); // 10 分钟级
+  assert.ok(forgot.intervalDays >= 10/1440 && forgot.intervalDays <= 0.25); // D7: 遗忘间隔随 ease 变化
 });
 
 test('difficulty 难度系数：basic=1.15 / applied=1.0 / challenge=0.8', () => {

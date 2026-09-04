@@ -153,8 +153,8 @@ test('schedule: 首次复习·遗忘（rating=0）→ 极短间隔 + again 初�
   assert.ok(near(r.fsrs.s, 0.40), 'S0 = w0');
   assert.ok(near(r.fsrs.d, 6.81, 1e-9), 'D0 = 4.93 + 2*0.94');
   assert.equal(r.fsrs.reps, 1);
-  assert.ok(near(r.intervalDays, 0.01), '遗忘 → 立刻重学');
-  assert.ok(Math.abs(r.dueAt - (T + 0.01 * DAY)) <= 1, 'dueAt = now + 0.01 天');
+  assert.ok(r.intervalDays >= 0.01 && r.intervalDays <= 1, 'N3: 遗忘间隔由 nextInterval(S) 决定，短但非精确 0.01');
+  assert.ok(r.dueAt > T && r.dueAt < T + DAY, 'N3: dueAt 在1天内');
   assert.equal(r.level, 0, 'S<1 → level 0');
   assert.equal(r.consolidation, null, 'FSRS 不复用 SM-2 巩固状态机');
 });
@@ -208,7 +208,7 @@ test('schedule: 后续复习·遗忘 → 稳定度回落、极短间隔重学', 
   const card = { fsrs: { s: 8, d: 5, reps: 3, last: T - DAY } };
   const r = schedule(card, 0, { now: T });
   assert.ok(r.fsrs.s < 8, '遗忘后稳定度回落');
-  assert.ok(near(r.intervalDays, 0.01), '遗忘 → 立刻重学');
+  assert.ok(r.intervalDays >= 0.01 && r.intervalDays <= 1, 'N3: 遗忘间隔由 nextInterval(S) 决定，短但非精确 0.01');
   assert.equal(r.fsrs.reps, 4);
 });
 

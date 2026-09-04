@@ -128,7 +128,7 @@ function isAdded(w) { return addedWords.value.has(String(w || '').trim().toLower
 
 async function addWord(w) {
   try {
-    await createWordCard({ kind: 'word', word: w, subject: '考研', source: syllabusMeta.title });
+    await createWordCard({ kind: 'word', word: w, subject: '考研', source: syllabusMeta.title });  // i18n-ignore: 数据语义（考试分类）
     addedWords.value = new Set(addedWords.value).add(String(w).trim().toLowerCase());
     await load();
   } catch (e) {
@@ -142,7 +142,7 @@ async function addPage() {
   sylBusy.value = true;
   try {
     for (const w of todo) {
-      await createWordCard({ kind: 'word', word: w, subject: '考研', source: syllabusMeta.title });
+      await createWordCard({ kind: 'word', word: w, subject: '考研', source: syllabusMeta.title });  // i18n-ignore: 数据语义（考试分类）
     }
     toast(t('views.wordBook.syllabusAddedToast', undefined, { n: todo.length }), 'success');
     await load();
@@ -164,7 +164,7 @@ const form = ref(blankForm());
 function blankForm() {
   return {
     id: null, kind: 'word', word: '', phonetic: '', meaning: '', example: '',
-    exampleTrans: '', note: '', source: '', subject: '考研', tags: '',
+    exampleTrans: '', note: '', source: '', subject: '考研', tags: '',  // i18n-ignore: 数据语义（考试分类）
     aiGen: true,
   };
 }

@@ -193,7 +193,8 @@ export function schedule(card, rating, opts = {}) {
   S = clamp(S, 0.01, MAX_STABILITY);
 
   // 遗忘（没记住）：立刻重学，给极短间隔；否则按目标保持率反解
-  let intervalDays = grade === 1 ? 0.01 : nextInterval(S, desiredR, w);
+  // N3: grade===1 用 stabilityAfterForget 算出的低 S 通过 nextInterval 反解间隔（高 S 卡答错后自然更长）
+  let intervalDays = grade === 1 ? Math.min(1, nextInterval(S, desiredR, w)) : nextInterval(S, desiredR, w);
   if (!Number.isFinite(intervalDays)) intervalDays = 0.01;
   intervalDays = Math.max(0.01, intervalDays);
   const dueAt = nowTs + Math.round(intervalDays * DAY_MS);
@@ -227,40 +228,49 @@ export function trainWeights(reviews, cardsById, opts = {}) {
   const eps = opts.eps || 1e-3;
   if (!reviews || reviews.length < 8) return { weights: w0, loss: null, samples: 0 };
 
-  // 预处理：按 cardId 分组的复习序列
-  const byCard = new Map();
-  for (const r of reviews) {
-    const arr = byCard.get(r.cardId) || [];
-    arr.push(r);
-    byCard.set(r.cardId, arr);
+  // D4 优化：预构建轨迹（toFsrsGrade + Map 查找只做一次，lossOf 只重算 R + 状态推进）
+  const cardTrajectories = [];
+  for (const [cardId, arr] of (function() {
+    const m = new Map();
+    for (const r of reviews) { const a = m.get(r.cardId) || []; a.push(r); m.set(r.cardId, a); }
+    return m;
+  })()) {
+    const card = cardsById.get(cardId);
+    cardTrajectories.push({
+      init: card?.fsrs?.reps ? null : card?.fsrs || null,
+      reviews: arr.map(r => ({ grade: toFsrsGrade(r.rating), y: r.rating >= 2 ? 1 : 0, reviewedAt: r.reviewedAt })),
+    });
   }
 
-  // 计算给定权重下的 log-loss + 返回用于梯度的中间状态
   function lossOf(weights) {
     let total = 0, n = 0;
-    for (const [cardId, arr] of byCard) {
-      const card = cardsById.get(cardId);
-      let state = card?.fsrs || null; // 当前 FSRS 状态
-      for (const r of arr) {
-        const grade = toFsrsGrade(r.rating);
-        const prev = state && state.reps ? state : null;
-        if (prev) {
-          const elapsed = Math.max(0, (r.reviewedAt - prev.last) / DAY_MS);
-          const R = retrievability(prev.s, elapsed, weights);
-          const y = r.rating >= 2 ? 1 : 0;
+    for (const { init, reviews: revs } of cardTrajectories) {
+      let s, d, reps, last;
+      if (!init) {
+        const g0 = revs[0].grade;
+        s = initStability(g0, weights); d = initDifficulty(g0, weights); reps = 1; last = revs[0].reviewedAt;
+      } else {
+        s = init.s; d = init.d; reps = 0; last = 0;
+      }
+      for (let j = 0; j < revs.length; j++) {
+        const { grade, y, reviewedAt } = revs[j];
+        if (reps > 0) {
+          const elapsed = Math.max(0, (reviewedAt - last) / DAY_MS);
+          const R = retrievability(s, elapsed, weights);
           const p = clamp(R, 1e-6, 1 - 1e-6);
           total += -(y * Math.log(p) + (1 - y) * Math.log(1 - p));
           n++;
         }
-        // 用本次评分推进状态（与在线调度一致）
-        if (!prev || !prev.reps) {
-          state = { s: initStability(grade, weights), d: initDifficulty(grade, weights), reps: 1, last: r.reviewedAt };
+        if (reps === 0) {
+          s = initStability(grade, weights); d = initDifficulty(grade, weights); reps = 1;
         } else {
-          const elapsed = Math.max(0, (r.reviewedAt - prev.last) / DAY_MS);
-          const R = retrievability(prev.s, elapsed, weights);
-          const S = grade === 1 ? stabilityAfterForget(prev.s, prev.d, R, weights) : stabilityAfterRecall(prev.s, prev.d, R, grade, weights);
-          state = { s: S, d: nextDifficulty(prev.d, grade, weights), reps: prev.reps + 1, last: r.reviewedAt };
+          const elapsed = Math.max(0, (reviewedAt - last) / DAY_MS);
+          const R = retrievability(s, elapsed, weights);
+          s = grade === 1 ? stabilityAfterForget(s, d, R, weights) : stabilityAfterRecall(s, d, R, grade, weights);
+          d = nextDifficulty(d, grade, weights);
+          reps++;
         }
+        last = reviewedAt;
       }
     }
     return { loss: n ? total / n : null, n };

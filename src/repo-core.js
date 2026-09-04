@@ -103,7 +103,7 @@ export function filterReviewCandidates(cards, filter = {}, nowTs = Date.now()) {
     else if (logic === 'NOT') out = out.filter(c => !ts.some(t => (c.tags || []).includes(t)));
     else out = out.filter(c => ts.some(t => (c.tags || []).includes(t)));
   }
-  if (f.wrongReasons?.length) out = out.filter(c => f.wrongReasons.includes(c.wrongReason || ''));
+  if (f.wrongReasons?.length) out = out.filter(c => { const wr = c.wrongReason || ''; return f.wrongReasons.includes(wr) || f.wrongReasons.some(r => WRONG_REASON_MAP[r] === wr); });
   // 默认只背到期卡（遵循复习曲线）；includeDueOnly=false 时可背全部（重复复习场景）
   if (f.includeDueOnly !== false) out = out.filter(c => c.dueAt <= nowTs);
   out.sort((a, b) => a.dueAt - b.dueAt || (a.id < b.id ? -1 : 1));

@@ -80,6 +80,15 @@ export function computeNext(card, rating, intensity = 1, guessed = false, opts =
   // 短期巩固状态：null/0=未启用或已毕业，1=当日巩固待完成，2=隔日巩固待完成
   let consolidation = card.consolidation || null;
   if (consolidation === 0) consolidation = null;
+  // D2: 巩固阶段超时失效——距上次复习超过 24h 未复习，自动跳过巩固，
+  // 直接进入正常 SM-2 梯度。防止用户长期不来后卡在「待巩固」状态。
+  if ((consolidation === 1 || consolidation === 2) && card.dueAt) {
+    const hoursOverdue = (Date.now() - card.dueAt) / 3600000;
+    if (hoursOverdue > 24) {
+      if (consolidation === 2) level = Math.max(1, level + 1); // 阶段2 超时视为已掌握
+      consolidation = null;
+    }
+  }
 
   // ---------- 等级与 ease 调整（含短期巩固状态机） ----------
   if (rating === 2) {
@@ -118,7 +127,8 @@ export function computeNext(card, rating, intensity = 1, guessed = false, opts =
   // ---------- 间隔计算 ----------
   let days;
   if (rating === 0) {
-    days = 10 / 1440;              // 10 分钟后重学
+    // D7: 遗忘间隔随 ease 微弱变化（ease=1.3→10min，ease=2.8→6h），不再一刀切 10 分钟
+    days = Math.max(10 / 1440, Math.min(0.25, (ease - 1.3) * 0.167));
   } else if (rating === 1) {
     days = level === 0 ? 10 / 1440 : 1;
   } else {
