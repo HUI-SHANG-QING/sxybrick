@@ -7,6 +7,7 @@
 //  4) P2-27 用量账本：每次调用记录 token/耗时（API usage 优先，缺失时估算），写入本地 db.aiUsage。
 
 import { recordUsage, estimateTokens } from '../utils/ai-usage.js';
+import { tryParseLLMJson } from '../utils/llm-json.js';
 
 /**
  * 发起一次聊天补全。
@@ -131,18 +132,9 @@ function httpHint(status) {
 /**
  * 轻量 JSON 抽取：从模型可能带 markdown 的代码块/杂项中解析出 JSON。
  * 工具参数、组卡结果都依赖它，鲁棒性很重要。
+ * round20：委托 llm-json.js 的 tryParseLLMJson（3 级容错 + 尾逗号修复），
+ * 消除两处重复的代码块剥离/括号截取逻辑。
  */
 export function extractJSON(text) {
-  if (text == null) return null;
-  const s = String(text);
-  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fence ? fence[1] : s;
-  try {
-    return JSON.parse(candidate.trim());
-  } catch { /* fallthrough */ }
-  const arr = candidate.match(/\[[\s\S]*\]/);
-  if (arr) { try { return JSON.parse(arr[0]); } catch { /* noop */ } }
-  const obj = candidate.match(/\{[\s\S]*\}/);
-  if (obj) { try { return JSON.parse(obj[0]); } catch { /* noop */ } }
-  return null;
+  return tryParseLLMJson(text);
 }

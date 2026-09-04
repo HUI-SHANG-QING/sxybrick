@@ -42,3 +42,27 @@ export function parseLLMJsonArray(raw) {
   if (!Array.isArray(v)) throw new Error(t('utils.llmJson.notArray'));
   return v;
 }
+
+/**
+ * 非抛出变体：从 LLM 原始输出中尽量解析出 JSON（数组或对象）。
+ * 与 parseLLMJsonArray 共享相同的 3 级容错逻辑，但失败返回 null 而非抛错。
+ * 适用场景：extractJSON（llm.js）等需要静默降级的调用方。
+ * @param {any} raw LLM 返回
+ * @returns {any|null} 解析出的 JSON 值（数组/对象/…），失败返回 null
+ */
+export function tryParseLLMJson(raw) {
+  const s = typeof raw === 'string' ? raw.trim() : (raw == null ? '' : String(raw));
+  if (!s) return null;
+
+  // 1) 直接解析（含代码块剥离 + 尾逗号修复）
+  let v = tryParse(s);
+  if (v != null) return v;
+
+  // 2) 截取第一个 [ 或 { 到最后一个对应括号
+  const arr = s.match(/\[[\s\S]*\]/);
+  if (arr) { v = tryParse(arr[0]); if (v != null) return v; }
+  const obj = s.match(/\{[\s\S]*\}/);
+  if (obj) { v = tryParse(obj[0]); if (v != null) return v; }
+
+  return null;
+}

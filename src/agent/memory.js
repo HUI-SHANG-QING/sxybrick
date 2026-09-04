@@ -3,6 +3,7 @@
 // 数据落在 db.aiMemories（IndexedDB），随数据包一起同步，零服务器依赖。
 
 import { db, uid } from '../db.js';
+import { extractJSON } from './llm.js';
 
 /** 列出全部记忆 */
 export async function listMemories() {
@@ -62,7 +63,7 @@ export async function extractMemories(userMsg, aiReply, chatFn) {
       },
       { role: 'user', content: `用户说：${userMsg}\n助手回：${aiReply}` },
     ]);
-    const arr = Array.isArray(r) ? r : (() => { try { return JSON.parse(String(r).match(/\[[\s\S]*\]/)?.[0] || '[]'); } catch { return []; } })();
+    const arr = Array.isArray(r) ? r : (extractJSON(r) || []);
     if (Array.isArray(arr)) for (const it of arr) if (it && it.content) await addMemory(it);
     return Array.isArray(arr) ? arr.filter((x) => x && x.content).length : 0;
   } catch {
