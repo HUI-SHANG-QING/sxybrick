@@ -62,9 +62,11 @@ export const zh = {
   toastNeedKey: '请先在「AI 设置」里填入 API 密钥',
   errPrefix: '（出错：',
   errSuffix: '）',
+  noContent: '（当前回答为空，请检查 AI 密钥与网络后重试）',
   defaultSessionTitle: 'Agent 会话',
   confirmDeleteSession: '删除这个 Agent 会话？',
   demoToolDesc: '【演示扩展】把输入原样返回，证明工具可在运行时注册并被编排器识别。',
+  demoToolParamText: 'string: 任意文本',
   toastToolRegistered: '已运行时注册工具 echo_demo（可在上方工具列表看到）',
 };
 
@@ -128,8 +130,10 @@ export const en = {
   toastNeedKey: 'Please fill in your API key in AI Settings first',
   errPrefix: 'Error: ',
   errSuffix: '',
+  noContent: '(Empty response — please check your API key and network, then retry)',
   defaultSessionTitle: 'Agent session',
   confirmDeleteSession: 'Delete this Agent session?',
   demoToolDesc: '[Demo extension] Echoes input as-is, proving tools can be registered at runtime and recognized by the orchestrator.',
+  demoToolParamText: 'string: any text',
   toastToolRegistered: 'Registered tool echo_demo at runtime (visible in the tool list above)',
 };

@@ -69,7 +69,9 @@ async function send() {
       agentId: selectedAgent.value || null,
       onTrace: (node) => { traceNodes.value.push(node); },
     });
-    bubble.content = reply;
+    // Bug fix: 最后一道防线——确保 content 是非空 string，与 MarkdownRenderer 输入口径对齐
+    const s = typeof reply === 'string' ? reply : (reply && typeof (reply.text || reply.content) === 'string') ? (reply.text || reply.content) : '';
+    bubble.content = s.trim() || t('views.agentWorkbench.noContent');
     bubble.loading = false;
     bubble.agentName = agentName;
   } catch (e) {
@@ -124,7 +126,7 @@ function demoExtend() {
   agentSystem.registerTool({
     name: 'echo_demo',
     description: t('views.agentWorkbench.demoToolDesc'),
-    parameters: { text: 'string: 任意文本' },
+    parameters: { text: t('views.agentWorkbench.demoToolParamText') },
     async execute(args) { return { ok: true, data: { echoed: args?.text || '' } }; },
   });
   tools.value = agentSystem.listTools();

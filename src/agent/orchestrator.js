@@ -6,12 +6,14 @@
 
 import { agentRegistry, toolRegistry } from './registry.js';
 import { runReActAgent } from './agents/base.js';
+import { stringifyReply } from './reply.js'; // 归一化 reply 为非空 string，杜绝 UI 空白行
 import { buildStudyContext, buildFullContext } from './context.js';
 import { buildMemoryText } from './memory.js';
 import { chat as llmChat } from './llm.js';
 import { TraceKind } from './types.js';
 import { runPipeline, shouldUsePipeline, PRESET_PIPELINES } from './pipeline.js';
 import { offlineChat, shouldFallback, isNetworkError } from '../utils/offlineAI.js';
+import { t } from '../i18n/index.js'; // UI-facing trace / agentName 经 i18n 字典（check-view-i18n --js 闸门）
 
 // Agent 层离线兜底：与 ai.js chatAI 同款逻辑，避免在 agent 层直调 llm.js 绕过 P3-D 兜底。
 // 不能直接 import { chatAI } from '../ai.js'，否则会与 ai.js → agentSystem → 本模块 形成循环依赖。
@@ -64,18 +66,19 @@ export async function runTask(opt) {
 
   // 0) 多智能体流水线判断：自动路由模式下，复杂多步任务走流水线
   if (!agentId && shouldUsePipeline(userInput)) {
-    push({ kind: TraceKind.ROUTE, text: '检测到复杂多步任务，启动多智能体流水线', agentId: 'pipeline' });
+    push({ kind: TraceKind.ROUTE, text: t('agent.orchestrator.pipelineStart'), agentId: 'pipeline' });
     const result = await runPipeline({ query: userInput, cfg, onTrace: push, signal });
     if (!result.fallback) {
       return {
-        reply: result.reply,
+        // Bug fix: 统一 reply 为 string，避免 MarkdownRenderer 收到 null/对象 → 空白行
+        reply: stringifyReply(result.reply),
         agentId: 'pipeline',
-        agentName: `多智能体流水线`,
+        agentName: t('agent.orchestrator.pipelineAgentName'),
         trace: [...trace, ...result.trace],
       };
     }
     // 流水线回退 → 继续走单 Agent
-    push({ kind: TraceKind.ROUTE, text: '流水线回退，改用单 Agent 模式', agentId: 'tutor' });
+    push({ kind: TraceKind.ROUTE, text: t('agent.orchestrator.pipelineFallback'), agentId: 'tutor' });
   }
 
   // 1) 构建上下文（学习数据 + RAG 检索增强 + 长期记忆）
@@ -84,7 +87,7 @@ export async function runTask(opt) {
   //    这样多智能体协作时 write_blackboard 能把发现正确归因到调用它的 Agent，而非 'unknown'）
   const resolvedId = agentId || routeIntent(userInput);
   const agent = agentRegistry.get(resolvedId) || agentRegistry.get('tutor');
-  push({ kind: TraceKind.ROUTE, text: `路由到 Agent：${agent.name}`, agentId: agent.id });
+  push({ kind: TraceKind.ROUTE, text: t('agent.orchestrator.routedToAgent', { name: agent.name }), agentId: agent.id });
 
   const ctx = {
     agentId: agent.id,
@@ -101,7 +104,8 @@ export async function runTask(opt) {
   // 4) 执行 Agent 的 ReAct 循环
   const reply = await runReActAgent({ agent, userMessages, ctx, onTrace: push });
 
-  return { reply, agentId: agent.id, agentName: agent.name, trace };
+  // Bug fix: 统一 reply 为 string（经验 934245：content 为 null/undefined/对象时 MarkdownRenderer 空白）
+  return { reply: stringifyReply(reply), agentId: agent.id, agentName: agent.name, trace };
 }
 
 export function listAgents() {

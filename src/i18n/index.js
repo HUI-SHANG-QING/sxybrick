@@ -191,6 +191,17 @@ const zh = {
     labelKind: { prereq: '前置', sameTag: '同标签', similar: '内容相似', coMistake: '易错同现', related: '相关' },
   },
 
+  // ---------------- Agent 编排器（src/agent/orchestrator.js）UI-facing trace/name ----------------
+  agent: {
+    orchestrator: {
+      pipelineStart: '检测到复杂多步任务，启动多智能体流水线',
+      pipelineAgentName: '多智能体流水线',
+      pipelineFallback: '流水线回退，改用单 Agent 模式',
+      routedToAgent: '路由到 Agent：{name}',
+      emptyReplyFallback: '（当前未生成回答内容，请重试或检查 AI 配置）',
+    },
+  },
+
   // ---------------- 业务视图（按视图分批外置，见 src/views/*.vue） ----------------
   views: {},
 };
@@ -342,6 +353,17 @@ const en = {
 
   graph: {
     labelKind: { prereq: 'Prereq', sameTag: 'Same tag', similar: 'Similar', coMistake: 'Co-mistake', related: 'Related' },
+  },
+
+  // ---------------- Agent orchestrator UI-facing trace / name strings ----------------
+  agent: {
+    orchestrator: {
+      pipelineStart: 'Multi-step task detected — starting multi-agent pipeline',
+      pipelineAgentName: 'Multi-Agent Pipeline',
+      pipelineFallback: 'Pipeline fallback, switching to single-agent mode',
+      routedToAgent: 'Routed to Agent: {name}',
+      emptyReplyFallback: '(Empty response — please retry or check your AI configuration)',
+    },
   },
 
   // ---------------- Business views (externalized per view, see src/views/*.vue) ----------------
