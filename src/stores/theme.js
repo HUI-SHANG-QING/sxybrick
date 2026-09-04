@@ -48,6 +48,8 @@ export const STYLES = [
   { id: 'guofeng', name: '国风', desc: '水墨山水 · 飞鸟涟漪 · 朱印题款', icon: '🏔️' },
   // —— 2026-08-30 新增（taste-skill）：青瓷主题（静物工作室 · 单一釉青强调 · 染色阴影）——
   { id: 'celadon', name: '青瓷', desc: '静物工作室 · 釉青单色 · 克制微动效', icon: '🍃' },
+  // —— 2026-09-04 新增（personal-workbench）：猫咪生活报主题（卡通小猫 × 复古报刊编辑部）——
+  { id: 'catpaper', name: '猫咪生活报', desc: '卡通小猫 · 复古报刊编辑部 · 邮票胶带', icon: '🐱' },
 ];
 
 // 配色模式（全局通用，适用于每一种风格）

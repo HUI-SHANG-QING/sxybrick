@@ -1367,3 +1367,189 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
     transition: none !important;
   }
 }
+
+/* ============================================================
+   ⑬ catpaper 猫咪生活报（2026-09-04 · 卡通小猫 × 复古报刊编辑部）
+   - 米白旧报纸底纹 + 浅棕色文字 + 橘黄/墨绿点缀
+   - 报纸分栏暗纹 + 暖光晕 + 邮票齿边 + 胶带感
+   - 标题用衬线/楷体，呼应报刊编辑部气质
+   - 三种配色模式：light（米白报纸）/ dark（夜印深棕）/ eye（黄绿护眼）
+   ============================================================ */
+
+/* ---- 主题基础 token：light（默认） ---- */
+:root[data-style='catpaper'] {
+  --bg: #f3ead3; --panel: #fbf5e6; --panel-2: #efe2c4;
+  --ink: #3e2f1c; --ink-2: #6b5235; --line: #e0cfa0;
+  --accent: #b85714; --accent-2: #2e5a3c;
+  --blue: #2e5a3c; --red: #a02828; --amber: #b85714; --green: #2e5a3c;
+  --radius: 14px; --toast-bg: #3e2f1c;
+  --code-bg: #efe2c4; --code-inline: #e0cfa0; --tag-bg: #f5dec0; --tag-ink: #b85714;
+  --on-accent: #fff8eb;
+}
+
+/* ---- 夜间 dark：夜印深棕油墨 ---- */
+:root[data-style='catpaper'][data-theme='dark'] {
+  --bg: #2a1d10; --panel: #3a2a17; --panel-2: #4a3a2c;
+  --ink: #f3ead3; --ink-2: #c9b295; --line: #5e4326;
+  --accent: #d97a2c; --accent-2: #4a8a5c;
+  --blue: #4a8a5c; --red: #e2724f; --amber: #e0a93b; --green: #7bbf6a;
+  --toast-bg: #3a2a17; --code-bg: #3a2a17; --code-inline: #4a3a2c;
+  --tag-bg: #4a3220; --tag-ink: #e0a93b; --on-accent: #2a1d10;
+}
+
+/* ---- 护眼 eye：黄绿米白纸 ---- */
+:root[data-style='catpaper'][data-theme='eye'] {
+  --bg: #e8ead0; --panel: #f0eed4; --panel-2: #e2e4c8;
+  --ink: #3a3220; --ink-2: #5e5a3e; --line: #c9c8a8;
+  --accent: #a04610; --accent-2: #4a6628;
+  --blue: #2e5a3c; --red: #8a3324; --amber: #94701e; --green: #4a6628;
+  --toast-bg: #3a3220; --code-bg: #e2e4c8; --code-inline: #d4d6b8;
+  --tag-bg: #e8e0c4; --tag-ink: #7a5a1e; --on-accent: #f0eed4;
+}
+
+/* ---- 报纸正文略放大，呼应纸媒阅读节奏 ---- */
+:root[data-style='catpaper'] body { font-size: 15.5px; }
+
+/* ---- 场景背景：旧报纸分栏暗纹 + 暖光晕 + 米白底 ---- */
+:root[data-style='catpaper'] .app-shell {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(184, 87, 20, .10), transparent 60%),
+    repeating-linear-gradient(90deg, transparent 0 220px, rgba(122, 74, 44, .04) 220px 221px),
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(122, 74, 44, .045) 27px 28px),
+    var(--bg);
+}
+:root[data-style='catpaper'][data-theme='dark'] .app-shell {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(217, 122, 44, .12), transparent 60%),
+    repeating-linear-gradient(90deg, transparent 0 220px, rgba(232, 184, 122, .05) 220px 221px),
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(232, 184, 122, .04) 27px 28px),
+    var(--bg);
+}
+:root[data-style='catpaper'][data-theme='eye'] .app-shell {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(160, 70, 16, .08), transparent 60%),
+    repeating-linear-gradient(90deg, transparent 0 220px, rgba(94, 90, 62, .04) 220px 221px),
+    repeating-linear-gradient(0deg, transparent 0 27px, rgba(94, 90, 62, .04) 27px 28px),
+    var(--bg);
+}
+
+/* ---- 标题：楷体衬线，编辑部气质 ---- */
+:root[data-style='catpaper'] .app-main h2,
+:root[data-style='catpaper'] .app-main h3,
+:root[data-style='catpaper'] .panel-title {
+  font-family: 'KaiTi', 'STKaiti', '楷体', 'Noto Serif SC', 'Songti SC', serif;
+  letter-spacing: 1.5px;
+}
+:root[data-style='catpaper'] .app-main h2 {
+  position: relative;
+  padding-left: 14px;
+}
+:root[data-style='catpaper'] .app-main h2::before {
+  content: ""; position: absolute; left: 0; top: 50%;
+  width: 5px; height: 70%; transform: translateY(-50%);
+  background: var(--accent); border-radius: 2px;
+}
+
+/* ---- 面板：报纸正文页 + 浅棕边框 + 微暖内阴影 ---- */
+:root[data-style='catpaper'] .panel {
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(122, 74, 44, .04), 0 4px 14px rgba(58, 42, 23, .06);
+}
+:root[data-style='catpaper'] .card-item {
+  border: 1px solid var(--line);
+  position: relative;
+}
+:root[data-style='catpaper'] .card-item::before {
+  content: ""; position: absolute; top: -6px; left: 14px;
+  width: 42px; height: 14px;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  transform: rotate(-2deg);
+  border-radius: 1px;
+  opacity: .8;
+  pointer-events: none;
+}
+:root[data-style='catpaper'] .card-item:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 18px rgba(184, 87, 20, .18);
+}
+
+/* ---- 按钮：橘黄主色，邮戳感方角 ---- */
+:root[data-style='catpaper'] .btn {
+  border-radius: 10px; min-height: 38px; font-weight: 600; letter-spacing: .5px;
+}
+:root[data-style='catpaper'] .btn:hover {
+  border-color: var(--accent); box-shadow: 0 0 14px rgba(184, 87, 20, .22);
+}
+:root[data-style='catpaper'] .btn.primary {
+  background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+}
+:root[data-style='catpaper'] .btn.primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+  box-shadow: 0 4px 16px rgba(184, 87, 20, .35);
+}
+
+/* ---- Chip：邮票齿边感 ---- */
+:root[data-style='catpaper'] .chip {
+  border-radius: 6px; min-height: 32px;
+  border: 1px dashed var(--line);
+  background:
+    radial-gradient(circle at 0 50%, transparent 4px, var(--panel) 4px) left,
+    radial-gradient(circle at 100% 50%, transparent 4px, var(--panel) 4px) right;
+  background-size: 8px 100%, 8px 100%;
+  background-repeat: no-repeat;
+  padding-left: 12px; padding-right: 12px;
+}
+:root[data-style='catpaper'] .chip.on {
+  background: var(--accent); color: var(--on-accent); border-color: var(--accent);
+  background-blend-mode: normal;
+}
+:root[data-style='catpaper'] .tag-pill {
+  border-radius: 4px;
+  border: 1px dashed var(--tag-ink);
+}
+
+/* ---- 输入框：报纸批注栏感 ---- */
+:root[data-style='catpaper'] .input {
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+:root[data-style='catpaper'] .input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(184, 87, 20, .15);
+}
+
+/* ---- 翻卡：同族缓动 ---- */
+:root[data-style='catpaper'] .flip-inner {
+  transition: transform .5s cubic-bezier(.25, .7, .25, 1);
+}
+
+/* ---- 页面切换：温和下沉 ---- */
+:root[data-style='catpaper'] .page-enter-active,
+:root[data-style='catpaper'] .page-leave-active {
+  transition: opacity .28s ease, transform .28s ease;
+}
+:root[data-style='catpaper'] .page-enter-from { opacity: 0; transform: translateY(8px); }
+:root[data-style='catpaper'] .page-leave-to { opacity: 0; transform: translateY(-8px); }
+
+/* ---- 无障碍焦点 ---- */
+:root[data-style='catpaper'] :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+:root[data-style='catpaper'] .btn:focus-visible { outline-offset: 3px; }
+
+/* ---- 移动端按钮加大，便于触摸 ---- */
+@media (max-width: 720px) {
+  :root[data-style='catpaper'] .btn { min-height: 44px; }
+  :root[data-style='catpaper'] .chip { min-height: 40px; }
+}
+
+/* ---- 尊重 reduced-motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-style='catpaper'] * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
