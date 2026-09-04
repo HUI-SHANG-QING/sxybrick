@@ -70,3 +70,22 @@ test('fuseResults: topK 截断生效', () => {
   const out = fuseResults(sem, kw, { topK: 3 });
   assert.equal(out.length, 3);
 });
+
+// BUG-10：融合改为 Map 查找后，语义应取「最高分 chunk」而非「首个 chunk」
+test('fuseResults: 乱序输入仍取最高分 chunk（Map 语义）', () => {
+  // sem 乱序：cardA 的低分 chunk 排前面，最高分 chunk 排后面
+  const sem = [
+    { row: { sourceId: 'cardA', chunk: 2 }, score: 0.3 },
+    { row: { sourceId: 'cardA', chunk: 1 }, score: 0.9 },
+    { row: { sourceId: 'cardB', chunk: 1 }, score: 0.5 },
+  ];
+  const kw = [
+    { row: { sourceId: 'cardA', chunk: 1 }, score: 0.2 },
+    { row: { sourceId: 'cardB', chunk: 1 }, score: 0.8 },
+  ];
+  const out = fuseResults(sem, kw, { topK: 10, semanticWeight: 0.65, keywordWeight: 0.35 });
+  const a = out.find((o) => o.row.sourceId === 'cardA');
+  // 关键断言：semScore 应取 cardA 的最高分 0.9，而不是乱序首项 0.3
+  assert.equal(a.semScore, 0.9, '乱序输入也应取最高 sem 分');
+  assert.ok(Math.abs(a.fused - (0.9 * 0.65 + 0.2 * 0.35)) < 1e-9);
+});

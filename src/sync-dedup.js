@@ -38,3 +38,68 @@ export function dedupeIncomingCards(incoming, baseById, baseCards = []) {
   }
   return { kept, duplicated, idRemap };
 }
+
+// ---------------------------------------------------------------------------
+// 卡片引用字段注册表（BUG-04 收敛：单一来源，避免在 sync.js 里硬编码枚举导致漏改）
+// 任何一张表若新增「引用卡片 id」的字段，都必须在这里登记对应类别，
+// 否则被内容去重跳过的卡（异 id 同内容）会在该字段留下指向不存在卡片的孤儿引用。
+// 类别说明：
+//   scalar —— 字段值本身是单个卡片 id（cardId / sourceId / sourceCardId / fromCardId / toCardId）
+//   array  —— 字段值是卡片 id 字符串数组（如 notes.linkedCardIds）
+//   json   —— 字段值是 JSON 字符串，解析后为卡片 id 数组（如 analysisSessions.cardIds）
+//   nested —— 字段值是对象数组，对象含 cardId 子字段（如 exams.questions: [{cardId}]）
+// ---------------------------------------------------------------------------
+export const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId', 'sourceId', 'sourceCardId'];
+export const ARRAY_REF_FIELDS = ['linkedCardIds'];
+export const JSON_REF_FIELDS = ['cardIds'];
+export const NESTED_REF_FIELDS = ['questions'];
+
+/**
+ * 把 backup 里所有「引用卡片 id」的字段按 idRemap 重定向到保留卡（纯函数，无 IO）。
+ * 这是 importBackup 0b 步的核心，抽到纯逻辑层后：① sync.js 与单测共用同一实现，
+ * ② 避免测试里维护一份易漂移的内联副本（BUG-04 的「硬编码枚举」问题）。
+ * @param {object} backup 导入数据包（键 = 表名，值 = 行数组或非数组）
+ * @param {Map<string,string>} idRemap 跳过 id → 保留 id
+ * @returns {object} 重定向后的新 backup（不修改入参）
+ */
+export function remapCardRefs(backup, idRemap) {
+  if (!backup || !idRemap || !idRemap.size) return backup;
+  const remap = (v) => (idRemap.has(v) ? idRemap.get(v) : v);
+  const out = {};
+  for (const key of Object.keys(backup)) {
+    const rows = backup[key];
+    if (!Array.isArray(rows)) { out[key] = rows; continue; }
+    out[key] = rows.map((r) => {
+      let row = r;
+      // cards 表自身只重定向 sourceCardId 单字段——绝不能对 cards 行做整行级
+      // cardId 重定向（那会把保留卡的自身 id 改掉）
+      if (key === 'cards') {
+        if (r.sourceCardId != null && idRemap.has(r.sourceCardId)) {
+          row = { ...row, sourceCardId: idRemap.get(r.sourceCardId) };
+        }
+        return row;
+      }
+      for (const f of CARD_REF_FIELDS) {
+        if (r[f] != null && idRemap.has(r[f])) row = { ...row, [f]: idRemap.get(r[f]) };
+      }
+      for (const f of ARRAY_REF_FIELDS) {
+        if (Array.isArray(r[f])) row = { ...row, [f]: r[f].map((x) => remap(x)) };
+      }
+      for (const f of JSON_REF_FIELDS) {
+        if (typeof r[f] === 'string') {
+          try {
+            const arr = JSON.parse(r[f]);
+            if (Array.isArray(arr)) row = { ...row, [f]: JSON.stringify(arr.map((x) => remap(x))) };
+          } catch { /* 非 JSON 字符串：原样保留 */ }
+        }
+      }
+      for (const f of NESTED_REF_FIELDS) {
+        if (Array.isArray(r[f])) {
+          row = { ...row, [f]: r[f].map((q) => (q && typeof q === 'object' && q.cardId != null && idRemap.has(q.cardId)) ? { ...q, cardId: remap(q.cardId) } : q) };
+        }
+      }
+      return row;
+    });
+  }
+  return out;
+}

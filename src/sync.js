@@ -29,7 +29,7 @@ async function exportRows(t) {
   if (Array.isArray(t.strip) && t.strip.length) rows = sanitizeStripRows(rows, t.strip);
   return rows;
 }
-import { dedupeIncomingCards } from './sync-dedup.js';
+import { dedupeIncomingCards, remapCardRefs } from './sync-dedup.js';
 import { buildAuthHeaders } from './utils/hub-auth.js';
 import { pad2 } from './utils/format.js';
 // 快照标签里的时间跟随界面语言（此前硬编码 'zh-CN'，英文界面下仍是"2026/8/30 19:48"中文习惯）
@@ -580,52 +580,10 @@ export async function importBackup(backup, opts = {}) {
     const baseCardsMap = new Map(baseCards.map(x => [x.id, x]));
     cardDedupe = dedupeIncomingCards(cardDedupe.kept, baseCardsMap, baseCards);
     if (cardDedupe.idRemap.size) {
-      // round17 R17-8：补 sourceCardId（变式卡链）——去重跳过卡后，保留卡的
-      // sourceCardId 仍指向已不存在的被跳卡 id，变式链路/血缘统计永久断裂
-      const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId', 'sourceId', 'sourceCardId'];
-      // round15 P2：数组/嵌套引用字段也要重定向——notes.linkedCardIds、plans.linkedCardIds
-      // （字符串数组）、analysisSessions.cardIds（JSON 串数组）、exams.questions（[{cardId}]）。
-      // 此前只重定向标量字段，去重跳过的卡在这些表里留下孤儿引用。
-      const ARRAY_REF_FIELDS = ['linkedCardIds'];
-      const JSON_REF_FIELDS = ['cardIds'];
-      const NESTED_REF_FIELDS = ['questions'];
-      const remap = (v) => (cardDedupe.idRemap.has(v) ? cardDedupe.idRemap.get(v) : v);
-      for (const key of Object.keys(backup)) {
-        if (!Array.isArray(backup[key])) continue;
-        backup[key] = backup[key].map(r => {
-          let row = r;
-          // round17 R17-8：cards 表自身只重定向 sourceCardId 单字段——绝不能对
-          // cards 行做整行级 cardId 重定向（那会把保留卡的自身 id 改掉）
-          if (key === 'cards') {
-            if (r.sourceCardId != null && cardDedupe.idRemap.has(r.sourceCardId)) {
-              row = { ...row, sourceCardId: cardDedupe.idRemap.get(r.sourceCardId) };
-            }
-            return row;
-          }
-          for (const f of CARD_REF_FIELDS) {
-            if (r[f] != null && cardDedupe.idRemap.has(r[f])) {
-              row = { ...row, [f]: cardDedupe.idRemap.get(r[f]) };
-            }
-          }
-          for (const f of ARRAY_REF_FIELDS) {
-            if (Array.isArray(r[f])) row = { ...row, [f]: r[f].map(x => remap(x)) };
-          }
-          for (const f of JSON_REF_FIELDS) {
-            if (typeof r[f] === 'string') {
-              try {
-                const arr = JSON.parse(r[f]);
-                if (Array.isArray(arr)) row = { ...row, [f]: JSON.stringify(arr.map(x => remap(x))) };
-              } catch { /* 非 JSON 字符串：原样保留 */ }
-            }
-          }
-          for (const f of NESTED_REF_FIELDS) {
-            if (Array.isArray(r[f])) {
-              row = { ...row, [f]: r[f].map(q => (q && typeof q === 'object' && q.cardId != null && cardDedupe.idRemap.has(q.cardId)) ? { ...q, cardId: remap(q.cardId) } : q) };
-            }
-          }
-          return row;
-        });
-      }
+      // BUG-04：关联引用重定向收敛到 sync-dedup.js 的 remapCardRefs（单一实现），
+      // 引用字段清单（CARD_REF_FIELDS 等）也统一登记在 sync-dedup.js 头部，
+      // 避免在 importBackup 里硬编码枚举、新增引用字段时漏改留下孤儿行。
+      backup = remapCardRefs(backup, cardDedupe.idRemap);
     }
   }
 

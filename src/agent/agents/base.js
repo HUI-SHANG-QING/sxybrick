@@ -28,19 +28,30 @@ function buildSystemPrompt(agent, ctx) {
   return p;
 }
 
-function parseToolCall(raw) {
-  const m = String(raw).match(/<tool>([^<]+)<\/tool>\s*<args>([\s\S]*?)<\/args>/);
+export function parseToolCall(raw) {
+  const text = String(raw);
+  const m = text.match(/<tool>([^<]+)<\/tool>\s*<args>([\s\S]*?)<\/args>/);
   if (!m) return null;
   const name = m[1].trim();
+  const argsRaw = m[2].trim() || '{}';
   let args = {};
+  let parseError = null;
   try {
-    args = JSON.parse(m[2].trim() || '{}');
-  } catch {
+    args = JSON.parse(argsRaw);
+    // 必须是对象（不接受数组/标量/null），否则下游展开会产出畸形参数
+    if (!args || typeof args !== 'object' || Array.isArray(args)) {
+      args = {};
+      parseError = '参数必须是 JSON 对象';
+    }
+  } catch (e) {
+    // BUG-03：JSON 解析失败不再静默当 {}（会把错参喂给工具、造成误导），
+    // 而是把 parseError 带回，由调用方回灌给模型自我纠正。
     args = {};
+    parseError = e.message || '参数不是合法 JSON';
   }
   // 提取工具标记之前的“思考”文字
-  const thought = String(raw).slice(0, m.index).trim();
-  return { name, args, thought };
+  const thought = text.slice(0, m.index).trim();
+  return { name, args, argsRaw, parseError, thought };
 }
 
 function parseFinal(raw) {
@@ -102,6 +113,19 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
 
     if (toolCall) {
       if (toolCall.thought) onTrace?.({ kind: TraceKind.THOUGHT, text: toolCall.thought });
+      if (toolCall.parseError) {
+        // BUG-03：args 解析失败不再静默调工具，回灌错误让模型重试（自我纠正闭环）
+        onTrace?.({
+          kind: TraceKind.ERROR,
+          text: `工具 ${toolCall.name} 参数解析失败：${toolCall.parseError}`,
+        });
+        convo.push({ role: 'assistant', content: raw });
+        convo.push({
+          role: 'tool',
+          content: `工具 ${toolCall.name} 参数解析失败：${toolCall.parseError}（原始参数：${toolCall.argsRaw}）。请用合法 JSON 对象重试。`,
+        });
+        continue;
+      }
       const res = await executeTool(toolCall.name, toolCall.args, ctx, onTrace);
       convo.push({ role: 'assistant', content: raw });
       const payload = res?.ok === false ? `错误：${res.error}` : JSON.stringify(res?.data ?? res);

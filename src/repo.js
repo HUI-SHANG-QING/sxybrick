@@ -708,8 +708,20 @@ export async function listDailyPlans(limit = 30) {
 export async function listDailyPlanSummary(days = 30) {
   const plans = await db.dailyPlans.orderBy('date').reverse().limit(days * 3).toArray();
   const byDate = new Map();
+  // BUG-09：循环内逐 plan 串行查 dailyTasks = N 次索引查询（N 可达 90）。
+  // 改 anyOf 一次批量拉取后按 planId 分组，查询次数从 O(N) 降到 O(1)。
+  const planIds = plans.map((p) => p.id);
+  const allTasks = planIds.length
+    ? await db.dailyTasks.where('planId').anyOf(planIds).toArray()
+    : [];
+  const tasksByPlan = new Map();
+  for (const t of allTasks) {
+    const arr = tasksByPlan.get(t.planId) || [];
+    arr.push(t);
+    tasksByPlan.set(t.planId, arr);
+  }
   for (const p of plans) {
-    const tasks = await db.dailyTasks.where('planId').equals(p.id).toArray();
+    const tasks = tasksByPlan.get(p.id) || [];
     const cur = byDate.get(p.date) || { date: p.date, total: 0, done: 0, updatedAt: 0 };
     cur.total += tasks.length;
     cur.done += tasks.filter(t => t.status === 'done').length;

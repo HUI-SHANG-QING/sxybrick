@@ -47,18 +47,31 @@ export function fuseResults(sem, kw, opts = {}) {
   const topK = opts.topK || 6;
   const semW = opts.semanticWeight ?? 0.65;
   const kwW = opts.keywordWeight ?? 0.35;
-  const byId = new Map();
+  // BUG-10：先把每个 sourceId 的最高 sem/kw 分用 Map 记下来（O(n+m)），
+  // 替代旧实现「逐 id 在数组里 find」的 O(n×m) 二次查找。
+  const semBy = new Map();
   for (const s of sem) {
     const key = s.row.sourceId;
-    if (!byId.has(key) || byId.get(key).score < s.score) byId.set(key, s);
+    const prev = semBy.get(key);
+    if (!prev || prev.score < s.score) semBy.set(key, s);
   }
+  const kwBy = new Map();
   for (const k of kw) {
     const key = k.row.sourceId;
-    if (!byId.has(key) || byId.get(key).score < k.score) byId.set(key, k);
+    const prev = kwBy.get(key);
+    if (!prev || prev.score < k.score) kwBy.set(key, k);
+  }
+  // 展示行取语义/关键词两路中原始分最高的那条（与旧 byId 语义一致）
+  const byId = new Map();
+  for (const [key, s] of semBy) byId.set(key, s);
+  for (const [key, k] of kwBy) {
+    const prev = byId.get(key);
+    if (!prev || prev.score < k.score) byId.set(key, k);
   }
   const merged = [...byId.values()].map((item) => {
-    const semScore = sem.find((s) => s.row.sourceId === item.row.sourceId)?.score || 0;
-    const kwScore = kw.find((k) => k.row.sourceId === item.row.sourceId)?.score || 0;
+    const key = item.row.sourceId;
+    const semScore = semBy.get(key)?.score || 0;
+    const kwScore = kwBy.get(key)?.score || 0;
     const fused = semScore * semW + kwScore * kwW;
     return { ...item, fused, semScore, kwScore };
   });

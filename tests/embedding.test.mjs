@@ -25,7 +25,7 @@ function reset() {
   fetchImpl = null;
 }
 
-const { embedBatch, LOCAL_EMBED_DIM } = await import('../src/agent/embedding.js');
+const { embedBatch, cosine, LOCAL_EMBED_DIM } = await import('../src/agent/embedding.js');
 
 // ---------- 无 key：直接本地，不发网络请求 ----------
 
@@ -83,4 +83,23 @@ test('空输入 → 空数组，无副作用', async () => {
   const out = await embedBatch([]);
   assert.equal(fetchCalls, 0);
   assert.deepEqual(out, []);
+});
+
+// ---------- BUG-01：cosine 维度不一致不再静默截断 ----------
+
+test('cosine：维度不一致返回 0（不静默截断）', () => {
+  // 旧实现 Math.min 会把 3 维行当 2 维比，算出误导性相似度
+  assert.equal(cosine([1, 0], [1, 0, 0]), 0, '维度不一致应判 0');
+  assert.equal(cosine([1, 0, 0], [1, 0]), 0, '反向维度不一致也应判 0');
+});
+
+test('cosine：空/缺向量安全', () => {
+  assert.equal(cosine([1, 0], []), 0, '空向量应判 0');
+  assert.equal(cosine(undefined, [1, 0]), 0, '缺 a 应判 0');
+  assert.equal(cosine(null, null), 0, '双空应判 0');
+});
+
+test('cosine：同维度计算正确（正交 0 / 同向 1）', () => {
+  assert.ok(Math.abs(cosine([1, 0], [1, 0]) - 1) < 1e-9, '同向应接近 1');
+  assert.ok(Math.abs(cosine([1, 0], [0, 1])) < 1e-9, '正交应为 0');
 });

@@ -16,6 +16,7 @@ import { chat as llmChat } from './llm.js';
 import { createBlackboard } from './blackboard.js';
 import { TraceKind } from './types.js';
 import { offlineChat, shouldFallback, isNetworkError } from '../utils/offlineAI.js';
+import { parseDecomposedOutput } from './pipeline-core.js';
 
 // Agent 层离线兜底：与 ai.js chatAI 同款逻辑，避免在 agent 层直调 llm.js 绕过 P3-D 兜底。
 // 不能直接 import { chatAI } from '../ai.js'，否则会与 ai.js → agentSystem → 本模块 形成循环依赖。
@@ -101,19 +102,8 @@ async function decomposeTask(query, ctx) {
     { role: 'system', content: DECOMPOSE_PROMPT },
     { role: 'user', content: `用户需求：${query}` },
   ]);
-  // 从可能带 markdown 的输出中提取 JSON
-  const fence = out.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fence ? fence[1] : out;
-  const arrMatch = candidate.match(/\[[\s\S]*\]/);
-  if (!arrMatch) return null;
-  try {
-    const steps = JSON.parse(arrMatch[0]);
-    // P1-9：LLM 可能分解出任意多个子步骤，必须设上限——否则每个 step 又跑一轮 ReAct
-    // （最大 12 次 LLM 调用），N 步 × 12 次调用全无界，既烧 token 又可能长时间无响应。
-    // 这里硬性截断到 4 步（覆盖绝大多数「拆解→并行执行」场景，超出部分丢弃并提示）。
-    if (Array.isArray(steps) && steps.length) return steps.slice(0, 4);
-  } catch { /* noop */ }
-  return null;
+  // 提取 + 校验拆解产物（BUG-06 的 schema 校验在 pipeline-core.js 内完成）
+  return parseDecomposedOutput(out, 4);
 }
 
 // ---------- 流水线执行 ----------

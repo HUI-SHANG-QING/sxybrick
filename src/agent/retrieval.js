@@ -210,6 +210,18 @@ export async function rebuildIndex() {
  */
 export const FULLSCAN_ROW_LIMIT = 3000;
 
+// BUG-01 延伸：embedding 模型变更后，存量行向量维度与新查询向量不一致（本地 256 vs 远程 1536）。
+// cosine 已对维度不一致返回 0（不再静默截断），这里在编排层告警一次，提示应重建索引而非悄悄全 0。
+function warnDimMismatch(qVec, rows) {
+  if (!qVec?.length || !rows.length) return;
+  const bad = rows.some((r) => r.vector && r.vector.length && r.vector.length !== qVec.length);
+  if (bad) {
+    console.warn(
+      `[retrieval] 检测到 embedding 维度不一致（查询 ${qVec.length} 维 vs 存量行），语义检索将全部得 0；请重建索引或统一 embedding 模型。`,
+    );
+  }
+}
+
 async function loadEmbeddingRows(opts = {}) {
   const subject = opts.subject && String(opts.subject).trim();
   if (subject) return db.embeddings.where('subject').equals(subject).toArray();
@@ -230,6 +242,7 @@ export async function semanticSearch(query, opts = {}) {
   const qVec = await embed(query);
   const rows = await loadEmbeddingRows(opts);
   if (!rows.length) return [];
+  warnDimMismatch(qVec, rows);
   return scoreSemantic(qVec, rows)
     .sort((a, b) => b.score - a.score)
     .filter((s) => s.score >= minScore)
@@ -259,6 +272,7 @@ export async function hybridSearch(query, opts = {}) {
   const qVec = await embed(query);
   const rows = await loadEmbeddingRows(opts);
   if (!rows.length) return [];
+  warnDimMismatch(qVec, rows);
   const semScored = scoreSemantic(qVec, rows)
     .filter((s) => s.score >= (opts.minScore ?? 0.1))
     .sort((a, b) => b.score - a.score)

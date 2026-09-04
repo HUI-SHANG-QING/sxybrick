@@ -1,7 +1,7 @@
 // tests/sync-dedup.test.mjs — 跨设备导入卡片内容去重（P0 修复）单测
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dedupeIncomingCards } from '../src/sync-dedup.js';
+import { dedupeIncomingCards, remapCardRefs, CARD_REF_FIELDS, ARRAY_REF_FIELDS, JSON_REF_FIELDS, NESTED_REF_FIELDS } from '../src/sync-dedup.js';
 
 function card(id, front, back, subject) {
   return { id, front, back, subject: subject || '计组', ease: 2.5, level: 3, intervalDays: 10, dueAt: Date.now() };
@@ -68,6 +68,7 @@ test('空输入安全', () => {
 
 // ---------- round12：被跳过卡的关联数据必须重定向到保留卡（避免孤儿行） ----------
 
+
 test('idRemap：异 id 同内容被跳过的卡映射到保留 id', () => {
   // 本地已有一张 C1(Q1/A1)；远端备份里 C2 与 C1 内容雷同 → 跳过，
   // 但 C2 关联了一张复习记录 / 一条图谱边，这些引用必须重定向到 C1。
@@ -90,46 +91,12 @@ test('idRemap：同 id 卡不产生重定向（SRS 合并路径）', () => {
 });
 
 test('导入前关联引用重定向：标量+数组+JSON+嵌套字段的卡 id 被改写', () => {
-  // 复刻 importBackup 0b 步的重定向逻辑（与 src/sync.js 保持一致；
-  // CARD_REF_FIELDS 含 sourceId——embeddings 的卡片引用字段，N-6 曾漏掉；
-  // round15 P2：数组（linkedCardIds）/JSON（cardIds）/嵌套（questions[].cardId）引用字段）
-  const cardDedupe = { idRemap: new Map([['C2', 'C1']]) };
-  const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId', 'sourceId'];
-  const ARRAY_REF_FIELDS = ['linkedCardIds'];
-  const JSON_REF_FIELDS = ['cardIds'];
-  const NESTED_REF_FIELDS = ['questions'];
-  const remap = (v) => (cardDedupe.idRemap.has(v) ? cardDedupe.idRemap.get(v) : v);
-  const remapBackup = (backup) => {
-    for (const key of Object.keys(backup)) {
-      if (key === 'cards' || !Array.isArray(backup[key])) continue;
-      backup[key] = backup[key].map(r => {
-        let row = r;
-        for (const f of CARD_REF_FIELDS) {
-          if (r[f] != null && cardDedupe.idRemap.has(r[f])) row = { ...row, [f]: cardDedupe.idRemap.get(r[f]) };
-        }
-        for (const f of ARRAY_REF_FIELDS) {
-          if (Array.isArray(r[f])) row = { ...row, [f]: r[f].map(x => remap(x)) };
-        }
-        for (const f of JSON_REF_FIELDS) {
-          if (typeof r[f] === 'string') {
-            try {
-              const arr = JSON.parse(r[f]);
-              if (Array.isArray(arr)) row = { ...row, [f]: JSON.stringify(arr.map(x => remap(x))) };
-            } catch { /* 原样保留 */ }
-          }
-        }
-        for (const f of NESTED_REF_FIELDS) {
-          if (Array.isArray(r[f])) {
-            row = { ...row, [f]: r[f].map(q => (q && typeof q === 'object' && q.cardId != null && cardDedupe.idRemap.has(q.cardId)) ? { ...q, cardId: remap(q.cardId) } : q) };
-          }
-        }
-        return row;
-      });
-    }
-    return backup;
-  };
+  // 直接测 sync-dedup.js 的 remapCardRefs（与 src/sync.js importBackup 0b 步同一实现，
+  // BUG-04 收敛后不再维护内联副本）。CARD_REF_FIELDS 含 sourceCardId——
+  // 变式卡链引用字段，round17 R17-8 补入，漏掉会致变式血缘统计永久断裂。
+  const idRemap = new Map([['C2', 'C1']]);
   const backup = {
-    cards: [{ id: 'C1', front: 'Q1', back: 'A1' }],
+    cards: [{ id: 'C1', front: 'Q1', back: 'A1' }, { id: 'C9', front: 'Q9', back: 'A9', sourceCardId: 'C2' }],
     reviews: [{ id: 'R1', cardId: 'C2', rating: 4 }], // 孤儿：本指向被跳过的 C2
     graphEdges: [{ id: 'E1', fromCardId: 'C2', toCardId: 'C3', label: '相关' }],
     cardGroupLinks: [{ id: 'L1', cardId: 'C2', groupId: 'G1' }],
@@ -141,8 +108,9 @@ test('导入前关联引用重定向：标量+数组+JSON+嵌套字段的卡 id 
     plans: [{ id: 'P1', linkedCardIds: ['C2'], title: '计划' }],
     analysisSessions: [{ id: 'S1', cardIds: '["C2","C3"]' }],           // JSON 串数组
     exams: [{ id: 'X1', questions: [{ front: 'a', cardId: 'C2' }, { front: 'b' }] }], // 嵌套
+    meta: { version: 1 }, // 非数组键原样保留
   };
-  const out = remapBackup(backup);
+  const out = remapCardRefs(backup, idRemap);
   assert.equal(out.reviews[0].cardId, 'C1', '复习记录重定向到保留卡');
   assert.equal(out.graphEdges[0].fromCardId, 'C1', '图谱边起点重定向到保留卡');
   assert.equal(out.graphEdges[0].toCardId, 'C3', '无关引用保持不变');
@@ -154,4 +122,20 @@ test('导入前关联引用重定向：标量+数组+JSON+嵌套字段的卡 id 
   assert.equal(out.analysisSessions[0].cardIds, '["C1","C3"]', 'analysisSessions.cardIds JSON 串重定向');
   assert.equal(out.exams[0].questions[0].cardId, 'C1', 'exams.questions[].cardId 嵌套重定向');
   assert.equal(out.exams[0].questions[1].cardId, undefined, '无 cardId 的题目不受影响');
+  assert.equal(out.cards[0].id, 'C1', 'cards 表保留卡的自身 id 绝不被改写');
+  assert.equal(out.cards[1].sourceCardId, 'C1', 'cards 表 sourceCardId 单独重定向（R17-8）');
+  assert.deepEqual(out.meta, { version: 1 }, '非数组键原样保留');
+});
+
+test('remapCardRefs：注册表字段覆盖已知卡片引用字段（BUG-04 防漂移）', () => {
+  // 锁定当前正确状态：任何一个被历史 bug 证明过的引用字段都不能从注册表消失
+  assert.ok(CARD_REF_FIELDS.includes('sourceId'), 'N-6 曾漏掉的 sourceId 必须在');
+  assert.ok(CARD_REF_FIELDS.includes('sourceCardId'), 'R17-8 补入的 sourceCardId 必须在');
+  assert.ok(CARD_REF_FIELDS.includes('fromCardId') && CARD_REF_FIELDS.includes('toCardId'), '图谱边字段必须在');
+  assert.ok(ARRAY_REF_FIELDS.includes('linkedCardIds'), '数组引用 linkedCardIds 必须在');
+  assert.ok(JSON_REF_FIELDS.includes('cardIds'), 'JSON 引用 cardIds 必须在');
+  assert.ok(NESTED_REF_FIELDS.includes('questions'), '嵌套引用 questions 必须在');
+  // 四类清单不得相互重叠（同一字段只能归一类，避免重复改写）
+  const all = [...CARD_REF_FIELDS, ...ARRAY_REF_FIELDS, ...JSON_REF_FIELDS, ...NESTED_REF_FIELDS];
+  assert.equal(new Set(all).size, all.length, '四类字段清单不得有交集');
 });

@@ -152,6 +152,38 @@ test('listDailyPlanSummary：按日期合并去重', async () => {
   assert.ok(sum[0].date === d2 || sum[0].date === d1); // 按 updatedAt 倒序
 });
 
+// BUG-09：listDailyPlanSummary 改 anyOf 批量查询后，多计划分组计数仍正确
+test('listDailyPlanSummary：多日期多任务批量分组（anyOf 路径）', async () => {
+  await clearDaily();
+  const base = Date.now();
+  // 直接种 3 份不同日期的计划 + 各 2 个任务（绕开 createDailyPlan 的按日去重）
+  const plans = [
+    { id: 'bp1', date: '2026-08-20', updatedAt: base - 3, rawInput: 'p1' },
+    { id: 'bp2', date: '2026-08-21', updatedAt: base - 2, rawInput: 'p2' },
+    { id: 'bp3', date: '2026-08-22', updatedAt: base - 1, rawInput: 'p3' },
+  ];
+  await db.dailyPlans.bulkPut(plans);
+  await db.dailyTasks.bulkPut([
+    { id: 'bt1', planId: 'bp1', title: 'a', status: 'todo', type: 'review' },
+    { id: 'bt2', planId: 'bp1', title: 'b', status: 'done', type: 'review' },
+    { id: 'bt3', planId: 'bp2', title: 'c', status: 'done', type: 'review' },
+    { id: 'bt4', planId: 'bp2', title: 'd', status: 'done', type: 'review' },
+    { id: 'bt5', planId: 'bp3', title: 'e', status: 'todo', type: 'review' },
+    { id: 'bt6', planId: 'bp3', title: 'f', status: 'todo', type: 'review' },
+  ]);
+  const sum = await listDailyPlanSummary(30);
+  assert.equal(sum.length, 3, '3 天各一条');
+  const byDate = Object.fromEntries(sum.map(s => [s.date, s]));
+  assert.equal(byDate['2026-08-20'].total, 2);
+  assert.equal(byDate['2026-08-20'].done, 1);
+  assert.equal(byDate['2026-08-21'].total, 2);
+  assert.equal(byDate['2026-08-21'].done, 2);
+  assert.equal(byDate['2026-08-22'].total, 2);
+  assert.equal(byDate['2026-08-22'].done, 0);
+  // 按 updatedAt 倒序：最新的 08-22 排最前
+  assert.equal(sum[0].date, '2026-08-22');
+});
+
 // ---------- round17 R17-1：番茄专注时长口径（读 duration 分钟，不读不存在的 durationMs） ----------
 
 test('R17-1 每日实况：番茄分钟按 duration(分钟) 聚合', async () => {

@@ -145,9 +145,14 @@ export async function embed(text) {
 
 /** 余弦相似度 */
 export function cosine(a, b) {
-  const len = Math.min(a.length, b.length);
+  // BUG-01：维度不一致时绝不静默截断（旧实现 Math.min 只比较较短维，会把 1536 维
+  // 远程向量当 256 维本地向量比，得出错误相似度）。这里直接判 0，逼上游走
+  // modelSig 全量重建，而不是悄悄算错分。
+  const la = a?.length ?? 0;
+  const lb = b?.length ?? 0;
+  if (!la || !lb || la !== lb) return 0;
   let dot = 0, na = 0, nb = 0;
-  for (let i = 0; i < len; i++) {
+  for (let i = 0; i < la; i++) {
     dot += a[i] * b[i];
     na += a[i] * a[i];
     nb += b[i] * b[i];
