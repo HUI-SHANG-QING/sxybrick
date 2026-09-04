@@ -446,6 +446,24 @@ const server = createServer(async (req, res) => {
   return serveStatic(req, res, pathname);
 });
 
+server.on('error', (err) => {
+  if (err.code === 'EACCES' || err.code === 'EADDRINUSE') {
+    console.error(`\n❌ 无法监听端口 ${PORT}（${err.code}）：`);
+    if (err.code === 'EACCES') {
+      console.error('   该端口被 Windows 系统保留（Hyper-V / WSL2 / Docker 的「排除端口范围」）或需要管理员权限。');
+      console.error('   可用命令查保留范围：netsh interface ipv4 show excludedportrange protocol=tcp');
+    } else {
+      console.error('   该端口已被其他程序占用，可用 netstat -ano | findstr :PORT 排查。');
+    }
+    console.error('   换一个不在保留范围内的端口即可，例如 8787：');
+    console.error('     PowerShell：$env:PORT=8787; npm run hub');
+    console.error('     或：npm run hub -- 8787');
+    console.error('   换好后，手机「同步」页里的电脑端地址端口也要改成对应值。\n');
+    process.exit(1);
+  }
+  throw err;
+});
+
 server.listen(PORT, HOST, () => {
   console.log('\n✅ SxyBrick 局域网同步中枢已启动');
   console.log(`   端口：${PORT}　监听地址：${HOST}`);
