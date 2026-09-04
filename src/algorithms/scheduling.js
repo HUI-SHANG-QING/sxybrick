@@ -43,7 +43,7 @@ export function nextWorkDay(ts, restCfg = {}) {
  * @returns { urgency:number, atExamR:number, dueBeforeExam:boolean }
  */
 export function examWindowUrgency(card, examAt, opts = {}) {
-  const nowTs = opts.now || Date.now();
+  const nowTs = opts.now ?? Date.now();
   // H-1：同 fsrs.js：|| 对 0 回退错误，统一 ?? 口径。
   const desiredR = Math.max(0.01, opts.desiredRetention ?? DEFAULT_DESIRED_RETENTION);
   const daysToExam = (examAt - nowTs) / DAY_MS;
@@ -66,7 +66,7 @@ export function examWindowUrgency(card, examAt, opts = {}) {
  * @returns number 调整后的 dueAt
  */
 export function compressIntoWindow(dueAt, examAt, opts = {}) {
-  const nowTs = opts.now || Date.now();
+  const nowTs = opts.now ?? Date.now();
   if (!examAt || dueAt <= examAt) return dueAt;
   // 考前至少保留半天缓冲；把 due 拉到 (examAt - 0.5 天) 之内最近的时点
   const cap = examAt - 0.5 * DAY_MS;
@@ -86,10 +86,7 @@ export function prioritizeForExam(cards, examAt, opts = {}) {
     return { c, score: e.urgency };
   });
   scored.sort((a, b) => b.score - a.score);
-  return scored.map(({ c, score }) => {
-    c._examUrgency = score;
-    return c;
-  });
+  return scored.map(({ c, score }) => ({ ...c, _examUrgency: score }));
 }
 
 /** 把休息日弹性应用到一张卡的 dueAt（仅当落在休息日时顺延） */

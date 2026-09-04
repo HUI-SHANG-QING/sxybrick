@@ -159,6 +159,32 @@ test('schedule: 首次复习·遗忘（rating=0）→ 极短间隔 + again 初�
   assert.equal(r.consolidation, null, 'FSRS 不复用 SM-2 巩固状态机');
 });
 
+// D1（round11 审计）：opts.now=0 是合法 epoch 值，不应被 || 替换为 Date.now()
+// 修复前：opts.now=0 → nowTs=Date.now()，破坏测试确定性
+// 修复后：opts.now=0 → nowTs=0，fsrs.last 严格可预测
+test('schedule: opts.now=0（合法 epoch）应保留为 0，不被替换为 Date.now()', () => {
+  const r = schedule({}, 2, { now: 0 });
+  assert.equal(r.fsrs.last, 0, 'nowTs=0 应原样落进 fsrs.last');
+  // dueAt = 0 + intervalDays*DAY，与 now=Date.now() 时算出的 intervalDays 一致
+  // rating=2 首次复习 intervalDays ≈ 2.67，dueAt = 0 + 2.67*DAY > 0
+  assert.ok(r.dueAt > 0, 'dueAt > 0（基于 intervalDays > 0）');
+  assert.ok(r.dueAt < 365 * 86400000, 'dueAt 一年内（合理性）');
+});
+
+test('schedule: opts.now=undefined 应回退到 Date.now()（?? 语义）', () => {
+  const before = Date.now();
+  const r = schedule({}, 2, {});
+  const after = Date.now();
+  // rating=2 首次复习 intervalDays ≈ 2.4，fsrs.last 应在 before..after 区间
+  assert.ok(r.fsrs.last >= before && r.fsrs.last <= after, 'nowTs 落在调用前后');
+});
+
+test('schedule: 显式 desiredRetention=0 也不被替换（与 now=0 同口径 ??)', () => {
+  // 间隔反解公式在 R*=0 时会爆炸（除零），但 intervalDays 兜底 ≥ 0.01（见 L197-198 夹取）
+  const r = withStableFuzz(() => schedule({}, 2, { now: T, desiredRetention: 0 }));
+  assert.ok(r.intervalDays >= 0.01, 'R*=0 时 interval 至少 0.01');
+});
+
 test('schedule: 首次复习·记住（rating=2）→ 按目标保持率反解间隔', () => {
   const r = withStableFuzz(() => schedule({}, 2, { now: T }));
   assert.ok(near(r.fsrs.s, 2.40), 'S0 = w2');
