@@ -9,6 +9,7 @@ import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
 import { t } from '../i18n/index.js';
+import { parseLLMJsonArray } from '../utils/llm-json.js';
 
 const route = useRoute();
 const docs = ref([]);
@@ -58,9 +59,8 @@ async function toCards(d) {
   genFrom.value = d; genCards.value = []; genOpen.value = true; genLoading.value = true;
   try {
     const sys = '你是学习内容拆解助手。把下面内容拆成记忆卡片，输出严格 JSON 数组，每项 {"front":"问题/提示","back":"答案","subject":"科目","tags":["标签"]}。只输出 JSON 数组。';
-    const r = await chatAI([{ role: 'system', content: sys }, { role: 'user', content: d.content }]);
-    const m = String(r).match(/\[[\s\S]*\]/);
-    const arr = JSON.parse(m ? m[0] : r);
+    const r = await chatAI([{ role: 'system', content: sys }, { role: 'user', content: d.content }], { maxTokens: 4000 });
+    const arr = parseLLMJsonArray(r); // 空输出/非 JSON → 可读报错，而非 "Unexpected end of JSON input"
     genCards.value = Array.isArray(arr) ? arr.filter(c => c && c.front && c.back) : [];
     if (!genCards.value.length) toast(t('views.docs.noCards'), 'error');
   } catch (e) { toast(t('views.docs.convertFail', '转换失败：{msg}', { msg: e.message }), 'error'); }

@@ -237,7 +237,10 @@ export async function restoreFromTrash(t) {
     wordCard: 'wordCards', wordGroup: 'wordGroups',
   }[t.kind];
   if (!table) return false;
-  const data = { ...t.data };
+  // 深拷贝快照：RecycleBin.vue 的 items 是 ref 数组，元素经 Vue 深层响应式代理包裹，
+  // 浅拷贝 {...t.data} 只剥最外层，tags/_reviews 等嵌套数组仍是 Proxy →
+  // IndexedDB put/bulkPut 结构化克隆抛 DataCloneError: [object Array] could not be cloned。
+  const data = plain(t.data);
   const reviews = data._reviews || null;
   const links = data._groupLinks || null;
   const text = typeof data._text === 'string' ? data._text : null;

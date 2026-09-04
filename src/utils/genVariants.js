@@ -4,6 +4,7 @@
 import { chatAI, hasAIKey } from '../ai.js';
 import { createCard } from '../repo.js';
 import { offlineGenVariants, shouldFallback, isNetworkError } from './offlineAI.js';
+import { parseLLMJsonArray } from './llm-json.js';
 
 function plain(md) {
   return String(md || '')
@@ -54,10 +55,8 @@ export async function genVariants(card, count = 3) {
         role: 'user',
         content: `原题：${plain(card.front)}\n原答案：${plain(card.back)}\n科目：${card.subject || '未分类'}`,
       },
-    ]);
-    const m = String(r).match(/\[[\s\S]*\]/);
-    arr = JSON.parse(m ? m[0] : r);
-    if (!Array.isArray(arr)) throw new Error('AI 返回格式异常');
+    ], { maxTokens: Math.min(6000, Math.max(3000, count * 600)) }); // 防 max_tokens 截断 JSON
+    arr = parseLLMJsonArray(r); // 空输出/非 JSON → 可读报错，而非 "Unexpected end of JSON input"
   } catch (e) {
     if (isNetworkError(e)) {
       // 网络失败：降级本地模板变式

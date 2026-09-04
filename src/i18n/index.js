@@ -202,6 +202,15 @@ const zh = {
     },
   },
 
+  // ---------------- 通用工具文案（src/utils/llm-json.js 等） ----------------
+  utils: {
+    llmJson: {
+      emptyReply: 'AI 返回内容为空（可能被截断或模型异常），请重试',
+      badFormat: 'AI 返回内容无法解析为 JSON，请重试',
+      notArray: 'AI 返回格式异常：不是 JSON 数组',
+    },
+  },
+
   // ---------------- 业务视图（按视图分批外置，见 src/views/*.vue） ----------------
   views: {},
 };
@@ -363,6 +372,15 @@ const en = {
       pipelineFallback: 'Pipeline fallback, switching to single-agent mode',
       routedToAgent: 'Routed to Agent: {name}',
       emptyReplyFallback: '(Empty response — please retry or check your AI configuration)',
+    },
+  },
+
+  // ---------------- Shared utility strings (src/utils/llm-json.js etc.) ----------------
+  utils: {
+    llmJson: {
+      emptyReply: 'AI returned empty content (possibly truncated) — please retry',
+      badFormat: 'AI output could not be parsed as JSON — please retry',
+      notArray: 'Unexpected AI output format: not a JSON array',
     },
   },
 

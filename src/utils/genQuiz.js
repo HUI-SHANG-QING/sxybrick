@@ -7,6 +7,7 @@
 // 模式：LLM 优先（chatAI + 严格 JSON）→ 无 key/网络失败降级本地模板拼装
 import { chatAI } from '../ai.js';
 import { shouldFallback, isNetworkError } from './offlineAI.js';
+import { parseLLMJsonArray } from './llm-json.js';
 
 // 清洗 markdown，给 LLM 喂纯文本
 function plain(md) {
@@ -156,10 +157,8 @@ export async function genQuiz(cards, opts = {}) {
     const r = await chatAI([
       { role: 'system', content: sys },
       { role: 'user', content: `知识点：\n${JSON.stringify(knowledge, null, 2)}` },
-    ]);
-    const m = String(r).match(/\[[\s\S]*\]/);
-    arr = JSON.parse(m ? m[0] : r);
-    if (!Array.isArray(arr)) throw new Error('AI 返回格式异常');
+    ], { maxTokens: Math.min(8000, Math.max(4000, count * 500)) }); // 出题含解析较长，防 max_tokens 截断 JSON
+    arr = parseLLMJsonArray(r); // 空输出/非 JSON → 可读报错，而非 "Unexpected end of JSON input"
   } catch (e) {
     if (isNetworkError(e)) {
       // 网络失败降级本地模板

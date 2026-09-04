@@ -82,10 +82,13 @@ async function send() {
       { role: 'system', content: SYSTEM_PROMPT + '\n\n' + (mem ? mem + '\n\n' : '') + ctx },
       ...currentChat.value.messages,
     ]);
-    try { T.aiCall('chat', (reply || '').length); } catch {}
-    currentChat.value.messages.push({ role: 'assistant', content: reply });
-    if (voiceOn.value) speak(reply);
-    const n = await extractMemories(text, reply);
+    // 空白回复兜底：LLM 偶发 content==='' 时给可读提示，杜绝聊天气泡空白行
+    const s = typeof reply === 'string' ? reply.trim() : '';
+    const final = s || t('views.aiAssistant.noContent');
+    try { T.aiCall('chat', final.length); } catch {}
+    currentChat.value.messages.push({ role: 'assistant', content: final });
+    if (voiceOn.value) speak(final);
+    const n = await extractMemories(text, final);
     if (n > 0) toast(t('views.aiAssistant.memSaved', undefined, { n }), 'success');
   } catch (e) {
     toast(e.message, 'error');

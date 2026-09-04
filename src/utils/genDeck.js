@@ -10,6 +10,8 @@
 import { chatAI, hasAIKey } from '../ai.js';
 import { listCards, createCard, createDoc } from '../repo.js';
 import { offlineGenDeck, shouldFallback, isNetworkError } from './offlineAI.js';
+import { parseLLMJsonArray } from './llm-json.js';
+import { t } from '../i18n/index.js';
 
 // ---------- 文本预处理 ----------
 const MAX_CHUNK_CHARS = 2000; // 单次 LLM 拆卡输入上限，超长则分块
@@ -201,9 +203,7 @@ function formatOfflineResult(cards, sourceDocId, opts) {
 
 export function parseCards(text) {
   try {
-    const m = String(text).match(/\[[\s\S]*\]/);
-    const arr = JSON.parse(m ? m[0] : text);
-    if (!Array.isArray(arr)) return [];
+    const arr = parseLLMJsonArray(text); // 空输出/非 JSON → 抛可读错误（此处按契约吞掉，块级跳过）
     return arr
       .filter(c => c && c.front && c.back)
       .map(c => ({
@@ -347,6 +347,7 @@ export async function generateDeck(text, opts = {}) {
     }
     throw e;
   }
+  if (!raw.length) throw new Error(t('utils.llmJson.emptyReply')); // 全块空回复 → 可读报错而非空卡组
   const { candidates, deduped } = await dedupAgainstLibrary(raw);
 
   return {

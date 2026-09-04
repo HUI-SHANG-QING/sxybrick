@@ -34,19 +34,30 @@
       </div>
 
       <div class="detail" v-if="sel">
+        <!-- 卡片正文：点击列表/相关薄弱卡后可直接查看该卡详情，避免只能看曲线看不到卡 -->
+        <div class="card-body">
+          <div class="cb-row"><span class="cb-tag">{{ t('views.cardInsight.frontLabel') }}</span><div class="cb-text">{{ sel.front }}</div></div>
+          <div class="cb-row"><span class="cb-tag">{{ t('views.cardInsight.backLabel') }}</span><div class="cb-text">{{ sel.back }}</div></div>
+          <div class="cb-actions">
+            <button class="btn small primary" @click="openDetail(sel)">{{ t('views.cardInsight.viewDetail') }}</button>
+          </div>
+        </div>
         <ForgettingCurve :card="sel" :reviews="hist" :examAt="examTs" />
         <div class="sec" v-if="prereq.length">
           <h3>{{ t('views.cardInsight.prereqTitle') }}</h3>
-          <div v-for="id in prereq" :key="id" class="chip" @click="jump(id)">{{ cardTitle(id) }}</div>
+          <div v-for="id in prereq" :key="id" class="chip" @click="openDetailById(id)">{{ cardTitle(id) }}</div>
         </div>
         <div class="sec" v-if="related.length">
           <h3>{{ t('views.cardInsight.relatedTitle') }}</h3>
-          <div v-for="id in related" :key="id" class="chip" @click="jump(id)">{{ cardTitle(id) }}</div>
+          <div v-for="id in related" :key="id" class="chip" @click="openDetailById(id)">{{ cardTitle(id) }}</div>
         </div>
         <EmptyState v-if="!prereq.length && !related.length" compact icon="🕸️" :title="t('views.cardInsight.noGraphTitle')" :message="t('views.cardInsight.noGraphMsg')" />
       </div>
       <EmptyState v-else icon="🗂️" :title="t('views.cardInsight.noSelTitle')" :message="t('views.cardInsight.noSelMsg')" />
     </div>
+
+    <!-- 完整卡片详情/编辑：点击相关薄弱卡、前置卡或「查看完整卡片」打开 -->
+    <CardModal v-model="detailOpen" :card="detailCard" @saved="onDetailSaved" />
   </div>
 </template>
 
@@ -55,6 +66,8 @@ import { ref, computed, watch } from 'vue';
 import { db } from '../db.js';
 import ForgettingCurve from '../components/ForgettingCurve.vue';
 import EmptyState from '../components/EmptyState.vue';
+import CardModal from '../components/CardModal.vue';
+import { toast } from '../utils/toast.js';
 import { derivePrereqPlan, autoBuildGraph } from '../algorithms/graphAuto.js';
 import { prioritizeForExam } from '../algorithms/scheduling.js';
 import { estimateInitialStability } from '../algorithms/pretest.js';
@@ -127,6 +140,29 @@ function jump(id) {
   if (c) sel.value = c;
 }
 
+// 打开完整卡片详情（CardModal，可查看/编辑）：相关薄弱卡/前置卡点击跳转查看详情
+const detailOpen = ref(false);
+const detailCard = ref(null);
+function openDetailById(id) {
+  const c = cards.value.find(x => x.id === id);
+  openDetail(c);
+}
+function openDetail(c) {
+  if (!c) return;
+  sel.value = c; // 同步选中，详情曲线跟随
+  detailCard.value = c;
+  detailOpen.value = true;
+}
+async function onDetailSaved() {
+  detailOpen.value = false;
+  await load(); // 内容/标签可能已改，刷新列表与关联
+  if (sel.value?.id) {
+    const fresh = cards.value.find(x => x.id === sel.value.id);
+    if (fresh) sel.value = fresh;
+  }
+  toast(t('views.cardInsight.cardSaved'), 'success');
+}
+
 async function buildGraph() {
   const res = await autoBuildGraph();
   await load();
@@ -163,6 +199,12 @@ load();
 .front { flex: 1; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .urg { font-size: 11px; color: #fff; border-radius: 6px; padding: 2px 6px; }
 .detail { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.card-body { margin-bottom: 14px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--code-bg); }
+.cb-row { display: flex; gap: 10px; margin-bottom: 6px; align-items: flex-start; }
+.cb-row:last-of-type { margin-bottom: 0; }
+.cb-tag { flex-shrink: 0; font-size: 11px; color: var(--tag-ink); background: var(--tag-bg); border-radius: 6px; padding: 2px 6px; margin-top: 2px; }
+.cb-text { flex: 1; color: var(--ink); line-height: 1.55; white-space: pre-wrap; word-break: break-word; max-height: 120px; overflow: auto; }
+.cb-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
 .empty { color: var(--ink-2); padding: 20px; text-align: center; }
 .pretest { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 14px; font-size: 13px; color: var(--ink-2); }
 .pt-label { font-weight: 600; color: var(--ink); }

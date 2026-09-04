@@ -114,7 +114,9 @@ async function start(initialUserMsg) {
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
       { role: 'user', content: initialUserMsg || '开始吧，先看看我最薄弱的点，出第一道题。' },
     ]);
-    messages.value.push({ role: 'assistant', content: reply }); if (voiceOn.value) speak(reply);
+    const text = String(reply || '').trim();
+    const final = text || t('views.feynman.noContent'); // 空白回复兜底，杜绝聊天气泡空白行
+    messages.value.push({ role: 'assistant', content: final }); if (voiceOn.value) speak(final);
     // 行为回写 SRS：完成一次费曼练习，给范围内最薄弱的 5 张卡小幅 ease 加成（每次会话一次）
     if (!fedBoosted) {
       fedBoosted = true;
@@ -157,7 +159,9 @@ async function send() {
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
       ...messages.value,
     ]);
-    messages.value.push({ role: 'assistant', content: reply }); if (voiceOn.value) speak(reply);
+    const s = String(reply || '').trim();
+    const final = s || t('views.feynman.noContent'); // 空白回复兜底，杜绝聊天气泡空白行
+    messages.value.push({ role: 'assistant', content: final }); if (voiceOn.value) speak(final);
     try { T.feynmanRound(currentId.value); } catch {}
   } catch (e) {
     toast(e.message, 'error');
