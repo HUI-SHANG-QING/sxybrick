@@ -101,7 +101,8 @@ function buildOption(data, style) {
     // 桑基图防堆叠：节点最小高度 minNodeHeight=6 防止一堆点挤成一条黑线；
     // 加大 nodeGap、迭代次数、容器边距，并让长标签截断避免横向重叠
     const count = Math.max(sankeyNodes.length, 1);
-    const nodeGap = Math.min(28, Math.max(10, 600 / count));  // 节点越多间距越小，但不低于 10
+    // 节点越多间距越小，但不低于 14——太密集时放宽（原下限 10 太小，密集图糊成一团）
+    const nodeGap = Math.min(32, Math.max(14, 700 / count));
     const minNodeHeight = 6;
     return {
       tooltip: { trigger: 'item' },
@@ -110,22 +111,22 @@ function buildOption(data, style) {
         type: 'sankey',
         data: sankeyNodes,
         links: sankeyLinks,
-        left: 96, right: 200, top: 40, bottom: 40,
+        left: 110, right: 210, top: 40, bottom: 40,
         width: 'auto', height: 'auto',
-        nodeWidth: 18,
+        nodeWidth: 14,
         nodeGap,
         nodeAlign: 'justify',
         minNodeHeight,
-        layoutIterations: 128,
+        layoutIterations: 256,
         draggable: true,
         emphasis: { focus: 'adjacency' },
         label: {
-          color: ink, fontSize: 12,
+          color: ink, fontSize: 11,
           position: 'right',
           distance: 8,
-          width: 180, overflow: 'truncate', ellipsis: '…',
+          width: 160, overflow: 'truncate', ellipsis: '…',
         },
-        lineStyle: { color: 'gradient', opacity: 0.35, curveness: 0.55 },
+        lineStyle: { color: 'gradient', opacity: 0.28, curveness: 0.5 },
         itemStyle: { color: accent, borderColor: 'transparent', borderWidth: 0, borderRadius: 3 },
       }],
     };

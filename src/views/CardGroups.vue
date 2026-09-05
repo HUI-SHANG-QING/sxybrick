@@ -16,7 +16,9 @@ const cardsCache = ref(new Map()); // groupId -> 组内卡片（懒加载）
 const loading = ref(true);
 
 // 新建/编辑表单
+// showForm 单独控制表单显隐：editing=null 既表示「新建」又会被 v-if 判为不在编辑中 → 点新建没反应。
 const editing = ref(null); // null=新建, 'id'=编辑
+const showForm = ref(false); // 表单是否显示（新建/编辑）
 const form = ref({ name: '', description: '', color: '#4f7cff', status: 'active' });
 const PALETTE = ['#4f7cff', '#2fbf71', '#e6a23c', '#f56c6c', '#9b59b6', '#16a085', '#e67e22', '#607d8b'];
 
@@ -33,13 +35,15 @@ async function reload() {
 
 function startCreate() {
   editing.value = null;
+  showForm.value = true;
   form.value = { name: '', description: '', color: PALETTE[groups.value.length % PALETTE.length], status: 'active' };
 }
 function startEdit(g) {
   editing.value = g.id;
+  showForm.value = true;
   form.value = { name: g.name, description: g.description || '', color: g.color || PALETTE[0], status: g.status };
 }
-function closeEdit() { editing.value = null; }
+function closeEdit() { editing.value = null; showForm.value = false; }
 
 async function saveForm() {
   try {
@@ -113,7 +117,7 @@ onMounted(reload);
     </div>
 
     <!-- 新建/编辑 -->
-    <div v-if="editing !== null" class="group-form">
+    <div v-if="showForm" class="group-form">
       <div class="field-label">{{ t('views.cardGroups.nameLabel') }}</div>
       <input v-model="form.name" class="input" maxlength="30" :placeholder="t('views.cardGroups.namePlaceholder')" @keyup.enter="saveForm" />
       <div class="field-label">{{ t('views.cardGroups.descLabel') }}</div>
