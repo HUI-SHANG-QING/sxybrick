@@ -13,9 +13,35 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 export function useFullscreen(targetRef, onChange) {
   const isFullscreen = ref(false);
   const fake = ref(false);
+  let exitBtn = null; // D13：fake 模式浮动退出按钮（目标外按钮被铺满层压住，必须注入可点出口）
 
   function notify() {
     if (onChange) onChange(isFullscreen.value);
+  }
+
+  // D13：fake 全屏时目标元素 fixed 铺满（z-95），位于其外的 FullscreenButton
+  // 被压在底层 → 唯一出口是刷新页面。向 body 注入浮动退出按钮（z-9999 高于铺满层），
+  // 并监听 ESC（真实全屏由浏览器自带 ESC，这里只兜 fake 路径）。
+  function showFakeExitBtn() {
+    removeFakeExitBtn();
+    exitBtn = document.createElement('button');
+    exitBtn.type = 'button';
+    exitBtn.className = 'fake-fs-exit no-print';
+    exitBtn.title = '退出全屏（Esc）';
+    exitBtn.textContent = '✕';
+    exitBtn.style.cssText = 'position:fixed;top:12px;right:12px;z-index:9999;min-width:32px;height:32px;'
+      + 'padding:0 10px;border:1px solid var(--line,#ddd);border-radius:8px;'
+      + 'background:var(--panel,#fff);color:var(--ink,#222);font-size:14px;cursor:pointer;'
+      + 'box-shadow:0 4px 16px rgba(0,0,0,.18);';
+    exitBtn.onclick = () => exit();
+    document.body.appendChild(exitBtn);
+  }
+  function removeFakeExitBtn() {
+    if (exitBtn && exitBtn.parentNode) exitBtn.parentNode.removeChild(exitBtn);
+    exitBtn = null;
+  }
+  function onKey(e) {
+    if (e.key === 'Escape' && fake.value) exit();
   }
 
   async function enter() {
@@ -38,11 +64,13 @@ export function useFullscreen(targetRef, onChange) {
     // 退化：CSS fixed 铺满（仍可「全屏/非全屏」切换）
     fake.value = true;
     el.classList.add('fake-fullscreen');
+    showFakeExitBtn();
     isFullscreen.value = true;
     notify();
   }
 
   function exit() {
+    removeFakeExitBtn();
     if (fake.value) {
       fake.value = false;
       const el = targetRef.value;
@@ -76,12 +104,18 @@ export function useFullscreen(targetRef, onChange) {
     const real = !!document.fullscreenElement && document.fullscreenElement === el;
     isFullscreen.value = real;
     if (!real && el) { el.classList.remove('fake-fullscreen'); el.style.background = ''; }
+    if (!real) removeFakeExitBtn(); // 状态漂移时兜住残留按钮
     notify();
   }
 
-  onMounted(() => document.addEventListener('fullscreenchange', onFsChange));
+  onMounted(() => {
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('keydown', onKey);
+  });
   onBeforeUnmount(() => {
     document.removeEventListener('fullscreenchange', onFsChange);
+    document.removeEventListener('keydown', onKey);
+    removeFakeExitBtn();
     if (fake.value && targetRef.value) targetRef.value.classList.remove('fake-fullscreen');
   });
 
