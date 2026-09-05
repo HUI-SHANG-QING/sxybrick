@@ -15,10 +15,18 @@ import {
   extractMemories as mExtract,
 } from './agent/memory.js';
 import { chat as llmChat } from './agent/llm.js';
-import { agentSystem } from './agent/index.js';
 import { offlineChat, shouldFallback, isNetworkError } from './utils/offlineAI.js';
 
-export { agentSystem } from './agent/index.js';
+// round37 E1：agentSystem 不再静态 re-export。
+// 静态 import './agent/index.js' 会让
+//   agent/index → tools → genDeck → ai → agent/index
+// 成环（打包提升后 re-export 可能先于初始化读取 → 运行时 TDZ）。
+// agent 框架公共 API 直接从 './agent/index.js' 取用；本文件的 runAgentTurn
+// 在运行时才动态 import，不进静态初始化图。
+export async function runAgentTurn(opt) {
+  const { agentSystem } = await import('./agent/index.js');
+  return agentSystem.runTask({ ...opt, cfg: getAIConfig() });
+}
 
 const CFG_KEY = 'sxy_ai_config';
 
@@ -97,9 +105,7 @@ export function newChat() {
 
 /**
  * 高层编排入口：把一条用户输入交给 Agent 框架执行（自动路由 + 多步工具编排）。
+ * 实现见文件顶部 runAgentTurn（动态 import agent/index.js，round37 E1 断环）。
  * @param {object} opt { userInput, history, agentId, onTrace, signal }
  * @returns {Promise<{reply, agentId, agentName, trace}>}
  */
-export function runAgentTurn(opt) {
-  return agentSystem.runTask({ ...opt, cfg: getAIConfig() });
-}

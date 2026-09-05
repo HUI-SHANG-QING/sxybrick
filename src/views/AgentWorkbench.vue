@@ -4,7 +4,7 @@
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { runAgentTurn, hasAIKey, saveChat, listChats, deleteChat } from '../ai.js';
-import { agentSystem } from '../ai.js';
+import { agentSystem } from '../agent/index.js'; // round37 E1：直接从 agent 框架取用（ai.js 不再 re-export，断 agent↔tools↔genDeck↔ai 环）
 import { aggregateUsage, clearUsage } from '../utils/ai-usage.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import FullscreenButton from '../components/FullscreenButton.vue';

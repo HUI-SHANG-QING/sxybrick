@@ -9,11 +9,23 @@
 // 设计原则：纯前端、模块化、无额外 LLM 调用做评分（省 token、可离线）
 import { chatAI, hasAIKey } from '../ai.js';
 import { listCards, createCard, createDoc } from '../repo.js';
-import { offlineGenDeck, shouldFallback, isNetworkError } from './offlineAI.js';
+// round37 E1：offlineAI 改为函数内动态 import——静态 import 会让
+// agent/index → tools → genDeck → ai → agent/index 成环（TDZ 风险，
+// 打包提升后 ai.js re-export agentSystem 可能先于初始化读取）。
+// offlineAI 只在离线降级路径（shouldFallback/网络错误）用到，动态 import
+// 把它移出初始化图，断成无环。
 import { parseLLMJsonArray } from './llm-json.js';
 import { t } from '../i18n/index.js';
 // 评分/题型决策为纯函数，下沉到无依赖的 genScoring.js（避免 offlineAI↔genDeck 双向环 TDZ）
 export { decideType, scoreCard } from './genScoring.js';
+
+// round37 E1：offlineAI 惰性动态 import（带缓存）——移出静态初始化图，
+// 断开 agent/index→tools→genDeck→ai→agent/index 环。仅离线降级路径触发。
+let _offlineAIMod = null;
+async function _loadOfflineAI() {
+  if (!_offlineAIMod) _offlineAIMod = await import('./offlineAI.js');
+  return _offlineAIMod;
+}
 
 // ---------- 文本预处理 ----------
 const MAX_CHUNK_CHARS = 2000; // 单次 LLM 拆卡输入上限，超长则分块
@@ -221,8 +233,9 @@ export async function generateColdStartDeck(templateId) {
   const tpl = COLD_START_TEMPLATES.find(t => t.id === templateId);
   if (!tpl) throw new Error('未知冷启动模板');
   // 离线兜底：无 key 时用模板内置文本本地切卡
-  if (shouldFallback()) {
-    const cards = offlineGenDeck(tpl.prompt, { subject: tpl.subject })
+  const oa = await _loadOfflineAI();
+  if (oa.shouldFallback()) {
+    const cards = oa.offlineGenDeck(tpl.prompt, { subject: tpl.subject })
       .map(c => ({ ...c, subject: c.subject || tpl.subject, tags: [tpl.subject] }));
     return { template: tpl, candidates: cards, deduped: cards, count: cards.length, offline: true };
   }
@@ -240,9 +253,9 @@ export async function generateColdStartDeck(templateId) {
       count: candidates.length,
     };
   } catch (e) {
-    if (isNetworkError(e)) {
+    if (oa.isNetworkError(e)) {
       // 网络失败：降级本地切卡，保证冷启动可用
-      const cards = offlineGenDeck(tpl.prompt, { subject: tpl.subject })
+      const cards = oa.offlineGenDeck(tpl.prompt, { subject: tpl.subject })
         .map(c => ({ ...c, subject: c.subject || tpl.subject, tags: [tpl.subject] }));
       return { template: tpl, candidates: cards, deduped: cards, count: cards.length, offline: true };
     }
@@ -268,8 +281,9 @@ export async function generateDeck(text, opts = {}) {
   }
 
   // 离线兜底：无 key 或网络失败时，走本地规则切卡
-  if (shouldFallback()) {
-    const cards = offlineGenDeck(src, { subject: opts.subject });
+  const oa = await _loadOfflineAI();
+  if (oa.shouldFallback()) {
+    const cards = oa.offlineGenDeck(src, { subject: opts.subject });
     const { candidates, deduped } = await dedupAgainstLibrary(cards);
     return {
       sourceDocId,
@@ -293,9 +307,9 @@ export async function generateDeck(text, opts = {}) {
     }
     raw = results.flat();
   } catch (e) {
-    if (isNetworkError(e)) {
+    if (oa.isNetworkError(e)) {
       // 网络失败：降级本地切卡
-      const cards = offlineGenDeck(src, { subject: opts.subject });
+      const cards = oa.offlineGenDeck(src, { subject: opts.subject });
       const { candidates, deduped } = await dedupAgainstLibrary(cards);
       return {
         sourceDocId,
