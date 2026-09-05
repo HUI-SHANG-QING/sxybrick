@@ -7,15 +7,21 @@ import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, ge
 import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLATES } from '../utils/genDeck.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';
+import TextZoomBar from '../components/TextZoomBar.vue';
+import { useTextZoom } from '../composables/useTextZoom.js';
 import { speak } from '../utils/tts.js';
 import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
+import { stringifyReply } from '../agent/reply.js';
 
 const chats = ref([]);
 const currentChat = ref(newChat());
 const input = ref('');
 const loading = ref(false);
 const box = ref(null);
+
+// 阅读缩放：AI 长回答要能放大专注阅读（字号重排，Ctrl+滚轮；按模块记忆）
+const { scale: zoomScale, fontStyle, zoomIn, zoomOut, reset: resetZoom, onWheel } = useTextZoom('aiAssistant');
 
 const showSettings = ref(false);
 const cfg = ref(getAIConfig());
@@ -82,9 +88,8 @@ async function send() {
       { role: 'system', content: SYSTEM_PROMPT + '\n\n' + (mem ? mem + '\n\n' : '') + ctx },
       ...currentChat.value.messages,
     ]);
-    // 空白回复兜底：LLM 偶发 content==='' 时给可读提示，杜绝聊天气泡空白行
-    const s = typeof reply === 'string' ? reply.trim() : '';
-    const final = s || t('views.aiAssistant.noContent');
+    // 空白回复兜底：O4 收口到 stringifyReply（统一口径 + 计入 AI 回复质量监控 getReplyStats）
+    const final = stringifyReply(reply, t('views.aiAssistant.noContent'));
     try { T.aiCall('chat', final.length); } catch {}
     currentChat.value.messages.push({ role: 'assistant', content: final });
     if (voiceOn.value) speak(final);
@@ -268,7 +273,10 @@ onMounted(async () => {
       </div>
 
       <!-- 中间：消息流 -->
-      <div ref="box" class="chat-box">
+      <div class="chat-zoom-row">
+        <TextZoomBar :scale="zoomScale" @zoom-in="zoomIn" @zoom-out="zoomOut" @reset="resetZoom" />
+      </div>
+      <div ref="box" class="chat-box" :style="fontStyle" @wheel="onWheel">
         <div v-if="!currentChat.messages.length" class="hint" style="text-align:center;padding:40px">
           {{ t('views.aiAssistant.chatEmpty') }}
         </div>
@@ -433,6 +441,7 @@ onMounted(async () => {
 .chat-item.active { background: var(--code-bg); }
 .chat-item-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-item-meta { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
+.chat-zoom-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 .chat-box { overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; }
 .msg { display: flex; margin-bottom: 12px; }
 .msg.user { justify-content: flex-end; }

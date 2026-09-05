@@ -2,6 +2,7 @@
 // 费曼学习法：Agent 基于选中的卡片范围，出题考用户，让用户"以教代学"
 import { confirmDialog } from '../utils/confirm.js';
 import { t } from '../i18n/index.js';
+import { stringifyReply } from '../agent/reply.js';
 import { ref, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
 import { db, uid } from '../db.js';
@@ -9,6 +10,8 @@ import { getSubjects, getTags, getStats, weakCards, applyCardFeedback } from '..
 import { chatAI, hasAIKey, saveChat, listChats, deleteChat, getChat } from '../ai.js';
 import { getCardAnalytics } from '../agent/analytics.js';
 import VoiceInput from '../components/VoiceInput.vue';
+import TextZoomBar from '../components/TextZoomBar.vue';
+import { useTextZoom } from '../composables/useTextZoom.js';
 import { speak } from '../utils/tts.js';
 import { T } from '../utils/telemetry.js';
 
@@ -24,6 +27,9 @@ const input = ref('');
 const loading = ref(false);
 const box = ref(null);
 const started = ref(false);
+
+// 阅读缩放：费曼讲解/点评常含长文本，放大后专注阅读（字号重排，按模块记忆）
+const { scale: zoomScale, fontStyle, zoomIn, zoomOut, reset: resetZoom, onWheel } = useTextZoom('feynman');
 
 const FEYN_PROMPT = '你是「费曼学习法」教练，用中文自然交互。用"以教代学"帮用户巩固复习：1) 优先针对下面数据里"没记住/薄弱/错题"的知识点提问，帮用户突破盲区；2) 每次只出一道题，让用户用自己的话解释、推导或举例子，而不是简单背答案；3) 用户回答后，先点评对错、指出遗漏，再自然追问深入一层，或过渡到下一个知识点；4) 语气像耐心的老师，多鼓励；一次只解决一个点，不要一次抛一大堆。';
 
@@ -114,8 +120,7 @@ async function start(initialUserMsg) {
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
       { role: 'user', content: initialUserMsg || '开始吧，先看看我最薄弱的点，出第一道题。' },
     ]);
-    const text = String(reply || '').trim();
-    const final = text || t('views.feynman.noContent'); // 空白回复兜底，杜绝聊天气泡空白行
+    const final = stringifyReply(reply, t('views.feynman.noContent')); // O4 收口：统一口径 + 计入 AI 回复质量监控
     messages.value.push({ role: 'assistant', content: final }); if (voiceOn.value) speak(final);
     // 行为回写 SRS：完成一次费曼练习，给范围内最薄弱的 5 张卡小幅 ease 加成（每次会话一次）
     if (!fedBoosted) {
@@ -159,8 +164,7 @@ async function send() {
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
       ...messages.value,
     ]);
-    const s = String(reply || '').trim();
-    const final = s || t('views.feynman.noContent'); // 空白回复兜底，杜绝聊天气泡空白行
+    const final = stringifyReply(reply, t('views.feynman.noContent')); // O4 收口：统一口径 + 计入 AI 回复质量监控
     messages.value.push({ role: 'assistant', content: final }); if (voiceOn.value) speak(final);
     try { T.feynmanRound(currentId.value); } catch {}
   } catch (e) {
@@ -355,7 +359,10 @@ onMounted(async () => {
       </div>
     </div>
 
-    <div v-if="started" ref="box" class="chat-box">
+    <div v-if="started" class="chat-zoom-row">
+      <TextZoomBar :scale="zoomScale" @zoom-in="zoomIn" @zoom-out="zoomOut" @reset="resetZoom" />
+    </div>
+    <div v-if="started" ref="box" class="chat-box" :style="fontStyle" @wheel="onWheel">
       <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
         <div class="bubble">{{ m.content }}</div>
       </div>
@@ -375,6 +382,7 @@ onMounted(async () => {
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 16px; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
 .field-label { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 10px 0 6px; }
+.chat-zoom-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 .chat-box { height: 320px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; margin-bottom: 12px; }
 .msg { display: flex; margin-bottom: 12px; }
 .msg.user { justify-content: flex-end; }
