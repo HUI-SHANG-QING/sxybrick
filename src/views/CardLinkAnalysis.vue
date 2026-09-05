@@ -14,7 +14,9 @@ import { getAIConfig, hasAIKey } from '../ai.js';
 import { runAnalysis } from '../analysis/link-engine.js';
 import { normalizeGraphEnds } from '../algorithms/graph-resolve.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+import ChartZoomBar from '../components/ChartZoomBar.vue';
 import { t } from '../i18n/index.js';
+import { stepZoom, ZOOM_MIN, ZOOM_MAX } from '../composables/useTextZoom.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -237,6 +239,13 @@ async function createGroupFromResult() {
 
 // ---------- ECharts 图谱（卸载必 dispose） ----------
 let charts = [];
+// P0 图表缩放：多图共享档位（claZoom）+ 单图大图模式（fsChart 在 body 下重 init）
+const claZoom = ref(1);
+const fsOpen = ref(false);
+const fsChartEl = ref(null);
+const fsGraphData = ref(null);
+let fsChart = null;
+
 const scrollAnchor = ref(null);
 function registerGraph(el) {
   if (!el) return;
@@ -268,7 +277,10 @@ function renderGraphs() {
       try {
         if (!el._chart) el._chart = echarts.init(el);
         charts.push(el._chart);
-        el._chart.setOption(graphOption(m.resultData), true);
+        const opt = graphOption(m.resultData);
+        // P0 图表缩放：注入 series.zoom 档位（graph 系列原生支持，roam 已开启），多图同步
+        injectClaZoom(opt);
+        el._chart.setOption(opt, true);
         // 容器在 init 那一刻可能尚未完成布局（clientWidth/Height=0）→ 画布被建成 0x0 不可见。
         // 渲染后强制按当前容器尺寸 resize，确保真实节点/边数据真正绘制出来（而非一片空白）。
         el._chart.resize();
@@ -373,6 +385,44 @@ function graphOption(d) {
   };
 }
 const PALETTE = ['#4f7cff', '#2fbf71', '#e6a23c', '#f56c6c', '#9b59b6', '#16a085', '#e67e22', '#607d8b'];
+
+// P0 图表缩放：把 series.zoom 档位注入 graph 系列（拓扑/关系/关键路径都是 graph 系列）
+function injectClaZoom(opt) {
+  if (opt && opt.series) {
+    const arr = Array.isArray(opt.series) ? opt.series : [opt.series];
+    for (const s of arr) {
+      if (s && s.type === 'graph') {
+        s.zoom = claZoom.value;
+        s.scaleLimit = s.scaleLimit || { min: ZOOM_MIN, max: ZOOM_MAX };
+      }
+    }
+  }
+}
+// A−/A+ 步进 + 适应窗口复位（多图同步）
+function applyClaZoom(dir) { claZoom.value = stepZoom(claZoom.value, dir); renderGraphs(); }
+function fitCla() { claZoom.value = 1; renderGraphs(); }
+// 单图大图模式：把该图数据在大容器里重 init（矢量清晰，便于专注复习拓扑/关键路径）
+async function openGraphFs(m) {
+  fsGraphData.value = m?.resultData || null;
+  if (fsChart) { fsChart.dispose(); fsChart = null; }
+  fsOpen.value = true;
+  await nextTick();
+  if (!fsChartEl.value) return;
+  try {
+    fsChart = echarts.init(fsChartEl.value);
+    const opt = graphOption(fsGraphData.value);
+    injectClaZoom(opt);
+    fsChart.setOption(opt, true);
+    fsChart.resize();
+  } catch (e) {
+    console.error('[CardLinkAnalysis] fs graph render failed:', e?.message || e, fsGraphData.value);
+  }
+}
+async function closeGraphFs() {
+  if (fsChart) { fsChart.dispose(); fsChart = null; }
+  fsOpen.value = false;
+  fsGraphData.value = null;
+}
 function groupColor(g) {
   const key = String(g || '');
   let h = 0; for (const ch of key) h = (h * 31 + ch.codePointAt(0)) >>> 0;
@@ -412,6 +462,7 @@ onBeforeUnmount(() => {
   // 铁律：ECharts 实例随组件销毁（防内存泄漏）
   charts.forEach(c => c.dispose());
   charts = [];
+  if (fsChart) { fsChart.dispose(); fsChart = null; }
   if (onResize) window.removeEventListener('resize', onResize);
 });
 </script>
@@ -476,8 +527,13 @@ onBeforeUnmount(() => {
             <div v-if="m.role === 'user'" class="msg-q">{{ m.question }}</div>
             <template v-else>
               <!-- graph -->
-              <div v-if="m.resultType === 'graph'" class="al-graph" :ref="el => registerGraph(el)"></div>
-              <button v-if="m.resultType === 'graph' && m.resultData?.order" class="btn mini-btn" @click="createGroupFromResult">{{ t('views.cardLinkAnalysis.createGroupBtn') }}</button>
+              <div v-if="m.resultType === 'graph'" class="al-graph-wrap">
+                <div class="al-graph-bar">
+                  <ChartZoomBar :zoom="claZoom" @zoom-in="applyClaZoom(1)" @zoom-out="applyClaZoom(-1)" @fit="fitCla" @toggle-fullscreen="openGraphFs(m)" />
+                </div>
+                <div class="al-graph" :ref="el => registerGraph(el)"></div>
+                <button v-if="m.resultData?.order" class="btn mini-btn" @click="createGroupFromResult">{{ t('views.cardLinkAnalysis.createGroupBtn') }}</button>
+              </div>
               <!-- timeline -->
               <div v-else-if="m.resultType === 'timeline'" class="timeline">
                 <!-- 兼容两种结构：新版 {steps:[{step,front,...}]}；历史/降级数据可能是裸数组 [{id,front}] -->
@@ -519,6 +575,20 @@ onBeforeUnmount(() => {
         <button class="btn primary" :disabled="busy || !cards.length || !question.trim()" @click="ask">{{ t('views.cardLinkAnalysis.askBtn') }}</button>
       </div>
     </div>
+
+    <!-- 图谱大图模式：单图在近全屏容器重 init，矢量清晰，便于反复复习拓扑/关键路径 -->
+    <teleport to="body">
+      <div v-if="fsOpen" class="cla-fs-mask" @click.self="closeGraphFs" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:95;display:flex;align-items:center;justify-content:center;padding:16px">
+        <div class="cla-fs-panel" style="width:min(1400px,96vw);height:min(92vh,1000px);background:var(--panel);border-radius:14px;box-shadow:0 16px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden">
+          <div class="cla-fs-bar" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)">
+            <strong style="font-size:14px">{{ t('views.cardLinkAnalysis.graphFullscreenTitle') }}</strong>
+            <span style="flex:1"></span>
+            <ChartZoomBar :zoom="claZoom" :fullscreen="true" @zoom-in="applyClaZoom(1)" @zoom-out="applyClaZoom(-1)" @fit="fitCla" @toggle-fullscreen="closeGraphFs" />
+          </div>
+          <div ref="fsChartEl" style="flex:1;width:100%;min-height:0"></div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
@@ -549,6 +619,8 @@ onBeforeUnmount(() => {
 .msg-note { font-size: 12px; color: var(--ink-2); }
 .msg-q { white-space: pre-wrap; }
 .msg-text { line-height: 1.6; }
+.al-graph-wrap { margin-bottom: 6px; }
+.al-graph-bar { display: flex; justify-content: flex-end; margin-bottom: 4px; }
 .al-graph { width: 100%; height: 380px; border: 1px dashed var(--line); border-radius: 8px; }
 .timeline { display: flex; flex-direction: column; gap: 4px; }
 .tl-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }

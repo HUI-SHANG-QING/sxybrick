@@ -7,6 +7,8 @@ import { runAgentTurn, hasAIKey, saveChat, listChats, deleteChat } from '../ai.j
 import { agentSystem } from '../ai.js';
 import { aggregateUsage, clearUsage } from '../utils/ai-usage.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
+import TextZoomBar from '../components/TextZoomBar.vue';
+import { useTextZoom } from '../composables/useTextZoom.js';
 import { toast } from '../utils/toast.js';
 import { t } from '../i18n/index.js';
 import { TraceKind } from '../agent/types.js';
@@ -18,6 +20,9 @@ const selectedAgent = ref(''); // 空 = 自动路由
 const input = ref('');
 const loading = ref(false);
 const messages = ref([]); // 当前会话消息 {role, content}
+
+// 阅读缩放：Agent 长回答（含 Markdown/表格）要能放大专注阅读，按模块记忆
+const { scale: zoomScale, fontStyle, zoomIn, zoomOut, reset: resetZoom, onWheel } = useTextZoom('agentWorkbench');
 const traceNodes = ref([]); // 编排轨迹
 const showTools = ref(false);
 const showUsage = ref(false);
@@ -227,7 +232,10 @@ onMounted(async () => {
 
       <!-- 中：对话 -->
       <section class="wb-chat">
-        <div ref="streamBox" class="chat-box">
+        <div class="chat-zoom-row">
+          <TextZoomBar :scale="zoomScale" @zoom-in="zoomIn" @zoom-out="zoomOut" @reset="resetZoom" />
+        </div>
+        <div ref="streamBox" class="chat-box" :style="fontStyle" @wheel="onWheel">
           <div v-if="!messages.length" class="hint" style="text-align:center;padding:40px">
             {{ t('views.agentWorkbench.emptyHintPrefix') }}<br />{{ t('views.agentWorkbench.emptyHintEx1') }}<br />{{ t('views.agentWorkbench.emptyHintEx2') }}<br />{{ t('views.agentWorkbench.emptyHintEx3') }}
           </div>
@@ -288,6 +296,7 @@ onMounted(async () => {
 .badge.w { background: #fee2e2; color: #dc2626; }
 .badge.r { background: #dbeafe; color: #2563eb; }
 .wb-chat { display: flex; flex-direction: column; min-height: 0; }
+.chat-zoom-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 .chat-box { flex: 1; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; }
 .msg { display: flex; margin-bottom: 12px; }
 .msg.user { justify-content: flex-end; }

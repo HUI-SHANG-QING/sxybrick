@@ -65,6 +65,8 @@ export const zh = {
   groupNameFromAnalysis: '分析顺序 · {date}',
   // ECharts 图谱空节点数据时的可读提示
   graphNoNodes: '本次分析没有可绘制的节点数据',
+  // 图谱大图模式（全屏）标题
+  graphFullscreenTitle: '图谱大图模式',
 };
 
 export const en = {
@@ -129,4 +131,5 @@ export const en = {
   groupNameFromAnalysis: 'Analysis order · {date}',
   // Readable hint when ECharts graph has no node data
   graphNoNodes: 'No node data to draw for this analysis',
+  graphFullscreenTitle: 'Graph large view',
 };
