@@ -301,6 +301,9 @@ function render() {
       }
     }
     chart.setOption(opt, true);
+    // 全屏/容器刚出现的当帧布局可能未定型 → 0x0 画布。幂等 resize 兜底，
+    // 确保大图画布按真实容器尺寸绘制（非全屏路径下此调用是廉价 no-op）。
+    chart.resize();
   } catch (e) {
     logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: `render layout=${layout.value}` });
     toast(t('views.knowledgeGraph.renderFail') + e.message, 'error');

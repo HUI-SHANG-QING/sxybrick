@@ -400,16 +400,15 @@ function injectClaZoom(opt) {
   }
 }
 // A−/A+ 步进 + 适应窗口复位（多图同步）
-function applyClaZoom(dir) { claZoom.value = stepZoom(claZoom.value, dir); renderGraphs(); }
-function fitCla() { claZoom.value = 1; renderGraphs(); }
-// 单图大图模式：把该图数据在大容器里重 init（矢量清晰，便于专注复习拓扑/关键路径）
-async function openGraphFs(m) {
-  fsGraphData.value = m?.resultData || null;
-  if (fsChart) { fsChart.dispose(); fsChart = null; }
-  fsOpen.value = true;
-  await nextTick();
+// 关键：全屏大图走独立 fsChart 实例，renderGraphs() 只重画消息流内联图，
+// 全屏状态下必须调 renderFsGraph()，否则 A+/A−/适应 在面板里完全无效（round23 D12）。
+function applyClaZoom(dir) { claZoom.value = stepZoom(claZoom.value, dir); if (fsOpen.value) renderFsGraph(); else renderGraphs(); }
+function fitCla() { claZoom.value = 1; if (fsOpen.value) renderFsGraph(); else renderGraphs(); }
+// 在大图容器里（重）渲染 fsChart：销毁旧实例→init→注入当前 claZoom 档位→resize
+function renderFsGraph() {
   if (!fsChartEl.value) return;
   try {
+    if (fsChart) { fsChart.dispose(); fsChart = null; }
     fsChart = echarts.init(fsChartEl.value);
     const opt = graphOption(fsGraphData.value);
     injectClaZoom(opt);
@@ -418,6 +417,13 @@ async function openGraphFs(m) {
   } catch (e) {
     console.error('[CardLinkAnalysis] fs graph render failed:', e?.message || e, fsGraphData.value);
   }
+}
+// 单图大图模式：把该图数据在大容器里重 init（矢量清晰，便于专注复习拓扑/关键路径）
+async function openGraphFs(m) {
+  fsGraphData.value = m?.resultData || null;
+  fsOpen.value = true;
+  await nextTick();
+  renderFsGraph();
 }
 async function closeGraphFs() {
   if (fsChart) { fsChart.dispose(); fsChart = null; }

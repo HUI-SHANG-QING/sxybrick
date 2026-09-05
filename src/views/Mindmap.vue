@@ -209,6 +209,8 @@ function render() {
     }
   }
   chart.setOption(opt, true);
+  // 全屏/容器刚出现的当帧布局可能未定型 → 0x0 画布。幂等 resize 兜底（非全屏下是廉价 no-op）
+  chart.resize();
 }
 
 // P0 图表缩放：A−/A+ 步进 + 适应窗口复位
