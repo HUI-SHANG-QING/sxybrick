@@ -100,6 +100,23 @@ function buildOption(data, style) {
     const { nodes: sankeyNodes, links: sankeyLinks } = sankeyFromTree(data);
     // 桑基图防堆叠：节点最小高度 minNodeHeight=6 防止一堆点挤成一条黑线；
     // 加大 nodeGap、迭代次数、容器边距，并让长标签截断避免横向重叠
+    // 规模防护：sankey 对超大子图/密集边渲染易糊成黑块乱线，超阈值时降级为力导向布局保证可用
+    if (sankeyNodes.length > 120 || sankeyLinks.length > 240) {
+      const { nodes: fr, links: fl } = treeToFlatPure(data);
+      return {
+        tooltip: { trigger: 'item', formatter: p => p.data?.name || p.name },
+        series: [{
+          type: 'graph', layout: 'force',
+          data: fr.map(n => ({ id: n.id, name: n.name, symbolSize: 14 })),
+          links: fl.map(l => ({ source: l.source, target: l.target, value: l.value })),
+          roam: true, draggable: true,
+          force: { repulsion: 90, edgeLength: 60 },
+          label: { show: true, fontSize: 10 },
+          lineStyle: { color: 'source', curveness: 0.1, opacity: 0.5 },
+          emphasis: { focus: 'adjacency' },
+        }],
+      };
+    }
     const count = Math.max(sankeyNodes.length, 1);
     // 节点越多间距越小，但不低于 14——太密集时放宽（原下限 10 太小，密集图糊成一团）
     const nodeGap = Math.min(32, Math.max(14, 700 / count));

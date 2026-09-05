@@ -195,7 +195,11 @@ async function loadAll() {
         formatter: p => (Array.isArray(p) && p[0]) ? T('tipHeat', { date: p[0].data[3] || '', n: p[0].data[2] }) : '',
       },
       grid: { left: 70, right: 10, top: 40, bottom: 40 },
-      xAxis: { type: 'category', data: buildHeatXLabels(ccc), splitArea: { show: false }, axisLabel: { color: '#888', fontSize: 10 } },
+      // 关键修复：series 的格子坐标 x 是「列号字符串 '0'..'52'」（buildHeatSeries），
+      // category 轴 data 必须与之一一对应，否则 ECharts 匹配不上 → 格子全不渲染
+      // （此前 data 直接放 buildHeatXLabels 的月份名，与列号永远对不上 = 只有坐标轴空白）。
+      // 故 data 用列号字符串数组，月份标签改由 axisLabel.formatter 按列索引查 buildHeatXLabels。
+      xAxis: { type: 'category', data: Array.from({ length: Math.ceil(ccc.length / 7) }, (_, i) => String(i)), splitArea: { show: false }, axisLabel: { color: '#888', fontSize: 10, formatter: (v, i) => buildHeatXLabels(ccc)[i] || '' } },
       yAxis: { type: 'category', data: WEEK_SUN_AXIS.value, axisLabel: { color: '#888', fontSize: 10 }, splitArea: { show: false } },
       visualMap: { min: 0, max: 20, calculable: false, orient: 'horizontal', left: 'center', bottom: 4, inRange: { color: ['#ebedf0','#c6f0d0','#5cd66a','#2cbe4e','#006d32'] }, textStyle: { color: '#888' } },
       series: [{ type: 'heatmap', data: buildHeatSeries(ccc), label: { show: false } }],
