@@ -6,7 +6,7 @@
 //  2) 自然语言对话（费曼/AI 问答）不"伪装 AI"，而是给出诚实引导，避免误导用户；
 //  3) 所有兜底函数为纯函数、无副作用、无网络，便于测试与复用。
 
-import { decideType, scoreCard } from './genDeck.js';
+import { decideType, scoreCard } from './genScoring.js';
 
 // ---------- 意图识别：从 messages 推断当前调用属于哪类功能 ----------
 export function detectIntent(messages = []) {
