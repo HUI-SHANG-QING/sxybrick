@@ -5,8 +5,8 @@ import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import * as echarts from 'echarts';
-import ChartZoomBar from '../components/ChartZoomBar.vue';
-import { stepZoom, ZOOM_MIN, ZOOM_MAX, readZoom } from '../composables/useTextZoom.js';
+import FullscreenButton from '../components/FullscreenButton.vue';
+import { useFullscreen } from '../composables/useFullscreen.js';
 import { uid } from '../db.js';
 import { listMindmaps, createMindmap, updateMindmap, deleteMindmap, listGraphEdges } from '../repo.js';
 import { db } from '../db.js';
@@ -48,14 +48,9 @@ const loading = ref(false);
 const aiLoading = ref(false);
 const selId = ref('');
 const chartEl = ref(null);
-const fsChartEl = ref(null);
 let chart = null;
-// P0 图表缩放：series.zoom 档位 + 大图模式；sankey 不支持 zoom（仍可用大图看大图）；档位按模块持久化
-const chartZoom = ref(readZoom('mindmap'));
-watch(chartZoom, (v) => { try { localStorage.setItem(`sxy_zoom_${'mindmap'}`, String(v)); } catch { /* 隐私模式忽略 */ } });
-const fsOpen = ref(false);
-const canChartZoom = computed(() => layout.value !== 'sankey');
-function activeChartEl() { return fsOpen.value ? fsChartEl.value : chartEl.value; }
+// 全屏/非全屏：图表容器全屏后必须 resize（容器尺寸变了）
+const { isFullscreen: mmFs, toggle: toggleMmFs } = useFullscreen(chartEl, () => { chart?.resize(); });
 
 // ---- 多风格切换 ----
 const layout = ref(localStorage.getItem('sxy_mm_layout') || 'tree-lr');
@@ -198,32 +193,9 @@ function treeOption(data, orient, layout, accent, ink, line) {
 function render() {
   if (!chart || !chartData.value) return;
   const opt = buildOption(chartData.value, layout.value);
-  // P0 图表缩放：注入 series.zoom（tree/graph 系列支持；sankey 忽略但大图模式仍可用）
-  if (opt && opt.series) {
-    const arr = Array.isArray(opt.series) ? opt.series : [opt.series];
-    for (const s of arr) {
-      if (s && (s.type === 'graph' || s.type === 'tree')) {
-        s.zoom = chartZoom.value;
-        s.scaleLimit = s.scaleLimit || { min: ZOOM_MIN, max: ZOOM_MAX };
-      }
-    }
-  }
   chart.setOption(opt, true);
-  // 全屏/容器刚出现的当帧布局可能未定型 → 0x0 画布。幂等 resize 兜底（非全屏下是廉价 no-op）
+  // 全屏/容器刚出现的当帧布局可能未定型 → 0x0 画布。幂等 resize 兜底
   chart.resize();
-}
-
-// P0 图表缩放：A−/A+ 步进 + 适应窗口复位
-function applyZoom(dir) { chartZoom.value = stepZoom(chartZoom.value, dir); render(); }
-function fitChart() { chartZoom.value = 1; render(); }
-
-// 大图模式：销毁实例 → 切换到近全屏容器 → 重 init（矢量清晰，便于专注复习）
-async function toggleFs() {
-  if (chart) { chart.dispose(); chart = null; }
-  fsOpen.value = !fsOpen.value;
-  await nextTick();
-  if (!chart) ensureChart();
-  if (chart) render();
 }
 
 function openMap(m) {
@@ -237,7 +209,7 @@ function openMap(m) {
 
 function ensureChart() {
   if (chart) return chart;
-  const el = activeChartEl();
+  const el = chartEl.value;
   if (!el) return null;
   try { initChart(el); } catch (e) { logError(e, { component: 'Mindmap.vue', route: '/mindmap', info: 'ensureChart' }); }
   return chart;
@@ -448,7 +420,7 @@ onMounted(async () => {
         <span style="font-size:14px">{{ l.icon }}</span><span>{{ l.name }}</span>
       </button>
       <span style="flex:1"></span>
-      <ChartZoomBar :zoom="chartZoom" :can-zoom="canChartZoom" @zoom-in="applyZoom(1)" @zoom-out="applyZoom(-1)" @fit="fitChart" @toggle-fullscreen="toggleFs" />
+      <FullscreenButton :active="mmFs" @toggle="toggleMmFs" />
     </div>
 
     <div class="mm-body">
@@ -474,7 +446,7 @@ onMounted(async () => {
             <button class="btn small" style="color:var(--red)" @click="removeSel">{{ t('views.mindmap.removeNode') }}</button>
             <button class="btn small primary" :disabled="!dirty" @click="saveMap">{{ dirty ? t('views.mindmap.save') : t('views.mindmap.saved') }}</button>
           </div>
-          <div v-if="current && !fsOpen" ref="chartEl" class="mm-chart"></div>
+          <div v-if="current" ref="chartEl" class="mm-chart"></div>
           <div v-if="selectedLabel" style="display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:8px">
             <span class="hint">
               {{ t('views.mindmap.currentNode') }}<b>{{ selectedLabel }}</b>
@@ -500,20 +472,6 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-
-    <!-- 大图模式：近全屏铺满，重新在更大容器里 init ECharts（矢量清晰，便于专注复习） -->
-    <teleport to="body">
-      <div v-if="fsOpen" class="mm-fs-mask" @click.self="toggleFs" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:95;display:flex;align-items:center;justify-content:center;padding:16px">
-        <div class="mm-fs-panel" style="width:min(1400px,96vw);height:min(92vh,1000px);background:var(--panel);border-radius:14px;box-shadow:0 16px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden">
-          <div class="mm-fs-bar" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)">
-            <strong style="font-size:14px">{{ t('views.mindmap.heading') }}</strong>
-            <span style="flex:1"></span>
-            <ChartZoomBar :zoom="chartZoom" :fullscreen="true" :can-zoom="canChartZoom" @zoom-in="applyZoom(1)" @zoom-out="applyZoom(-1)" @fit="fitChart" @toggle-fullscreen="toggleFs" />
-          </div>
-          <div ref="fsChartEl" style="flex:1;width:100%;min-height:0"></div>
-        </div>
-      </div>
-    </teleport>
   </div>
 </template>
 

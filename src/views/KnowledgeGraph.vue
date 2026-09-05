@@ -5,8 +5,8 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import { t } from '../i18n/index.js';
-import ChartZoomBar from '../components/ChartZoomBar.vue';
-import { stepZoom, ZOOM_MIN, ZOOM_MAX, readZoom } from '../composables/useTextZoom.js';
+import FullscreenButton from '../components/FullscreenButton.vue';
+import { useFullscreen } from '../composables/useFullscreen.js';
 import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
 import { db } from '../db.js';
@@ -135,13 +135,9 @@ const LAYOUTS = [
 function setLayout(id) { layout.value = id; localStorage.setItem('sxy_kg_layout', id); if (!chart) ensureChart(); render(); }
 
 const chartEl = ref(null);
-const fsChartEl = ref(null);
 let chart = null;
-// P0 图表缩放：series.zoom 档位（与文本缩放共用 ZOOM_STEPS）+ 大图模式；档位按模块持久化
-const chartZoom = ref(readZoom('knowledgeGraph'));
-watch(chartZoom, (v) => { try { localStorage.setItem(`sxy_zoom_${'knowledgeGraph'}`, String(v)); } catch { /* 隐私模式忽略 */ } });
-const fsOpen = ref(false);
-function activeChartEl() { return fsOpen.value ? fsChartEl.value : chartEl.value; }
+// 全屏/非全屏：图表容器全屏后必须 resize（容器尺寸变了）
+const { isFullscreen: kgFs, toggle: toggleKgFs } = useFullscreen(chartEl, () => { chart?.resize(); });
 
 const nodes = computed(() => (mode.value === 'saved' ? savedNodes.value : generatedNodes.value));
 const edges = computed(() => (mode.value === 'saved' ? savedEdges.value : generatedEdges.value));
@@ -289,20 +285,8 @@ function render() {
   if (!chart) return;
   try {
     const opt = buildOption(nodes.value, edges.value, layout.value);
-    // P0 图表缩放：把当前 series.zoom 档位注入（graph/tree 系列原生支持，roam 已开启）。
-    // 注入后画布按档位放大/缩小而保持矢量清晰（非 CSS transform），适配专注复习。
-    if (opt && opt.series) {
-      const arr = Array.isArray(opt.series) ? opt.series : [opt.series];
-      for (const s of arr) {
-        if (s && (s.type === 'graph' || s.type === 'tree')) {
-          s.zoom = chartZoom.value;
-          s.scaleLimit = s.scaleLimit || { min: ZOOM_MIN, max: ZOOM_MAX };
-        }
-      }
-    }
     chart.setOption(opt, true);
-    // 全屏/容器刚出现的当帧布局可能未定型 → 0x0 画布。幂等 resize 兜底，
-    // 确保大图画布按真实容器尺寸绘制（非全屏路径下此调用是廉价 no-op）。
+    // 全屏/容器刚出现的当帧布局可能未定型 → 0x0 画布。幂等 resize 兜底。
     chart.resize();
   } catch (e) {
     logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: `render layout=${layout.value}` });
@@ -310,24 +294,10 @@ function render() {
   }
 }
 
-// P0 图表缩放：A−/A+ 在档位上步进后重渲染；适应窗口复位到 zoom=1。
-function applyZoom(dir) { chartZoom.value = stepZoom(chartZoom.value, dir); render(); }
-function fitChart() { chartZoom.value = 1; render(); }
-
-// 大图模式：销毁当前实例 → 切换容器（teleport 到 body 的近全屏面板）→ 在新容器重 init。
-// 这是「大图画布缩放」的核心：换更大容器重画，比 CSS transform 清晰得多，适合反复复习。
-async function toggleFs() {
-  if (chart) { chart.dispose(); chart = null; }
-  fsOpen.value = !fsOpen.value;
-  await nextTick();
-  ensureChart();
-  if (chart) render();
-}
-
 /** 按需初始化 ECharts 实例（容器 div 由 v-if="nodes.length" 控制，出现时机晚于 mounted） */
 function ensureChart() {
   if (chart) return chart;
-  const el = activeChartEl();
+  const el = chartEl.value;
   if (!el) return null;
   try {
     initChart(el);
@@ -540,28 +510,15 @@ watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
         <span style="font-size:14px">{{ l.icon }}</span><span>{{ t('views.knowledgeGraph.' + l.key) }}</span>
       </button>
       <span style="flex:1"></span>
-      <ChartZoomBar :zoom="chartZoom" @zoom-in="applyZoom(1)" @zoom-out="applyZoom(-1)" @fit="fitChart" @toggle-fullscreen="toggleFs" />
+      <FullscreenButton :active="kgFs" @toggle="toggleKgFs" />
     </div>
 
     <EmptyState v-if="!nodes.length && !loading" icon="🕸️" :title="t('views.knowledgeGraph.emptyTitle')" :message="t('views.knowledgeGraph.emptyMsg')" />
 
-    <div v-if="nodes.length && !fsOpen" class="graph-box">
+    <!-- chartEl 同时承担内联渲染与全屏目标：requestFullscreen 让它直接占满屏幕；iframe/CSP 拦下时退化 .fake-fullscreen（CSS 铺满）。ECharts onChange resize 兜底。 -->
+    <div v-if="nodes.length" class="graph-box">
       <div ref="chartEl" style="width:100%;height:58vh;min-height:400px"></div>
     </div>
-
-    <!-- 大图模式：近全屏铺满，重新在更大容器里 init ECharts（矢量清晰，便于专注复习） -->
-    <teleport to="body">
-      <div v-if="fsOpen" class="kg-fs-mask" @click.self="toggleFs" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:95;display:flex;align-items:center;justify-content:center;padding:16px">
-        <div class="kg-fs-panel" style="width:min(1400px,96vw);height:min(92vh,1000px);background:var(--panel);border-radius:14px;box-shadow:0 16px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden">
-          <div class="kg-fs-bar" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)">
-            <strong style="font-size:14px">{{ t('views.knowledgeGraph.title') }}</strong>
-            <span style="flex:1"></span>
-            <ChartZoomBar :zoom="chartZoom" :fullscreen="true" @zoom-in="applyZoom(1)" @zoom-out="applyZoom(-1)" @fit="fitChart" @toggle-fullscreen="toggleFs" />
-          </div>
-          <div ref="fsChartEl" style="flex:1;width:100%;min-height:0"></div>
-        </div>
-      </div>
-    </teleport>
 
     <div v-if="mode === 'generated' && generatedEdges.length" style="text-align:center;margin-top:10px">
       <button class="btn primary small" @click="saveGenerated">{{ t('views.knowledgeGraph.saveGenerated') }}</button>

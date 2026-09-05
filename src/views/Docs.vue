@@ -7,14 +7,15 @@ import { listDocs, createDoc, updateDoc, deleteDoc, createCard } from '../repo.j
 import { chatAI, hasAIKey } from '../ai.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
-import TextZoomBar from '../components/TextZoomBar.vue';
-import { useTextZoom } from '../composables/useTextZoom.js';
+import FullscreenButton from '../components/FullscreenButton.vue';
+import { useFullscreen } from '../composables/useFullscreen.js';
 import { toast } from '../utils/toast.js';
 import { t } from '../i18n/index.js';
 import { parseLLMJsonArray } from '../utils/llm-json.js';
 
-// 文档正文是长阅读场景（AI 总结/讲义），字号重排缩放按模块记忆
-const { scale: zoomScale, fontStyle, zoomIn, zoomOut, reset: resetZoom, onWheel } = useTextZoom('docs');
+// 全屏/非全屏：文档正文是长阅读场景（AI 总结/讲义），沉浸式专心阅读
+const docFsEl = ref(null);
+const { isFullscreen: docFs, toggle: toggleDocFs } = useFullscreen(docFsEl);
 
 const route = useRoute();
 const docs = ref([]);
@@ -128,9 +129,9 @@ onMounted(applyRouteId);
               <span v-for="t in d.tags" :key="t" class="tag">{{ t }}</span>
             </div>
             <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
-              <TextZoomBar :scale="zoomScale" @zoom-in="zoomIn" @zoom-out="zoomOut" @reset="resetZoom" />
+              <FullscreenButton :active="docFs" @toggle="toggleDocFs" />
             </div>
-            <div :style="fontStyle" @wheel="onWheel">
+            <div ref="docFsEl">
               <MarkdownRenderer :content="d.content || t('views.docs.noContent')" />
             </div>
           </div>

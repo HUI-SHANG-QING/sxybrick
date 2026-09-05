@@ -7,8 +7,8 @@ import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, ge
 import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLATES } from '../utils/genDeck.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';
-import TextZoomBar from '../components/TextZoomBar.vue';
-import { useTextZoom } from '../composables/useTextZoom.js';
+import FullscreenButton from '../components/FullscreenButton.vue';
+import { useFullscreen } from '../composables/useFullscreen.js';
 import { speak } from '../utils/tts.js';
 import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
@@ -20,8 +20,8 @@ const input = ref('');
 const loading = ref(false);
 const box = ref(null);
 
-// 阅读缩放：AI 长回答要能放大专注阅读（字号重排，Ctrl+滚轮；按模块记忆）
-const { scale: zoomScale, fontStyle, zoomIn, zoomOut, reset: resetZoom, onWheel } = useTextZoom('aiAssistant');
+// 全屏/非全屏：对话内容占满整个屏幕专心阅读（非字号缩放）
+const { isFullscreen: aiFs, toggle: toggleAiFs } = useFullscreen(box);
 
 const showSettings = ref(false);
 const cfg = ref(getAIConfig());
@@ -273,10 +273,10 @@ onMounted(async () => {
       </div>
 
       <!-- 中间：消息流 -->
-      <div class="chat-zoom-row">
-        <TextZoomBar :scale="zoomScale" @zoom-in="zoomIn" @zoom-out="zoomOut" @reset="resetZoom" />
+      <div class="chat-fs-row">
+        <FullscreenButton :active="aiFs" @toggle="toggleAiFs" />
       </div>
-      <div ref="box" class="chat-box" :style="fontStyle" @wheel="onWheel">
+      <div ref="box" class="chat-box">
         <div v-if="!currentChat.messages.length" class="hint" style="text-align:center;padding:40px">
           {{ t('views.aiAssistant.chatEmpty') }}
         </div>
@@ -441,7 +441,7 @@ onMounted(async () => {
 .chat-item.active { background: var(--code-bg); }
 .chat-item-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-item-meta { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
-.chat-zoom-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+.chat-fs-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 .chat-box { overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; }
 .msg { display: flex; margin-bottom: 12px; }
 .msg.user { justify-content: flex-end; }

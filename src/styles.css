@@ -1553,3 +1553,15 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
     transition: none !important;
   }
 }
+
+/* 全屏退化方案：当浏览器 Fullscreen API 被 iframe/CSP 拦下时，用 CSS 铺满代替。
+   用 !important 覆盖容器自带的内联尺寸（如图表 height:58vh），确保真正占满视口。 */
+.fake-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 95 !important;
+  background: var(--panel, #fff);
+  overflow: auto;
+}
