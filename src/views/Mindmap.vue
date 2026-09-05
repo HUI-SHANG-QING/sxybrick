@@ -6,7 +6,9 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import FullscreenButton from '../components/FullscreenButton.vue';
+import ChartZoomBar from '../components/ChartZoomBar.vue';
 import { useFullscreen } from '../composables/useFullscreen.js';
+import { stepZoom, ZOOM_MIN, ZOOM_MAX, readZoom } from '../composables/useTextZoom.js';
 import { uid } from '../db.js';
 import { listMindmaps, createMindmap, updateMindmap, deleteMindmap, listGraphEdges } from '../repo.js';
 import { db } from '../db.js';
@@ -51,6 +53,12 @@ const chartEl = ref(null);
 let chart = null;
 // 全屏/非全屏：图表容器全屏后必须 resize（容器尺寸变了）
 const { isFullscreen: mmFs, toggle: toggleMmFs } = useFullscreen(chartEl, () => { chart?.resize(); });
+// round37 E2：渐进缩放与全屏并存——series.zoom 画布档位（tree/graph 系列支持，roam 已开启）；
+// sankey 不支持 zoom，但 ChartZoomBar 仍可用来切全屏。档位按模块持久化。
+const chartZoom = ref(readZoom('mindmap'));
+watch(chartZoom, (v) => { try { localStorage.setItem('sxy_zoom_mindmap', String(v)); } catch { /* 隐私模式忽略 */ } });
+function applyZoom(dir) { chartZoom.value = stepZoom(chartZoom.value, dir); render(); }
+function fitChart() { chartZoom.value = 1; render(); }
 
 // ---- 多风格切换 ----
 const layout = ref(localStorage.getItem('sxy_mm_layout') || 'tree-lr');
@@ -211,6 +219,16 @@ function treeOption(data, orient, layout, accent, ink, line) {
 function render() {
   if (!chart || !chartData.value) return;
   const opt = buildOption(chartData.value, layout.value);
+  // round37 E2：注入 series.zoom 渐进缩放档位（tree/graph 支持；sankey 忽略，A−/A+ 对其禁用）
+  if (opt && opt.series) {
+    const arr = Array.isArray(opt.series) ? opt.series : [opt.series];
+    for (const s of arr) {
+      if (s && (s.type === 'graph' || s.type === 'tree')) {
+        s.zoom = chartZoom.value;
+        s.scaleLimit = s.scaleLimit || { min: ZOOM_MIN, max: ZOOM_MAX };
+      }
+    }
+  }
   chart.setOption(opt, true);
   // 全屏/容器刚出现的当帧布局可能未定型 → 0x0 画布。幂等 resize 兜底
   chart.resize();
@@ -438,6 +456,7 @@ onMounted(async () => {
         <span style="font-size:14px">{{ l.icon }}</span><span>{{ l.name }}</span>
       </button>
       <span style="flex:1"></span>
+      <ChartZoomBar :zoom="chartZoom" :can-zoom="layout !== 'sankey'" @zoom-in="applyZoom(1)" @zoom-out="applyZoom(-1)" @fit="fitChart" @toggle-fullscreen="toggleMmFs" />
       <FullscreenButton :active="mmFs" @toggle="toggleMmFs" />
     </div>
 

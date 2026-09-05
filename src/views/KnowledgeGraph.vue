@@ -6,7 +6,9 @@ import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import { t } from '../i18n/index.js';
 import FullscreenButton from '../components/FullscreenButton.vue';
+import ChartZoomBar from '../components/ChartZoomBar.vue';
 import { useFullscreen } from '../composables/useFullscreen.js';
+import { stepZoom, ZOOM_MIN, ZOOM_MAX, readZoom } from '../composables/useTextZoom.js';
 import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
 import { db } from '../db.js';
@@ -138,6 +140,12 @@ const chartEl = ref(null);
 let chart = null;
 // 全屏/非全屏：图表容器全屏后必须 resize（容器尺寸变了）
 const { isFullscreen: kgFs, toggle: toggleKgFs } = useFullscreen(chartEl, () => { chart?.resize(); });
+// round37 E2：渐进缩放与全屏并存——series.zoom 画布档位（矢量清晰，非 CSS transform），
+// 反复复习局部时比"全屏 or 不全屏"更细粒度；档位按模块持久化。
+const chartZoom = ref(readZoom('knowledgeGraph'));
+watch(chartZoom, (v) => { try { localStorage.setItem('sxy_zoom_knowledgeGraph', String(v)); } catch { /* 隐私模式忽略 */ } });
+function applyZoom(dir) { chartZoom.value = stepZoom(chartZoom.value, dir); render(); }
+function fitChart() { chartZoom.value = 1; render(); }
 
 const nodes = computed(() => (mode.value === 'saved' ? savedNodes.value : generatedNodes.value));
 const edges = computed(() => (mode.value === 'saved' ? savedEdges.value : generatedEdges.value));
@@ -285,6 +293,17 @@ function render() {
   if (!chart) return;
   try {
     const opt = buildOption(nodes.value, edges.value, layout.value);
+    // round37 E2：注入 series.zoom 渐进缩放档位（graph 系列原生支持，roam 已开启）。
+    // 与全屏正交：不全屏也能放大局部复习，矢量清晰。
+    if (opt && opt.series) {
+      const arr = Array.isArray(opt.series) ? opt.series : [opt.series];
+      for (const s of arr) {
+        if (s && s.type === 'graph') {
+          s.zoom = chartZoom.value;
+          s.scaleLimit = s.scaleLimit || { min: ZOOM_MIN, max: ZOOM_MAX };
+        }
+      }
+    }
     chart.setOption(opt, true);
     // 全屏/容器刚出现的当帧布局可能未定型 → 0x0 画布。幂等 resize 兜底。
     chart.resize();
@@ -510,6 +529,7 @@ watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
         <span style="font-size:14px">{{ l.icon }}</span><span>{{ t('views.knowledgeGraph.' + l.key) }}</span>
       </button>
       <span style="flex:1"></span>
+      <ChartZoomBar :zoom="chartZoom" @zoom-in="applyZoom(1)" @zoom-out="applyZoom(-1)" @fit="fitChart" @toggle-fullscreen="toggleKgFs" />
       <FullscreenButton :active="kgFs" @toggle="toggleKgFs" />
     </div>
 
