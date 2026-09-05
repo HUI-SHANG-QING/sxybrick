@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import { t } from '../i18n/index.js';
 import ChartZoomBar from '../components/ChartZoomBar.vue';
-import { stepZoom, ZOOM_MIN, ZOOM_MAX } from '../composables/useTextZoom.js';
+import { stepZoom, ZOOM_MIN, ZOOM_MAX, readZoom } from '../composables/useTextZoom.js';
 import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
 import { db } from '../db.js';
@@ -137,8 +137,9 @@ function setLayout(id) { layout.value = id; localStorage.setItem('sxy_kg_layout'
 const chartEl = ref(null);
 const fsChartEl = ref(null);
 let chart = null;
-// P0 图表缩放：series.zoom 档位（与文本缩放共用 ZOOM_STEPS）+ 大图模式
-const chartZoom = ref(1);
+// P0 图表缩放：series.zoom 档位（与文本缩放共用 ZOOM_STEPS）+ 大图模式；档位按模块持久化
+const chartZoom = ref(readZoom('knowledgeGraph'));
+watch(chartZoom, (v) => { try { localStorage.setItem(`sxy_zoom_${'knowledgeGraph'}`, String(v)); } catch { /* 隐私模式忽略 */ } });
 const fsOpen = ref(false);
 function activeChartEl() { return fsOpen.value ? fsChartEl.value : chartEl.value; }
 

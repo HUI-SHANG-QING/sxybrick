@@ -2,11 +2,11 @@
 // 思维导图（借鉴 Progress AI，纯本地化：ECharts 多风格 + IndexedDB 持久化，随数据包同步）
 // 支持：多风格切换（横向树/放射树/竖向树/桑基图/力导向）+ 手动建图 / 从知识图谱生成 / AI 从卡片生成 / 文字生成 / Agent 智能生成
 import { confirmDialog } from '../utils/confirm.js';
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import ChartZoomBar from '../components/ChartZoomBar.vue';
-import { stepZoom, ZOOM_MIN, ZOOM_MAX } from '../composables/useTextZoom.js';
+import { stepZoom, ZOOM_MIN, ZOOM_MAX, readZoom } from '../composables/useTextZoom.js';
 import { uid } from '../db.js';
 import { listMindmaps, createMindmap, updateMindmap, deleteMindmap, listGraphEdges } from '../repo.js';
 import { db } from '../db.js';
@@ -50,8 +50,9 @@ const selId = ref('');
 const chartEl = ref(null);
 const fsChartEl = ref(null);
 let chart = null;
-// P0 图表缩放：series.zoom 档位 + 大图模式；sankey 不支持 zoom（仍可用大图看大图）
-const chartZoom = ref(1);
+// P0 图表缩放：series.zoom 档位 + 大图模式；sankey 不支持 zoom（仍可用大图看大图）；档位按模块持久化
+const chartZoom = ref(readZoom('mindmap'));
+watch(chartZoom, (v) => { try { localStorage.setItem(`sxy_zoom_${'mindmap'}`, String(v)); } catch { /* 隐私模式忽略 */ } });
 const fsOpen = ref(false);
 const canChartZoom = computed(() => layout.value !== 'sankey');
 function activeChartEl() { return fsOpen.value ? fsChartEl.value : chartEl.value; }

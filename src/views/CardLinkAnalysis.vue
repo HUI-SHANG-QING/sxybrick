@@ -16,7 +16,7 @@ import { normalizeGraphEnds } from '../algorithms/graph-resolve.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import ChartZoomBar from '../components/ChartZoomBar.vue';
 import { t } from '../i18n/index.js';
-import { stepZoom, ZOOM_MIN, ZOOM_MAX } from '../composables/useTextZoom.js';
+import { stepZoom, ZOOM_MIN, ZOOM_MAX, readZoom } from '../composables/useTextZoom.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -239,8 +239,9 @@ async function createGroupFromResult() {
 
 // ---------- ECharts 图谱（卸载必 dispose） ----------
 let charts = [];
-// P0 图表缩放：多图共享档位（claZoom）+ 单图大图模式（fsChart 在 body 下重 init）
-const claZoom = ref(1);
+// P0 图表缩放：多图共享档位（claZoom）+ 单图大图模式（fsChart 在 body 下重 init）；档位按模块持久化
+const claZoom = ref(readZoom('cardLinkAnalysis'));
+watch(claZoom, (v) => { try { localStorage.setItem(`sxy_zoom_${'cardLinkAnalysis'}`, String(v)); } catch { /* 隐私模式忽略 */ } });
 const fsOpen = ref(false);
 const fsChartEl = ref(null);
 const fsGraphData = ref(null);
