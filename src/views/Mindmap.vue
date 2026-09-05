@@ -13,7 +13,7 @@ import { uid } from '../db.js';
 import { listMindmaps, createMindmap, updateMindmap, deleteMindmap, listGraphEdges } from '../repo.js';
 import { db } from '../db.js';
 import { resolveGraph, edgesToForest } from '../algorithms/graph-resolve.js';
-import { treeToFlat as treeToFlatPure, sankeyFromTree } from '../algorithms/mindmap-graph.js';
+import { treeToFlat as treeToFlatPure, sankeyFromTree, sankeyNeedHeight } from '../algorithms/mindmap-graph.js';
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
@@ -51,8 +51,8 @@ const aiLoading = ref(false);
 const selId = ref('');
 const chartEl = ref(null);
 let chart = null;
-// 全屏/非全屏：图表容器全屏后必须 resize（容器尺寸变了）
-const { isFullscreen: mmFs, toggle: toggleMmFs } = useFullscreen(chartEl, () => { chart?.resize(); });
+// 全屏/非全屏的 useFullscreen 声明已后移到 applySankeyHeight 之后（需要互相引用：
+// 全屏状态决定是否应用桑基动态高度）。
 // round37 E2：渐进缩放与全屏并存——series.zoom 画布档位（tree/graph 系列支持，roam 已开启）；
 // sankey 不支持 zoom，但 ChartZoomBar 仍可用来切全屏。档位按模块持久化。
 const chartZoom = ref(readZoom('mindmap'));
@@ -216,8 +216,26 @@ function treeOption(data, orient, layout, accent, ink, line) {
   };
 }
 
+// 桑基图动态容器高度：sankey 系列不支持 roam/zoom，节点多时 68vh 固定容器会把
+// nodeGap 压没、节点糊成一团（用户反馈「太密集看不清」）。按节点数撑高容器，
+// 全屏时恢复占满（全屏目标就是该元素，inline 固定高度会留白）。
+function applySankeyHeight() {
+  const el = chartEl.value;
+  if (!el) return;
+  if (mmFs.value) { el.style.height = ''; return; }
+  if (layout.value === 'sankey' && chartData.value) {
+    const h = sankeyNeedHeight(chartData.value);
+    el.style.height = h ? `${h}px` : '';
+  } else {
+    el.style.height = '';
+  }
+}
+const { isFullscreen: mmFs, toggle: toggleMmFs } = useFullscreen(chartEl, () => { chart?.resize(); });
+watch(mmFs, (v) => { if (!v) { applySankeyHeight(); chart?.resize(); } });
+
 function render() {
   if (!chart || !chartData.value) return;
+  applySankeyHeight();
   const opt = buildOption(chartData.value, layout.value);
   // round37 E2：注入 series.zoom 渐进缩放档位（tree/graph 支持；sankey 忽略，A−/A+ 对其禁用）
   if (opt && opt.series) {

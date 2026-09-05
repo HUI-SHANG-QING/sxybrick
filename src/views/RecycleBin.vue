@@ -18,6 +18,7 @@ function kindLabel(k) {
     doc: 'views.recycleBin.kindDoc', mindmap: 'views.recycleBin.kindMindmap',
     docFile: 'views.recycleBin.kindDocFile',
     wordCard: 'views.recycleBin.kindWordCard', wordGroup: 'views.recycleBin.kindWordGroup',
+    cardGroup: 'views.recycleBin.kindCardGroup',
   };
   return m[k] ? t(m[k]) : k;
 }
@@ -42,6 +43,11 @@ function previewOf(t) {
   // 单词卡 / 词组（v26 英语模块）：显示词条与释义，不再落到裸 JSON
   if (t.kind === 'wordCard') return `[${d.subject || '未分类'}] ${d.word || ''} — ${(d.meaning || '').slice(0, 60)}`.slice(0, 90);
   if (t.kind === 'wordGroup') return (d.name || '').slice(0, 90);
+  // v40 卡组对等：普通卡组与词组同款预览（名称 + 成员数）
+  if (t.kind === 'cardGroup') {
+    const n = (d._groupLinks || []).length;
+    return n ? `${d.name || ''}（${t('views.recycleBin.cardsInGroup', undefined, { n })}）` : (d.name || '');
+  }
   return (JSON.stringify(d) || '').slice(0, 90);
 }
 function daysLeft(t) {

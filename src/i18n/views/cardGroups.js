@@ -33,6 +33,9 @@ export const zh = {
   delete: '删除',
   emptyCards: '组内还没有卡片——到「卡片」页多选后移入此组，或编辑卡片时添加。',
   editTip: '点击编辑',
+  members: '{n} 张卡片',
+  addMember: '＋ 添加卡片',
+  noCandidates: '没有可添加的卡片',
   moveOut: '移出',
 
   // —— <script> 中的 toast / confirmDialog 文案 ——
@@ -74,6 +77,9 @@ export const en = {
   delete: 'Delete',
   emptyCards: 'No cards in this deck yet — multi-select cards in the Cards page and move them in, or add them when editing a card.',
   editTip: 'Click to edit',
+  members: '{n} cards',
+  addMember: '+ Add cards',
+  noCandidates: 'No cards available to add',
   moveOut: 'Move out',
 
   created: 'Deck created',

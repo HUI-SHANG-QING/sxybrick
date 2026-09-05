@@ -69,6 +69,7 @@ async function doCheckIn() {
 
 const navCards = [
   { key: 'book', icon: '📘', label: t('views.wordHub.navBook'), to: '/english/book' },
+  { key: 'phrases', icon: '🧩', label: t('views.wordHub.navPhrases'), to: '/english/phrases' },
   { key: 'aiModes', icon: '🤖', label: t('views.wordHub.navAiModes'), to: '/english/ai-modes' },
   { key: 'learned', icon: '📖', label: t('views.wordHub.navLearned'), to: '/english/learned' },
   { key: 'groups', icon: '🗂️', label: t('views.wordHub.navGroups'), to: '/english/groups' },

@@ -11,19 +11,20 @@ import {
   mergeCardPair, mergeRows, mergeTombstones, applyTombstones, kindOf,
 } from '../src/sync-manifest.js';
 
-test('清单：32 张表全部登记且策略合法', () => {
+test('清单：33 张表全部登记且策略合法', () => {
   // v19 → 20；v22（M1）cardGroups + cardGroupLinks → 22；v23（M2）analysisSessions + analysisMessages → 24；
   // v25（英语单词模块）wordCards + wordReviews + wordGroups + wordGroupLinks → 28；
   // v26（英语模块升级）wordSettings + wordCheckins + wordSyllabusMeta → 31（wordExportHistory 入 EXCLUDED_FROM_SYNC）
   // v30（大纲中文释义）syllabusMeanings → 32
-  assert.equal(SYNC_TABLES.length, 32);
+  // v31（通用卡↔英语词卡链接）cardWordLinks → 33
+  assert.equal(SYNC_TABLES.length, 33);
   assert.equal(BACKUP_VERSION, 7);
   const names = SYNC_TABLES.map(t => t.table);
   // privacyRecords 不在默认同步清单
   assert.ok(!names.includes('privacyRecords'), 'privacyRecords 不应默认入同步');
   // wordExportHistory 是仅本机记录，不入同步
   assert.ok(!names.includes('wordExportHistory'), 'wordExportHistory 不应入同步');
-  for (const need of ['cards', 'reviews', 'images', 'aiChats', 'aiMemories', 'memos', 'plans', 'graphEdges', 'docs', 'docFiles', 'pomoSessions', 'mindmaps', 'weeklyReports', 'achievements', 'exams', 'embeddings', 'userOps', 'notes', 'dailyPlans', 'dailyTasks', 'cardGroups', 'cardGroupLinks', 'analysisSessions', 'analysisMessages', 'wordCards', 'wordReviews', 'wordGroups', 'wordGroupLinks', 'wordSettings', 'wordCheckins', 'wordSyllabusMeta']) {
+  for (const need of ['cards', 'reviews', 'images', 'aiChats', 'aiMemories', 'memos', 'plans', 'graphEdges', 'docs', 'docFiles', 'pomoSessions', 'mindmaps', 'weeklyReports', 'achievements', 'exams', 'embeddings', 'userOps', 'notes', 'dailyPlans', 'dailyTasks', 'cardGroups', 'cardGroupLinks', 'cardWordLinks', 'analysisSessions', 'analysisMessages', 'wordCards', 'wordReviews', 'wordGroups', 'wordGroupLinks', 'wordSettings', 'wordCheckins', 'wordSyllabusMeta']) {
     assert.ok(names.includes(need), `缺少表 ${need}`);
   }
   for (const t of SYNC_TABLES) {

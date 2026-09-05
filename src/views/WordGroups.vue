@@ -1,6 +1,7 @@
 <script setup>
 // 词组管理（仿卡组）：多对多分组，active/archived 状态，成员增删。
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { confirmDialog } from '../utils/confirm.js';
@@ -9,9 +10,15 @@ import {
   wordGroupCardIds, setWordGroups, listWordCards,
 } from '../word-repo.js';
 
+const router = useRouter();
 const groups = ref([]);
 const loading = ref(true);
 const expanded = ref('');
+// 成员编辑：跳单词本并带 ?edit=<id>，WordBook onMounted 接住后自动打开该词编辑弹窗
+// （与卡组页「点成员 → CardModal 编辑」对等）
+function editMember(w) {
+  router.push(`/english/book?edit=${w.id}`);
+}
 
 const editing = ref(null);
 const editOpen = ref(false);
@@ -123,6 +130,8 @@ onMounted(reload);
           <b class="name">{{ g.name }}</b>
           <span v-if="g.status === 'archived'" class="chip">{{ t('views.wordGroups.archivedChip') }}</span>
           <span class="cnt">{{ t('views.wordGroups.members', undefined, { n: (members[g.id] || []).length }) }}</span>
+          <!-- 与卡组页对齐：列表展示描述（此前描述只在编辑表单里，列表看不见） -->
+          <span v-if="g.description" class="gdesc">{{ g.description }}</span>
           <span class="ca">{{ expanded === g.id ? t('views.wordGroups.collapse') : t('views.wordGroups.expand') }}</span>
         </div>
         <div class="gacts">
@@ -137,6 +146,8 @@ onMounted(reload);
           <div v-for="w in members[g.id]" :key="w.id" class="mw">
             <span class="w">{{ w.word }}</span>
             <span class="m">{{ w.meaning }}</span>
+            <!-- 与卡组页对齐：成员可直接点开编辑（跳转单词本编辑弹窗） -->
+            <button class="ed" @click.stop="editMember(w)">{{ t('views.wordGroups.editMember') }}</button>
             <button class="rm" @click="removeMember(g, w)">{{ t('views.wordGroups.remove') }}</button>
           </div>
         </div>
@@ -199,7 +210,9 @@ onMounted(reload);
 .mw .w { font-weight: 600; min-width: 120px; }
 .mw .m { color: var(--el-text-color-secondary); flex: 1; }
 .mw .rm { border: 0; background: transparent; color: var(--el-color-danger); cursor: pointer; }
+.mw .ed { border: 0; background: transparent; color: var(--el-color-primary); cursor: pointer; }
 .hint { font-size: 12px; color: var(--el-text-color-secondary); }
+.gdesc { font-size: 12px; color: var(--el-text-color-secondary); flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .form { display: flex; flex-direction: column; gap: 12px; }
 .form label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--el-text-color-regular); }

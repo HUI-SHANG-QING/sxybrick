@@ -180,9 +180,12 @@ export async function deleteWordCard(id) {
   const old = await db.wordCards.get(id);
   if (!old) return false;
   const imgIds = []; // 单词模块无图片字段，占位以对齐 deleteCard 流程
-  await db.transaction('rw', db.wordCards, db.trash, db.tombstones, db.wordReviews, db.wordGroupLinks, async () => {
+  await db.transaction('rw', db.wordCards, db.trash, db.tombstones, db.wordReviews, db.wordGroupLinks, db.cardWordLinks, async () => {
     const reviews = await db.wordReviews.where('cardId').equals(id).toArray();
     const links = await db.wordGroupLinks.where('cardId').equals(id).toArray();
+    // v31：通用卡↔英语词卡链接——删英语词卡必须连链接一起删+写墓碑，
+    // 否则对端残留的悬空链接会随同步回传（指向已删英语词的幽灵行）
+    const cwLinks = await db.cardWordLinks.where('wordCardId').equals(id).toArray();
     await trashItem(id, 'wordCard', { ...plain(old), _reviews: reviews, _groupLinks: links });
     await db.tombstones.put({ id, kind: 'wordCard', deletedAt: now() });
     // round15 P1：wordReviews 是 idOnly 幂等表——本端删除行不写墓碑的话，
@@ -192,6 +195,10 @@ export async function deleteWordCard(id) {
     }
     if (links.length) {
       await db.tombstones.bulkPut(links.map(l => ({ id: l.id, kind: 'wordGroupLink', deletedAt: now() })));
+    }
+    if (cwLinks.length) {
+      await db.tombstones.bulkPut(cwLinks.map(l => ({ id: l.id, kind: 'cardWordLink', deletedAt: now() })));
+      await db.cardWordLinks.where('wordCardId').equals(id).delete();
     }
     await db.wordCards.delete(id);
     await db.wordReviews.where('cardId').equals(id).delete();
@@ -224,7 +231,10 @@ export async function setWordNote(id, text) {
 
 // ---------- 词组（多对多，仿卡组） ----------
 export async function listWordGroups() {
-  return db.wordGroups.orderBy('sortOrder').toArray();
+  // 与普通卡组 listCardGroups 同口径：sortOrder 相同时按 createdAt 稳定排序，
+  // 避免历史存量组（sortOrder 恒 0）顺序不可预测
+  const rows = await db.wordGroups.orderBy('sortOrder').toArray();
+  return rows.sort((a, b) => (a.sortOrder - b.sortOrder) || (a.createdAt - b.createdAt));
 }
 
 export async function createWordGroup(payload = {}) {
@@ -241,6 +251,14 @@ export async function createWordGroup(payload = {}) {
     createdAt: t, updatedAt: t,
   };
   await db.wordGroups.put(g);
+  // 与普通卡组 createCardGroup 对齐：sortOrder 未显式传时取「当前最大 sortOrder + 1」，
+  // 否则全部组 sortOrder 恒 0，UI 直接读 sortOrder 的地方会看到乱序
+  if (payload.sortOrder == null) {
+    const all = await db.wordGroups.orderBy('sortOrder').reverse().limit(1).toArray();
+    g.sortOrder = (all[0]?.sortOrder || 0) + 1;
+    g.updatedAt = now();
+    await db.wordGroups.put(g);
+  }
   return g;
 }
 
@@ -359,7 +377,31 @@ export async function listWordCards(filter = {}) {
   return rows;
 }
 
-// 复习队列：参与 SRS 且未标记为熟词且已到期（含从未复习的新卡）
+// 备用卡组停车（与通用卡组 repo.getParkedCardIds 完全同口径）：
+//   「显式分过组且全在 archived 组」的卡片停出默认复习队列；未分组的卡照常复习。
+// 英语卡组 status 字段早已存在（active/archived），但此前从未接入队列——
+// 用户点「停用」后卡照旧进队，停车形同虚设（round38 补齐，与通用卡组功能对等）。
+export async function getParkedWordCardIds() {
+  const [links, groups] = await Promise.all([
+    db.wordGroupLinks.toArray(),
+    db.wordGroups.toArray(),
+  ]);
+  if (!groups.length || !links.length) return new Set();
+  const statusOf = new Map(groups.map(g => [g.id, g.status]));
+  const activeOf = new Set(); // cardId 是否还挂着 active 组
+  const anyOf = new Set();    // cardId 是否属于任意组
+  for (const l of links) {
+    anyOf.add(l.cardId);
+    if (statusOf.get(l.groupId) === 'active') activeOf.add(l.cardId);
+  }
+  const parked = new Set();
+  for (const id of anyOf) if (!activeOf.has(id)) parked.add(id);
+  return parked;
+}
+
+// 复习队列：参与 SRS 且未标记为熟词且已到期（含从未复习的新卡）。
+// opts: kind / groupId（指定组时跳过停车——与通用卡组 reviewQueue 的 groupFilter 口径一致，
+//   用户显式指定备用组就是要看它）/ parkArchived（默认 true，设 false 强制包含备用组卡片）。
 export async function dueWordCards(opts = {}) {
   let rows = await db.wordCards.toArray();
   const t = now();
@@ -371,6 +413,9 @@ export async function dueWordCards(opts = {}) {
   if (opts.groupId) {
     const ids = new Set(await wordGroupCardIds(opts.groupId));
     rows = rows.filter(r => ids.has(r.id));
+  } else if (opts.parkArchived !== false) {
+    const parked = await getParkedWordCardIds();
+    if (parked.size) rows = rows.filter(r => !parked.has(r.id));
   }
   // 新卡（从未复习）优先，其次按到期时间升序
   rows.sort((a, b) => {

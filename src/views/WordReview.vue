@@ -75,6 +75,8 @@ onMounted(async () => {
   settings.value = await getWordSettings();
   groups.value = await listWordGroups();
   if (route.query.mode) mode.value = String(route.query.mode);
+  // v40：词组库「背这类」跳转携带 scope（word/phrase/sentence），直接定位针对性背诵
+  if (route.query.scope) scope.value = String(route.query.scope);
 });
 
 const current = computed(() => queue.value[idx.value] || null);

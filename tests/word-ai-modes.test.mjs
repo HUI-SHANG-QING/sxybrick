@@ -13,6 +13,7 @@ import {
   REVIEW_MODES, MODE_IDS, modeContract, isChoiceMode,
   buildModesPrompt, validateModeQuestion, normalizeModeQuestions,
   generateModeQuestions, applyModeQuestions, batchGenerateMeanings, hasLlmChannel,
+  MODES_BY_KIND, modesForCard, kindOf,
 } from '../src/services/word-ai-modes.js';
 
 const after = (await import('node:test')).after;
@@ -144,4 +145,63 @@ test('通道判定：agent 或用户 Key 任一可用', () => {
   assert.equal(hasLlmChannel({}, { runAgent: () => {} }), true);
   assert.equal(hasLlmChannel({ llmProvider: 'deepseek', llmApiKey: 'k', llmModel: 'm' }, null), true);
   assert.equal(hasLlmChannel({}, null), false);
+});
+
+// v40：按 kind 分轨出题（phrase 全 13 模式但答案=整短语；sentence 只 6 种中文答案模式；template 拒绝）
+test('MODES_BY_KIND / modesForCard：分轨表正确且默认模式随 kind 变化', () => {
+  assert.equal(MODES_BY_KIND.word.length, 13);
+  assert.equal(MODES_BY_KIND.phrase.length, 13);
+  assert.deepEqual(MODES_BY_KIND.sentence, ['adaptive', 'choice', 'spell', 'flashcard', 'readAloud', 'quiz']);
+  assert.equal(MODES_BY_KIND.template.length, 0);
+  // 未知 kind 回退 word
+  assert.deepEqual(modesForCard({ kind: 'bogus' }), MODE_IDS);
+  assert.equal(kindOf({}), 'word');
+  assert.equal(kindOf({ kind: 'phrase' }), 'phrase');
+});
+
+test('buildModesPrompt：phrase 用「目标短语」、sentence 用「目标句子」且不含词性/义项行', () => {
+  const phraseCard = { word: 'take place', meaning: '发生，举行', kind: 'phrase' };
+  const p = buildModesPrompt(phraseCard);
+  assert.ok(p.includes('目标短语：take place'), 'phrase 提示词应带目标短语标签');
+  assert.ok(p.includes('请基于下面这个短语'), 'phrase 提示词应说明词条类型');
+  assert.ok(!p.includes('义项'), 'phrase 不应出现义项行（只有单词有义项）');
+  const sentCard = { word: 'The ceremony will take place on Friday.', meaning: '仪式将在周五举行。', kind: 'sentence' };
+  const s = buildModesPrompt(sentCard);
+  assert.ok(s.includes('目标句子：The ceremony will take place on Friday.'), 'sentence 提示词应带目标句子标签');
+  assert.ok(!s.includes('义项'), 'sentence 不应出现义项行');
+  assert.ok(!s.includes('词性：'), 'sentence 不应出现词性行');
+  assert.ok(!s.includes('englishEnglish'), 'sentence 默认模式不含英英释义');
+});
+
+test('validateModeQuestion：phrase 答案必须整短语一致，单词单复数变形仍容忍', () => {
+  // 单词：单数→复数变形仍通过（原行为）
+  const wordCard = { word: 'abandon', meaning: '放弃', kind: 'word' };
+  const wOk = validateModeQuestion('cloze', { q: 'aband__n', a: 'abandon' }, wordCard);
+  assert.equal(wOk.ok, true);
+  const wPlural = validateModeQuestion('cloze', { q: 'aband__n', a: 'abandons' }, wordCard);
+  assert.equal(wPlural.ok, true, 'word 容忍单复数变形');
+  // 短语：答案必须整短语一致，偷换单词/截断短语都拒绝
+  const phraseCard = { word: 'take place', meaning: '发生', kind: 'phrase' };
+  assert.equal(validateModeQuestion('cloze', { q: 'take ____', a: 'take place' }, phraseCard).ok, true);
+  assert.equal(validateModeQuestion('cloze', { q: 'take ____', a: 'place' }, phraseCard).ok, false, '短语截断应拒绝');
+  assert.equal(validateModeQuestion('cloze', { q: 'take ____', a: 'takes place' }, phraseCard).ok, false, '短语内单词变形应拒绝');
+});
+
+test('generateModeQuestions：template 卡返回 no-modes-for-template，sentence 卡默认 6 模式', async () => {
+  const tpl = await generateModeQuestions({ card: { word: '模板', kind: 'template' }, settings: {}, agentCtx: fakeAgent({ modes: {} }) });
+  assert.equal(tpl.ok, false);
+  assert.equal(tpl.reason, 'no-modes-for-template');
+  // sentence 默认 6 模式：fake agent 回 6 个全中文答案模式的合法题（choice/quiz 属选择题需带 options）
+  const six = { modes: {} };
+  for (const id of ['adaptive', 'choice', 'spell', 'flashcard', 'readAloud', 'quiz']) {
+    six.modes[id] = (id === 'choice' || id === 'quiz')
+      ? { q: '题目', a: '中文答案', options: ['中文答案', '干扰一', '干扰二', '干扰三'] }
+      : { q: '题目', a: '中文答案' };
+  }
+  const sent = await generateModeQuestions({
+    card: { word: 'It is well known that.', meaning: '众所周知。', kind: 'sentence' },
+    settings: {}, agentCtx: fakeAgent(six),
+  });
+  assert.equal(sent.ok, true);
+  assert.equal(Object.keys(sent.modes).length, 6);
 });

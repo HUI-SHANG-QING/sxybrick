@@ -12,6 +12,7 @@ import {
   listWordGroups, createWordGroup, updateWordGroup, deleteWordGroup,
   wordGroupCardIds, wordGroupsOfCard, setWordGroups,
   listWordCards, dueWordCards, wordStats, wordReviewHistory,
+  getParkedWordCardIds,
 } from '../src/word-repo.js';
 
 after(async () => { try { await db.close(); } catch {} });
@@ -190,4 +191,44 @@ test('wordReviewHistory：已背记录倒序且带回卡片', async () => {
   const hist = await wordReviewHistory(10);
   assert.ok(hist.length >= 1);
   assert.equal(hist[0].card?.id, c.id);
+});
+
+// round38：英语卡组「备用」停车语义（与通用卡组 getParkedCardIds 同口径）
+test('getParkedWordCardIds / dueWordCards 停车：只在 archived 组的卡停出队列，active 组或未分组照常', async () => {
+  const c1 = await mk({ word: 'park1', meaning: '停一' });
+  const c2 = await mk({ word: 'park2', meaning: '停二' });
+  const c3 = await mk({ word: 'park3', meaning: '不停' });
+  // 创建两个组：g_active（active）+ g_archived（archived）
+  const gA = await createWordGroup({ name: 'active组', status: 'active' });
+  const gB = await createWordGroup({ name: '备用组', status: 'archived' });
+  // c1 只在 archived 组 → 应被停车；c2 同时在两个组 → 不停车；c3 不在任何组 → 不停车
+  await setWordGroups([c1.id], [gB.id]);
+  await setWordGroups([c2.id], [gA.id, gB.id]);
+  // getParkedWordCardIds 应只含 c1
+  const parked = await getParkedWordCardIds();
+  assert.ok(parked.has(c1.id), '只在 archived 组的卡应被停车');
+  assert.ok(!parked.has(c2.id), '同时有 active 组的卡不应停车');
+  assert.ok(!parked.has(c3.id), '未分组卡不应停车');
+  // dueWordCards 默认排除 c1
+  const due = await dueWordCards();
+  const ids = due.map(c => c.id);
+  assert.ok(!ids.includes(c1.id), 'park1 应不在默认复习队列中');
+  assert.ok(ids.includes(c2.id), '同时有 active 组的卡应在队列中');
+  assert.ok(ids.includes(c3.id), '未分组卡应在队列中');
+  // 指定 groupId 时跳过停车（用户显式选备用组就是要看它）
+  const dueArchived = await dueWordCards({ groupId: gB.id });
+  const archIds = dueArchived.map(c => c.id);
+  assert.ok(archIds.includes(c1.id), '指定备用组后 c1 应出现');
+  assert.ok(archIds.includes(c2.id), '指定备用组后 c2 应出现');
+  // parkArchived=false 强制包含
+  const dueNoPark = await dueWordCards({ parkArchived: false });
+  assert.ok(dueNoPark.some(c => c.id === c1.id), 'parkArchived=false 时 c1 应出现');
+  // 把 c1 移入 active 组 → 恢复复习
+  await setWordGroups([c1.id], [gA.id, gB.id]);
+  const dueAfter = await dueWordCards();
+  assert.ok(dueAfter.some(c => c.id === c1.id), 'c1 加入 active 组后恢复复习');
+  // 清理：把 c1 从 active 移出、只留 archived，验证恢复后 parking 重新生效
+  await setWordGroups([c1.id], [gB.id], [gA.id]);
+  const parkedAgain = await getParkedWordCardIds();
+  assert.ok(parkedAgain.has(c1.id), 'c1 移出 active 后重新停车');
 });

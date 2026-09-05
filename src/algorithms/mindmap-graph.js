@@ -84,3 +84,29 @@ export function sankeyFromTree(root) {
     })),
   };
 }
+
+/**
+ * 桑基图需要的容器高度（px）。
+ *
+ * 背景：ECharts sankey 系列不支持 roam/zoom，节点数多时若容器高度不够，
+ * nodeGap 无处施展，节点会被压扁糊成一团（用户反馈「桑基图太密集看不清」）。
+ * 纯函数抽出便于单测，视图层用它动态撑高 .mm-chart 容器。
+ *
+ * 口径：nodeGap 取 Math.min(32, Math.max(14, 700/n))（与 Mindmap.vue buildOption
+ * 保持一致）+ 每节点 minNodeHeight=6 + 上下边距 80，高度随节点数线性增长，
+ * 上限 2400（超出部分靠用户滚动查看，容器本身不再无限长）。
+ *
+ * 注意：超过降级阈值（>120 节点或 >240 边，与 Mindmap.vue 的降级判断同源）时
+ * 返回 0——此时视图层渲染的是力导向布局，沿用默认容器高度即可。
+ *
+ * @param {object} root 树根
+ * @returns {number} 建议容器高度（px）；0 表示走降级力导向、无需撑高
+ */
+export function sankeyNeedHeight(root) {
+  const { nodes, links } = sankeyFromTree(root);
+  if (nodes.length > 120 || links.length > 240) return 0;
+  const n = Math.max(1, nodes.length);
+  const gap = Math.min(32, Math.max(14, 700 / n));
+  const h = 80 + n * (gap + 6);
+  return Math.min(2400, Math.max(560, Math.ceil(h)));
+}

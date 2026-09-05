@@ -1,7 +1,7 @@
 <script setup>
 // 单词本（图2-5：不背风列表 + 添加/口述 + AI 自动生成 + 已背/熟词/批注/词组 + 详情抽屉）
 import { ref, computed, onMounted, watch, shallowRef } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { confirmDialog } from '../utils/confirm.js';
@@ -10,6 +10,7 @@ import {
   listWordCards, wordStats, createWordCard, updateWordCard, deleteWordCard,
   markFamiliar, setWordNote, getWordSettings, listWordGroups,
 } from '../word-repo.js';
+import { linkCardWord, unlinkCardWord, allCardWordLinks } from '../repo.js';
 import { generateWordMaterials } from '../services/word-llm.js';
 import { isInSyllabus, getSyllabusMeta, listSyllabus } from '../services/word-syllabus.js';
 import { getMeanings, meaningCoverage, syncWithSyllabus } from '../services/word-meaning.js';
@@ -17,6 +18,7 @@ import { ocrImageText } from '../docs-lib.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
 
 const router = useRouter();
+const route = useRoute();
 const cards = ref([]);
 const stats = ref(null);
 const groups = ref([]);
@@ -200,6 +202,15 @@ onMounted(async () => {
     view.value = 'syllabus';
     await refreshAdded();
   }
+  // v40 卡组对等：?edit=<wordCardId>（词组页「编辑成员」跳入）→ 打开该词编辑弹窗
+  const editId = route.query?.edit ? String(route.query.edit) : '';
+  if (editId) {
+    const target = cards.value.find(c => c.id === editId);
+    if (target) {
+      view.value = 'book';
+      openEdit(target);
+    }
+  }
 });
 watch([filterKind, filterReviewed, filterFamiliar], load);
 
@@ -327,15 +338,51 @@ async function toggleFamiliar(c) {
   await load();
 }
 
-function openDetail(c) { detail.value = c; detailTab.value = 'collocations'; showDetail.value = true; }
+function openDetail(c) { detail.value = c; detailTab.value = 'collocations'; showDetail.value = true; refreshLinked(); }
 
 // ---- 详情卡（对标成熟单词 App：音节大字 / 多词性释义 / 例句高亮 / 四 Tab） ----
-const detailTab = ref('collocations'); // collocations | derived | root | synonyms
+const detailTab = ref('collocations'); // collocations | derived | root | synonyms | linked
+
+// v31：反向关联——本英语词挂着的通用卡（多对多；从 cardWordLinks 反查）
+const linkedCards = ref([]);
+const linkedPickOpen = ref(false);
+const linkedPickQ = ref('');
+let linkedCardCache = [];
+const linkedPickList = computed(() => {
+  const linked = new Set(linkedCards.value.map(c => c.id));
+  const q = String(linkedPickQ.value || '').trim().toLowerCase();
+  return linkedCardCache
+    .filter(c => !linked.has(c.id) && (!q || (c.front || '').toLowerCase().includes(q) || (c.subject || '').toLowerCase().includes(q)))
+    .slice(0, 8);
+});
+async function refreshLinked() {
+  if (!detail.value?.id) { linkedCards.value = []; return; }
+  const links = await allCardWordLinks();
+  const ids = [...new Set(links.filter(l => l.wordCardId === detail.value.id).map(l => l.cardId))];
+  const { db } = await import('../db.js');
+  linkedCards.value = (await Promise.all(ids.map(id => db.cards.get(id)))).filter(Boolean);
+  if (!linkedCardCache.length) {
+    linkedCardCache = (await db.cards.toArray()).slice(0, 500);
+  }
+}
+async function doLinkCard(card) {
+  if (!detail.value?.id) return;
+  await linkCardWord(card.id, detail.value.id);
+  await refreshLinked();
+  linkedPickOpen.value = false;
+  linkedPickQ.value = '';
+}
+async function doUnlinkCard(cardId) {
+  if (!detail.value?.id) return;
+  await unlinkCardWord(cardId, detail.value.id);
+  await refreshLinked();
+}
 const detailTabs = computed(() => [
   { id: 'collocations', label: t('views.wordBook.detailCollocations') },
   { id: 'derived', label: t('views.wordBook.tabDerived') },
   { id: 'root', label: t('views.wordBook.tabRoot') },
   { id: 'synonyms', label: t('views.wordBook.detailSynonyms') },
+  { id: 'linked', label: t('views.wordBook.tabLinked') },
 ]);
 // 词条主显示：优先 AI 生成的音节拆分（al·ter·na·tive），无则原词
 function displaySyllable(c) { return c?.syllable || c?.word || ''; }
@@ -826,6 +873,32 @@ async function addOcrWords() {
             </div>
             <p v-if="!(detail.synonyms || []).length && !(detail.confusions || []).length" class="dtb-empty">{{ t('views.wordBook.tabEmpty') }}</p>
           </template>
+
+          <!-- v31：关联通用卡（同一知识点，多对多；反向入口） -->
+          <template v-else-if="detailTab === 'linked'">
+            <p class="hint" style="margin:0 0 8px">{{ t('views.wordBook.linkedHint') }}</p>
+            <div class="dtb-sec" v-if="linkedCards.length">
+              <div class="dtb-chips">
+                <span v-for="c in linkedCards" :key="c.id" class="dtb-chip">
+                  {{ (c.front || '').slice(0, 30) }}<small v-if="c.subject"> · {{ c.subject }}</small>
+                  <button class="linked-x" @click="doUnlinkCard(c.id)" title="解除关联">×</button>
+                </span>
+              </div>
+            </div>
+            <p v-else class="dtb-empty">{{ t('views.wordBook.linkedEmpty') }}</p>
+            <div class="dtb-sec">
+              <button class="btn-ghost" @click="linkedPickOpen = !linkedPickOpen">{{ linkedPickOpen ? t('views.wordBook.cancel') : t('views.wordBook.linkedAdd') }}</button>
+              <div v-if="linkedPickOpen" class="linked-pick">
+                <input v-model="linkedPickQ" class="input" :placeholder="t('views.wordBook.linkedSearchPh')" style="margin-bottom:6px" />
+                <div v-if="linkedPickList.length">
+                  <div v-for="c in linkedPickList" :key="c.id" class="linked-pick-item" @click="doLinkCard(c)">
+                    {{ (c.front || '').slice(0, 40) }}<small v-if="c.subject"> · {{ c.subject }}</small>
+                  </div>
+                </div>
+                <p v-else class="dtb-empty">{{ t('views.wordBook.linkedNone') }}</p>
+              </div>
+            </div>
+          </template>
         </div>
 
         <div class="detail-foot">
@@ -1094,4 +1167,11 @@ async function addOcrWords() {
 .ocr-foot { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
 .ocr-foot .btn-primary:disabled { opacity: .55; cursor: default; }
 @media (max-width: 520px) { .add-grid { grid-template-columns: 1fr; } .ag-wide { grid-column: span 1; } }
+/* v31 关联通用卡（反向入口） */
+.linked-x { border: 0; background: none; cursor: pointer; color: var(--ink-2); font-size: 14px; line-height: 1; padding: 0 0 0 4px; }
+.linked-x:hover { color: var(--red); }
+.linked-pick { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--code-bg); max-height: 220px; overflow-y: auto; }
+.linked-pick-item { padding: 7px 10px; cursor: pointer; border-radius: 6px; font-size: 13px; }
+.linked-pick-item:hover { background: var(--code-inline); }
+.linked-pick-item small { color: var(--ink-2); }
 </style>

@@ -312,6 +312,16 @@ d.version(30).stores({
   syllabusMeanings: 'id, word, updatedAt, source, syllabusVersion',
 });
 
+// v31：cardWordLinks——通用卡 ↔ 英语词卡的链接映射（多对多，「同一知识点」）。
+//   · 两表字段/SRS 状态各自独立（cards 走 cards+reviews，wordCards 走 wordCards+wordReviews），
+//     本表只存「谁对应谁」，不做内容互串——避免两套数据模型互相污染；
+//   · 「通用卡组功能英语卡组也要有，反之亦然」：通过本映射，通用卡详情可挂多个英语词，
+//     英语卡详情可回看其通用卡；链接随同步跨设备一致（sync-manifest 登记 idOnly）；
+//   · id = `${cardId}:${wordCardId}` 确定性拼接（两端同 id 幂等），addedAt 记录链接时间。
+d.version(31).stores({
+  cardWordLinks: 'id, cardId, wordCardId, addedAt',
+});
+
 } // end defineSchema
 
 // 两个实例各自应用全量 schema（惰性 open：首次访问才真正连接 IndexedDB）

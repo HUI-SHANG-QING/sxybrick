@@ -17,7 +17,10 @@ import {
   createCard, updateCard, reviewQueue,
   createCardGroup, updateCardGroup, deleteCardGroup, listCardGroups,
   cardGroupCardIds, cardGroupsOfCard, setCardGroups, getParkedCardIds,
+  linkCardWord, unlinkCardWord, wordCardsOfCard, allCardWordLinks,
+  restoreFromTrash,
 } from '../src/repo.js';
+import { createWordCard } from '../src/word-repo.js';
 import { mergeRows, mergeTombstones, applyTombstones } from '../src/sync-manifest.js';
 
 after(async () => { try { await db.close(); } catch {} });
@@ -226,4 +229,79 @@ test('同步：墓碑 kind 隔离——groupLink 墓碑不误伤其它表同 id 
   assert.deepEqual(rCard.removed, [], 'card 表不应被 groupLink 墓碑删除');
   const rLink = applyTombstones([{ id: 'X1', addedAt: 1 }], tomb, 'groupLink');
   assert.deepEqual(rLink.removed, ['X1'], 'groupLink 表应被删');
+});
+
+// ---------- v31：通用卡 ↔ 英语词卡链接（cardWordLinks，多对多「同一知识点」） ----------
+
+test('cardWordLinks：建立/反查/解除/幂等（确定性 id = cardId:wordCardId）', async () => {
+  const c = await newCard('q-链接', 'a-链接');
+  const w1 = await createWordCard({ word: 'deadlock', meaning: '死锁' });
+  const w2 = await createWordCard({ word: 'mutual exclusion', meaning: '互斥' });
+  // 建立两条链接（一卡对多词）
+  const l1 = await linkCardWord(c.id, w1.id);
+  const l2 = await linkCardWord(c.id, w2.id);
+  assert.equal(l1.id, `${c.id}:${w1.id}`, 'id 必须确定性拼接（两端幂等基础）');
+  assert.equal(l2.id, `${c.id}:${w2.id}`);
+  // 重复链接幂等（同 id put，不产生第二行）
+  await linkCardWord(c.id, w1.id);
+  assert.equal((await allCardWordLinks()).length, 2, '重复链接不应新增行');
+  // 反查：card → 词卡列表
+  const ws = await wordCardsOfCard(c.id);
+  assert.equal(ws.length, 2);
+  assert.ok(ws.some(w => w.id === w1.id) && ws.some(w => w.id === w2.id));
+  // 解除其一
+  assert.equal(await unlinkCardWord(c.id, w1.id), true);
+  const ws2 = await wordCardsOfCard(c.id);
+  assert.equal(ws2.length, 1);
+  assert.equal(ws2[0].id, w2.id);
+  // 重复解除返回 false（行已不存在）
+  assert.equal(await unlinkCardWord(c.id, w1.id), false);
+  // 无链接的空卡反查返回 []
+  const c2 = await newCard('q-空', 'a-空');
+  assert.deepEqual(await wordCardsOfCard(c2.id), []);
+});
+
+test('cardWordLinks：删卡级联清链接（防对端悬空链接复活）', async () => {
+  const c = await newCard('q-级联', 'a-级联');
+  const w = await createWordCard({ word: 'cascade', meaning: '级联' });
+  await linkCardWord(c.id, w.id);
+  // 删英语词卡 → 链接必须随之消失
+  const { deleteWordCard } = await import('../src/word-repo.js');
+  await deleteWordCard(w.id);
+  assert.equal((await wordCardsOfCard(c.id)).length, 0, '删英语词卡后链接应被级联清除');
+  // 删通用卡 → 链接同样必须消失（repo.deleteCard 侧）
+  const c3 = await newCard('q-级联2', 'a-级联2');
+  const w3 = await createWordCard({ word: 'cascade2', meaning: '级联2' });
+  await linkCardWord(c3.id, w3.id);
+  const { deleteCard } = await import('../src/repo.js');
+  await deleteCard(c3.id);
+  assert.equal((await allCardWordLinks()).filter(l => l.cardId === c3.id).length, 0, '删通用卡后链接应被级联清除');
+});
+
+// v40 卡组对等：普通卡组删除进回收站（与词组同机制）+ 恢复时还原成员关联
+test('deleteCardGroup：删前写回收站快照（含 _groupLinks），restoreFromTrash 还原卡组与成员', async () => {
+  const g = await createCardGroup({ name: '可恢复卡组' });
+  const c1 = await newCard('q-恢复1', 'a1');
+  const c2 = await newCard('q-恢复2', 'a2');
+  await setCardGroups([c1.id, c2.id], [g.id]);
+  assert.equal((await cardGroupCardIds(g.id)).length, 2);
+
+  assert.equal(await deleteCardGroup(g.id), true);
+  assert.equal((await listCardGroups()).some(x => x.id === g.id), false, '卡组应被删除');
+  // 墓碑已写
+  const tomb = await db.tombstones.get(g.id);
+  assert.ok(tomb && tomb.kind === 'cardGroup', '应写 cardGroup 墓碑');
+
+  // 回收站快照存在且含成员关联
+  const snap = await db.trash.get(g.id);
+  assert.ok(snap, '应有回收站快照');
+  assert.equal(snap.kind, 'cardGroup');
+  assert.equal((snap.data._groupLinks || []).length, 2, '快照应含 2 条成员关联');
+
+  // 恢复：卡组本体 + 成员关联都应回来
+  assert.equal(await restoreFromTrash(snap), true);
+  const restored = (await listCardGroups()).find(x => x.id === g.id);
+  assert.ok(restored, '卡组应恢复');
+  const ids = (await cardGroupCardIds(g.id)).sort();
+  assert.deepEqual(ids, [c1.id, c2.id].sort(), '成员关联应恢复');
 });

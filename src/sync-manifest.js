@@ -86,6 +86,10 @@ export const SYNC_TABLES = [
   //   （sync.js 通用墓碑合并已支持任意 kind，link 行 id 全局唯一即可）
   { table: 'cardGroups', kind: 'cardGroup', merge: 'updatedAt' },
   { table: 'cardGroupLinks', kind: 'groupLink', merge: 'idOnly' },
+  // v31（通用卡 ↔ 英语词卡链接）：cardWordLinks 多对多映射，id=`${cardId}:${wordCardId}` 确定性幂等；
+  //   「移除」= 本端删行 + kind='cardWordLink' 墓碑（对端同 id 行被 applyTombstones 清除，悬空链接不复活）。
+  //   两张本体表（cards/wordCards）各自按原策略同步，本表只同步「谁对应谁」，内容不互串。
+  { table: 'cardWordLinks', kind: 'cardWordLink', merge: 'idOnly' },
   // v23（M2）新增：联动分析会话 + 消息（对话历史跨设备回看）
   //   会话按 updatedAt 合并（标题/卡片集更新）；消息不可变（append-only）→ idOnly 幂等
   { table: 'analysisSessions', kind: 'analysisSession', merge: 'updatedAt' },

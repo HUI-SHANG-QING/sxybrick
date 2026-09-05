@@ -42,6 +42,30 @@ const CHOICE_MODES = new Set(['choice', 'listenChoice', 'reverseChoice', 'englis
 export function modeContract(id) { return MODE_MAP.get(id) || null; }
 export function isChoiceMode(id) { return CHOICE_MODES.has(id); }
 
+// v40：按词条 kind 分轨出题。
+//   word / phrase：13 模式全开——短语与单词同构（题干/答案方向一致），
+//     差异只在校验层（短语答案 = 整个短语，不允许单复数变形，见 validateModeQuestion）。
+//   sentence：卡片的 word 字段是整句、meaning 是句译——「答案=英文本身」类模式
+//     （listenSpell/reverseChoice/cloze/sentenceCloze/englishEnglish/collocations）
+//     会让整句充当答案（超 MAX_A 且方向不合理），故只保留 6 种中文答案模式。
+//   template：范文模板不参与 SRS 复习，无出题语义，显式拒绝。
+export const MODES_BY_KIND = {
+  word: MODE_IDS,
+  phrase: MODE_IDS,
+  sentence: ['adaptive', 'choice', 'spell', 'flashcard', 'readAloud', 'quiz'],
+  template: [],
+};
+export const KIND_LABELS = { word: '单词', phrase: '短语', sentence: '句子', template: '范文模板' };
+const TERM_LABELS = { word: '目标单词', phrase: '目标短语', sentence: '目标句子' };
+
+export function kindOf(card) {
+  const k = card?.kind || 'word';
+  return KIND_LABELS[k] ? k : 'word';
+}
+export function modesForCard(card) {
+  return (MODES_BY_KIND[kindOf(card)] || MODE_IDS).slice();
+}
+
 // ---------- 提示词 ----------
 function cardContext(card) {
   const ex = Array.isArray(card?.examples) && card.examples[0]
@@ -58,23 +82,34 @@ function cardContext(card) {
 }
 
 export function buildModesPrompt(card, modeIds) {
+  const kind = kindOf(card);
+  const termLabel = TERM_LABELS[kind];
   const ctx = cardContext(card);
-  const ids = (modeIds || MODE_IDS).filter((id) => MODE_MAP.has(id));
+  const ids = (modeIds && modeIds.length ? modeIds : modesForCard(card)).filter((id) => MODE_MAP.has(id));
   const lines = ids.map((id) => {
     const m = MODE_MAP.get(id);
     const side = m.answerSide === 'zh' ? '答案必须是【中文释义】'
-      : m.answerSide === 'en' ? '答案必须是【英文单词本身】'
-        : '答案可以是中文释义或英文单词（与 q 的类型相反即可）';
+      : m.answerSide === 'en' ? '答案必须是【英文原词/短语/句子本身】'
+        : '答案可以是中文释义或英文原文（与 q 的类型相反即可）';
     const opt = CHOICE_MODES.has(id) ? '，并额外给 options（4 个选项字符串数组，含正确答案，顺序打乱）' : '';
     return `- ${id}（${m.desc}）：给出 q（题面）与 a（答案）。${side}${opt}`;
   }).join('\n');
-  return `你是一名考研英语出题老师。请基于下面这个单词，为指定的背诵模式各出一道题。
+  const posLine = kind === 'sentence'
+    ? '（句子类，无词性）'
+    : `词性：${ctx.pos || '（未知）'}`;
+  const meaningLine = kind === 'sentence' ? '中文句译' : '中文释义';
+  const meaningVal = kind === 'sentence' ? (ctx.meaning || '（待补充，请你给出准确的考研语境翻译）')
+    : (ctx.meaning || '（待补充，请你给出准确的考研语境释义）');
+  const defsLine = kind === 'word' ? `义项：${JSON.stringify(ctx.defs)}\n` : '';
+  const hardRules = kind === 'sentence'
+    ? '1. q 是展示给学生的题面，绝不能直接包含答案（「中文选词」的 q 只能是中文句译，不能出现该英文句子）。\n2. a 是标准答案，必须与题干方向匹配、简短准确（中文句译 ≤ 30 字）。\n3. 只输出 JSON，不要任何解释文字，格式：'
+    : '1. q 是展示给学生的题面，绝不能直接包含答案（例如「看词写义」的 q 只能是英文词，不能带中文释义；「中文选词」的 q 只能是中文，不能出现该英文词）。\n2. a 是标准答案，必须与题干方向匹配、简短准确（中文释义 ≤ 30 字，英文答案 = 该单词/短语本身）。\n3. 挖空类（cloze）的 q 用下划线 _ 表示被挖去的字母；例句挖空（sentenceCloze）的 q 用 ____ 表示被挖去的单词。\n4. 英英释义（englishEnglish）的 q 必须是英文（同义短语或挖空例句），a 为该单词。\n5. 词组搭配（collocations）的 q 用「中文释义 + 一条把目标词挖空的搭配短语」组成，a 为该单词。\n6. 只输出 JSON，不要任何解释文字，格式：';
+  return `你是一名考研英语出题老师。请基于下面这个${KIND_LABELS[kind]}，为指定的背诵模式各出一道题。
 
-单词：${ctx.word}
-词性：${ctx.pos || '（未知）'}
-中文释义：${ctx.meaning || '（待补充，请你给出准确的考研语境释义）'}
-义项：${JSON.stringify(ctx.defs)}
-同义词：${JSON.stringify(ctx.synonyms)}
+${termLabel}：${ctx.word}
+${posLine}
+${meaningLine}：${meaningVal}
+${defsLine}同义词：${JSON.stringify(ctx.synonyms)}
 搭配：${JSON.stringify(ctx.collocations)}
 例句：${ctx.example || '（无）'}
 
@@ -82,12 +117,7 @@ export function buildModesPrompt(card, modeIds) {
 ${lines}
 
 硬性要求：
-1. q 是展示给学生的题面，绝不能直接包含答案（例如「看词写义」的 q 只能是英文词，不能带中文释义；「中文选词」的 q 只能是中文，不能出现该英文词）。
-2. a 是标准答案，必须与题干方向匹配、简短准确（中文释义 ≤ 30 字，英文答案 = 该单词本身）。
-3. 挖空类（cloze）的 q 用下划线 _ 表示被挖去的字母；例句挖空（sentenceCloze）的 q 用 ____ 表示被挖去的单词。
-4. 英英释义（englishEnglish）的 q 必须是英文（同义短语或挖空例句），a 为该单词。
-5. 词组搭配（collocations）的 q 用「中文释义 + 一条把目标词挖空的搭配短语」组成，a 为该单词。
-6. 只输出 JSON，不要任何解释文字，格式：
+${hardRules}
 {"modes":{"<模式id>":{"q":"...","a":"..."${ids.some((id) => CHOICE_MODES.has(id)) ? ',"options":["...","...","...","..."]' : ''}}}}`;
 }
 
@@ -119,12 +149,15 @@ export function validateModeQuestion(modeId, item, card) {
   if (m.answerSide === 'zh') {
     if (!hasCJK(a)) return { ok: false, reason: '答案应为中文释义' };
   } else if (m.answerSide === 'en') {
-    if (hasCJK(a)) return { ok: false, reason: '答案应为英文单词' };
-    // 答案必须是该单词本身（容忍大小写/单复数差异，防模型自造词）
-    if (wordKey && aKey !== wordKey
-      && aKey !== `${wordKey}s` && aKey !== `${wordKey}es`
-      && wordKey !== `${aKey}s` && wordKey !== `${aKey}es`) {
-      return { ok: false, reason: `答案「${a}」与单词「${word}」不符` };
+    if (hasCJK(a)) return { ok: false, reason: '答案应为英文原词' };
+    // 答案必须是词条本身（word 容忍大小写/单复数差异；phrase/sentence 是整条短语或句子，
+    // 不允许单复数变形，必须整体一致——防模型自造词/偷换单词）
+    if (wordKey && aKey !== wordKey) {
+      const isPhrase = kindOf(card) !== 'word';
+      const pluralOk = !isPhrase
+        && (aKey === `${wordKey}s` || aKey === `${wordKey}es`
+          || wordKey === `${aKey}s` || wordKey === `${aKey}es`);
+      if (!pluralOk) return { ok: false, reason: `答案「${a}」与词条「${word}」不符` };
     }
     a = word; // 统一回填为标准词形，避免大小写漂移影响判分
   }
@@ -181,7 +214,10 @@ export function normalizeModeQuestions(card, data, modeIds) {
 export async function generateModeQuestions({ card, modes, settings, agentCtx }) {
   const word = String(card?.word || '').trim();
   if (!word) return { ok: false, reason: 'empty-word' };
-  const ids = (modes && modes.length ? modes : MODE_IDS).filter((id) => MODE_MAP.has(id));
+  const kind = kindOf(card);
+  // v40：默认模式按 kind 分轨（sentence 只出 6 种中文答案模式；template 无出题语义）
+  const ids = (modes && modes.length ? modes : modesForCard(card)).filter((id) => MODE_MAP.has(id));
+  if (!ids.length) return { ok: false, reason: `no-modes-for-${kind}` };
   const res = await callLlmJson({
     prompt: buildModesPrompt(card, ids),
     settings,

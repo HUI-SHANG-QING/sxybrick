@@ -29,6 +29,7 @@ export const zh = {
   delete: '删除',
   addMember: '＋ 添加单词',
   noMembers: '该词组还没有单词。',
+  editMember: '编辑',
 
   activeCount: '背诵中 {n}',
   archivedCount: '备用 {n}',
@@ -74,6 +75,7 @@ export const en = {
   delete: 'Delete',
   addMember: '＋ Add words',
   noMembers: 'No words in this group yet.',
+  editMember: 'Edit',
 
   activeCount: 'Active {n}',
   archivedCount: 'Archived {n}',

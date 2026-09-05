@@ -56,6 +56,7 @@ const routes = [
   // meta.englishBrand：让 App.vue 给路由出口加 .eng-brand 类，钉死茶绿品牌色
   { path: '/english', component: () => import('./views/WordHub.vue'), meta: { englishBrand: true } },
   { path: '/english/book', component: () => import('./views/WordBook.vue'), meta: { englishBrand: true } },
+  { path: '/english/phrases', component: () => import('./views/WordPhrases.vue'), meta: { englishBrand: true } },
   { path: '/english/learned', component: () => import('./views/WordLearned.vue'), meta: { englishBrand: true } },
   { path: '/english/study', component: () => import('./views/WordReview.vue'), meta: { englishBrand: true } },
   { path: '/english/groups', component: () => import('./views/WordGroups.vue'), meta: { englishBrand: true } },

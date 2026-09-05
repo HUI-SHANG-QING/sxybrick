@@ -5,7 +5,9 @@ import { ref, computed, watch } from 'vue';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import { getSubjects, getTags, createCard, updateCard, WRONG_REASONS, wrongReasonToCode,
-  listCardGroups, cardGroupsOfCard, setCardGroups } from '../repo.js';
+  listCardGroups, cardGroupsOfCard, setCardGroups,
+  linkCardWord, unlinkCardWord, wordCardsOfCard } from '../repo.js';
+import { listWordCards } from '../word-repo.js';
 import { T } from '../utils/telemetry.js';
 import { putImage } from '../images.js';
 import { uid } from '../db.js';
@@ -37,6 +39,35 @@ const allGroups = ref([]);
 const groupFilter = ref('');
 const cardGroupIds = ref([]);
 const originalGroupIds = ref([]);
+
+// v31：通用卡 ↔ 英语词卡链接（同一知识点，多对多；只存映射不互串内容）
+const cwLinks = ref([]);
+const cwPickOpen = ref(false);
+const cwPickQ = ref('');
+let cwWordCache = [];
+const cwPickList = computed(() => {
+  const linked = new Set(cwLinks.value.map(c => c.id));
+  const q = String(cwPickQ.value || '').trim().toLowerCase();
+  return cwWordCache
+    .filter(c => !linked.has(c.id) && (!q || (c.word || '').toLowerCase().includes(q) || (c.meaning || '').toLowerCase().includes(q)))
+    .slice(0, 8);
+});
+async function refreshCwLinks() {
+  cwWordCache = (await listWordCards()).slice(0, 500);
+  cwLinks.value = props.card?.id ? await wordCardsOfCard(props.card.id) : [];
+}
+async function doCwLink(wordCard) {
+  if (!props.card?.id) return;
+  await linkCardWord(props.card.id, wordCard.id);
+  await refreshCwLinks();
+  cwPickOpen.value = false;
+  cwPickQ.value = '';
+}
+async function doCwUnlink(wordCardId) {
+  if (!props.card?.id) return;
+  await unlinkCardWord(props.card.id, wordCardId);
+  await refreshCwLinks();
+}
 const filteredGroups = computed(() => {
   const kw = groupFilter.value.trim();
   return allGroups.value.filter(g => !kw || g.name.includes(kw));
@@ -64,6 +95,9 @@ watch(() => props.modelValue, async (open) => {
   groupFilter.value = '';
   cardGroupIds.value = [];
   originalGroupIds.value = [];
+  cwLinks.value = [];
+  cwPickOpen.value = false;
+  cwPickQ.value = '';
   if (props.card) {
     front.value = props.card.front;
     back.value = props.card.back;
@@ -82,6 +116,7 @@ watch(() => props.modelValue, async (open) => {
     const groups = await cardGroupsOfCard(props.card.id);
     cardGroupIds.value = groups.map(g => g.id);
     originalGroupIds.value = [...cardGroupIds.value];
+    await refreshCwLinks();
   } else {
     front.value = ''; back.value = ''; tags.value = []; source.value = ''; type.value = 'basic'; marked.value = false; mnemonic.value = ''; wrongReason.value = ''; customWrong.value = '';
     subject.value = ''; customSubject.value = ''; useCustomSubject.value = false;
@@ -303,6 +338,33 @@ function close() { emit('update:modelValue', false); }
         <div class="field-label">助记 / 词根（可选，语言学习用）</div>
         <input v-model="mnemonic" class="input" placeholder="如：quad- = 四（quadrant 四象限）" maxlength="200" />
 
+        <!-- v31：关联英语词卡（同一知识点，多对多；仅编辑已有卡时可用） -->
+        <div v-if="props.card" class="cw-sec">
+          <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
+            <span>关联英语词卡（同一知识点，可多组）</span>
+            <button class="btn small" :disabled="!cwPickList.length && !cwWordCache.length" @click="cwPickOpen = !cwPickOpen">
+              {{ cwPickOpen ? '收起' : '＋ 关联' }}
+            </button>
+          </div>
+          <div class="hint" style="margin:2px 0 0">只存「谁对应谁」，两侧内容与复习进度各自独立、互不干扰</div>
+          <div v-if="cwLinks.length" class="cw-list">
+            <span v-for="c in cwLinks" :key="c.id" class="cw-chip">
+              {{ c.word }}<small v-if="c.meaning"> · {{ c.meaning }}</small>
+              <button class="cw-x" @click="doCwUnlink(c.id)" title="解除关联">×</button>
+            </span>
+          </div>
+          <div v-else class="hint" style="margin:2px 0 0">尚未关联任何英语词</div>
+          <div v-if="cwPickOpen" class="cw-pick">
+            <input v-model="cwPickQ" class="input" placeholder="搜索英语词 / 释义…" style="margin-bottom:6px" />
+            <div v-if="cwPickList.length">
+              <div v-for="c in cwPickList" :key="c.id" class="cw-pick-item" @click="doCwLink(c)">
+                {{ c.word }}<small v-if="c.meaning"> · {{ c.meaning }}</small><span class="hint"> {{ c.kind === 'word' ? '单词' : c.kind === 'phrase' ? '词组' : c.kind === 'sentence' ? '短句' : '范文' }}</span>
+              </div>
+            </div>
+            <div v-else class="hint">无候选（英语模块暂无词卡或无匹配）</div>
+          </div>
+        </div>
+
         <div class="field-label" style="display:flex;align-items:center;gap:8px">
           <input type="checkbox" v-model="preview" id="pv" />
           <label for="pv" style="margin:0">实时预览</label>
@@ -334,5 +396,15 @@ function close() { emit('update:modelValue', false); }
 .suggest-item:hover { background: var(--code-inline); }
 .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .preview-pane { border: 1px dashed var(--line); border-radius: 8px; padding: 10px; max-height: 260px; overflow-y: auto; }
+.cw-sec { margin-top: 12px; }
+.cw-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.cw-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 12px; background: var(--code-inline); }
+.cw-chip small { color: var(--ink-2); }
+.cw-x { border: 0; background: none; cursor: pointer; color: var(--ink-2); font-size: 14px; line-height: 1; padding: 0 0 0 2px; }
+.cw-x:hover { color: var(--red); }
+.cw-pick { margin-top: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--code-bg); max-height: 220px; overflow-y: auto; }
+.cw-pick-item { padding: 7px 10px; cursor: pointer; border-radius: 6px; font-size: 13px; }
+.cw-pick-item:hover { background: var(--code-inline); }
+.cw-pick-item small { color: var(--ink-2); }
 @media (max-width: 720px) { .preview-grid { grid-template-columns: 1fr; } }
 </style>

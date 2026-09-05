@@ -235,6 +235,8 @@ export async function restoreFromTrash(t) {
     card: 'cards', memo: 'memos', note: 'notes', plan: 'plans',
     doc: 'docs', mindmap: 'mindmaps', docFile: 'docFiles',
     wordCard: 'wordCards', wordGroup: 'wordGroups',
+    // v40 卡组对等：普通卡组删除也进回收站（与 wordGroup 同机制），恢复时一并还原成员关联
+    cardGroup: 'cardGroups',
   }[t.kind];
   if (!table) return false;
   // 深拷贝快照：RecycleBin.vue 的 items 是 ref 数组，元素经 Vue 深层响应式代理包裹，
@@ -250,7 +252,7 @@ export async function restoreFromTrash(t) {
   const row = { ...(transform ? transform(data) : data), id: t.id, updatedAt: Date.now() };
   const tables = [db[table], db.tombstones, db.trash];
   // P1-A：单词模块的附表与记忆卡不同（wordReviews / wordGroupLinks），按 kind 分流；
-  // 记忆卡走 reviews / cardGroupLinks（原逻辑）。
+  // 记忆卡（card）与普通卡组（cardGroup）都走 reviews / cardGroupLinks（原逻辑）。
   const isWord = t.kind === 'wordCard' || t.kind === 'wordGroup';
   const reviewsTable = t.kind === 'wordCard' ? db.wordReviews : db.reviews;
   const linksTable = isWord ? db.wordGroupLinks : db.cardGroupLinks;
@@ -297,7 +299,7 @@ export async function deleteCard(id) {
   // 事务内一次性完成 回收站快照 + 墓碑 + 删卡 + 删复习 + 删卡组关联 + 切断图谱边，保证原子、无悬空引用
   // 注：cardGroupLinks 此前漏删 —— 删卡后关联行原样留在库里（还进同步包跨设备传播），
   //     卡组详情页会统计到已被删除的「幽灵卡」，且永不清理。
-  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.embeddings, db.notes, async () => {
+  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.cardWordLinks, db.embeddings, db.notes, async () => {
     // 1) 回收站快照（含复习记录 + 卡组关联，便于恢复时一并还原）
     const reviews = await db.reviews.where('cardId').equals(id).toArray();
     const links = await db.cardGroupLinks.where('cardId').equals(id).toArray();
@@ -333,6 +335,12 @@ export async function deleteCard(id) {
     await db.reviews.where('cardId').equals(id).delete();
     // 5) 删卡组关联（此前漏删 → 指向已删卡的悬空行常驻并进同步包）
     await db.cardGroupLinks.where('cardId').equals(id).delete();
+    // 5.5) v31：删通用卡↔英语词卡链接（同 cardGroupLinks 逻辑：不写墓碑 → 对端悬空链接复活）
+    const cwLinks = await db.cardWordLinks.where('cardId').equals(id).toArray();
+    if (cwLinks.length) {
+      await db.tombstones.bulkPut(cwLinks.map(l => ({ id: l.id, kind: 'cardWordLink', deletedAt: now() })));
+    }
+    await db.cardWordLinks.where('cardId').equals(id).delete();
     // 6) 切断关联图谱边（round26 H-2：复用上面已查出的 edges，bulkDelete 一次删净）
     if (edges.length) await db.graphEdges.bulkDelete(edges.map(e => e.id));
     // 7) 删向量索引（round15 P1：此前漏删，本端 RAG 检索到已删卡的幽灵向量）
@@ -1704,8 +1712,10 @@ export async function deleteCardGroup(id) {
   // 墓碑：卡组本体 kind=cardGroup、被级联删掉的全部关联行 kind=groupLink。
   // 此前两者都不写墓碑 —— 结果是「A 设备删卡组 → B 设备下次同步原样推回来」，
   // 删除永不生效（sync-manifest 的注释早就声明要走墓碑，只是实现没跟上）。
-  await db.transaction('rw', db.cardGroups, db.cardGroupLinks, db.tombstones, async () => {
+  // v40 卡组对等：与英语词组同机制，删前写回收站快照（含成员关联），回收站可恢复。
+  await db.transaction('rw', db.cardGroups, db.cardGroupLinks, db.tombstones, db.trash, async () => {
     const links = await db.cardGroupLinks.where('groupId').equals(id).toArray();
+    await trashItem(id, 'cardGroup', { ...plain(g), _groupLinks: links });
     await db.cardGroupLinks.where('groupId').equals(id).delete();
     await db.cardGroups.delete(id);
     await db.tombstones.put({ id, kind: 'cardGroup', deletedAt: now() });
@@ -1801,4 +1811,48 @@ export async function getParkedCardIds() {
     if (anyOf.has(c.id) && !activeOf.has(c.id)) parked.add(c.id);
   }
   return parked;
+}
+
+// ---------- v31：通用卡 ↔ 英语词卡链接（cardWordLinks，多对多「同一知识点」） ----------
+// 设计：只存映射，不互串内容。cards 与 wordCards 字段/SRS 各自独立同步，
+//   本表让通用卡详情可挂多个英语词（如「操作系统死锁」卡挂「deadlock」词卡），
+//   英语词详情可回看其通用卡；随 sync-manifest 的 idOnly 策略跨设备一致。
+// id = `${cardId}:${wordCardId}` 确定性拼接，两端同 id 幂等。
+
+export async function linkCardWord(cardId, wordCardId) {
+  if (!cardId || !wordCardId) return null;
+  const id = `${cardId}:${wordCardId}`;
+  const row = { id, cardId, wordCardId, addedAt: Date.now() };
+  await db.cardWordLinks.put(row);
+  return row;
+}
+
+export async function unlinkCardWord(cardId, wordCardId) {
+  const id = `${cardId}:${wordCardId}`;
+  const cur = await db.cardWordLinks.get(id);
+  if (!cur) return false;
+  await db.transaction('rw', db.cardWordLinks, db.tombstones, async () => {
+    await db.cardWordLinks.delete(id);
+    await db.tombstones.put({ id, kind: 'cardWordLink', deletedAt: Date.now() });
+  });
+  return true;
+}
+
+export async function wordCardsOfCard(cardId) {
+  const links = await db.cardWordLinks.where('cardId').equals(cardId).sortBy('addedAt');
+  if (!links.length) return [];
+  const cards = await db.wordCards.bulkGet(links.map(l => l.wordCardId));
+  return links.map(l => cards.find(c => c && c.id === l.wordCardId)).filter(Boolean);
+}
+
+export async function cardOfWord(wordCardId) {
+  // 反向查找：一个英语词可对应多张通用卡，返回第一张（按 addedAt 最早）
+  const links = await db.cardWordLinks.where('wordCardId').equals(wordCardId).sortBy('addedAt');
+  if (!links.length) return null;
+  const c = await db.cards.get(links[0].cardId);
+  return c || null;
+}
+
+export async function allCardWordLinks() {
+  return db.cardWordLinks.toArray();
 }

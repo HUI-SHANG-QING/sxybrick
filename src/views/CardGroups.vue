@@ -8,12 +8,39 @@ import { confirmDialog } from '../utils/confirm.js';
 import CardModal from '../components/CardModal.vue';
 import {
   listCardGroups, createCardGroup, updateCardGroup, deleteCardGroup,
-  cardGroupCardIds, setCardGroups,
+  cardGroupCardIds, setCardGroups, listCards,
 } from '../repo.js';
 
 const groups = ref([]);
 const cardsCache = ref(new Map()); // groupId -> 组内卡片（懒加载）
 const loading = ref(true);
+// 成员数（v40 对等：词组页显示「{n} 个单词」，卡组页此前没有）
+const memberCount = ref(new Map()); // groupId -> 卡片数
+async function reloadCounts() {
+  const entries = await Promise.all(
+    groups.value.map(async g => [g.id, (await cardGroupCardIds(g.id)).length])
+  );
+  memberCount.value = new Map(entries);
+}
+// v40 对等：批量添加卡片到组（与词组页「＋ 添加单词」弹窗同款交互）
+const addOpen = ref(false);
+const addChecks = ref({});
+const allCards = ref([]);
+const addingFor = ref(null);
+async function openAdd(g) {
+  addingFor.value = g;
+  addChecks.value = {};
+  addOpen.value = true;
+  const res = await listCards({});
+  allCards.value = (res?.items || res || []).slice(0, 500);
+}
+async function saveAdd() {
+  if (!addingFor.value) return;
+  const ids = Object.entries(addChecks.value).filter(([, v]) => v).map(([id]) => id);
+  if (ids.length) await setCardGroups(ids, [addingFor.value.id]);
+  addOpen.value = false;
+  await reload();
+}
 
 // 新建/编辑表单
 // showForm 单独控制表单显隐：editing=null 既表示「新建」又会被 v-if 判为不在编辑中 → 点新建没反应。
@@ -26,6 +53,7 @@ async function reload() {
   loading.value = true;
   try {
     groups.value = await listCardGroups();
+    await reloadCounts();
     // 默认展开第一个卡组，进入即看到组内卡片完整预览
     if (groups.value.length && !expanded.value) await toggleExpand(groups.value[0]);
   } finally {
@@ -151,6 +179,8 @@ onMounted(reload);
             <div class="g-name">
               {{ g.name }}
               <span class="chip chip-sm" :class="g.status === 'active' ? 'on' : ''">{{ g.status === 'active' ? t('views.cardGroups.statusActive') : t('views.cardGroups.archivedChip') }}</span>
+              <!-- v40 对等：与词组页同款成员计数 -->
+              <span class="chip chip-sm muted">{{ t('views.cardGroups.members', undefined, { n: memberCount.get(g.id) || 0 }) }}</span>
             </div>
             <div v-if="g.description" class="hint">{{ g.description }}</div>
           </div>
@@ -164,6 +194,9 @@ onMounted(reload);
 
         <!-- 组内卡片 -->
         <div v-if="expanded === g.id" class="group-cards">
+          <div class="gc-add">
+            <button class="btn" @click="openAdd(g)">{{ t('views.cardGroups.addMember') }}</button>
+          </div>
           <div v-if="!expandedCards.length" class="hint">{{ t('views.cardGroups.emptyCards') }}</div>
           <div v-for="c in expandedCards" :key="c.id" class="gc-row">
             <div class="gc-text" @click="openCard(c)" :title="t('views.cardGroups.editTip')">
@@ -179,6 +212,22 @@ onMounted(reload);
       </div>
     </div>
     <CardModal v-model="cardModalOpen" :card="editCard" @saved="onCardSaved" />
+
+    <!-- v40 对等：批量添加卡片到组（词组页同款） -->
+    <el-dialog v-model="addOpen" :title="t('views.cardGroups.addMember')" width="560px">
+      <div class="mlist">
+        <label v-for="c in allCards" :key="c.id" class="mrow">
+          <input type="checkbox" v-model="addChecks[c.id]" />
+          <b>{{ (c.front || '').slice(0, 30) }}</b>
+          <span class="mm">{{ (c.back || '').slice(0, 30) }}</span>
+        </label>
+        <p v-if="!allCards.length" class="hint">{{ t('views.cardGroups.noCandidates') }}</p>
+      </div>
+      <template #footer>
+        <button class="btn" @click="addOpen = false">{{ t('views.cardGroups.cancel') }}</button>
+        <button class="btn btn-primary" @click="saveAdd">{{ t('views.cardGroups.save') }}</button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -204,6 +253,11 @@ onMounted(reload);
 .gc-back { color: var(--ink-2); white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
 .gc-tags { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
 .gc-tag { font-size: 11px; color: var(--accent, #1677ff); background: color-mix(in srgb, var(--accent, #1677ff) 10%, transparent); border-radius: 6px; padding: 0 6px; }
+.gc-add { margin-bottom: 4px; }
+.mlist { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow: auto; }
+.mrow { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.mrow .mm { color: var(--ink-2); margin-left: 4px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-sm.muted { opacity: .75; }
 .chip-sm { font-size: 11px; padding: 0 6px; }
 .empty { padding: 40px 0; text-align: center; color: var(--ink-2); }
 </style>
