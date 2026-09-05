@@ -15,6 +15,7 @@ import { runAnalysis } from '../analysis/link-engine.js';
 import { normalizeGraphEnds } from '../algorithms/graph-resolve.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import ChartZoomBar from '../components/ChartZoomBar.vue';
+import { useFullscreen } from '../composables/useFullscreen.js';
 import { t } from '../i18n/index.js';
 import { stepZoom, ZOOM_MIN, ZOOM_MAX, readZoom } from '../composables/useTextZoom.js';
 
@@ -239,16 +240,21 @@ async function createGroupFromResult() {
 
 // ---------- ECharts 图谱（卸载必 dispose） ----------
 let charts = [];
-// P0 图表缩放：多图共享档位（claZoom）+ 单图大图模式（fsChart 在 body 下重 init）；档位按模块持久化
+// P0 图表缩放：多图共享档位（claZoom）；档位按模块持久化
 const claZoom = ref(readZoom('cardLinkAnalysis'));
 watch(claZoom, (v) => { try { localStorage.setItem(`sxy_zoom_${'cardLinkAnalysis'}`, String(v)); } catch { /* 隐私模式忽略 */ } });
-const fsOpen = ref(false);
-const fsChartEl = ref(null);
-const fsGraphData = ref(null);
-let fsChart = null;
+// round37 E3：单图「大图」统一为「逐图真全屏」——与知识图谱/导图同一心智，
+// 替换旧的 teleport 大图面板。全屏目标是消息里那个真实的 .al-graph 容器，
+// 走原生 Fullscreen + fake CSS 退化（D13 已兜底 ESC/浮动退出按钮）。
+const fsTarget = ref(null);
+const { isFullscreen: claFsActive, enter: claFsEnter, exit: claFsExit } = useFullscreen(
+  fsTarget, () => { fsTarget.value?._chart?.resize(); },
+);
 
 const scrollAnchor = ref(null);
-function registerGraph(el) {
+function registerGraph(el, m) {
+  // round37 E3：m = 该图对应的消息；DOM 记在消息上，openGraphFs(m) 直接拿全屏目标
+  if (m) m._el = el;
   if (!el) return;
   if (!el._chart) el._chart = echarts.init(el);
 }
@@ -400,36 +406,23 @@ function injectClaZoom(opt) {
   }
 }
 // A−/A+ 步进 + 适应窗口复位（多图同步）
-// 关键：全屏大图走独立 fsChart 实例，renderGraphs() 只重画消息流内联图，
-// 全屏状态下必须调 renderFsGraph()，否则 A+/A−/适应 在面板里完全无效（round23 D12）。
-function applyClaZoom(dir) { claZoom.value = stepZoom(claZoom.value, dir); if (fsOpen.value) renderFsGraph(); else renderGraphs(); }
-function fitCla() { claZoom.value = 1; if (fsOpen.value) renderFsGraph(); else renderGraphs(); }
-// 在大图容器里（重）渲染 fsChart：销毁旧实例→init→注入当前 claZoom 档位→resize
-function renderFsGraph() {
-  if (!fsChartEl.value) return;
-  try {
-    if (fsChart) { fsChart.dispose(); fsChart = null; }
-    fsChart = echarts.init(fsChartEl.value);
-    const opt = graphOption(fsGraphData.value);
-    injectClaZoom(opt);
-    fsChart.setOption(opt, true);
-    fsChart.resize();
-  } catch (e) {
-    console.error('[CardLinkAnalysis] fs graph render failed:', e?.message || e, fsGraphData.value);
-  }
+// round37 E3：全屏走「真实 .al-graph 容器」原生全屏（与 KG/导图同一心智），不再有独立
+// fsChart 实例——renderGraphs() 重画的就是全屏中的那个图，无需分支（round23 D12 的
+// 分流逻辑随 fsChart 一并移除）。
+function applyClaZoom(dir) { claZoom.value = stepZoom(claZoom.value, dir); renderGraphs(); }
+function fitCla() { claZoom.value = 1; renderGraphs(); }
+// 单图真全屏：目标是该消息的 .al-graph 容器（矢量清晰，便于专注复习拓扑/关键路径）。
+// fake 退化路径的退出兜底（ESC/浮动按钮）由 useFullscreen 内建（D13）。
+function openGraphFs(m) {
+  const el = m?._el;
+  if (!el) return;
+  fsTarget.value = el;
+  try { if (!el._chart) el._chart = echarts.init(el); } catch { /* 已存在则复用 */ }
+  claFsEnter();
 }
-// 单图大图模式：把该图数据在大容器里重 init（矢量清晰，便于专注复习拓扑/关键路径）
-async function openGraphFs(m) {
-  fsGraphData.value = m?.resultData || null;
-  fsOpen.value = true;
-  await nextTick();
-  renderFsGraph();
-}
-async function closeGraphFs() {
-  if (fsChart) { fsChart.dispose(); fsChart = null; }
-  fsOpen.value = false;
-  fsGraphData.value = null;
-}
+function closeGraphFs() { claFsExit(); }
+function isGraphFs(m) { return claFsActive.value && !!m && m._el === fsTarget.value; }
+function toggleGraphFs(m) { (isGraphFs(m) ? closeGraphFs : openGraphFs)(m); }
 function groupColor(g) {
   const key = String(g || '');
   let h = 0; for (const ch of key) h = (h * 31 + ch.codePointAt(0)) >>> 0;
@@ -469,7 +462,8 @@ onBeforeUnmount(() => {
   // 铁律：ECharts 实例随组件销毁（防内存泄漏）
   charts.forEach(c => c.dispose());
   charts = [];
-  if (fsChart) { fsChart.dispose(); fsChart = null; }
+  // round37 E3：fsChart 独立实例已移除（逐图真全屏直接全屏真实 .al-graph 容器，
+  // 其 el._chart 已在上面 charts 里统一 dispose），此处无需再单独清理。
   if (onResize) window.removeEventListener('resize', onResize);
 });
 </script>
@@ -536,9 +530,9 @@ onBeforeUnmount(() => {
               <!-- graph -->
               <div v-if="m.resultType === 'graph'" class="al-graph-wrap">
                 <div class="al-graph-bar">
-                  <ChartZoomBar :zoom="claZoom" @zoom-in="applyClaZoom(1)" @zoom-out="applyClaZoom(-1)" @fit="fitCla" @toggle-fullscreen="openGraphFs(m)" />
+                  <ChartZoomBar :zoom="claZoom" :fullscreen="isGraphFs(m)" @zoom-in="applyClaZoom(1)" @zoom-out="applyClaZoom(-1)" @fit="fitCla" @toggle-fullscreen="toggleGraphFs(m)" />
                 </div>
-                <div class="al-graph" :ref="el => registerGraph(el)"></div>
+                <div class="al-graph" :ref="el => registerGraph(el, m)"></div>
                 <button v-if="m.resultData?.order" class="btn mini-btn" @click="createGroupFromResult">{{ t('views.cardLinkAnalysis.createGroupBtn') }}</button>
               </div>
               <!-- timeline -->
@@ -583,19 +577,8 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- 图谱大图模式：单图在近全屏容器重 init，矢量清晰，便于反复复习拓扑/关键路径 -->
-    <teleport to="body">
-      <div v-if="fsOpen" class="cla-fs-mask" @click.self="closeGraphFs" style="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:95;display:flex;align-items:center;justify-content:center;padding:16px">
-        <div class="cla-fs-panel" style="width:min(1400px,96vw);height:min(92vh,1000px);background:var(--panel);border-radius:14px;box-shadow:0 16px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;overflow:hidden">
-          <div class="cla-fs-bar" style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)">
-            <strong style="font-size:14px">{{ t('views.cardLinkAnalysis.graphFullscreenTitle') }}</strong>
-            <span style="flex:1"></span>
-            <ChartZoomBar :zoom="claZoom" :fullscreen="true" @zoom-in="applyClaZoom(1)" @zoom-out="applyClaZoom(-1)" @fit="fitCla" @toggle-fullscreen="closeGraphFs" />
-          </div>
-          <div ref="fsChartEl" style="flex:1;width:100%;min-height:0"></div>
-        </div>
-      </div>
-    </teleport>
+    <!-- round37 E3：旧「图谱大图面板」（teleport 遮罩 + 独立 fsChart）已移除，
+         单图「⛶ 大图」改为逐图原生真全屏（与知识图谱/导图同一心智，见 openGraphFs） -->
   </div>
 </template>
 
