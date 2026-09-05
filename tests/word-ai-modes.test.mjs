@@ -13,6 +13,7 @@ import {
   REVIEW_MODES, MODE_IDS, modeContract, isChoiceMode,
   buildModesPrompt, validateModeQuestion, normalizeModeQuestions,
   generateModeQuestions, applyModeQuestions, batchGenerateMeanings, hasLlmChannel,
+  batchGenerateModeQuestions,
   MODES_BY_KIND, modesForCard, kindOf,
 } from '../src/services/word-ai-modes.js';
 
@@ -204,4 +205,85 @@ test('generateModeQuestions：template 卡返回 no-modes-for-template，sentenc
   });
   assert.equal(sent.ok, true);
   assert.equal(Object.keys(sent.modes).length, 6);
+});
+
+// ---------- #9：单词本批量出题 ----------
+// fake agent 回一份「zh 答案侧」合法题（对任意词都过校验：答案为中文、选择题含正确项）
+const bookData = { modes: {
+  spell: { q: '任意词', a: '中文释义' },
+  choice: { q: '任意词', a: '中文释义', options: ['中文释义', '干扰一', '干扰二', '干扰三'] },
+  flashcard: { q: '任意词', a: '中文释义' },
+  readAloud: { q: '任意词', a: '中文释义' },
+  adaptive: { q: '任意词', a: '中文释义' },
+} };
+
+test('batchGenerateModeQuestions：逐卡生成、自动落库、汇总不合规', async () => {
+  const cards = [
+    { id: 'c1', word: 'apple' },
+    { id: 'c2', word: 'banana' },
+    { id: 'c3', word: 'cherry' },
+  ];
+  const saved = [];
+  const r = await batchGenerateModeQuestions({
+    cards, settings: {}, agentCtx: fakeAgent(bookData),
+    saveFn: async (id, patch) => { saved.push({ id, modes: patch.modeQuestions }); },
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.total, 3);
+  assert.equal(r.perCard.length, 3);
+  assert.equal(r.generated, 15, '3 卡 × 5 个 zh 模式 = 15');
+  assert.equal(r.failed, 0);
+  assert.equal(r.saved, 3, 'saveFn 被每张成功卡调用');
+  assert.equal(saved.length, 3);
+  assert.ok(saved.every((s) => Object.keys(s.modes).length === 5));
+  // 单卡失败不影响其余卡：混入一张 template 卡
+  const r2 = await batchGenerateModeQuestions({
+    cards: [...cards, { id: 't1', word: '模板', kind: 'template' }],
+    settings: {}, agentCtx: fakeAgent(bookData),
+    saveFn: async () => {},
+  });
+  assert.equal(r2.failed, 1, 'template 卡生成失败计入 failed');
+  assert.equal(r2.ok, true, '其余卡成功仍 ok');
+  const t1 = r2.perCard.find((p) => p.id === 't1');
+  assert.equal(t1.ok, false);
+  assert.equal(t1.reason, 'no-modes-for-template');
+});
+
+test('batchGenerateModeQuestions：空卡表返回 empty-cards', async () => {
+  const r = await batchGenerateModeQuestions({ cards: [], settings: {}, agentCtx: fakeAgent(bookData) });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'empty-cards');
+  assert.equal(r.total, 0);
+});
+
+test('batchGenerateModeQuestions：onProgress 接收进度且可中断', async () => {
+  const cards = [
+    { id: 'c1', word: 'apple' },
+    { id: 'c2', word: 'banana' },
+    { id: 'c3', word: 'cherry' },
+  ];
+  const ticks = [];
+  const r = await batchGenerateModeQuestions({
+    cards, settings: {}, agentCtx: fakeAgent(bookData),
+    onProgress: (p) => { ticks.push({ done: p.done, total: p.total }); return p.done < 2; }, // 第 2 张后停
+  });
+  assert.equal(ticks.length, 2, '只收到 2 次进度（第 2 张后中断）');
+  assert.deepEqual(ticks[0], { done: 1, total: 3 });
+  assert.equal(r.perCard.length, 2, '中断后只处理 2 张');
+  assert.equal(r.total, 3);
+});
+
+test('batchGenerateModeQuestions：saveFn 抛错被吞、不阻断批次、saved 计数准确', async () => {
+  const cards = [
+    { id: 'c1', word: 'apple' },
+    { id: 'c2', word: 'banana' },
+  ];
+  const r = await batchGenerateModeQuestions({
+    cards, settings: {}, agentCtx: fakeAgent(bookData),
+    saveFn: async () => { throw new Error('db down'); },
+  });
+  assert.equal(r.ok, true, '生成仍成功');
+  assert.equal(r.saved, 0, '落库全失败但计数准确');
+  assert.equal(r.generated, 10);
+  assert.ok(r.perCard.every((p) => p.ok && p.saved === false), '每张 ok 但 saved=false');
 });

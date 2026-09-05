@@ -246,6 +246,75 @@ export function applyModeQuestions(card, modes) {
   };
 }
 
+// ---------- Word-book batch question generation (#9: scope-based instead of single card) ----------
+// Same pattern as batchGenerateMeanings: calls generateModeQuestions per card,
+// supports progress callback and interruption (onProgress returning false stops the loop),
+// a single card's failure does not block the others.
+// saveFn is optional — when provided, each succeeded card is merged and persisted (caller injects
+// updateWordCard so this service layer stays DB-free); when omitted, only results are returned.
+export async function batchGenerateModeQuestions({
+  cards, settings, agentCtx, onProgress, saveFn,
+}) {
+  const list = (cards || []).filter((c) => c && String(c.word || '').trim());
+  if (!list.length) {
+    return { ok: false, reason: 'empty-cards', perCard: [], total: 0, generated: 0, failed: 0, saved: 0 };
+  }
+  const perCard = [];
+  let generated = 0;
+  let failed = 0;
+  let saved = 0;
+  for (let i = 0; i < list.length; i++) {
+    const card = list[i];
+    let r;
+    try {
+      r = await generateModeQuestions({ card, settings, agentCtx });
+    } catch (e) {
+      r = { ok: false, reason: 'throw:' + (e?.message || e) };
+    }
+    let savedModes = null;
+    let savedOk = false;
+    if (r.ok) {
+      const merged = applyModeQuestions(card, r.modes);
+      savedModes = merged.modeQuestions;
+      generated += Object.keys(r.modes).length;
+      if (saveFn) {
+        try {
+          await saveFn(card.id, { modeQuestions: merged.modeQuestions });
+          saved++;
+          savedOk = true;
+        } catch (e) {
+          console.warn('[word-ai-modes] save mode questions failed for', card.id, e?.message || e);
+        }
+      }
+    } else {
+      failed++;
+    }
+    perCard.push({
+      id: card.id,
+      word: card.word,
+      kind: kindOf(card),
+      ok: r.ok,
+      modes: r.ok ? r.modes : null,
+      via: r.ok ? r.via : undefined,
+      dropped: r.dropped || [],
+      reason: r.ok ? null : (r.reason || 'unknown'),
+      saved: savedOk,
+    });
+    if (onProgress) {
+      const keepGoing = onProgress({
+        done: i + 1,
+        total: list.length,
+        generated,
+        failed,
+        saved,
+        current: { id: card.id, word: card.word, ok: r.ok },
+      });
+      if (keepGoing === false) break;
+    }
+  }
+  return { ok: generated > 0, perCard, total: list.length, generated, failed, saved };
+}
+
 // ---------- 大纲中文释义批量补齐 ----------
 // 4956 词不可能一次性生成：按批（默认 40 词/批）调用，逐批落库，
 // 支持进度回调与中断（onBatch 返回 false 即停止），失败批次不影响已落库批次。
