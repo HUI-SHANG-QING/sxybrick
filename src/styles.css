@@ -1555,13 +1555,15 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
 }
 
 /* 全屏退化方案：当浏览器 Fullscreen API 被 iframe/CSP 拦下时，用 CSS 铺满代替。
-   用 !important 覆盖容器自带的内联尺寸（如图表 height:58vh），确保真正占满视口。 */
+   用 !important 覆盖容器自带的内联尺寸（如图表 height:58vh），确保真正占满视口。
+   背景必须显式声明为不透明白色——若保持 transparent，浏览器对全屏/铺满元素
+   会渲染出近黑色底，图谱/导图的暗色容器在全屏后呈现整块黑底（常见反馈）。 */
 .fake-fullscreen {
   position: fixed !important;
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
   z-index: 95 !important;
-  background: var(--panel, #fff);
+  background: #fff !important;
   overflow: auto;
 }

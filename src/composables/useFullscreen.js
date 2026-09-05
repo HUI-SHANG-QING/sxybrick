@@ -21,6 +21,9 @@ export function useFullscreen(targetRef, onChange) {
   async function enter() {
     const el = targetRef.value;
     if (!el) return;
+    // 全屏元素自带的透明背景会被浏览器渲染成近黑色底（图表全屏后黑屏）。
+    // 进入全屏前先落一个不透明白底，退出/取消全屏时再还原。
+    el.style.background = '#fff';
     if (el.requestFullscreen) {
       try {
         await el.requestFullscreen();
@@ -43,15 +46,20 @@ export function useFullscreen(targetRef, onChange) {
     if (fake.value) {
       fake.value = false;
       const el = targetRef.value;
-      if (el) el.classList.remove('fake-fullscreen');
+      if (el) { el.classList.remove('fake-fullscreen'); el.style.background = ''; }
       isFullscreen.value = false;
       notify();
       return;
     }
     if (document.fullscreenElement) {
-      document.exitFullscreen().then(() => { isFullscreen.value = false; notify(); }).catch(() => {});
+      document.exitFullscreen().then(() => {
+        isFullscreen.value = false;
+        if (targetRef.value) targetRef.value.style.background = '';
+        notify();
+      }).catch(() => {});
     } else {
       isFullscreen.value = false;
+      if (targetRef.value) targetRef.value.style.background = '';
       notify();
     }
   }
@@ -67,7 +75,7 @@ export function useFullscreen(targetRef, onChange) {
     const el = targetRef.value;
     const real = !!document.fullscreenElement && document.fullscreenElement === el;
     isFullscreen.value = real;
-    if (!real && el) el.classList.remove('fake-fullscreen');
+    if (!real && el) { el.classList.remove('fake-fullscreen'); el.style.background = ''; }
     notify();
   }
 

@@ -299,8 +299,9 @@ onMounted(async () => {
 .chat-fs-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 .chat-box { flex: 1; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; }
 .msg { display: flex; margin-bottom: 12px; }
-.msg.user { justify-content: flex-end; }
-.bubble { max-width: 80%; padding: 10px 14px; border-radius: 12px; white-space: normal; word-break: break-word; line-height: 1.6; }
+.msg.user { justify-content: center; }
+.msg.assistant { justify-content: center; }
+.bubble { max-width: 76%; width: 100%; padding: 12px 18px; border-radius: 12px; white-space: normal; word-break: break-word; line-height: 1.75; font-size: 15px; }
 .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
 .msg.assistant .bubble { background: var(--code-bg); color: var(--ink); border-bottom-left-radius: 4px; }
 .agent-tag { font-size: 11px; color: var(--ink-2); margin-top: 6px; }
