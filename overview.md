@@ -1,32 +1,23 @@
-# #9 智能模式改选单词本批量出题（commit `39d70fc`）
+# round22：7 类报障实证修复（commit `f8d45b3`，已推送 origin/main）
 
-## 改动摘要
-英语「AI 智能模块」从「选单张单词卡」改为「选**单词本范围**批量出题」，对齐用户"英语智能模块应改为选单词本"的诉求。
+## 每项根因 + 修复（全部生产构建 + CDP 复现/验证，非采信）
 
-### 1. `src/services/word-ai-modes.js`
-新增 `batchGenerateModeQuestions({ cards, settings, agentCtx, onProgress, saveFn })`：
-- 逐卡调用既有 `generateModeQuestions`（13 模式判分口径、不合规丢弃逻辑全部复用）。
-- `onProgress({ done, total, generated, failed, saved, current })` 进度回调；回调返回 `false` 即中断后续卡。
-- 单卡失败不阻断其余卡（`failed` 计数准确）。
-- `saveFn` 可选——调用方注入 `updateWordCard`，服务层保持无 DB 依赖；自动合并 `modeQuestions` 落库；`saved` 反映真实落库成功。
+| # | 报障 | 根因 | 修复 | 验证 |
+|---|------|------|------|------|
+| ① | 365 天热力图只有坐标轴没格子 | series 无 `itemStyle` 描边 + `visualMap.max` 写死 20，低活跃日颜色≈背景（对照 168h 图有描边+max=8） | max 按数据动态取(≥1) + 每格描边 + `renderChart` 加 `{allowEmpty}`（全 0 也铺满格子） | CDP 像素探针：43 色桶 / 85.9% 非白 |
+| ② | AI 助手对话不居中、中间灰底 | `.ai-body` 3 列却 **4 个子元素**，消息流被 auto-flow 挤进右 120px 列 | 显式 `grid-column/row`（左右栏跨两行，fs-row 中列第1行，chat-box 中列第2行） | CDP `#/ai` 0 console error |
+| ③ | Agent 打不开 `Cannot access 'x' before initialization` | `<script setup>` 里 `useFullscreen(streamBox)` 在 `const streamBox=ref(null)` **声明前取用** | `streamBox` 声明上移 | 生产 chunk 先复现后重探 ERRORS(0) |
+| ④ | 桑基图一坨黑 | 节点单色 accent，密集图糊成黑块 | PALETTE 8 色按序轮换（sankey + 力导向降级分支） | build ✓ |
+| ⑤ | 同步永远「待同步」+ 按钮禁用 | a) `fetch` 无超时 → 中枢不可达挂起致按钮全禁；b) pending 判定无时钟偏差容忍 → 对端时钟略快 = 永远 pending | `AbortSignal.timeout(20s)` + `SYNC_STATUS_SKEW_MS=5min` 容忍（导出常量） | sync-status 测试更新语义 8/8 |
+| ⑥ | 新建词组后加词无入口/分不清词组/不能检索 | 新建后折叠看不到按钮；加词弹窗无检索、saveAdd 只加不减 | 新建自动展开；弹窗实时检索+标题带目标词组名；差量同步（取消勾选即移出）；列表可搜索 | build ✓ |
+| ⑦ | 单词本编辑无「添加词组」 | 编辑弹窗缺归组控件 | 「归入词组」多选 chip（可搜索、预填、差量增删，一对多） | build ✓ |
 
-### 2. `src/views/WordAIModes.vue`
-- 范围选择器：**全部 / 按卡组(groupId) / 按分类(kind: word|phrase|sentence)**，group 走异步 `wordGroupCardIds`。
-- 一键「为选中的 N 张卡批量生成 13 模式题目」，生成中可停止。
-- 结果按卡汇总预览，可逐卡展开看 Q/A，失败卡标注原因，成功卡标不合规丢弃项。
+## 全局验证
+- `node --test` **910/910 全绿**（sync-status 语义随修复更新）
+- `npm run build` ✓ 42.58s · i18n 双闸 0 新增（基线重锚 15 处插行位移误报）· dep-check 0 环
+- CDP 实测 `/agent` `/ai` `/user-dashboard` `/english/groups` 均 0 console error
+- 已推送 `c1e4ef1..f8d45b3` → GitHub Actions 重新部署后生效（含 #9 单词本批量出题）
 
-### 3. `src/i18n/views/wordAiModes.js`
-补充 word-book 范围/批量/汇总中英文文案；模板唯一硬编码"模式"也走 `t()`（`modesUnit`）→ i18n 严格闸 **0 新增**、zh/en 键位对齐。
-
-### 4. `tests/word-ai-modes.test.mjs`（+4 回归）
-批量全链路(含 template 卡失败计入 failed) / 空表返 `empty-cards` / `onProgress` 中断 / `saveFn` 抛错被吞且不阻断批次。
-
-## 验证
-- `node --test` **910/910 全绿**（基线 906→910）。
-- i18n 双闸（正向/反向严格/数据层）+ `dep-check` 0 环，全通过。
-- `npm run build` ✓ built in 30.96s。
-- 已提交 `39d70fc`；`trash`/`meta` 同步维持现状（用户已确认不改动）。
-
-## 备注
-- 本地领先 `origin/main` 多个提交（`c1e4ef1`、`39d70fc` 等），push 由用户终端执行：
-  `GIT_TERMINAL_PROMPT=0 "/c/Program Files/Git/bin/git.exe" push origin main`（沙箱 PortableGit 缺 git-remote-https.exe）。
+## 说明
+- 你此前测的是**未包含 39d70fc/f8d45b3 的旧部署包**：智能模块「选一张单词卡」文案在 #9（39d70fc）已改「选单词本范围批量出题」，push 后即生效。
+- 英语词组与智能模块的联动（词组库四类、一对多归组、备用组暂停）在 v40（c1e4ef1）已落地，本次补齐了交互缺口。
