@@ -34,6 +34,8 @@ import { buildAuthHeaders } from './utils/hub-auth.js';
 import { pad2 } from './utils/format.js';
 // 审计 C3：导入后跨 tab 广播数据变更
 import { notifyDbChanged } from './utils/dbEvents.js';
+// 审计 C5：导入/同步应用墓碑后清扫孤儿复习行（父卡已不存在的 reviews/wordReviews）
+import { sweepOrphanRows } from './repo.js';
 // 快照标签里的时间跟随界面语言（此前硬编码 'zh-CN'，英文界面下仍是"2026/8/30 19:48"中文习惯）
 import { fmtLocaleDateTime } from './utils/locale-date.js';
 
@@ -809,6 +811,14 @@ export async function importBackup(backup, opts = {}) {
     if (badImgs) stats.skippedImages = badImgs;
   }
   fireProgress(opts, PHASE.IMAGES, 1);
+
+  // 审计 C5：墓碑应用后清扫孤儿复习行（父卡已不存在的 reviews/wordReviews）。
+  // fire-and-forget：只清「父卡 id 在当前库确实不存在」的行，范围严格收窄，
+  // 不阻断导入主链；失败仅 console.warn（数据无损，下次导入再试）。
+  try {
+    const n = await sweepOrphanRows();
+    if (n) console.info(`[sync] 清理孤儿复习行 ${n} 条（跨设备删除残留）`);
+  } catch (e) { console.warn('[sync] sweepOrphanRows 失败（不阻断导入）:', e?.message || e); }
 
   // 审计 C3：导入完成即向所有 tab 广播数据已变更（跨 tab 缓存失效）。
   notifyDbChanged('import');

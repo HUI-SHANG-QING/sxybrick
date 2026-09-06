@@ -18,6 +18,8 @@ import {
   buildReviewSuggestion,
   computeStats,
   groupUserOps,
+  dayWindowOf,
+  countReviewsInWindow,
 } from '../src/repo-core.js';
 
 const DAY = 86400000;
@@ -329,4 +331,44 @@ test('groupUserOps: dayHour 返回 Map，groupBy null 原样返回', () => {
 test('DEFAULT_SUBJECTS 是非空去重数组', () => {
   assert.ok(Array.isArray(DEFAULT_SUBJECTS) && DEFAULT_SUBJECTS.length > 0);
   assert.equal(new Set(DEFAULT_SUBJECTS).size, DEFAULT_SUBJECTS.length);
+});
+
+// ---------- 审计 B3：dayWindowOf / countReviewsInWindow（今日口径单一事实源） ----------
+test('dayWindowOf: 左闭右开，窗口恰 24h，整点边界不越界', () => {
+  // 用本地时间构造一个确定的 nowTs（避免测试机时区差异）：
+  const ts = new Date(2026, 8, 6, 15, 30, 0).getTime(); // 2026-09-06 15:30 本地
+  const { start, end } = dayWindowOf(ts);
+  assert.equal(start, new Date(2026, 8, 6, 0, 0, 0, 0).getTime());
+  assert.equal(end, start + 86400000);
+  // 边界：end 时刻本身应属于「下一天」，不在本窗口
+  assert.equal(countReviewsInWindow([{ cardId: 'a', reviewedAt: end }], { start, end }).times, 0);
+  assert.equal(countReviewsInWindow([{ cardId: 'a', reviewedAt: end - 1 }], { start, end }).times, 1);
+});
+
+test('countReviewsInWindow: cards=去重卡数 times=次数，同卡多次只算 1 卡', () => {
+  const { start, end } = dayWindowOf(new Date(2026, 8, 6, 12, 0, 0).getTime());
+  const reviews = [
+    { cardId: 'a', reviewedAt: start + 1000 },   // 今天 a 复习 2 次
+    { cardId: 'a', reviewedAt: start + 2000 },
+    { cardId: 'b', reviewedAt: start + 3000 },   // 今天 b 复习 1 次
+    { cardId: 'c', reviewedAt: start - 1 },      // 昨天 → 不计
+    { cardId: 'd', reviewedAt: end },            // 明天零点整 → 不计（左闭右开）
+  ];
+  const r = countReviewsInWindow(reviews, { start, end });
+  assert.equal(r.times, 3);   // a×2 + b×1
+  assert.equal(r.cards, 2);   // a、b（去重）
+});
+
+test('countReviewsInWindow: computeStats 的 todayReviews 语义 = 去重卡片数', () => {
+  // computeStats 内部已改用 countReviewsInWindow(...).cards —— 此处锁定「去重」口径不再漂移
+  const ts = new Date(2026, 8, 6, 9, 0, 0).getTime();
+  const cards = [mkCard({ id: 'c1' }), mkCard({ id: 'c2' })];
+  const reviews = [
+    { cardId: 'c1', reviewedAt: ts - 3600000 },
+    { cardId: 'c1', reviewedAt: ts - 7200000 },
+    { cardId: 'c2', reviewedAt: ts - 1800000 },
+    { cardId: 'c3', reviewedAt: ts - 10 * DAY }, // 历史
+  ];
+  const stats = computeStats(cards, reviews, ts);
+  assert.equal(stats.todayReviews, 2); // c1、c2 两张去重；c3 非当日不计
 });

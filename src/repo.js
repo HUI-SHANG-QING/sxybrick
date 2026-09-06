@@ -443,6 +443,29 @@ export async function cleanupOrphanImages(ids) {
   return removed;
 }
 
+/**
+ * 审计 C5（跨设备孤儿复习行清扫）：删除墓碑只清除「被删行」本身，不会级联它的子表——
+ * 本地 deleteCard 会把 reviews 快照进回收站并删行，但**对端**只收到卡片墓碑，
+ * 该卡的历史 reviews/wordReviews 没有墓碑可对，于是长期离线设备上留下
+ * 「父卡已不存在」的孤儿复习行，永久占空间并污染统计（今日复习数/热力图/画像）。
+ * 修复：每次同步/导入墓碑应用完之后清扫一次——只删「父卡 id 在当前库确实不存在」的行。
+ * 范围严格收窄：回收站恢复（restoreFromTrash）是从快照 bulkPut 复习行，与这里不冲突；
+ * 空/缺 cardId 的遗留脏行一并清理。幂等，可重复执行。
+ * @returns {Promise<number>} 清理的孤儿行总数
+ */
+export async function sweepOrphanRows() {
+  const [cards, wordCards, reviews, wordReviews] = await Promise.all([
+    db.cards.toArray(), db.wordCards.toArray(), db.reviews.toArray(), db.wordReviews.toArray(),
+  ]);
+  const cardIds = new Set(cards.map(c => c.id));
+  const wordCardIds = new Set(wordCards.map(c => c.id));
+  const delReviews = reviews.filter(r => !cardIds.has(r.cardId)).map(r => r.id);
+  const delWord = wordReviews.filter(r => !wordCardIds.has(r.cardId)).map(r => r.id);
+  if (delReviews.length) await db.reviews.bulkDelete(delReviews);
+  if (delWord.length) await db.wordReviews.bulkDelete(delWord);
+  return delReviews.length + delWord.length;
+}
+
 // 手动标记 / 取消标记错题
 export async function setMarked(id, marked) {
   const card = await db.cards.get(id);
@@ -1529,7 +1552,16 @@ export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = fal
     }
     if (pairCnt.size < 2) return dataNotEnough;
     let arr = [...pairCnt.entries()].map(([k,c])=>({key:k,count:c}));
-    arr.sort((a,b)=>worst ? a.count-b.count : b.count-a.count);
+    if (worst) {
+      // 审计 B7：共现一次的组合（count=1）只是复习序列里两张相邻卡的随机噪声，不是
+      // 「弱关联」信号——若在它们里比「最少」，几乎总是从一大堆 count=1 里挑一个，
+      // 结论无意义且对 Map 插入序敏感。故「最少共现」只在真正重复出现（count>=2）的
+      // 组合里比较：出现得最少但仍成对 = 最弱的真实联系，建议才成立。
+      arr = arr.filter(x => x.count >= 2);
+      if (!arr.length) return dataNotEnough;
+    }
+    // 排序加 key 字典序决胜：消除同 count 时对遍历顺序的依赖（确定性收敛）
+    arr.sort((a, b) => (worst ? a.count - b.count : b.count - a.count) || (a.key < b.key ? -1 : 1));
     const top = arr[0];
     return {
       notEnough: false,

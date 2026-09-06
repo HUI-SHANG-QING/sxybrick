@@ -153,7 +153,15 @@ export async function getModuleStatus(opts = {}) {
       //   （1 不可能 > lastSyncAt+300000），>5000 行的表新变更永远不显示 pending。
       //   修复：对有时间戳索引的大表用 orderBy().last() 精确取最新活跃行（O(log n)）；
       //   其余表仍 cap 采样（pending 检测在该表上有已知近似缺口）。
-      const TS_INDEX = { userOps: 't', embeddings: 'updatedAt' };
+      // 审计 C6（>5000 采样缺口）：此前只有 userOps/embeddings 走精确路径——对长期用户，
+      //   reviews/wordReviews/cards 也可能上万行，回落 limit(5000) **自然序**采样会漏掉
+      //   新加/新改的行 → 面板误报 ok（真实待同步但看不见）。这三表都有对应活跃时间戳索引，
+      //   一并纳入精确路径。注：cards 的活跃含 reviewedAt（复习不 bump updatedAt），
+      //   「仅复习」的变更仍可能慢半拍——这是如实标注的近似边界，真实数据不会丢。
+      const TS_INDEX = {
+        userOps: 't', embeddings: 'updatedAt',
+        reviews: 'reviewedAt', wordReviews: 'reviewedAt', cards: 'updatedAt',
+      };
       if (count > 5000 && TS_INDEX[t.table]) {
         const newest = await db[t.table].orderBy(TS_INDEX[t.table]).last();
         maxTs = Math.max(maxTs, livenessTs(newest) || 0);
