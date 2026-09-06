@@ -7,7 +7,7 @@ import { toast } from '../utils/toast.js';
 import { confirmDialog } from '../utils/confirm.js';
 import {
   listWordGroups, createWordGroup, updateWordGroup, deleteWordGroup,
-  wordGroupCardIds, setWordGroups, listWordCards,
+  wordGroupCardIds, setWordGroups, listWordCards, wordGroupStats,
 } from '../word-repo.js';
 
 const router = useRouter();
@@ -26,6 +26,8 @@ const form = ref({ name: '', description: '', color: '#4f7cff', status: 'active'
 const PALETTE = ['#4f7cff', '#2fbf71', '#e6a23c', '#f56c6c', '#9b59b6', '#16a085', '#e67e22', '#607d8b'];
 
 const members = ref({}); // groupId -> words[]
+const gstats = ref({});      // groupId -> {total,schedulable,familiar,mastered,due,reviewed}
+const gstatPct = (st) => (st && st.schedulable ? Math.round((st.mastered / st.schedulable) * 100) : 0);
 
 async function reload() {
   loading.value = true;
@@ -33,6 +35,8 @@ async function reload() {
     groups.value = await listWordGroups();
     if (groups.value.length && !expanded.value) expanded.value = groups.value[0].id;
     await refreshMembers();
+    const stats = await wordGroupStats();
+    gstats.value = Object.fromEntries(stats.map((x) => [x.groupId, x]));
   } finally {
     loading.value = false;
   }
@@ -178,6 +182,14 @@ onMounted(reload);
             <el-button size="small" type="danger" plain @click.stop="remove(g)">{{ t('views.wordGroups.delete') }}</el-button>
           </div>
 
+          <!-- round23 拓展：词组掌握率进度条（掌握/可排程 · 待复习） -->
+          <div v-if="gstats[g.id] && gstats[g.id].schedulable" class="gprog">
+            <div class="gprog-bar"><div class="gprog-fill" :style="{ width: gstatPct(gstats[g.id]) + '%' }"></div></div>
+            <span class="gprog-txt">
+              {{ t('views.wordGroups.mastery', undefined, { m: gstats[g.id].mastered, s: gstats[g.id].schedulable, d: gstats[g.id].due }) }}
+            </span>
+          </div>
+
         <div v-if="expanded === g.id" class="mem">
           <el-button size="small" @click="openAdd(g)">{{ t('views.wordGroups.addMember') }}</el-button>
           <p v-if="!members[g.id] || !members[g.id].length" class="hint">{{ t('views.wordGroups.noMembers') }}</p>
@@ -259,6 +271,10 @@ onMounted(reload);
 .mw .ed { border: 0; background: transparent; color: var(--el-color-primary); cursor: pointer; }
 .hint { font-size: 12px; color: var(--el-text-color-secondary); }
 .gdesc { font-size: 12px; color: var(--el-text-color-secondary); flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gprog { margin-top: 8px; display: flex; align-items: center; gap: 8px; }
+.gprog-bar { flex: 1; height: 6px; border-radius: 4px; background: var(--el-border-color-lighter); overflow: hidden; max-width: 260px; }
+.gprog-fill { height: 100%; background: var(--accent, #4f7cff); border-radius: 4px; transition: width .3s; }
+.gprog-txt { font-size: 11px; color: var(--el-text-color-secondary); white-space: nowrap; }
 .grp-filter {
   width: 100%; margin-bottom: 10px; padding: 8px 12px; box-sizing: border-box;
   border: 1px solid var(--el-border-color-lighter); border-radius: 10px;

@@ -451,6 +451,36 @@ export async function wordStats() {
   };
 }
 
+// round23 拓展：按词组的掌握率统计（报表/进度条用）。
+// 口径与 wordStats 对齐（mastered = familiar || level>=4 || intervalDays>=21；
+// due 只计未熟且到期的可排程卡），一次全表扫描产出全部组的统计，避免 N 组 N 次查询。
+export async function wordGroupStats() {
+  const [groups, links, rows] = await Promise.all([
+    db.wordGroups.toArray(),
+    db.wordGroupLinks.toArray(),
+    db.wordCards.toArray(),
+  ]);
+  const t = now();
+  const cardById = new Map(rows.map((r) => [r.id, r]));
+  const per = new Map(groups.map((g) => [g.id, {
+    groupId: g.id, total: 0, schedulable: 0, familiar: 0, mastered: 0, due: 0, reviewed: 0,
+  }]));
+  for (const l of links) {
+    const st = per.get(l.groupId);
+    if (!st) continue;
+    const r = cardById.get(l.cardId);
+    if (!r) continue;
+    st.total++;
+    if (r.kind === 'template') continue;
+    st.schedulable++;
+    if (r.familiar) { st.familiar++; st.mastered++; continue; }
+    if ((r.reviewedAt || 0) > 0) st.reviewed++;
+    if ((r.dueAt || 0) <= t) st.due++;
+    if ((Number(r.level) || 0) >= 4 || (Number(r.intervalDays) || 0) >= 21) st.mastered++;
+  }
+  return [...per.values()];
+}
+
 // 复习历史（已背查看）：按时间倒序
 export async function wordReviewHistory(limit = 200) {
   const rows = await db.wordReviews.orderBy('reviewedAt').reverse().limit(limit).toArray();

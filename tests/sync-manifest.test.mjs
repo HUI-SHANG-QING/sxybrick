@@ -28,7 +28,7 @@ test('清单：33 张表全部登记且策略合法', () => {
     assert.ok(names.includes(need), `缺少表 ${need}`);
   }
   for (const t of SYNC_TABLES) {
-    assert.ok(['card', 'updatedAt', 'idOnly', 'review'].includes(t.merge), `${t.table} 策略非法`);
+    assert.ok(['card', 'chat', 'updatedAt', 'idOnly', 'review'].includes(t.merge), `${t.table} 策略非法`);
     assert.ok(t.kind, `${t.table} 缺 kind`);
   }
 });

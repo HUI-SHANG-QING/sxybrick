@@ -232,3 +232,30 @@ test('getParkedWordCardIds / dueWordCards 停车：只在 archived 组的卡停�
   const parkedAgain = await getParkedWordCardIds();
   assert.ok(parkedAgain.has(c1.id), 'c1 移出 active 后重新停车');
 });
+
+// round23 拓展：wordGroupStats 掌握率统计（口径对齐 wordStats）
+test('wordGroupStats：按组聚合 掌握/待复习/总数，未分组卡不计入', async () => {
+  const { db, setDbInstance, getDb } = await import('../src/db.js');
+  await import('fake-indexeddb/auto');
+  setDbInstance('real');
+  const { createWordGroup, createWordCard, setWordGroups, wordGroupStats } = await import('../src/word-repo.js');
+  const g = await createWordGroup({ name: '考研词组' });
+  const c1 = await createWordCard({ word: 'alpha', meaning: '阿尔法' }); // 新卡未复习
+  const c2 = await createWordCard({ word: 'beta', meaning: '贝塔' });
+  const c3 = await createWordCard({ word: 'gamma', meaning: '伽马' });
+  await setWordGroups([c1.id, c2.id, c3.id], [g.id], []);
+  // 模拟：c1 已复习到 level 5（掌握）；c3 标熟词（掌握）；c2 保持未复习
+  await getDb().wordCards.put({ ...c1, level: 5, intervalDays: 30, reviewedAt: Date.now(), updatedAt: Date.now() });
+  await getDb().wordCards.put({ ...c3, familiar: 1, updatedAt: Date.now() });
+  const stats = await wordGroupStats();
+  const st = stats.find((x) => x.groupId === g.id);
+  assert.ok(st, '应有该组统计');
+  assert.equal(st.total, 3);
+  assert.equal(st.schedulable, 3);
+  assert.equal(st.mastered, 2, 'c1(level5)+c3(熟词) → mastered=2');
+  assert.equal(st.familiar, 1);
+  assert.ok(st.due >= 1, 'c2 到期未复习 → due>=1');
+  assert.equal(st.reviewed, 1, 'c1 有复习记录');
+  await getDb().wordGroups.delete(g.id).catch(() => {});
+  await getDb().wordCards.bulkDelete([c1.id, c2.id, c3.id]).catch(() => {});
+});

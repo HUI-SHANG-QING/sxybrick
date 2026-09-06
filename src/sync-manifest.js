@@ -48,7 +48,7 @@ export const SYNC_TABLES = [
   { table: 'cards', kind: 'card', merge: 'card' },
   { table: 'reviews', kind: 'review', merge: 'review' },
   { table: 'images', kind: 'image', merge: 'idOnly' },
-  { table: 'aiChats', kind: 'chat', merge: 'updatedAt' },
+  { table: 'aiChats', kind: 'chat', merge: 'chat' },
   { table: 'aiMemories', kind: 'memory', merge: 'updatedAt' },
   { table: 'memos', kind: 'memo', merge: 'updatedAt' },
   { table: 'plans', kind: 'plan', merge: 'updatedAt' },
@@ -233,6 +233,36 @@ export function sanitizeStripRows(rows, strip) {
   return rows.map((r) => sanitizeStripRow(r, strip));
 }
 
+/**
+ * round23 P2-2：对话类行（aiChats）的消息无损合并。
+ * 对话是「追加型」数据：整行 LWW 会让对端独有的新消息整体丢失（比覆盖一个字段更痛）。
+ * 规则：标量字段（title/updatedAt…）仍按时间取新；messages 做**并集**——
+ *   保留本端全部消息，再把对端不在本端的消息按序追加（以 id 为键；无 id 时以
+ *   role+content 为键，同端内部的重复消息不去重，仅去重"对端也有完全相同一条"）。
+ */
+function mergeMessageLists(a = [], b = []) {
+  const keyOf = (m) => (m && m.id != null ? 'id:' + m.id
+    : 'eq:' + String(m && m.role || '') + '\u0001' + String(m && m.content || ''));
+  const seen = new Set((a || []).map(keyOf));
+  const out = (a || []).slice();
+  for (const m of b || []) {
+    const k = keyOf(m);
+    if (!seen.has(k)) { seen.add(k); out.push(m); }
+  }
+  return out;
+}
+export function mergeChatPair(local, incoming) {
+  const lt = local.updatedAt ?? local.createdAt ?? 0;
+  const it = incoming.updatedAt ?? incoming.createdAt ?? 0;
+  const base = it >= lt ? incoming : local; // 时间新的一方提供标量字段
+  return {
+    ...base,
+    title: (base.title != null && String(base.title).trim()) ? base.title : (local.title || incoming.title || ''),
+    messages: mergeMessageLists(local.messages, incoming.messages),
+    updatedAt: Math.max(lt, it) || Date.now(),
+  };
+}
+
 // 通用行合并（按清单 merge 策略）
 // opts.strip: string[] —— 带 strip 钩子的表（如 wordSettings 的 LLM Key）：
 //   **strip 字段永不采纳 incoming**，本地有值则保留本地值，本地为空则留空。
@@ -270,10 +300,12 @@ export function mergeRows(base, incoming, strategy, opts = {}) {
       m.set(x.id, next);
       continue;
     }
+    if (strategy === 'chat') { m.set(x.id, mergeChatPair(cur, xr)); continue; }
     if (strategy === 'updatedAt') {
       const a = cur.updatedAt ?? cur.createdAt ?? 0;
       const b = xr.updatedAt ?? xr.createdAt ?? 0;
-      if (b >= a) {
+      if (b > a) {
+        // round23 P2-2：严格大于才整行取 incoming（等值走下方收敛分支，保证两端一致）
         if (strip.length) {
           // P1-C + round18 R18-5：整行采用 incoming，但 strip 字段**只认本地值**——
           // 本地有值 → 保留（对端导出前已剔除，不能让它把本机 LLM Key 清成 undefined）；
@@ -285,6 +317,15 @@ export function mergeRows(base, incoming, strategy, opts = {}) {
           m.set(x.id, out);
         } else {
           m.set(x.id, xr);
+        }
+      } else if (b === a) {
+        if (JSON.stringify(cur) !== JSON.stringify(xr)) {
+          // round23 P2-2：同时间戳但内容不同（跨设备时钟偏差可造成）→ 确定性收敛：
+          // 两设备都选 canonical（序列化字典序小者），杜绝「A 认 B、B 认 A」的反复横跳
+          // 或各自保留造成跨设备永久不一致。
+          m.set(x.id, JSON.stringify(xr) < JSON.stringify(cur) ? xr : cur);
+        } else {
+          m.set(x.id, xr); // 内容一致，无差别
         }
       }
     }
