@@ -36,7 +36,7 @@ import {
 import { isAEnabled, isBEnabled, setAEnabled, setBEnabled } from './utils/telemetry.js';
 // P1-1 FSRS 调度器 opt-in：在设置面板切换 SM-2 ↔ FSRS，并允许用户用真实评分历史训练 19 权重
 import { db, getDbStatus, onDbStatusChange } from './db.js';
-import { refreshSchedConfig } from './repo.js';
+import { refreshSchedConfig, setScheduler } from './repo.js';
 import { trainFsrsModel } from './agent/analytics.js';
 import { serializeUserWeights } from './fsrs.js';
 import { useFabDrag } from './composables/useFabDrag.js';
@@ -262,10 +262,13 @@ async function onToggleScheduler(v) {
   const next = v ? 'fsrs' : 'sm2';
   scheduler.value = next;
   try {
-    await db.meta.put({ key: 'scheduler', value: next });
-    refreshSchedConfig(); // 清缓存，下次复习读到新调度器
+    // 审计 B10：统一走 setScheduler——改标记的同时显式播种存量卡的 fsrs 状态，
+    // 不再出现「切到 FSRS 后老卡全部按新卡冷启动」的进度断崖
+    const { migrated } = await setScheduler(next);
     toast(next === 'fsrs'
-      ? '已切换到 FSRS 调度（ML 遗忘曲线，需训练权重后效果最佳）'
+      ? (migrated > 0
+        ? `已切换到 FSRS 调度，已为 ${migrated} 张有进度的卡接续间隔`
+        : '已切换到 FSRS 调度（ML 遗忘曲线，需训练权重后效果最佳）')
       : '已切回 SM-2 调度（含短期巩固与错因惩罚）', 'success');
   } catch (e) { toast('调度器切换失败：' + (e?.message || e), 'error'); }
 }

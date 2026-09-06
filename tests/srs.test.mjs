@@ -2,7 +2,7 @@
 // 覆盖：评级路径、难度系数、错因惩罚、蒙对折损、强度系数、间隔上限
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeNext, GRADUATED_STEPS, applyFeedback } from '../src/srs.js';
+import { computeNext, GRADUATED_STEPS, applyFeedback, seedFsrsFromSm2 } from '../src/srs.js';
 
 const base = { level: 0, ease: 2.5 };
 
@@ -113,4 +113,44 @@ test('自适应节奏：高错误率缩短间隔、稳定掌握拉长间隔、�
   assert.ok(stable.intervalDays > base.intervalDays);
   const few = computeNext(c, 2, 1, false, { adaptive: { reviews: 4, failRate: 0.8 } });
   assert.equal(few.intervalDays, base.intervalDays); // 样本 <5 不生效
+});
+
+// 审计 B10：SM-2 → FSRS 切换播种——s 精确反解、d 方向正确、无进度卡不播种
+test('B10 seedFsrsFromSm2：s=intervalDays 反解 / d 与 ease 反向 / 边界', () => {
+  const now = Date.now();
+  // 基准卡：间隔 30 天、ease 2.5 → s=30、d=5
+  const base = seedFsrsFromSm2({ level: 3, ease: 2.5, intervalDays: 30, reviewedAt: now - 30 * 86400000, createdAt: now - 90 * 86400000 }, now);
+  assert.equal(base.s, 30);
+  assert.equal(base.d, 5);
+  assert.equal(base.reps, 1);
+  assert.equal(base.last, now - 30 * 86400000);
+
+  // ease 越低（越难）→ d 越高（FSRS 难度越大）
+  const hard = seedFsrsFromSm2({ ease: 1.6, intervalDays: 10, reviewedAt: now }, now);
+  assert.ok(hard.d > 5, 'ease 1.6 应比基准更难（d>5）');
+  const easy = seedFsrsFromSm2({ ease: 2.9, intervalDays: 10, reviewedAt: now }, now);
+  assert.ok(easy.d < 5, 'ease 2.9 应比基准更容易（d<5）');
+
+  // 上限钳制：S 不超 MAX_STABILITY=365、d 在 [1,10]
+  const big = seedFsrsFromSm2({ ease: 3, intervalDays: 5000, reviewedAt: now }, now);
+  assert.equal(big.s, 365);
+  const minEase = seedFsrsFromSm2({ ease: 1.3, intervalDays: 1, reviewedAt: now }, now);
+  assert.ok(minEase.d <= 10);
+
+  // 无进度（新卡/间隔 0）→ 不播种（S0 冷启动本来就是对的）
+  assert.equal(seedFsrsFromSm2({ level: 0, ease: 2.5, intervalDays: 0, createdAt: now }, now), null);
+  assert.equal(seedFsrsFromSm2(null, now), null);
+});
+
+// 审计 B10：播种后 FSRS 首审间隔与 SM-2 原间隔自洽（R=0.9 反解）
+test('B10 播种后首审：到期日复习间隔≈原间隔（不断崖）', async () => {
+  const { schedule } = await import('../src/fsrs.js');
+  const now = Date.now();
+  const sm2 = { level: 4, ease: 2.5, intervalDays: 30, reviewedAt: now - 30 * 86400000, createdAt: now - 100 * 86400000 };
+  const seeded = seedFsrsFromSm2(sm2, now);
+  // 到期日（last 起 30 天 = now）答对：elapsed = s 天 → R≈0.9 → 间隔应从 30 天起自然增长，
+  // 而不是回落到 S0≈2.4 天的新卡节奏
+  const next = schedule({ ...sm2, fsrs: seeded }, 2, { now, desiredRetention: 0.9 });
+  assert.ok(next.intervalDays >= 30, `播种后首审间隔 ${next.intervalDays} 天应 ≥ 原 30 天（实际回落说明断崖仍在）`);
+  assert.ok(next.intervalDays <= 30 * 4, '增长也应在合理倍数内（FSRS 单步 ≈×2~3）');
 });

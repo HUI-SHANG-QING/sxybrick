@@ -113,6 +113,13 @@ startTelemetry({
 startPerfMonitor();
 // PWA：注册 SW + 监听 online/offline + 周期检查 IndexedDB 配额
 initPwa();
+// 审计 C3：跨 tab 数据变更广播——另一 tab 导入/同步后，本页数据已过期。
+// 订阅后派发一个全局事件，模块/视图可据此刷新（无则静默，纯增强不阻断启动）。
+import { subscribeDbChanged } from './utils/dbEvents.js';
+subscribeDbChanged(() => {
+  if (typeof window === 'undefined') return;
+  try { window.dispatchEvent(new CustomEvent('sxy:data-refresh')); } catch { /* ignore */ }
+});
 // 插件：异步预热已启用插件，不阻塞挂载
 warmupPlugins();
 app.mount('#app');

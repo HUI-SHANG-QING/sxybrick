@@ -46,9 +46,11 @@ export function resolvePrereqPlan(edges, masteredSet, cardId) {
   // （已掌握的前置不进练习集，但仍继续向上回溯其链条，确保不漏更底层的未掌握前置；visited 防环）。
   const prereq = new Set();
   const visited = new Set([cardId]);
+  // 审计 A7：原用 `queue.shift()` 做 BFS——数组头部出队是 O(n) 搬移，
+  // 深层依赖链（数千卡）上最坏退化为 O(V²)。改用头指针游标遍历，严格 O(V+E)。
   const queue = [cardId];
-  while (queue.length) {
-    const cur = queue.shift();
+  for (let qi = 0; qi < queue.length; qi++) {
+    const cur = queue[qi];
     for (const from of prereqMap.get(cur) || []) {
       if (visited.has(from)) continue;
       visited.add(from);

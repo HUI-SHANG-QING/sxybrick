@@ -27,7 +27,10 @@ export function aggregateBySource(cards, nowTs = Date.now()) {
     const e = agg.get(key) || { source: key, cards: 0, reviewed: 0, due: 0, marked: 0, value: 0 };
     e.cards += 1;
     if (isReviewed(c)) e.reviewed += 1;
-    if ((c.dueAt ?? 0) <= nowTs) e.due += 1;
+    // 审计 A8：`(c.dueAt ?? 0) <= nowTs` 会把「未设置 dueAt 的新卡/半成品卡」当成今天到期
+    // （0 <= 现在恒真），使来源资产面板的「今日到期」明显虚高。与 forecast.js / networth.js
+    // 口径一致：只有「有限且 > 0」的 dueAt 才参与到期判定。
+    if (Number.isFinite(c.dueAt) && c.dueAt > 0 && c.dueAt <= nowTs) e.due += 1;
     if (c.marked) e.marked += 1;
     e.value += cardNetValue(c, nowTs);
     agg.set(key, e);

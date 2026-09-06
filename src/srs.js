@@ -14,7 +14,7 @@
 //   - 否则 → 沿用 computeNext（SM-2 变体，含巩固/错因惩罚）
 //   FSRS 路径的难度 D 与稳定度 S 已自适应卡片难度与错因信号，故不复用 SM-2 的错因惩罚与
 //   短期巩固状态机（避免双重惩罚）；wrongReason 仍写入复习日志供分析。
-import { schedule as fsrsSchedule } from './fsrs.js';
+import { schedule as fsrsSchedule, MAX_STABILITY } from './fsrs.js';
 import { examWindowUrgency, compressIntoWindow, applyElasticDue } from './algorithms/scheduling.js';
 
 const MIN = 60 * 1000;
@@ -170,8 +170,12 @@ export function computeNext(card, rating, intensity = 1, guessed = false, opts =
 
   // 兜底：任何环节漏出 NaN/Infinity 都会让这张卡永久消失于队列（`NaN <= now` 恒假），
   // 这里做最后一道拦截，保证 dueAt 永远是可比较的有限时间戳。
-  if (!Number.isFinite(days) || days <= 0) days = 10 / 1440;
-  days = Math.min(365, days);
+  // 审计 A5（检查顺序反模式）：原 `if (!Number.isFinite(days) || days <= 0) days = 10/1440`
+  // 会把超大间隔（ease^(lvl-4) 溢出为 Infinity，level 拉高后）错降成「10 分钟」——
+  // 本意是封顶，却被非有限值判定当成「最小值兜底」。「极大间隔」语义应为封顶 365 天，
+  // 只有 NaN/负值/0 才属「异常需极小间隔」。故先封顶、再对真正异常兜底。
+  if (days > 365) days = 365;                                    // 含 Infinity：超大间隔 → 封顶
+  else if (!Number.isFinite(days) || days <= 0) days = 10 / 1440; // 仅 NaN/负值/0 兜底到 10 分钟
   const dueAt = now + Math.round(days * DAY);
   return { level, ease, intervalDays: days, dueAt, consolidation };
 }
@@ -223,6 +227,32 @@ export const RETRIEVAL_STRENGTH_OPTIONS = [
   { code: 'explain',   label: '讲解', factor: 1.5, desc: '费曼学习法，向他人讲解（最强）' },
 ];
 const RETRIEVAL_FACTOR = Object.fromEntries(RETRIEVAL_STRENGTH_OPTIONS.map(o => [o.code, o.factor]));
+
+/**
+ * 审计 B10：SM-2 → FSRS 切换时的显式播种（纯函数，供 repo.migrateScheduler 批量调用）。
+ *
+ * 此前切换只改 meta 里的 scheduler 标记，`card.fsrs` 为空 → FSRS 首审按 S0 冷启动，
+ * SM-2 积累的全部进度（level/ease/intervalDays）被丢弃：一张间隔 30 天的卡切完
+ * 下次复习按新卡 0.4~2.4 天重排，复习节奏断崖。
+ *
+ * 播种公式（默认目标保持率 0.9 下的精确反解，与 fsrs.nextInterval 互逆）：
+ *   interval = 9·S·(1/R − 1)，R=0.9 时系数恰为 1 → **s = intervalDays**
+ *   到期日复习时 elapsed = s 天 → R = (1+1/9)⁻¹ = 0.9，与目标保持率自洽，
+ *   此后按用户真实评分自然演化；
+ *   d：FSRS 难度（1~10，越大越难）← SM-2 ease（1.3~3.0，越小越难）反映射，
+ *   ease 2.5（基准）→ d 5（≈w4 初始难度基准），斜率 ×3 后经 D 均值回归自校正；
+ *   reps=1（已有进度，不走 S0 首审分支）；last=上次复习时刻（到期日 R 反解自洽）。
+ * @returns {{s:number,d:number,reps:number,last:number}|null} 无 SM-2 进度（intervalDays≤0）返回 null
+ */
+export function seedFsrsFromSm2(card, nowTs = Date.now()) {
+  const intervalDays = Number(card?.intervalDays);
+  if (!Number.isFinite(intervalDays) || intervalDays <= 0) return null; // 新卡/无进度：S0 冷启动本来就是对的
+  const s = Math.min(MAX_STABILITY, Math.max(0.1, intervalDays));
+  const ease = Number(card?.ease);
+  const d = Math.min(10, Math.max(1, 5 + (2.5 - (Number.isFinite(ease) ? ease : 2.5)) * 3));
+  const last = Number(card?.reviewedAt) || Number(card?.createdAt) || nowTs;
+  return { s, d, reps: 1, last };
+}
 
 export function scheduleReview(card, rating, intensity = 1, guessed = false, opts = {}) {
   let r;

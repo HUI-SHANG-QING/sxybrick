@@ -41,10 +41,22 @@ export function tagFilter(cards, tags, logic) {
 }
 
 // ---------- 卡片等级标签 ----------
+// 审计 B2（掌握度三口径分裂）：此前「已掌握」有三套互不兼容的判定——gradeCard 用
+// level>=4、wordStats 用 level>=4 || intervalDays>=21、computeStats 用 90 天自评均分。
+// 其中 computeStats 是「整体掌握度百分比」，语义本就和逐卡等级不同，保持独立；
+// 但逐卡「这张卡是否已掌握」必须收敛到单一事实源，否则卡片列表/单词统计/成就/周报
+// 对同一张卡给出不同结论。于是抽 isMastered 单点，gradeCard 与 wordStats 统一调用。
+// 口径：intervalDays>=21 或 level>=4 —— 即「实际调度拉长到 ≥21 天」或「等级达已掌握档」。
+//   FSRS 路径 level 封顶 4（S≥15 天近似 21 天）；SM-2 路径原本只看 level 无上限，
+//   用 intervalDays>=21 兜底后两套调度器在「≥21 天间隔即掌握」上对齐。
+export function isMastered(row) {
+  return (row?.level ?? 0) >= 4 || (row?.intervalDays || 0) >= 21;
+}
+
 export function gradeCard(card) {
   const level = card.level || 0;
   if (card.marked) return { label: '错题', cls: 'g-weak' };
-  if (level >= 4) return { label: '已掌握', cls: 'g-master' };
+  if (isMastered(card)) return { label: '已掌握', cls: 'g-master' };
   if (level >= 2) return { label: '巩固中', cls: 'g-good' };
   if (level >= 1) return { label: '学习中', cls: 'g-learning' };
   return { label: '未开始', cls: 'g-new' };

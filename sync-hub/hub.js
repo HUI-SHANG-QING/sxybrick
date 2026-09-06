@@ -72,7 +72,7 @@ const MIME = {
 };
 
 function emptyData() {
-  const out = { tombstones: [], streakMeta: null };
+  const out = { tombstones: [], streakMeta: null, lastPushAt: 0 };
   for (const t of ALL_TABLES) out[t.table] = [];
   return out;
 }
@@ -149,25 +149,66 @@ function saveScopedData(scope, data) {
   safeRenameSync(tmp, f);
 }
 
-// 提取正文中的 sxy-img:// 图片 id（hub 运行于 Node，不能 import 浏览器模块，此处内联同款正则）
-function imageIdsOf(card) {
+// 审计 B8：per-scope 串行队列。此前两台设备并发 PUT 同一 scope 时，
+// 两个请求各自 load→merge→save，后写者基于「先写者合并前」的旧数据合并，
+// 覆盖先写者的结果——且先写者返回的 200 已带它的水位，客户端不会重推，
+// 该批增量在中枢永久丢失。Node 事件循环单线程，但 load/parse/merge 之间
+// 隔着 await（readBody/JSON.parse），并发请求会在中间交错，必须按 scope 排队。
+// 队列键：scope（real/test 数据文件独立，互不阻塞）。
+const putQueues = new Map();
+function withScopeLock(scope, fn) {
+  const prev = putQueues.get(scope) || Promise.resolve();
+  const next = prev.then(fn, fn); // 前一步失败不阻塞后续请求
+  putQueues.set(scope, next.catch(() => {})); // 吞掉 reject 防 unhandled
+  return next;
+}
+
+// 提取行内 sxy-img:// 图片 id（hub 运行于 Node，不能 import 浏览器模块，此处内联同款正则）
+// 审计 A1 修复：此前写死 front/back 两个字段——但 images 是全 app 共享表，
+// 词卡（wordCards 的 meaning/example 等字段）同样可能含 sxy-img:// 引用，
+// GC 只按通用卡算引用集会误删「仅被词卡引用」的图片且增量包永远不会重传。
+// 改为递归收集行内所有字符串字段，字段扩展/新表无需再改这里。
+function imageIdsOf(row) {
   const ids = [];
   const re = /sxy-img:\/\/([0-9a-fA-F-]+)/g;
-  const text = `${card.front || ''}\n${card.back || ''}`;
-  let m;
-  while ((m = re.exec(text))) ids.push(m[1]);
+  const seen = new Set();
+  const walk = (v) => {
+    if (typeof v === 'string') {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(v))) { if (!seen.has(m[1])) { seen.add(m[1]); ids.push(m[1]); } }
+    } else if (Array.isArray(v)) {
+      for (const x of v) walk(x);
+    } else if (v && typeof v === 'object') {
+      for (const k of Object.keys(v)) {
+        if (k === 'blob') continue; // 二进制 base64 不参与引用判定
+        walk(v[k]);
+      }
+    }
+  };
+  walk(row);
   return ids;
 }
 
 /**
  * 墓碑 GC：剔除「超过 ttlDays 天 且 目标行在中枢侧已不存在」的墓碑。
  * 保守策略——只要该 id 还在任何一张表里出现，就说明还有设备持有它，绝不清理。
+ *
+ * 审计 C2（恢复高删除语义）：
+ *  仅「墓碑老 + 目标行不在」还不够——一个离线超过 TTL 天的设备尚未收到删除墓碑，
+ *  此刻回收墓碑后，该设备下次上线会把自己持有的旧行重新推上来 → 已删除数据复活
+ *  并反向广播给所有设备。因此额外要求「最后一批设备同步」也早于 TTL：只要生态
+ *  仍在活跃（最近有设备推送），就绝不回收任何墓碑。代价是删除量大的设备墓碑会
+ *  多驻留，但对个人学习 App（删除量小）可接受，且彻底消除复活路径。
  * @param {object} data 合并后的中枢数据
  * @param {number} ttlDays
  * @returns {Array} 清理后的墓碑数组
  */
 function gcTombstones(data, ttlDays) {
   const cutoff = Date.now() - ttlDays * 86400000;
+  // 审计 C2：最后一批设备同步须同样早于 TTL，否则离线设备可能仍持有旧行，绝不回收。
+  const lastPush = data.lastPushAt || 0;
+  if (lastPush >= cutoff) return data.tombstones || [];
   const alive = new Set();
   for (const t of ALL_TABLES) {
     for (const r of data[t.table] || []) if (r && r.id != null) alive.add(r.id);
@@ -175,7 +216,7 @@ function gcTombstones(data, ttlDays) {
   const before = (data.tombstones || []).length;
   const kept = (data.tombstones || []).filter(tb => (tb?.deletedAt ?? 0) >= cutoff || alive.has(tb?.id));
   if (kept.length !== before) {
-    console.log(`[hub] 墓碑 GC：${before} → ${kept.length}（清理 ${before - kept.length} 条超过 ${ttlDays} 天且目标行已不存在的墓碑）`);
+    console.log(`[hub] 墓碑 GC：${before} → ${kept.length}（清理 ${before - kept.length} 条超过 ${ttlDays} 天、目标行已不存在、且生态已静默 ${ttlDays} 天的墓碑）`);
   }
   return kept;
 }
@@ -207,8 +248,15 @@ function merge(base, incoming) {
   if (cardRes.removed.length) {
     const alive = new Set(out.cards.map(c => c.id));
     out.reviews = (out.reviews || []).filter(r => alive.has(r.cardId));
+    // 审计 A1：孤儿图 GC 的引用集必须扫「所有含正文的行表」，不能只看 out.cards——
+    // 此前仅通用卡 front/back 计入，仅被词卡（wordCards）或其他模块引用的图片
+    // 会被中枢误删并回灌所有设备，且增量包只带变更卡的图，永远无法重传。
     const used = new Set();
-    for (const c of out.cards) for (const id of imageIdsOf(c)) used.add(id);
+    for (const t of ALL_TABLES) {
+      const kind = t.kind || t.table;
+      if (kind === 'image' || kind === 'images') continue;
+      for (const row of out[t.table] || []) for (const id of imageIdsOf(row)) used.add(id);
+    }
     out.images = (out.images || []).filter(i => used.has(i.id));
   }
 
@@ -240,6 +288,8 @@ function merge(base, incoming) {
     streakMeta = incoming.streakMeta;
   }
   out.streakMeta = streakMeta;
+  // 审计 C2：记录最近一次设备推送，供墓碑 GC 判定「生态是否仍活跃」。
+  out.lastPushAt = Math.max(base.lastPushAt || 0, incoming.exportedAt || 0, Date.now());
   return out;
 }
 
@@ -458,8 +508,13 @@ const server = createServer(async (req, res) => {
         if (incoming.scope && incoming.scope !== scope) {
           return json(req, res, 409, { error: `数据域不匹配：包内 scope=${incoming.scope}，端点 scope=${scope}` });
         }
-        const merged = merge(loadScopedData(scope), incoming);
-        saveScopedData(scope, merged);
+        // 审计 B8：load→merge→save 整体进 per-scope 串行队列，
+        // 消除并发 PUT 的「基于旧数据合并」覆盖丢失
+        const merged = await withScopeLock(scope, () => {
+          const m = merge(loadScopedData(scope), incoming);
+          saveScopedData(scope, m);
+          return m;
+        });
         return json(req, res, 200, { version: BACKUP_VERSION, app: 'sxybrick', scope, exportedAt: Date.now(), ...merged });
       } catch (e) { return json(req, res, 400, { error: e.message }); }
     }

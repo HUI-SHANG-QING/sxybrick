@@ -18,9 +18,9 @@ import {
   createCardGroup, updateCardGroup, deleteCardGroup, listCardGroups,
   cardGroupCardIds, cardGroupsOfCard, setCardGroups, getParkedCardIds,
   linkCardWord, unlinkCardWord, wordCardsOfCard, allCardWordLinks,
-  restoreFromTrash,
+  restoreFromTrash, deleteCard,
 } from '../src/repo.js';
-import { createWordCard } from '../src/word-repo.js';
+import { createWordCard, deleteWordCard } from '../src/word-repo.js';
 import { mergeRows, mergeTombstones, applyTombstones } from '../src/sync-manifest.js';
 
 after(async () => { try { await db.close(); } catch {} });
@@ -304,4 +304,42 @@ test('deleteCardGroup：删前写回收站快照（含 _groupLinks），restoreF
   assert.ok(restored, '卡组应恢复');
   const ids = (await cardGroupCardIds(g.id)).sort();
   assert.deepEqual(ids, [c1.id, c2.id].sort(), '成员关联应恢复');
+});
+
+// 审计 A2：删词卡→快照带 _cardWordLinks→恢复还原关联 + 清链接墓碑（此前关联永久丢失）
+test('A2 删词卡→恢复：cardWordLinks 还原且链接墓碑被清除', async () => {
+  const c = await newCard('q-A2', 'a-A2');
+  const w = await createWordCard({ word: 'restore', meaning: '恢复' });
+  await linkCardWord(c.id, w.id);
+  assert.equal((await allCardWordLinks()).filter(l => l.wordCardId === w.id).length, 1);
+
+  assert.equal(await deleteWordCard(w.id), true);
+  // 快照应含关联
+  const snap = await db.trash.get(w.id);
+  assert.ok(snap && (snap.data._cardWordLinks || []).length === 1, '词卡快照应含 _cardWordLinks');
+  // 链接墓碑已写（删词卡级联）
+  const link = (await allCardWordLinks()).filter(l => l.wordCardId === w.id);
+  assert.equal(link.length, 0, '删除后链接行应被清除');
+
+  assert.equal(await restoreFromTrash(snap), true);
+  assert.equal((await allCardWordLinks()).filter(l => l.wordCardId === w.id).length, 1, '恢复后关联应还原');
+  // 链接墓碑应被清除（否则下次同步会被自己的墓碑再删掉）
+  // tombstones 无 kind 索引（主键 id 即链接 id），直接查该 id 是否有墓碑
+  const linkId = (await allCardWordLinks()).find(l => l.wordCardId === w.id)?.id;
+  const leftoverTomb = linkId ? await db.tombstones.get(linkId) : null;
+  assert.ok(!leftoverTomb, '恢复的链接不应再有残留墓碑');
+});
+
+// 审计 A2 对称侧：删通用卡→恢复同样还原 cardWordLinks
+test('A2 删通用卡→恢复：cardWordLinks 还原', async () => {
+  const c = await newCard('q-A2c', 'a-A2c');
+  const w = await createWordCard({ word: 'restore2', meaning: '恢复2' });
+  await linkCardWord(c.id, w.id);
+
+  await deleteCard(c.id);
+  const snap = await db.trash.get(c.id);
+  assert.ok(snap && (snap.data._cardWordLinks || []).length === 1, '通用卡快照应含 _cardWordLinks');
+
+  assert.equal(await restoreFromTrash(snap), true);
+  assert.equal((await allCardWordLinks()).filter(l => l.cardId === c.id).length, 1, '恢复后关联应还原');
 });

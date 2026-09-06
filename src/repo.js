@@ -1,6 +1,6 @@
 // 数据访问层：把原版 Express 后端的业务逻辑，改写成对本地 IndexedDB 的读写
 import { db, uid } from './db.js';
-import { computeNext, applyFeedback, scheduleReview, RETRIEVAL_STRENGTH_OPTIONS } from './srs.js';
+import { computeNext, applyFeedback, scheduleReview, seedFsrsFromSm2, RETRIEVAL_STRENGTH_OPTIONS } from './srs.js';
 // P3-4 插件事件钩子：业务动作后向已启用插件分发（fire-and-forget，不阻塞也不抛错）
 // 静态导入无循环依赖：plugins/registry 只依赖 db.js 与 agent/registry.js，不依赖 repo.js
 import { triggerHook } from './plugins/registry.js';
@@ -14,6 +14,9 @@ import { buildReviewSession, retrievalGrading } from './algorithms/session.js';
 import { normalizeNotePayload, validateNote, recognizeWikiLinks } from './utils/note-parser.js';
 // P1-18 统一格式化（日期补零 / 字节）收口到 format.js，消除全局重复实现
 import { pad2 } from './utils/format.js';
+// 审计 D7：日期 key 统一走 time.dateKey（补零 yyyy-MM-dd），与 word/streak 同源，
+// 否则 repo 本地一份 localDateStr 独立实现会在未来格式演进时跨表整日错位。
+import { dateKey as createDateKey } from './utils/time.js';
 // N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
 import {
   DEFAULT_SUBJECTS,
@@ -41,6 +44,11 @@ export const wrongReasonToCode = _wrongReasonToCode;
 export const formatDue = (ts) => _formatDue(ts);
 
 
+// 审计 C1/C4：跨设备时钟与同毫秒覆盖主要通过「确定性决胜 + 严格比较」在 sync-manifest
+// 的纯合并函数里根治（mergeCardPair/mergeTombstones 已改 `>` + 字典序收敛）。
+// 此处 now() 保持墙钟即可——在整进程内混用「单调时钟」与多处裸 Date.now() 会破坏
+// deleteCard/restoreFromTrash 等既有「updatedAt 必须晚于墓碑」的不变量，得不偿失。
+// 完整跨设备时钟偏置免疫需 per-epoch（ts,uuid）元组，属更大改造，未在此次混入。
 const now = () => Date.now();
 
 // P3-4 插件钩子触发：fire-and-forget（插件抛错/慢执行绝不影响主流程）
@@ -62,6 +70,36 @@ export async function getSchedConfig() {
 }
 /** 设置变更后调用，清缓存使下次复习读到新调度器/新权重 */
 export function refreshSchedConfig() { _schedCache = null; }
+
+/**
+ * 审计 B10：切换调度器（SM-2 ↔ FSRS）的唯一入口——改标记 + 显式迁移存量状态。
+ *
+ * 此前切换只写 meta 标记，存量卡无任何迁移：
+ *   sm2→fsrs：card.fsrs 为空 → 首审按 S0 冷启动，SM-2 积累的间隔/熟练度全部丢弃（断崖）
+ *   fsrs→sm2：level/ease 是 FSRS 路径持续维护的派生值，天然连续（无需动作）
+ * 迁移只写 fsrs 字段（seedFsrsFromSm2），不碰 reviewedAt/updatedAt——
+ *   迁移是「状态解释方式的转换」不是复习事件：不进增量包、不跨端传播
+ *   （meta.scheduler 本就不同步，每台设备各自切换各自迁移一次，幂等）。
+ * @returns {Promise<{migrated:number}>} 实际播种的卡数
+ */
+export async function setScheduler(next) {
+  const to = next === 'fsrs' ? 'fsrs' : 'sm2';
+  await db.meta.put({ key: 'scheduler', value: to });
+  refreshSchedConfig();
+  let migrated = 0;
+  if (to === 'fsrs') {
+    // 批量播种：通用卡 + 单词卡（两模块共用同一调度器）
+    for (const table of [db.cards, db.wordCards]) {
+      const rows = await table.filter(r => !r.fsrs && (Number(r.intervalDays) > 0)).toArray();
+      if (!rows.length) continue;
+      const patches = rows
+        .map(c => ({ key: c.id, changes: { fsrs: seedFsrsFromSm2(c) } }))
+        .filter(p => p.changes.fsrs);
+      if (patches.length) { await table.bulkUpdate(patches); migrated += patches.length; }
+    }
+  }
+  return { migrated };
+}
 // 剥离 Vue 响应式代理：Dexie put 前转纯对象，避免 reactive proxy 触发 IndexedDB 结构化克隆失败（思维导图等含嵌套对象的表曾因此保存失败）
 const plain = (x) => JSON.parse(JSON.stringify(x));
 
@@ -143,7 +181,10 @@ export async function createCard(payload) {
     sourceCardId: r.value.sourceCardId || null,
     difficulty: r.value.difficulty,
     tags: r.value.tags, frontChars: [...r.value.front].length, backChars: [...r.value.back].length,
-    ease: 2.5, level: 0, intervalDays: 0, dueAt: t, createdAt: t, updatedAt: t,
+    // 审计 D1：初始 reviewedAt 显式为 0（与 word-repo.createWordCard 对齐），统一「未复习」
+    // 哨兵语义。此前 cards 不写该字段（undefined），而 sync-manifest 曾用 `?? updatedAt`
+    // 兜底，导致「只改内容未复习」的卡在 SRS 合并里覆盖对端已复习的调度。现在 0 是权威哨兵。
+    ease: 2.5, level: 0, intervalDays: 0, reviewedAt: 0, fsrs: null, dueAt: t, createdAt: t, updatedAt: t,
   };
   await db.cards.put(card);
   fireHook('onCardSaved', card);
@@ -245,9 +286,15 @@ export async function restoreFromTrash(t) {
   const data = plain(t.data);
   const reviews = data._reviews || null;
   const links = data._groupLinks || null;
+  // 审计 A2：词卡快照的卡↔词关联（_cardWordLinks）——恢复时必须还原，
+  // 否则删→恢复后 cardWordLinks 永久丢失；残留墓碑还会把重连尝试再删掉。
+  // 注意：删通用卡（deleteCard）与删词卡（deleteWordCard）都会级联删链接并写墓碑，
+  // 所以两种 kind 的快照都要带/还原该字段（deleteCard 的快照见下方同函数调用处）。
+  const cwLinks = data._cardWordLinks || null;
   const text = typeof data._text === 'string' ? data._text : null;
   const edges = data._edges || null;
   delete data._reviews; delete data._groupLinks; delete data._text; delete data._textLen; delete data._edges;
+  delete data._cardWordLinks;
   const transform = RESTORE_TRANSFORMS[t.kind];
   const row = { ...(transform ? transform(data) : data), id: t.id, updatedAt: Date.now() };
   const tables = [db[table], db.tombstones, db.trash];
@@ -258,6 +305,7 @@ export async function restoreFromTrash(t) {
   const linksTable = isWord ? db.wordGroupLinks : db.cardGroupLinks;
   if (reviews && reviews.length) tables.push(reviewsTable);
   if (links && links.length) tables.push(linksTable);
+  if (cwLinks && cwLinks.length) tables.push(db.cardWordLinks);
   if (text) tables.push(db.docTexts);
   if (edges && edges.length) tables.push(db.graphEdges);
   await db.transaction('rw', ...tables, async () => {
@@ -274,6 +322,11 @@ export async function restoreFromTrash(t) {
       // 连带清除「删卡/删词组时为这些关联行写的墓碑」，否则恢复后
       // 下次同步会被自己的墓碑重新删掉（墓碑 deletedAt > link.addedAt）
       await db.tombstones.bulkDelete(links.map(l => l.id));
+    }
+    if (cwLinks && cwLinks.length) {
+      // 审计 A2：还原卡↔词关联 + 清掉为这些链接写的墓碑（同 links 机制）
+      await db.cardWordLinks.bulkPut(cwLinks.map(l => ({ ...l })));
+      await db.tombstones.bulkDelete(cwLinks.map(l => l.id));
     }
     if (text) {
       await db.docTexts.put({
@@ -295,15 +348,18 @@ export async function restoreFromTrash(t) {
 export async function deleteCard(id) {
   const old = await db.cards.get(id);
   if (!old) return;
-  const imgIds = [...extractImageIds((old.front || '') + '\n' + (old.back || ''))];
+  const imgIds = [...extractImageIds(JSON.stringify(old))];
   // 事务内一次性完成 回收站快照 + 墓碑 + 删卡 + 删复习 + 删卡组关联 + 切断图谱边，保证原子、无悬空引用
   // 注：cardGroupLinks 此前漏删 —— 删卡后关联行原样留在库里（还进同步包跨设备传播），
   //     卡组详情页会统计到已被删除的「幽灵卡」，且永不清理。
   await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.cardWordLinks, db.embeddings, db.notes, async () => {
-    // 1) 回收站快照（含复习记录 + 卡组关联，便于恢复时一并还原）
+    // 1) 回收站快照（含复习记录 + 卡组关联 + 卡↔词关联，便于恢复时一并还原）
     const reviews = await db.reviews.where('cardId').equals(id).toArray();
     const links = await db.cardGroupLinks.where('cardId').equals(id).toArray();
-    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links });
+    const cwLinks = await db.cardWordLinks.where('cardId').equals(id).toArray();
+    // 审计 A2：与 deleteWordCard 对称——删通用卡也会级联删链接+写墓碑，
+    // 快照不带 _cardWordLinks 的话恢复后关联同样永久丢失
+    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks });
     // 2) 墓碑（跨设备删除同步）：卡片本体 + 它的每一条卡组关联
     //    关联行不写墓碑的话，对端会在下次同步把「已删卡 → 卡组」的关联原样推回来，
     //    形成永远删不掉、且指向幽灵卡的悬空行
@@ -336,7 +392,7 @@ export async function deleteCard(id) {
     // 5) 删卡组关联（此前漏删 → 指向已删卡的悬空行常驻并进同步包）
     await db.cardGroupLinks.where('cardId').equals(id).delete();
     // 5.5) v31：删通用卡↔英语词卡链接（同 cardGroupLinks 逻辑：不写墓碑 → 对端悬空链接复活）
-    const cwLinks = await db.cardWordLinks.where('cardId').equals(id).toArray();
+    //      cwLinks 已在第 1 步快照时查出，此处复用，避免重复查询
     if (cwLinks.length) {
       await db.tombstones.bulkPut(cwLinks.map(l => ({ id: l.id, kind: 'cardWordLink', deletedAt: now() })));
     }
@@ -363,12 +419,17 @@ export async function deleteCard(id) {
   fireHook('onCardDeleted', { id });
 }
 
-// 删除卡片后，清理不再被任何卡片引用的图片；返回实际被删的图片 id（供写墓碑）
-async function cleanupOrphanImages(ids) {
+/**
+ * 删除卡片后，清理不再被任何卡/词卡引用的图片；返回实际被删的图片 id（供写墓碑）。
+ * 审计 A1 同源修复：存活集此前只扫通用卡的 front/back——与 hub 侧 GC 同构的误删路径
+ * （某图仅被词卡引用时，删任意一张通用卡都会把它当孤儿删掉）。
+ * 改为扫 cards + wordCards 全表的所有字符串字段（JSON.stringify 整行），与 hub 口径一致。
+ */
+export async function cleanupOrphanImages(ids) {
   if (!ids.length) return [];
-  const cards = await allCards();
+  const [cards, wordCards] = await Promise.all([allCards(), db.wordCards.toArray()]);
   const used = new Set();
-  for (const c of cards) for (const i of extractImageIds((c.front || '') + '\n' + (c.back || ''))) used.add(i);
+  for (const c of [...cards, ...wordCards]) for (const i of extractImageIds(JSON.stringify(c))) used.add(i);
   const removed = [];
   for (const id of new Set(ids)) if (!used.has(id)) { await db.images.delete(id); removed.push(id); }
   return removed;
@@ -378,7 +439,9 @@ async function cleanupOrphanImages(ids) {
 export async function setMarked(id, marked) {
   const card = await db.cards.get(id);
   if (!card) throw new Error('卡片不存在');
-  await db.cards.put({ ...card, marked: !!marked, updatedAt: now() });
+  // 审计 B11 同款：差量写——marked/updatedAt 只 merge 这两个字段，
+  // 不再 put 整行（避免窗口期内的并发内容编辑被旧快照覆盖）
+  await db.cards.update(id, { marked: !!marked, updatedAt: now() });
   return card;
 }
 
@@ -448,15 +511,12 @@ export async function reviewQueue(limit = 100, interleave = false, filter = {}) 
 }
 
 export async function review(cardId, rating, intensity = 1, guessed = false, opts = {}) {
-  const card = await db.cards.get(cardId);
-  if (!card) throw new Error('卡片不存在');
+  // 审计 L2：rating 白名单防御——原实现把任意值丢进 scheduleReview 的 else 分支当「没记住」
+  // 做遗忘回退（评 3/评 -1 都会当 rating 0），且 UI 断点难查。入口即拦非 0/1/2。
+  const rv = Number(rating);
+  if (!Number.isFinite(rv) || ![0, 1, 2].includes(rv)) throw new Error('非法评分 rating（仅 0/1/2）');
   // P1-1：读取调度器配置（FSRS opt-in）+ 用户训练权重（带 60s 缓存）
   const cfg = await getSchedConfig();
-  // 每复习难度评分（0/1/2）：opts 优先，否则取卡片内容难度映射值
-  // 注意：difficulty 是卡片固有内容属性（basic/applied/challenge），复习不应回写覆盖它
-  const DIFF_MAP = { basic: 0, applied: 1, challenge: 2 };
-  const toDiffNum = (v) => DIFF_MAP[v] ?? (Number.isFinite(Number(v)) ? Number(v) : null);
-  const difficulty = toDiffNum(opts.difficulty) ?? toDiffNum(card.difficulty) ?? 1;
   // ⚠️ 错因不再「终身携带」（2026-08-30 修复）：
   //   原写法 `opts.wrongReason || card.wrongReason` 会让一次错因永久生效 ——
   //   标过一次「概念混淆」后，即便之后连答 20 次全对，每次间隔仍被 ×0.6，
@@ -464,80 +524,99 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
   //   修正：答对（rating=2）且本次没有上报新错因 → 清空历史错因。
   //   答错 / 答模糊（rating<2）则保留，直到真正答对为止。
   const incomingReason = String(opts.wrongReason || '').trim();
-  // 参与**本次**间隔计算的错因：本次上报的优先，否则沿用卡上已有的。
-  //   （答对也要按错因轻重缩短间隔 —— 见设置里 SM-2 的「错因惩罚」说明）
-  const wrongReason = incomingReason || card.wrongReason || '';
-  // 写回卡片的错因：答对且本次没有上报新错因 → 清空历史错因（clearedReason 标记「确实清掉了东西」）
-  const clearedReason = Number(rating) === 2 && !incomingReason && !!card.wrongReason;
-  const nextWrongReason = clearedReason ? '' : wrongReason;
-  // 自适应节奏（C4）：按该卡近 10 次复习的错误率微调间隔（仅开启时计算）
-  let adaptive = null;
-  if (opts.adaptive) {
-    const recent = await db.reviews.where('cardId').equals(cardId).reverse().sortBy('reviewedAt');
-    const last10 = recent.slice(0, 10);
-    const fail = last10.filter(r => r.rating === 0).length;
-    adaptive = { reviews: last10.length, failRate: last10.length ? fail / last10.length : 0 };
-  }
-  // 冷启动前测：若该科目做过前测且本卡无复习历史，用估计的初始稳定度替代 FSRS 默认 S0
-  const pretestRow = await db.meta.get('pretestStability');
-  const pretestMap = pretestRow && typeof pretestRow.value === 'object' ? pretestRow.value : null;
-  const initialStability = initialStabilityForCard(card, pretestMap);
-  const next = scheduleReview(card, rating, intensity, guessed, {
-    difficulty, wrongReason, adaptive,
-    scheduler: cfg.scheduler, weights: cfg.weights, initialStability,
-    // P1-3 检索强度分级 + 考试窗口感知/节假日弹性：必须透传，否则 UI 选择不生效
-    retrievalStrength: opts.retrievalStrength,
-    examAt: opts.examAt || 0,
-    desiredRetention: opts.desiredRetention,
-    restDays: opts.restDays,
-  });
-  // P1-A 检索分级：把这一次提取尝试定级（failed/hard/medium/easy），写入复习记录，
-  // 供 buildReviewSession 的 estimateRetrievalDifficulty 估算「当前检索难度」→ 难卡早重现 / 间隔效应。
-  // 信号来源：用户自评 rating + 是否蒙对 guessed + 作答时长 responseMs + 检索强度 retrievalStrength。
-  const grade = retrievalGrading({
-    rating,
-    guessed: !!guessed,
-    responseMs: opts.responseMs || 0,
-    retrievalStrength: opts.retrievalStrength || '',
-  });
-  // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt、不回写 difficulty（内容属性）：
-  // 否则跨设备同步时「复习动作」会覆盖另一台设备对卡片文字/难度的编辑（数据丢失）
-  // consolidation 字段：短期巩固状态（null/1/2），跟随 SRS 一并写回
-  // fsrs：FSRS 状态 {s,d,reps,last}；SM-2 路径 next.fsrs 为 undefined → 保留 card.fsrs（切换调度器后可无缝接续）
-  // wrongReasonAt：错因独立时间戳，跨设备合并时按此取新者（不跟随 updatedAt 也不跟随 reviewedAt）
-  // P0 修正：仅当本次确有错因内容时才推进 wrongReasonAt，
-  // 否则「记住了」(空错因) 以新时间戳覆盖他机真实错因 → 跨设备错因丢失。
-  // 例外：主动清空错因（clearedReason）也必须 bump ——
-  //   mergeCardPair 在两端 wrongReasonAt 相等时会优先保留「有内容」的一方，
-  //   若清空时不推进时间戳，对端的旧错因会在下次同步把清空顶回来，清除永远不生效。
-  const nowTs = now();
-  const wrongReasonAt = (nextWrongReason || clearedReason) ? nowTs : (card.wrongReasonAt ?? 0);
-  // 校准回测（calibration）：用复习前的 fsrs 状态计算当时预测 R，落盘进复习记录。
-  // 历史记录无 predR 由 calibration.js 回溯模拟补估；从这里起的新数据都是真实值。
-  const predR = (card.fsrs && Number.isFinite(card.fsrs.s) && Number.isFinite(card.fsrs.last))
-    ? Number(retrievability(card.fsrs.s, (nowTs - card.fsrs.last) / 86400000).toFixed(4))
-    : null;
-  // P0 修正：卡片与复习记录的双写包裹在 Dexie 事务中，确保原子性——
-  // 任何一步失败都整体回滚，避免「卡片更新了但复习记录没写」的半残状态。
   const reviewId = uid();
-  await db.transaction('rw', db.cards, db.reviews, async () => {
+  // 审计 B11：读+写放进同一事务。此前「事务外读 → 纯计算 → 事务内整行回写」
+  // 的窗口期内，同卡可能已被对端同步到达/另一路复习写入变更，旧快照会把新内容覆盖掉
+  // （丢内容字段的编辑）。Dexie 对同 store 的事务串行化，事务内读到的 card
+  // 就是本次写操作前的最新已提交状态；meta 也进事务表（前测读取与写入快照一致）。
+  return db.transaction('rw', db.cards, db.reviews, db.meta, async () => {
+    const card = await db.cards.get(cardId);
+    if (!card) throw new Error('卡片不存在');
+    // 每复习难度评分（0/1/2）：opts 优先，否则取卡片内容难度映射值
+    // 注意：difficulty 是卡片固有内容属性（basic/applied/challenge），复习不应回写覆盖它
+    const DIFF_MAP = { basic: 0, applied: 1, challenge: 2 };
+    const toDiffNum = (v) => DIFF_MAP[v] ?? (Number.isFinite(Number(v)) ? Number(v) : null);
+    const difficulty = toDiffNum(opts.difficulty) ?? toDiffNum(card.difficulty) ?? 1;
+    // 参与**本次**间隔计算的错因：本次上报的优先，否则沿用卡上已有的。
+    //   （答对也要按错因轻重缩短间隔 —— 见设置里 SM-2 的「错因惩罚」说明）
+    const wrongReason = incomingReason || card.wrongReason || '';
+    // 写回卡片的错因：答对且本次没有上报新错因 → 清空历史错因（clearedReason 标记「确实清掉了东西」）
+    const clearedReason = Number(rating) === 2 && !incomingReason && !!card.wrongReason;
+    const nextWrongReason = clearedReason ? '' : wrongReason;
+    // 自适应节奏（C4）：按该卡近 10 次复习的错误率微调间隔（仅开启时计算）
+    let adaptive = null;
+    if (opts.adaptive) {
+      const recent = await db.reviews.where('cardId').equals(cardId).reverse().sortBy('reviewedAt');
+      const last10 = recent.slice(0, 10);
+      const fail = last10.filter(r => r.rating === 0).length;
+      adaptive = { reviews: last10.length, failRate: last10.length ? fail / last10.length : 0 };
+    }
+    // 冷启动前测：若该科目做过前测且本卡无复习历史，用估计的初始稳定度替代 FSRS 默认 S0
+    const pretestRow = await db.meta.get('pretestStability');
+    const pretestMap = pretestRow && typeof pretestRow.value === 'object' ? pretestRow.value : null;
+    const initialStability = initialStabilityForCard(card, pretestMap);
+    const next = scheduleReview(card, rating, intensity, guessed, {
+      difficulty, wrongReason, adaptive,
+      scheduler: cfg.scheduler, weights: cfg.weights, initialStability,
+      // P1-3 检索强度分级 + 考试窗口感知/节假日弹性：必须透传，否则 UI 选择不生效
+      retrievalStrength: opts.retrievalStrength,
+      examAt: opts.examAt || 0,
+      desiredRetention: opts.desiredRetention,
+      restDays: opts.restDays,
+    });
+    // P1-A 检索分级：把这一次提取尝试定级（failed/hard/medium/easy），写入复习记录，
+    // 供 buildReviewSession 的 estimateRetrievalDifficulty 估算「当前检索难度」→ 难卡早重现 / 间隔效应。
+    // 信号来源：用户自评 rating + 是否蒙对 guessed + 作答时长 responseMs + 检索强度 retrievalStrength。
+    const grade = retrievalGrading({
+      rating,
+      guessed: !!guessed,
+      responseMs: opts.responseMs || 0,
+      retrievalStrength: opts.retrievalStrength || '',
+    });
+    // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt、不回写 difficulty（内容属性）：
+    // 否则跨设备同步时「复习动作」会覆盖另一台设备对卡片文字/难度的编辑（数据丢失）
+    // consolidation 字段：短期巩固状态（null/1/2），跟随 SRS 一并写回
+    // fsrs：FSRS 状态 {s,d,reps,last}；SM-2 路径 next.fsrs 为 undefined → 保留 card.fsrs（切换调度器后可无缝接续）
+    // wrongReasonAt：错因独立时间戳，跨设备合并时按此取新者（不跟随 updatedAt 也不跟随 reviewedAt）
+    // P0 修正：仅当本次确有错因内容时才推进 wrongReasonAt，
+    // 否则「记住了」(空错因) 以新时间戳覆盖他机真实错因 → 跨设备错因丢失。
+    // 例外：主动清空错因（clearedReason）也必须 bump ——
+    //   mergeCardPair 在两端 wrongReasonAt 相等时会优先保留「有内容」的一方，
+    //   若清空时不推进时间戳，对端的旧错因会在下次同步把清空顶回来，清除永远不生效。
+    const nowTs = now();
+    const wrongReasonAt = (nextWrongReason || clearedReason) ? nowTs : (card.wrongReasonAt ?? 0);
+    // 校准回测（calibration）：用复习前的 fsrs 状态计算当时预测 R，落盘进复习记录。
+    // 历史记录无 predR 由 calibration.js 回溯模拟补估；从这里起的新数据都是真实值。
+    const predR = (card.fsrs && Number.isFinite(card.fsrs.s) && Number.isFinite(card.fsrs.last))
+      ? Number(retrievability(card.fsrs.s, (nowTs - card.fsrs.last) / 86400000).toFixed(4))
+      : null;
     // round17 R17-6：SM-2 路径 next.fsrs 为 undefined 时，不能原样保留 card.fsrs——
     // 那样 fsrs.last 永远停在「最后一次 FSRS 复习」时刻，用户切回 FSRS 后 elapsedDays
     // 横跨整个 SM-2 期 → 预测 R≈0 → stabilityAfterRecall 的 e^(w9(1-R))-1 被异常放大。
     // 正确语义：无论哪种调度器，last 都应推进到「本次实际复习时刻」；s/d 保持 FSRS 上次状态。
     const fsrsNext = next.fsrs ?? (card.fsrs ? { ...card.fsrs, last: nowTs } : undefined);
-    await db.cards.put({ ...card, ease: next.ease, level: next.level, intervalDays: next.intervalDays, dueAt: next.dueAt, consolidation: next.consolidation, fsrs: fsrsNext, wrongReason: nextWrongReason, wrongReasonAt, reviewedAt: nowTs });
+    // 审计 B11：差量写——只 merge 本次改动的 SRS 字段，不再 put 整行。
+    // 即使读快照因任何原因落后于存储，内容字段也不会被旧值覆盖；
+    // fsrs 为 undefined 时不进更新对象（保留卡上原值，不触发 Dexie 对 undefined 的语义歧义）。
+    const cardUpdate = {
+      ease: next.ease, level: next.level, intervalDays: next.intervalDays,
+      dueAt: next.dueAt, consolidation: next.consolidation,
+      wrongReason: nextWrongReason, wrongReasonAt, reviewedAt: nowTs,
+    };
+    if (fsrsNext !== undefined) cardUpdate.fsrs = fsrsNext;
+    // 卡片与复习记录同事务双写：任何一步失败整体回滚，不留半残状态
+    await db.cards.update(cardId, cardUpdate);
     await db.reviews.put({
-      id: reviewId, cardId, reviewedAt: now(), rating,
+      id: reviewId, cardId, reviewedAt: nowTs, rating,
       predR,
       levelAfter: next.level, guessed: !!guessed, difficulty, wrongReason,
       retrievalStrength: opts.retrievalStrength || '',
       responseMs: opts.responseMs || 0,
       grade: grade.level, gradeScore: grade.score,
     });
+    fireHook('onReviewRated', { cardId, rating, reviewId, guessed: !!guessed });
+    return { ...next, dueText: formatDue(next.dueAt), reviewId };
   });
-  fireHook('onReviewRated', { cardId, rating, reviewId, guessed: !!guessed });
-  return { ...next, dueText: formatDue(next.dueAt), reviewId };
 }
 
 // 自我解释钩子（学习科学：错题后一句话反思「为什么错 / 正确理解」），
@@ -554,13 +633,18 @@ export async function attachSelfExplanation(reviewId, text) {
 
 // 学习行为回写 SRS：语音评测得分 / 费曼练习加成（不改 updatedAt，仅 ease/dueAt）
 export async function applyCardFeedback(cardId, signal = {}) {
-  const card = await db.cards.get(cardId);
-  if (!card) return null;
-  const f = applyFeedback(card, signal);
-  // M1 时间戳铁律：ease/dueAt 属 SRS 调度字段，按 reviewedAt 决定同步水位——
-  // 不 bump reviewedAt 则本次排期变更不进增量包，对端回滚。不碰 updatedAt（内容侧）。
-  await db.cards.put({ ...card, ease: f.ease, dueAt: f.dueAt, reviewedAt: Date.now() });
-  return f;
+  // 审计 B12：读+写同事务 + 差量写（与 review 同款修复）。
+  // 此前事务外 get → 纯计算 → 事务内整行 put，窗口期内的并发写会被旧快照覆盖。
+  return db.transaction('rw', db.cards, async () => {
+    const card = await db.cards.get(cardId);
+    if (!card) return null;
+    const f = applyFeedback(card, signal);
+    // M1 时间戳铁律：ease/dueAt 属 SRS 调度字段，按 reviewedAt 决定同步水位——
+    // 不 bump reviewedAt 则本次排期变更不进增量包，对端回滚。不碰 updatedAt（内容侧）。
+    // 差量写：只 merge 本次改动的 SRS 字段，不回写整行。
+    await db.cards.update(cardId, { ease: f.ease, dueAt: f.dueAt, reviewedAt: Date.now() });
+    return f;
+  });
 }
 
 // ---------- 已背记录 ----------
@@ -689,11 +773,8 @@ export async function createDailyPlan(payload) {
   return { plan, tasks };
 }
 
-/** 今天的日期串 YYYY-MM-DD（本地时区） */
-function localDateStr(d = new Date()) {
-  const pad = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
+/** 今天的日期串 YYYY-MM-DD（本地时区）——统一委托 time.dateKey，见顶部 D7 注释 */
+const localDateStr = (d) => createDateKey(d ? new Date(d).getTime() : undefined);
 
 /** 列出某天的计划（默认今天），含任务明细；当天多份时取 updatedAt 最新的一份 */
 export async function listDailyPlan(date = localDateStr()) {
@@ -749,11 +830,21 @@ export async function updateDailyTask(id, patch) {
   // round17 R17-29：读-改-写包进事务（防并发打卡/编辑互相覆盖 = lost update，
   // 兄弟函数 checkinDailyTask 已事务化，此路径是漏网）+ patch 脱壳（调用方可能传
   // Vue reactive 对象，直接展开落库会触发 Dexie structuredClone 的 DataCloneError）
+  // 审计 B5：补上与 checkinDailyTask 同款的状态白名单——原实现直接合并 patch，调用方
+  // 可写入任意 status 值（如 'any-invalid'），listDailyPlanSummary 只认 'done'，非法值
+  // 既不算完成也不算打卡 → 幽灵任务。同时统一维护 completedAt 语义。
+  const p = patch ? plain(patch) : {};
+  if (p.status !== undefined) {
+    const valid = ['done', 'partial', 'skipped', 'pending'];
+    if (!valid.includes(p.status)) throw new Error('非法打卡状态');
+    // 统一 completedAt：只有 'done' 才带完成时刻，其余清空（与 checkinDailyTask 同口径）
+    p.completedAt = p.status === 'done' ? now() : null;
+  }
   let task;
   await db.transaction('rw', db.dailyTasks, async () => {
     const old = await db.dailyTasks.get(id);
     if (!old) throw new Error('任务不存在');
-    task = { ...old, ...(patch ? plain(patch) : {}), updatedAt: now() };
+    task = { ...old, ...p, updatedAt: now() };
     await db.dailyTasks.put(task);
   });
   return task;
@@ -1549,11 +1640,22 @@ export async function savePrivacyRecord(record) {
   return payload;
 }
 export async function listPrivacyRecords({ fromDate, toDate, type, limit = 500 } = {}) {
-  let arr = await db.privacyRecords.orderBy('updatedAt').reverse().limit(limit).toArray();
-  if (fromDate) arr = arr.filter(r => (r.date || '') >= fromDate);
-  if (toDate)   arr = arr.filter(r => (r.date || '') <= toDate);
-  if (type)     arr = arr.filter(r => r.type === type);
-  return arr;
+  // 审计 D2（limit 先于过滤会静默漏数）：原实现 `orderBy(updatedAt).limit(limit)` 先截断、
+  // 再按 date/type 内存过滤——只要「最近 limit 条」里含被过滤掉的记录，更早的匹配行
+  // 就永远不会返回（即使命中总量远超 limit）。date 已建索引（db.js v14）。改为一条
+  // 索引范围查询定位匹配行，再在结果内 limit，保证「返回条数=min(命中,limit)」而非更少。
+  let arr;
+  if (hasRange) {
+    const from = fromDate || '0';
+    const to = toDate || '\uffff';
+    arr = await db.privacyRecords.where('date').between(from, to).toArray();
+    if (type) arr = arr.filter(r => r.type === type);
+    arr.sort((a, b) => (b.updatedAt - a.updatedAt) || (b.id > a.id ? 1 : -1));
+    return arr.slice(0, limit);
+  }
+  arr = await db.privacyRecords.orderBy('updatedAt').reverse().toArray();
+  if (type) arr = arr.filter(r => r.type === type);
+  return arr.slice(0, limit);
 }
 export async function getPrivacyRecord(id) { return (await db.privacyRecords.get(id)) || null; }
 export async function deletePrivacyRecord(id) {

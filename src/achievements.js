@@ -37,7 +37,6 @@ export async function collectAchievementStats() {
   const reviews = await db.reviews.toArray();
   const total = reviews.length || 1;
   const correct = reviews.filter(r => r.rating === 2).length;
-  const earlyCount = reviews.filter(r => { const h = new Date(r.reviewedAt).getHours(); return h >= 5 && h < 9; }).length;
   const [cards, pomo, docs, plans, graphEdges, aiMemories, aiChats, mindmaps, reports] = await Promise.all([
     db.cards.count(),
     // round18 R18-6：番茄成就只认「完整番茄」——未跑满的 partial 会话不入数，
@@ -80,7 +79,7 @@ export async function collectAchievementStats() {
     feynman: aiChats.filter(c => c.type === 'feynman').length,
     mindmaps,
     reports,
-    earlyBird: earlyCount,
+    // 审计 D8：移除无成就消费的 earlyBird 字段（死计算：多一次全量 reviews 过滤）
     words, wordReviews, wordStreak,
   };
 }

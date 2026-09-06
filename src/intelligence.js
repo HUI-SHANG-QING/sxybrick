@@ -188,11 +188,16 @@ export async function recommendGraphEdges(opt = {}) {
   const subjects = [...bySubject.keys()];
   const pairs = [];
 
-  // 同科目内两两比较
+  // 审计 A1：同科目两两比较此前是**完整** O(n²)（注释却声称「组内抽样防爆」但没实现）。
+  // 单科 1000 卡 → 49.5 万对，每对再 cosine/jaccard 全量重算 → 主线程秒级卡死。
+  // 与跨科代表抽样对齐：每科取前 MAX_SAME_SUBJECT_CARDS 张做两两（≤ 200 张 ≈ 2 万对），
+  // 既保住同科内高权重的标签/内容连接，又把最坏规模压到常数级。
+  const MAX_SAME_SUBJECT_CARDS = 200;
   for (const [, arr] of bySubject) {
-    for (let i = 0; i < arr.length; i++) {
-      for (let j = i + 1; j < arr.length; j++) {
-        pairs.push([arr[i], arr[j], 'same']);
+    const sample = arr.length > MAX_SAME_SUBJECT_CARDS ? arr.slice(0, MAX_SAME_SUBJECT_CARDS) : arr;
+    for (let i = 0; i < sample.length; i++) {
+      for (let j = i + 1; j < sample.length; j++) {
+        pairs.push([sample[i], sample[j], 'same']);
       }
     }
   }
@@ -285,6 +290,12 @@ export async function recommendGraphEdges(opt = {}) {
         }
       }
       const cardMap = new Map(cardInfos.map(ci => [ci.card.id, ci]));
+      // 审计 A3：为「已在候选列表里？加分；否则新增」建一个 pairKey→candidate 的 Map 索引，
+      // 替代原先每共现对一次 O(|candidates|) 的数组 find。candidates 因 A1 同科全量的放大
+      // 可到数十万条，find 叠加 12.5 万共现对会形成可复现的主线程冻结组合。
+      const pairKeyOf = (x, y) => (x < y ? `${x}\u0001${y}` : `${y}\u0001${x}`);
+      const candByPair = new Map();
+      for (const c of candidates) candByPair.set(pairKeyOf(c.fromId, c.toId), c);
       for (const [k, cnt] of coOccur) {
         if (cnt < 2) continue;
         const [aid, bid] = k.split('\u0001');
@@ -292,20 +303,20 @@ export async function recommendGraphEdges(opt = {}) {
         if (!a || !b) continue;
         // 共现加分用 log 衰减（避免高频共现卡被过度加权，cnt=2→0.10, cnt=5→0.16, cnt=10→0.19）
         const coBoost = Math.min(0.2, 0.07 * Math.log2(cnt + 1));
-        // 已在候选列表里？加分；否则新增弱关联
-        const exist = candidates.find(c =>
-          (c.fromId === aid && c.toId === bid) || (c.fromId === bid && c.toId === aid));
+        const exist = candByPair.get(pairKeyOf(aid, bid));
         if (exist) {
           exist.score = Math.min(1, exist.score + coBoost);
           exist.reason += `·同日复习 ${cnt} 次`;
         } else {
-          candidates.push({
+          const nc = {
             from: a.label, to: b.label,
             fromId: aid, toId: bid,
             label: '共现', subject: a.card.subject || b.card.subject || '',
             score: Math.min(0.5, 0.15 + coBoost),
             reason: `同一复习时段共现 ${cnt} 次（可能存在隐式关联）`,
-          });
+          };
+          candidates.push(nc);
+          candByPair.set(pairKeyOf(aid, bid), nc);
         }
       }
     }

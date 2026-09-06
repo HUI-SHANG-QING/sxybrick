@@ -11,8 +11,13 @@
  * }}
  */
 export function goldenHours(hourly, opts = {}) {
-  const windowSize = Math.max(1, opts.windowSize ?? 3);
-  const h = (hourly || []).map(v => Number(v) || 0);
+  // 审计 A9：windowSize 只保下界 → >24 时每个起点都覆盖全 24 小时多次，bestSum 恒等、
+  // bestStart 停在 0、end 出现 >23 的模值，结果失真。环形滑动窗要求 windowSize ∈ [1,24]，
+  // 上界一并钳制；h 长度也补零到 24，防御调用方少传。
+  const windowSize = Math.max(1, Math.min(24, Number(opts.windowSize) || 3));
+  const raw = hourly || [];
+  const h = [];
+  for (let i = 0; i < 24; i++) h.push(Number(raw[i]) || 0);
   const total = h.reduce((s, v) => s + v, 0);
 
   if (!total) return { peakHour: null, bestWindow: null, total: 0, hasData: false, label: '暂无复习数据' };

@@ -13,7 +13,9 @@
 import { db, uid } from './db.js';
 // 复用记忆卡调度器（SM-2/FSRS 自动切换）与权重配置：避免两套调度逻辑漂移
 import { scheduleReview } from './srs.js';
-import { getSchedConfig, refreshSchedConfig, formatDue, trashItem } from './repo.js';
+import { getSchedConfig, refreshSchedConfig, formatDue, trashItem, cleanupOrphanImages } from './repo.js';
+import { isMastered } from './repo-core.js';
+import { extractImageIds } from './images.js';
 import { retrievability } from './fsrs.js';
 import { retrievalGrading } from './algorithms/session.js';
 // round17 R17-11：日期 key 统一走 time.dateKey（补零）——与 streak.js 同源，杜绝两套格式
@@ -36,13 +38,21 @@ export async function reviewWord(cardId, rating, opts = {}) {
     // 范文不参与调度：仅记录一次浏览（reviewedAt bump），不重排 dueAt。
     // round15 P1：不 bump updatedAt（与下方普通复习路径一致）——浏览范文是「复习动作」，
     // bump 会让跨设备同步用旧副本覆盖对端对范文的编辑。
-    const t = now();
-    await db.transaction('rw', db.wordCards, async () => {
-      await db.wordCards.put({ ...plain(card), reviewedAt: t });
-    });
+    // 审计 B11：差量写 reviewedAt（与主路径同款，不再 put 整行覆盖并发编辑）
+    await db.wordCards.update(cardId, { reviewedAt: now() });
     return { skipped: true, dueText: '—', reviewId: null };
   }
   const cfg = await getSchedConfig();
+  // 审计 B4：adaptive 与 repo.review 同口径——按该词卡近 10 次复习错误率微调间隔（可选开启）
+  let adaptive = null;
+  if (opts.adaptive) {
+    try {
+      const recent = await db.wordReviews.where('cardId').equals(cardId).reverse().sortBy('reviewedAt');
+      const last10 = recent.slice(0, 10);
+      const fail = last10.filter(r => r.rating === 0).length;
+      adaptive = { reviews: last10.length, failRate: last10.length ? fail / last10.length : 0 };
+    } catch { adaptive = null; }
+  }
   const next = scheduleReview(card, rating, 1, false, {
     scheduler: cfg.scheduler,
     weights: cfg.weights,
@@ -51,6 +61,11 @@ export async function reviewWord(cardId, rating, opts = {}) {
     // 三段早已打通，唯独这最后一段断：不传的话单词侧 SRS 间隔永远享受不到
     // generate(×1.25)/explain(×1.5) 乘子（卡片侧 repo.review 早已透传，此处对齐）
     retrievalStrength: opts.retrievalStrength,
+    // 审计 B4：考试窗口/节假日/自适应穿透——此前单词复习漏传这三项，设了考试日或
+    // 休息日的用户会看到「卡片生效、单词不生效」的调度落差；此处与 repo.review 对齐。
+    examAt: opts.examAt || 0,
+    restDays: opts.restDays,
+    adaptive,
   });
   const nowTs = now();
   const predR = (card.fsrs && Number.isFinite(card.fsrs.s) && Number.isFinite(card.fsrs.last))
@@ -59,26 +74,30 @@ export async function reviewWord(cardId, rating, opts = {}) {
   // P2-C 口径对齐（round13）：与 repo.review 同用 retrievalGrading 定级
   // （failed/hard/medium/easy 四档 + gradeScore 0-1 + guessed/responseMs/retrievalStrength 信号），
   // 替换原单维三档（easy/hard/failed）。旧数据无 'medium'，与四档无冲突，读取无需迁移。
-  const g = retrievalGrading({
-    rating,
-    guessed: !!opts.guessed,
-    responseMs: opts.responseMs || 0,
-    retrievalStrength: opts.retrievalStrength || '',
-  });
-  const grade = g.level;
-  const reviewId = uid();
-  // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt（与 repo.review 一致：
-  // 否则跨设备同步时「复习动作」会覆盖另一台设备对文字/批注的编辑）
-  await db.transaction('rw', db.wordCards, db.wordReviews, async () => {
+  // 审计 B11（单词侧同款）：读+写放进同一事务。此前事务外 get → 纯计算 →
+  // 事务内整行 put 的窗口期内，同卡可能已被并发写变更，旧快照会覆盖新内容。
+  return db.transaction('rw', db.wordCards, db.wordReviews, async () => {
+    const g = retrievalGrading({
+      rating,
+      guessed: !!opts.guessed,
+      responseMs: opts.responseMs || 0,
+      retrievalStrength: opts.retrievalStrength || '',
+    });
+    const grade = g.level;
+    const reviewId = uid();
+    // 复习只更新 SRS 字段与 reviewedAt，不 bump updatedAt（与 repo.review 一致：
+    // 否则跨设备同步时「复习动作」会覆盖另一台设备对文字/批注的编辑）
     // round17 R17-6：SM-2 路径同样推进 fsrs.last（与 repo.review 对齐）——
     // 否则切回 FSRS 时 elapsedDays 横跨整个 SM-2 期，间隔异常放大
     const fsrsNext = next.fsrs ?? (card.fsrs ? { ...card.fsrs, last: nowTs } : undefined);
-    await db.wordCards.put({
-      ...plain(card),
+    // 审计 B11：差量写——只 merge 本次改动的 SRS 字段，不再 put 整行
+    const cardUpdate = {
       ease: next.ease, level: next.level, intervalDays: next.intervalDays,
       dueAt: next.dueAt, consolidation: next.consolidation,
-      fsrs: fsrsNext, reviewedAt: nowTs,
-    });
+      reviewedAt: nowTs,
+    };
+    if (fsrsNext !== undefined) cardUpdate.fsrs = fsrsNext;
+    await db.wordCards.update(cardId, cardUpdate);
     await db.wordReviews.put({
       id: reviewId, cardId, reviewedAt: nowTs, rating,
       predR, levelAfter: next.level, grade,
@@ -87,8 +106,8 @@ export async function reviewWord(cardId, rating, opts = {}) {
       responseMs: opts.responseMs || 0,
       retrievalStrength: opts.retrievalStrength || '',
     });
+    return { ...next, dueText: formatDue(next.dueAt), reviewId };
   });
-  return { ...next, dueText: formatDue(next.dueAt), reviewId };
 }
 
 // 错题反思（落盘到复习记录，跨设备按 selfExplainAt 字段级合并）
@@ -179,14 +198,18 @@ export async function updateWordCard(id, patch = {}) {
 export async function deleteWordCard(id) {
   const old = await db.wordCards.get(id);
   if (!old) return false;
-  const imgIds = []; // 单词模块无图片字段，占位以对齐 deleteCard 流程
+  // 审计 A1：词卡字段（meaning/example 等）可能含 sxy-img:// 引用（AI 生成/外部导入），
+  // 不能假设无图——与 deleteCard 同口径收集，并在事务外做孤儿清理 + 图片墓碑。
+  const imgIds = [...extractImageIds(JSON.stringify(old))];
   await db.transaction('rw', db.wordCards, db.trash, db.tombstones, db.wordReviews, db.wordGroupLinks, db.cardWordLinks, async () => {
     const reviews = await db.wordReviews.where('cardId').equals(id).toArray();
     const links = await db.wordGroupLinks.where('cardId').equals(id).toArray();
     // v31：通用卡↔英语词卡链接——删英语词卡必须连链接一起删+写墓碑，
     // 否则对端残留的悬空链接会随同步回传（指向已删英语词的幽灵行）
     const cwLinks = await db.cardWordLinks.where('wordCardId').equals(id).toArray();
-    await trashItem(id, 'wordCard', { ...plain(old), _reviews: reviews, _groupLinks: links });
+    // 审计 A2：快照必须带上 _cardWordLinks——恢复路径依赖它还原卡↔词关联，
+    // 否则删→恢复后 cardWordLinks 永久丢失（残留墓碑还会把重连尝试再删掉）
+    await trashItem(id, 'wordCard', { ...plain(old), _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks });
     await db.tombstones.put({ id, kind: 'wordCard', deletedAt: now() });
     // round15 P1：wordReviews 是 idOnly 幂等表——本端删除行不写墓碑的话，
     // 对端残留的复习记录会随每次增量包反复回传（孤儿行常驻 + 统计污染）。
@@ -204,6 +227,12 @@ export async function deleteWordCard(id) {
     await db.wordReviews.where('cardId').equals(id).delete();
     await db.wordGroupLinks.where('cardId').equals(id).delete();
   });
+  // 与 deleteCard 同口径：孤儿图清理（存活集含词卡）+ 图片墓碑，
+  // 否则删词卡后仅被它引用的图永久残留本端并随每次同步外传
+  const removedImages = await cleanupOrphanImages(imgIds);
+  if (removedImages.length) {
+    await db.tombstones.bulkPut(removedImages.map(i => ({ id: i, kind: 'image', deletedAt: now() })));
+  }
   return true;
 }
 
@@ -215,7 +244,13 @@ export async function markFamiliar(id, value = 1) {
   const v = value ? 1 : 0;
   const patch = { familiar: v, updatedAt: now() };
   if (v === 1) patch.dueAt = now() + 365 * 86400000; // 熟词一年后到期（等于移出活跃队列）
-  else patch.dueAt = now(); // 取消熟词：立即重新进入复习队列
+  else {
+    patch.dueAt = now(); // 取消熟词：立即重新进入复习队列
+    // 审计 B8：熟词期间把 dueAt 推到一年外而未推进 fsrs.last——取消熟词后 next review 用
+    // `elapsed≈365d` 算 predR→R≈0→遗忘驱动项异常放大，首两次排期跳动。重置 SRS 时间基准，
+    // 让该词「视为刚复习过」的既定语义成立（FSRS 卡才有 fsrs 字段，SM-2 无需）。
+    if (cur.fsrs) patch.fsrs = { ...cur.fsrs, last: now() };
+  }
   await db.wordCards.put({ ...cur, ...patch });
   return { ...cur, ...patch };
 }
@@ -442,7 +477,9 @@ export async function wordStats() {
     //   FSRS 路径 level 封顶 4（需 S≥15 天）；SM-2 路径 level 无上限——两套调度器
     //   「已掌握」的实际门槛不同（FSRS 更严）。UI 统计口径可接受，但跨模块对比
     //   （如 P2-B union 视图的成就/周报）需知晓此差异。
-    if (r.level >= 4 || (r.intervalDays || 0) >= 21) mastered++;
+    // 审计 B2：mastered 判定收敛到 repo-core 的 isMastered 单点（level>=4 || intervalDays>=21），
+    //   与 gradeCard/卡片列表口径一致，消除「卡片已掌握 vs 单词已掌握」双口径分裂。
+    if (isMastered(r)) mastered++;
   }
   return {
     total: rows.length,

@@ -90,38 +90,45 @@ export function interleaveQueue(cards, opts = {}) {
     type: c.type ?? 'basic',
     source: c.sourceCardId || '',
   }));
-  const remaining = cards.slice();
+  // 审计 A4：原实现是 O(n²·W)——每轮对每个候选（O(n)）再扫一次窗口（O(W)）
+  //  且每步重复 keyOf（新建对象）。积压 1000-2000 张时约数百万次对象构建+比较，主线程卡顿。
+  // 优化（输出语义完全一致，仍是同一套贪心+邻接惩罚）：
+  //  1. 每张卡只算一次 key（预计算）；
+  //  2. 把窗口维度用「计数 Map」表示，候选惩罚由 count*W 在 O(1) 得到，去掉内部 O(W) 循环。
+  const remaining = cards.map((c, i) => ({ c, i, k: keyOf(c) }));
   const result = [];
-  const winSubject = [], winDiff = [], winType = [], winSource = [];
-  const pushWin = (c) => {
-    const k = keyOf(c);
-    winSubject.push(k.subject); winDiff.push(k.difficulty); winType.push(k.type); winSource.push(k.source);
-    if (winSubject.length > WINDOW) {
-      winSubject.shift(); winDiff.shift(); winType.shift(); winSource.shift();
+  // 最近 WINDOW 张各维度的命中计数（等价于原 winSubject/winDiff/winType/winSource 数组语义）
+  const cSub = new Map(), cDiff = new Map(), cType = new Map(), cSrc = new Map();
+  const winQueue = []; // 记录滑窗内的 key，便于满窗后递减计数
+  const inc = (m, v) => m.set(v, (m.get(v) || 0) + 1);
+  const dec = (m, v) => { const n = (m.get(v) || 0) - 1; if (n <= 0) m.delete(v); else m.set(v, n); };
+  const addWin = (k) => {
+    inc(cSub, k.subject); inc(cDiff, k.difficulty); inc(cType, k.type);
+    if (k.source) inc(cSrc, k.source);
+    winQueue.push(k);
+    if (winQueue.length > WINDOW) {
+      const old = winQueue.shift();
+      dec(cSub, old.subject); dec(cDiff, old.difficulty); dec(cType, old.type);
+      if (old.source) dec(cSrc, old.source);
     }
   };
   const rank = opts.rank || ((c, i) => i);
   while (remaining.length) {
     let bestIdx = 0, bestPen = Infinity, bestRank = Infinity;
     for (let i = 0; i < remaining.length; i++) {
-      const k = keyOf(remaining[i]);
-      let pen = 0;
-      if (winSubject.length) {
-        for (let j = 0; j < winSubject.length; j++) {
-          if (winSubject[j] === k.subject) pen += W.subject;
-          if (winDiff[j] === k.difficulty) pen += W.difficulty;
-          if (winType[j] === k.type) pen += W.type;
-          if (k.source && winSource[j] === k.source) pen += W.source;
-        }
-      }
-      const r = rank(remaining[i], i);
+      const { k } = remaining[i];
+      const pen = (cSub.get(k.subject) || 0) * W.subject
+        + (cDiff.get(k.difficulty) || 0) * W.difficulty
+        + (cType.get(k.type) || 0) * W.type
+        + (k.source ? (cSrc.get(k.source) || 0) * W.source : 0);
+      const r = rank(remaining[i].c, i);
       if (pen < bestPen || (pen === bestPen && r < bestRank)) {
         bestPen = pen; bestIdx = i; bestRank = r;
       }
     }
     const picked = remaining.splice(bestIdx, 1)[0];
-    result.push(picked);
-    pushWin(picked);
+    result.push(picked.c);
+    addWin(picked.k);
   }
   return result;
 }

@@ -73,6 +73,9 @@ export function attributeMistakes(cards, opts = {}) {
     return cards.map(c => ({ concept: c.subject || '未分类', cardIds: [c.id], size: 1, score: 1, representative: summarize(c) }));
   }
   if (cards.length > MAX_CLUSTER_INPUT) {
+    // round26 M-5 修正：分桶后不再 slice(0, MAX_CLUSTER_INPUT) 丢弃尾部卡片。
+    // 对每个桶做分块聚类（每块 ≤ MAX_CLUSTER_INPUT），再按块内 concept 合并。
+    // 保证每张卡至少进入一个簇，绝不静默丢弃——静默丢数据是比性能更严重的问题。
     const buckets = new Map();
     for (const c of cards) {
       const key = c?.subject || '未分类';
@@ -81,7 +84,11 @@ export function attributeMistakes(cards, opts = {}) {
     }
     const merged = [];
     for (const bucket of buckets.values()) {
-      merged.push(...attributeMistakes(bucket.slice(0, MAX_CLUSTER_INPUT), opts));
+      // 分块：每块 maxBlock 张，逐块聚类后收集所有簇
+      for (let i = 0; i < bucket.length; i += MAX_CLUSTER_INPUT) {
+        const chunk = bucket.slice(i, i + MAX_CLUSTER_INPUT);
+        merged.push(...attributeMistakes(chunk, opts));
+      }
     }
     return merged.sort((a, b) => b.size - a.size);
   }

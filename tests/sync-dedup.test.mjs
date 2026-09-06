@@ -127,6 +127,37 @@ test('导入前关联引用重定向：标量+数组+JSON+嵌套字段的卡 id 
   assert.deepEqual(out.meta, { version: 1 }, '非数组键原样保留');
 });
 
+test('B1 remapCardRefs：cardWordLinks 确定性复合键 id 随 cardId 重映射重算', () => {
+  // 回归场景：设备 A 有卡 C1，设备 B 有同内容异 id 卡 C2 + 链接 C2:W1。
+  // 导入 B 时 C2 被去重跳过并重定向到 C1 —— cardId 字段被重映射，
+  // 复合键 id 也必须跟着变成 C1:W1，否则：再 link 同对会插重复行、
+  // unlink 按 `${cardId}:${wordCardId}` 删会落空（孤儿链接行）。
+  const backup = {
+    cardWordLinks: [
+      { id: 'C2:W1', cardId: 'C2', wordCardId: 'W1', createdAt: 1 },
+      // 普通行（cardId 未被重定向）：id 不得被误改
+      { id: 'C3:W2', cardId: 'C3', wordCardId: 'W2', createdAt: 2 },
+    ],
+  };
+  const out = remapCardRefs(backup, new Map([['C2', 'C1']]));
+  assert.equal(out.cardWordLinks[0].cardId, 'C1', 'cardId 字段重映射');
+  assert.equal(out.cardWordLinks[0].id, 'C1:W1', '复合键 id 必须重算为 ${cardId}:${wordCardId}');
+  assert.equal(out.cardWordLinks[1].id, 'C3:W2', '未重定向的行 id 保持不变');
+  assert.equal(out.cardWordLinks[1].cardId, 'C3');
+  // 不修改入参
+  assert.equal(backup.cardWordLinks[0].id, 'C2:W1');
+});
+
+test('B1 remapCardRefs：cardWordLinks 复合键重算不误伤其他表', () => {
+  // 其他表恰好有含 ':' 的 id 与 cardId 字段时，不得按 cardWordLinks 规则改 id
+  const backup = {
+    notes: [{ id: 'n:1', cardId: 'C2', body: 'x' }],
+  };
+  const out = remapCardRefs(backup, new Map([['C2', 'C1']]));
+  assert.equal(out.notes[0].cardId, 'C1', 'notes 的 cardId 仍按标量字段重映射');
+  assert.equal(out.notes[0].id, 'n:1', 'notes 的行 id 不受 cardWordLinks 复合键规则影响');
+});
+
 test('remapCardRefs：注册表字段覆盖已知卡片引用字段（BUG-04 防漂移）', () => {
   // 锁定当前正确状态：任何一个被历史 bug 证明过的引用字段都不能从注册表消失
   assert.ok(CARD_REF_FIELDS.includes('sourceId'), 'N-6 曾漏掉的 sourceId 必须在');

@@ -101,6 +101,14 @@ export function remapCardRefs(backup, idRemap) {
           row = { ...row, [f]: r[f].map((q) => (q && typeof q === 'object' && q.cardId != null && idRemap.has(q.cardId)) ? { ...q, cardId: remap(q.cardId) } : q) };
         }
       }
+      // 审计 B1：cardWordLinks.id 是确定性复合键 `${cardId}:${wordCardId}`（repo.linkCardWord），
+      // 上面按字段重映射 cardId/wordCardId 后复合 id 不会跟着变 —— 导入去重把旧卡重定向到
+      // 保留卡后，链接行 id 仍指向旧卡：再 link 同一对会插重复行、unlink 按复合 id 删会落空。
+      // 其他 link 表（cardGroupLinks/wordGroupLinks）id 是随机 uid，无此问题。
+      // 仅在 id 符合复合格式（含 ':'）时重算，避免误伤其他表里恰好同名的 id。
+      if (key === 'cardWordLinks' && typeof r.id === 'string' && r.id.includes(':')) {
+        row = { ...row, id: `${row.cardId}:${row.wordCardId}` };
+      }
       return row;
     });
   }

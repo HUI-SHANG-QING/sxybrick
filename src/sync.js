@@ -32,6 +32,8 @@ async function exportRows(t) {
 import { dedupeIncomingCards, remapCardRefs } from './sync-dedup.js';
 import { buildAuthHeaders } from './utils/hub-auth.js';
 import { pad2 } from './utils/format.js';
+// 审计 C3：导入后跨 tab 广播数据变更
+import { notifyDbChanged } from './utils/dbEvents.js';
 // 快照标签里的时间跟随界面语言（此前硬编码 'zh-CN'，英文界面下仍是"2026/8/30 19:48"中文习惯）
 import { fmtLocaleDateTime } from './utils/locale-date.js';
 
@@ -808,6 +810,8 @@ export async function importBackup(backup, opts = {}) {
   }
   fireProgress(opts, PHASE.IMAGES, 1);
 
+  // 审计 C3：导入完成即向所有 tab 广播数据已变更（跨 tab 缓存失效）。
+  notifyDbChanged('import');
   return stats;
 }
 
@@ -828,6 +832,41 @@ function previewSample(t, row) {
   if (['mindmaps', 'weeklyReports', 'plans', 'dailyPlans'].includes(t.table)) return (row.title || '').slice(0, 48);
   return String(row.id || '').slice(0, 24);
 }
+/**
+ * 审计 B7：单表合并的 dry-run 模拟——preview 与 importBackup 共用的唯一口径。
+ * 此前 previewImport 用「原始 incoming 行 vs 本地行 JSON 全串比较」，而真实导入走
+ * mergeRows 的字段级合并（card 策略按 reviewedAt 分内容/SRS 字段取新、idOnly 幂等覆盖、
+ * updatedAt 水位裁决）——同一包同一本地状态，两侧算出的 新增/覆盖/跳过 不一致：
+ * 「将覆盖 N」的其实本地字段会保留、「将跳过」的其实会发生字段级合并，
+ * 用户基于错误数字做导入决策。现在抽成纯函数，预览与执行共用 mergeRows，数字必然一致。
+ * @param t 清单表项（table/kind/merge/strip/extFields）
+ * @param incoming 入站行（cards 需先经 dedupeIncomingCards）
+ * @param base 本地全表行
+ * @param tombstones 入站墓碑（仅计算「将删除的本地行」）
+ * @param clearedBefore 该表的隐私清空水位（preview 此前漏了这道过滤——import 有）
+ */
+function simulateTableMerge(t, incoming, base, tombstones, clearedBefore) {
+  let filtered = incoming;
+  if (clearedBefore) filtered = filterClearedRows(filtered, clearedBefore);
+  const baseMap = new Map(base.map(x => [x.id, x]));
+  // 与 importBackup 主路径同一合并实现
+  const merged = filtered.length ? mergeRows(base, filtered, t.merge, { strip: t.strip, extFields: t.extFields }) : [];
+  let added = 0, overwritten = 0, skipped = 0;
+  for (const row of merged) {
+    const old = baseMap.get(row.id);
+    if (!old) { added++; continue; }
+    // M12 同款快速判定：mergeRows 语义下「内容变则水位变」，键数+水位相同才做全串兜底
+    const sameShape = Object.keys(old).length === Object.keys(row).length && livenessTs(old) === livenessTs(row);
+    if (!sameShape || JSON.stringify(old) !== JSON.stringify(row)) overwritten++;
+    else skipped++;
+  }
+  // 未出现在 merged 里的入站行（被 strip 空行等）计入跳过，保持 total 口径可读
+  skipped += Math.max(0, filtered.length - merged.length);
+  let deleted = 0;
+  if (tombstones.length) { const { removed } = applyTombstones(base, tombstones, t.kind); deleted = removed.length; }
+  return { added, overwritten, skipped, deleted };
+}
+
 export async function previewImport(backup) {
   if (!backup || backup.app !== 'sxybrick') return { valid: false, error: '不是有效的 SxyBrick 数据包', tables: [] };
   // 与 importBackup 同口径：预览阶段就拦住跨数据域导入，别让用户走完 3 秒预览才发现
@@ -866,20 +905,17 @@ export async function previewImport(backup) {
       duplicated = d.duplicated;
       incoming = d.kept;
     }
-    let added = 0, overwritten = 0, skipped = 0;
+    // 审计 B7：与 importBackup 完全同口径（mergeRows 字段级合并 + 隐私清空水位过滤）
+    const clearedBefore = (typeof localStorage !== 'undefined')
+      ? Number(localStorage.getItem(clearedBeforeKey(t.table)) || 0) : 0;
+    const { added, overwritten, skipped, deleted } = simulateTableMerge(t, incoming, base, tombstones, clearedBefore);
+    // 抽样展示：仍从入站行取（用户看到的是「导入方的东西」），口径与统计一致
     const samples = [];
     for (const row of incoming) {
+      if (samples.length >= 5) break;
       const old = baseMap.get(row.id);
-      if (!old) { added++; if (samples.length < 5) samples.push({ title: previewSample(t, row), status: 'new' }); }
-      else {
-        // M12：同 importBackup 主路径——键数+水位快速判定，避免每条 JSON.stringify 全串
-        const sameShape = Object.keys(old).length === Object.keys(row).length && livenessTs(old) === livenessTs(row);
-        if (!sameShape || JSON.stringify(old) !== JSON.stringify(row)) { overwritten++; if (samples.length < 5) samples.push({ title: previewSample(t, row), status: 'overwrite' }); }
-        else { skipped++; }
-      }
+      samples.push({ title: previewSample(t, row), status: old ? 'overwrite' : 'new' });
     }
-    let deleted = 0;
-    if (tombstones.length) { const { removed } = applyTombstones(base, tombstones, t.kind); deleted = removed.length; }
     if (added || overwritten || skipped || duplicated || deleted) {
       tables.push({ table: t.table, kind: t.kind, label: TABLE_LABEL[t.table] || t.table, total: incoming.length, added, overwritten, skipped, duplicated, deleted, samples });
       totalAdded += added; totalOverwritten += overwritten; totalSkipped += skipped; totalDuplicated += duplicated; totalDeleted += deleted;

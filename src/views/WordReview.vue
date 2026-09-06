@@ -44,6 +44,8 @@ const chosen = ref(null);
 const input = ref('');
 
 const result = ref(null); // {correct, rating}
+// 审计 B6：当前卡是否已判分——一轮一卡只计一次，防重复 commit
+const committed = ref(false);
 const sessionCount = ref(0);
 
 // ---- 会话级追踪（拼写收尾 + 小结 + 学习时长，v27） ----
@@ -155,6 +157,7 @@ function setupQuestion() {
   revealed.value = false; forgiven.value = false; adaptiveStage.value = 1;
   chosen.value = null; input.value = '';
   result.value = null;
+  committed.value = false; // 审计 B6：换新卡重置判分标记（重拼写轮也重置，允许同卡再评）
   const c = current.value;
   if (!c) { phase.value = 'done'; return; }
   phase.value = 'question';
@@ -324,6 +327,12 @@ async function submitText() {
 }
 
 async function commit(rating) {
+  // 审计 B6：一张卡一轮只允许 commit 一次。此前拼写/听写类判分后输入框
+  // @keyup.enter 仍活跃，900ms 推进窗口内再按 Enter 会对同一张卡再调 reviewWord
+  // → wordReviews 多记一行（今日/累计次数虚高）且 SRS 二次重排（间隔偏离小结页
+  // 展示的下次复习时间）。模板范文本就跳过判分，无需守卫。
+  if (committed.value) return;
+  committed.value = true;
   const c = current.value;
   const t0 = Date.now();
   if (c && c.kind !== 'template') {
@@ -550,7 +559,8 @@ const speakSupported = speechSupported();
 
           <!-- 填空 / 听写 / 拼写 / 例句挖空 -->
           <div v-if="['spell','listenSpell','cloze','sentenceCloze'].includes(mode)" class="text-in">
-            <input v-model="input" :placeholder="spellPlaceholder" @keyup.enter="submitText" />
+            <!-- 审计 B6：判分后禁用输入与回车，防 900ms 推进窗口内重复 commit（commit 内另有守卫兜底） -->
+            <input v-model="input" :placeholder="spellPlaceholder" :disabled="result" @keyup.enter="submitText" />
             <button v-if="!result" class="q-submit" @click="submitText">{{ t('views.wordReview.submit') }}</button>
           </div>
 

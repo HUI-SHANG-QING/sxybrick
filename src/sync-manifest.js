@@ -44,6 +44,26 @@ export const PRIVACY_SYNC_TABLES = [
 //   把对端更全的各模式题目整行覆盖丢失 → 必须受并集保护。
 export const WORD_EXT_FIELDS = ['pos', 'defs', 'synonyms', 'collocations', 'phrases', 'examples', 'mnemonics', 'rootAffix', 'confusions', 'syllable', 'derived', 'modeQuestions'];
 
+// ---------------------------------------------------------------------------
+// 审计 B1：新增数据表「三查」checklist（防硬编码枚举漂移的兜底）。
+// 本清单是导出/导入/中枢合并的唯一事实来源，但引用重映射（src/sync-dedup.js 的
+// CARD_REF_FIELDS 等四类注册表）与图片引用收集（src/repo.js imageIdsOf）仍是
+// 字段级枚举——新增表/字段时漏改任何一处都会留下孤儿引用或误删共享图片。
+// 每次加表/加引用字段，逐项打勾：
+//   [1] 本清单：SYNC_TABLES / PRIVACY_SYNC_TABLES / EXCLUDED_FROM_SYNC 三选一登记；
+//       行 id 若是确定性复合键（如 cardWordLinks 的 `${cardId}:${wordCardId}`），
+//       还要在 sync-dedup.remapCardRefs 里登记「字段重映射后重算 id」；
+//   [2] 引用注册表：新表含「引用卡片 id」字段 → 按类别加入 CARD_REF_FIELDS /
+//       ARRAY_REF_FIELDS / JSON_REF_FIELDS / NESTED_REF_FIELDS（sync-dedup.js）；
+//   [3] 图片 GC：新表含图片 id 字段 → repo.imageIdsOf 的扫描范围必须覆盖
+//       （前端 cleanupOrphanImages 与 hub.js 的 gcOrphanImages 同源，漏一处
+//       就会一端误删另一端共享图）；
+//   [4] 级联删除：新表行随卡/词卡生死 → deleteCard / deleteWordCard 的级联
+//       集合与快照（_cardWordLinks 模式）要覆盖；
+//   [5] 不变量测试：tests/sync-manifest.test.mjs 的「表数量 + 策略合法」断言
+//       加一即可锁定新表（数量不符会失败）；字段级漏登记（引用/图片）靠
+//       上面 [2][3] + sync-dedup.test.mjs 的注册表防漂移断言 + 评审。
+// ---------------------------------------------------------------------------
 export const SYNC_TABLES = [
   { table: 'cards', kind: 'card', merge: 'card' },
   { table: 'reviews', kind: 'review', merge: 'review' },
@@ -175,10 +195,21 @@ export function kindOf(t) { return t?.kind || 'card'; }
 export function mergeCardPair(local, incoming, extFields = []) {
   const incTs = incoming.updatedAt ?? 0;
   const locTs = local.updatedAt ?? 0;
-  const incRev = incoming.reviewedAt ?? incTs; // 旧数据无 reviewedAt：退化为 updatedAt
-  const locRev = local.reviewedAt ?? locTs;
-  const content = incTs >= locTs ? incoming : local;
-  const srs = incRev >= locRev ? incoming : local;
+  // 审计 D1+D5（reviewedAt 语义分裂）：此前 `x.reviewedAt ?? updatedAt` 把「从未复习
+  // （undefined/0）」错误等价于「用内容更新时间顶替的 SRS 时间戳」——设备 A 只改内容
+  // （updatedAt 很新、从未复习）会在 SRS 竞争里覆盖设备 B 已复习的真实调度，跨设备丢复习进度。
+  // 统一哨兵：`reviewedAt` 非有限值一律视为 0（未复习），只在 SRS 竞争中比较它，绝不与
+  // updatedAt 混比。新卡已统一 init `reviewedAt:0`（见 repo.createCard / word-repo.createWordCard）。
+  const revOf = (x) => (typeof x.reviewedAt === 'number' && Number.isFinite(x.reviewedAt)) ? x.reviewedAt : 0;
+  const incRev = revOf(incoming);
+  const locRev = revOf(local);
+  // 审计 C4（同毫秒/同时钟覆盖）：原 `>=` 在两端时间戳相等时**无条件采纳 incoming**，
+  // 并发且同 ms 时实际较新的一方被整体覆盖，且结果由「谁在网络里后到」决定（非确定）。
+  // 改严格 `>` + 相等时按序列化字典序确定性收敛——两台设备都收敛到同一个 canonical，
+  // 杜绝「A 认 B、B 认 A」的反复横跳，也让同 ms 覆盖变得可复现、可测试。
+  const tiebreak = (a, b) => JSON.stringify(a) < JSON.stringify(b);
+  const content = incTs > locTs ? incoming : (locTs > incTs ? local : (tiebreak(incoming, local) ? incoming : local));
+  const srs = incRev > locRev ? incoming : (locRev > incRev ? local : (tiebreak(incoming, local) ? incoming : local));
   const out = { ...content, updatedAt: Math.max(incTs, locTs) };
   for (const f of CARD_SRS_FIELDS) {
     if (srs && srs[f] !== undefined) out[f] = srs[f];
@@ -334,13 +365,22 @@ export function mergeRows(base, incoming, strategy, opts = {}) {
   return [...m.values()];
 }
 
-// 墓碑合并：deletedAt 谁新听谁；kind 兼容旧数据
+// 墓碑合并：deletedAt 谁新听谁；kind 兼容旧数据。
+// 审计 C4：原 `>=` 使同 deletedAt 时必取 incoming（非确定、可被时钟偏置左右）。
+// 改严格 `>`，等值且内容不同时按序列化字典序确定性收敛（双端一致，删除不掉档）。
 export function mergeTombstones(base, incoming) {
   const m = new Map((base || []).filter(t => t && t.id != null).map(t => [t.id, { ...t, kind: kindOf(t) }]));
   for (const t of incoming || []) {
     if (!t || t.id == null) continue;
     const cur = m.get(t.id);
-    if (!cur || (t.deletedAt ?? 0) >= (cur.deletedAt ?? 0)) m.set(t.id, { ...t, kind: kindOf(t) });
+    const nt = { ...t, kind: kindOf(t) };
+    if (!cur) { m.set(t.id, nt); continue; }
+    const cd = cur.deletedAt ?? 0;
+    const td = t.deletedAt ?? 0;
+    if (td > cd) m.set(t.id, nt);
+    else if (td === cd && JSON.stringify(nt) !== JSON.stringify(cur)) {
+      m.set(t.id, JSON.stringify(nt) < JSON.stringify(cur) ? nt : cur);
+    }
   }
   return [...m.values()];
 }
