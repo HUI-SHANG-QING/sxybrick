@@ -77,7 +77,21 @@ onMounted(async () => {
   if (route.query.mode) mode.value = String(route.query.mode);
   // v40：词组库「背这类」跳转携带 scope（word/phrase/sentence），直接定位针对性背诵
   if (route.query.scope) scope.value = String(route.query.scope);
+  // 按词组背诵：词组页「背这组」跳转携带 groupId → 直接锁该组；否则若没指定就默认第一组
+  if (route.query.groupId) {
+    groupId.value = String(route.query.groupId);
+    if (!route.query.scope) scope.value = 'group';
+  }
+  ensureGroupSelection();
 });
+// 切换到「按词组」且还没选中组 → 默认选第一个 active 组（无 active 则第一个）
+function ensureGroupSelection() {
+  if (scope.value !== 'group' || groupId.value) return;
+  if (!groups.value.length) return;
+  const first = groups.value.find(g => g.status !== 'archived') || groups.value[0];
+  groupId.value = first.id;
+}
+function pickGroupScope() { scope.value = 'group'; ensureGroupSelection(); }
 
 const current = computed(() => queue.value[idx.value] || null);
 const remaining = computed(() => Math.max(0, queue.value.length - idx.value));
@@ -446,7 +460,13 @@ const speakSupported = speechSupported();
           <button class="wc" :class="{ on: scope === 'word' }" @click="scope = 'word'">{{ t('views.wordReview.scopeWord') }}</button>
           <button class="wc" :class="{ on: scope === 'phrase' }" @click="scope = 'phrase'">{{ t('views.wordReview.scopePhrase') }}</button>
           <button class="wc" :class="{ on: scope === 'sentence' }" @click="scope = 'sentence'">{{ t('views.wordReview.scopeSentence') }}</button>
+          <button class="wc" :class="{ on: scope === 'group' }" @click="pickGroupScope">{{ t('views.wordReview.scopeGroup') }}</button>
         </div>
+        <select v-if="scope === 'group'" v-model="groupId" class="wr-group-sel">
+          <option v-for="g in groups" :key="g.id" :value="g.id">
+            {{ g.name }}{{ g.status === 'archived' ? '（' + t('views.wordReview.scopeGroupArchived') + '）' : '' }}
+          </option>
+        </select>
       </section>
 
       <section class="wr-block">
@@ -635,6 +655,10 @@ const speakSupported = speechSupported();
 
 .wr-block { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; margin-bottom: 12px; }
 .wr-label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+.wr-group-sel {
+  margin-top: 8px; width: 100%; padding: 9px 10px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--panel); color: var(--ink); font-size: 13px;
+}
 .wr-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .wc { border: 1px solid var(--line); background: transparent; border-radius: 10px; padding: 6px 12px; font-size: 13px; cursor: pointer; color: var(--ink); }
 .wc.on { border-color: var(--accent); background: var(--code-inline); color: var(--accent); }

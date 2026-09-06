@@ -88,6 +88,7 @@ async function remove(g) {
   await reload();
 }
 async function toggleExpand(g) { expanded.value = expanded.value === g.id ? '' : g.id; await refreshMembers(); }
+function reviewGroup(g) { router.push(`/english/study?scope=group&groupId=${g.id}`); }
 
 // 添加成员：支持实时检索（按单词/释义），并显式标出当前操作的是哪个词组，
 // 避免多个词组（如「考研词组」「雅思词组」）分不清在给谁加词。
@@ -169,11 +170,13 @@ onMounted(reload);
           <span v-if="g.description" class="gdesc">{{ g.description }}</span>
           <span class="ca">{{ expanded === g.id ? t('views.wordGroups.collapse') : t('views.wordGroups.expand') }}</span>
         </div>
-        <div class="gacts">
-          <el-button size="small" @click.stop="startEdit(g)">{{ t('views.wordGroups.edit') }}</el-button>
-          <el-button size="small" @click.stop="toggleStatus(g)">{{ g.status === 'active' ? t('views.wordGroups.statusArchived') : t('views.wordGroups.statusActive') }}</el-button>
-          <el-button size="small" type="danger" plain @click.stop="remove(g)">{{ t('views.wordGroups.delete') }}</el-button>
-        </div>
+          <div class="gacts">
+            <!-- 针对性背诵：只复习本词组的到期词（显式指定组时备用组也放行，与复习队列口径一致） -->
+            <el-button size="small" type="primary" plain @click.stop="reviewGroup(g)">🎯 {{ t('views.wordGroups.studyGroup') }}</el-button>
+            <el-button size="small" @click.stop="startEdit(g)">{{ t('views.wordGroups.edit') }}</el-button>
+            <el-button size="small" @click.stop="toggleStatus(g)">{{ g.status === 'active' ? t('views.wordGroups.statusArchived') : t('views.wordGroups.statusActive') }}</el-button>
+            <el-button size="small" type="danger" plain @click.stop="remove(g)">{{ t('views.wordGroups.delete') }}</el-button>
+          </div>
 
         <div v-if="expanded === g.id" class="mem">
           <el-button size="small" @click="openAdd(g)">{{ t('views.wordGroups.addMember') }}</el-button>

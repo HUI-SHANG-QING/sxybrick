@@ -12,6 +12,9 @@ export const zh = {
   scopePhrase: '仅词组',
   scopeSentence: '仅短句',
   scopeGroup: '按词组',
+  scopeGroupSelect: '选择要复习的词组',
+  scopeGroupArchived: '备用',
+  scopeGroup: '按词组',
 
   // 模式（13 种：自适应 + 12）
   modeLabel: '复习模式',
@@ -145,6 +148,9 @@ export const en = {
   scopeWord: 'Words only',
   scopePhrase: 'Phrases only',
   scopeSentence: 'Sentences only',
+  scopeGroup: 'By group',
+  scopeGroupSelect: 'Pick a word group to review',
+  scopeGroupArchived: 'Parked',
   scopeGroup: 'By group',
 
   modeLabel: 'Mode',
