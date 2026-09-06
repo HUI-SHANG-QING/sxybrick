@@ -24,7 +24,32 @@ export function isReviewed(card) {
   // 必须用 Number.isFinite 而不是 typeof：NaN 的 typeof 也是 'number'，
   // 一旦放过 NaN，它会一路污染 retrievability → 单卡净值 → 全局总净值 →
   // 按来源聚合，整张报表变成一串 NaN，且没有任何报错。
-  return !!(f && Number.isFinite(f.s) && f.s > 0 && f.reps >= 1);
+  if (f && Number.isFinite(f.s) && f.s > 0 && f.reps >= 1) return true;
+  // round23 P2-1：默认调度器是 SM-2（repo.js 未配 fsrs 时），SM-2 路径不写 card.fsrs，
+  //   若只看 fsrs 则「已背过」的卡全被当成"没学"→ 净值/保持率恒 0/失真。
+  //   SM-2 等价信号：有复习时间戳且有调度痕迹（level>0 或 intervalDays>0）。
+  //   仅当无【有效】fsrs 时才走该兜底，避免掩盖 fsrs 损坏。
+  if (f && Number.isFinite(f.s) && f.s > 0) return false; // 有稳定度但 reps=0：新学未复 → 不算
+  const reviewed = (card?.reviewedAt || 0) > 0;
+  const sched = (Number(card?.level) || 0) > 0 || (Number(card?.intervalDays) || 0) > 0;
+  return !!(reviewed && sched);
+}
+
+/**
+ * 单卡当前记忆保持度 R(t)。
+ * FSRS 路径用 fsrs.stability；SM-2 路径（无 fsrs）用确定性代理：
+ *   R = 0.9 ^ (elapsedDays / max(1, intervalDays))
+ * 语义对齐：到期当天（elapsed≈interval）R≈0.9（对应 FSRS 默认 desiredRetention=0.9），
+ * 逾期按指数衰减、提前复习趋近 1——单调、确定、无 NaN，纯函数可单测。
+ */
+export function retentionOf(card, nowTs = Date.now(), w = DEFAULT_WEIGHTS) {
+  const f = card?.fsrs;
+  const elapsedDays = Math.max(0, (nowTs - (card?.reviewedAt ?? card?.fsrs?.last ?? nowTs)) / DAY);
+  if (f && Number.isFinite(f.s) && f.s > 0) {
+    return retrievability(f.s, elapsedDays, w);
+  }
+  const interval = Math.max(1, Number(card?.intervalDays) || 1);
+  return Math.pow(0.9, elapsedDays / interval);
 }
 
 /** 单卡「原值」= 内容权重（与该卡是否已学无关） */
@@ -44,9 +69,7 @@ export function cardIdealValue(card) {
 export function cardNetValue(card, nowTs = Date.now(), w = DEFAULT_WEIGHTS) {
   const wgt = contentWeight(card);
   if (!isReviewed(card)) return 0;
-  const f = card.fsrs;
-  const elapsedDays = Math.max(0, (nowTs - (f.last ?? nowTs)) / DAY);
-  const R = retrievability(f.s, elapsedDays, w);
+  const R = retentionOf(card, nowTs, w);
   return Math.round(wgt * R * 100) / 100;
 }
 
@@ -73,8 +96,7 @@ export function computeNetWorth(cards, nowTs = Date.now(), w = DEFAULT_WEIGHTS) 
     const wgt = contentWeight(card);
     let R = 0; // 未复习 = 0（不是 1）
     if (isReviewed(card)) {
-      const f = card.fsrs;
-      R = retrievability(f.s, Math.max(0, (nowTs - (f.last ?? nowTs)) / DAY), w);
+      R = retentionOf(card, nowTs, w);
       if (R >= 0.9) masteredCount++;
       reviewedIdeal += wgt;
     } else {

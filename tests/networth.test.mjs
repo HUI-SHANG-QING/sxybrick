@@ -106,3 +106,39 @@ test('computeNetWorth：空表与除零兜底', () => {
   assert.equal(r.retentionRate, 0);
   assert.equal(r.bySubject.length, 0);
 });
+
+// round23 P2-1：默认 SM-2 调度不写 fsrs——用 reviewedAt+调度痕迹做等价「已复习」判定，
+// 衰减用确定性代理 R=0.9^(elapsed/interval)，杜绝「背过=没学」的净值失真。
+test('P2-1 SM-2 已复习等价判定：无 fsrs 但有复习痕迹 → isReviewed=true、净值>0', () => {
+  const sm2 = mkCard({ reviewedAt: NOW - 2 * DAY, level: 3, intervalDays: 10, ease: 2.5 });
+  assert.equal(isReviewed(sm2), true, 'SM-2 背过 3 次 → 应视为已复习');
+  const v = cardNetValue(sm2, NOW);
+  assert.ok(v > 0 && v < 2, 'SM-2 净值应 >0');
+  // 到期日（elapsed=interval）R≈0.9：netValue = 1 x 0.9
+  const due = mkCard({ reviewedAt: NOW - 10 * DAY, level: 3, intervalDays: 10 });
+  const dueV = cardNetValue(due, NOW);
+  assert.ok(Math.abs(dueV - 0.9) < 0.02, '到期日净值≈0.9');
+});
+
+test('P2-1 retentionOf：FSRS 走 retrievability，SM-2 走 0.9 代理且单调', async () => {
+  const { retentionOf } = await import('../src/algorithms/networth.js');
+  const f = { s: 10, d: 5, reps: 3, last: NOW };
+  const rF = retentionOf(mkCard({ fsrs: f, reviewedAt: NOW }), NOW + 3 * DAY);
+  assert.ok(rF > 0 && rF < 1, 'fsrs 衰减应有值');
+  const r0 = retentionOf(mkCard({ reviewedAt: NOW, intervalDays: 10 }), NOW);
+  assert.ok(Math.abs(r0 - 1) < 1e-6, '刚复习完 R≈1');
+  const r5 = retentionOf(mkCard({ reviewedAt: NOW - 5 * DAY, intervalDays: 10 }), NOW);
+  const r15 = retentionOf(mkCard({ reviewedAt: NOW - 15 * DAY, intervalDays: 10 }), NOW);
+  assert.ok(r5 > r15, '越逾期衰减越深');
+});
+
+test('P2-1 computeNetWorth：SM-2 已复习卡计入保持率分母（不再整表 newCount）', async () => {
+  const { computeNetWorth } = await import('../src/algorithms/networth.js');
+  const reviewed = mkCard({ reviewedAt: NOW - 1 * DAY, level: 2, intervalDays: 5 });
+  const fresh = mkCard({ id: 'c2' });
+  const r = computeNetWorth([reviewed, fresh], NOW);
+  assert.equal(r.reviewedCount, 1, 'SM-2 卡应计入 reviewedCount');
+  assert.equal(r.newCount, 1);
+  assert.ok(r.retentionRate > 0, '保持率分母含 SM-2 卡 → retentionRate>0');
+  assert.ok(r.totalValue > 0, '总净值不再为 0');
+});

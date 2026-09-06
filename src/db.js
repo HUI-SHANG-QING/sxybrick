@@ -395,5 +395,8 @@ Promise.all(Object.values(instances).map((inst) => inst.open())).catch((err) => 
 
 
 export function uid() {
-  return (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`);
+  // round23 P3-6：randomUUID 不可用时，兜底加大随机盐并拼上时间高位，降低跨设备撞 id 概率
+  //（Date 36 进制只有毫秒精度，同毫秒多实例创建会撞；原实现仅 13 位随机串，理论冲突窗口小但存在）
+  return (crypto.randomUUID?.()
+    || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2, 8)}`);
 }

@@ -162,6 +162,7 @@ const showDetail = ref(false);
 const detail = ref(null);
 const editing = ref(null); // 编辑中的 card
 const genRunning = ref(false);
+const saving = ref(false); // round23 P1-1：保存防重入（双击会建重复词卡）
 
 const form = ref(blankForm());
 function blankForm() {
@@ -340,6 +341,8 @@ async function autoGenerateSilent() {
 }
 
 async function save() {
+  if (saving.value) return; // P1-1：防重入——autoGenerateSilent 期间连点会触发两次 createWordCard
+  saving.value = true;
   const f = form.value;
   // 仅填单词 → 自动生成同义词/词组/短语/例句（AI 已开启且在大纲内），补齐后再落库
   let autoFilled = false;
@@ -367,6 +370,8 @@ async function save() {
     await load();
   } catch (e) {
     toast(t('views.wordBook.saveFailed') + '：' + (e?.message || e), 'error');
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -823,7 +828,7 @@ async function addOcrWords() {
           <span class="gen-hint">{{ t('views.wordBook.aiGenHint') }}</span>
           <div class="spacer"></div>
           <button class="btn-ghost" @click="showAdd = false">{{ t('views.wordBook.cancel') }}</button>
-          <button class="btn-primary" @click="save">{{ t('views.wordBook.save') }}</button>
+          <button class="btn-primary" :disabled="saving" @click="save">{{ saving ? t('views.wordBook.saving') : t('views.wordBook.save') }}</button>
         </div>
       </div>
     </div>

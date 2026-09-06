@@ -211,7 +211,7 @@ export function normalizeModeQuestions(card, data, modeIds) {
  * 为一词生成 13 模式题目（不落库）
  * @returns {Promise<{ok:boolean, modes?:object, dropped?:Array, reason?:string, via?:string}>}
  */
-export async function generateModeQuestions({ card, modes, settings, agentCtx }) {
+export async function generateModeQuestions({ card, modes, settings, agentCtx, signal }) {
   const word = String(card?.word || '').trim();
   if (!word) return { ok: false, reason: 'empty-word' };
   const kind = kindOf(card);
@@ -222,6 +222,7 @@ export async function generateModeQuestions({ card, modes, settings, agentCtx })
     prompt: buildModesPrompt(card, ids),
     settings,
     agentCtx,
+    signal,
     agentInput: word,
     source: 'english-modes',
     task: 'word-mode-questions',
@@ -253,7 +254,7 @@ export function applyModeQuestions(card, modes) {
 // saveFn is optional — when provided, each succeeded card is merged and persisted (caller injects
 // updateWordCard so this service layer stays DB-free); when omitted, only results are returned.
 export async function batchGenerateModeQuestions({
-  cards, settings, agentCtx, onProgress, saveFn,
+  cards, settings, agentCtx, onProgress, saveFn, signal,
 }) {
   const list = (cards || []).filter((c) => c && String(c.word || '').trim());
   if (!list.length) {
@@ -267,7 +268,7 @@ export async function batchGenerateModeQuestions({
     const card = list[i];
     let r;
     try {
-      r = await generateModeQuestions({ card, settings, agentCtx });
+      r = await generateModeQuestions({ card, settings, agentCtx, signal });
     } catch (e) {
       r = { ok: false, reason: 'throw:' + (e?.message || e) };
     }
@@ -319,7 +320,7 @@ export async function batchGenerateModeQuestions({
 // 4956 词不可能一次性生成：按批（默认 40 词/批）调用，逐批落库，
 // 支持进度回调与中断（onBatch 返回 false 即停止），失败批次不影响已落库批次。
 export async function batchGenerateMeanings({
-  words, settings, agentCtx, batchSize = 40, onBatch,
+  words, settings, agentCtx, batchSize = 40, onBatch, signal,
 }) {
   const list = (words || []).map((w) => String(w || '').trim()).filter(Boolean);
   if (!list.length) return { ok: false, reason: 'empty-words', generated: 0, failed: 0, batches: 0 };
@@ -343,7 +344,7 @@ ${batch.map((w, k) => `${k + 1}. ${w}`).join('\n')}
     let entries = [];
     try {
       const res = await callLlmJson({
-        prompt, settings, agentCtx,
+        prompt, settings, agentCtx, signal,
         agentInput: batch.join(','),
         source: 'english-syllabus-meaning',
         task: 'word-syllabus-meanings',

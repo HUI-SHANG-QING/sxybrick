@@ -148,11 +148,19 @@ export async function getModuleStatus(opts = {}) {
     let count = 0, maxTs = 0;
     try {
       count = await db[t.table].count();
-      // 大表（userOps/embeddings 可能上万行）全量 toArray 取 max 太贵：
-      // 折中——cap 5000 行内取 max；超出部分按「有数据即可能待同步」保守处理
-      const rows = await db[t.table].limit(5000).toArray();
-      for (const r of rows) { const ts = livenessTs(r) || 0; if (ts > maxTs) maxTs = ts; }
-      if (count > 5000) maxTs = Math.max(maxTs, 1); // 保守：视为有新变更
+      // 大表（userOps/embeddings 可能上万行）全量 toArray 取 max 太贵。
+      // round23 P3-1：旧兜底 `maxTs=Math.max(maxTs,1)` 在 5min 时钟偏差判定下永不触发
+      //   （1 不可能 > lastSyncAt+300000），>5000 行的表新变更永远不显示 pending。
+      //   修复：对有时间戳索引的大表用 orderBy().last() 精确取最新活跃行（O(log n)）；
+      //   其余表仍 cap 采样（pending 检测在该表上有已知近似缺口）。
+      const TS_INDEX = { userOps: 't', embeddings: 'updatedAt' };
+      if (count > 5000 && TS_INDEX[t.table]) {
+        const newest = await db[t.table].orderBy(TS_INDEX[t.table]).last();
+        maxTs = Math.max(maxTs, livenessTs(newest) || 0);
+      } else {
+        const rows = await db[t.table].limit(5000).toArray();
+        for (const r of rows) { const ts = livenessTs(r) || 0; if (ts > maxTs) maxTs = ts; }
+      }
     } catch { /* 表不存在（未迁移）：count=0，状态 pending */ }
 
     const rec = st.modules[t.table] || {};

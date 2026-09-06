@@ -101,7 +101,7 @@ export async function callLlmJson(o) {
   const providerDef = LLM_PROVIDERS.find((p) => p.id === provider) || LLM_PROVIDERS[2];
   const base = (baseOverride || providerDef.base).replace(/\/+$/, '');
   try {
-    const raw = await callChatCompletion({ base, apiKey, model, prompt, system, source });
+    const raw = await callChatCompletion({ base, apiKey, model, prompt, system, source, signal: o?.signal });
     const data = parseJsonSafe(raw);
     if (!data) return { ok: false, reason: 'LLM 返回非 JSON，无法解析。' };
     return { ok: true, data, via: 'key' };
@@ -157,7 +157,7 @@ export async function generateWordMaterials(req) {
 //   这里再记会重复；连通性探针 testLlmConnection 不计（非内容生成，仅 4 token 探测）。
 //   刻意 await 而非 fire-and-forget：recordUsage 内部已吞错不影响主流程，而一次生成
 //   只有一次 ~1ms 写入，await 可保证记录不静默丢失且可被断言（agent/llm.js 仍沿用 void）。
-async function callChatCompletion({ base, apiKey, model, prompt, system, source = 'english-word' }) {
+async function callChatCompletion({ base, apiKey, model, prompt, system, source = 'english-word', signal, timeoutMs = 30000 }) {
   const t0 = Date.now();
   const url = `${base}/chat/completions`;
   let content = '', usage = null;
@@ -177,6 +177,9 @@ async function callChatCompletion({ base, apiKey, model, prompt, system, source 
         temperature: 0.6,
         max_tokens: 1200,
       }),
+      // round23 P2-3：provider 直连必须有超时（30s），否则批量出题/补释义可永久挂死；
+      // 外层批量任务可传 AbortSignal 做真中断（P2-4）。
+      signal: signal || AbortSignal.timeout(timeoutMs),
     });
     if (!resp.ok) {
       const txt = await resp.text().catch(() => '');
@@ -191,6 +194,9 @@ async function callChatCompletion({ base, apiKey, model, prompt, system, source 
       promptTokens: estimateTokens(prompt), completionTokens: estimateTokens(content),
       durationMs: Date.now() - t0, ok: false, est: 1,
     });
+    if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
+      throw new Error('LLM 请求超时或已中断（30s），请检查网络后重试');
+    }
     throw e;
   }
   await recordUsage({
@@ -287,6 +293,8 @@ export async function testLlmConnection(settings) {
         messages: [{ role: 'user', content: 'ping' }],
         max_tokens: 4,
       }),
+      // round23 P2-3：连通性探针 10s 超时，避免不可达 provider 卡住「测试连接」按钮
+      signal: AbortSignal.timeout(10000),
     });
     if (!resp.ok) {
       const t = await resp.text().catch(() => '');

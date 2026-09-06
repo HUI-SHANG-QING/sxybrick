@@ -59,6 +59,7 @@ const generating = ref(false);
 const batchResult = ref(null);  // batchGenerateModeQuestions 返回值
 const batchProgress = ref(null);
 const openIds = ref([]);        // 展开的卡片 id（仅展示明细用）
+const abortCtl = ref(null);     // 批量任务 AbortController（真中断在途 LLM 请求）
 
 const scopeCardCount = computed(() => scopeCards.value.length);
 function isOpen(id) { return openIds.value.includes(id); }
@@ -92,11 +93,14 @@ async function doGenerateBook() {
   batchProgress.value = null;
   stopRequested.value = false;
   openIds.value = [];
+  const ac = new AbortController();
+  abortCtl.value = ac;
   try {
     const r = await batchGenerateModeQuestions({
       cards: scopeCards.value.map((c) => ({ ...c })), // 浅拷贝，避免把响应式 Proxy 传入服务层
       settings: settings.value,
       agentCtx,
+      signal: ac.signal,
       saveFn: async (id, patch) => { await updateWordCard(id, patch); },
       onProgress: ({ done, total, generated, failed, saved }) => {
         batchProgress.value = { done, total, generated, failed, saved };
@@ -121,10 +125,14 @@ async function doGenerateBook() {
   } finally {
     generating.value = false;
     batchProgress.value = null;
+    if (abortCtl.value === ac) abortCtl.value = null;
   }
 }
 
-function stopBook() { stopRequested.value = true; }
+function stopBook() {
+  stopRequested.value = true;
+  abortCtl.value?.abort(); // 中断在途 LLM 请求（P2-4 真中断，而非仅停后续卡）
+}
 
 // 模式中文/英文标签：复用 wordReview 字典里的 13 模式名（避免在数据层重复维护文案）
 function modeLabel(id) {
@@ -151,9 +159,12 @@ async function doFillMeanings() {
   filling.value = true;
   stopRequested.value = false;
   fillProgress.value = null;
+  const ac = new AbortController();
+  abortCtl.value = ac;
   try {
     const r = await batchGenerateMeanings({
       words: missing, settings: settings.value, agentCtx, batchSize: 40,
+      signal: ac.signal,
       onBatch: ({ done, total, generated, failed }) => {
         fillProgress.value = { done, total, generated, failed };
         return !stopRequested.value; // 返回 false 即中断后续批次
@@ -167,10 +178,11 @@ async function doFillMeanings() {
   } finally {
     filling.value = false;
     fillProgress.value = null;
+    if (abortCtl.value === ac) abortCtl.value = null;
   }
 }
 
-function stopFill() { stopRequested.value = true; }
+function stopFill() { stopRequested.value = true; abortCtl.value?.abort(); }
 
 onMounted(async () => {
   try {

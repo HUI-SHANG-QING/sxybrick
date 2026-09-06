@@ -572,6 +572,11 @@ function fireProgress(opts, phase, progress, info) {
 export async function importBackup(backup, opts = {}) {
   if (!backup || backup.app !== 'sxybrick') throw new Error('不是有效的 SxyBrick 数据包');
   assertBackupScope(backup);
+  // round23 P3-6：版本兼容校验——高版本数据包被低版本代码导入会静默丢字段，
+  // 直接报可读错误引导升级，而不是导一半。
+  if (typeof backup.version === 'number' && backup.version > BACKUP_VERSION) {
+    throw new Error(`数据包版本 v${backup.version} 高于当前应用支持的 v${BACKUP_VERSION}，请先升级应用后再导入`);
+  }
   // 防御性深拷贝：调用方可能经 Vue ref/reactive 包装（如 Sync.vue 的 pendingBackup）传入 Proxy。
   // 深响应式 Proxy 会随 mergeRows 的零拷贝路径（sanitizeStripRow 无 strip 时原样返回行）进入 bulkPut，
   // structuredClone 遇 Proxy 抛 DataCloneError。JSON 往返能剥掉 Proxy（structuredClone 不行——它遇 Proxy 直接抛错）。
@@ -644,11 +649,10 @@ export async function importBackup(backup, opts = {}) {
     // F10（round15 P2）：隐私/埋点表「已清空水位」——用户点过「清空埋点/清空隐私」后，
     // 把水位之前的入站行过滤掉，防止 hub/对端把历史行灌回（此前 wipe 只 clear 本地
     // 不写水位，下轮同步数据全部复活，「撤销监控」失效）。仅浏览器端有 localStorage。
-    if (typeof localStorage !== 'undefined') {
-      const clearedBefore = Number(localStorage.getItem(clearedBeforeKey(t.table)) || 0);
-      if (clearedBefore) incoming = filterClearedRows(incoming, clearedBefore);
-      if (!incoming.length) continue;
-    }
+    // round23 P3-2：水位过滤必须放在 cards 去重替换【之后】执行——
+    // 旧序先滤后去重，cards 的 incoming 被 cardDedupe.kept 整段覆盖导致滤除结果被丢弃。
+    const clearedBefore = (typeof localStorage !== 'undefined')
+      ? Number(localStorage.getItem(clearedBeforeKey(t.table)) || 0) : 0;
     const base = await db[t.table].toArray();
     const baseMap = new Map(base.map(x => [x.id, x]));
     // E1 去重合并：内容雷同的异 id 卡视为重复跳过；但【同 id 卡必须放行】，
@@ -659,6 +663,7 @@ export async function importBackup(backup, opts = {}) {
       incoming = cardDedupe.kept;
       stats.duplicated += cardDedupe.duplicated;
     }
+    if (clearedBefore) incoming = filterClearedRows(incoming, clearedBefore);
     if (!incoming.length) continue;
     const merged = mergeRows(base, incoming, t.merge, { strip: t.strip, extFields: t.extFields });
     let added = 0, updated = 0;
