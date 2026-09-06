@@ -57,6 +57,10 @@ function trimPrecacheManifest(entries) {
 
 export default defineConfig({
   base: '/sxybrick/',
+  // 构建时间戳注入：设置面板「构建版本」显示用，排查「页面卡在旧 bundle」时一眼可辨
+  define: {
+    'import.meta.env.VITE_BUILD_TIME': JSON.stringify(new Date().toISOString().slice(0, 16).replace('T', ' ')),
+  },
   plugins: [
     vue(),
     // P3-2 PWA 离线优化：registerType=prompt —— 新版本下载完毕后由用户确认再刷新，

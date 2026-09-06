@@ -30,6 +30,7 @@ import { startReminderScheduler } from './utils/plan-reminder.js';
 import {
   isOnline, subscribeOnline, subscribeSwUpdate, subscribeOfflineReady,
   subscribeQuotaWarn, applyUpdate, requestPersistentStorage, getStorageEstimate,
+  forceResetPwa,
 } from './utils/pwa.js';
 // P1·7 埋点开关：在设置面板允许用户开/关 A/B 级
 import { isAEnabled, isBEnabled, setAEnabled, setBEnabled } from './utils/telemetry.js';
@@ -91,6 +92,16 @@ const dbHealthMsg = computed(() => {
   return s;
 });
 let unsubDbHealth = null;
+
+// 构建时间戳：vite build 时注入（vite.config.js define），让用户能在设置面板核对
+// 「我跑的是哪一次构建」——排查「修复不生效」时一眼看出 bundle 新旧。
+const BUILD_TIME = (import.meta.env.VITE_BUILD_TIME || '').toString();
+
+async function onClearPwaCache() {
+  // 只注销 SW + 清 Cache Storage，不动 IndexedDB/LocalStorage（用户数据全部保留）。
+  // forceResetPwa 内部会 reload，无需手动刷新。
+  await forceResetPwa();
+}
 
 async function reloadForUpdate() {
   swNeedRefresh.value = false;
@@ -626,6 +637,14 @@ async function enableReminder() {
               </div>
               <div v-else class="hint">当前浏览器不支持存储配额查询。</div>
               <div class="hint" v-if="swOfflineReady" style="color:var(--accent)">✓ 离线缓存已就绪，断网可正常打开与复习</div>
+              <!-- 版本戳：让用户能核对「我跑的是哪一次构建」，与「清缓存并刷新」自救按钮放一起 -->
+              <div class="hint" style="margin-top:8px">构建版本 <code>{{ BUILD_TIME }}</code></div>
+              <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <el-button size="small" type="warning" plain @click="onClearPwaCache">
+                  {{ t('settings.clearPwaCache') }}
+                </el-button>
+                <span class="hint">{{ t('settings.clearPwaCacheHint') }}</span>
+              </div>
 
               <ResetAllData />
             </el-tab-pane>

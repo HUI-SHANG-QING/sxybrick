@@ -53,6 +53,8 @@ const zh = {
     storage: '💾 存储',
     language: '界面语言',
     languageHint: '切换后整个应用立即生效（含导航与说明文案）。',
+    clearPwaCache: '🧹 清缓存并刷新',
+    clearPwaCacheHint: '注销 Service Worker 并清空离线缓存后刷新（保留全部本地数据）。用于修复「页面一直停留在旧版本」。',
   },
 
   // ---------------- 学习引擎算法说明（#26） ----------------
@@ -243,6 +245,8 @@ const en = {
     storage: '💾 Storage',
     language: 'Language',
     languageHint: 'Applies to the whole app immediately (incl. nav and docs).',
+    clearPwaCache: '🧹 Clear cache & refresh',
+    clearPwaCacheHint: 'Unregister the Service Worker and clear offline caches, then reload (all local data is kept). Use when the page is stuck on an old version.',
   },
   engine: {
     title: 'Review Scheduler (memory-curve algorithm)',

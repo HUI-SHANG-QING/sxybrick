@@ -107,6 +107,33 @@ export function subscribeQuotaWarn(cb) {
 }
 
 /**
+ * 强制重置 PWA 缓存（设置面板「清缓存并刷新」自救按钮）：
+ *   注销全部 SW + 清空 Cache Storage（SW 预缓存/运行时缓存），然后刷新。
+ * 为什么需要它：旧 SW 被注册后，Ctrl+Shift+R 也绕不过它的 precache 拦截，
+ *   用户会无限期卡在旧 bundle（修复不生效的典型根因）。本函数是应用内自救路径。
+ * ⚠️ 边界：只清 SW 与 Cache Storage，绝不碰 IndexedDB / LocalStorage（用户数据全在 IndexedDB）。
+ */
+export async function forceResetPwa() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister().catch(() => {})));
+    }
+  } catch (e) {
+    console.warn('[PWA] 注销 SW 失败:', e?.message || e);
+  }
+  try {
+    if (window.caches) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch (e) {
+    console.warn('[PWA] 清 Cache Storage 失败:', e?.message || e);
+  }
+  window.location.reload();
+}
+
+/**
  * 应用更新：让等待中的 SW 接管，并刷新页面加载新版本
  * 失败时静默降级为直接 reload，确保用户总能拿到新版
  */
