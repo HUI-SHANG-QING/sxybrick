@@ -36,7 +36,7 @@ import {
 import { isAEnabled, isBEnabled, setAEnabled, setBEnabled } from './utils/telemetry.js';
 // P1-1 FSRS 调度器 opt-in：在设置面板切换 SM-2 ↔ FSRS，并允许用户用真实评分历史训练 19 权重
 import { db, getDbStatus, onDbStatusChange } from './db.js';
-import { refreshSchedConfig, setScheduler } from './repo.js';
+import { refreshSchedConfig, setScheduler, repairBrokenDueAt } from './repo.js';
 import { trainFsrsModel } from './agent/analytics.js';
 import { serializeUserWeights } from './fsrs.js';
 import { useFabDrag } from './composables/useFabDrag.js';
@@ -337,6 +337,8 @@ onMounted(() => {
   startReminderLoop();
   // R3：IndexedDB 状态订阅（db.js 顶层已把 blocked/versionchange/open 失败收口成状态）
   unsubDbHealth = onDbStatusChange((s) => { dbHealth.value = s; });
+  // 幽灵卡自愈：启动时修复历史 fsrs 缺陷遗留的 dueAt=NaN/null 卡（flag 只跑一次，fire-and-forget）
+  repairBrokenDueAt().catch(() => {});
   // 日程表到点提醒（全局调度，任何路由打开都生效）
   stopPlanReminder = startReminderScheduler();
   // 主动智能体：后台轮询学习数据，主动推送建议到通知中心

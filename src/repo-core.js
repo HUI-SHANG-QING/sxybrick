@@ -117,8 +117,17 @@ export function filterReviewCandidates(cards, filter = {}, nowTs = Date.now()) {
   }
   if (f.wrongReasons?.length) out = out.filter(c => { const wr = c.wrongReason || ''; return f.wrongReasons.includes(wr) || f.wrongReasons.some(r => WRONG_REASON_MAP[r] === wr); });
   // 默认只背到期卡（遵循复习曲线）；includeDueOnly=false 时可背全部（重复复习场景）
-  if (f.includeDueOnly !== false) out = out.filter(c => c.dueAt <= nowTs);
-  out.sort((a, b) => a.dueAt - b.dueAt || (a.id < b.id ? -1 : 1));
+  // 幽灵卡防护：历史 fsrs 缺陷（2026-08 修复前）可能把 dueAt 写成 NaN，经备份 JSON
+  // 往返又可能变 null——`NaN <= now` 恒假 → 该卡永远不出现在队列（有卡却背不到、无法
+  // 自愈重排）。这里把「确定损坏的 dueAt（NaN/null）」视为 0（到期一次 → 复习后由调度器
+  // 重写为有限值自愈）；undefined 维持旧语义（不视为到期），避免无 dueAt 的老数据洪泛。
+  const dueOf = (c) => {
+    const d = c.dueAt;
+    if (d === undefined) return Infinity;
+    return (d === null || Number.isNaN(d)) ? 0 : d;
+  };
+  if (f.includeDueOnly !== false) out = out.filter(c => dueOf(c) <= nowTs);
+  out.sort((a, b) => dueOf(a) - dueOf(b) || (a.id < b.id ? -1 : 1));
   return out;
 }
 

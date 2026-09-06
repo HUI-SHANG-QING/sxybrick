@@ -87,7 +87,7 @@ export async function runTask(opt) {
   //    这样多智能体协作时 write_blackboard 能把发现正确归因到调用它的 Agent，而非 'unknown'）
   const resolvedId = agentId || routeIntent(userInput);
   const agent = agentRegistry.get(resolvedId) || agentRegistry.get('tutor');
-  push({ kind: TraceKind.ROUTE, text: t('agent.orchestrator.routedToAgent', { name: agent.name }), agentId: agent.id });
+  push({ kind: TraceKind.ROUTE, text: t('agent.orchestrator.routedToAgent', undefined, { name: agent.name }), agentId: agent.id });
 
   const ctx = {
     agentId: agent.id,

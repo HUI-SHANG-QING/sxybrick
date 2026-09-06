@@ -466,6 +466,38 @@ export async function sweepOrphanRows() {
   return delReviews.length + delWord.length;
 }
 
+/**
+ * 审计（幽灵卡自愈）：历史 fsrs 缺陷（2026-08 修复前）可能把 dueAt 写成 NaN，
+ * 经备份 JSON 往返又可能变 null——`NaN <= now` 恒假，这类卡会永久消失在复习队列，
+ * 且永远不会被复习到（也就无法被调度器重写自愈）。
+ * 这里把「确定损坏的 dueAt（NaN/null，不含 undefined——无该字段的老数据另作他论）」
+ * 一次性改写为 0（立即到期一次 → 复习后调度器写回有限值）。
+ * 本机执行即可（每台设备各自启动时自愈），不 bump updatedAt，避免触发一次全网同步风暴。
+ * @param {{force?:boolean}} opts force=true 时跳过「已执行」标记（导入后调，处理刚导入的坏行）
+ * @returns {Promise<number>} 修复行数
+ */
+export async function repairBrokenDueAt({ force = false } = {}) {
+  const FLAG = 'sxy_heal_broken_dueat_v1';
+  if (!force) {
+    try { if (localStorage.getItem(FLAG)) return 0; } catch { /* 隐私模式忽略 */ }
+  }
+  let fixed = 0;
+  const heal = async (table) => {
+    const broken = await table.filter(c => {
+      const d = c.dueAt;
+      return d !== undefined && (d === null || Number.isNaN(d));
+    }).toArray();
+    if (!broken.length) return;
+    await table.bulkPut(broken.map(c => ({ ...c, dueAt: 0 })));
+    fixed += broken.length;
+  };
+  await heal(db.cards);
+  await heal(db.wordCards);
+  if (!force) { try { localStorage.setItem(FLAG, '1'); } catch { /* 忽略 */ } }
+  if (fixed) console.info(`[repo] 修复 ${fixed} 张损坏 dueAt(NaN/null) 卡片为「立即到期」（自愈）`);
+  return fixed;
+}
+
 // 手动标记 / 取消标记错题
 export async function setMarked(id, marked) {
   const card = await db.cards.get(id);

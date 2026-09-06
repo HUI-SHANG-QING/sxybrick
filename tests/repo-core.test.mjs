@@ -372,3 +372,17 @@ test('countReviewsInWindow: computeStats 的 todayReviews 语义 = 去重卡片�
   const stats = computeStats(cards, reviews, ts);
   assert.equal(stats.todayReviews, 2); // c1、c2 两张去重；c3 非当日不计
 });
+
+// ---------- 幽灵卡（历史 fsrs 缺陷遗留 dueAt=NaN/null）可见性 ----------
+test('filterReviewCandidates: dueAt=NaN/null 视为到期（自愈入口），undefined 不洪泛', () => {
+  const nowTs = Date.now();
+  const mk = (id, dueAt) => mkCard({ id, dueAt });
+  const cards = [
+    mk('nan', NaN), mk('null', null), mk('undef', undefined), mk('due', nowTs - 100),
+  ];
+  const ids = filterReviewCandidates(cards, {}, nowTs).map(c => c.id);
+  assert.ok(ids.includes('nan'), 'NaN dueAt 卡必须进队（否则永久隐身）');
+  assert.ok(ids.includes('null'), 'null dueAt（JSON 往返所致）必须进队');
+  assert.ok(ids.includes('due'), '正常到期卡照常进队');
+  assert.ok(!ids.includes('undef'), 'undefined（老数据无该字段）不洪泛');
+});
