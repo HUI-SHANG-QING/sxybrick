@@ -153,6 +153,8 @@ export const zh = {
   gistUpdated: '✅ 已更新 Gist 备份（{cards} 张卡 · {mode} · 更新于 {time}）',
   gistFirst: '✅ 首次云备份完成（{cards} 张卡 · {mode} · Gist ID 已保存）',
   uploadFail: '上传失败：{msg}',
+  // 审计 C7：Gist 乐观并发冲突（数据层只回 code，文案在此）
+  gistConflict: '已阻止本次上传：云端备份在你拉取后被其他设备更新了。请先「拉取合并」再上传，避免覆盖他人新数据。',
   fillTokenGist: '请先填 Token 和 Gist ID',
   confirmPullGist: '将从 Gist 拉取备份并合并到本地库（保留本地较新内容）。继续？',
   scopeTest: '演示',
@@ -404,6 +406,7 @@ export const en = {
   gistUpdated: '✅ Gist backup updated ({cards} cards · {mode} · updated at {time})',
   gistFirst: '✅ First cloud backup complete ({cards} cards · {mode} · Gist ID saved)',
   uploadFail: 'Upload failed: {msg}',
+  gistConflict: 'Upload blocked: the cloud backup was updated by another device after you pulled it. Pull and merge first to avoid overwriting their newer data.',
   fillTokenGist: 'Please fill in the Token and Gist ID first',
   confirmPullGist: 'Pull the backup from Gist and merge into the local DB (keeping newer local content)? Continue?',
   scopeTest: 'demo',

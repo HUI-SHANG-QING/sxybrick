@@ -7,7 +7,7 @@ import { downloadBackup, importBackup, importEncryptedBackup, previewImport, syn
 import { useAppModeStore } from '../stores/appMode.js';
 import { getSubjects, createCard } from '../repo.js';
 import { getErrors, clearErrors } from '../utils/errorLog.js';
-import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup } from '../utils/gistBackup.js';
+import { verifyToken, createGistBackup, updateGistBackup, fetchGistBackup, fetchGistMeta } from '../utils/gistBackup.js';
 import { T } from '../utils/telemetry.js';
 import { buildAuthHeaders } from '../utils/hub-auth.js';
 import EmptyState from '../components/EmptyState.vue';
@@ -142,9 +142,12 @@ async function uploadToGist() {
     //   修法：推送前先把云端拉下来合并进本地（复用 importBackup 的字段级合并），
     //   再以合并后的本地全量推送——与 hub 通道的「先合并再写入」语义对齐。
     let mergedFromRemote = 0;
+    let pullUpdatedAt = null; // 审计 C7：拉取时刻的云端 updated_at，用于 PATCH 前乐观冲突检测
     if (gistId.value) {
       let remote = null;
       try {
+        const meta = await fetchGistMeta(ghToken.value, gistId.value);
+        pullUpdatedAt = meta.updatedAt;
         remote = await fetchGistBackup(ghToken.value, gistId.value, { scope: backupScope() });
       } catch (e) {
         // 只有「云端确实还没有备份」才允许继续（按首次推送处理）；
@@ -173,7 +176,7 @@ async function uploadToGist() {
     const modeText = appMode.isTest ? t('views.sync.demoData') : t('views.sync.realData');
     if (gistId.value) {
       // 已有 gist：PATCH 更新（payload.scope 决定写入哪个文件名）
-      const r = await updateGistBackup(ghToken.value, gistId.value, payload);
+      const r = await updateGistBackup(ghToken.value, gistId.value, payload, { expectUpdatedAt: pullUpdatedAt || undefined });
       toast(t('views.sync.gistUpdated', '✅ 已更新 Gist 备份（{cards} 张卡 · {mode} · 更新于 {time}）', { cards: counts.value.cards, mode: modeText, time: fmtLocaleDateTime(r.updatedAt) })
         + (mergedFromRemote ? t('views.sync.gistMergedHint', '（推送前已合并云端 {n} 条变更）', { n: mergedFromRemote }) : ''), 'success');
     } else {
@@ -188,6 +191,13 @@ async function uploadToGist() {
     for (const t of getEffectiveSyncTables()) rows[t.table] = payload[t.table]?.length || 0;
     recordAllModulesOk(rows);
   } catch (e) {
+    // 审计 C7：乐观并发冲突是「可预期、用户可自行解决」的分支，不能混进泛化的
+    // 「上传失败」——后者会 recordAllModulesError 记进错误日志，被误判成系统故障。
+    // 数据层只回 code，文案在此按当前语言渲染。
+    if (e?.code === 'GIST_CONFLICT') {
+      toast(t('views.sync.gistConflict'), 'error');
+      return;
+    }
     toast(t('views.sync.uploadFail', '上传失败：{msg}', { msg: e.message }), 'error');
     recordAllModulesError(e.message || String(e));
   }

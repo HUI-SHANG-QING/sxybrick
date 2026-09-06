@@ -186,15 +186,44 @@ export function buildReviewSuggestion(cards, reviews, nowTs = Date.now()) {
 }
 
 // ---------- 全局统计（getStats 核心） ----------
+
+/**
+ * 审计 B3：「今日」窗口的单一事实源。
+ * 此前三处各自算当天，且写法不一——computeStats 用 `setHours(0,0,0,0)` 后**只判下界**
+ * （reviewedAt >= dayStart，无上界），getDailyReality 用 `date+'T00:00:00'` 再 +86400000，
+ * wordReviewedToday 又是一种。窗口口径不统一，跨模块的「今日复习」无法互相对齐。
+ * 统一为左闭右开 [start, end)。
+ */
+export function dayWindowOf(ts = Date.now()) {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  const start = d.getTime();
+  return { start, end: start + 86400000 };
+}
+
+/**
+ * 审计 B3：今日复习两种口径的单一实现，调用方只决定取哪个口径。
+ *   · cards = 去重**卡片数**（同一张卡今天复习多次只算 1 张）
+ *   · times = **复习次数**（一条复习记录算 1 次）
+ * 历史上 `todayReviews`(卡片数) 与 `reviewsToday`(次数) 名字几乎一样却语义不同，
+ * 极易误用；此处把两种口径都显式产出，命名自解释。
+ */
+export function countReviewsInWindow(reviews, win) {
+  const set = new Set();
+  let times = 0;
+  for (const r of reviews || []) {
+    const t = Number(r?.reviewedAt) || 0;
+    if (t >= win.start && t < win.end) { set.add(r.cardId); times++; }
+  }
+  return { cards: set.size, times };
+}
+
 export function computeStats(cards, reviews, nowTs = Date.now()) {
   const totalCards = cards.length;
   const totalReviews = reviews.length;
 
-  const dayStart = new Date(nowTs); dayStart.setHours(0, 0, 0, 0);
-  // 今日复习 = 去重卡片数（同一张卡今天复习多次只算 1 张）
-  const todaySet = new Set();
-  for (const r of reviews) if (r.reviewedAt >= dayStart.getTime()) todaySet.add(r.cardId);
-  const todayReviews = todaySet.size;
+  // 今日复习 = 去重卡片数（同一张卡今天复习多次只算 1 张）—— 口径见 countReviewsInWindow
+  const todayReviews = countReviewsInWindow(reviews, dayWindowOf(nowTs)).cards;
   const dueToday = cards.filter(c => c.dueAt <= nowTs).length;
 
   // 热力图：近 365 天

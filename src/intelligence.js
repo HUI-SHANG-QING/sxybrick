@@ -18,6 +18,7 @@ import {
   weakCards, getStats, getReviewSuggestion,
   createCard, applyCardFeedback, addPomoSession, updatePlan,
 } from './repo.js';
+import { dayWindowOf } from './repo-core.js';
 
 const now = () => Date.now();
 const DAY = 86400000;
@@ -438,31 +439,41 @@ export async function recommendTodaySequence(opt = {}) {
   const subjects = [...bySubject.keys()];
 
   // 交错取：轮流从各科取 1 张（轮转避免连串）
+  // 审计 F5：原排序比较器里 `bySubject.get(s).find(c => !used.has(c.id))` 每次比较都扫一遍该科
+  // 列表，多科 × 每科数百卡 × limit 轮 叠加成准 O(n²) 的重复扫描。改为每个科目缓存「首个未用卡」，
+  // 仅在从该科取卡后失效重算一次，排序比较器变成 O(1) 读取，整体降到 O(round·S log S)。
+  const firstUnused = new Map();
+  const dirty = new Set(subjects);
+  const getFirstUnused = (s) => {
+    if (dirty.has(s)) {
+      for (const c of bySubject.get(s)) if (!used.has(c.card.id)) { firstUnused.set(s, c); dirty.delete(s); return c; }
+      firstUnused.set(s, null); dirty.delete(s);
+    }
+    return firstUnused.get(s) || null;
+  };
+  const noteUsed = (card, s) => { used.add(card.id); dirty.add(s); };
+
   let round = 0;
   while (sequence.length < limit && round < limit * 2) {
     let added = false;
-    // 每轮把科目按最高优先级排序
-    const shuffled = subjects.slice().sort((a, b) => {
-      const aP = bySubject.get(a).find(c => !used.has(c.card.id))?.priority || 0;
-      const bP = bySubject.get(b).find(c => !used.has(c.card.id))?.priority || 0;
-      return bP - aP;
-    });
+    // 只排「尚有未用卡」的科目，按各自首个未用卡优先级降序
+    const shuffled = subjects
+      .filter(s => getFirstUnused(s))
+      .sort((a, b) => getFirstUnused(b).priority - getFirstUnused(a).priority);
     for (const s of shuffled) {
       if (sequence.length >= limit) break;
-      const arr = bySubject.get(s);
-      // 取该科下一张未用的
-      const next = arr.find(c => !used.has(c.card.id));
+      const next = getFirstUnused(s);
       if (!next) continue;
       // 变式分散：相邻的同源卡跳过
       const last = sequence[sequence.length - 1];
       if (last && last.variantKey === next.variantKey && last.card.id !== next.card.id) {
         // 找该科下一张不同源
-        const alt = arr.find(c => !used.has(c.card.id) && c.variantKey !== next.variantKey);
-        if (alt) { sequence.push(alt); used.add(alt.card.id); added = true; continue; }
+        const alt = bySubject.get(s).find(c => !used.has(c.card.id) && c.variantKey !== next.variantKey);
+        if (alt) { sequence.push(alt); noteUsed(alt.card, s); added = true; continue; }
         // 没有替代 → 仍加入但标记（不阻塞流程）
       }
       sequence.push(next);
-      used.add(next.card.id);
+      noteUsed(next.card, s);
       added = true;
     }
     if (!added) break;
@@ -651,6 +662,40 @@ export async function smartRemediation(cardId, opt = {}) {
  *
  * 实现：调用 refreshPlanProgress 重新计算计划的进度并回写
  */
+
+/**
+ * 审计 B3/D10：今日进度口径的单一实现。
+ * 三个入口（refreshPlanProgress / syncReviewToPlan / refreshAllPlanProgress）此前各写一份
+ * 「today 窗口 + reviewed/pct 计算」→ 窗口一个无上界一个有上界、口径随时漂移。
+ * 这里把纯计算抽成单点：reviewed=关联卡中今日已复习的**去重卡片数**（口径同
+ * repo-core.countReviewsInWindow），pomoMinutes=关联 tag 今日时长。
+ * @param {{linkedCardIds?:string[], linkedPomoTag?:string}} plan
+ * @param {Set<string>} reviewedIds 今日已复习卡片 id 集合（去重）
+ * @param {Array} [todaySessions] 今日番茄会话
+ */
+function planProgressShape(plan, reviewedIds, todaySessions = []) {
+  let reviewed = 0, total = 0, pomoMinutes = 0;
+  if (plan.linkedCardIds?.length) {
+    total = plan.linkedCardIds.length;
+    reviewed = plan.linkedCardIds.filter(id => reviewedIds.has(id)).length;
+  }
+  if (plan.linkedPomoTag) {
+    pomoMinutes = todaySessions.filter(s => s.tag === plan.linkedPomoTag).reduce((s, x) => s + (x.duration || 0), 0);
+  }
+  const pct = total ? Math.round(reviewed / total * 100) : 0;
+  return { reviewed, total, pomoMinutes, pct, updatedAt: now() };
+}
+
+/** 今日窗口内的 review / pomo 行（左闭右开，口径统一 dayWindowOf） */
+async function fetchTodayRows() {
+  const { start, end } = dayWindowOf();
+  const [reviews, sessions] = await Promise.all([
+    db.reviews.where('reviewedAt').between(start, end, true, false).toArray(),
+    db.pomoSessions.where('startedAt').between(start, end, true, false).toArray(),
+  ]);
+  return { reviewedIds: new Set(reviews.map(r => r.cardId)), sessions };
+}
+
 export async function refreshPlanProgress(planId) {
   const plan = await db.plans.get(planId);
   if (!plan) return null;
@@ -659,26 +704,8 @@ export async function refreshPlanProgress(planId) {
     return { reviewed: 0, total: 0, pomoMinutes: 0, pct: 0 };
   }
 
-  let reviewed = 0, total = 0, pomoMinutes = 0;
-
-  // 复习进度：关联卡片中有多少已今日复习
-  if (plan.linkedCardIds?.length) {
-    total = plan.linkedCardIds.length;
-    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-    const todayReviews = await db.reviews.where('reviewedAt').aboveOrEqual(dayStart.getTime()).toArray();
-    const reviewedIds = new Set(todayReviews.map(r => r.cardId));
-    reviewed = plan.linkedCardIds.filter(id => reviewedIds.has(id)).length;
-  }
-
-  // 番茄进度：关联 tag 的今日会话总分钟数
-  if (plan.linkedPomoTag) {
-    const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-    const sessions = await db.pomoSessions.where('startedAt').aboveOrEqual(dayStart.getTime()).toArray();
-    pomoMinutes = sessions.filter(s => s.tag === plan.linkedPomoTag).reduce((s, x) => s + (x.duration || 0), 0);
-  }
-
-  const pct = total ? Math.round(reviewed / total * 100) : 0;
-  const progress = { reviewed, total, pomoMinutes, pct, updatedAt: now() };
+  const { reviewedIds, sessions } = await fetchTodayRows();
+  const progress = planProgressShape(plan, reviewedIds, sessions);
   await updatePlan(planId, { progress });
   return progress;
 }
@@ -723,26 +750,9 @@ export async function syncReviewToPlan(cardId) {
   const affected = plans.filter(p => p.autoProgress && p.linkedCardIds?.includes(cardId));
   if (!affected.length) return;
 
-  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  const dayStartTs = dayStart.getTime();
-  const [todayReviews, todaySessions] = await Promise.all([
-    db.reviews.where('reviewedAt').aboveOrEqual(dayStartTs).toArray(),
-    db.pomoSessions.where('startedAt').aboveOrEqual(dayStartTs).toArray(),
-  ]);
-  const reviewedIds = new Set(todayReviews.map(r => r.cardId));
-
+  const { reviewedIds, sessions } = await fetchTodayRows();
   for (const plan of affected) {
-    let reviewed = 0, total = 0, pomoMinutes = 0;
-    if (plan.linkedCardIds?.length) {
-      total = plan.linkedCardIds.length;
-      reviewed = plan.linkedCardIds.filter(id => reviewedIds.has(id)).length;
-    }
-    if (plan.linkedPomoTag) {
-      pomoMinutes = todaySessions.filter(s => s.tag === plan.linkedPomoTag).reduce((s, x) => s + (x.duration || 0), 0);
-    }
-    const pct = total ? Math.round(reviewed / total * 100) : 0;
-    const progress = { reviewed, total, pomoMinutes, pct, updatedAt: now() };
-    await updatePlan(plan.id, { progress });
+    await updatePlan(plan.id, { progress: planProgressShape(plan, reviewedIds, sessions) });
   }
 }
 
@@ -755,26 +765,10 @@ export async function refreshAllPlanProgress() {
   const autoPlans = plans.filter(p => p.autoProgress && (p.linkedCardIds?.length || p.linkedPomoTag));
   if (!autoPlans.length) return [];
 
-  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  const dayStartTs = dayStart.getTime();
-  const [todayReviews, todaySessions] = await Promise.all([
-    db.reviews.where('reviewedAt').aboveOrEqual(dayStartTs).toArray(),
-    db.pomoSessions.where('startedAt').aboveOrEqual(dayStartTs).toArray(),
-  ]);
-  const reviewedIds = new Set(todayReviews.map(r => r.cardId));
-
+  const { reviewedIds, sessions } = await fetchTodayRows();
   const results = [];
   for (const plan of autoPlans) {
-    let reviewed = 0, total = 0, pomoMinutes = 0;
-    if (plan.linkedCardIds?.length) {
-      total = plan.linkedCardIds.length;
-      reviewed = plan.linkedCardIds.filter(id => reviewedIds.has(id)).length;
-    }
-    if (plan.linkedPomoTag) {
-      pomoMinutes = todaySessions.filter(s => s.tag === plan.linkedPomoTag).reduce((s, x) => s + (x.duration || 0), 0);
-    }
-    const pct = total ? Math.round(reviewed / total * 100) : 0;
-    const progress = { reviewed, total, pomoMinutes, pct, updatedAt: now() };
+    const progress = planProgressShape(plan, reviewedIds, sessions);
     await updatePlan(plan.id, { progress });
     results.push({ planId: plan.id, progress });
   }

@@ -80,15 +80,45 @@ export async function createGistBackup(token, backupPayload, opts = {}) {
 }
 
 /**
+ * 读取 Gist 的元信息（updated_at 等），供推送前做并发校验。
+ * @param {string} token
+ * @param {string} gistId
+ * @returns {Promise<{id, updatedAt}>}
+ */
+export async function fetchGistMeta(token, gistId) {
+  if (!gistId) throw new Error('缺少 gistId');
+  const r = await gh(`/gists/${gistId}`, token);
+  return { id: r.id, updatedAt: r.updated_at };
+}
+
+/**
  * 更新现有 Gist 备份（PATCH，覆盖 file content）。
+ * 审计 C7（并发双推丢窗口）：Gist 的 "pull→merge→push" 已消掉大部分增量丢失，
+ * 但最后一步 PATCH 是**无条件覆盖**——设备 A、B 同时点上传，都会拉旧态→各自合并→
+ * 各自 PATCH，后写者覆盖先写者的本地新变更。加乐观并发控制：调用方把「合并前拉取的
+ * 云端 updated_at」作为 expectUpdatedAt 传入，PATCH 前先重读云端，若已变 → 抛冲突，
+ * 提示「云端已有更新，请先拉取再推」，杜绝静默覆盖。
  * @param {string} token
  * @param {string} gistId
  * @param {object} backupPayload
- * @param {object} opts { scope: 'real'|'test' }
+ * @param {object} opts { scope, expectUpdatedAt?:string }
  * @returns {Promise<{htmlUrl, updatedAt}>}
  */
 export async function updateGistBackup(token, gistId, backupPayload, opts = {}) {
   if (!gistId) throw new Error('缺少 gistId');
+  // 乐观并发校验：仅当调用方要求「仅在云端未被他人改动时写入」时才开启
+  if (opts.expectUpdatedAt) {
+    const meta = await fetchGistMeta(token, gistId);
+    if (meta.updatedAt !== opts.expectUpdatedAt) {
+      // 铁律：数据层绝不产出 localized 散文——只回 code + 机器可读字段，
+      // 用户可见文案由视图层 t('views.sync.gistConflict') 渲染（zh/en 双字典）。
+      const err = new Error('GIST_CONFLICT');
+      err.code = 'GIST_CONFLICT';
+      err.remoteUpdatedAt = meta.updatedAt;
+      err.expectedUpdatedAt = opts.expectUpdatedAt;
+      throw err;
+    }
+  }
   const fname = fileNameFor(backupPayload?.scope || opts.scope);
   const body = {
     files: { [fname]: { content: JSON.stringify(backupPayload) } },

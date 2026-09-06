@@ -14,7 +14,7 @@ import { db, uid } from './db.js';
 // 复用记忆卡调度器（SM-2/FSRS 自动切换）与权重配置：避免两套调度逻辑漂移
 import { scheduleReview } from './srs.js';
 import { getSchedConfig, refreshSchedConfig, formatDue, trashItem, cleanupOrphanImages } from './repo.js';
-import { isMastered } from './repo-core.js';
+import { isMastered, dayWindowOf } from './repo-core.js';
 import { extractImageIds } from './images.js';
 import { retrievability } from './fsrs.js';
 import { retrievalGrading } from './algorithms/session.js';
@@ -528,9 +528,10 @@ export async function wordReviewHistory(limit = 200) {
 
 // 今日已背次数 / 累计复习次数（学习统计页用）
 export async function wordReviewedToday() {
-  const start = new Date(); start.setHours(0, 0, 0, 0);
-  const rows = await db.wordReviews.where('reviewedAt').aboveOrEqual(start.getTime()).toArray();
-  return rows.length;
+  // 审计 B3：窗口统一走 repo-core.dayWindowOf（左闭右开，与 computeStats 同口径）；
+  // reviewedAt 已建索引 → 用 count() 替代 toArray()，避免物化整日记录
+  const { start, end } = dayWindowOf();
+  return db.wordReviews.where('reviewedAt').between(start, end, true, false).count();
 }
 export async function wordReviewedTotal() {
   return db.wordReviews.count();

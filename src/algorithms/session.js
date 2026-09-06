@@ -63,13 +63,27 @@ export function retrievalGrading(signal = {}) {
 /**
  * 由一张卡的历史复习记录估计当前检索难度（0=最难，1=最流畅；无历史返回 null）
  * @param {object} card 仅作占位保留接口对称性
- * @param {Array} reviews [{ rating, guessed, responseMs, retrievalStrength }]
+ * @param {Array} reviews [{ rating, guessed, responseMs, retrievalStrength, grade, gradeScore }]
  */
 export function estimateRetrievalDifficulty(card, reviews) {
   if (!reviews || !reviews.length) return null;
   let sum = 0;
-  for (const r of reviews) sum += retrievalGrading(r).score;
+  for (const r of reviews) {
+    // 审计 D4：复习记录落盘时已存 grade/gradeScore（确定性可推导的定级快照）。
+    // 优先读快照，避免每次按最新 grading 规则对历史信号「回溯重标」——否则一旦
+    // responseMs 阈值/guessed 判定演化，历史卡难度会被改判，与复盘页展示矛盾。
+    // 旧数据可能缺 grade/gradeScore，才退回 retrievalGrading 现算。
+    const snap = typeof r?.gradeScore === 'number' ? r.gradeScore
+      : (r?.grade ? retrievalGradingScoreOf(r.grade) : null);
+    sum += snap !== null ? snap : retrievalGrading(r).score;
+  }
   return Number((sum / reviews.length).toFixed(2));
+}
+/** 把历史四档 grade 反向映射为 score（仅快照缺失的旧数据兜底用） */
+const GRADE_SCORE = { failed: 0, hard: 0.5, medium: 0.8, easy: 1 };
+function retrievalGradingScoreOf(grade) {
+  const s = GRADE_SCORE[grade];
+  return typeof s === 'number' ? s : null;
 }
 
 /**
@@ -113,14 +127,18 @@ export function interleaveQueue(cards, opts = {}) {
     }
   };
   const rank = opts.rank || ((c, i) => i);
+  // 审计 F7/A6：选项 basePenalty(c, i)——在维度邻居惩罚之外注入一个**全局**排序偏移，
+  // 让「考试紧迫度」成为交错下的真实排序因素（而不仅是 tie-break）。默认 null = 原行为。
+  const basePen = typeof opts.basePenalty === 'function' ? opts.basePenalty : null;
   while (remaining.length) {
     let bestIdx = 0, bestPen = Infinity, bestRank = Infinity;
     for (let i = 0; i < remaining.length; i++) {
       const { k } = remaining[i];
-      const pen = (cSub.get(k.subject) || 0) * W.subject
+      let pen = (cSub.get(k.subject) || 0) * W.subject
         + (cDiff.get(k.difficulty) || 0) * W.difficulty
         + (cType.get(k.type) || 0) * W.type
         + (k.source ? (cSrc.get(k.source) || 0) * W.source : 0);
+      if (basePen) pen += basePen(remaining[i].c, i);
       const r = rank(remaining[i].c, i);
       if (pen < bestPen || (pen === bestPen && r < bestRank)) {
         bestPen = pen; bestIdx = i; bestRank = r;
@@ -170,7 +188,19 @@ export function buildReviewSession(cards, opts = {}) {
     return (1 - eu) * 1000 + d * 10 + i * 1e-6;
   };
   let queue;
-  if (interleave) queue = interleaveQueue(pool, { rank });
+  if (interleave) {
+    // 审计 F7/A6：把考试紧迫度做成交错下的**真实**排序因素（basePenalty），
+    // 而非仅作 tie-break——否则绝大多数场景 pen 不同、紧迫度完全不生效，
+    // 考前紧急卡被题材交错顶掉（meta.examUrgencyApplied=true 却具误导性）。
+    // basePenalty 为 penalty 加法项（越小越优先）：(+ (1-eu)*URG) 使 eu 越大 → 项越小 → 越靠前，
+    // 与 rank 的 (1-eu)*1000「越小越优先」同号。URGENCY 取适中值：
+    // 完全紧迫(eu=1)项为 0，约等于避开同科惩罚的一小部分；紧迫卡优先，但同等紧迫仍按科目交错。
+    const URGENCY = 2;
+    const basePenalty = examAt
+      ? (c) => (1 - (c?._examUrgency || 0)) * URGENCY
+      : null;
+    queue = interleaveQueue(pool, { rank, basePenalty });
+  }
   else queue = pool.slice().sort((a, b) => rank(a, 0) - rank(b, 0));
   return {
     queue,

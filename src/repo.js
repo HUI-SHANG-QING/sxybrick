@@ -33,6 +33,7 @@ import {
   buildReviewSuggestion,
   computeStats,
   groupUserOps,
+  dayWindowOf,
 } from './repo-core.js';
 
 export { DEFAULT_SUBJECTS };
@@ -424,12 +425,19 @@ export async function deleteCard(id) {
  * 审计 A1 同源修复：存活集此前只扫通用卡的 front/back——与 hub 侧 GC 同构的误删路径
  * （某图仅被词卡引用时，删任意一张通用卡都会把它当孤儿删掉）。
  * 改为扫 cards + wordCards 全表的所有字符串字段（JSON.stringify 整行），与 hub 口径一致。
+ * 审计 L5：图片同样可能被 notes.content / docs / memos / mindmaps 里的 [[sxy-img]] 引用——
+ * 只扫卡/词卡会误删「仅被笔记等正文引用」的图片。补扫正文表（与 hub 的 GC 口径对齐）。
  */
 export async function cleanupOrphanImages(ids) {
   if (!ids.length) return [];
-  const [cards, wordCards] = await Promise.all([allCards(), db.wordCards.toArray()]);
+  const [cards, wordCards, notes, docs, memos, mindmaps] = await Promise.all([
+    allCards(), db.wordCards.toArray(), db.notes.toArray(),
+    db.docs.toArray(), db.memos.toArray(), db.mindmaps.toArray(),
+  ]);
   const used = new Set();
-  for (const c of [...cards, ...wordCards]) for (const i of extractImageIds(JSON.stringify(c))) used.add(i);
+  for (const c of [...cards, ...wordCards, ...notes, ...docs, ...memos, ...mindmaps]) {
+    for (const i of extractImageIds(JSON.stringify(c))) used.add(i);
+  }
   const removed = [];
   for (const id of new Set(ids)) if (!used.has(id)) { await db.images.delete(id); removed.push(id); }
   return removed;
@@ -467,8 +475,16 @@ async function buildReviewsByCard(cards) {
 // filter: { subjects:[], tags:[], logic:'AND'|'OR'|'NOT', wrongReasons:[], includeDueOnly:true }
 // 自由组合背诵：按科目/标签/错因并集·交集·差集筛选到期队列（默认全量到期，遵循复习曲线）
 export async function reviewQueue(limit = 100, interleave = false, filter = {}) {
+  // 审计 D3（全表扫描）：此前固定 `allCards()` 物化全表再内存过滤，万卡级每次进队列都要
+  // 全量 toArray + sort。dueAt 已建索引（db.js），且 filterReviewCandidates 默认只保留
+  // dueAt<=now 的卡——与索引 `belowOrEqual(now)` 语义一致（dueAt 为 undefined/NaN 时
+  // `<= now` 恒 false，索引同样不返回），故默认路径可先用索引把候选收窄到「已到期」，
+  // 再筛科目/标签/错因。仅 includeDueOnly===false（重复复习全量场景）才必须全表扫描。
+  const nowTs = now();
+  const scanAll = filter?.includeDueOnly === false;
+  const pool = scanAll ? await allCards() : await db.cards.where('dueAt').belowOrEqual(nowTs).toArray();
   // 筛选 + 排序核心已抽至 repo-core.filterReviewCandidates（N9）
-  let cards = filterReviewCandidates(await allCards(), filter, now());
+  let cards = filterReviewCandidates(pool, filter, nowTs);
   // M1 卡组：
   //  - groupFilter: 'all'(默认) | 'archived-only'(仅备用组) | [groupId,...](指定组)
   //  - parkArchived: 默认 true——只属于备用组（archived）的卡不进队列（未分组卡照常）
@@ -965,13 +981,14 @@ export async function checkinDailyTask(taskId, status = 'done', note = '') {
  * }}
  */
 export async function getDailyReality(date = localDateStr()) {
-  const dayStart = new Date(date + 'T00:00:00').getTime();
-  const dayEnd = dayStart + 86400000;
+  // 审计 B3：窗口统一走 repo-core.dayWindowOf（左闭右开），与 computeStats 同一口径
+  const { start: dayStart, end: dayEnd } = dayWindowOf(new Date(`${date}T00:00:00`).getTime());
 
   // 今日复习数（reviews 表）
   let reviewsToday = 0;
   try {
-    reviewsToday = await db.reviews.where('reviewedAt').between(dayStart, dayEnd, true, true).count();
+    // 左闭右开：与 dayWindowOf 一致（此前 end 取闭区间会把次日 00:00:00 整点那条算进来）
+    reviewsToday = await db.reviews.where('reviewedAt').between(dayStart, dayEnd, true, false).count();
   } catch { reviewsToday = 0; }
 
   // 今日番茄分钟（pomoSessions 表）
@@ -1407,12 +1424,12 @@ export async function recordUserOp(type, payload = null, extra = {}) {
 // 返回：groupBy=null → 原始数组；否则 Map(key → count) 或 数组（day/hour 有序）
 export async function queryUserOps(opts = {}) {
   const { from = 0, to = Date.now(), groupBy = null } = opts;
-  let arr;
-  if (from > 0) {
-    arr = await db.userOps.where('t').between(from, to, true, true).toArray();
-  } else {
-    arr = (await db.userOps.toArray()).filter(o => (o.t || 0) <= to);
-  }
+  const tIdx = db.userOps.where('t');
+  // 审计 D9：无 from 时原实现全表 toArray + 内存过滤（埋点十万行场景徒增物化）。
+  // 统一用 't' 索引范围，只物化 [0, to] 区间。
+  const arr = from > 0
+    ? await tIdx.between(from, to, true, true).toArray()
+    : await tIdx.belowOrEqual(to).toArray();
   if (!groupBy) return arr;
   // 分组聚合核心已抽至 repo-core.groupUserOps（N9）
   return groupUserOps(arr, groupBy);
