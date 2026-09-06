@@ -433,7 +433,14 @@ onMounted(async () => {
 <style scoped>
 .ai-wrap { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; height: calc(100vh - 140px); }
 .quick-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
-.ai-body { flex: 1; display: grid; grid-template-columns: 180px 1fr 120px; gap: 12px; min-height: 0; }
+/* 4 个子元素但只声明了 3 列 → 旧的 auto-flow 把「全屏按钮行」塞进中间列、
+   「消息流」被挤到第 3 列(120px)顶到右上角，中间只剩一块灰底。
+   这里显式定位：左栏/右栏跨满两行，全屏行占中间第 1 行，消息流占中间第 2 行。 */
+.ai-body { flex: 1; display: grid; grid-template-columns: 180px 1fr 120px; grid-template-rows: auto 1fr; gap: 12px; min-height: 0; }
+.chat-side { grid-column: 1; grid-row: 1 / -1; }
+.chat-fs-row { grid-column: 2; grid-row: 1; }
+.chat-box { grid-column: 2; grid-row: 2; min-height: 0; }
+.timeline { grid-column: 3; grid-row: 1 / -1; }
 .chat-side, .timeline { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 10px; overflow-y: auto; }
 .side-title { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
 .chat-item { padding: 8px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; }

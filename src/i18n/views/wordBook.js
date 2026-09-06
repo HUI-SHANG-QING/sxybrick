@@ -81,6 +81,10 @@ export const zh = {
   subjectTem: '专四专八',
   subjectOther: '其他',
   formTags: '标签（逗号分隔）',
+  formGroups: '归入词组（可多选，支持搜索）',
+  formGroupsSearch: '搜索词组名称 / 描述',
+  formGroupsNone: '没有匹配的词组',
+  formGroupsEmpty: '还没有词组，先到「词组」页新建一个',
 
   confirmDelete: '确定删除「{word}」？该操作会进入回收站，并跨设备同步删除。',
   deleted: '已删除',
@@ -245,6 +249,10 @@ export const en = {
   subjectTem: 'TEM-4/8',
   subjectOther: 'Other',
   formTags: 'Tags (comma separated)',
+  formGroups: 'Assign to word groups (multi-select, searchable)',
+  formGroupsSearch: 'Search group name / description',
+  formGroupsNone: 'No matching group',
+  formGroupsEmpty: 'No groups yet — create one on the Groups page',
 
   confirmDelete: 'Delete “{word}”? It goes to Trash and syncs across devices.',
   deleted: 'Deleted',

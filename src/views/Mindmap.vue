@@ -99,6 +99,10 @@ function buildOption(data, style) {
   const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4a9eff';
   const ink = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#333';
   const line = getComputedStyle(document.documentElement).getPropertyValue('--line-strong').trim() || '#999';
+  // 多色节点板：单色 accent 时密集桑基/力导向图会糊成一团（用户反馈「一坨黑」），
+  // 按节点序轮换配色后相邻流可区分；首尾色与 accent 呼应。
+  const PALETTE = ['#4f7cff', '#2fbf71', '#e6a23c', '#f56c6c', '#9b59b6', '#16a085', '#e67e22', '#607d8b'];
+  const colorAt = (i) => PALETTE[i % PALETTE.length];
   if (style === 'tree-lr') return treeOption(data, 'LR', 'orthogonal', accent, ink, line);
   if (style === 'tree-tb') return treeOption(data, 'TB', 'orthogonal', accent, ink, line);
   if (style === 'tree-radial') return treeOption(data, 'LR', 'radial', accent, ink, line);
@@ -115,7 +119,7 @@ function buildOption(data, style) {
         tooltip: { trigger: 'item', formatter: p => p.data?.name || p.name },
         series: [{
           type: 'graph', layout: 'force',
-          data: fr.map(n => ({ id: n.id, name: n.name, symbolSize: 14 })),
+          data: fr.map((n, i) => ({ id: n.id, name: n.name, symbolSize: 14, itemStyle: { color: colorAt(i) } })),
           links: fl.map(l => ({ source: l.source, target: l.target, value: l.value })),
           roam: true, draggable: true,
           force: { repulsion: 90, edgeLength: 60 },
@@ -134,7 +138,7 @@ function buildOption(data, style) {
       animation: true,
       series: [{
         type: 'sankey',
-        data: sankeyNodes,
+        data: sankeyNodes.map((n, i) => ({ ...n, itemStyle: { color: colorAt(i) } })),
         links: sankeyLinks,
         left: 110, right: 210, top: 40, bottom: 40,
         width: 'auto', height: 'auto',

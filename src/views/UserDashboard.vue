@@ -187,9 +187,12 @@ async function loadAll() {
     await nextTick();
 
     // —— 图 1：ECharts 一年热力图（x=周, y=周几）
+    // 格子「看起来没有」的两个真实原因（与 168h 图对比得出）：
+    //   ① 没有 itemStyle 边框 —— 低活跃日颜色本就接近底色，无描边时整片糊成空白；
+    //   ② visualMap.max 写死 20，而日活通常 1~5，插值后仍几乎等于 0 档色。
+    // 故：max 改为按实际数据取（下限 1），并给每个格子加描边（与 168h 图同处理）。
+    const maxHeat = ccc.reduce((m, x) => Math.max(m, x.count || 0), 0);
     renderChart('heatmap', {
-      // 旧实现显示的是「星期名 + 周序号」（如"周三 12"），看不出是哪一天；
-      // buildHeatSeries 的第 4 位才是真实日期，这里改用它。
       tooltip: {
         position: 'top',
         formatter: p => (Array.isArray(p) && p[0]) ? T('tipHeat', { date: p[0].data[3] || '', n: p[0].data[2] }) : '',
@@ -201,10 +204,14 @@ async function loadAll() {
       // 故 data 用列号字符串数组，月份标签改由 axisLabel.formatter 按列索引查 buildHeatXLabels。
       xAxis: { type: 'category', data: Array.from({ length: Math.ceil(ccc.length / 7) }, (_, i) => String(i)), splitArea: { show: false }, axisLabel: { color: '#888', fontSize: 10, formatter: (v, i) => buildHeatXLabels(ccc)[i] || '' } },
       yAxis: { type: 'category', data: WEEK_SUN_AXIS.value, axisLabel: { color: '#888', fontSize: 10 }, splitArea: { show: false } },
-      visualMap: { min: 0, max: 20, calculable: false, orient: 'horizontal', left: 'center', bottom: 4, inRange: { color: ['#ebedf0','#c6f0d0','#5cd66a','#2cbe4e','#006d32'] }, textStyle: { color: '#888' } },
-      series: [{ type: 'heatmap', data: buildHeatSeries(ccc), label: { show: false } }],
+      visualMap: { min: 0, max: Math.max(1, maxHeat), calculable: false, orient: 'horizontal', left: 'center', bottom: 4, inRange: { color: ['#ebedf0','#c6f0d0','#5cd66a','#2cbe4e','#006d32'] }, textStyle: { color: '#888' } },
+      series: [{
+        type: 'heatmap', data: buildHeatSeries(ccc), label: { show: false },
+        itemStyle: { borderWidth: 1, borderColor: 'var(--panel)', borderColor0: 'transparent' },
+        emphasis: { itemStyle: { borderColor: 'var(--accent)', borderWidth: 2 } },
+      }],
       title: { text: T('chart.heatmap'), left: 'center', top: 4, textStyle: { fontSize: 13, color: 'var(--ink)', fontWeight: 600 } },
-    });
+    }, { allowEmpty: true }); // 全 0 也照 GitHub 习惯铺满格子，不降级成「暂无数据」骨架
 
     // —— 图 2：24h 时段曲线（可交互 tooltip，叠加 3 日对比：全范围平均 / 近 7d / 近 1d）
     const hourAll = new Map(byHour.map(x => [x.hour, x.count]));
@@ -563,12 +570,12 @@ function buildEmptyOption(original) {
 }
 
 // —— 通用 ECharts render：懒初始化 + resize + CSS var 适配主题
-function renderChart(key, option) {
+function renderChart(key, option, opts = {}) {
   const h = chartHolders[key];
   if (!h?.el?.value) return;
   if (!h.c) h.c = echarts.init(h.el.value);
-  // 空数据检测：注入骨架空状态
-  if (isOptionEmpty(option)) option = buildEmptyOption(option);
+  // 空数据检测：注入骨架空状态（GitHub 式热力图 exempt——全 0 也应铺满格子）
+  if (!opts.allowEmpty && isOptionEmpty(option)) option = buildEmptyOption(option);
   // 透传 CSS var 颜色：如果用了 "var(--ink)" 等，ECharts 无法解析；替换为 computedStyle 真实值。
   const css = getComputedStyle(document.documentElement);
   const patchCSSVar = (v) => {

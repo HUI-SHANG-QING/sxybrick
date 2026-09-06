@@ -30,6 +30,11 @@ export const zh = {
   addMember: '＋ 添加单词',
   noMembers: '该词组还没有单词。',
   editMember: '编辑',
+  searchPlaceholder: '🔍 搜索词组名称 / 描述（考研 / 雅思 / 四六级…）',
+  searchEmpty: '没有匹配的词组。',
+  addMemberTitle: '添加单词 → 「{name}」',
+  addMemberSearch: '🔍 实时检索：按单词或中文释义过滤',
+  addMemberNoMatch: '没有匹配的单词。',
 
   activeCount: '背诵中 {n}',
   archivedCount: '备用 {n}',
@@ -76,6 +81,11 @@ export const en = {
   addMember: '＋ Add words',
   noMembers: 'No words in this group yet.',
   editMember: 'Edit',
+  searchPlaceholder: '🔍 Search group name / description (kaoyan / IELTS / CET…)',
+  searchEmpty: 'No matching group.',
+  addMemberTitle: 'Add words → “{name}”',
+  addMemberSearch: '🔍 Live filter: by word or Chinese meaning',
+  addMemberNoMatch: 'No matching words.',
 
   activeCount: 'Active {n}',
   archivedCount: 'Archived {n}',

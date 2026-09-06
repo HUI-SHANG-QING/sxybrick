@@ -20,13 +20,13 @@ const selectedAgent = ref(''); // 空 = 自动路由
 const input = ref('');
 const loading = ref(false);
 const messages = ref([]); // 当前会话消息 {role, content}
-
-// 全屏/非全屏：Agent 长回答（含 Markdown/表格）沉浸式专心阅读
-const { isFullscreen: wbFs, toggle: toggleWbFs } = useFullscreen(streamBox);
+const streamBox = ref(null); // 消息流容器 ref——必须先声明再给 useFullscreen 用（旧序 TDZ：useFullscreen(streamBox) 在声明前取用 → Cannot access before initialization）
 const traceNodes = ref([]); // 编排轨迹
 const showTools = ref(false);
 const showUsage = ref(false);
-const streamBox = ref(null);
+
+// 全屏/非全屏：Agent 长回答（含 Markdown/表格）沉浸式专心阅读
+const { isFullscreen: wbFs, toggle: toggleWbFs } = useFullscreen(streamBox);
 const sessions = ref([]); // Agent 会话历史（持久化到 aiChats，随数据包同步）
 const currentId = ref('');
 

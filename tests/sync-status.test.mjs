@@ -12,7 +12,7 @@ import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 const { getModuleStatus, recordModuleResult, recordAllModulesOk, recordAllModulesError,
-        loadStatus, resetStatus, summarizeStatus, MODULE_LABELS } =
+        loadStatus, resetStatus, summarizeStatus, MODULE_LABELS, SYNC_STATUS_SKEW_MS } =
   await import('../src/sync-status.js');
 const { db, setDbInstance, getDb, uid } = await import('../src/db.js');
 const { getEffectiveSyncTables } = await import('../src/sync.js');
@@ -83,23 +83,29 @@ test('成功：recordAllModulesOk 后全模块为 ok（含条数记录）', asyn
   assert.equal(s.ok, list.length, `全部成功，实际 ok=${s.ok}/${list.length}`);
 });
 
-test('新变更判定：lastSyncAt 之后表有新写入 → 重新变 pending', async () => {
+test('新变更判定：lastSyncAt 之后表有新写入 → 重新变 pending（时钟偏差窗口内不算）', async () => {
   resetStatus();
   recordAllModulesOk({});
   let list = await getModuleStatus({ channels: { hub: true } });
   assert.equal(list.find(m => m.module === 'cards').status, 'ok');
 
-  // 新写入（updatedAt 晚于刚才的 lastSyncAt；用 L1 偏移而非墙钟，避免毫秒撞车 flaky）
   const L1 = list.find(m => m.module === 'cards').lastSyncAt;
-  await getDb().cards.put(card('ss-new', L1 + 1000));
+  // 偏差窗口内（+1s，模拟对端时钟略快）→ 视为时钟抖动，仍 ok（防「永远待同步」假 pending）
+  await getDb().cards.put(card('ss-skew', L1 + 1000));
+  list = await getModuleStatus({ channels: { hub: true } });
+  assert.equal(list.find(m => m.module === 'cards').status, 'ok', '窗口内新写入视为时钟偏差 → 不判 pending');
+
+  // 真正的新变更（超出 5min 偏差窗口）→ pending
+  await getDb().cards.put(card('ss-new', L1 + SYNC_STATUS_SKEW_MS + 1000));
   list = await getModuleStatus({ channels: { hub: true } });
   assert.equal(list.find(m => m.module === 'cards').status, 'pending', '新变更未同步 → 待同步');
 
   // 再次同步成功（本次同步发生在新写入之后，at > 写入时间戳）→ ok
-  recordModuleResult('cards', { ok: true, rows: 2, at: L1 + 2000 });
+  recordModuleResult('cards', { ok: true, rows: 2, at: L1 + SYNC_STATUS_SKEW_MS + 2000 });
   list = await getModuleStatus({ channels: { hub: true } });
   assert.equal(list.find(m => m.module === 'cards').status, 'ok');
 
+  await getDb().cards.delete('ss-skew').catch(() => {});
   await getDb().cards.delete('ss-new');
 });
 

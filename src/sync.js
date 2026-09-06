@@ -493,6 +493,14 @@ export async function syncWithHub(hubUrl, token, opts = {}) {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
     body,
+    // 中枢不可达时若不加超时，fetch 可挂起数分钟 → Sync.vue 的 syncingAll/syncingModule
+    // 一直为 true，所有同步按钮被禁用（鼠标变禁止符号）。20s 超时给出明确报错并复位。
+    signal: AbortSignal.timeout(20000),
+  }).catch((e) => {
+    if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
+      throw new Error('连接电脑端中枢超时（20s），请确认中枢已启动、地址与端口正确、手机与电脑在同一网络');
+    }
+    throw e;
   });
   if (res.status === 401) {
     const detail = await res.json().catch(() => ({}));

@@ -14,6 +14,9 @@ import { livenessTs } from './sync-manifest.js';
 
 const key = () => `sxy_sync_status_${backupScope()}`;
 
+// 跨设备时钟偏差容忍窗口：对端行时间戳比本机快 ≤5min 不判 pending（防「永远待同步」）
+export const SYNC_STATUS_SKEW_MS = 5 * 60 * 1000;
+
 // round18 R18-7（P2）：此前 MODULE_LABELS / MODULE_ORDER 是两份手写清单，
 //   v25/v26 新增英语单词 7 表时忘了同步维护 → 最活跃的单词模块在同步状态面板里
 //   label 退化成裸表名、按字母序沉底，其同步失败/待同步**不可见**。
@@ -154,10 +157,14 @@ export async function getModuleStatus(opts = {}) {
 
     const rec = st.modules[t.table] || {};
     let status;
+    // 设备间时钟不可能完全一致：中枢返回的行 updatedAt 用的是电脑端时钟，可能比本机快几分钟。
+    // 若用裸 `maxTs > lastSyncAt` 判定，对端时钟快一点的设备会「永远待同步」——每同步一次
+    // lastSyncAt=本机 now，仍 < 对端未来时间戳。容忍 5 分钟偏差即可消除该假 pending；
+    // 本机在同步窗口内新增的变更最多延迟几分钟才显示 pending，可接受。
     if (!hasChannel) status = 'none';
     else if (rec.lastResult === 'error') status = 'error';
     else if (!rec.lastSyncAt) status = count ? 'pending' : 'ok'; // 从未同步：有数据=待同步，空表=无事可做
-    else if (maxTs > rec.lastSyncAt) status = 'pending';
+    else if (maxTs > rec.lastSyncAt + SYNC_STATUS_SKEW_MS) status = 'pending';
     else status = 'ok';
 
     out.push({

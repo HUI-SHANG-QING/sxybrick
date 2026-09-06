@@ -9,6 +9,7 @@ import { speak } from '../utils/speak.js';
 import {
   listWordCards, wordStats, createWordCard, updateWordCard, deleteWordCard,
   markFamiliar, setWordNote, getWordSettings, listWordGroups,
+  setWordGroups, wordGroupsOfCard,
 } from '../word-repo.js';
 import { linkCardWord, unlinkCardWord, allCardWordLinks } from '../repo.js';
 import { generateWordMaterials } from '../services/word-llm.js';
@@ -219,8 +220,49 @@ async function onSearch() { await load(); }
 const filteredCount = computed(() => cards.value.length);
 
 // ---- 添加 / 编辑 ----
-function openAdd() { editing.value = null; form.value = blankForm(); showAdd.value = true; }
-function openEdit(c) { editing.value = c; form.value = { ...blankForm(), ...c, tags: (c.tags || []).join(', ') }; showAdd.value = true; }
+// v40 卡组对等：单词可同时归入多个英语词组（一对多），编辑弹窗内可直接勾选/搜索。
+const formGroups = ref([]);      // 当前编辑词所属词组 id（编辑态预填）
+const groupQuery = ref('');      // 词组实时检索
+const matchedGroups = computed(() => {
+  const kw = String(groupQuery.value || '').trim().toLowerCase();
+  if (!kw) return groups.value;
+  return groups.value.filter(g =>
+    String(g.name || '').toLowerCase().includes(kw)
+    || String(g.description || '').toLowerCase().includes(kw));
+});
+function toggleFormGroup(id) {
+  formGroups.value = formGroups.value.includes(id)
+    ? formGroups.value.filter(x => x !== id)
+    : [...formGroups.value, id];
+}
+function openAdd() {
+  editing.value = null;
+  form.value = blankForm();
+  formGroups.value = [];
+  groupQuery.value = '';
+  showAdd.value = true;
+}
+async function openEdit(c) {
+  editing.value = c;
+  form.value = { ...blankForm(), ...c, tags: (c.tags || []).join(', ') };
+  formGroups.value = [];
+  groupQuery.value = '';
+  showAdd.value = true;
+  try {
+    const gs = await wordGroupsOfCard(c.id);
+    formGroups.value = gs.map(g => g.id);
+  } catch { /* 读不到归属就按未分组处理，不阻断编辑 */ }
+}
+// 保存词组归属：以弹窗勾选为准，差量增删（一对多）
+async function persistGroups(cardId) {
+  if (!cardId) return;
+  const want = new Set(formGroups.value);
+  const had = new Set((await wordGroupsOfCard(cardId)).map(g => g.id));
+  const add = [...want].filter(id => !had.has(id));
+  const del = [...had].filter(id => !want.has(id));
+  if (add.length) await setWordGroups([cardId], add, []);
+  if (del.length) await setWordGroups([cardId], [], del);
+}
 
 async function genMaterials() {
   const word = form.value.word.trim();
@@ -314,9 +356,11 @@ async function save() {
   try {
     if (editing.value) {
       await updateWordCard(editing.value.id, base);
+      await persistGroups(editing.value.id);
       toast(t('views.wordBook.updated'), 'success');
     } else {
-      await createWordCard(base);
+      const created = await createWordCard(base);
+      if (created?.id) await persistGroups(created.id);
       toast(autoFilled ? t('views.wordBook.createdWithAi') : t('views.wordBook.created'), 'success');
     }
     showAdd.value = false;
@@ -758,6 +802,19 @@ async function addOcrWords() {
             <label>{{ t('views.wordBook.formTags') }}</label>
             <input v-model="form.tags" placeholder="word1, word2" />
           </div>
+          <!-- 归组（一对多）：可搜索词组名/描述，勾选即加入，取消即移出 -->
+          <div class="ag ag-wide">
+            <label>{{ t('views.wordBook.formGroups') }}</label>
+            <input v-model="groupQuery" class="grp-search" :placeholder="t('views.wordBook.formGroupsSearch')" />
+            <div v-if="groups.length" class="grp-chips">
+              <button v-for="g in matchedGroups" :key="g.id" type="button" class="grp-chip"
+                      :class="{ on: formGroups.includes(g.id) }" @click="toggleFormGroup(g.id)">
+                <span class="grp-dot" :style="{ background: g.color || 'var(--accent)' }"></span>{{ g.name }}
+              </button>
+              <span v-if="!matchedGroups.length" class="grp-none">{{ t('views.wordBook.formGroupsNone') }}</span>
+            </div>
+            <span v-else class="grp-none">{{ t('views.wordBook.formGroupsEmpty') }}</span>
+          </div>
         </div>
         <div class="add-foot">
           <button class="gen-btn" :disabled="genRunning" @click="genMaterials">
@@ -1117,6 +1174,16 @@ async function addOcrWords() {
 .add-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .ag { display: flex; flex-direction: column; gap: 4px; }
 .ag-wide { grid-column: span 2; }
+.grp-search { margin-top: 4px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font-size: 13px; width: 100%; }
+.grp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.grp-chip {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer;
+  padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink-2);
+}
+.grp-chip.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+.grp-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.grp-none { font-size: 12px; color: var(--ink-2); }
 .ag label { font-size: 12px; color: var(--ink-2); }
 .ag select, .ag input { border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; background: var(--bg, #fff); color: var(--ink); font-size: 13px; }
 .add-foot { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }

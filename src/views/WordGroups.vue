@@ -1,6 +1,6 @@
 <script setup>
 // 词组管理（仿卡组）：多对多分组，active/archived 状态，成员增删。
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
@@ -59,11 +59,20 @@ function startEdit(g) {
 }
 async function saveForm() {
   try {
-    if (editing.value === null) { await createWordGroup(form.value); toast(t('views.wordGroups.created'), 'success'); }
-    else { await updateWordGroup(editing.value, form.value); toast(t('views.wordGroups.updated'), 'success'); }
+    let newId = null;
+    if (editing.value === null) {
+      const g = await createWordGroup(form.value);
+      newId = g.id;
+      toast(t('views.wordGroups.created'), 'success');
+    } else {
+      await updateWordGroup(editing.value, form.value);
+      toast(t('views.wordGroups.updated'), 'success');
+    }
     editing.value = null;
     editOpen.value = false;
     await reload();
+    // 新建后自动展开该词组，让「添加单词」入口立即可见（旧实现新建完是折叠的，找不到加词入口）
+    if (newId) { expanded.value = newId; await refreshMembers(); }
   } catch (e) { toast(e.message || t('views.wordGroups.saveFailed'), 'error'); }
 }
 async function toggleStatus(g) {
@@ -80,21 +89,44 @@ async function remove(g) {
 }
 async function toggleExpand(g) { expanded.value = expanded.value === g.id ? '' : g.id; await refreshMembers(); }
 
-// 添加成员
+// 添加成员：支持实时检索（按单词/释义），并显式标出当前操作的是哪个词组，
+// 避免多个词组（如「考研词组」「雅思词组」）分不清在给谁加词。
 const addOpen = ref(false);
 const addGroup = ref(null);
 const allWords = ref([]);
 const addChecks = ref({});
+const addQuery = ref('');
+const groupQuery = ref('');   // 词组列表实时检索（按名称/描述）
+const filteredGroups = computed(() => {
+  const kw = String(groupQuery.value || '').trim().toLowerCase();
+  if (!kw) return groups.value;
+  return groups.value.filter(g =>
+    String(g.name || '').toLowerCase().includes(kw)
+    || String(g.description || '').toLowerCase().includes(kw));
+});
+const matchedWords = computed(() => {
+  const kw = String(addQuery.value || '').trim().toLowerCase();
+  if (!kw) return allWords.value;
+  return allWords.value.filter(w =>
+    String(w.word || '').toLowerCase().includes(kw)
+    || String(w.meaning || '').toLowerCase().includes(kw));
+});
 async function openAdd(g) {
   addGroup.value = g;
   allWords.value = await listWordCards({});
   const ids = new Set(await wordGroupCardIds(g.id));
   addChecks.value = Object.fromEntries(allWords.value.map(w => [w.id, ids.has(w.id)]));
+  addQuery.value = '';
   addOpen.value = true;
 }
 async function saveAdd() {
-  const ids = allWords.value.filter(w => addChecks.value[w.id]).map(w => w.id);
-  await setWordGroups(ids, [addGroup.value.id], []);
+  const gid = addGroup.value?.id;
+  if (!gid) return;
+  // 以勾选为准做差量同步：勾选的加入、未勾选的移出（旧实现只加不减，取消勾选无效）
+  const checked = allWords.value.filter(w => addChecks.value[w.id]).map(w => w.id);
+  const unchecked = allWords.value.filter(w => !addChecks.value[w.id]).map(w => w.id);
+  if (checked.length) await setWordGroups(checked, [gid], []);
+  if (unchecked.length) await setWordGroups(unchecked, [], [gid]);
   toast(t('views.wordGroups.updated'), 'success');
   addOpen.value = false;
   await reload();
@@ -123,8 +155,11 @@ onMounted(reload);
     <section v-else-if="!groups.length" class="empty">
       <p>{{ t('views.wordGroups.empty') }}</p>
     </section>
-    <section v-else class="list">
-      <article v-for="g in groups" :key="g.id" class="g">
+    <template v-else>
+      <!-- 词组列表实时检索：多个词组（考研/雅思/四六级…）靠名称区分，可搜索 -->
+      <input v-model="groupQuery" class="grp-filter" :placeholder="t('views.wordGroups.searchPlaceholder')" />
+      <section class="list">
+        <article v-for="g in filteredGroups" :key="g.id" class="g">
         <div class="grow" @click="toggleExpand(g)">
           <span class="dot" :style="{ background: g.color }"></span>
           <b class="name">{{ g.name }}</b>
@@ -151,8 +186,12 @@ onMounted(reload);
             <button class="rm" @click="removeMember(g, w)">{{ t('views.wordGroups.remove') }}</button>
           </div>
         </div>
-      </article>
-    </section>
+        </article>
+        <p v-if="!filteredGroups.length" class="empty" style="padding:24px 0">
+          {{ t('views.wordGroups.searchEmpty') }}
+        </p>
+      </section>
+    </template>
 
     <!-- 新建 / 编辑 -->
     <el-dialog v-model="editOpen" :title="editing === null ? t('views.wordGroups.createTitle') : t('views.wordGroups.editTitle')" width="520px">
@@ -177,10 +216,14 @@ onMounted(reload);
       </template>
     </el-dialog>
 
-    <!-- 添加成员 -->
-    <el-dialog v-model="addOpen" :title="t('views.wordGroups.addMember')" width="560px">
+    <!-- 添加成员：标题带当前词组名（多个词组不混淆）+ 实时检索 -->
+    <el-dialog v-model="addOpen" :title="t('views.wordGroups.addMemberTitle', undefined, { name: addGroup?.name || '' })" width="560px">
+      <input v-model="addQuery" class="grp-filter" :placeholder="t('views.wordGroups.addMemberSearch')" />
       <div class="mlist">
-        <label v-for="w in allWords" :key="w.id" class="mrow"><input type="checkbox" v-model="addChecks[w.id]" /><b>{{ w.word }}</b><span class="mm">{{ w.meaning }}</span></label>
+        <label v-for="w in matchedWords" :key="w.id" class="mrow"><input type="checkbox" v-model="addChecks[w.id]" /><b>{{ w.word }}</b><span class="mm">{{ w.meaning }}</span></label>
+        <p v-if="!matchedWords.length" class="hint" style="text-align:center;padding:12px 0">
+          {{ t('views.wordGroups.addMemberNoMatch') }}
+        </p>
       </div>
       <template #footer>
         <el-button @click="addOpen = false">{{ t('views.wordGroups.cancel') }}</el-button>
@@ -213,6 +256,11 @@ onMounted(reload);
 .mw .ed { border: 0; background: transparent; color: var(--el-color-primary); cursor: pointer; }
 .hint { font-size: 12px; color: var(--el-text-color-secondary); }
 .gdesc { font-size: 12px; color: var(--el-text-color-secondary); flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grp-filter {
+  width: 100%; margin-bottom: 10px; padding: 8px 12px; box-sizing: border-box;
+  border: 1px solid var(--el-border-color-lighter); border-radius: 10px;
+  background: var(--el-bg-color); color: var(--el-text-color-primary); font-size: 13px;
+}
 
 .form { display: flex; flex-direction: column; gap: 12px; }
 .form label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--el-text-color-regular); }
