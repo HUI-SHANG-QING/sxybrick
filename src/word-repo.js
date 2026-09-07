@@ -40,6 +40,8 @@ export async function reviewWord(cardId, rating, opts = {}) {
     // bump 会让跨设备同步用旧副本覆盖对端对范文的编辑。
     // 审计 B11：差量写 reviewedAt（与主路径同款，不再 put 整行覆盖并发编辑）
     await db.wordCards.update(cardId, { reviewedAt: now() });
+    // 审计：浏览范文也是学习活动 → 自动补签到（失败不影响主流程）
+    await ensureCheckinToday();
     return { skipped: true, dueText: '—', reviewId: null };
   }
   const cfg = await getSchedConfig();
@@ -76,7 +78,7 @@ export async function reviewWord(cardId, rating, opts = {}) {
   // 替换原单维三档（easy/hard/failed）。旧数据无 'medium'，与四档无冲突，读取无需迁移。
   // 审计 B11（单词侧同款）：读+写放进同一事务。此前事务外 get → 纯计算 →
   // 事务内整行 put 的窗口期内，同卡可能已被并发写变更，旧快照会覆盖新内容。
-  return db.transaction('rw', db.wordCards, db.wordReviews, async () => {
+  const result = await db.transaction('rw', db.wordCards, db.wordReviews, async () => {
     const g = retrievalGrading({
       rating,
       guessed: !!opts.guessed,
@@ -108,6 +110,9 @@ export async function reviewWord(cardId, rating, opts = {}) {
     });
     return { ...next, dueText: formatDue(next.dueAt), reviewId };
   });
+  // 审计：复习即当日学习 → 自动补签到（幂等；失败不影响复习主流程）
+  await ensureCheckinToday();
+  return result;
 }
 
 // 错题反思（落盘到复习记录，跨设备按 selfExplainAt 字段级合并）
@@ -624,6 +629,27 @@ export async function saveWordSettings(patch = {}) {
 // round17 R17-11：委托给 time.dateKey（同一实现，杜绝与 streak.js 的两套格式漂移）
 export function todayStr(d = new Date()) {
   return dateKey(d.getTime());
+}
+
+/**
+ * 审计（连击口径跨模块不一致）：单词侧连击此前只认**显式签到**——当天背了单词却没点
+ * 「签到」按钮，连击就断；而卡片侧连击是从复习记录推导的（有复习即算活跃）。
+ * 同一天学习，两边给出相反结论，仪表盘/成就出现「明明学了却断签」。
+ * 修法：每次单词复习（含范文浏览）后自动补一次签到，让「签到」真实反映学习行为。
+ * 幂等（同 day 唯一 id）：已签到时只做一次 get，极廉；仅在当天首次创建时才算连击。
+ * 手动签到入口 checkInToday 保留（同样的幂等写，并顺带返回连击数给 UI）。
+ * @returns {Promise<boolean>} 是否新建了今天的签到
+ */
+export async function ensureCheckinToday() {
+  const date = todayStr();
+  const id = `c-${date}`;
+  try {
+    const existing = await db.wordCheckins.get(id);
+    if (existing) return false;
+    const streak = await wordCheckinStreak();
+    await db.wordCheckins.put({ id, date, count: streak + 1, createdAt: now() });
+    return true;
+  } catch { return false; }
 }
 
 export async function checkInToday() {

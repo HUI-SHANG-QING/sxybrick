@@ -91,7 +91,15 @@ export async function setScheduler(next) {
   if (to === 'fsrs') {
     // 批量播种：通用卡 + 单词卡（两模块共用同一调度器）
     for (const table of [db.cards, db.wordCards]) {
-      const rows = await table.filter(r => !r.fsrs && (Number(r.intervalDays) > 0) && !r.consolidation).toArray();
+      // 审计（调度器切换语义边界）：此前过滤 `!r.consolidation`，把正处于 SM-2 巩固阶段
+      // （consolidation=1 当日巩固 / 2 隔日巩固）的卡**排除在 FSRS 播种之外**——
+      // 于是这批卡与其余卡走了两套口径（其余有播种 fsrs 状态，这批没有），
+      // 切回 SM-2 时又带着旧的巩固阶段继续跑，进度不可比。
+      // 改为：只要已有复习进度（intervalDays>0）就一视同仁播种，
+      // 巩固状态本身不在切换时清除——FSRS 路径本就会把 consolidation 写回 null
+      // （fsrs.js:212 明确不复用 SM-2 巩固状态机），且 SM-2 侧有「巩固超期自动毕业」
+      // 兜底（srs.js:85-89），不会残留僵死状态。
+      const rows = await table.filter(r => !r.fsrs && (Number(r.intervalDays) > 0)).toArray();
       if (!rows.length) continue;
       const patches = rows
         .map(c => ({ key: c.id, changes: { fsrs: seedFsrsFromSm2(c) } }))
@@ -397,9 +405,11 @@ export async function deleteCard(id) {
     // 审计 A2：与 deleteWordCard 对称——删通用卡也会级联删链接+写墓碑，
     // 快照不带 _cardWordLinks 的话恢复后关联同样永久丢失
     // 审计 #10：记录被清洗引用的 noteId，恢复时补回 linkedCardIds
-    const linkedNoteIds = (await db.notes.toArray())
-      .filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.includes(id))
-      .map(n => n.id);
+    // 性能：此前这里与下方第 8 步**各扫一次 db.notes 全表**（同一次删除里两遍全表物化，
+    // 笔记多时删卡明显变慢）。两次都在同一事务内且中间不写 notes，故只扫一次、两处复用。
+    const allNotes = await db.notes.toArray();
+    const linkedNotes = allNotes.filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.includes(id));
+    const linkedNoteIds = linkedNotes.map(n => n.id);
     await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks, _linkedNoteIds: linkedNoteIds });
     // 2) 墓碑（跨设备删除同步）：卡片本体 + 它的每一条卡组关联
     //    关联行不写墓碑的话，对端会在下次同步把「已删卡 → 卡组」的关联原样推回来，
@@ -450,8 +460,7 @@ export async function deleteCard(id) {
     await db.embeddings.where('sourceId').equals(id).and(e => e.sourceType === 'card').delete();
     // 8) M5 残余：剔除所有笔记 linkedCardIds 里对该卡的引用（删卡后留 [[cardId]]
     //    结构上仍是悬空引用；笔记侧把引用数组清洗掉并 bump updatedAt 随内容侧同步）
-    const linkedNotes = (await db.notes.toArray())
-      .filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.includes(id));
+    //    复用第 1 步的 linkedNotes（同一事务内，中间无写入），不再重复全表扫描
     for (const n of linkedNotes) {
       await db.notes.put({ ...n, linkedCardIds: n.linkedCardIds.filter(x => x !== id), updatedAt: now() });
     }

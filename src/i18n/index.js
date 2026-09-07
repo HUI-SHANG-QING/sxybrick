@@ -91,6 +91,8 @@ const zh = {
       trainBtnDone: '训练权重',
       pretest: '冷启动前测：若某科目做过预测验 / 自评分，用其估计初始稳定度替代默认 S0，减少前几次复习的抖动（数学、线代等难科会有系数微调）。',
       guard: '方向铁律（2026-08-29 修正）：w15 是「惩罚」必须 <1、w16 是「加成」必须 >1；代码层面对 w15 做 ≤1 钳制，使「越不会的卡反而越晚复习」在结构上不可能发生。',
+      // 调度器切换语义：FSRS 不使用 SM-2 的短巩固阶段（切换时如实提示，避免"文案说有、实际没有"）
+      noConsolidationHint: '注意：启用 FSRS 后不再走 SM-2 的「当日巩固 / 隔日巩固」阶段（FSRS 用自身稳定度处理短期间隔）。切回 SM-2 会恢复该机制。',
     },
     choose: '如何选：默认 SM-2 零训练、即开即用；当你积累 ≥8 次真实评分后，切到 FSRS 并点「训练权重」，可进一步按你的遗忘曲线个性化，通常更省时。',
   },
@@ -281,6 +283,7 @@ const en = {
       trainBtnDone: 'Train weights',
       pretest: 'Cold-start pretest: if a subject has a pretest / self-rating, its estimated initial stability replaces the default S0, reducing early-review jitter (hard subjects like math / linear algebra get a coefficient tweak).',
       guard: 'Direction rule (2026-08-29 fix): w15 is a "penalty" and must be <1, w16 is a "bonus" and must be >1; code clamps w15 ≤1 so "harder cards reviewed later" is structurally impossible.',
+      noConsolidationHint: 'Note: with FSRS enabled, the SM-2 "same-day consolidation / next-day consolidation" stages are no longer used (FSRS handles short intervals via its own stability). Switching back to SM-2 restores them.',
     },
     choose: 'Which to pick: SM-2 is zero-training and ready out of the box; once you have ≥8 real ratings, switch to FSRS and hit "Train weights" to personalize to your forgetting curve — usually saving more time.',
   },

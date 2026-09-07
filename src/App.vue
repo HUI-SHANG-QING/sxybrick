@@ -578,6 +578,11 @@ async function enableReminder() {
                 <span>启用 FSRS 调度（可选项，默认 SM-2）</span>
                 <el-switch :model-value="scheduler === 'fsrs'" @change="onToggleScheduler" />
               </div>
+              <!-- 审计（调度器切换语义）：FSRS 不使用 SM-2 巩固阶段，开启后如实提示，
+                   避免「文案介绍了巩固、实际却不生效」的行为与说明不符 -->
+              <div v-if="scheduler === 'fsrs'" class="hint" style="margin:-4px 0 10px">
+                {{ t('engine.fsrs.noConsolidationHint') }}
+              </div>
               <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
                 <el-button size="small" :loading="fsrsTraining" @click="trainFsrs">
                   {{ fsrsTraining ? t('engine.fsrs.trainBtn', '训练中…') : t('engine.fsrs.trainBtnDone', '训练权重') }}
