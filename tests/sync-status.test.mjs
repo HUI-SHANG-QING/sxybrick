@@ -85,28 +85,37 @@ test('成功：recordAllModulesOk 后全模块为 ok（含条数记录）', asyn
 
 test('新变更判定：lastSyncAt 之后表有新写入 → 重新变 pending（时钟偏差窗口内不算）', async () => {
   resetStatus();
-  recordAllModulesOk({});
+  // 用「真实时间建模」而非未来时间戳：本地写入永远 ≤ Date.now()，
+  // 要表达「距上次同步 5 分钟以上才出现的新变更」，把 lastSyncAt 放到过去即可。
+  const PAST = Date.now() - SYNC_STATUS_SKEW_MS - 60_000; // 6 分多钟前同步成功
+  recordModuleResult('cards', { ok: true, rows: 0, at: PAST });
+  // 工厂 card() 会把 createdAt 钉在「模块加载时刻≈now」——凡是想放进过去的行，
+  // 都必须把全部活性时间字段一起钉过去，否则 livenessTs=max(...) 仍取到 now → 假 pending。
+  const mk = (id, ts) => { const c = card(id, ts); c.createdAt = ts - 1000; return c; };
+  await getDb().cards.delete('ss-c1').catch(() => {});
+  await getDb().cards.put(mk('ss-c1', PAST - 1000));
   let list = await getModuleStatus({ channels: { hub: true } });
-  assert.equal(list.find(m => m.module === 'cards').status, 'ok');
-
+  assert.equal(list.find(m => m.module === 'cards').status, 'ok', '同步后无新写入 → ok');
   const L1 = list.find(m => m.module === 'cards').lastSyncAt;
-  // 偏差窗口内（+1s，模拟对端时钟略快）→ 视为时钟抖动，仍 ok（防「永远待同步」假 pending）
-  await getDb().cards.put(card('ss-skew', L1 + 1000));
+
+  // 偏差窗口内（相对 lastSyncAt 仅 +1s）→ 视为时钟抖动，仍 ok（防「永远待同步」假 pending）
+  await getDb().cards.put(mk('ss-skew', L1 + 1000));
   list = await getModuleStatus({ channels: { hub: true } });
   assert.equal(list.find(m => m.module === 'cards').status, 'ok', '窗口内新写入视为时钟偏差 → 不判 pending');
 
-  // 真正的新变更（超出 5min 偏差窗口）→ pending
-  await getDb().cards.put(card('ss-new', L1 + SYNC_STATUS_SKEW_MS + 1000));
+  // 真正的新变更：同步 5 分钟多之后才产生（真实本地写入，时间戳 = now）→ pending
+  await getDb().cards.put(mk('ss-new', Date.now()));
   list = await getModuleStatus({ channels: { hub: true } });
   assert.equal(list.find(m => m.module === 'cards').status, 'pending', '新变更未同步 → 待同步');
 
   // 再次同步成功（本次同步发生在新写入之后，at > 写入时间戳）→ ok
-  recordModuleResult('cards', { ok: true, rows: 2, at: L1 + SYNC_STATUS_SKEW_MS + 2000 });
+  recordModuleResult('cards', { ok: true, rows: 2, at: Date.now() + 1000 });
   list = await getModuleStatus({ channels: { hub: true } });
   assert.equal(list.find(m => m.module === 'cards').status, 'ok');
 
+  await getDb().cards.delete('ss-c1').catch(() => {});
   await getDb().cards.delete('ss-skew').catch(() => {});
-  await getDb().cards.delete('ss-new');
+  await getDb().cards.delete('ss-new').catch(() => {});
 });
 
 test('失败：recordAllModulesError 后全部为 error 且带错误原因；recordModuleResult 可单模块重试成功', async () => {

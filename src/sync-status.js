@@ -180,7 +180,17 @@ export async function getModuleStatus(opts = {}) {
     if (!hasChannel) status = 'none';
     else if (rec.lastResult === 'error') status = 'error';
     else if (!rec.lastSyncAt) status = count ? 'pending' : 'ok'; // 从未同步：有数据=待同步，空表=无事可做
-    else if (maxTs > rec.lastSyncAt + SYNC_STATUS_SKEW_MS) status = 'pending';
+    else if (maxTs > rec.lastSyncAt + SYNC_STATUS_SKEW_MS) {
+      // 未来行防护（round28）：5min 容忍窗只覆盖对端快 ≤5min 的情形；对端快更多时，
+      // 其行时间戳落在本机「未来」>5min，lastSyncAt=本机 now 永远追不上 → 模块永久假 pending。
+      // 本地真实未推送的变更，其时间戳必然 ≤ 本机 now（写入即 Date.now()），
+      // 只有远端拉取的行才会落在 now + 5min 之后。此类行已随本轮拉取进入本地，
+      // 向其它设备继续传播由推送水位线负责（与面板显示无关）——
+      // 故只对 ≤ now+5min 的行判 pending，> now+5min 的未来行判 ok（已同步过的远端数据）。
+      // 注：本机时钟被人为拨慢 >5min 时，拨慢前产生的本地行也会被此豁免误判 ok，
+      // 但真实推送仍按水位线进行（不漏数据），仅面板显示暂时乐观——远优于永久假 pending。
+      status = (maxTs <= Date.now() + SYNC_STATUS_SKEW_MS) ? 'pending' : 'ok';
+    }
     else status = 'ok';
 
     out.push({
