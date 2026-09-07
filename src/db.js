@@ -322,6 +322,15 @@ d.version(31).stores({
   cardWordLinks: 'id, cardId, wordCardId, addedAt',
 });
 
+// v32：imageRefs 图片反向引用索引（审计结构性收口）
+//   根治 image GC 六表全量 JSON.stringify 扫描的 O(n) 成本与口径漂移风险：
+//   · 任何写含 sxy-img:// 字段的行时维护引用集（put 前 diff 旧行）；
+//   · cleanupOrphanImages / sync.js / hub GC 全部改走索引查询，O(引用数)；
+//   · 本地表，不入同步（可从主表重建，属派生数据）。
+d.version(32).stores({
+  imageRefs: 'id, imageId, refTable, refId',
+});
+
 } // end defineSchema
 
 // 两个实例各自应用全量 schema（惰性 open：首次访问才真正连接 IndexedDB）

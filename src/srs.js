@@ -63,7 +63,7 @@ function wrongPenalty(reason) {
  *   consolidation: null=未启用/已毕业，1=当日巩固待完成，2=隔日巩固待完成
  */
 export function computeNext(card, rating, intensity = 1, guessed = false, opts = {}) {
-  const now = Date.now();
+  const now = opts.now ?? Date.now();
   let { level, ease } = card;
   ease = Number.isFinite(Number(ease)) ? Number(ease) : 2.5;
   // ⚠️ level 必须归一化（2026-08-30）：undefined/NaN 会在「已毕业卡正常升级」分支
@@ -83,7 +83,7 @@ export function computeNext(card, rating, intensity = 1, guessed = false, opts =
   // D2: 巩固阶段超时失效——距上次复习超过 24h 未复习，自动跳过巩固，
   // 直接进入正常 SM-2 梯度。防止用户长期不来后卡在「待巩固」状态。
   if ((consolidation === 1 || consolidation === 2) && card.dueAt) {
-    const hoursOverdue = (Date.now() - card.dueAt) / 3600000;
+    const hoursOverdue = (now - card.dueAt) / 3600000;
     if (hoursOverdue > 24) {
       if (consolidation === 2) level = Math.max(1, level + 1); // 阶段2 超时视为已掌握
       consolidation = null;

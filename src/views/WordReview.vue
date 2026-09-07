@@ -356,6 +356,7 @@ async function commit(rating) {
     } catch (e) {
       // round17 R17-35：写库失败不再静默吞——否则用户已评级但 dueAt 未推进，
       // 词下次重复出现、调度状态与 UI 不一致
+      committed.value = false; // 审计 B6 回归修复：写库失败复位守卫，允许用户重试本卡
       toast(t('views.wordReview.commitFailed', '复习结果保存失败，请重试') + '：' + (e?.message || e), 'error');
       return; // 留在当前词不推进，等待用户重试
     }

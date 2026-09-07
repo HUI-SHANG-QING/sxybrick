@@ -518,6 +518,11 @@ export async function syncWithHub(hubUrl, token, opts = {}) {
   const merged = await res.json();
   if (!merged || merged.app !== 'sxybrick') throw new Error('中枢返回的数据无效');
   const stats = await importBackup(merged);
+  // 审计 S-6：hub 墓碑回收回传——中枢 GC 掉的墓碑在客户端可能仍驻留（客户端墓碑只增不减），
+  // 响应体里的 gcTombIds 是本次被中枢回收的墓碑 id 清单，据此 bulkDelete 消除永久膨胀。
+  if (Array.isArray(merged.gcTombIds) && merged.gcTombIds.length) {
+    try { await db.tombstones.bulkDelete(merged.gcTombIds); } catch { /* 安全失败不阻断同步 */ }
+  }
   // 仅在成功（中枢返回合法数据）后推进 lastSyncAt，避免「上传失败却推进」导致后续漏传。
   // 推进值取快照时刻（startedAt / exportedAt 的较早者），而非此处调用时的 Date.now()，
   // 否则会把「快照建立 → 数据导入完成」这段时间内产生的本地变更永久跳过。
@@ -726,6 +731,19 @@ export async function importBackup(backup, opts = {}) {
     }
     await db.cards.bulkDelete(removed);
     await db.reviews.where('cardId').anyOf(removed).delete(); // 一次范围删除替代逐卡 delete
+    // 审计 P1：link 类表 + notes 引用清洗——源端 deleteCard 写了 link 墓碑，
+    // 但 link 行在对端按 idOnly/tombstone kind 过滤，增量包若未携带对应墓碑
+    // （首次同步/老包/bridge 通道）则 link 行永驻成为指向幽灵卡的悬空行。
+    // 补按 cardId 索引级联删除，与 repo.js:394-400 + 407-411 同口径。
+    await db.cardGroupLinks.where('cardId').anyOf(removed).delete();
+    await db.cardWordLinks.where('cardId').anyOf(removed).delete();
+    const linkedNotes = (await db.notes.toArray())
+      .filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.some(id => removedSet.has(id)));
+    if (linkedNotes.length) {
+      for (const n of linkedNotes) {
+        await db.notes.put({ ...n, linkedCardIds: n.linkedCardIds.filter(x => !removedSet.has(x)), updatedAt: Date.now() });
+      }
+    }
     // round15 P1：级联远端孤儿——卡片删除在源端已删 embeddings（sourceId 索引 + sourceType='card'）
     // 并写 graphEdge 墓碑；但对端若在墓碑同步之前就存在这些行（旧包/增量竞态），此处兜底清理，
     // 避免「删卡后对端 RAG 检索到幽灵向量、图谱挂着悬空边」。
@@ -738,9 +756,19 @@ export async function importBackup(backup, opts = {}) {
     if (removedEdgeIds.length) await db.graphEdges.bulkDelete([...new Set(removedEdgeIds)]);
     stats.deleted = removed.length;
     if (goneImgIds.size) {
-      const rest = await db.cards.toArray();
+      // 审计：存活集必须扫全表全字段，与 cleanupOrphanImages（repo.js）同口径。
+      // 此前只扫 cards 的 front/back——仅被词卡/笔记/文档引用的共享图被判定孤儿并误删，
+      // 且增量包只为"本次变更卡"带图，该图永远不会被重传，形成永久损坏。
+      const restCards = await db.cards.toArray();
+      const restWordCards = await db.wordCards.toArray();
+      const restNotes = await db.notes.toArray();
+      const restDocs = await db.docs.toArray();
+      const restMemos = await db.memos.toArray();
+      const restMindmaps = await db.mindmaps.toArray();
       const used = new Set();
-      for (const c of rest) for (const i of extractImageIds((c.front || '') + '\n' + (c.back || ''))) used.add(i);
+      for (const c of [...restCards, ...restWordCards, ...restNotes, ...restDocs, ...restMemos, ...restMindmaps]) {
+        for (const i of extractImageIds(JSON.stringify(c))) used.add(i);
+      }
       const orphan = [...goneImgIds].filter(id => !used.has(id));
       if (orphan.length) await db.images.bulkDelete(orphan);
     }

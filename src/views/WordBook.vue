@@ -129,13 +129,22 @@ async function refreshAdded() {
 
 function isAdded(w) { return addedWords.value.has(String(w || '').trim().toLowerCase()); }
 
+// 审计 U-2：连点/并发防护——createWordCard 无按 word 去重，
+// addedWords 要等 createWordCard + load 全部 resolve 后才更新，
+// 两帧内连点"加入"会产生两张同词卡
+const addingWords = new Set();
 async function addWord(w) {
+  const key = String(w || '').trim().toLowerCase();
+  if (addingWords.has(key)) return; // 正在加入，跳过
+  addingWords.add(key);
   try {
     await createWordCard({ kind: 'word', word: w, subject: '考研', source: syllabusMeta.title });  // i18n-ignore: 数据语义（考试分类）
-    addedWords.value = new Set(addedWords.value).add(String(w).trim().toLowerCase());
+    addedWords.value = new Set(addedWords.value).add(key);
     await load();
   } catch (e) {
     toast(t('views.wordBook.syllabusAddFailed', undefined, { msg: e?.message || e }), 'error');
+  } finally {
+    addingWords.delete(key);
   }
 }
 
@@ -144,9 +153,15 @@ async function addPage() {
   if (!todo.length) return;
   sylBusy.value = true;
   try {
-    for (const w of todo) {
-      await createWordCard({ kind: 'word', word: w, subject: '考研', source: syllabusMeta.title });  // i18n-ignore: 数据语义（考试分类）
-    }
+    // 审计 U-3：整批事务包装——逐张 await createWordCard 无事务时，
+    // 第 i 张失败留半批（前 i-1 张已入库），再点"本页加入"会重试全部（已入的变重复）。
+    // 用 db.transaction 包裹整批：全部成功才 commit，任一失败全部回滚。
+    const { db } = await import('../db.js');
+    await db.transaction('rw', db.wordCards, async () => {
+      for (const w of todo) {
+        await createWordCard({ kind: 'word', word: w, subject: '考研', source: syllabusMeta.title });  // i18n-ignore: 数据语义（考试分类）
+      }
+    });
     toast(t('views.wordBook.syllabusAddedToast', undefined, { n: todo.length }), 'success');
     await load();
     await refreshAdded();
@@ -181,16 +196,24 @@ const kinds = [
   { id: 'template', label: t('views.wordBook.filterTemplate') },
 ];
 
-async function load() {
+async function load(seq) {
   const f = {};
   if (filterKind.value !== 'all') f.kind = filterKind.value;
   if (filterReviewed.value === 'reviewed') f.reviewedOnly = true;
   if (filterReviewed.value === 'unreviewed') f.reviewedOnly = false;
   if (filterFamiliar.value) f.familiar = 1;
-  cards.value = await listWordCards({ ...f, q: q.value });
-  stats.value = await wordStats();
-  groups.value = await listWordGroups();
-  settings.value = await getWordSettings();
+  const [c, s, g, w] = await Promise.all([
+    listWordCards({ ...f, q: q.value }),
+    wordStats(),
+    listWordGroups(),
+    getWordSettings(),
+  ]);
+  // 审计 U-1：防后发先至——快速输入时旧查询可能比新查询晚返回，覆盖掉正确结果
+  if (seq !== undefined && seq !== loadSeq) return;
+  cards.value = c;
+  stats.value = s;
+  groups.value = g;
+  settings.value = w;
   // 大纲视图的「已加入」状态要保持同步（加入/删除词后都会走这里）
   if (view.value === 'syllabus') {
     addedWords.value = new Set(cards.value.map((r) => String(r.word || '').trim().toLowerCase()));
@@ -216,7 +239,12 @@ onMounted(async () => {
 });
 watch([filterKind, filterReviewed, filterFamiliar], load);
 
-async function onSearch() { await load(); }
+let loadSeq = 0;
+let searchTimer = null;
+async function onSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { loadSeq++; load(loadSeq); }, 300);
+}
 
 const filteredCount = computed(() => cards.value.length);
 

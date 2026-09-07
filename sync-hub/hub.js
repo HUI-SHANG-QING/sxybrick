@@ -208,17 +208,18 @@ function gcTombstones(data, ttlDays) {
   const cutoff = Date.now() - ttlDays * 86400000;
   // 审计 C2：最后一批设备同步须同样早于 TTL，否则离线设备可能仍持有旧行，绝不回收。
   const lastPush = data.lastPushAt || 0;
-  if (lastPush >= cutoff) return data.tombstones || [];
+  if (lastPush >= cutoff) return { kept: data.tombstones || [], gcIds: [] };
   const alive = new Set();
   for (const t of ALL_TABLES) {
     for (const r of data[t.table] || []) if (r && r.id != null) alive.add(r.id);
   }
   const before = (data.tombstones || []).length;
   const kept = (data.tombstones || []).filter(tb => (tb?.deletedAt ?? 0) >= cutoff || alive.has(tb?.id));
+  const gcIds = (data.tombstones || []).filter(tb => !kept.includes(tb)).map(tb => tb.id);
   if (kept.length !== before) {
     console.log(`[hub] 墓碑 GC：${before} → ${kept.length}（清理 ${before - kept.length} 条超过 ${ttlDays} 天、目标行已不存在、且生态已静默 ${ttlDays} 天的墓碑）`);
   }
-  return kept;
+  return { kept, gcIds };
 }
 
 // 全量合并：与前端 importBackup 共用 sync-manifest 的纯函数，保证两端合并语义一致
@@ -248,6 +249,9 @@ function merge(base, incoming) {
   if (cardRes.removed.length) {
     const alive = new Set(out.cards.map(c => c.id));
     out.reviews = (out.reviews || []).filter(r => alive.has(r.cardId));
+    // 审计 P1：hub cascade 补删 embeddings（card 级联），否则幽灵向量回灌所有设备，
+    // 每轮被端上删一次又被 hub 推回来，反复拉锯
+    out.embeddings = (out.embeddings || []).filter(e => alive.has(e.sourceId) || e.sourceType !== 'card');
     // 审计 A1：孤儿图 GC 的引用集必须扫「所有含正文的行表」，不能只看 out.cards——
     // 此前仅通用卡 front/back 计入，仅被词卡（wordCards）或其他模块引用的图片
     // 会被中枢误删并回灌所有设备，且增量包只带变更卡的图，永远无法重传。
@@ -280,7 +284,8 @@ function merge(base, incoming) {
   //   删得越多包越大。安全 GC 只清理「早已过期 且 目标行在中枢侧已不存在」的墓碑 ——
   //   仍存在的行说明还有设备在用，一条都不删。30 天未同步的设备墓碑可安全回收。
   const ttlDays = Number(process.env.HUB_TOMBSTONE_TTL_DAYS ?? 30);
-  if (ttlDays > 0) out.tombstones = gcTombstones(out, ttlDays);
+  let gcTombIds = [];
+  if (ttlDays > 0) { const gc = gcTombstones(out, ttlDays); out.tombstones = gc.kept; gcTombIds = gc.gcIds; }
 
   // 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
   let streakMeta = base.streakMeta || null;
@@ -290,6 +295,9 @@ function merge(base, incoming) {
   out.streakMeta = streakMeta;
   // 审计 C2：记录最近一次设备推送，供墓碑 GC 判定「生态是否仍活跃」。
   out.lastPushAt = Math.max(base.lastPushAt || 0, incoming.exportedAt || 0, Date.now());
+  // 审计 S-6：附带被 GC 掉的墓碑 id 清单——客户端据此 bulkDelete 本地残留墓碑，
+  // 解决「客户端墓碑只增不减、全量回传永久膨胀」的问题。
+  if (gcTombIds.length) out.gcTombIds = gcTombIds;
   return out;
 }
 

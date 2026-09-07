@@ -91,7 +91,7 @@ export async function setScheduler(next) {
   if (to === 'fsrs') {
     // 批量播种：通用卡 + 单词卡（两模块共用同一调度器）
     for (const table of [db.cards, db.wordCards]) {
-      const rows = await table.filter(r => !r.fsrs && (Number(r.intervalDays) > 0)).toArray();
+      const rows = await table.filter(r => !r.fsrs && (Number(r.intervalDays) > 0) && !r.consolidation).toArray();
       if (!rows.length) continue;
       const patches = rows
         .map(c => ({ key: c.id, changes: { fsrs: seedFsrsFromSm2(c) } }))
@@ -292,10 +292,12 @@ export async function restoreFromTrash(t) {
   // 注意：删通用卡（deleteCard）与删词卡（deleteWordCard）都会级联删链接并写墓碑，
   // 所以两种 kind 的快照都要带/还原该字段（deleteCard 的快照见下方同函数调用处）。
   const cwLinks = data._cardWordLinks || null;
+  const linkedNoteIds = Array.isArray(data._linkedNoteIds) ? data._linkedNoteIds : null;
   const text = typeof data._text === 'string' ? data._text : null;
   const edges = data._edges || null;
+  const hasEmbeddings = !!data._embeddings;
   delete data._reviews; delete data._groupLinks; delete data._text; delete data._textLen; delete data._edges;
-  delete data._cardWordLinks;
+  delete data._cardWordLinks; delete data._embeddings; delete data._linkedNoteIds;
   const transform = RESTORE_TRANSFORMS[t.kind];
   const row = { ...(transform ? transform(data) : data), id: t.id, updatedAt: Date.now() };
   const tables = [db[table], db.tombstones, db.trash];
@@ -309,6 +311,7 @@ export async function restoreFromTrash(t) {
   if (cwLinks && cwLinks.length) tables.push(db.cardWordLinks);
   if (text) tables.push(db.docTexts);
   if (edges && edges.length) tables.push(db.graphEdges);
+  if (linkedNoteIds && linkedNoteIds.length) tables.push(db.notes);
   await db.transaction('rw', ...tables, async () => {
     await db[table].put(row);
     if (reviews && reviews.length) {
@@ -342,6 +345,34 @@ export async function restoreFromTrash(t) {
     }
     await db.tombstones.delete(t.id);
     await db.trash.delete(t.id);
+    // 审计 #10：notes 链接复原——deleteCard 清了 linkedCardIds 里对该卡的引用（无墓碑），
+    // 恢复时按快照补回（幂等：若用户手动加回了则 Set 自动去重）
+    if (linkedNoteIds && linkedNoteIds.length) {
+      const noteRows = (await db.notes.bulkGet(linkedNoteIds)).filter(Boolean);
+      for (const n of noteRows) {
+        const set = new Set(n.linkedCardIds || []);
+        if (!set.has(t.id)) {
+          set.add(t.id);
+          await db.notes.put({ ...n, linkedCardIds: [...set], updatedAt: Date.now() });
+        }
+      }
+    }
+    // 审计：清 embedding 墓碑——deleteCard 已补写墓碑（kind='embedding'），
+    // 恢复时必须一并清掉，否则每次同步 applyTombstones 会把重建的向量再删一遍，
+    // RAG 对该资料永久失明。对 card/docFile 均适用。
+    const embeddingTombStale = (await db.tombstones.toArray())
+      .filter(tb => (tb?.kind || 'card') === 'embedding')
+      .filter(tb => {
+        if (t.kind === 'docFile') return tb.id === t.id;
+        // card：清掉 sourceId=t.id 的所有 embedding 墓碑（id 格式 embed-${sourceId}-...）
+        return typeof tb.id === 'string' && tb.id.startsWith(`embed-${t.id}-`);
+      });
+    if (embeddingTombStale.length) await db.tombstones.bulkDelete(embeddingTombStale.map(tb => tb.id));
+    // 资料恢复后自动触发 RAG 重建（文档行不产生 embedding 行，仅 parseDoc 会写）；
+    // 对卡片类不触发（卡的 embedding 由知识库手动关联，恢复后下次检索自然重建）。
+    if (t.kind === 'docFile') {
+      try { const { parseDoc } = await import('./docs-lib.js'); parseDoc(t.id).catch(() => {}); } catch { /* import 失败不阻塞恢复 */ }
+    }
   });
   return true;
 }
@@ -360,7 +391,11 @@ export async function deleteCard(id) {
     const cwLinks = await db.cardWordLinks.where('cardId').equals(id).toArray();
     // 审计 A2：与 deleteWordCard 对称——删通用卡也会级联删链接+写墓碑，
     // 快照不带 _cardWordLinks 的话恢复后关联同样永久丢失
-    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks });
+    // 审计 #10：记录被清洗引用的 noteId，恢复时补回 linkedCardIds
+    const linkedNoteIds = (await db.notes.toArray())
+      .filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.includes(id))
+      .map(n => n.id);
+    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks, _linkedNoteIds: linkedNoteIds });
     // 2) 墓碑（跨设备删除同步）：卡片本体 + 它的每一条卡组关联
     //    关联行不写墓碑的话，对端会在下次同步把「已删卡 → 卡组」的关联原样推回来，
     //    形成永远删不掉、且指向幽灵卡的悬空行
@@ -401,6 +436,12 @@ export async function deleteCard(id) {
     // 6) 切断关联图谱边（round26 H-2：复用上面已查出的 edges，bulkDelete 一次删净）
     if (edges.length) await db.graphEdges.bulkDelete(edges.map(e => e.id));
     // 7) 删向量索引（round15 P1：此前漏删，本端 RAG 检索到已删卡的幽灵向量）
+    //    审计：必须先写墓碑再物理删，否则对端残留 embeddings 行随增量包反复回传；
+    //    restoreFromTrash 清墓碑时才能正确复活（见上方 _embeddings 分支）
+    const embRows = await db.embeddings.where('sourceId').equals(id).and(e => e.sourceType === 'card').toArray();
+    if (embRows.length) {
+      await db.tombstones.bulkPut(embRows.map(e => ({ id: e.id, kind: 'embedding', deletedAt: now() })));
+    }
     await db.embeddings.where('sourceId').equals(id).and(e => e.sourceType === 'card').delete();
     // 8) M5 残余：剔除所有笔记 linkedCardIds 里对该卡的引用（删卡后留 [[cardId]]
     //    结构上仍是悬空引用；笔记侧把引用数组清洗掉并 bump updatedAt 随内容侧同步）
@@ -430,6 +471,18 @@ export async function deleteCard(id) {
  */
 export async function cleanupOrphanImages(ids) {
   if (!ids.length) return [];
+  const idSet = new Set(ids);
+  // 快速路径：imageRefs 索引（db.js v32）非空时走索引查询，O(引用数)；
+  // 索引为空（首次升级/未调用 rebuildImageRefs）时回退全表扫描，保证正确性。
+  const indexedCount = await db.imageRefs.count();
+  if (indexedCount > 0) {
+    const refs = await db.imageRefs.where('imageId').anyOf([...idSet]).toArray();
+    for (const r of refs) idSet.delete(r.imageId); // 有引用 → 不是孤儿
+    const removed = [...idSet];
+    if (removed.length) await db.images.bulkDelete(removed);
+    return removed;
+  }
+  // 回退：全表扫描（与 A1 修复同口径，扫 cards+wordCards+notes+docs+memos+mindmaps）
   const [cards, wordCards, notes, docs, memos, mindmaps] = await Promise.all([
     allCards(), db.wordCards.toArray(), db.notes.toArray(),
     db.docs.toArray(), db.memos.toArray(), db.mindmaps.toArray(),
@@ -439,8 +492,39 @@ export async function cleanupOrphanImages(ids) {
     for (const i of extractImageIds(JSON.stringify(c))) used.add(i);
   }
   const removed = [];
-  for (const id of new Set(ids)) if (!used.has(id)) { await db.images.delete(id); removed.push(id); }
+  for (const id of idSet) if (!used.has(id)) { await db.images.delete(id); removed.push(id); }
   return removed;
+}
+
+/**
+ * 审计：重建 imageRefs 反向索引（db.js v32）。
+ * 扫描所有含 sxy-img:// 引用的表，提取每行内引用的图片 id，写入 imageRefs 表。
+ * 幂等：每次全量清空后重建，保证索引与主表一致。
+ * @returns {Promise<number>} 写入的引用行总数
+ */
+export async function rebuildImageRefs() {
+  const refTables = [
+    { name: 'cards', rows: await allCards() },
+    { name: 'wordCards', rows: await db.wordCards.toArray() },
+    { name: 'notes', rows: await db.notes.toArray() },
+    { name: 'docs', rows: await db.docs.toArray() },
+    { name: 'memos', rows: await db.memos.toArray() },
+    { name: 'mindmaps', rows: await db.mindmaps.toArray() },
+  ];
+  const refs = [];
+  for (const { name, rows } of refTables) {
+    for (const row of rows) {
+      const imageIds = extractImageIds(JSON.stringify(row));
+      for (const imgId of imageIds) {
+        refs.push({ id: `${imgId}:${name}:${row.id}`, imageId: imgId, refTable: name, refId: row.id });
+      }
+    }
+  }
+  await db.transaction('rw', db.imageRefs, async () => {
+    await db.imageRefs.clear();
+    if (refs.length) await db.imageRefs.bulkPut(refs);
+  });
+  return refs.length;
 }
 
 /**
@@ -1107,16 +1191,19 @@ export async function createNote(payload) {
 
 /** 更新笔记（重新抽取链接 + 标签；只要传入的字段就以传入为准，未传字段保留原值） */
 export async function updateNote(id, payload) {
-  const cur = await db.notes.get(id);
-  if (!cur) return null;
-  const norm = normalizeNotePayload({ ...cur, ...payload, createdAt: cur.createdAt });
-  const check = validateNote(norm);
-  if (!check.valid) throw new Error('笔记无效：' + check.errors.join('；'));
-  const t = now();
-  const out = { ...cur, ...norm, id, updatedAt: t };
-  await db.notes.put(out);
-  fireHook('onNoteSaved', out);
-  return out;
+  // 审计：事务内重读+合并，防止并发编辑 lost update（笔记长文 Markdown 并发窗口更实际）
+  return db.transaction('rw', db.notes, async () => {
+    const cur = await db.notes.get(id);
+    if (!cur) return null;
+    const norm = normalizeNotePayload({ ...cur, ...payload, createdAt: cur.createdAt });
+    const check = validateNote(norm);
+    if (!check.valid) throw new Error('笔记无效：' + check.errors.join('；'));
+    const t = now();
+    const out = { ...cur, ...norm, id, updatedAt: t };
+    await db.notes.put(out);
+    fireHook('onNoteSaved', out);
+    return out;
+  });
 }
 
 export async function deleteNote(id) {
@@ -1711,9 +1798,15 @@ export async function savePrivacyRecord(record) {
       screenBlock: record?.screenBlock || null,
       financeBlock: record?.financeBlock || null,
       mental: record?.mental || '',
+      // 审计：以下5个 UI 字段在新建分支漏存——编辑靠 ...record 透传能存，新建却丢
+      anxiety: Number(record?.anxiety) || 3,
+      depression: Number(record?.depression) || 3,
+      confidence: Number(record?.confidence) || 3,
+      stressSource: record?.stressSource || '',
+      exciteBlock: record?.exciteBlock || null,
       customTags: Array.isArray(record?.customTags) ? record.customTags : [],
       customKV: record?.customKV || {},
-      createdAt: old?.createdAt || nowTs,
+      createdAt: nowTs,
       updatedAt: nowTs,
     });
   }
@@ -1726,6 +1819,7 @@ export async function listPrivacyRecords({ fromDate, toDate, type, limit = 500 }
   // 就永远不会返回（即使命中总量远超 limit）。date 已建索引（db.js v14）。改为一条
   // 索引范围查询定位匹配行，再在结果内 limit，保证「返回条数=min(命中,limit)」而非更少。
   let arr;
+  const hasRange = !!fromDate || !!toDate;
   if (hasRange) {
     const from = fromDate || '0';
     const to = toDate || '\uffff';

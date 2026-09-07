@@ -174,24 +174,27 @@ export async function createWordCard(payload = {}) {
 }
 
 export async function updateWordCard(id, patch = {}) {
-  const cur = await db.wordCards.get(id);
-  if (!cur) return null;
-  const next = { ...cur };
-  for (const k of ['word', 'phonetic', 'meaning', 'example', 'exampleTrans', 'note', 'source', 'subject']) {
-    if (patch[k] !== undefined) next[k] = String(patch[k]).trim();
-  }
-  if (patch.kind !== undefined && WORD_KINDS.includes(patch.kind)) next.kind = patch.kind;
-  if (patch.tags !== undefined && Array.isArray(patch.tags)) {
-    next.tags = patch.tags.map(String).filter(Boolean);
-  }
-  // v26 扩展字段：整体覆盖（AI 生成结果或手动编辑的数组/对象）
-  for (const k of EXT_FIELDS) {
-    if (patch[k] !== undefined) next[k] = patch[k];
-  }
-  if (!next.word) throw new Error('单词/内容不能为空');
-  next.updatedAt = now();
-  await db.wordCards.put(next);
-  return next;
+  // 审计：事务内重读+合并，防止并发编辑 lost update（AI 填充 modeQuestions 与用户手改 meaning 同时提交时旧快照整行覆盖）
+  return db.transaction('rw', db.wordCards, async () => {
+    const cur = await db.wordCards.get(id);
+    if (!cur) return null;
+    const next = { ...cur };
+    for (const k of ['word', 'phonetic', 'meaning', 'example', 'exampleTrans', 'note', 'source', 'subject']) {
+      if (patch[k] !== undefined) next[k] = String(patch[k]).trim();
+    }
+    if (patch.kind !== undefined && WORD_KINDS.includes(patch.kind)) next.kind = patch.kind;
+    if (patch.tags !== undefined && Array.isArray(patch.tags)) {
+      next.tags = patch.tags.map(String).filter(Boolean);
+    }
+    // v26 扩展字段：整体覆盖（AI 生成结果或手动编辑的数组/对象）
+    for (const k of EXT_FIELDS) {
+      if (patch[k] !== undefined) next[k] = patch[k];
+    }
+    if (!next.word) throw new Error('单词/内容不能为空');
+    next.updatedAt = now();
+    await db.wordCards.put(next);
+    return next;
+  });
 }
 
 // 删除单词卡：回收站快照 + 墓碑（跨设备删除同步）+ 删卡 + 删复习记录 + 删词组关联
@@ -438,12 +441,14 @@ export async function getParkedWordCardIds() {
 // opts: kind / groupId（指定组时跳过停车——与通用卡组 reviewQueue 的 groupFilter 口径一致，
 //   用户显式指定备用组就是要看它）/ parkArchived（默认 true，设 false 强制包含备用组卡片）。
 export async function dueWordCards(opts = {}) {
-  let rows = await db.wordCards.toArray();
+  // 审计 D-5：索引收窄替代全表 toArray——wordCards 已有 dueAt 索引（db.js:273），
+  // 5000+ 词场景每次打开复习页全表物化+全量 sort 会明显卡顿。
+  // 先用索引范围查询收窄到期卡，kind/parkArchived 留在内存二次过滤（量级极小）。
   const t = now();
+  let rows = await db.wordCards.where('dueAt').belowOrEqual(t).toArray();
   rows = rows.filter(r =>
     SCHEDULABLE_KINDS.includes(r.kind) &&
-    !r.familiar &&
-    (r.dueAt || 0) <= t);
+    !r.familiar);
   if (opts.kind) rows = rows.filter(r => r.kind === opts.kind);
   if (opts.groupId) {
     const ids = new Set(await wordGroupCardIds(opts.groupId));

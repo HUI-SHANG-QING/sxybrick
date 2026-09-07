@@ -214,6 +214,13 @@ export function mergeCardPair(local, incoming, extFields = []) {
   for (const f of CARD_SRS_FIELDS) {
     if (srs && srs[f] !== undefined) out[f] = srs[f];
   }
+  // 审计：dueAt 必须与 fsrs 同源——若 SRS 赢家有 dueAt 则已覆盖；
+  // 若 SRS 赢家缺 dueAt（老包/老客户端/迁移行），内容赢家的过期值残留会导致
+  // 复习队列（按 dueAt）与 predR（按 fsrs.last）两个信号打架，每次同步重复
+  // 触发"修复-再错"。优先取 SRS 赢家的 dueAt，其次任一侧有值的，最后置 0。
+  if (srs && srs.dueAt !== undefined) out.dueAt = srs.dueAt;
+  else if (incoming.dueAt != null || local.dueAt != null) out.dueAt = incoming.dueAt ?? local.dueAt ?? 0;
+  else out.dueAt = 0;
   // 错因用独立时间戳 wrongReasonAt 合并（不跟随 updatedAt 也不跟随 reviewedAt）
   // 修复 P1：原 `>=` 在「两端时间戳相等（均为 0 或同一时刻）」时会无条件采纳 incoming，
   // 若 incoming 未携带错因（空串）会把本地已有的错因覆盖为空 → 跨设备错因丢失。

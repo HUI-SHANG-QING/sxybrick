@@ -28,7 +28,7 @@
         <div v-for="c in filtered" :key="c.id" class="row" :class="{ on: c.id === sel?.id }" @click="sel = c">
           <span class="subj">{{ c.subject }}</span>
           <span class="front">{{ (c.front || '').slice(0, 30) }}</span>
-          <span v-if="c.examUrgency!=null" class="urg" :style="{ background: urgencyColor(c.examUrgency) }">{{ t('views.cardInsight.examBadge', '考 {n}', { n: (c.examUrgency * 100).toFixed(0) }) }}</span>
+          <span v-if="c._examUrgency!=null" class="urg" :style="{ background: urgencyColor(c._examUrgency) }">{{ t('views.cardInsight.examBadge', '考 {n}', { n: (c._examUrgency * 100).toFixed(0) }) }}</span>
         </div>
         <EmptyState v-if="!filtered.length" icon="🗂️" :title="t('views.cardInsight.emptyListTitle')" :message="t('views.cardInsight.emptyListMsg')" />
       </div>

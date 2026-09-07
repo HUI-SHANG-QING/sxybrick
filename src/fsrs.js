@@ -223,10 +223,16 @@ export function schedule(card, rating, opts = {}) {
 // @returns { weights, loss, samples }
 export function trainWeights(reviews, cardsById, opts = {}) {
   const w0 = (opts.weights || DEFAULT_WEIGHTS).slice();
+  // 审计 A-2：w[17] 是 nextInterval 的 fuzz 系数（默认 0.2 = ±20% 随机抖动），
+  // lossOf 内部调 nextInterval → 每次 loss 评估带随机分量，
+  // 有限差分梯度 (lu-ld)/(2*eps) 的 eps=1e-3 噪声远大于信号 → 训练不收敛。
+  // benchmark/forecast 已各自消噪（w[17]=0 / noFuzzWeights），生产路径必须对齐。
+  const savedFuzz = w0[17];
+  w0[17] = 0;
   const iters = Math.max(1, Math.min(200, opts.iters || 30));
   const lr = opts.lr || 0.01;
   const eps = opts.eps || 1e-3;
-  if (!reviews || reviews.length < 8) return { weights: w0, loss: null, samples: 0 };
+  if (!reviews || reviews.length < 8) { w0[17] = savedFuzz; return { weights: w0, loss: null, samples: 0 }; }
 
   // D4 优化：预构建轨迹（toFsrsGrade + Map 查找只做一次，lossOf 只重算 R + 状态推进）
   const cardTrajectories = [];
@@ -308,6 +314,8 @@ export function trainWeights(reviews, cardsById, opts = {}) {
       rate *= 0.5;
     }
   }
+  // 恢复 fuzz 系数（训练用消噪权重评估，但返回的权重要保留用户原始的 w[17] 设定）
+  weights[17] = savedFuzz;
   return { weights, loss: best.loss, samples: best.n };
 }
 
