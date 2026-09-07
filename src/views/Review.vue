@@ -176,7 +176,9 @@ function filterObj() {
   };
 }
 
+let loadSeq = 0;
 async function loadQueue() {
+  const seq = ++loadSeq;
   loading.value = true;
   try {
     if (smartMode.value) {
@@ -197,6 +199,7 @@ async function loadQueue() {
       graphMeta.value = null;
       smartMeta.value = null;
     }
+    if (seq !== loadSeq) return; // 审计 F-12：后发先至守卫
     idx.value = 0;
     cardShownAt.value = Date.now(); // 首张卡计时起点
     goalNotified = false;
@@ -417,17 +420,22 @@ function saveFilter() {
 function applyFilter() { filterOpen.value = false; repeatMode = false; saveFilter(); loadQueue(); }
 function clearFilter() { fSubjects.value = []; fTags.value = []; fWrongReasons.value = []; fLogic.value = 'OR'; fGroups.value = []; fArchivedOnly.value = false; repeatMode = false; saveFilter(); loadQueue(); }
 
+let metaSeq = 0;
 async function loadMeta() {
+  const seq = ++metaSeq;
   // round18 R18-16（P3）：与 loadQueue 同款兜底——科目/标签读取失败（db 异常）时
   // 不能留下 unhandled rejection + 筛选面板永久空白；降级为空集合并提示一次。
   try { subjects.value = await getSubjects(); } catch (e) { subjects.value = []; toast(t('views.review.subjectLoadFail', '科目加载失败：{msg}', { msg: e?.message || e }), 'error'); }
   try { allTags.value = await getTags(); } catch (e) { allTags.value = []; toast(t('views.review.tagLoadFail', '标签加载失败：{msg}', { msg: e?.message || e }), 'error'); }
   try { cardGroups.value = await listCardGroups(); } catch { cardGroups.value = []; }
+  if (seq !== metaSeq) return; // 审计 F-14：后发先至守卫
 }
 
+let historySeq = 0;
 async function loadHistory() {
+  const seq = ++historySeq;
   historyLoading.value = true;
-  try { history.value = await reviewHistory(300); }
+  try { history.value = await reviewHistory(300); if (seq !== historySeq) return; } // 审计 F-14
   catch (e) { toast(e.message, 'error'); }
   finally { historyLoading.value = false; }
 }

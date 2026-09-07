@@ -10,8 +10,9 @@ let _voices = [];
 function loadVoices() {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   try { _voices = window.speechSynthesis.getVoices() || []; } catch { _voices = []; }
-  if (!_voices.length && typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
-    window.speechSynthesis.onvoiceschanged = () => { _voices = window.speechSynthesis.getVoices() || []; };
+  if (!_voices.length) {
+    // 审计 F-28：用 addEventListener 替代属性覆盖——避免顶掉其他模块挂的同名监听
+    try { window.speechSynthesis.addEventListener('voiceschanged', () => { _voices = window.speechSynthesis.getVoices() || []; }); } catch { /* Safari 不支持时忽略 */ }
   }
 }
 
@@ -51,6 +52,8 @@ export function speak(text, opts = {}) {
     return new Promise((resolve) => {
       u.onend = () => resolve(true);
       u.onerror = () => resolve(false);
+      // 审计 F-29：Safari edge case——onend/onerror 可能永不触发，加 30s 超时兜底
+      setTimeout(() => resolve(false), 30000);
       window.speechSynthesis.speak(u);
     });
   } catch {

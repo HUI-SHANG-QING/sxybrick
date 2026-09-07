@@ -429,7 +429,11 @@ const detailTab = ref('collocations'); // collocations | derived | root | synony
 const linkedCards = ref([]);
 const linkedPickOpen = ref(false);
 const linkedPickQ = ref('');
+// 审计 F-31：关联候选缓存——全表扫描后永不失效，新增卡片永远不在候选列表中。
+// 改为 30s TTL 自动失效，确保用户新增的卡片在合理延迟后出现在关联候选中。
 let linkedCardCache = [];
+let linkedCardCacheTs = 0;
+const LINKED_CACHE_TTL = 30000;
 const linkedPickList = computed(() => {
   const linked = new Set(linkedCards.value.map(c => c.id));
   const q = String(linkedPickQ.value || '').trim().toLowerCase();

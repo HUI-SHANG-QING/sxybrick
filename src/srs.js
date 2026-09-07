@@ -262,7 +262,7 @@ export function scheduleReview(card, rating, intensity = 1, guessed = false, opt
     // 蒙对卡与真记住同速增长 → 远期间隔系统性放大；与 SM-2 路径「蒙对不升级、降 ease」语义不一致。
     // FSRS 的 hard 档本身已给短间隔（提取不流畅），无需再叠加乘子。
     const fsrsRating = (guessed && rating === 2) ? 1 : rating;
-    r = fsrsSchedule(card, fsrsRating, { weights: opts.weights, desiredRetention: opts.desiredRetention, initialStability: opts.initialStability });
+    r = fsrsSchedule(card, fsrsRating, { weights: opts.weights, desiredRetention: opts.desiredRetention, initialStability: opts.initialStability, now: opts.now });
   } else {
     r = computeNext(card, rating, intensity, guessed, opts);
   }
@@ -273,20 +273,23 @@ export function scheduleReview(card, rating, intensity = 1, guessed = false, opt
     // 的既有上限一致）——此前只保下界，explain(×1.5) 可把 365 天卡推到 547.5 天，
     // 卡片离下次复习超过一年，设计上限被旁路
     r.intervalDays = Math.min(365, Math.max(10 / 1440, r.intervalDays * RETRIEVAL_FACTOR[rs]));
-    r.dueAt = Date.now() + Math.round(r.intervalDays * DAY);
+    r.dueAt = (opts.now ?? Date.now()) + Math.round(r.intervalDays * DAY);
   }
   // 考试窗口感知：标注紧迫度（不改 FSRS 真实状态，仅在排程优先级层面生效）
   if (opts.examAt) {
-    const eu = examWindowUrgency(card, opts.examAt, { desiredRetention: opts.desiredRetention });
+    const eu = examWindowUrgency(card, opts.examAt, { desiredRetention: opts.desiredRetention, now: opts.now });
     r.examUrgency = eu.urgency;
     r.atExamR = eu.atExamR;
     // 若下次复习落在考试之后，软压缩到考前窗口
-    r.dueAt = compressIntoWindow(r.dueAt, opts.examAt);
+    r.dueAt = compressIntoWindow(r.dueAt, opts.examAt, opts.now);
   }
   // 节假日弹性：due 落在休息日则顺延到最近工作日（仅展示/排程层）
   if (opts.restDays && opts.restDays.weekdays?.length || opts.restDays?.dates?.length) {
     const moved = applyElasticDue(r.dueAt, opts.restDays);
     if (moved !== r.dueAt) r.dueAt = moved;
   }
+  // 审计 F-9：弹性顺延后兜底——若考试窗口压缩后的 due 被弹性推过考试日，
+  // 顺延到下一个工作日可能越过考试日，考试窗口压缩完全失效。回钳到 examAt。
+  if (opts.examAt && r.dueAt > opts.examAt) r.dueAt = opts.examAt;
   return r;
 }

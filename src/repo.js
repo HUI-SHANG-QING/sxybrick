@@ -193,23 +193,27 @@ export async function createCard(payload) {
 }
 
 export async function updateCard(id, payload) {
-  const old = await db.cards.get(id);
-  if (!old) throw new Error('卡片不存在');
-  const r = validateCard(payload);
-  if (r.error) throw new Error(r.error);
-  const card = {
-    ...old, front: r.value.front, back: r.value.back, subject: r.value.subject, tags: r.value.tags,
-    source: r.value.source,
-    type: r.value.type,
-    marked: r.value.marked,
-    mnemonic: r.value.mnemonic,
-    wrongReason: r.value.wrongReason,
-    difficulty: r.value.difficulty,
-    frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
-  };
-  await db.cards.put(card);
-  fireHook('onCardSaved', card);
-  return card;
+  // 审计 F-1：事务内重读+写——review() 的事务内 update 只写 SRS 字段，若在 get→put
+  // 之间完成，整行 put 会把 ease/level/intervalDays/dueAt/reviewedAt/fsrs 全部回滚。
+  return db.transaction('rw', db.cards, async () => {
+    const old = await db.cards.get(id);
+    if (!old) throw new Error('卡片不存在');
+    const r = validateCard(payload);
+    if (r.error) throw new Error(r.error);
+    const card = {
+      ...old, front: r.value.front, back: r.value.back, subject: r.value.subject, tags: r.value.tags,
+      source: r.value.source,
+      type: r.value.type,
+      marked: r.value.marked,
+      mnemonic: r.value.mnemonic,
+      wrongReason: r.value.wrongReason,
+      difficulty: r.value.difficulty,
+      frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
+    };
+    await db.cards.put(card);
+    fireHook('onCardSaved', card);
+    return card;
+  });
 }
 
 // ---------- 删除分级（数据生命周期统一语义，2026-08-30 收敛） ----------
@@ -248,7 +252,9 @@ export async function trashItem(id, kind, data) {
 export async function pruneTrash(ttlDays = TRASH_TTL_DAYS, nowTs = Date.now()) {
   try {
     const cutoff = nowTs - ttlDays * 86400000;
-    const stale = await db.trash.filter(t => (t.deletedAt || 0) < cutoff).primaryKeys();
+    // 审计 F-5：索引查询替代全表 filter——trash 表已有 deletedAt 索引（db.js:181），
+    // filter() 不走索引退化为全表扫描，where().below() 直接走索引范围查询。
+    const stale = await db.trash.where('deletedAt').below(cutoff).primaryKeys();
     if (stale.length) await db.trash.bulkDelete(stale);
     return stale.length;
   } catch { return 0; }
@@ -295,7 +301,6 @@ export async function restoreFromTrash(t) {
   const linkedNoteIds = Array.isArray(data._linkedNoteIds) ? data._linkedNoteIds : null;
   const text = typeof data._text === 'string' ? data._text : null;
   const edges = data._edges || null;
-  const hasEmbeddings = !!data._embeddings;
   delete data._reviews; delete data._groupLinks; delete data._text; delete data._textLen; delete data._edges;
   delete data._cardWordLinks; delete data._embeddings; delete data._linkedNoteIds;
   const transform = RESTORE_TRANSFORMS[t.kind];
@@ -368,9 +373,9 @@ export async function restoreFromTrash(t) {
         return typeof tb.id === 'string' && tb.id.startsWith(`embed-${t.id}-`);
       });
     if (embeddingTombStale.length) await db.tombstones.bulkDelete(embeddingTombStale.map(tb => tb.id));
-    // 资料恢复后自动触发 RAG 重建（文档行不产生 embedding 行，仅 parseDoc 会写）；
-    // 对卡片类不触发（卡的 embedding 由知识库手动关联，恢复后下次检索自然重建）。
-    if (t.kind === 'docFile') {
+    // 审计 F-3：资料恢复后自动触发 RAG 重建——docFile 和 doc（AI 文档）均可能含向量嵌入，
+    // 删除时 embed 墓碑已写，恢复时墓碑虽清但向量未重建 → RAG 对该资料永久失明。
+    if (t.kind === 'docFile' || t.kind === 'doc') {
       try { const { parseDoc } = await import('./docs-lib.js'); parseDoc(t.id).catch(() => {}); } catch { /* import 失败不阻塞恢复 */ }
     }
   });
@@ -1104,20 +1109,22 @@ export async function deleteDailyPlan(planId) {
  * @param {string} note 备注
  */
 export async function checkinDailyTask(taskId, status = 'done', note = '') {
-  const old = await db.dailyTasks.get(taskId);
-  if (!old) throw new Error('任务不存在');
-  const valid = ['done', 'partial', 'skipped', 'pending'];
-  if (!valid.includes(status)) throw new Error('非法打卡状态');
-  const task = {
-    ...old,
-    status,
-    completedAt: status === 'done' ? now() : null,
-    completionNote: note,
-    updatedAt: now(),
-  };
-  await db.dailyTasks.put(task);
-  fireHook('onDailyTaskCheckin', task);
-  return task;
+  return db.transaction('rw', db.dailyTasks, async () => {
+    const old = await db.dailyTasks.get(taskId);
+    if (!old) throw new Error('任务不存在');
+    const valid = ['done', 'partial', 'skipped', 'pending'];
+    if (!valid.includes(status)) throw new Error('非法打卡状态');
+    const task = {
+      ...old,
+      status,
+      completedAt: status === 'done' ? now() : null,
+      completionNote: note,
+      updatedAt: now(),
+    };
+    await db.dailyTasks.put(task);
+    fireHook('onDailyTaskCheckin', task);
+    return task;
+  });
 }
 
 // ───────────── 跨模块协同（D8.4）：打卡时拉真实数据 ─────────────
@@ -1220,10 +1227,22 @@ export async function updateNote(id, payload) {
 export async function deleteNote(id) {
   const old = await db.notes.get(id);
   if (!old) return;
-  await db.transaction('rw', db.notes, db.trash, db.tombstones, async () => {
+  // 审计 F-22：级联清洗引用——笔记的 linkedCardIds 记录了关联卡片，
+  // 删笔记后卡片侧的「关联笔记」信息成为幽灵引用。
+  const linkedCardIds = Array.isArray(old.linkedCardIds) ? old.linkedCardIds : [];
+  await db.transaction('rw', db.notes, db.trash, db.tombstones, db.cards, async () => {
     await trashItem(id, 'note', old);
     await db.notes.delete(id);
-    await db.tombstones.put({ id, kind: 'note', deletedAt: now() }); // 墓碑：跨设备同步删除
+    await db.tombstones.put({ id, kind: 'note', deletedAt: now() });
+    // 反向清洗：卡片侧的 notes 引用（通过 card.linkedNoteIds 或 content 引用）
+    if (linkedCardIds.length) {
+      const cards = (await db.cards.bulkGet(linkedCardIds)).filter(Boolean);
+      for (const c of cards) {
+        if (Array.isArray(c.linkedNoteIds) && c.linkedNoteIds.includes(id)) {
+          await db.cards.update(c.id, { linkedNoteIds: c.linkedNoteIds.filter(x => x !== id), updatedAt: now() });
+        }
+      }
+    }
   });
 }
 
@@ -1269,11 +1288,13 @@ export async function createPlan(payload) {
   return p;
 }
 export async function updatePlan(id, patch) {
-  const old = await db.plans.get(id);
-  if (!old) throw new Error('计划不存在');
-  const p = plain({ ...old, ...(patch || {}), updatedAt: now() });
-  await db.plans.put(p);
-  return p;
+  return db.transaction('rw', db.plans, async () => {
+    const old = await db.plans.get(id);
+    if (!old) throw new Error('计划不存在');
+    const p = plain({ ...old, ...(patch || {}), updatedAt: now() });
+    await db.plans.put(p);
+    return p;
+  });
 }
 export async function deletePlan(id) {
   const old = await db.plans.get(id);
@@ -1359,19 +1380,43 @@ export async function createDoc(payload) {
   return d;
 }
 export async function updateDoc(id, patch) {
-  const old = await db.docs.get(id);
-  if (!old) throw new Error('文档不存在');
-  const d = plain({ ...old, ...(patch || {}), updatedAt: now() });
-  await db.docs.put(d);
-  return d;
+  return db.transaction('rw', db.docs, async () => {
+    const old = await db.docs.get(id);
+    if (!old) throw new Error('文档不存在');
+    const d = plain({ ...old, ...(patch || {}), updatedAt: now() });
+    await db.docs.put(d);
+    return d;
+  });
 }
 export async function deleteDoc(id) {
   const old = await db.docs.get(id);
   if (!old) return;
-  await db.transaction('rw', db.docs, db.trash, db.tombstones, async () => {
-    await trashItem(id, 'doc', old);
+  // 审计 F-2：补全级联——此前只有 3 步（trashItem→delete→tombstone），缺少：
+  //   ① docTexts 快照（恢复时无全文）
+  //   ② graphEdges 快照+删+墓碑（幽灵边常驻并跨设备传播）
+  //   ③ embeddings 删+墓碑（RAG 检索到已删资料的幽灵向量）
+  const text = await db.docTexts.get(id);
+  const edgeMap = new Map();
+  for (const e of await db.graphEdges.where('from').equals(id).toArray()) edgeMap.set(e.id, e);
+  for (const e of await db.graphEdges.where('to').equals(id).toArray()) edgeMap.set(e.id, e);
+  const edges = [...edgeMap.values()];
+  const embRows = await db.embeddings.where('sourceId').equals(id).and(e => e.sourceType === 'doc').toArray();
+  await db.transaction('rw', db.docs, db.trash, db.tombstones, db.docTexts, db.graphEdges, db.embeddings, async () => {
+    await trashItem(id, 'doc', { ...old, _text: text?.text || null, _textLen: text?.textLen || null, _edges: edges });
     await db.docs.delete(id);
-    await db.tombstones.put({ id, kind: 'doc', deletedAt: now() }); // 墓碑：跨设备同步删除
+    await db.tombstones.put({ id, kind: 'doc', deletedAt: now() });
+    // 级联删 docTexts
+    if (text) await db.docTexts.delete(id);
+    // 级联删 graphEdges + 墓碑
+    if (edges.length) {
+      await db.tombstones.bulkPut(edges.map(e => ({ id: e.id, kind: 'graphEdge', deletedAt: now() })));
+      await db.graphEdges.bulkDelete(edges.map(e => e.id));
+    }
+    // 级联删 embeddings + 墓碑
+    if (embRows.length) {
+      await db.tombstones.bulkPut(embRows.map(e => ({ id: e.id, kind: 'embedding', deletedAt: now() })));
+      await db.embeddings.bulkDelete(embRows.map(e => e.id));
+    }
   });
 }
 
@@ -1446,11 +1491,13 @@ export async function createMindmap(payload) {
   return m;
 }
 export async function updateMindmap(id, patch) {
-  const old = await db.mindmaps.get(id);
-  if (!old) throw new Error('导图不存在');
-  const m = plain({ ...old, ...(patch || {}), updatedAt: now() });
-  await db.mindmaps.put(m);
-  return m;
+  return db.transaction('rw', db.mindmaps, async () => {
+    const old = await db.mindmaps.get(id);
+    if (!old) throw new Error('导图不存在');
+    const m = plain({ ...old, ...(patch || {}), updatedAt: now() });
+    await db.mindmaps.put(m);
+    return m;
+  });
 }
 export async function deleteMindmap(id) {
   const old = await db.mindmaps.get(id);
@@ -1541,11 +1588,13 @@ export async function deleteExam(id) {
   });
 }
 export async function updateExam(id, patch) {
-  const old = await db.exams.get(id);
-  if (!old) throw new Error('成绩不存在');
-  const e = plain({ ...old, ...(patch || {}), updatedAt: now() });
-  await db.exams.put(e);
-  return e;
+  return db.transaction('rw', db.exams, async () => {
+    const old = await db.exams.get(id);
+    if (!old) throw new Error('成绩不存在');
+    const e = plain({ ...old, ...(patch || {}), updatedAt: now() });
+    await db.exams.put(e);
+    return e;
+  });
 }
 
 // ————————————————————————————————————————————————————————————
@@ -1979,18 +2028,20 @@ export async function createCardGroup({ name, description = '', color = '', stat
 
 /** 更新卡组（重命名/描述/颜色/状态/排序）。只改传入字段，bump updatedAt */
 export async function updateCardGroup(id, patch) {
-  const cur = await db.cardGroups.get(id);
-  if (!cur) return null;
-  const next = { ...cur };
-  for (const k of ['name', 'description', 'color', 'status']) {
-    if (patch[k] !== undefined) next[k] = k === 'name' ? String(patch[k]).trim() : patch[k];
-  }
-  if (patch.sortOrder !== undefined) next.sortOrder = Number(patch.sortOrder) || 0;
-  if (!next.name) throw new Error('卡组名称不能为空');
-  next.updatedAt = Date.now();
-  await db.cardGroups.put(next);
-  fireHook('cardGroup.updated', next);
-  return next;
+  return db.transaction('rw', db.cardGroups, async () => {
+    const cur = await db.cardGroups.get(id);
+    if (!cur) return null;
+    const next = { ...cur };
+    for (const k of ['name', 'description', 'color', 'status']) {
+      if (patch[k] !== undefined) next[k] = k === 'name' ? String(patch[k]).trim() : patch[k];
+    }
+    if (patch.sortOrder !== undefined) next.sortOrder = Number(patch.sortOrder) || 0;
+    if (!next.name) throw new Error('卡组名称不能为空');
+    next.updatedAt = Date.now();
+    await db.cardGroups.put(next);
+    fireHook('cardGroup.updated', next);
+    return next;
+  });
 }
 
 /** 删除卡组（级联删除其全部关联；卡片本身不受影响） */

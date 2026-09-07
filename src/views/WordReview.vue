@@ -9,7 +9,7 @@
 //   · 学习时长记录（wordStudyLog，每题累加、单次封顶 5 分钟）
 //   · 拼写类模式收尾页（图5：拼写全部/拼写错误/跳过，过滤标熟）
 //   · 小结页（图6：每词下次复习时间 + 今日已复习 X 词还剩 Y 词）
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { escapeRegExp } from '../utils/regexp.js';
@@ -48,6 +48,10 @@ const result = ref(null); // {correct, rating}
 const committed = ref(false);
 const sessionCount = ref(0);
 
+// 审计 F-11：保存 timer ID，onBeforeUnmount 清理——防止用户在 900ms 推进窗口内
+// 离开页面后 next() 仍执行（修改已卸载组件的 ref，可能触发 unhandled rejection）
+const commitTimer = ref(null);
+
 // ---- 会话级追踪（拼写收尾 + 小结 + 学习时长，v27） ----
 // 拼写类模式：结束后进「继续拼写」收尾页（拼写全部/拼写错误/跳过）
 const SPELL_MODES = ['spell', 'listenSpell', 'cloze', 'sentenceCloze'];
@@ -56,6 +60,7 @@ const wrongCards = ref([]);        // 本轮答错的卡（重拼写用）
 const sessionLog = ref([]);
 let lastActiveTs = 0;              // 上次活跃时刻（学习时长增量分母）
 const doneStats = ref(null);       // {reviewedToday, remaining} 小结页底部统计
+onBeforeUnmount(() => { clearTimeout(commitTimer.value); });
 
 const MODES = [
   { id: 'adaptive', label: t('views.wordReview.modeAdaptive'), hint: t('views.wordReview.hintAdaptive') },
@@ -74,8 +79,13 @@ const MODES = [
 ];
 
 onMounted(async () => {
-  settings.value = await getWordSettings();
-  groups.value = await listWordGroups();
+  try {
+    settings.value = await getWordSettings();
+    groups.value = await listWordGroups();
+  } catch (e) {
+    // 审计 F-32：IndexedDB 不可用/无痕模式时 prevent unhandled rejection
+    console.warn('[WordReview] 初始化失败：', e);
+  }
   if (route.query.mode) mode.value = String(route.query.mode);
   // v40：词组库「背这类」跳转携带 scope（word/phrase/sentence），直接定位针对性背诵
   if (route.query.scope) scope.value = String(route.query.scope);
@@ -362,7 +372,7 @@ async function commit(rating) {
     }
   }
   phase.value = 'grade';
-  setTimeout(next, 900);
+  commitTimer.value = setTimeout(next, 900);
 }
 
 function next() {

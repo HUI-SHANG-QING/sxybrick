@@ -210,23 +210,11 @@ async function callChatCompletion({ base, apiKey, model, prompt, system, source 
 }
 
 // ---------- 解析与归一化 ----------
+// 审计 F-25：用 llm-json.js 统一解析（3级容错：代码块剥离→括号截取→尾逗号修复），
+// 替代此前的贪婪正则 `\{[\s\S]*\}`——当 LLM 返回多个 {} 块时截到错误的那个。
+import { tryParseLLMJson } from '../utils/llm-json.js';
 function parseJsonSafe(raw) {
-  if (!raw) return null;
-  const text = String(raw).trim();
-  // 去掉 ```json ... ``` 包裹
-  const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
-  try {
-    return JSON.parse(cleaned);
-  } catch (e) {
-    // 尝试从混合文本中抠 JSON
-    const m = cleaned.match(/\{[\s\S]*\}/);
-    if (!m) return null;
-    try {
-      return JSON.parse(m[0]);
-    } catch {
-      return null;
-    }
-  }
+  return tryParseLLMJson(raw);
 }
 
 function normalize(data, levels) {

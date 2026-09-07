@@ -171,7 +171,9 @@ async function loadMeta() {
   allTags.value = await getTags(filters.subject);
 }
 
+let loadSeq = 0;
 async function loadCards() {
+  const seq = ++loadSeq;
   loading.value = true;
   try {
     if (weakMode.value) {
@@ -193,6 +195,7 @@ async function loadCards() {
     if (filters._dupIds && filters._dupIds.size) {
       list = list.filter(c => filters._dupIds.has(c.id));
     }
+    if (seq !== loadSeq) return; // 审计 F-13：后发先至守卫
     if (filters._orphanImageIds && filters._orphanImageIds.size) {
       // 孤儿图片不是卡片，空列表；用 activeFilterBanner 说明
       list = [];
@@ -206,7 +209,8 @@ async function loadCards() {
 }
 
 watch(() => [filters.q, filters.subject, filters.logic], loadCards);
-watch(() => filters.tags, loadCards, { deep: true });
+// 审计 F-13：tags deep watch 每 splice 一个元素触发一次 loadCards，改为 watch length+join
+watch(() => filters.tags.length + '|' + filters.tags.join(','), loadCards);
 watch(() => filters.subject, loadMeta);
 watch(sortBy, loadCards);
 

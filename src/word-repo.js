@@ -244,29 +244,33 @@ export async function deleteWordCard(id) {
 // ---------- 熟词标记 / 批注 ----------
 // 标记熟词：移出默认复习队列（dueAt 推到一年外），但不删除，可检索/导出
 export async function markFamiliar(id, value = 1) {
-  const cur = await db.wordCards.get(id);
-  if (!cur) return null;
-  const v = value ? 1 : 0;
-  const patch = { familiar: v, updatedAt: now() };
-  if (v === 1) patch.dueAt = now() + 365 * 86400000; // 熟词一年后到期（等于移出活跃队列）
-  else {
-    patch.dueAt = now(); // 取消熟词：立即重新进入复习队列
-    // 审计 B8：熟词期间把 dueAt 推到一年外而未推进 fsrs.last——取消熟词后 next review 用
-    // `elapsed≈365d` 算 predR→R≈0→遗忘驱动项异常放大，首两次排期跳动。重置 SRS 时间基准，
-    // 让该词「视为刚复习过」的既定语义成立（FSRS 卡才有 fsrs 字段，SM-2 无需）。
-    if (cur.fsrs) patch.fsrs = { ...cur.fsrs, last: now() };
-  }
-  await db.wordCards.put({ ...cur, ...patch });
-  return { ...cur, ...patch };
+  return db.transaction('rw', db.wordCards, async () => {
+    const cur = await db.wordCards.get(id);
+    if (!cur) return null;
+    const v = value ? 1 : 0;
+    const patch = { familiar: v, updatedAt: now() };
+    if (v === 1) patch.dueAt = now() + 365 * 86400000; // 熟词一年后到期（等于移出活跃队列）
+    else {
+      patch.dueAt = now(); // 取消熟词：立即重新进入复习队列
+      // 审计 B8：熟词期间把 dueAt 推到一年外而未推进 fsrs.last——取消熟词后 next review 用
+      // `elapsed≈365d` 算 predR→R≈0→遗忘驱动项异常放大，首两次排期跳动。重置 SRS 时间基准，
+      // 让该词「视为刚复习过」的既定语义成立（FSRS 卡才有 fsrs 字段，SM-2 无需）。
+      if (cur.fsrs) patch.fsrs = { ...cur.fsrs, last: now() };
+    }
+    await db.wordCards.put({ ...cur, ...patch });
+    return { ...cur, ...patch };
+  });
 }
 
 // 设置批注（note 字段，updatedAt 跟踪；跨设备按 updatedAt 合并）
 export async function setWordNote(id, text) {
-  const cur = await db.wordCards.get(id);
-  if (!cur) return null;
-  const note = String(text || '').slice(0, 2000);
-  await db.wordCards.put({ ...cur, note, updatedAt: now() });
-  return { ...cur, note, updatedAt: now() };
+  return db.transaction('rw', db.wordCards, async () => {
+    const cur = await db.wordCards.get(id);
+    if (!cur) return null;
+    const note = String(text || '').slice(0, 2000);
+    await db.wordCards.put({ ...cur, note, updatedAt: now() });
+    return { ...cur, note, updatedAt: now() };
+  });
 }
 
 // ---------- 词组（多对多，仿卡组） ----------
@@ -303,17 +307,19 @@ export async function createWordGroup(payload = {}) {
 }
 
 export async function updateWordGroup(id, patch = {}) {
-  const cur = await db.wordGroups.get(id);
-  if (!cur) return null;
-  const next = { ...cur };
-  for (const k of ['name', 'description', 'color', 'status']) {
-    if (patch[k] !== undefined) next[k] = k === 'name' ? String(patch[k]).trim() : patch[k];
-  }
-  if (patch.sortOrder !== undefined) next.sortOrder = Number(patch.sortOrder) || 0;
-  if (!next.name) throw new Error('词组名称不能为空');
-  next.updatedAt = now();
-  await db.wordGroups.put(next);
-  return next;
+  return db.transaction('rw', db.wordGroups, async () => {
+    const cur = await db.wordGroups.get(id);
+    if (!cur) return null;
+    const next = { ...cur };
+    for (const k of ['name', 'description', 'color', 'status']) {
+      if (patch[k] !== undefined) next[k] = k === 'name' ? String(patch[k]).trim() : patch[k];
+    }
+    if (patch.sortOrder !== undefined) next.sortOrder = Number(patch.sortOrder) || 0;
+    if (!next.name) throw new Error('词组名称不能为空');
+    next.updatedAt = now();
+    await db.wordGroups.put(next);
+    return next;
+  });
 }
 
 export async function deleteWordGroup(id) {

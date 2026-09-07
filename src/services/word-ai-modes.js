@@ -264,53 +264,68 @@ export async function batchGenerateModeQuestions({
   let generated = 0;
   let failed = 0;
   let saved = 0;
-  for (let i = 0; i < list.length; i++) {
-    const card = list[i];
-    let r;
-    try {
-      r = await generateModeQuestions({ card, settings, agentCtx, signal });
-    } catch (e) {
-      r = { ok: false, reason: 'throw:' + (e?.message || e) };
-    }
-    let savedModes = null;
-    let savedOk = false;
-    if (r.ok) {
-      const merged = applyModeQuestions(card, r.modes);
-      savedModes = merged.modeQuestions;
-      generated += Object.keys(r.modes).length;
-      if (saveFn) {
-        try {
-          await saveFn(card.id, { modeQuestions: merged.modeQuestions });
-          saved++;
-          savedOk = true;
-        } catch (e) {
-          console.warn('[word-ai-modes] save mode questions failed for', card.id, e?.message || e);
-        }
+  // 审计 F-26：分批并发——AI 调用是网络 IO 密集型（每张 2-3s），逐张串行总耗时 = N×2~3s。
+  // 改为每批 3 张并发调用，批内全部完成后顺序保存（DB 写入需保序避免 lost update）。
+  // 3 并发是稳妥选择：不打爆 LLM 服务端、移动端内存可控、总耗时 ≈ ceil(N/3)×2~3s。
+  const BATCH = 3;
+  for (let batchStart = 0; batchStart < list.length; batchStart += BATCH) {
+    if (signal?.aborted) break;
+    const batch = list.slice(batchStart, batchStart + BATCH);
+    // 批内并发 AI 调用
+    const results = await Promise.allSettled(
+      batch.map(card => generateModeQuestions({ card, settings, agentCtx, signal }))
+    );
+    // 顺序处理批内结果（保存 + 统计 + 进度回调）
+    for (let j = 0; j < batch.length; j++) {
+      const card = batch[j];
+      const settled = results[j];
+      let r;
+      if (settled.status === 'fulfilled') {
+        r = settled.value;
+      } else {
+        r = { ok: false, reason: 'throw:' + (settled.reason?.message || settled.reason) };
       }
-    } else {
-      failed++;
-    }
-    perCard.push({
-      id: card.id,
-      word: card.word,
-      kind: kindOf(card),
-      ok: r.ok,
-      modes: r.ok ? r.modes : null,
-      via: r.ok ? r.via : undefined,
-      dropped: r.dropped || [],
-      reason: r.ok ? null : (r.reason || 'unknown'),
-      saved: savedOk,
-    });
-    if (onProgress) {
-      const keepGoing = onProgress({
-        done: i + 1,
-        total: list.length,
-        generated,
-        failed,
-        saved,
-        current: { id: card.id, word: card.word, ok: r.ok },
+      let savedModes = null;
+      let savedOk = false;
+      if (r.ok) {
+        const merged = applyModeQuestions(card, r.modes);
+        savedModes = merged.modeQuestions;
+        generated += Object.keys(r.modes).length;
+        if (saveFn) {
+          try {
+            await saveFn(card.id, { modeQuestions: merged.modeQuestions });
+            saved++;
+            savedOk = true;
+          } catch (e) {
+            console.warn('[word-ai-modes] save mode questions failed for', card.id, e?.message || e);
+          }
+        }
+      } else {
+        failed++;
+      }
+      perCard.push({
+        id: card.id,
+        word: card.word,
+        kind: kindOf(card),
+        ok: r.ok,
+        modes: r.ok ? r.modes : null,
+        via: r.ok ? r.via : undefined,
+        dropped: r.dropped || [],
+        reason: r.ok ? null : (r.reason || 'unknown'),
+        saved: savedOk,
       });
-      if (keepGoing === false) break;
+      const done = batchStart + j + 1;
+      if (onProgress) {
+        const keepGoing = onProgress({
+          done,
+          total: list.length,
+          generated,
+          failed,
+          saved,
+          current: { id: card.id, word: card.word, ok: r.ok },
+        });
+        if (keepGoing === false) break;
+      }
     }
   }
   return { ok: generated > 0, perCard, total: list.length, generated, failed, saved };

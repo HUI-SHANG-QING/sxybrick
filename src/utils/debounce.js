@@ -8,9 +8,11 @@
  */
 export function debounce(fn, wait = 200) {
   let timer = null;
-  const wrapped = (...args) => {
+  // 审计 F-34：用 function 保留 this 上下文——箭头函数捕获模块顶层 undefined，
+  // Vue 组件方法 debounce(this.loadData, 200) 时 this 丢失
+  const wrapped = function(...args) {
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => { timer = null; fn(...args); }, wait);
+    timer = setTimeout(() => { timer = null; fn.apply(this, args); }, wait);
   };
   wrapped.cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
   return wrapped;
