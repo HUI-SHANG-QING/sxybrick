@@ -179,6 +179,9 @@ export const zh = {
   aiSplitFail: 'AI 拆分失败：{msg}',
   aiNoCards: '没有可导入的卡片',
   aiImported: '已导入 {n} 张 AI 生成的卡片',
+  defaultSubject: '未分类',
+  aiDeckTag: 'AI卡组',
+  aiDeckSource: 'AI智能卡组生成',
   rescued: '已把「{front}…」加入今日复习',
   rescuedAll: '已把 {n} 张高危卡加入今日复习，去「背诵」页巩固',
 };
@@ -360,6 +363,9 @@ export const en = {
   aiSplitFail: 'AI split failed: {msg}',
   aiNoCards: 'No cards to import',
   aiImported: 'Imported {n} AI-generated cards',
+  defaultSubject: 'Uncategorized',
+  aiDeckTag: 'AI deck',
+  aiDeckSource: 'AI smart deck',
   rescued: 'Added "{front}…" to today\'s review',
   rescuedAll: "Added {n} high-risk cards to today's review — reinforce on the Review page",
 };

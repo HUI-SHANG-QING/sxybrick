@@ -524,7 +524,7 @@ const batchParsed = computed(() => {
     let front = line.trim();
     let back = '';
     if (!front) return null;
-    const m = front.match(/^(.+?)\s*(?:\||→|->|：答[:：]?)\s*(.+)$/);
+    const m = front.match(new RegExp('^(.+?)\\s*(?:\\||\u2192|->|[\uFF1A]\u7B54[\uFF1A]?)\\s*(.+)$'));
     if (m && m[2]) { front = m[1].trim(); back = m[2].trim(); }
     return { front, back };
   }).filter(Boolean).slice(0, 200);
@@ -564,7 +564,7 @@ async function aiGenerateDeck() {
   if (text.length < 20) { toast(t('views.cards.aiTooShort'), 'error'); return; }
   aiGenBusy.value = true;
   try {
-    const deck = await genCardDeck(text, { count: aiDeckCount.value, subject: batchSubject.value || '未分类' });
+    const deck = await genCardDeck(text, { count: aiDeckCount.value, subject: batchSubject.value || t('views.cards.defaultSubject', '未分类') });
     aiDeck.value = deck;
     toast(t('views.cards.aiSplitDone', 'AI 已拆出 {n} 张卡片，预览后可导入', { n: deck.length }), 'success');
   } catch (e) {
@@ -582,8 +582,8 @@ async function importAiDeck() {
     for (const c of deck) {
       const r = await createCard({
         front: c.front, back: c.back, subject: c.subject || batchSubject.value || '',
-        tags: ['AI卡组', ...(c.tags || [])], type: 'basic', difficulty: c.difficulty || 'basic',
-        source: 'AI智能卡组生成',
+        tags: [t('views.cards.aiDeckTag', 'AI卡组'), ...(c.tags || [])], type: 'basic', difficulty: c.difficulty || 'basic',
+        source: t('views.cards.aiDeckSource', 'AI智能卡组生成'),
       });
       try { T.cardNew(r?.id ?? r); } catch {}
       n++;
