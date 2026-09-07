@@ -607,6 +607,29 @@ export async function repairBrokenDueAt({ force = false } = {}) {
   return fixed;
 }
 
+/**
+ * userOps（全操作埋点）保留期清理：只保留最近 keepDays 天（默认 365），更老的删除并写墓碑。
+ * 为什么必须写墓碑：userOps 走 idOnly 合并（absence ≠ deletion）——若只在本机 bulkDelete，
+ * 中枢/对端仍持有的旧副本会在下次拉取时把清掉的行「复活」回来（也解释了此前该表只增不减）。
+ * 墓碑（kind='userOp'）随同步/备份传播，让对端与中枢一并清掉。
+ * 每次最多清 MAX_PER_RUN 条：首跑若积压多年可分成数次（启动/导入时各清一批），
+ * 避免单次超大事务 + 墓碑风暴。
+ * @param {{keepDays?:number}} opts
+ * @returns {Promise<number>} 本次清理行数
+ */
+export async function pruneUserOps({ keepDays = 365 } = {}) {
+  const cutoff = Date.now() - keepDays * 86400000;
+  const MAX_PER_RUN = 10000;
+  const ids = await db.userOps.where('t').below(cutoff).limit(MAX_PER_RUN).primaryKeys();
+  if (!ids.length) return 0;
+  const nowTs = now();
+  await db.transaction('rw', db.userOps, db.tombstones, async () => {
+    await db.userOps.bulkDelete(ids);
+    await db.tombstones.bulkPut(ids.map(id => ({ id, kind: 'userOp', deletedAt: nowTs })));
+  });
+  return ids.length;
+}
+
 // 手动标记 / 取消标记错题
 export async function setMarked(id, marked) {
   const card = await db.cards.get(id);

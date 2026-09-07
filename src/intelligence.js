@@ -18,17 +18,27 @@ import {
   weakCards, getStats, getReviewSuggestion,
   createCard, applyCardFeedback, addPomoSession, updatePlan,
 } from './repo.js';
+import { subscribeDbChanged } from './utils/dbEvents.js';
 
 // 审计 F-16：allCards 共享缓存——intelligence 内多处各自 await allCards() 全表加载，
 // 同一会话内重复调用时同一张表被物化多次。模块级缓存 + 5s 自动失效。
+// 审计 P2（写失效）：缓存此前只有 TTL、没有任何写失效——编辑/同步/导入后最多 5s 脏读。
+//   订阅 dbEvents（本页 Dexie 写 hooks 与跨 tab 广播都汇入同一入口）→ 任意 DB 变更即失效；
+//   TTL 仅作兜底（订阅不可用/异常时退化为纯 TTL）。
+// 审计 P3（别名防御）：返回值做浅拷贝——调用方若将来原地 sort/改字段，不污染缓存本体。
 let _cardsCache = null;
 let _cardsCacheTs = 0;
 const CARDS_CACHE_TTL = 5000;
+export function invalidateCardsCache() { _cardsCache = null; _cardsCacheTs = 0; }
 async function allCardsCached() {
-  if (_cardsCache && Date.now() - _cardsCacheTs < CARDS_CACHE_TTL) return _cardsCache;
+  if (_cardsCache && Date.now() - _cardsCacheTs < CARDS_CACHE_TTL) return [..._cardsCache];
   _cardsCache = await allCards();
   _cardsCacheTs = Date.now();
-  return _cardsCache;
+  return [..._cardsCache];
+}
+// 订阅 DB 变更（本页写/跨 tab/导入同步）→ 立即失效；仅浏览器环境、订阅失败退化为纯 TTL
+if (typeof window !== 'undefined') {
+  try { subscribeDbChanged(() => invalidateCardsCache()); } catch { /* 忽略 */ }
 }
 import { dayWindowOf } from './repo-core.js';
 

@@ -89,7 +89,9 @@ export const SYNC_TABLES = [
   { table: 'exams', kind: 'exam', merge: 'updatedAt' },
   // v9 新增：RAG 向量嵌入（由 cardId+content 确定性生成，idOnly 幂等即可）
   { table: 'embeddings', kind: 'embedding', merge: 'idOnly' },
-  // v13 新增：用户全操作埋点（量大：导出时默认提供"仅导出聚合"选项以缩小包体积）
+  // v13 新增：用户全操作埋点（量大）。保留期策略：仅保留最近 365 天，更老的由
+  //   repo.pruneUserOps() 定期清理——清理必须写墓碑（kind='userOp'），否则中枢/对端
+  //   持有的旧副本会在下次拉取时把清掉的行"复活"回来（idOnly 合并下 absence ≠ deletion）。
   { table: 'userOps', kind: 'userOp', merge: 'idOnly' },
   // v17 新增：资料库文件元数据（Phase 6）——只同步元数据（文件名/大小/状态/科目），
   //   原文件（OPFS）与解析全文（docTexts 本地表）不同步，跨设备可见清单但不可预览原文

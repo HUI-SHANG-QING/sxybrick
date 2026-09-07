@@ -35,7 +35,7 @@ import { pad2 } from './utils/format.js';
 // 审计 C3：导入后跨 tab 广播数据变更
 import { notifyDbChanged } from './utils/dbEvents.js';
 // 审计 C5：导入/同步应用墓碑后清扫孤儿复习行（父卡已不存在的 reviews/wordReviews）
-import { sweepOrphanRows, repairBrokenDueAt } from './repo.js';
+import { sweepOrphanRows, repairBrokenDueAt, pruneUserOps } from './repo.js';
 // 快照标签里的时间跟随界面语言（此前硬编码 'zh-CN'，英文界面下仍是"2026/8/30 19:48"中文习惯）
 import { fmtLocaleDateTime } from './utils/locale-date.js';
 
@@ -865,6 +865,13 @@ export async function importBackup(backup, opts = {}) {
     const n = await repairBrokenDueAt({ force: true });
     if (n) console.info(`[sync] 导入后修复损坏 dueAt ${n} 行`);
   } catch (e) { console.warn('[sync] repairBrokenDueAt 失败（不阻断导入）:', e?.message || e); }
+
+  // 埋点保留期：拉取后可能带回中枢/对端仍未清理的旧 userOps，随即按 365 天上限清一批
+  // （墓碑已随之传播，下次拉取不再复活）。
+  try {
+    const n = await pruneUserOps();
+    if (n) console.info(`[sync] 埋点保留期清理 ${n} 行（>365 天）`);
+  } catch (e) { console.warn('[sync] pruneUserOps 失败（不阻断导入）:', e?.message || e); }
 
   // 审计 C3：导入完成即向所有 tab 广播数据已变更（跨 tab 缓存失效）。
   notifyDbChanged('import');
