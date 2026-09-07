@@ -211,6 +211,18 @@ export function isOriginAllowed(origin, ctx = {}) {
   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]' || hostname === '::1') return true;
   // 与请求的 Host 一致 = 同源
   if (ctx.host && host === ctx.host) return true;
+  // 局域网私有 IP 段自动放行——手机/平板通过 LAN IP 访问 hub 时，
+  // 浏览器的 Origin 头可能与 Host 头在端口或格式上有差异，导致 CORS 拒绝。
+  // 局域网本身已是信任环境，放行安全。
+  const parts = hostname.split('.').map(Number);
+  if (parts.length === 4 && parts.every(n => Number.isInteger(n) && n >= 0 && n <= 255)) {
+    // 10.x.x.x
+    if (parts[0] === 10) return true;
+    // 172.16.0.0 – 172.31.255.255
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    // 192.168.x.x
+    if (parts[0] === 192 && parts[1] === 168) return true;
+  }
   // 显式白名单（HUB_ALLOW_ORIGIN="https://a.example,http://b.example:8080"）
   const list = ctx.allowList || [];
   return list.some(o => String(o).trim() === origin);

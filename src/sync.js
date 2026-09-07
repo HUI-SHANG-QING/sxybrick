@@ -504,6 +504,13 @@ export async function syncWithHub(hubUrl, token, opts = {}) {
     if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
       throw new Error('连接电脑端中枢超时（20s），请确认中枢已启动、地址与端口正确、手机与电脑在同一网络');
     }
+    // TypeError: Failed to fetch = CORS 拒绝 / 混合内容（HTTPS 页面访问 HTTP hub）/ 网络不通
+    // 审计：改善报错——手机/平板最常见的同步失败是 CORS 或混合内容，此前只报"fetch failed"无帮助
+    if (e instanceof TypeError) {
+      const isHttps = typeof location !== 'undefined' && location.protocol === 'https:';
+      if (isHttps) throw new Error('同步失败：当前页面为 HTTPS，无法访问局域网 HTTP 中枢。请在手机浏览器地址栏直接输入 http://<电脑IP>:18080 打开应用后再同步');
+      throw new Error('连接电脑端中枢失败，请确认：① 中枢已启动 ② 手机与电脑在同一 WiFi ③ 地址与端口正确');
+    }
     throw e;
   });
   if (res.status === 401) {
