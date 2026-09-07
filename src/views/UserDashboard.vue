@@ -117,6 +117,7 @@ async function loadAll() {
     const [
       byDay, byHour, byModule, byType, byDayHour, rawAll,
       byDay365, rawMix,
+      reviewDays365, wordReviewDays365,
     ] = await Promise.all([
       queryUserOps({ from, to, groupBy: 'day' }),
       queryUserOps({ from, to, groupBy: 'hour' }),
@@ -153,6 +154,22 @@ async function loadAll() {
         }));
         return { dates, series };
       })(),
+      // 审计：reviews/wordReviews 的真实学习活动作为365天热力图兜底数据源
+      // userOps 只记录特定 A 级操作（背诵评分/建卡/AI调用等），移动端 B 级 DOM 点击默认关闭，
+      // 仅浏览页面不产生任何埋点 → userOps 为空 → 热力图空白。
+      // reviews/wordReviews 的 reviewedAt 是最真实的学习活跃指标，合并后热力图永不为空。
+      (async () => {
+        const rows = await db.reviews.where('reviewedAt').aboveOrEqual(from365).toArray();
+        const map = new Map();
+        for (const r of rows) { const k = iso(new Date(r.reviewedAt)); map.set(k, (map.get(k) || 0) + 1); }
+        return map;
+      })(),
+      (async () => {
+        const rows = await db.wordReviews.where('reviewedAt').aboveOrEqual(from365).toArray();
+        const map = new Map();
+        for (const r of rows) { const k = iso(new Date(r.reviewedAt)); map.set(k, (map.get(k) || 0) + 1); }
+        return map;
+      })(),
     ]);
 
     const totalCount = rawAll.length;
@@ -165,7 +182,10 @@ async function loadAll() {
     while (cur <= today0) { const k = iso(cur); datesFull.push({ date: k, count: dateMap.get(k) || 0 }); cur.setDate(cur.getDate() + 1); }
 
     // GitHub 365 热力（CSS 格子 + ECharts heatmap 两种都提供，前者移动端更丝滑）
+    // 审计：合并 userOps + reviews + wordReviews 三个数据源，确保只要做过复习就有热力图数据
     const d365 = new Map(byDay365.map(x => [x.date, x.count]));
+    for (const [k, v] of reviewDays365) d365.set(k, (d365.get(k) || 0) + v);
+    for (const [k, v] of wordReviewDays365) d365.set(k, (d365.get(k) || 0) + v);
     const start365 = new Date(today); start365.setHours(0, 0, 0, 0); start365.setDate(start365.getDate() - 364);
     const st = start365.getDay();
     start365.setDate(start365.getDate() - st);
@@ -207,10 +227,16 @@ async function loadAll() {
       visualMap: { min: 0, max: Math.max(1, maxHeat), calculable: false, orient: 'horizontal', left: 'center', bottom: 4, inRange: { color: ['#ebedf0','#c6f0d0','#5cd66a','#2cbe4e','#006d32'] }, textStyle: { color: '#888' } },
       series: [{
         type: 'heatmap', data: buildHeatSeries(ccc), label: { show: false },
-        itemStyle: { borderWidth: 1, borderColor: 'var(--panel)', borderColor0: 'transparent' },
+        // round27 修：描边从 var(--panel)（浅主题下≈白，与底色融成一片）改为可见浅灰 #dfe3e8，
+        // 0 格（#ebedf0）与边框间清晰可辨；em 态用 var(--accent) 主题色高亮。
+        itemStyle: { borderWidth: 1, borderColor: '#dfe3e8', borderColor0: 'transparent' },
         emphasis: { itemStyle: { borderColor: 'var(--accent)', borderWidth: 2 } },
       }],
       title: { text: T('chart.heatmap'), left: 'center', top: 4, textStyle: { fontSize: 13, color: 'var(--ink)', fontWeight: 600 } },
+      // 全 0 时叠加居中提示，避免用户在白屏上怀疑图表没渲染
+      ...(maxHeat <= 1 && ccc.every(c => !c.count) ? {
+        graphic: [{ type: 'text', left: 'center', top: '52%', style: { text: T('chart.heatmapEmpty', '尚无 365 天活动记录——复习/编辑卡片后会自动点亮格子'), fontSize: 12, fill: '#888' } }],
+      } : {}),
     }, { allowEmpty: true }); // 全 0 也照 GitHub 习惯铺满格子，不降级成「暂无数据」骨架
 
     // —— 图 2：24h 时段曲线（可交互 tooltip，叠加 3 日对比：全范围平均 / 近 7d / 近 1d）

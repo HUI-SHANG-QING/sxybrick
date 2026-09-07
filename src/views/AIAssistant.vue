@@ -8,7 +8,7 @@ import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLA
 import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';
 import FullscreenButton from '../components/FullscreenButton.vue';
-import { useFullscreen } from '../composables/useFullscreen.js';
+// useFullscreen 已替换为简单 ref（移动端全屏不需要复杂 composable）
 import { speak } from '../utils/tts.js';
 import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
@@ -21,7 +21,11 @@ const loading = ref(false);
 const box = ref(null);
 
 // 全屏/非全屏：对话内容占满整个屏幕专心阅读（非字号缩放）
-const { isFullscreen: aiFs, toggle: toggleAiFs } = useFullscreen(box);
+const aiFs = ref(false);
+const toggleAiFs = () => { aiFs.value = !aiFs.value; };
+// 审计 F-移动端：侧栏 toggle 状态（移动端默认隐藏，点按钮展开）
+const showSidebar = ref(false);
+const showTimeline = ref(false);
 
 const showSettings = ref(false);
 const cfg = ref(getAIConfig());
@@ -260,9 +264,12 @@ onMounted(async () => {
     </div>
 
     <div class="ai-body">
-      <!-- 左栏：历史对话 -->
-      <div class="chat-side">
-        <div class="side-title">{{ t('views.aiAssistant.historyTitle') }}</div>
+      <!-- 左栏：历史对话（移动端默认隐藏，点按钮展开） -->
+      <div class="chat-side" :class="{ expanded: showSidebar }">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="side-title" style="margin-bottom:0">{{ t('views.aiAssistant.historyTitle') }}</div>
+          <button class="btn mini" @click="showSidebar = false" style="font-size:11px">✕</button>
+        </div>
         <EmptyState v-if="!chats.length" compact icon="🤖" :title="t('views.aiAssistant.emptyHistoryTitle')" :message="t('views.aiAssistant.emptyHistoryMsgPrefix') + t('views.aiAssistant.genDeckBtn') + t('views.aiAssistant.emptyHistoryMsgSuffix')" />
         <div v-for="c in chats" :key="c.id" class="chat-item" :class="{ active: c.id === currentChat.id }" @click="selectChat(c.id)">
           <div class="chat-item-title">{{ c.title || t('views.aiAssistant.newChatTitle') }}</div>
@@ -272,8 +279,10 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- 中间：消息流 -->
+      <!-- 中间：消息流（移动端含侧栏 toggle 按钮） -->
       <div class="chat-fs-row">
+        <button class="btn mini" @click="showSidebar = !showSidebar" style="margin-right:6px;font-size:12px">📋 {{ t('views.aiAssistant.historyTitle') }}</button>
+        <button class="btn mini" @click="showTimeline = !showTimeline" style="margin-right:6px;font-size:12px">📌 {{ t('views.aiAssistant.nodesTitle') }}</button>
         <FullscreenButton :active="aiFs" @toggle="toggleAiFs" />
       </div>
       <div ref="box" class="chat-box">
@@ -286,9 +295,12 @@ onMounted(async () => {
         <div v-if="loading" class="msg assistant"><div class="bubble">{{ t('views.aiAssistant.aiThinking') }}</div></div>
       </div>
 
-      <!-- 右栏：数轴节点 -->
-      <div class="timeline">
-        <div class="side-title">{{ t('views.aiAssistant.nodesTitle') }}</div>
+      <!-- 右栏：数轴节点（移动端默认隐藏，点按钮展开为浮动面板） -->
+      <div class="timeline" :class="{ expanded: showTimeline }">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div class="side-title" style="margin-bottom:0">{{ t('views.aiAssistant.nodesTitle') }}</div>
+          <button class="btn mini" @click="showTimeline = false" style="font-size:11px">✕</button>
+        </div>
         <EmptyState v-if="!userNodes.length" compact icon="🤖" :title="t('views.aiAssistant.emptyNodesTitle')" :message="t('views.aiAssistant.emptyNodesMsg')" />
         <div v-for="n in userNodes" :key="n.index" class="tl-node" :title="n.text" @click="scrollToUser(n.index)">
           <span class="tl-dot"></span>
@@ -511,19 +523,33 @@ onMounted(async () => {
 .ext-item input { margin-top: 3px; }
 .ext-body { flex: 1; font-size: 13px; line-height: 1.5; }
 
+/* 审计 F-移动端：侧栏展开状态（JS 控制） */
+.chat-side.expanded, .timeline.expanded { max-height: 50vh; }
+
 /* 手机/平板：父网格改单列时**必须同步重置子元素的 grid-column/row**——
    否则浏览器为满足 `grid-column:2/3` 会生成隐式列，消息流被塞进一条按内容收缩的窄列
    （用户反馈「手机端非常反人类」的直接根因）。这里显式改为纵向堆叠：
-   历史(收起高度) → 全屏按钮 → 消息流(占满剩余) → 轨迹(收起高度)。 */
+   侧栏默认隐藏 → toggle 按钮展开 → 全屏按钮 → 消息流(占满剩余)。 */
 @media (max-width: 720px) {
-  .ai-body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
-  .chat-side { grid-column: 1; grid-row: 1; max-height: 96px; }
-  .chat-fs-row { grid-column: 1; grid-row: 2; }
-  .chat-box { grid-column: 1; grid-row: 3; min-height: 0; }
-  .timeline { grid-column: 1; grid-row: 4; max-height: 96px; }
+  .ai-wrap { height: calc(100vh - 100px); height: calc(100dvh - 100px); }
+  .ai-body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; gap: 8px; }
+  /* 审计 F-移动端：侧栏默认隐藏，点 toggle 按钮展开 */
+  .chat-side { grid-column: 1; grid-row: 1; max-height: 0; overflow: hidden; padding: 0; border: none; transition: max-height 0.3s, padding 0.3s; }
+  .chat-side.expanded { max-height: 50vh; padding: 10px; border: 1px solid var(--line); }
+  .chat-fs-row { grid-column: 1; grid-row: 1; margin-bottom: 0; }
+  .chat-box { grid-column: 1; grid-row: 2 / -1; min-height: 0; }
+  .timeline { grid-column: 1; grid-row: 1; max-height: 0; overflow: hidden; padding: 0; border: none; transition: max-height 0.3s, padding 0.3s; position: absolute; right: 8px; top: 8px; width: 200px; z-index: 10; background: var(--panel); box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: var(--radius); }
+  .timeline.expanded { max-height: 50vh; padding: 10px; border: 1px solid var(--line); }
+  /* 顶部标签栏：横向滚动，不换行 */
+  .quick-bar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: 8px 0; gap: 6px; padding-bottom: 4px; }
+  .quick-bar::-webkit-scrollbar { display: none; }
+  .quick-bar .chip { flex-shrink: 0; font-size: 12px; padding: 4px 10px; }
+  /* 头部：紧凑化 */
+  .ai-wrap > div:first-child { flex-wrap: wrap; gap: 8px; }
+  .ai-wrap > div:first-child h2 { font-size: 16px; }
   /* 输入区：语音+输入框+发送挤一行会误触，窄屏改为输入框独占一行 */
   .input-row { flex-wrap: wrap; }
   .input-row .input { flex: 1 1 100%; }
-  .bubble { max-width: 92%; }
+  .bubble { max-width: 95%; font-size: 14px; padding: 10px 14px; }
 }
 </style>

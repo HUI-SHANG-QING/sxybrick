@@ -45,6 +45,7 @@ export const zh = {
   // 图表标题（12 张）
   chart: {
     heatmap: '近 365 天活跃（GitHub 式热力图）',
+  heatmapEmpty: '尚无 365 天活动记录——复习/编辑卡片后会自动点亮格子',
     hour: '24 小时使用时段（叠加 7d / 24h 对比）',
     modulePie: '模块使用偏好（Top 10）',
     typeBar: '动作类型 Top 15',
@@ -214,6 +215,7 @@ export const en = {
 
   chart: {
     heatmap: 'Activity in the last 365 days (GitHub-style heatmap)',
+  heatmapEmpty: 'No 365-day activity yet — review or edit cards to light up cells',
     hour: '24-hour usage curve (7d / 24h overlay)',
     modulePie: 'Module preference (Top 10)',
     typeBar: 'Action types Top 15',
