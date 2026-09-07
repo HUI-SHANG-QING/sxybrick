@@ -13,7 +13,7 @@
 import { db, uid } from './db.js';
 // 复用记忆卡调度器（SM-2/FSRS 自动切换）与权重配置：避免两套调度逻辑漂移
 import { scheduleReview } from './srs.js';
-import { getSchedConfig, refreshSchedConfig, formatDue, trashItem, cleanupOrphanImages } from './repo.js';
+import { getSchedConfig, refreshSchedConfig, formatDue, trashItem, findOrphanImages } from './repo.js';
 import { isMastered, dayWindowOf } from './repo-core.js';
 import { extractImageIds } from './images.js';
 import { retrievability } from './fsrs.js';
@@ -232,9 +232,11 @@ export async function deleteWordCard(id) {
   });
   // 与 deleteCard 同口径：孤儿图清理（存活集含词卡）+ 图片墓碑，
   // 否则删词卡后仅被它引用的图永久残留本端并随每次同步外传
-  const removedImages = await cleanupOrphanImages(imgIds);
-  if (removedImages.length) {
-    await db.tombstones.bulkPut(removedImages.map(i => ({ id: i, kind: 'image', deletedAt: now() })));
+  // round26 D3：先墓碑后物理删，防「图删了但对端不知情」
+  const orphanImages = await findOrphanImages(imgIds);
+  if (orphanImages.length) {
+    await db.tombstones.bulkPut(orphanImages.map(id => ({ id, kind: 'image', deletedAt: now() })));
+    await db.images.bulkDelete(orphanImages);
   }
   return true;
 }

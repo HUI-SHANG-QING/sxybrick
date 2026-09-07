@@ -732,8 +732,13 @@ export async function getDueForecast(days = 30) {
 // 卡片库「知识资产负债表」；纯函数在 algorithms/networth.js，这里只做 IO。
 import { computeNetWorth } from '../algorithms/networth.js';
 export async function getNetWorth() {
-  const cards = await db.cards.toArray();
-  return computeNetWorth(cards);
+  const [cards, schedRow] = await Promise.all([
+    db.cards.toArray(),
+    db.meta.get('scheduler').catch(() => null),
+  ]);
+  const scheduler = schedRow?.value === 'sm2' ? 'sm2' : (schedRow?.value === 'fsrs' ? 'fsrs' : undefined);
+  // round26 A1：把当前调度器传入净计算——SM-2 下忽略残留 FSRS 状态，避免净值虚高
+  return computeNetWorth(cards, Date.now(), undefined, { scheduler });
 }
 
 // ---------- 每科自适应目标保持率（per-subject adaptive desired retention）----------

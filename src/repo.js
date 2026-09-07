@@ -451,12 +451,12 @@ export async function deleteCard(id) {
       await db.notes.put({ ...n, linkedCardIds: n.linkedCardIds.filter(x => x !== id), updatedAt: now() });
     }
   });
-  // 9) 清理不再被任何卡片引用的孤儿图片：物理删 + 写墓碑（kind='image'）。
-  //    只物理删不写墓碑 → 对端 images 行永久残留（idOnly 幂等表，删不掉还随每次增量回传）。
-  //    墓碑带 deletedAt，对端 applyTombstones(images, kind='image') 会同步清掉。
-  const removedImages = await cleanupOrphanImages(imgIds);
-  if (removedImages.length) {
-    await db.tombstones.bulkPut(removedImages.map(i => ({ id: i, kind: 'image', deletedAt: now() })));
+  // 9) 清理不再被任何卡片引用的孤儿图片。round26 D3：**先写墓碑、后物理删**——
+  //    崩溃落在两步之间时不会出现「图已删但对端不知情」的坏方向（最坏仅本地图残留）。
+  const orphanImages = await findOrphanImages(imgIds);
+  if (orphanImages.length) {
+    await db.tombstones.bulkPut(orphanImages.map(id => ({ id, kind: 'image', deletedAt: now() })));
+    await db.images.bulkDelete(orphanImages);
   }
   fireHook('onCardDeleted', { id });
 }
@@ -502,6 +502,23 @@ export async function cleanupOrphanImages(ids) {
  * 幂等：每次全量清空后重建，保证索引与主表一致。
  * @returns {Promise<number>} 写入的引用行总数
  */
+// round26 D3：孤儿图**纯读预检**（不删除）。配合删除路径「先写墓碑 → 后物理删」，
+// 消除「图已物理删但墓碑未写 → 删除不跨设备传播」的窗口（崩溃点落在两步骤之间时，
+// 最坏只剩本地图残留，墓碑已发出去让对端对齐删除，无坏方向）。
+export async function findOrphanImages(ids) {
+  const idSet = new Set((ids || []).filter(Boolean));
+  if (!idSet.size) return [];
+  const [cards, wordCards, notes, docs, memos, mindmaps] = await Promise.all([
+    allCards(), db.wordCards.toArray(), db.notes.toArray(),
+    db.docs.toArray(), db.memos.toArray(), db.mindmaps.toArray(),
+  ]);
+  const used = new Set();
+  for (const c of [...cards, ...wordCards, ...notes, ...docs, ...memos, ...mindmaps]) {
+    for (const i of extractImageIds(JSON.stringify(c))) used.add(i);
+  }
+  return [...idSet].filter((id) => !used.has(id));
+}
+
 export async function rebuildImageRefs() {
   const refTables = [
     { name: 'cards', rows: await allCards() },

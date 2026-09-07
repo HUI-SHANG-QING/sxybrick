@@ -142,3 +142,18 @@ test('P2-1 computeNetWorth：SM-2 已复习卡计入保持率分母（不再整�
   assert.ok(r.retentionRate > 0, '保持率分母含 SM-2 卡 → retentionRate>0');
   assert.ok(r.totalValue > 0, '总净值不再为 0');
 });
+
+// round26 A1：SM-2 调度下忽略残留 FSRS 状态（s/d 冻结会致 R≈1 虚高）
+test('A1 SM-2 调度：残留 fsrs 不再让净值虚高（走 0.9 代理）', async () => {
+  const { retentionOf, cardNetValue, computeNetWorth } = await import('../src/algorithms/networth.js');
+  // FSRS 卡（s 大）+ 最近复习过：若按 FSRS 算 R≈1；SM-2 调度下应按 interval 代理衰减
+  const c = mkCard({ fsrs: { s: 30, d: 4, reps: 5, last: NOW - 1 * DAY }, reviewedAt: NOW - 1 * DAY, level: 4, intervalDays: 2 });
+  const rFsrs = retentionOf(c, NOW, undefined, { scheduler: 'fsrs' });
+  const rSm2 = retentionOf(c, NOW, undefined, { scheduler: 'sm2' });
+  assert.ok(rSm2 < rFsrs, `SM-2 下不应享受冻结稳定度红利：rSm2=${rSm2} 应 < rFsrs=${rFsrs}`);
+  assert.ok(Math.abs(rSm2 - Math.pow(0.9, 1 / 2)) < 0.02, 'SM-2 下应等于 0.9^(elapsed/interval)');
+  assert.ok(rFsrs > 0.9, 'FSRS 调度下短时间稳定度高 → R≈1（原语义保留）');
+  const totalFsrs = computeNetWorth([c], NOW, undefined, { scheduler: 'fsrs' });
+  const totalSm2 = computeNetWorth([c], NOW, undefined, { scheduler: 'sm2' });
+  assert.ok(totalSm2.totalValue < totalFsrs.totalValue, 'SM-2 调度下总净值应更低（不被虚高）');
+});

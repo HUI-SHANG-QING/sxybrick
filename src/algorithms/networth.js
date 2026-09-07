@@ -42,10 +42,14 @@ export function isReviewed(card) {
  * 语义对齐：到期当天（elapsed≈interval）R≈0.9（对应 FSRS 默认 desiredRetention=0.9），
  * 逾期按指数衰减、提前复习趋近 1——单调、确定、无 NaN，纯函数可单测。
  */
-export function retentionOf(card, nowTs = Date.now(), w = DEFAULT_WEIGHTS) {
+export function retentionOf(card, nowTs = Date.now(), w = DEFAULT_WEIGHTS, opts = {}) {
+  // round26 A1：当前调度器为 SM-2 时，**忽略可能残留的 FSRS 状态**（切回 SM-2 后
+  // fsrs.s/d 被冻结、仅 last 前进——若仍用 retrievability(s 冻结值) 会让 R 失真，
+  // 复习刚结束时 R≈1 → 净值/保持率系统性高估）。SM-2 一律用 0.9^(elapsed/interval) 代理。
+  const scheduler = opts?.scheduler;
   const f = card?.fsrs;
   const elapsedDays = Math.max(0, (nowTs - (card?.reviewedAt ?? card?.fsrs?.last ?? nowTs)) / DAY);
-  if (f && Number.isFinite(f.s) && f.s > 0) {
+  if (scheduler !== 'sm2' && f && Number.isFinite(f.s) && f.s > 0) {
     return retrievability(f.s, elapsedDays, w);
   }
   const interval = Math.max(1, Number(card?.intervalDays) || 1);
@@ -66,10 +70,10 @@ export function cardIdealValue(card) {
  *   「无数据 ≠ 0 / ≠ 满分」的口径错误，只是方向相反。
  *   正确语义：没学过的卡尚未沉淀出任何知识净值，计 0。
  */
-export function cardNetValue(card, nowTs = Date.now(), w = DEFAULT_WEIGHTS) {
+export function cardNetValue(card, nowTs = Date.now(), w = DEFAULT_WEIGHTS, opts = {}) {
   const wgt = contentWeight(card);
   if (!isReviewed(card)) return 0;
-  const R = retentionOf(card, nowTs, w);
+  const R = retentionOf(card, nowTs, w, opts);
   return Math.round(wgt * R * 100) / 100;
 }
 
@@ -83,7 +87,7 @@ export function cardNetValue(card, nowTs = Date.now(), w = DEFAULT_WEIGHTS) {
  *   newCount, reviewedCount, masteredCount, totalCards, bySubject
  * }}
  */
-export function computeNetWorth(cards, nowTs = Date.now(), w = DEFAULT_WEIGHTS) {
+export function computeNetWorth(cards, nowTs = Date.now(), w = DEFAULT_WEIGHTS, opts = {}) {
   let totalValue = 0, idealValue = 0, newCount = 0, masteredCount = 0;
   // reviewedIdeal：保持率的**分母**，只算「学过的卡」。
   //   若把未复习卡算进分母，导入一堆新卡会把保持率稀释成很低（与旧的"满分"是同一错误的两个极端）。
@@ -96,7 +100,7 @@ export function computeNetWorth(cards, nowTs = Date.now(), w = DEFAULT_WEIGHTS) 
     const wgt = contentWeight(card);
     let R = 0; // 未复习 = 0（不是 1）
     if (isReviewed(card)) {
-      R = retentionOf(card, nowTs, w);
+      R = retentionOf(card, nowTs, w, opts);
       if (R >= 0.9) masteredCount++;
       reviewedIdeal += wgt;
     } else {
