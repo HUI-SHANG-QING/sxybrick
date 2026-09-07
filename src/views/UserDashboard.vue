@@ -8,6 +8,7 @@ import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import 'echarts-wordcloud';
+import { db } from '../db.js';
 import {
   queryUserOps, bestWorstPartners, recordUserOp,
 } from '../repo.js';
