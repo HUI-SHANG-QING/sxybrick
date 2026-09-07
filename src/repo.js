@@ -472,17 +472,11 @@ export async function deleteCard(id) {
 export async function cleanupOrphanImages(ids) {
   if (!ids.length) return [];
   const idSet = new Set(ids);
-  // 快速路径：imageRefs 索引（db.js v32）非空时走索引查询，O(引用数)；
-  // 索引为空（首次升级/未调用 rebuildImageRefs）时回退全表扫描，保证正确性。
-  const indexedCount = await db.imageRefs.count();
-  if (indexedCount > 0) {
-    const refs = await db.imageRefs.where('imageId').anyOf([...idSet]).toArray();
-    for (const r of refs) idSet.delete(r.imageId); // 有引用 → 不是孤儿
-    const removed = [...idSet];
-    if (removed.length) await db.images.bulkDelete(removed);
-    return removed;
-  }
-  // 回退：全表扫描（与 A1 修复同口径，扫 cards+wordCards+notes+docs+memos+mindmaps）
+  // round26 D4：**移除 imageRefs 索引快速路径**——该索引由 rebuildImageRefs 全量重建，
+  // 但全仓除其自身外无任何调用方（写路径不维护引用集）→ 一旦有人触发 rebuild（indexedCount>0），
+  // 快速路径会用**过期引用**判定孤儿，误删仍被其他卡引用的图片。
+  // 统一走全表扫描兜底（正确性优先；图引用量级小，扫描成本可接受）。
+  // 全表扫描（扫 cards+wordCards+notes+docs+memos+mindmaps）
   const [cards, wordCards, notes, docs, memos, mindmaps] = await Promise.all([
     allCards(), db.wordCards.toArray(), db.notes.toArray(),
     db.docs.toArray(), db.memos.toArray(), db.mindmaps.toArray(),

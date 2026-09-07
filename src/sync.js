@@ -662,8 +662,6 @@ export async function importBackup(backup, opts = {}) {
     // 旧序先滤后去重，cards 的 incoming 被 cardDedupe.kept 整段覆盖导致滤除结果被丢弃。
     const clearedBefore = (typeof localStorage !== 'undefined')
       ? Number(localStorage.getItem(clearedBeforeKey(t.table)) || 0) : 0;
-    const base = await db[t.table].toArray();
-    const baseMap = new Map(base.map(x => [x.id, x]));
     // E1 去重合并：内容雷同的异 id 卡视为重复跳过；但【同 id 卡必须放行】，
     // 交给下方 mergeRows 做字段级合并（SRS 按 reviewedAt 取新），否则纯复习（SRS 字段变）的卡
     // 会被内容去重静默丢弃 → 跨设备复习进度永不同步（P0 修复，逻辑见 src/sync-dedup.js）。
@@ -674,6 +672,19 @@ export async function importBackup(backup, opts = {}) {
     }
     if (clearedBefore) incoming = filterClearedRows(incoming, clearedBefore);
     if (!incoming.length) continue;
+    // round26 D5：大 idOnly 表（userOps/embeddings 十万级）不再整表 toArray() 建 baseMap——
+    // idOnly 语义 = 「已有则保留、新 id 追加」，等价于对 incoming ids 做 bulkGet 存在性判定。
+    // （旧实现把整表载入内存只为查 id 存在性，长事务 + 高内存，大表下会卡死。）
+    if (t.table === 'userOps' || t.table === 'embeddings') {
+      const present = new Set(
+        (await db[t.table].bulkGet(incoming.map((x) => x.id))).filter(Boolean).map((x) => x.id));
+      const toAdd = incoming.filter((x) => !present.has(x.id));
+      if (toAdd.length) await db[t.table].bulkAdd(toAdd);
+      stats[t.table] = toAdd.length;
+      continue;
+    }
+    const base = await db[t.table].toArray();
+    const baseMap = new Map(base.map(x => [x.id, x]));
     const merged = mergeRows(base, incoming, t.merge, { strip: t.strip, extFields: t.extFields });
     let added = 0, updated = 0;
     const toWrite = [];
