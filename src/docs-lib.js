@@ -373,6 +373,12 @@ async function ocrPdf(blob, { recognize, lang, onPage, onProgress, signal }) {
       canvas.height = Math.floor(vp.height);
       await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
       const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      // 审计 P2：canvas 用后立即释放——每页创建一个 canvas（大图 4MB+），
+      // 连续识别几十页时不释放会累积数百 MB 内存峰值
+      canvas.width = 0; canvas.height = 0;
+      // 审计 P2：render 完成后、recognize 前再检查一次 signal——
+      // render 是该页内耗时操作（大图数秒），用户在此期间取消应立即中止
+      if (signal?.aborted) throw new DOMException('OCR 已取消', 'AbortError');
       onPage?.(i, total);
       const text = await recognize(dataUrl, { lang, onProgress: (p) => onProgress?.((i - 1 + p) / total) });
       pages.push(text);

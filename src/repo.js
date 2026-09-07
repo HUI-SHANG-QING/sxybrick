@@ -132,7 +132,7 @@ export async function getTags(subject = '') {
   const cards = await allCards();
   const map = new Map();
   for (const c of cards) {
-    if (subject && c.subject !== subject) continue;
+    if (subject && String(c.subject || '').trim() !== String(subject).trim()) continue;
     for (const t of (c.tags || [])) map.set(t, (map.get(t) || 0) + 1);
   }
   return [...map.entries()]
@@ -148,7 +148,7 @@ export async function listCards({ q = '', subject = '', tags = [], logic = 'AND'
   // 旧实现末尾再 allCards() 一次 = 每次列表查询 2 次全表扫描，万卡级约翻倍耗时
   const all = await allCards();
   let cards = all;
-  if (subject) cards = cards.filter(c => c.subject === subject);
+  if (subject) cards = cards.filter(c => String(c.subject || '').trim() === String(subject).trim());
   // M4 搜索扩展：q 覆盖 标题/正面/背面/标签/科目/来源/助记（大小写不敏感），
   // 原「仅 front/back 子串」行为是它的子集，向后兼容
   if (q) {
@@ -212,10 +212,13 @@ export async function updateCard(id, payload) {
       ...old, front: r.value.front, back: r.value.back, subject: r.value.subject, tags: r.value.tags,
       source: r.value.source,
       type: r.value.type,
-      marked: r.value.marked,
+      // 审计 P0：marked/difficulty 用 payload 显式传入值，未传则保留 old——
+      // validateCard 是创建校验器，对未传字段硬编码默认值（marked:false, difficulty:'basic'），
+      // 直接用 r.value 覆盖会把已标星的卡 marked:true→false、已设为 challenge 的卡重置为 basic。
+      marked: payload.marked !== undefined ? r.value.marked : (old.marked ?? false),
       mnemonic: r.value.mnemonic,
       wrongReason: r.value.wrongReason,
-      difficulty: r.value.difficulty,
+      difficulty: payload.difficulty !== undefined ? r.value.difficulty : (old.difficulty ?? 'basic'),
       frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
     };
     await db.cards.put(card);
@@ -307,6 +310,9 @@ export async function restoreFromTrash(t) {
   // 所以两种 kind 的快照都要带/还原该字段（deleteCard 的快照见下方同函数调用处）。
   const cwLinks = data._cardWordLinks || null;
   const linkedNoteIds = Array.isArray(data._linkedNoteIds) ? data._linkedNoteIds : null;
+  // 审计 P0：deleteNote 快照含 linkedCardIds（笔记关联的卡片 id 列表），
+  // deleteNote 事务清洗了卡片侧的 linkedNoteIds，恢复时必须加回。
+  const noteLinkedCardIds = t.kind === 'note' && Array.isArray(data.linkedCardIds) ? data.linkedCardIds : null;
   const text = typeof data._text === 'string' ? data._text : null;
   const edges = data._edges || null;
   delete data._reviews; delete data._groupLinks; delete data._text; delete data._textLen; delete data._edges;
@@ -325,6 +331,7 @@ export async function restoreFromTrash(t) {
   if (text) tables.push(db.docTexts);
   if (edges && edges.length) tables.push(db.graphEdges);
   if (linkedNoteIds && linkedNoteIds.length) tables.push(db.notes);
+  if (noteLinkedCardIds && noteLinkedCardIds.length) tables.push(db.cards);
   await db.transaction('rw', ...tables, async () => {
     await db[table].put(row);
     if (reviews && reviews.length) {
@@ -367,6 +374,17 @@ export async function restoreFromTrash(t) {
         if (!set.has(t.id)) {
           set.add(t.id);
           await db.notes.put({ ...n, linkedCardIds: [...set], updatedAt: Date.now() });
+        }
+      }
+    }
+    // 审计 P0：恢复 note 时把 note.id 加回对应卡片的 linkedNoteIds（deleteNote 清洗了）
+    if (noteLinkedCardIds && noteLinkedCardIds.length) {
+      const cards = (await db.cards.bulkGet(noteLinkedCardIds)).filter(Boolean);
+      for (const c of cards) {
+        const set = new Set(c.linkedNoteIds || []);
+        if (!set.has(t.id)) {
+          set.add(t.id);
+          await db.cards.update(c.id, { linkedNoteIds: [...set], updatedAt: now() });
         }
       }
     }

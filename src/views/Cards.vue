@@ -208,10 +208,24 @@ async function loadCards() {
   finally { loading.value = false; }
 }
 
-watch(() => [filters.q, filters.subject, filters.logic], loadCards);
-// 审计 F-13：tags deep watch 每 splice 一个元素触发一次 loadCards，改为 watch length+join
-watch(() => filters.tags.length + '|' + filters.tags.join(','), loadCards);
-watch(() => filters.subject, loadMeta);
+// 审计：subject 变化时同步清空旧科目标签残留——此前 subject watcher 和 tags watcher 分开注册，
+// subject 变化时 loadCards 先用旧 tags 跑一次（结果闪现），再用新 tags 跑一次。
+// 合并为一个 watcher，subject 变化时先清 tags 再触发 loadCards，杜绝竞态。
+// 注意：只在 subject 真正变化时清标签，q/logic 变化不清。
+let _prevSubject = filters.subject;
+watch(() => [filters.q, filters.subject, filters.logic], () => {
+  if (filters.subject !== _prevSubject) {
+    _prevSubject = filters.subject;
+    if (filters.tags.length) filters.tags = [];
+  }
+  loadCards();
+});
+// 标签变化（不含 subject 变化引发的清空）单独触发 loadCards
+watch(() => filters.tags.length + '|' + filters.tags.join(','), () => {
+  loadCards();
+});
+// 标签列表随科目变化刷新
+watch(() => filters.subject, () => { loadMeta(); });
 watch(sortBy, loadCards);
 
 function toggleTag(name) {

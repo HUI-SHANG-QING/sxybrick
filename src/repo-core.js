@@ -35,9 +35,13 @@ export function validateCard(body) {
 // ---------- 多标签 AND/OR/NOT 过滤 ----------
 export function tagFilter(cards, tags, logic) {
   if (!tags.length) return cards;
-  if (logic === 'AND') return cards.filter(c => tags.every(t => (c.tags || []).includes(t)));
-  if (logic === 'OR') return cards.filter(c => tags.some(t => (c.tags || []).includes(t)));
-  return cards.filter(c => !tags.some(t => (c.tags || []).includes(t))); // NOT
+  // 审计：标签比较时 trim 规范化——存储的标签可能未经 trim（旧备份导入/AI 生成/早期版本），
+  // 导致 "短期不重要" 与 "短期不重要 " 不匹配，用户选了科目+标签但检索出其他内容。
+  // 与 validateCard 写入口径一致（写入时 trim+slice(0,20)）。
+  const norm = tags.map(t => String(t).trim());
+  if (logic === 'AND') return cards.filter(c => norm.every(t => (c.tags || []).some(ct => String(ct).trim() === t)));
+  if (logic === 'OR') return cards.filter(c => norm.some(t => (c.tags || []).some(ct => String(ct).trim() === t)));
+  return cards.filter(c => !norm.some(t => (c.tags || []).some(ct => String(ct).trim() === t))); // NOT
 }
 
 // ---------- 卡片等级标签 ----------
