@@ -58,3 +58,23 @@ export function subscribeDbChanged(cb) {
     window.removeEventListener(WINDOW_EVENT, onWindow);
   };
 }
+
+/**
+ * round26 D2：为 Dexie 实例装配「写后广播」hooks（creating/updating/deleting）。
+ * - 150ms 节流：批量写（导入/同步/初始化）不会产生广播风暴；
+ * - 回调本身只读刷新（视图订阅方不得回写），无循环风险；
+ * - Node 测试环境 window 缺失时 notifyDbChanged 自动空转。
+ * @param {import('dexie').Dexie} dbInstance
+ */
+export function armDbNotify(dbInstance) {
+  if (!dbInstance || typeof dbInstance.on !== 'function') return;
+  let timer = null;
+  const fire = () => { timer = null; notifyDbChanged('local'); };
+  const schedule = () => { if (!timer) timer = setTimeout(fire, 150); };
+  for (const ev of ['creating', 'updating', 'deleting']) {
+    try {
+      dbInstance.on(ev, () => { schedule(); });
+    } catch { /* 通知基建尽力而为：个别环境（测试 mock / 旧 Dexie）不支持 hooks 时静默降级，
+                 绝不能影响 db 状态或主流程 */ }
+  }
+}

@@ -1,9 +1,10 @@
 <script setup>
 // 词组管理（仿卡组）：多对多分组，active/archived 状态，成员增删。
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
+import { subscribeDbChanged } from '../utils/dbEvents.js';
 import { confirmDialog } from '../utils/confirm.js';
 import {
   listWordGroups, createWordGroup, updateWordGroup, deleteWordGroup,
@@ -143,7 +144,9 @@ async function removeMember(g, w) {
   await reload();
 }
 
-onMounted(reload);
+let unsubDb = null;
+onMounted(async () => { await reload(); unsubDb = subscribeDbChanged(() => { if (!editOpen.value && !addOpen.value) reload(); }); });
+onUnmounted(() => { if (unsubDb) unsubDb(); });
 </script>
 
 <template>

@@ -398,7 +398,13 @@ for (const inst of Object.values(instances)) {
 }
 // 显式打开：尽早暴露 open 失败（隐私模式/配额写满），成功后被 Dexie 内部缓存，
 // 后续业务调用不再重复握手。失败只改状态不抛出——业务调用自行 catch 走空列表兜底。
-Promise.all(Object.values(instances).map((inst) => inst.open())).catch((err) => {
+import { armDbNotify } from './utils/dbEvents.js';
+// round26 D2：多 tab 共享同一 IndexedDB——任一 tab 写库后广播失效信号，其余 tab 刷新。
+// Dexie hooks 需在 open 完成后装配（open 前 db.on 会因表信息未就绪抛错）。
+Promise.all(Object.values(instances).map((inst) => inst.open())).then(() => {
+  try { armDbNotify(instances.real); } catch {}
+  try { armDbNotify(instances.test); } catch {}
+}).catch((err) => {
   setDbStatus(`error:${err?.name || 'open-failed'}`);
 });
 

@@ -1,6 +1,6 @@
 <script setup>
 // 单词本（图2-5：不背风列表 + 添加/口述 + AI 自动生成 + 已背/熟词/批注/词组 + 详情抽屉）
-import { ref, computed, onMounted, watch, shallowRef } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, shallowRef } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
@@ -17,6 +17,7 @@ import { isInSyllabus, getSyllabusMeta, listSyllabus } from '../services/word-sy
 import { getMeanings, meaningCoverage, syncWithSyllabus } from '../services/word-meaning.js';
 import { ocrImageText } from '../docs-lib.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
+import { subscribeDbChanged } from '../utils/dbEvents.js';
 
 const router = useRouter();
 const route = useRoute();
@@ -292,6 +293,10 @@ async function persistGroups(cardId) {
   if (add.length) await setWordGroups([cardId], add, []);
   if (del.length) await setWordGroups([cardId], [], del);
 }
+
+let unsubDb = null;
+onMounted(() => { unsubDb = subscribeDbChanged(() => { if (!showAdd.value) load(); }); });
+onUnmounted(() => { if (unsubDb) unsubDb(); });
 
 async function genMaterials() {
   const word = form.value.word.trim();

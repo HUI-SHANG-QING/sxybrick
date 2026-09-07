@@ -3,12 +3,13 @@
 // 数据源与单词本同一张 wordCards 表（与通用 cards 物理隔离），kind 为唯一分区键；
 // 复习复用同一套记忆曲线（scheduleReview），「背这类」跳转 WordReview scope=<kind>
 // 实现针对性背诵（生词/词组/短句均可 SRS；范文 template 无 SRS 语义，仅存储+收藏+导出）。
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { confirmDialog } from '../utils/confirm.js';
 import { speak } from '../utils/speak.js';
+import { subscribeDbChanged } from '../utils/dbEvents.js';
 import { debounce } from '../utils/debounce.js';
 import {
   listWordCards, createWordCard, deleteWordCard, markFamiliar, wordStats, getWordSettings,
@@ -113,10 +114,13 @@ function speakWord(w) {
   speak(w, { lang: settings.value?.accent === 'auto' ? 'en-US' : settings.value?.accent });
 }
 
+let unsubDb = null;
 onMounted(async () => {
   settings.value = await getWordSettings();
   await load();
+  unsubDb = subscribeDbChanged(() => { load(); }); // D2：跨 tab 写库后自动刷新（只读）
 });
+onUnmounted(() => { if (unsubDb) unsubDb(); });
 </script>
 
 <template>
