@@ -24,7 +24,8 @@ export const EXCLUDED_FROM_SYNC = [
   //   docTexts：解析全文（大字段，id 与 docFiles 一一对应）
   //   docBlobs：OPFS 降级时暂存的原文件二进制（v24）
   //   trash：回收站快照（删除语义由墓碑表达，快照仅本机恢复用）
-  'docTexts', 'docBlobs', 'trash',
+  //   imageRefs：图片引用反向索引（v32，本地派生表，可由卡内容重建）
+  'docTexts', 'docBlobs', 'trash', 'imageRefs',
 ];
 
 // 隐私敏感表——默认不入同步/全量导出，需用户显式 opt-in（PIPL 合规）

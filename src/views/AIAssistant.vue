@@ -431,7 +431,11 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.ai-wrap { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; height: calc(100vh - 140px); }
+.ai-wrap {
+  max-width: 960px; margin: 0 auto; display: flex; flex-direction: column;
+  height: calc(100vh - 140px);
+  height: calc(100dvh - 140px); /* 移动浏览器地址栏收起时 100vh 偏大 → 用 dvh（不支持时回退 vh） */
+}
 .quick-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
 /* 4 个子元素但只声明了 3 列 → 旧的 auto-flow 把「全屏按钮行」塞进中间列、
    「消息流」被挤到第 3 列(120px)顶到右上角，中间只剩一块灰底。
@@ -507,8 +511,19 @@ onMounted(async () => {
 .ext-item input { margin-top: 3px; }
 .ext-body { flex: 1; font-size: 13px; line-height: 1.5; }
 
+/* 手机/平板：父网格改单列时**必须同步重置子元素的 grid-column/row**——
+   否则浏览器为满足 `grid-column:2/3` 会生成隐式列，消息流被塞进一条按内容收缩的窄列
+   （用户反馈「手机端非常反人类」的直接根因）。这里显式改为纵向堆叠：
+   历史(收起高度) → 全屏按钮 → 消息流(占满剩余) → 轨迹(收起高度)。 */
 @media (max-width: 720px) {
-  .ai-body { grid-template-columns: 1fr; }
-  .chat-side, .timeline { max-height: 120px; }
+  .ai-body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
+  .chat-side { grid-column: 1; grid-row: 1; max-height: 96px; }
+  .chat-fs-row { grid-column: 1; grid-row: 2; }
+  .chat-box { grid-column: 1; grid-row: 3; min-height: 0; }
+  .timeline { grid-column: 1; grid-row: 4; max-height: 96px; }
+  /* 输入区：语音+输入框+发送挤一行会误触，窄屏改为输入框独占一行 */
+  .input-row { flex-wrap: wrap; }
+  .input-row .input { flex: 1 1 100%; }
+  .bubble { max-width: 92%; }
 }
 </style>
