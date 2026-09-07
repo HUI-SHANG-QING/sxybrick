@@ -55,6 +55,16 @@ const zh = {
     languageHint: '切换后整个应用立即生效（含导航与说明文案）。',
     clearPwaCache: '🧹 清缓存并刷新',
     clearPwaCacheHint: '注销 Service Worker 并清空离线缓存后刷新（保留全部本地数据）。用于修复「页面一直停留在旧版本」。',
+    demo: {
+      title: '演示模式',
+      hint: '用一套示例数据体验全部功能。演示数据与真实数据物理隔离（不同的本地数据库），随时可退出、可重置，均不影响真实数据。',
+      current: '当前数据域',
+      on: '演示模式（示例数据）',
+      off: '真实数据',
+      enter: '进入演示模式',
+      exit: '退出演示模式',
+      reset: '重置示例数据',
+    },
   },
 
   // ---------------- 学习引擎算法说明（#26） ----------------
@@ -249,6 +259,16 @@ const en = {
     languageHint: 'Applies to the whole app immediately (incl. nav and docs).',
     clearPwaCache: '🧹 Clear cache & refresh',
     clearPwaCacheHint: 'Unregister the Service Worker and clear offline caches, then reload (all local data is kept). Use when the page is stuck on an old version.',
+    demo: {
+      title: 'Demo Mode',
+      hint: 'Explore every feature with a sample dataset. Demo data is physically isolated from your real data (separate local database) — exit or reset anytime without touching real data.',
+      current: 'Current data scope',
+      on: 'Demo mode (sample data)',
+      off: 'Real data',
+      enter: 'Enter demo mode',
+      exit: 'Exit demo mode',
+      reset: 'Reset sample data',
+    },
   },
   engine: {
     title: 'Review Scheduler (memory-curve algorithm)',

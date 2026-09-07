@@ -57,6 +57,9 @@ async function selectChat(id) {
   localStorage.setItem('sxy_last_chat', currentChat.value.id);
   await loadChatList();
   scroll();
+  // 窄屏（抽屉式侧栏）：选中后自动收起抽屉，让消息流立即可见。
+  // 旧行为抽屉保持展开盖在消息区上，用户以为「点了没反应 / 没跳转」。
+  if (window.matchMedia('(max-width: 900px)').matches) showSidebar.value = false;
 }
 
 async function createNew() {
@@ -452,13 +455,22 @@ onMounted(async () => {
 /* 4 个子元素但只声明了 3 列 → 旧的 auto-flow 把「全屏按钮行」塞进中间列、
    「消息流」被挤到第 3 列(120px)顶到右上角，中间只剩一块灰底。
    这里显式定位：左栏/右栏跨满两行，全屏行占中间第 1 行，消息流占中间第 2 行。 */
-.ai-body { flex: 1; display: grid; grid-template-columns: 180px 1fr 120px; grid-template-rows: auto 1fr; gap: 12px; min-height: 0; }
+.ai-body { flex: 1; display: grid; grid-template-columns: 180px 1fr 120px; grid-template-rows: auto 1fr; gap: 12px; min-height: 0; position: relative; }
 .chat-side { grid-column: 1; grid-row: 1 / -1; }
 .chat-fs-row { grid-column: 2; grid-row: 1; }
 .chat-box { grid-column: 2; grid-row: 2; min-height: 0; }
 .timeline { grid-column: 3; grid-row: 1 / -1; }
-.chat-side, .timeline { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 10px; overflow-y: auto; }
+.chat-side, .timeline { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 10px; overflow-y: auto; overflow-x: hidden; }
 .side-title { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
+/* 历史对话 / 提问节点：悬停放大、离开缩小（仅桌面指针设备；触屏无 hover，点按走 :active 反馈） */
+@media (hover: hover) and (pointer: fine) {
+  .chat-item { transition: transform .18s ease, background .18s ease; }
+  .chat-item:hover { transform: scale(1.035); }
+  .chat-item:active { transform: scale(.99); }
+  .tl-node { transition: transform .18s ease, background .18s ease; }
+  .tl-node:hover { transform: scale(1.05); background: var(--code-inline); border-radius: 6px; }
+  .tl-node:active { transform: scale(.97); }
+}
 .chat-item { padding: 8px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; }
 .chat-item:hover { background: var(--code-inline); }
 .chat-item.active { background: var(--code-bg); }
@@ -472,7 +484,7 @@ onMounted(async () => {
 .bubble { max-width: 82%; width: 100%; padding: 12px 18px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.75; font-size: 15px; }
 .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
 .msg.assistant .bubble { background: var(--code-bg); color: var(--ink); border-bottom-left-radius: 4px; }
-.tl-node { display: flex; align-items: center; gap: 6px; padding: 5px 0; cursor: pointer; border-bottom: 1px dashed var(--line); }
+.tl-node { display: flex; align-items: center; gap: 6px; padding: 7px 4px; cursor: pointer; border-bottom: 1px dashed var(--line); }
 .tl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
 .tl-text { font-size: 11px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .input-row { display: flex; gap: 8px; margin-top: 12px; }
@@ -523,23 +535,34 @@ onMounted(async () => {
 .ext-item input { margin-top: 3px; }
 .ext-body { flex: 1; font-size: 13px; line-height: 1.5; }
 
-/* 审计 F-移动端：侧栏展开状态（JS 控制） */
-.chat-side.expanded, .timeline.expanded { max-height: 50vh; }
-
-/* 手机/平板：父网格改单列时**必须同步重置子元素的 grid-column/row**——
+/* 手机/平板（≤900px）：父网格改单列时**必须同步重置子元素的 grid-column/row**——
    否则浏览器为满足 `grid-column:2/3` 会生成隐式列，消息流被塞进一条按内容收缩的窄列
    （用户反馈「手机端非常反人类」的直接根因）。这里显式改为纵向堆叠：
-   侧栏默认隐藏 → toggle 按钮展开 → 全屏按钮 → 消息流(占满剩余)。 */
-@media (max-width: 720px) {
+   工具行 → 消息流(占满剩余)。侧栏/提问节点改为「浮动抽屉」绝对定位盖在消息区上方。
+
+   历史 bug（点击无反应根因）：旧实现把 .chat-side 与 .chat-fs-row 都放进 grid 第 1 行
+   同一格——展开历史列表时两者重叠，.chat-fs-row（flex 容器默认 align-items: stretch）
+   被拉成整行高、背景透明地盖在列表上，把全部点击吞掉 → 手机上点历史没反应。
+   现让两者彻底脱离同一布局轨道：.chat-fs-row 独占 grid 行 1，抽屉走 absolute。 */
+@media (max-width: 900px) {
   .ai-wrap { height: calc(100vh - 100px); height: calc(100dvh - 100px); }
-  .ai-body { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; gap: 8px; }
-  /* 审计 F-移动端：侧栏默认隐藏，点 toggle 按钮展开 */
-  .chat-side { grid-column: 1; grid-row: 1; max-height: 0; overflow: hidden; padding: 0; border: none; transition: max-height 0.3s, padding 0.3s; }
-  .chat-side.expanded { max-height: 50vh; padding: 10px; border: 1px solid var(--line); }
+  .ai-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; gap: 8px; }
   .chat-fs-row { grid-column: 1; grid-row: 1; margin-bottom: 0; }
-  .chat-box { grid-column: 1; grid-row: 2 / -1; min-height: 0; }
-  .timeline { grid-column: 1; grid-row: 1; max-height: 0; overflow: hidden; padding: 0; border: none; transition: max-height 0.3s, padding 0.3s; position: absolute; right: 8px; top: 8px; width: 200px; z-index: 10; background: var(--panel); box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: var(--radius); }
-  .timeline.expanded { max-height: 50vh; padding: 10px; border: 1px solid var(--line); }
+  .chat-box { grid-column: 1; grid-row: 2; min-height: 0; }
+  .chat-side, .timeline {
+    position: absolute; top: 44px; z-index: 12; width: min(248px, 78vw);
+    max-height: 0; overflow: hidden; padding: 0; border: none;
+    opacity: 0; pointer-events: none; transform: translateY(-6px);
+    background: var(--panel); border-radius: var(--radius);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .18);
+    transition: opacity .2s ease, transform .2s ease, max-height .3s ease;
+  }
+  .chat-side { left: 0; }
+  .timeline { right: 0; }
+  .chat-side.expanded, .timeline.expanded {
+    max-height: 58vh; overflow-y: auto; padding: 10px;
+    border: 1px solid var(--line); opacity: 1; pointer-events: auto; transform: none;
+  }
   /* 顶部标签栏：横向滚动，不换行 */
   .quick-bar { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; margin: 8px 0; gap: 6px; padding-bottom: 4px; }
   .quick-bar::-webkit-scrollbar { display: none; }
