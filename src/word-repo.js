@@ -390,9 +390,12 @@ export async function setWordGroups(cardIds, addGroupIds = [], removeGroupIds = 
  *   - schedulableOnly：true=排除 template（不参与 SRS）
  */
 export async function listWordCards(filter = {}) {
-  let rows = await db.wordCards.toArray();
+  // round26 A3：kind 有索引（db.js wordCards: 'id,kind,...'），先索引收窄再内存过滤，
+  // 避免「按分类浏览/统计」时整表物化（考研词库数千~上万张）。
+  let rows = filter.kind
+    ? await db.wordCards.where('kind').equals(filter.kind).toArray()
+    : await db.wordCards.toArray();
   const q = String(filter.q || '').trim().toLowerCase();
-  if (filter.kind) rows = rows.filter(r => r.kind === filter.kind);
   if (filter.familiar !== undefined && filter.familiar !== null) {
     rows = rows.filter(r => (r.familiar ? 1 : 0) === (Number(filter.familiar) ? 1 : 0));
   }

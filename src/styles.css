@@ -1567,3 +1567,9 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
   background: #fff !important;
   overflow: auto;
 }
+
+/* round26 M5/M6：移动端体验——去掉点击高亮闪烁；全屏/缩放等小图标按钮在触屏下放大触达区 */
+* { -webkit-tap-highlight-color: transparent; }
+@media (hover: none) and (pointer: coarse) {
+  .fs-btn, .cz-btn, .q-spk, .q-spk2, .wb-spk, .tl-dot, .kchip, .wc, .wm, .chip { min-width: 40px; min-height: 40px; }
+}

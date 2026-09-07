@@ -47,7 +47,10 @@ export function examWindowUrgency(card, examAt, opts = {}) {
   // H-1：同 fsrs.js：|| 对 0 回退错误，统一 ?? 口径。
   const desiredR = Math.max(0.01, opts.desiredRetention ?? DEFAULT_DESIRED_RETENTION);
   const daysToExam = (examAt - nowTs) / DAY_MS;
-  const s = card?.fsrs?.s ?? 1;
+  // round26 A2：fsrs.s 必须有限性守卫——NaN/Infinity 会让 retrievability 返回 NaN，
+  // 经 rank/score 使该卡在考前队列排序中永不被选为最优（静默沉底）。
+  const _s = card?.fsrs?.s;
+  const s = Number.isFinite(_s) && _s > 0 ? _s : 1;
   const last = card?.fsrs?.last ?? nowTs;
   // 考试时刻的可提取性（用从「上次复习」到「考试」的间隔）
   const elapsedToExam = Math.max(0, (examAt - last) / DAY_MS);
