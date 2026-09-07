@@ -9,6 +9,7 @@ import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { confirmDialog } from '../utils/confirm.js';
 import { speak } from '../utils/speak.js';
+import { debounce } from '../utils/debounce.js';
 import {
   listWordCards, createWordCard, deleteWordCard, markFamiliar, wordStats, getWordSettings,
 } from '../word-repo.js';
@@ -43,8 +44,8 @@ async function load() {
     loading.value = false;
   }
 }
-watch(filterKind, load);
-watch(q, load);
+watch(filterKind, load);                      // 分类切换：即时响应（一次性动作）
+watch(q, debounce(load, 220));                // U-1：输入防抖，避免每键击全表查询
 
 function studyKind() {
   if (filterKind.value === 'all' || filterKind.value === 'template') return;
