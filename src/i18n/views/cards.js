@@ -95,7 +95,7 @@ export const zh = {
   typeWriting: '默写',
   forgotN: '答错{n}次',
   resetFilter: '重置筛选',
-  resetFilterTitle: '清空搜索词、科目、标签与逻辑，恢复完整列表',
+  resetFilterTitle: '清空搜索词、科目、标签与筛选逻辑，并退出「错题集」。只影响列表显示，不动卡片数据、复习记录与同步',
   // E3 分页（page 视图）
   pagePrev: '上一页',
   pageNext: '下一页',
@@ -281,7 +281,7 @@ export const en = {
   typeWriting: 'Recite',
   forgotN: 'Wrong {n}×',
   resetFilter: 'Reset filters',
-  resetFilterTitle: 'Clear keyword, subject, tags and logic to restore the full list',
+  resetFilterTitle: 'Clear keyword, subject, tags and logic, and exit Mistakes mode. Display only \u2014 no card data, review history or sync is touched',
   // E3 pagination (page view)
   pagePrev: 'Prev',
   pageNext: 'Next',
