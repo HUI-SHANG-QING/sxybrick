@@ -156,10 +156,10 @@ export async function listCards({ q = '', subject = '', tags = [], logic = 'AND'
   // 标签走 tagFilter 的 AND/OR/NOT。
   let cards = applyCardFilters(all, { q, subject, tags, logic });
   if (mode === 'due') cards = cards.filter(c => c.dueAt <= now());
-  if (sortBy === 'created') cards.sort((a, b) => (b.createdAt - a.createdAt) || (b.id > a.id ? 1 : -1));
-  else if (sortBy === 'due') cards.sort((a, b) => (a.dueAt - b.dueAt) || (a.id < b.id ? -1 : 1));
+  if (sortBy === 'created') cards.sort((a, b) => (b.createdAt - a.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  else if (sortBy === 'due') cards.sort((a, b) => (a.dueAt - b.dueAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   else if (sortBy === 'subject') cards.sort((a, b) => String(a.subject || '').localeCompare(String(b.subject || '')) || (b.updatedAt - a.updatedAt));
-  else cards.sort((a, b) => (b.updatedAt - a.updatedAt) || (b.id > a.id ? 1 : -1));
+  else cards.sort((a, b) => (b.updatedAt - a.updatedAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const dueCount = all.filter(c => c.dueAt <= now()).length;
   return { items: cards, total: cards.length, dueCount };
 }
@@ -581,7 +581,7 @@ export async function sweepOrphanRows() {
   const wordCardIds = new Set(wordCards.map(c => c.id));
   const delReviews = reviews.filter(r => !cardIds.has(r.cardId)).map(r => r.id);
   const delWord = wordReviews.filter(r => !wordCardIds.has(r.cardId)).map(r => r.id);
-  if (delReviews.length) await db.reviews.bulkDelete(delReviews);
+  if (delReviews.length) { invalidateFailCountCache(); await db.reviews.bulkDelete(delReviews); }
   if (delWord.length) await db.wordReviews.bulkDelete(delWord);
   return delReviews.length + delWord.length;
 }
@@ -820,6 +820,7 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
     if (fsrsNext !== undefined) cardUpdate.fsrs = fsrsNext;
     // 卡片与复习记录同事务双写：任何一步失败整体回滚，不留半残状态
     await db.cards.update(cardId, cardUpdate);
+    invalidateFailCountCache();
     await db.reviews.put({
       id: reviewId, cardId, reviewedAt: nowTs, rating,
       predR,
@@ -839,6 +840,7 @@ export async function attachSelfExplanation(reviewId, text) {
   const r = await db.reviews.get(reviewId);
   if (!r) return null;
   const selfExplanation = String(text || '').trim().slice(0, 500);
+  invalidateFailCountCache();
   await db.reviews.put({ ...r, selfExplanation, selfExplainAt: Date.now() });
   return true;
 }
@@ -904,6 +906,8 @@ export async function weakCards(limit = 100, minFail = 2) {
 // 列表每次搜索都全表扫描 reviews 太贵（万级流水约百毫秒），故用「行数 + 最新 reviewedAt」
 // 组成轻量 key 做缓存：复习/清理必然改变其一，命中时零扫描。
 let _failCountCache = { key: '', map: new Map() };
+/** 让答错次数缓存失效——任何写了 reviews 表的路径都必须调用（合并/改写/删除）。 */
+export function invalidateFailCountCache() { _failCountCache = { key: '', map: new Map() }; }
 export async function failCountMap() {
   let cnt = 0, last = null;
   try {
@@ -913,7 +917,10 @@ export async function failCountMap() {
     ]);
   } catch { /* 索引不可用时退化为每次重算 */ }
   const key = `${cnt}|${last ? last.reviewedAt : 0}|${last ? last.id : ''}`;
-  if (cnt && _failCountCache.key === key) return _failCountCache.map;
+  // round29 审查：去掉原先的 `cnt &&`（空表时永远绕过缓存、每次都全表扫描）；
+  // 复合键本身不完备（原地改写/同 id 替换一条非最新复习时行数与最新 reviewedAt 都不变），
+  // 故写路径必须调 invalidateFailCountCache() 显式失效，见下方各写入点。
+  if (_failCountCache.key === key) return _failCountCache.map;
   const all = await db.reviews.toArray();
   const m = new Map();
   for (const r of all) if (r.rating === 0) m.set(r.cardId, (m.get(r.cardId) || 0) + 1);
@@ -1967,7 +1974,7 @@ export async function listPrivacyRecords({ fromDate, toDate, type, limit = 500 }
     const to = toDate || '\uffff';
     arr = await db.privacyRecords.where('date').between(from, to).toArray();
     if (type) arr = arr.filter(r => r.type === type);
-    arr.sort((a, b) => (b.updatedAt - a.updatedAt) || (b.id > a.id ? 1 : -1));
+    arr.sort((a, b) => (b.updatedAt - a.updatedAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     return arr.slice(0, limit);
   }
   arr = await db.privacyRecords.orderBy('updatedAt').reverse().toArray();

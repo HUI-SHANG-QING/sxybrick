@@ -88,7 +88,15 @@ async function load() {
   const w = await weakCards(1000, 1);
   items.value = w.filter(c => !filterSubject.value || c.subject === filterSubject.value);
 }
-async function loadSubjects() { subjects.value = await getSubjects(); }
+async function loadSubjects() {
+  subjects.value = await getSubjects();
+  // round29 审查：filterSubject 从 localStorage 恢复，科目被删/改名后会永远筛出空列表，
+  // 且刷新清不掉。拿到最新科目表后校验一次，失效则退回「全部」。
+  if (filterSubject.value && subjects.value.length
+      && !subjects.value.some(x => x.name === filterSubject.value)) {
+    filterSubject.value = '';
+  }
+}
 
 // 阶段分组计数（用于 chip 上的数字徽章）
 const stageCounts = computed(() => {

@@ -429,6 +429,27 @@ async function loadMeta() {
   try { allTags.value = await getTags(); } catch (e) { allTags.value = []; toast(t('views.review.tagLoadFail', '标签加载失败：{msg}', { msg: e?.message || e }), 'error'); }
   try { cardGroups.value = await listCardGroups(); } catch { cardGroups.value = []; }
   if (seq !== metaSeq) return; // 审计 F-14：后发先至守卫
+  // round29 审查：筛选项从 localStorage 恢复，若科目/标签/卡组已被删除或改名，恢复值会
+  // 永远命中 0 条——表现为「打开复习页一直没卡/队列空」，而强制刷新清不掉（每次都被恢复）。
+  // 与 Cards.vue 的失效筛选自愈同款：拿到最新集合后剔除不存在的项。
+  pruneStaleFilters();
+}
+function pruneStaleFilters() {
+  if (subjects.value.length && fSubjects.value.length) {
+    const ok = new Set(subjects.value.map(x => x.name));
+    const kept = fSubjects.value.filter(x => ok.has(x));
+    if (kept.length !== fSubjects.value.length) fSubjects.value = kept;
+  }
+  if (allTags.value.length && fTags.value.length) {
+    const ok = new Set(allTags.value.map(x => x.name));
+    const kept = fTags.value.filter(x => ok.has(x));
+    if (kept.length !== fTags.value.length) fTags.value = kept;
+  }
+  if (cardGroups.value.length && Array.isArray(fGroups.value) && fGroups.value.length) {
+    const ok = new Set(cardGroups.value.map(g => g.id));
+    const kept = fGroups.value.filter(x => ok.has(x));
+    if (kept.length !== fGroups.value.length) fGroups.value = kept;
+  }
 }
 
 let historySeq = 0;

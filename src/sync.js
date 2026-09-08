@@ -35,7 +35,7 @@ import { pad2 } from './utils/format.js';
 // 审计 C3：导入后跨 tab 广播数据变更
 import { notifyDbChanged } from './utils/dbEvents.js';
 // 审计 C5：导入/同步应用墓碑后清扫孤儿复习行（父卡已不存在的 reviews/wordReviews）
-import { sweepOrphanRows, repairBrokenDueAt, pruneUserOps } from './repo.js';
+import { sweepOrphanRows, repairBrokenDueAt, pruneUserOps, invalidateFailCountCache } from './repo.js';
 // 快照标签里的时间跟随界面语言（此前硬编码 'zh-CN'，英文界面下仍是"2026/8/30 19:48"中文习惯）
 import { fmtLocaleDateTime } from './utils/locale-date.js';
 
@@ -239,7 +239,7 @@ export async function restoreSnapshot(id) {
       if (!restore.includes(t.table)) continue;
       const rows = snap.rows[t.table] || [];
       await db[t.table].clear();
-      if (rows.length) await db[t.table].bulkPut(rows);
+      if (rows.length) { invalidateFailCountCache(); await db[t.table].bulkPut(rows); }
     }
     // 墓碑也回滚（快照内墓碑缺失时同理：旧快照没有墓碑键 → 跳过，不清空当前墓碑）
     if (Object.prototype.hasOwnProperty.call(snap.rows || {}, 'tombstones')) {
@@ -722,7 +722,7 @@ export async function importBackup(backup, opts = {}) {
       }
     }
     // 批量导入：一次 bulkPut 替代 N 次逐行 put（千卡导入从 N 次事务降为 1 次）
-    if (toWrite.length) await db[t.table].bulkPut(toWrite);
+    if (toWrite.length) { invalidateFailCountCache(); await db[t.table].bulkPut(toWrite); }
     if (t.table === 'cards') { stats.cards = added; stats.overridden = updated; }
     else if (t.table === 'reviews') { stats.reviews = added; }
     else stats[t.table] = added + updated;

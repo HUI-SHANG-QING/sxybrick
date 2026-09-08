@@ -244,7 +244,11 @@ export function trainWeights(reviews, cardsById, opts = {}) {
     const card = cardsById.get(cardId);
     cardTrajectories.push({
       init: card?.fsrs?.reps ? null : card?.fsrs || null,
-      reviews: arr.map(r => ({ grade: toFsrsGrade(r.rating), y: r.rating >= 2 ? 1 : 0, reviewedAt: r.reviewedAt })),
+      // round29 审查：调度路径(schedule)对 fsrs.last 有 isFinite 守卫，但训练路径没有——
+      // 一条 reviewedAt 缺失/NaN 的复习会让 elapsed=NaN → R=NaN → log(NaN)=NaN 累加进
+      // total → 整轮 loss 变 NaN，个性化权重训练静默失效（用户只觉得"算法没变聪明"）。
+      reviews: arr.filter(r => Number.isFinite(r.reviewedAt))
+        .map(r => ({ grade: toFsrsGrade(r.rating), y: r.rating >= 2 ? 1 : 0, reviewedAt: r.reviewedAt })),
     });
   }
 

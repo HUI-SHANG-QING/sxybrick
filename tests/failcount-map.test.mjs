@@ -10,7 +10,7 @@ import './_env.mjs';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { db } from '../src/db.js';
-import { createCard, review, failCountMap, attachFailCounts } from '../src/repo.js';
+import { createCard, review, failCountMap, attachFailCounts, invalidateFailCountCache } from '../src/repo.js';
 
 after(async () => { try { await db.close(); } catch { /* 已关闭 */ } });
 
@@ -60,4 +60,21 @@ test('attachFailCounts：空数组 / 非数组输入不抛且原样返回', asyn
   assert.deepEqual(await attachFailCounts([]), []);
   assert.equal(await attachFailCounts(null), null);
   assert.equal(await attachFailCounts(undefined), undefined);
+});
+
+// round29 审查：复合缓存键（行数 + 最新 reviewedAt）不完备——「原地改写一条非最新复习」
+// 时行数与最新时间戳都不变，键相同会返回陈旧计数。故写路径必须显式失效。
+test('invalidateFailCountCache：原地改写复习后必须显式失效才拿到新值', async () => {
+  const c = await mkCard('E-invalidate');
+  await review(c.id, 0, 1);
+  const first = (await failCountMap()).get(c.id);
+  assert.equal(first, 1);
+
+  // 模拟原地改写：把这条复习从「答错」改成「记得」（行数不变、最新 reviewedAt 不变）
+  const row = (await db.reviews.toArray()).find(r => r.cardId === c.id);
+  await db.reviews.put({ ...row, rating: 2 });
+  await invalidateFailCountCache();
+
+  const after = (await failCountMap()).get(c.id);
+  assert.equal(after, undefined, '改写为「记得」后不应再计入答错次数');
 });
