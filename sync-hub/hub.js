@@ -425,6 +425,15 @@ function serveStatic(req, res, pathname) {
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
+  // round29：请求日志——手机/平板同步失败时，能否在控制台看到这一行，直接区分
+  // 「请求根本没到（防火墙/地址错/不同网段）」与「到了但鉴权/版本/数据被拒」。
+  // 只记 来源IP / 方法 / 路径 / 状态码 / 耗时，绝不记录 token、challenge、sig 与请求体。
+  const _t0 = Date.now();
+  res.on('finish', () => {
+    try {
+      console.log(`[hub] ${normalizeIp(req.socket?.remoteAddress)} ${req.method} ${pathname} → ${res.statusCode} ${Date.now() - _t0}ms`);
+    } catch { /* 日志失败绝不影响请求 */ }
+  });
 
   // CORS 预检：仅对白名单来源放行（默认同源 + localhost）。
   // 旧实现一律回 *，等于允许任意网站跨域调用 Hub 并读取响应。

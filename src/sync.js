@@ -493,6 +493,12 @@ export async function syncWithHub(hubUrl, token, opts = {}) {
   // 鉴权 v2：优先 HMAC 挑战-响应（同步密码不上网）；老版 Hub 或不支持 WebCrypto 时退回明文 token
   const authHeaders = await buildAuthHeaders({ hub, token, method: 'PUT', path: hubPath, body })
     || { 'x-sync-token': String(token || '') };
+  // round29：所有失败路径统一回显「目标地址 + 当前页面协议」。
+  // 实测最常见的两类手机端同步失败都靠这两项一眼定位：
+  //   ① 地址填的是电脑的旧 IP（换 WiFi / 重启后 IP 变了），本机用 127.0.0.1 不受影响 → 只有手机失败；
+  //   ② 页面是 HTTPS（GitHub Pages）去访问 HTTP 中枢 = 混合内容，浏览器直接拦截。
+  const pageProto = (typeof location !== 'undefined' && location.protocol) || 'unknown:';
+  const at = (msg) => `${msg}｜目标中枢 ${hub}｜当前页面 ${pageProto}`;
   const res = await fetch(`${hub}${hubPath}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
@@ -502,26 +508,27 @@ export async function syncWithHub(hubUrl, token, opts = {}) {
     signal: AbortSignal.timeout(20000),
   }).catch((e) => {
     if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
-      throw new Error('连接电脑端中枢超时（20s），请确认中枢已启动、地址与端口正确、手机与电脑在同一网络');
+      throw new Error(at('连接电脑端中枢超时（20s）。请确认：① 中枢已启动 ② 地址是电脑【当前】内网 IP（重启/换 WiFi 后会变） ③ 手机与电脑在同一网络'));
     }
     // TypeError: Failed to fetch = CORS 拒绝 / 混合内容（HTTPS 页面访问 HTTP hub）/ 网络不通
     // 审计：改善报错——手机/平板最常见的同步失败是 CORS 或混合内容，此前只报"fetch failed"无帮助
     if (e instanceof TypeError) {
-      const isHttps = typeof location !== 'undefined' && location.protocol === 'https:';
-      if (isHttps) throw new Error('同步失败：当前页面为 HTTPS，无法访问局域网 HTTP 中枢。请在手机浏览器地址栏直接输入 http://<电脑IP>:18080 打开应用后再同步');
-      throw new Error('连接电脑端中枢失败，请确认：① 中枢已启动 ② 手机与电脑在同一 WiFi ③ 地址与端口正确');
+      if (pageProto === 'https:') {
+        throw new Error(at('当前页面是 HTTPS，浏览器禁止它访问局域网 HTTP 中枢（混合内容拦截）。请在手机浏览器地址栏直接输入 http://<电脑内网IP>:18080 打开应用后再同步'));
+      }
+      throw new Error(at('连不上电脑端中枢。请确认：① 中枢已启动 ② 地址是电脑【当前】内网 IP ③ 同一 WiFi ④ Windows 防火墙放行（专用网络）'));
     }
     throw e;
   });
   if (res.status === 401) {
     const detail = await res.json().catch(() => ({}));
-    throw new Error(detail?.error || '同步密码错误，请检查 App「同步」页填写的密码');
+    throw new Error(at(detail?.error || '同步密码错误，请检查 App「同步」页填写的密码'));
   }
   if (res.status === 409) {
     const detail = await res.json().catch(() => ({}));
-    throw new Error(detail?.error || '数据域不匹配：请先退出演示模式再同步真实数据');
+    throw new Error(at(detail?.error || '数据域不匹配：请先退出演示模式再同步真实数据'));
   }
-  if (!res.ok) throw new Error(`同步失败（${res.status}），请确认电脑端中枢已启动（演示模式需要新版中枢）`);
+  if (!res.ok) throw new Error(at(`同步失败（HTTP ${res.status}），请确认电脑端中枢已启动且版本与前端一致（演示模式需要新版中枢）`));
   const merged = await res.json();
   if (!merged || merged.app !== 'sxybrick') throw new Error('中枢返回的数据无效');
   const stats = await importBackup(merged);
