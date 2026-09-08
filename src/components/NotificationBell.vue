@@ -38,7 +38,7 @@ const { dragging, onDown: fabOnDown } = useFabDrag({
   root: nbRoot,
   handle: bellEl,
   storageKey: DRAG_KEY,
-  onTap: toggle,
+  onTap: () => { pointerSeqHandled = true; toggleGuarded(); },
   onSettled: onBellSettled,
 });
 
@@ -58,14 +58,24 @@ async function loadList() {
 // @click 仅为键盘可达保留（Enter/Space 只派发 click，不派发 pointer 事件）。
 // 指针交互的点击会被 pointer capture 重定向到按钮 → 拖动结束浏览器也会补发一个 click，
 // 若直接绑 toggle 会把「刚拖完的球」误开关一次面板，因此这里只放行非指针序列的 click。
-let lastPointerSeqAt = 0;
+// round29：与设置 FAB 同一处修复——600ms 时间窗是时序假设，负载一高就会漏判
+// （表现为轻点开完立刻关）。改为「本次序列是否已处理」的标志位确定性去重，
+// 并加 200ms 最小间隔兜住 pointer+touch 双序列。
+let pointerSeqHandled = false;
+let lastToggleAt = 0;
+function toggleGuarded() {
+  const t = Date.now();
+  if (t - lastToggleAt < 200) return;
+  lastToggleAt = t;
+  toggle();
+}
 function onDown(e) {
-  lastPointerSeqAt = Date.now();
+  pointerSeqHandled = false;
   fabOnDown(e);
 }
 function onKeyboardToggle() {
-  if (Date.now() - lastPointerSeqAt < 600) return; // 指针序列的残留 click，忽略
-  toggle();
+  if (pointerSeqHandled) { pointerSeqHandled = false; return; } // 已由 onTap 处理
+  toggleGuarded();
 }
 async function toggle() {
   open.value = !open.value;

@@ -309,6 +309,27 @@ function previewEdit() {
   if (card) { editing.value = card; modalOpen.value = true; }
 }
 function toggleWeak() { weakMode.value = !weakMode.value; localStorage.setItem('sxy_card_weak', weakMode.value ? '1' : '0'); loadCards(); }
+// round29：一键清空全部筛选（搜索词/科目/标签/逻辑/体检快捷过滤）。
+// 场景：筛选状态持久化在 localStorage，一旦残留了奇怪的组合（跨版本、删过科目、
+// 换过数据），列表就会长期「检索不到东西」，而强制刷新清不掉（每次都被恢复）——
+// 无痕窗口正常正是因为那份 localStorage 是干净的。给一个显式的自救入口。
+function resetFilters() {
+  filters.q = '';
+  searchInput.value = '';
+  filters.subject = '';
+  filters.tags = [];
+  filters.logic = 'AND';
+  delete filters._untagged;
+  delete filters._zombieIds;
+  delete filters._dupIds;
+  delete filters._orphanImageIds;
+  activeFilterBanner.value = '';
+  try { localStorage.removeItem('sxy_card_weak'); } catch { /* 隐私模式忽略 */ }
+  weakMode.value = false;
+  saveCardFilters();
+  loadMeta();
+  loadCards();
+}
 async function toggleMarked(card) {
   try {
     await setMarked(card.id, !card.marked);
@@ -764,6 +785,7 @@ async function rescueAll() {
         </select>
         <span style="flex:1"></span>
         <input v-model="searchInput" class="input" style="max-width:280px" :placeholder="t('views.cards.searchPlaceholder')" @keyup.enter="flushSearch" />
+        <button class="btn small" @click="resetFilters" :title="t('views.cards.resetFilterTitle')">{{ t('views.cards.resetFilter') }}</button>
         <button class="btn small" @click="saveSmart">{{ t('views.cards.saveCombo') }}</button>
       </div>
       <div class="row">

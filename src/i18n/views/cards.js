@@ -94,6 +94,8 @@ export const zh = {
   typeChoice: '选择',
   typeWriting: '默写',
   forgotN: '答错{n}次',
+  resetFilter: '重置筛选',
+  resetFilterTitle: '清空搜索词、科目、标签与逻辑，恢复完整列表',
   // E3 分页（page 视图）
   pagePrev: '上一页',
   pageNext: '下一页',
@@ -278,6 +280,8 @@ export const en = {
   typeChoice: 'Choice',
   typeWriting: 'Recite',
   forgotN: 'Wrong {n}×',
+  resetFilter: 'Reset filters',
+  resetFilterTitle: 'Clear keyword, subject, tags and logic to restore the full list',
   // E3 pagination (page view)
   pagePrev: 'Prev',
   pageNext: 'Next',

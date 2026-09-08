@@ -97,9 +97,20 @@ let unsubDbHealth = null;
 // 「我跑的是哪一次构建」——排查「修复不生效」时一眼看出 bundle 新旧。
 const BUILD_TIME = (import.meta.env.VITE_BUILD_TIME || '').toString();
 
+// 视图/筛选类 localStorage 键（不含任何用户数据，也不含中枢地址/密码/同步水位）。
+// 「清缓存并刷新」原本只清 SW 与 Cache Storage，这些残留状态清不掉 → 用户会遇到
+// 「清了缓存问题依旧、但无痕窗口正常」（无痕是全新 localStorage）。一并清掉即可自救。
+const VIEW_STATE_KEYS = [
+  'sxy_card_filters', 'sxy_card_search', 'sxy_card_weak', 'sxy_view', 'sxy_card_sort',
+];
+function clearViewState() {
+  try { VIEW_STATE_KEYS.forEach((k) => localStorage.removeItem(k)); } catch { /* 隐私模式忽略 */ }
+}
 async function onClearPwaCache() {
-  // 只注销 SW + 清 Cache Storage，不动 IndexedDB/LocalStorage（用户数据全部保留）。
+  // 只注销 SW + 清 Cache Storage + 清视图状态，不动 IndexedDB（用户数据全部保留），
+  // 也不动中枢地址/同步密码/同步水位等配置。
   // forceResetPwa 内部会 reload，无需手动刷新。
+  clearViewState();
   await forceResetPwa();
 }
 
@@ -319,15 +330,30 @@ const fabEl = ref(null);
 // ② 极端 WebView 连 touchend 都不派发时的最后兜底。指针序列结束浏览器会补发一个 click，
 // 若直接绑 toggle 会把刚拖完的球误开关一次面板，故按时间窗忽略指针序列残留 click
 // （与通知中心 onKeyboardToggle 同策略）。
-let lastFabPointerSeqAt = 0;
+// round29 修（平板端「轻点设置中心闪退、长按才正常」）：
+// 原实现靠「600ms 时间窗」忽略指针序列结束后浏览器补发的 click。平板上轻点会
+//   ① useFabDrag 判定为点击 → onTap 打开面板，② 之后到达的 click 若超出时间窗 → 再
+//   toggle 一次 = 开完立刻关（闪退）；长按不派发 click，所以表现正常。
+// 时间窗是时序假设，换个设备/换个负载就失效。改为「本次按下-抬起序列是否已处理」
+// 的标志位（确定性去重），另加 200ms 最小间隔兜住 pointer+touch 双序列重复判定的情况。
+let fabSeqHandled = false;
+let lastFabToggleAt = 0;
+function toggleSettingsGuarded() {
+  const t = Date.now();
+  if (t - lastFabToggleAt < 200) return; // 同一手势被重复判定，忽略
+  lastFabToggleAt = t;
+  showSettings.value = !showSettings.value;
+}
 const { dragging: fabDragging, onDown: fabDown } = useFabDrag({
   root: fabEl,
   storageKey: 'sxy_fab_pos',
-  onTap: toggleSettings,
+  onTap: () => { fabSeqHandled = true; toggleSettingsGuarded(); },
 });
-function onFabDown(e) { lastFabPointerSeqAt = Date.now(); fabDown(e); }
-function onFabClick() { if (Date.now() - lastFabPointerSeqAt < 600) return; toggleSettings(); }
-function toggleSettings() { showSettings.value = !showSettings.value; }
+function onFabDown(e) { fabSeqHandled = false; fabDown(e); }
+function onFabClick() {
+  if (fabSeqHandled) { fabSeqHandled = false; return; } // 已由 onTap 处理，忽略补发的 click
+  toggleSettingsGuarded();
+}
 
 onMounted(() => {
   theme.apply();
