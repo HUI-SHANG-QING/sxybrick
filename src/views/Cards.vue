@@ -12,7 +12,7 @@ import ExportButton from '../components/ExportButton.vue';
 import { exportCardsToJSON, exportCardsToCSV, exportCardsToMarkdown } from '../utils/exporters.js';
 import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, attachFailCounts, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, attachFailCounts, applyCardFilters, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { genVariants } from '../utils/genVariants.js';
@@ -212,8 +212,23 @@ async function loadCards() {
   loading.value = true;
   try {
     if (weakMode.value) {
-      items.value = await weakCards(100);
-      total.value = items.value.length;
+      // round29 修：错题集模式此前取完 weakCards 直接 return —— 搜索词、科目、标签与
+      // AND/OR/NOT 逻辑全部被忽略，用户在这个模式下做「自定义科目 + 标签」混合检索时
+      // 结果永远是全局薄弱卡 Top100（看着像检索坏了）。现在套用与常规列表一致的筛选。
+      // 注意必须先取大集合再过滤：weakCards 的 limit 是硬截断，先截 Top100 再筛会严重偏少。
+      let list = applyCardFilters(await weakCards(1000), {
+        q: filters.q, subject: filters.subject, tags: filters.tags, logic: filters.logic,
+      });
+      if (filters._untagged) list = list.filter(c => !c.tags || !c.tags.length);
+      if (filters._zombieIds && filters._zombieIds.size) {
+        list = list.filter(c => filters._zombieIds.has(c.id));
+      }
+      if (filters._dupIds && filters._dupIds.size) {
+        list = list.filter(c => filters._dupIds.has(c.id));
+      }
+      if (filters._orphanImageIds && filters._orphanImageIds.size) list = [];
+      items.value = list.slice(0, 100);
+      total.value = list.length;
       dueCount.value = 0;
       return;
     }

@@ -22,6 +22,7 @@ import {
   DEFAULT_SUBJECTS,
   validateCard as _validateCard,
   tagFilter,
+  applyCardFilters,
   gradeCard as _gradeCard,
   WRONG_REASON_MAP as _WRONG_REASON_MAP,
   WRONG_REASONS as _WRONG_REASONS,
@@ -43,6 +44,9 @@ export const WRONG_REASON_MAP = _WRONG_REASON_MAP;
 export const WRONG_REASONS = _WRONG_REASONS;
 export const wrongReasonToCode = _wrongReasonToCode;
 export const formatDue = (ts) => _formatDue(ts);
+// round29：re-export 供列表侧复用——错题集等自定义数据源要按与 listCards 完全一致的
+// AND/OR/NOT 语义过滤标签，此前 Cards.vue 拿不到它（只在 listCards 内部用）。
+export { tagFilter, applyCardFilters };
 
 
 // 审计 C1/C4：跨设备时钟与同毫秒覆盖主要通过「确定性决胜 + 严格比较」在 sync-manifest
@@ -147,21 +151,10 @@ export async function listCards({ q = '', subject = '', tags = [], logic = 'AND'
   // M11：全量只读一次——dueCount 是全局到期数（与过滤条件无关），
   // 旧实现末尾再 allCards() 一次 = 每次列表查询 2 次全表扫描，万卡级约翻倍耗时
   const all = await allCards();
-  let cards = all;
-  if (subject) cards = cards.filter(c => String(c.subject || '').trim() === String(subject).trim());
-  // M4 搜索扩展：q 覆盖 标题/正面/背面/标签/科目/来源/助记（大小写不敏感），
-  // 原「仅 front/back 子串」行为是它的子集，向后兼容
-  if (q) {
-    const kw = q.toLowerCase();
-    cards = cards.filter(c =>
-      String(c.front || '').toLowerCase().includes(kw) ||
-      String(c.back || '').toLowerCase().includes(kw) ||
-      (c.tags || []).some(t => String(t).toLowerCase().includes(kw)) ||
-      String(c.subject || '').toLowerCase().includes(kw) ||
-      String(c.source || '').toLowerCase().includes(kw) ||
-      String(c.mnemonic || '').toLowerCase().includes(kw));
-  }
-  cards = tagFilter(cards, tags, logic);
+  // round29：筛选口径收敛到 repo-core.applyCardFilters（与错题集等自定义数据源同源）。
+  // 语义不变：科目精确匹配；q 覆盖 正面/背面/标签/科目/来源/助记（大小写不敏感）；
+  // 标签走 tagFilter 的 AND/OR/NOT。
+  let cards = applyCardFilters(all, { q, subject, tags, logic });
   if (mode === 'due') cards = cards.filter(c => c.dueAt <= now());
   if (sortBy === 'created') cards.sort((a, b) => (b.createdAt - a.createdAt) || (b.id > a.id ? 1 : -1));
   else if (sortBy === 'due') cards.sort((a, b) => (a.dueAt - b.dueAt) || (a.id < b.id ? -1 : 1));

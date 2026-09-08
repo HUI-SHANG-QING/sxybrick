@@ -44,6 +44,29 @@ export function tagFilter(cards, tags, logic) {
   return cards.filter(c => !norm.some(t => (c.tags || []).some(ct => String(ct).trim() === t))); // NOT
 }
 
+// ---------- 列表筛选（卡片/搜索词/科目/标签 的统一口径） ----------
+// round29：此前「搜索词 + 科目 + 标签」这套筛选在 repo.listCards 里内联实现，
+// Cards.vue 的错题集分支又各写一份（且后者长期漏用 → 该模式下混合检索完全失效）。
+// 收敛成单一纯函数：任何数据源（全量卡 / 薄弱卡 / 其它派生集合）都走同一口径，
+// 避免「同一个筛选条件在不同列表里结果不一致」，也让这段逻辑可被单测覆盖。
+export function applyCardFilters(cards, { q = '', subject = '', tags = [], logic = 'AND' } = {}) {
+  let out = cards || [];
+  const subj = String(subject || '').trim();
+  if (subj) out = out.filter(c => String(c.subject || '').trim() === subj);
+  const kw = String(q || '').trim().toLowerCase();
+  if (kw) {
+    out = out.filter(c =>
+      String(c.front || '').toLowerCase().includes(kw) ||
+      String(c.back || '').toLowerCase().includes(kw) ||
+      (c.tags || []).some(t => String(t).toLowerCase().includes(kw)) ||
+      String(c.subject || '').toLowerCase().includes(kw) ||
+      String(c.source || '').toLowerCase().includes(kw) ||
+      String(c.mnemonic || '').toLowerCase().includes(kw));
+  }
+  if (tags && tags.length) out = tagFilter(out, tags, logic);
+  return out;
+}
+
 // ---------- 卡片等级标签 ----------
 // 审计 B2（掌握度三口径分裂）：此前「已掌握」有三套互不兼容的判定——gradeCard 用
 // level>=4、wordStats 用 level>=4 || intervalDays>=21、computeStats 用 90 天自评均分。
