@@ -64,6 +64,10 @@ export const WORD_EXT_FIELDS = ['pos', 'defs', 'synonyms', 'collocations', 'phra
 //   [5] 不变量测试：tests/sync-manifest.test.mjs 的「表数量 + 策略合法」断言
 //       加一即可锁定新表（数量不符会失败）；字段级漏登记（引用/图片）靠
 //       上面 [2][3] + sync-dedup.test.mjs 的注册表防漂移断言 + 评审。
+//   [6] 敏感字段 strip 登记：新表含「本地凭证 / 隐私」字段（如 API Key、Base URL）
+//       → 在 SYNC_TABLES 该条目加 `strip: ['字段名']`（见 wordSettings 的 llmApiKey/llmBase）。
+//       该字段导出/合并/中枢三处统一剔除（sanitizeStripRow 共用），跨设备永不泄露本地凭证。
+//       漏登记 = 本机 Key 被对端明文覆盖 / 中枢驻留旧 Key 回灌（round18 R18-5 已实证）。
 // ---------------------------------------------------------------------------
 export const SYNC_TABLES = [
   { table: 'cards', kind: 'card', merge: 'card' },
@@ -347,6 +351,43 @@ export function mergeChatPair(local, incoming) {
   };
 }
 
+// ---------- 跨设备时钟偏移补偿（round30 P2-3） ----------
+// LWW 合并的固有缺陷：若对端设备墙钟比本机快，其导出的「旧包」会因 updatedAt 数值更大
+// 覆盖本机「物理上更晚」的本地编辑 → 静默丢改。补偿思路：合并前把 incoming 行的时间戳
+// 从「对端时钟帧」换算到「本机时钟帧」（本机行不动，它已在本机帧），再按常规 LWW 比较。
+// 换算量 clockSkew = 对端时刻 - 本机时刻（从同步通道两侧取：客户端用中枢 HTTP `Date`
+// 响应头、中枢用客户端 `x-client-time` 请求头），换算 = 时间戳 - clockSkew。
+// 仅改 incoming、不改 base，保证「每台设备本地存储始终在本机帧」——下一轮同步该设备再按
+// 自己的 skew 把对端数据换算进本机帧，两端自洽、无累积漂移。
+const CLOCK_TS_FIELDS = [
+  'updatedAt', 'createdAt', 'reviewedAt', 'selfExplainAt', 'wrongReasonAt',
+  'deletedAt', 'addedAt', 'startedAt', 'unlockedAt', 't', 'loadedAt', 'dueAt',
+];
+export function shiftRowClock(row, skew) {
+  if (!row || !Number.isFinite(skew) || skew === 0) return row;
+  const out = { ...row };
+  for (const f of CLOCK_TS_FIELDS) {
+    if (typeof out[f] === 'number' && Number.isFinite(out[f])) out[f] = out[f] - skew;
+  }
+  // fieldTs 是「逐字段时间戳」元数据，同样换算到本机帧，否则未来字段级比较仍跨帧
+  if (out.fieldTs && typeof out.fieldTs === 'object') {
+    const ft = {};
+    for (const k of Object.keys(out.fieldTs)) {
+      const v = out.fieldTs[k];
+      ft[k] = (typeof v === 'number' && Number.isFinite(v)) ? v - skew : v;
+    }
+    out.fieldTs = ft;
+  }
+  return out;
+}
+
+// round30 P3-1：深响应式 Proxy 经 JSON 往返变纯对象（structuredClone 遇 Proxy 直接抛错）。
+// 仅用于 merge 入口兜底，sync 行均为纯 JSON，往返安全无副作用。
+function cloneSafe(rows) {
+  if (!Array.isArray(rows)) return [];
+  try { return JSON.parse(JSON.stringify(rows)); } catch { return []; }
+}
+
 // 通用行合并（按清单 merge 策略）
 // opts.strip: string[] —— 带 strip 钩子的表（如 wordSettings 的 LLM Key）：
 //   **strip 字段永不采纳 incoming**，本地有值则保留本地值，本地为空则留空。
@@ -358,8 +399,17 @@ export function mergeChatPair(local, incoming) {
 //   与导出侧同口径即可根治：incoming 的 strip 字段一律丢弃。
 export function mergeRows(base, incoming, strategy, opts = {}) {
   const strip = Array.isArray(opts.strip) ? opts.strip.filter(Boolean) : [];
-  const m = new Map((base || []).map(x => [x.id, x]));
-  for (const x of incoming || []) {
+  // round30 P3-1：入口统一深拷兜底（JSON 往返剥 Proxy，与 importBackup L607 同口径）。
+  // 防「不经 importBackup 直调 mergeRows 并传 reactive」的调用方把 Proxy 带入 bulkPut →
+  // structuredClone 抛 DataCloneError。深响应式对象经 JSON 往返变纯对象，安全无副作用
+  // （sync 行均为纯 JSON，无 Blob/Date）。
+  const baseRows = cloneSafe(base);
+  const skew = Number.isFinite(opts.clockSkew) ? opts.clockSkew : 0;
+  // round30 P2-3：把 incoming 的时间戳从对端时钟帧换算到本机帧，消除快时钟对端静默覆盖
+  // 先 cloneSafe 兜 Proxy（P3-1），再 shiftRowClock 换算时间帧（shift 为浅拷，入站数据已纯 JSON 安全）
+  const incRows = skew ? cloneSafe(incoming).map(r => shiftRowClock(r, skew)) : cloneSafe(incoming);
+  const m = new Map(baseRows.map(x => [x.id, x]));
+  for (const x of incRows) {
     if (!x || x.id == null) continue;
     // incoming 的 strip 字段在此处统一出局：无论「新行直接入」还是「整行替换」，
     // 都不可能把对端的凭证带进来（导出侧已剔除，这里兜住旧包/旧客户端/中枢驻留残留）
@@ -421,9 +471,12 @@ export function mergeRows(base, incoming, strategy, opts = {}) {
 // 墓碑合并：deletedAt 谁新听谁；kind 兼容旧数据。
 // 审计 C4：原 `>=` 使同 deletedAt 时必取 incoming（非确定、可被时钟偏置左右）。
 // 改严格 `>`，等值且内容不同时按序列化字典序确定性收敛（双端一致，删除不掉档）。
-export function mergeTombstones(base, incoming) {
+export function mergeTombstones(base, incoming, opts = {}) {
+  const skew = Number.isFinite(opts.clockSkew) ? opts.clockSkew : 0;
+  // round30 P2-3：墓碑 deletedAt 同样换算到本机帧，再与本地行 livenessTs（本机帧）比较
+  const inc = skew ? cloneSafe(incoming).map(t => shiftRowClock(t, skew)) : cloneSafe(incoming);
   const m = new Map((base || []).filter(t => t && t.id != null).map(t => [t.id, { ...t, kind: kindOf(t) }]));
-  for (const t of incoming || []) {
+  for (const t of inc) {
     if (!t || t.id == null) continue;
     const cur = m.get(t.id);
     const nt = { ...t, kind: kindOf(t) };

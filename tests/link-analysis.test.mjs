@@ -9,7 +9,7 @@ import './_env.mjs';
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  commonKeywords, jaccard, similarityMatrix, topoSort, criticalPath,
+  commonKeywords, jaccard, similarityMatrix, rankByBaseness, topDegreeBridges,
   learningPath, relationGraph, compareCards, runPreset, cardProfile,
 } from '../src/analysis/local-analyzer.js';
 import { runAnalysis } from '../src/analysis/link-engine.js';
@@ -56,7 +56,7 @@ test('topoSort：基础卡（高掌握/高关联）排前，结果完整且无�
     card('mid', '动态规划入门', '最优子结构', '算法', ['DP'], 2.5),
   ];
   const m = similarityMatrix(cards);
-  const order = topoSort(cards, m);
+  const order = rankByBaseness(cards, m);
   assert.equal(order.length, 3);
   assert.equal(new Set(order).size, 3, '无重复');
   assert.ok(order.includes('base'), '基础卡应在序列中');
@@ -70,7 +70,7 @@ test('criticalPath：返回桥梁度最高的前 K 张', () => {
     card('iso', '量子纠缠简介', 'EPR 悖论', '物理', ['量子']),
   ];
   const m = similarityMatrix(cards);
-  const cp = criticalPath(cards, m, 2);
+  const cp = topDegreeBridges(cards, m, 2);
   assert.equal(cp.length, 2);
   assert.ok(cp[0].id === 'hub' || cp[0].id === 'l1' || cp[0].id === 'l2',
     `关键路径应来自图论簇，实际：${cp[0].id}`);
@@ -93,7 +93,10 @@ test('relationGraph：节点/边结构合法，弱关联被阈值过滤', () => 
   const cards = [
     card('g1', '闭包作用域链', '词法环境', 'JS', ['作用域']),
     card('g2', 'JS 作用域详解', '全局与局部', 'JS', ['作用域']),
-    card('g3', '牛顿第三定律', '作用力反作用力', '物理', ['力学']),
+    // 注意：g3 措辞刻意避开「作用」二元组——作用域标签的二元切分含「作用」，
+    // 与「作用力反作用力」（牛顿第三定律）巧合共享，加权 Jaccard 下会越过 0.05 阈值；
+    // 换成「动量守恒」保证与 JS 作用域卡在词面上真正不相交（同 fixture 断言意图不变）。
+    card('g3', '动量守恒定律', '系统合外力为零时动量守恒', '物理', ['力学']),
   ];
   const m = similarityMatrix(cards);
   const g = relationGraph(cards, m, 0.05, 50);

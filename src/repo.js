@@ -49,6 +49,15 @@ export const formatDue = (ts) => _formatDue(ts);
 // AND/OR/NOT 语义过滤标签，此前 Cards.vue 拿不到它（只在 listCards 内部用）。
 export { tagFilter, applyCardFilters };
 
+// round30 P2-7：单日任务时长绝对上界（分钟）。单任务不可能超过一天，
+// 防止 LLM/手动输入超大值污染时间轴渲染、联动分析（规划/实际完成率）与跨设备同步。
+const MAX_ESTIMATED_MINUTES = 1440;
+function clampEstimatedMinutes(v) {
+  if (!Number.isFinite(v) || v < 0) return null;
+  if (v === 0) return 0;
+  return Math.min(MAX_ESTIMATED_MINUTES, Math.round(v));
+}
+
 
 // 审计 C1/C4：跨设备时钟与同毫秒覆盖主要通过「确定性决胜 + 严格比较」在 sync-manifest
 // 的纯合并函数里根治（mergeCardPair/mergeTombstones 已改 `>` + 字典序收敛）。
@@ -676,12 +685,18 @@ export async function pruneUserOps({ keepDays = 365 } = {}) {
 
 // 手动标记 / 取消标记错题
 export async function setMarked(id, marked) {
-  const card = await db.cards.get(id);
-  if (!card) throw new Error('卡片不存在');
   // 审计 B11 同款：差量写——marked/updatedAt 只 merge 这两个字段，
-  // 不再 put 整行（避免窗口期内的并发内容编辑被旧快照覆盖）
-  await db.cards.update(id, { marked: !!marked, updatedAt: now() });
-  return card;
+  // 不再 put 整行（避免窗口期内的并发内容编辑被旧快照覆盖）。
+  // round30（P1-2）：补字段级时间戳 fieldTs.marked——marked 在 CARD_CONTENT_FIELDS，
+  // 若无 fieldTs 则合并时退化为整行 content 赢家；当另一台设备后改其它字段（updatedAt 更大）
+  // 时，本端标星会被整行覆盖丢。事务内重读 cur 取其 fieldTs 合并。
+  return db.transaction('rw', db.cards, async () => {
+    const card = await db.cards.get(id);
+    if (!card) throw new Error('卡片不存在');
+    const t = now();
+    await db.cards.update(id, { marked: !!marked, updatedAt: t, fieldTs: { ...(card.fieldTs || {}), marked: t } });
+    return { ...card, marked: !!marked, updatedAt: t };
+  });
 }
 
 // ---------- 错因 ----------
@@ -1133,6 +1148,12 @@ export async function updateDailyTask(id, patch) {
     // 统一 completedAt：只有 'done' 才带完成时刻，其余清空（与 checkinDailyTask 同口径）
     p.completedAt = p.status === 'done' ? now() : null;
   }
+  // round30 P2-7：更新路径同样 clamp 时长与排程时刻（解析层已 clamp scheduledHour，
+  // 但手动编辑走更新路径，需在此兜底，否则超大 estimatedMinutes 会污染联动分析与同步）。
+  if (p.estimatedMinutes !== undefined) p.estimatedMinutes = clampEstimatedMinutes(p.estimatedMinutes);
+  if (p.scheduledHour !== undefined && Number.isFinite(p.scheduledHour)) {
+    p.scheduledHour = Math.min(23, Math.max(0, Math.floor(p.scheduledHour)));
+  }
   let task;
   await db.transaction('rw', db.dailyTasks, async () => {
     const old = await db.dailyTasks.get(id);
@@ -1172,7 +1193,7 @@ export async function addDailyTask(planId, task = {}) {
     urgent: !!task.urgent,
     quadrant: task.quadrant || 'Q4',
     targetCount: Number.isFinite(task.targetCount) ? Number(task.targetCount) : null,
-    estimatedMinutes: Number.isFinite(task.estimatedMinutes) ? Number(task.estimatedMinutes) : null,
+    estimatedMinutes: clampEstimatedMinutes(task.estimatedMinutes),
     subject: task.subject || '',
     scheduledHour: Number.isFinite(task.scheduledHour) ? Math.floor(task.scheduledHour) : null,
     status: 'pending',
@@ -1557,17 +1578,20 @@ export async function deleteDoc(id) {
  */
 export async function addPomoSession(payload) {
   const t = now();
+  const roundId = payload?.roundId ? String(payload.roundId) : null;
+  // round30（P1-4）：roundId 作主键（提供时）→ DB 层真正幂等。
+  // 旧实现 id=uid()、roundId 只是非唯一索引字段，put 不会去重；双标签页并发（localStorage
+  // 去重在「读改写」非原子窗口被击穿）可各插一行，导致番茄数/成就虚高。
+  // 现在同 roundId 的二次 put 直接覆盖（原地更新），绝不复写两条；无 roundId 时退化为 uid（向后兼容）。
   const s = {
-    id: uid(),
+    id: roundId || uid(),
     startedAt: payload?.startedAt || t,
     duration: Number(payload?.duration) || 0, // 分钟
     tag: String(payload?.tag || '').trim().slice(0, 30),
     partial: payload?.partial ? 1 : 0,
     createdAt: t,
   };
-  // M-1：roundId 存入数据库——即便 localStorage 被清，同 roundId 拒绝二次入账。
-  // v28 schema 已建 roundId 索引，Pomodoro.vue finish() 传入 roundId 参数。
-  if (payload?.roundId) s.roundId = String(payload.roundId);
+  if (roundId) s.roundId = roundId;
   await db.pomoSessions.put(s);
   return s;
 }

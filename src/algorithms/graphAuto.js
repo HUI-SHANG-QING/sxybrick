@@ -182,7 +182,10 @@ export async function autoBuildGraph(opts = {}) {
   const wrongPairs = new Map();
   const wrongByDay = new Map();
   for (const r of reviews) {
-    if (r.rating !== 0) continue;
+    // round30（P2-8）：「薄弱」= rating<=1（0=答错，1=模糊答对）。旧实现只认 rating===0，
+    // 把「经常模糊答对」的卡排除在薄弱簇外；模糊答对同样是需要加强的信号，计入 coMistake
+    // （rating>=2 才是真正回忆，不计入）。
+    if (r.rating > 1) continue;
     const day = Math.floor(Number(r.reviewedAt) / DAY_MS);
     if (!Number.isFinite(day)) continue;
     if (!wrongByDay.has(day)) wrongByDay.set(day, []);
@@ -273,6 +276,11 @@ export async function autoBuildGraph(opts = {}) {
       label: e.label || (e.kind === 'prereq' ? 'prereq' : 'sameTag'),
       subject,
       kind: 'auto',
+      // round30（P1-3）：显式落 directed——prereq=true（有向，A 是 B 的前置）、
+      // related=false（无向）。此前只存在内存边对象、不落库，resolveGraph 拿不到，
+      // 下游 edgesToForest 把无向 related 也当 from→to 前置链 → 导图/智能出题伪层级。
+      // 缺省语义见 graph-resolve：directed===false 才判无向，老边（无字段）不回归。
+      directed: e.directed === true,
       weight: Number(e.weight.toFixed(4)),
       createdAt: t,
       updatedAt: t,

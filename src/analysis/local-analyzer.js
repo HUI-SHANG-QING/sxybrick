@@ -21,13 +21,25 @@ export function cardProfile(card) {
   return freq;
 }
 
-/** 两张卡画像的 Jaccard 相似度（0~1） */
+/**
+ * 两张卡画像的（加权）Jaccard 相似度（0~1）。
+ * round30（P2-2）：旧实现只在集合成员层面计数，完全忽略 cardProfile 写入的词频
+ * （标签/科目 ×3 强信号加权），导致该加权是死代码——共享标签的卡与共享一个普通
+ * 内容词的卡相似度无差别。改为按词频取 min/max 的加权 Jaccard：共享的标签/科目
+ * （频率高）对相似度贡献更大，让「同域/强关联」真正体现在相似度上
+ * （commonKeywords / relationGraph / topo / criticalPath 同步受益）。
+ */
 export function jaccard(a, b) {
   if (!a.size && !b.size) return 0;
-  let inter = 0;
-  for (const [w] of a) if (b.has(w)) inter++;
-  const uni = a.size + b.size - inter;
-  return uni ? inter / uni : 0;
+  let inter = 0, union = 0;
+  const keys = new Set([...a.keys(), ...b.keys()]);
+  for (const w of keys) {
+    const fa = a.get(w) || 0;
+    const fb = b.get(w) || 0;
+    if (fa && fb) inter += Math.min(fa, fb);
+    union += Math.max(fa, fb);
+  }
+  return union ? inter / union : 0;
 }
 
 /** 共同知识点：出现卡数占比 >= threshold 的关键词（按覆盖卡数降序）
@@ -82,14 +94,16 @@ export function similarityMatrix(cards, cap = 40) {
 }
 
 /**
- * 推断前置依赖 → 拓扑排序。
+ * 推断学习基础序（按「基础性」降序排名，非真实拓扑排序）。
  * 启发式规则（本地模式无 LLM，按信号强度排序）：
  *  1) 标签/科目相同 → 视为同域（强信号）
  *  2) 相似度更高的卡视为「更基础」：若 A 与更多卡的平均相似度更高，则 A 更可能是前置
  *  3) 掌握度（ease/level 越高越基础，通常先学）作为 tie-breaker
- * 返回有序 id 数组（拓扑序：先学的在前）。环 → 按相似度兜底排序，保证总有结果。
+ * 返回有序 id 数组（越基础越靠前）。真实 DAG 依赖由 AI 模式给出，此处仅启发式排名。
+ * 命名澄清（round30 P3）：原 topoSort 名易误导——它并不做环检测/关键路径松弛，
+ * 只是按基础性打分降序，故重命名为 rankByBaseness。
  */
-export function topoSort(cards, matrix) {
+export function rankByBaseness(cards, matrix) {
   const n = cards.length;
   if (!n) return [];
   if (n === 1) return [cards[0].id];
@@ -102,17 +116,21 @@ export function topoSort(cards, matrix) {
     const mastery = (c.ease || 2.5) / 3 + (c.level || 0) / 10;
     return avg * 10 + mastery;
   });
-  // 按基础性降序（越基础越靠前）—— 简化拓扑：真实 DAG 由 AI 模式给出
+  // 按基础性降序（越基础越靠前）
   const order = cards.map((c, i) => ({ id: c.id, score: score[i] }))
     .sort((a, b) => b.score - a.score);
   return order.map(o => o.id);
 }
 
-/** 关键路径：拓扑序中「桥梁度」最高的前 K 张（与最多其他卡相连） */
-export function criticalPath(cards, matrix, k = 3) {
+/**
+ * 桥梁度最高的前 K 张（与最多其他卡共现相似度）。
+ * 命名澄清（round30 P3）：原 criticalPath 名易误导——它并非 AOE 关键路径松弛，
+ * 只是度中心性 topK，故重命名为 topDegreeBridges。
+ */
+export function topDegreeBridges(cards, matrix, k = 3) {
   const n = cards.length;
   if (!n) return [];
-  // 同 topoSort：矩阵与卡片必须同源，否则 row 为 undefined → TypeError
+  // 矩阵与卡片必须同源，否则 row 为 undefined → TypeError（与 rankByBaseness 同款防御）
   if (!Array.isArray(matrix) || matrix.length !== n) return cards.map(c => ({ id: c.id, degree: 0 }));
   const deg = matrix.map(row => (row || []).reduce((a, b) => a + (Number(b) || 0), 0));
   return deg.map((d, i) => ({ id: cards[i].id, degree: +d.toFixed(3) }))
@@ -128,6 +146,11 @@ export function criticalPath(cards, matrix, k = 3) {
 export function learningPath(cards, matrix) {
   const n = cards.length;
   const byId = new Map(cards.map(c => [c.id, c]));
+  // round30（P3）：矩阵与卡片必须同源，否则 matrix[i] 为 undefined → `.reduce` TypeError 让面板崩。
+  // 与 rankByBaseness / topDegreeBridges 同款防御；runPreset 内 matrix 必同源，属潜伏风险兜底。
+  if (!Array.isArray(matrix) || matrix.length !== n) {
+    return cards.map(c => ({ id: c.id, front: (c.front || '').slice(0, 40), weak: (c.failCount || 0) >= 2 || (c.ease || 2.5) < 2.2, ease: c.ease }));
+  }
   const isWeak = c => (c.failCount || 0) >= 2 || (c.ease || 2.5) < 2.2;
   const scored = cards.map((c, i) => {
     const avg = matrix[i].reduce((a, b) => a + b, 0) / Math.max(1, n - 1);
@@ -147,6 +170,14 @@ export function learningPath(cards, matrix) {
 /** 关系图谱：节点（卡）+ 边（相似度 >= threshold 的强关联），供 ECharts graph 渲染 */
 export function relationGraph(cards, matrix, threshold = 0.08, maxEdges = 60) {
   const n = cards.length;
+  // round30（P3）：矩阵与卡片必须同源，否则 matrix[i] 为 undefined → `.reduce` TypeError 让面板崩。
+  // 与 learningPath / rankByBaseness 同款防御；runPreset 内 matrix 必同源，属潜伏风险兜底。
+  if (!Array.isArray(matrix) || matrix.length !== n) {
+    return { type: 'graph', data: { nodes: cards.map((c, i) => ({
+      id: c.id, name: (c.front || '').slice(0, 18) || `卡${i + 1}`,
+      subject: c.subject || '', group: c.subject || '其他', symbolSize: 14,
+    })), edges: [] } };
+  }
   const nodes = cards.map((c, i) => ({
     id: c.id,
     name: (c.front || '').slice(0, 18) || `卡${i + 1}`,
@@ -204,7 +235,7 @@ export function runPreset(preset, cards) {
     case 'graph':
       return { engine: 'local', ...relationGraph(cards, matrix) };
     case 'topo': {
-      const order = topoSort(cards, matrix);
+      const order = rankByBaseness(cards, matrix);
       const byId = new Map(cards.map(c => [c.id, c]));
       // 拓扑序 → 有向图：横轴=学习顺序，纵轴=科目聚类；相邻节点连边成「学习链」
       const subjects = [...new Set(cards.map(c => c.subject || '其他'))];
@@ -228,7 +259,7 @@ export function runPreset(preset, cards) {
       };
     }
     case 'critical': {
-      const cp = criticalPath(cards, matrix, Math.min(3, cards.length));
+      const cp = topDegreeBridges(cards, matrix, Math.min(3, cards.length));
       const criticalIds = cp.map(x => x.id);
       const rg = relationGraph(cards, matrix).data; // { nodes, edges }
       const nodes = rg.nodes.map(n => ({ ...n, critical: criticalIds.includes(n.id) }));

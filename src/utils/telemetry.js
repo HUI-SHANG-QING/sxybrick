@@ -251,8 +251,17 @@ export function startTelemetry(opts = {}) {
   // 会话首条：open_app
   trackAction('open_app', { ua: navigator.userAgent.slice(0, 120), ts: Date.now() },
     { type: 'open_app', category: 'session_start' });
-  // beforeunload 最后 flush 一次（不保证一定成功，尽力而为）
-  window.addEventListener('beforeunload', () => { try { _flush(true); } catch {} });
+  // round30（P2-4）：关页瞬间异步 flush 不保证落盘（beforeunload 无法等待微任务）。
+  // 改为在 visibilitychange→hidden 与 pagehide 也触发 flush——这两个时机的预算比 beforeunload
+  // 充裕得多，能显著提高最后一批 userOps 落盘概率；_flush 幂等，可重复调用。
+  const flushOnHide = () => { try { _flush(true); } catch {} };
+  window.addEventListener('beforeunload', flushOnHide);
+  window.addEventListener('pagehide', flushOnHide);
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flushOnHide();
+    });
+  }
   if (opts.onReady) opts.onReady();
 }
 export function stopTelemetry() {

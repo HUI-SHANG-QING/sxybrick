@@ -242,12 +242,16 @@ export function trainWeights(reviews, cardsById, opts = {}) {
     return m;
   })()) {
     const card = cardsById.get(cardId);
+    // round30（P2-1）：训练要求「按 (cardId, reviewedAt) 升序」——docstring 如此声明，
+    // 但旧实现直接沿用 reviews 插入序，调用方也未排序。乱序输入会让 elapsed=Math.max(0,负)=0
+    // → 用错误 S 推进 → loss 失真、个性化权重静默失效。此处自保：每条复习先按 reviewedAt 升序排。
+    const sorted = arr.slice().sort((a, b) => (Number(a.reviewedAt) || 0) - (Number(b.reviewedAt) || 0));
     cardTrajectories.push({
       init: card?.fsrs?.reps ? null : card?.fsrs || null,
       // round29 审查：调度路径(schedule)对 fsrs.last 有 isFinite 守卫，但训练路径没有——
       // 一条 reviewedAt 缺失/NaN 的复习会让 elapsed=NaN → R=NaN → log(NaN)=NaN 累加进
       // total → 整轮 loss 变 NaN，个性化权重训练静默失效（用户只觉得"算法没变聪明"）。
-      reviews: arr.filter(r => Number.isFinite(r.reviewedAt))
+      reviews: sorted.filter(r => Number.isFinite(r.reviewedAt))
         .map(r => ({ grade: toFsrsGrade(r.rating), y: r.rating >= 2 ? 1 : 0, reviewedAt: r.reviewedAt })),
     });
   }

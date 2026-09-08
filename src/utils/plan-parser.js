@@ -92,6 +92,13 @@ export function extractQuantity(text) {
     if (estimatedMinutes === null) estimatedMinutes = Math.round(mins);
   }
 
+  // round30 P2-7：estimatedMinutes 必须 clamp，防止 LLM 返回超大值污染
+  // 时间轴渲染（start+est 超 24:00）、联动分析（规划/实际完成率）与跨设备同步。
+  // 单任务不可能超过一天，绝对上界取 1440（分钟）。
+  if (estimatedMinutes != null) {
+    if (!Number.isFinite(estimatedMinutes) || estimatedMinutes < 0) estimatedMinutes = null;
+    else estimatedMinutes = Math.min(1440, Math.round(estimatedMinutes));
+  }
   return { targetCount, estimatedMinutes };
 }
 

@@ -49,11 +49,11 @@ export async function pushNotification(n) {
   };
   await db.notifications?.put(item);
   try {
-    const all = await db.notifications?.orderBy('createdAt').reverse().toArray();
-    if (all && all.length > SCHEDULER.maxNotifications) {
-      const stale = all.slice(SCHEDULER.maxNotifications);
-      await db.notifications?.bulkDelete(stale.map((x) => x.id));
-    }
+    // round30（P2-5）：避免每次推送全表 toArray() 再 slice 删除（通知量大时每次拉全表）。
+    // createdAt 已建索引，用 reverse + offset(maxNotifications) 直接取「超出配额的旧行主键」批量删除，
+    // 复杂度 O(超额) 而非 O(全表)，内存也不加载全部行。
+    const excessIds = await db.notifications?.orderBy('createdAt').reverse().offset(SCHEDULER.maxNotifications).primaryKeys();
+    if (excessIds && excessIds.length) await db.notifications?.bulkDelete(excessIds);
   } catch { /* noop */ }
   return item;
 }

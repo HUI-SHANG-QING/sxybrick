@@ -42,6 +42,37 @@ export function dedupeIncomingCards(incoming, baseById, baseCards = []) {
   return { kept, duplicated, idRemap };
 }
 
+// round30 P2-6：英语词卡的跨设备内容去重（与 dedupeIncomingCards 同机制）。
+// 词卡是独立 id 空间（wordCardId），与通用卡物理隔离，必须单独去重——
+// 否则两台设备各建一张「同词同义」的词卡，跨设备同步后变成重复词卡，且其
+// 复习记录（wordReviews）/ 通用卡↔词卡链接（cardWordLinks）各指各的，互不合并。
+// 内容键 = word + meaning + subject（subject 区分英一/英二大纲词）；同 id 必放行走 mergeRows。
+// 返回 idRemap（跳过词卡 id → 保留词卡 id），由 importBackup 在合并前重定向引用。
+export function dedupeIncomingWordCards(incoming, baseById, baseWordCards = []) {
+  const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const SEP = '\x01';
+  const keyToKeptId = new Map();
+  for (const c of (baseWordCards || [])) {
+    const k = `${norm(c.word)}${SEP}${norm(c.meaning)}${SEP}${c.subject || ''}`;
+    if (!keyToKeptId.has(k)) keyToKeptId.set(k, c.id);
+  }
+  const kept = [];
+  const idRemap = new Map();
+  let duplicated = 0;
+  for (const c of incoming || []) {
+    if (baseById && baseById.has(c.id)) { kept.push(c); continue; }
+    const k = `${norm(c.word)}${SEP}${norm(c.meaning)}${SEP}${c.subject || ''}`;
+    if (keyToKeptId.has(k)) {
+      duplicated++;
+      idRemap.set(c.id, keyToKeptId.get(k));
+      continue;
+    }
+    kept.push(c);
+    keyToKeptId.set(k, c.id);
+  }
+  return { kept, duplicated, idRemap };
+}
+
 // ---------------------------------------------------------------------------
 // 卡片引用字段注册表（BUG-04 收敛：单一来源，避免在 sync.js 里硬编码枚举导致漏改）
 // 任何一张表若新增「引用卡片 id」的字段，都必须在这里登记对应类别，
@@ -56,6 +87,10 @@ export const CARD_REF_FIELDS = ['cardId', 'fromCardId', 'toCardId', 'sourceId', 
 export const ARRAY_REF_FIELDS = ['linkedCardIds'];
 export const JSON_REF_FIELDS = ['cardIds'];
 export const NESTED_REF_FIELDS = ['questions'];
+// round30 P2-6：英语词卡 id 引用注册表（与通用卡同机制）。
+//   wordReviews.wordCardId / cardWordLinks.wordCardId 在词卡被内容去重跳过时，
+//   必须重定向到保留下来的词卡，否则复习记录/通用卡↔词卡链接会悬空指向已丢弃的词卡。
+export const WORD_CARD_REF_FIELDS = ['wordCardId'];
 
 /**
  * 把 backup 里所有「引用卡片 id」的字段按 idRemap 重定向到保留卡（纯函数，无 IO）。
@@ -83,6 +118,9 @@ export function remapCardRefs(backup, idRemap) {
         return row;
       }
       for (const f of CARD_REF_FIELDS) {
+        if (r[f] != null && idRemap.has(r[f])) row = { ...row, [f]: idRemap.get(r[f]) };
+      }
+      for (const f of WORD_CARD_REF_FIELDS) {
         if (r[f] != null && idRemap.has(r[f])) row = { ...row, [f]: idRemap.get(r[f]) };
       }
       for (const f of ARRAY_REF_FIELDS) {

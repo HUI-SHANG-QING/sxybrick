@@ -1,7 +1,7 @@
 // tests/sync-dedup.test.mjs — 跨设备导入卡片内容去重（P0 修复）单测
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dedupeIncomingCards, remapCardRefs, CARD_REF_FIELDS, ARRAY_REF_FIELDS, JSON_REF_FIELDS, NESTED_REF_FIELDS } from '../src/sync-dedup.js';
+import { dedupeIncomingCards, dedupeIncomingWordCards, remapCardRefs, CARD_REF_FIELDS, WORD_CARD_REF_FIELDS, ARRAY_REF_FIELDS, JSON_REF_FIELDS, NESTED_REF_FIELDS } from '../src/sync-dedup.js';
 
 function card(id, front, back, subject) {
   return { id, front, back, subject: subject || '计组', ease: 2.5, level: 3, intervalDays: 10, dueAt: Date.now() };
@@ -169,4 +169,87 @@ test('remapCardRefs：注册表字段覆盖已知卡片引用字段（BUG-04 防
   // 四类清单不得相互重叠（同一字段只能归一类，避免重复改写）
   const all = [...CARD_REF_FIELDS, ...ARRAY_REF_FIELDS, ...JSON_REF_FIELDS, ...NESTED_REF_FIELDS];
   assert.equal(new Set(all).size, all.length, '四类字段清单不得有交集');
+});
+
+// ---------- round30 P2-6：英语词卡跨设备内容去重（独立 id 空间） ----------
+
+function wordCard(id, word, meaning, subject) {
+  return { id, word, meaning: meaning || '释义', subject: subject || '英语一', familiar: 0 };
+}
+
+test('P2-6 词卡：同 id 必放行（走字段级合并，不被内容去重丢弃）', () => {
+  const local = wordCard('W1', 'abandon', '抛弃');
+  const incoming = wordCard('W1', 'abandon', '抛弃');
+  incoming.note = '补充批注'; // 远端独有编辑
+  const baseById = new Map([[local.id, local]]);
+  const { kept, duplicated } = dedupeIncomingWordCards([incoming], baseById, [local]);
+  assert.equal(duplicated, 0, '同 id 不计重复');
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].id, 'W1');
+  assert.equal(kept[0].note, '补充批注', '放行后由 mergeRows 合并内容');
+});
+
+test('P2-6 词卡：异 id 同词同义 → 视为真重复跳过', () => {
+  const local = wordCard('W1', 'abandon', '抛弃');
+  const incoming = wordCard('W2', 'abandon', '抛弃'); // 内容雷同但不同 id
+  const baseById = new Map([[local.id, local]]);
+  const { kept, duplicated } = dedupeIncomingWordCards([incoming], baseById, [local]);
+  assert.equal(duplicated, 1, '异 id 同内容词卡应判重复');
+  assert.equal(kept.length, 0, '重复词卡必须跳过，避免跨设备重复建卡');
+});
+
+test('P2-6 词卡：异 id 且内容不同 → 保留导入', () => {
+  const local = wordCard('W1', 'abandon', '抛弃');
+  const incoming = wordCard('W2', 'ability', '能力');
+  const baseById = new Map([[local.id, local]]);
+  const { kept, duplicated } = dedupeIncomingWordCards([incoming], baseById, [local]);
+  assert.equal(duplicated, 0);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0].id, 'W2');
+});
+
+test('P2-6 词卡：subject 区分大纲词（英一 vs 英二）不误判重复', () => {
+  // 同一单词在不同大纲（英一/英二）下可能是「不同的学习目标卡」，内容键含 subject，
+  // 不应被当成重复合并掉。
+  const local = wordCard('W1', 'abandon', '抛弃', '英语一');
+  const incoming = wordCard('W2', 'abandon', '抛弃', '英语二');
+  const baseById = new Map([[local.id, local]]);
+  const { kept, duplicated } = dedupeIncomingWordCards([incoming], baseById, [local]);
+  assert.equal(duplicated, 0, 'subject 不同不应判重复');
+  assert.equal(kept.length, 1);
+});
+
+test('P2-6 词卡：idRemap 将「跳过词卡」的引用重定向到保留词卡', () => {
+  const local = wordCard('W1', 'abandon', '抛弃');
+  const incoming = wordCard('W2', 'abandon', '抛弃'); // 异 id 同内容 → 跳过
+  const baseById = new Map([[local.id, local]]);
+  const { kept, duplicated, idRemap } = dedupeIncomingWordCards([incoming], baseById, [local]);
+  assert.equal(duplicated, 1);
+  assert.equal(kept.length, 0);
+  assert.equal(idRemap.get('W2'), 'W1', '跳过词卡 id → 保留词卡 id');
+});
+
+test('P2-6 remapCardRefs：wordCardId 引用重定向（wordReviews + cardWordLinks 复合键）', () => {
+  // 设备 A 有词卡 W1，设备 B 有同词异 id 词卡 W2 + 复习记录 + 通用卡链接 C1:W2。
+  // 导入 B 时 W2 被去重跳过并重定向到 W1 —— wordReviews.wordCardId 与
+  // cardWordLinks.wordCardId 及复合键 id 都必须跟着变成 W1，否则复习/链接悬空。
+  const backup = {
+    wordReviews: [{ id: 'WR1', wordCardId: 'W2', rating: 3 }], // 孤儿：本指向被跳过的 W2
+    cardWordLinks: [
+      { id: 'C1:W2', cardId: 'C1', wordCardId: 'W2', createdAt: 1 },
+      { id: 'C2:W3', cardId: 'C2', wordCardId: 'W3', createdAt: 2 }, // 未重定向，保持不变
+    ],
+  };
+  const out = remapCardRefs(backup, new Map([['W2', 'W1']]));
+  assert.equal(out.wordReviews[0].wordCardId, 'W1', 'wordReviews.wordCardId 重定向到保留词卡');
+  assert.equal(out.cardWordLinks[0].wordCardId, 'W1', 'cardWordLinks.wordCardId 字段重定向');
+  assert.equal(out.cardWordLinks[0].id, 'C1:W1', '复合键 id 随 wordCardId 重算为 ${cardId}:${wordCardId}');
+  assert.equal(out.cardWordLinks[1].id, 'C2:W3', '未重定向的行 id 保持不变');
+  assert.equal(backup.cardWordLinks[0].id, 'C1:W2', '不修改入参');
+});
+
+test('P2-6 注册表：WORD_CARD_REF_FIELDS 含 wordCardId', () => {
+  assert.ok(WORD_CARD_REF_FIELDS.includes('wordCardId'), '词卡引用字段必须在注册表');
+  // 与通用卡引用字段不重叠
+  assert.equal(new Set([...CARD_REF_FIELDS, ...WORD_CARD_REF_FIELDS]).size, CARD_REF_FIELDS.length + WORD_CARD_REF_FIELDS.length);
 });

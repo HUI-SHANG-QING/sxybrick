@@ -8,7 +8,7 @@ import {
   SYNC_TABLES, BACKUP_VERSION,
   EXCLUDED_FROM_SYNC, PRIVACY_SYNC_TABLES,
   CARD_SRS_FIELDS, WORD_EXT_FIELDS,
-  mergeCardPair, mergeRows, mergeTombstones, applyTombstones, kindOf,
+  mergeCardPair, mergeRows, mergeTombstones, applyTombstones, kindOf, shiftRowClock,
 } from '../src/sync-manifest.js';
 
 test('清单：33 张表全部登记且策略合法', () => {
@@ -240,4 +240,63 @@ test('R17-9 mergeCardPair：扩展字段并集保留，形状较简的设备不�
   // 反向：incoming 更全且更新 → incoming 的扩展字段照样胜出
   const merged2 = mergeCardPair({ id: 'w1', word: 'abandon', updatedAt: 500 }, { ...incoming, updatedAt: 3000 });
   assert.deepEqual(merged2.synonyms, ['give up', 'forsake'], 'incoming 新时扩展字段随内容赢家');
+});
+
+// ---------- round30 P2-3：跨设备时钟偏移补偿 ----------
+
+test('P2-3 shiftRowClock：把时间戳从对端时钟帧换算到本机帧（减 skew）', () => {
+  const row = {
+    id: 'x', updatedAt: 1100, reviewedAt: 1200, dueAt: 1300,
+    fieldTs: { front: 1100, back: 1150, marked: 500 },
+    word: '保持原值', t: 100, // t 为 userOps 活跃字段
+  };
+  const out = shiftRowClock(row, 200); // 对端快 200ms
+  assert.equal(out.updatedAt, 900);
+  assert.equal(out.reviewedAt, 1000);
+  assert.equal(out.dueAt, 1100);
+  assert.equal(out.t, -100, 't 字段同样换算（可为负，仅用于比较）');
+  assert.deepEqual(out.fieldTs, { front: 900, back: 950, marked: 300 }, 'fieldTs 逐字段换算');
+  assert.equal(out.word, '保持原值', '非时间字段不动');
+  assert.equal(row.updatedAt, 1100, '不修改入参');
+  assert.equal(shiftRowClock(row, 0), row, 'skew=0 零拷贝返回');
+  assert.equal(shiftRowClock(row, NaN), row, '非法 skew 零拷贝返回');
+});
+
+test('P2-3 mergeRows：快时钟对端「物理更早」的编辑不再静默覆盖本机更晚编辑', () => {
+  // 本机 local 编辑发生在本地 1000（updatedAt=1000）；对端墙钟快 200ms，
+  // 其对端 900（物理上=本地 700）的编辑序列化 raw updatedAt=1100。
+  // 不做补偿：1100 > 1000 → 对端旧编辑错误覆盖本机新编辑（P2-3 缺陷）。
+  // 补偿：incoming 换算到本地帧 = 1100-200 = 900 < 1000 → 本机保留（正确）。
+  const local = { id: 'x', updatedAt: 1000, text: '本机更晚的编辑' };
+  const incoming = { id: 'x', updatedAt: 1100, text: '对端更早的编辑(快时钟)' };
+  const bad = mergeRows([local], [incoming], 'updatedAt', {});
+  assert.equal(bad[0].text, '对端更早的编辑(快时钟)', '无补偿时快时钟对端静默覆盖（缺陷复现）');
+  const good = mergeRows([local], [incoming], 'updatedAt', { clockSkew: 200 });
+  assert.equal(good[0].text, '本机更晚的编辑', '补偿后本机更晚编辑胜出');
+  assert.equal(good[0].updatedAt, 1000, '本机行保留本机帧时间戳');
+});
+
+test('P2-3 mergeRows：补偿后 incoming 时间戳换算进本机帧存储', () => {
+  // 全新行（本地无此 id）：入站行应换算为本机帧后落库，保证本机存储统一在本机帧
+  const incoming = { id: 'x', updatedAt: 1100, title: '对端新行' };
+  const out = mergeRows([], [incoming], 'updatedAt', { clockSkew: 200 });
+  assert.equal(out[0].updatedAt, 900, '新行时间戳换算进本机帧');
+  assert.equal(out[0].title, '对端新行');
+  assert.equal(incoming.updatedAt, 1100, '不修改入参');
+});
+
+test('P2-3 mergeTombstones + applyTombstones：快时钟对端墓碑不误删本机更晚的编辑', () => {
+  // 本机卡 updatedAt=1000（删除后仍被编辑过 → 应复活）。对端墙钟快 200ms，
+  // 其墓碑 raw deletedAt=1100（物理上=本地 900）。无补偿：liveness 1000 <= 1100 → 误删；
+  // 补偿：墓碑换算到本地帧 = 900 < 1000 → 卡复活，墓碑标 stale（正确）。
+  const rows = [{ id: 'c1', updatedAt: 1000, front: 'Q', back: 'A' }];
+  const tomb = { id: 'c1', kind: 'card', deletedAt: 1100 };
+  const badTs = mergeTombstones([], [tomb], {});
+  const bad = applyTombstones(rows, badTs, 'card');
+  assert.equal(bad.rows.length, 0, '无补偿时快时钟墓碑误删本机更晚编辑的卡（缺陷复现）');
+  const goodTs = mergeTombstones([], [tomb], { clockSkew: 200 });
+  assert.equal(goodTs[0].deletedAt, 900, '墓碑 deletedAt 换算到本机帧');
+  const good = applyTombstones(rows, goodTs, 'card');
+  assert.equal(good.rows.length, 1, '补偿后本机卡复活');
+  assert.equal(good.stale.length, 1, '墓碑判 stale 待清除');
 });

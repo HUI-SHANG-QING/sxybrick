@@ -29,7 +29,7 @@ async function exportRows(t) {
   if (Array.isArray(t.strip) && t.strip.length) rows = sanitizeStripRows(rows, t.strip);
   return rows;
 }
-import { dedupeIncomingCards, remapCardRefs } from './sync-dedup.js';
+import { dedupeIncomingCards, dedupeIncomingWordCards, remapCardRefs } from './sync-dedup.js';
 import { buildAuthHeaders } from './utils/hub-auth.js';
 import { pad2 } from './utils/format.js';
 // 审计 C3：导入后跨 tab 广播数据变更
@@ -499,9 +499,12 @@ export async function syncWithHub(hubUrl, token, opts = {}) {
   //   ② 页面是 HTTPS（GitHub Pages）去访问 HTTP 中枢 = 混合内容，浏览器直接拦截。
   const pageProto = (typeof location !== 'undefined' && location.protocol) || 'unknown:';
   const at = (msg) => `${msg}｜目标中枢 ${hub}｜当前页面 ${pageProto}`;
+  // round30 P2-3：记录发出时刻，用于从响应 `Date` 头估算中枢墙钟与本机墙钟的偏移
+  // （LAN RTT 仅毫秒级，近似足够），换算 incoming 时间戳到本机帧，防快时钟对端静默覆盖。
+  const _reqStart = Date.now();
   const res = await fetch(`${hub}${hubPath}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    headers: { 'Content-Type': 'application/json', 'x-client-time': String(_reqStart), ...authHeaders },
     body,
     // 中枢不可达时若不加超时，fetch 可挂起数分钟 → Sync.vue 的 syncingAll/syncingModule
     // 一直为 true，所有同步按钮被禁用（鼠标变禁止符号）。20s 超时给出明确报错并复位。
@@ -531,7 +534,12 @@ export async function syncWithHub(hubUrl, token, opts = {}) {
   if (!res.ok) throw new Error(at(`同步失败（HTTP ${res.status}），请确认电脑端中枢已启动且版本与前端一致（演示模式需要新版中枢）`));
   const merged = await res.json();
   if (!merged || merged.app !== 'sxybrick') throw new Error('中枢返回的数据无效');
-  const stats = await importBackup(merged);
+  // round30 P2-3：从中枢 `Date` 响应头估算时钟偏移（中枢墙钟 - 本机墙钟），incoming 时间戳
+  // 减该偏移即换算到本机帧；无 Date 头（如文件导入）则 skew=0，靠 stats.conflicts 可视化提示。
+  const _dateHdr = res.headers && res.headers.get ? res.headers.get('date') : null;
+  const _serverTs = _dateHdr ? Date.parse(_dateHdr) : NaN;
+  const clockSkew = Number.isFinite(_serverTs) ? _serverTs - _reqStart : 0;
+  const stats = await importBackup(merged, { ...opts, clockSkew });
   // 审计 S-6：hub 墓碑回收回传——中枢 GC 掉的墓碑在客户端可能仍驻留（客户端墓碑只增不减），
   // 响应体里的 gcTombIds 是本次被中枢回收的墓碑 id 清单，据此 bulkDelete 消除永久膨胀。
   if (Array.isArray(merged.gcTombIds) && merged.gcTombIds.length) {
@@ -644,6 +652,17 @@ export async function importBackup(backup, opts = {}) {
       backup = remapCardRefs(backup, cardDedupe.idRemap);
     }
   }
+  // round30 P2-6：英语词卡同样做跨设备内容去重（独立 id 空间，必须单独处理），
+  // 被跳过的词卡其 wordReviews/cardWordLinks 引用经 remapCardRefs 的 WORD_CARD_REF_FIELDS 重定向。
+  let wordCardDedupe = { kept: (backup.wordCards || []).filter(x => x && x.id), duplicated: 0, idRemap: new Map() };
+  if (wordCardDedupe.kept.length) {
+    const baseWordCards = await db.wordCards.toArray();
+    const baseWordCardsMap = new Map(baseWordCards.map(x => [x.id, x]));
+    wordCardDedupe = dedupeIncomingWordCards(wordCardDedupe.kept, baseWordCardsMap, baseWordCards);
+    if (wordCardDedupe.idRemap.size) {
+      backup = remapCardRefs(backup, wordCardDedupe.idRemap);
+    }
+  }
   fireProgress(opts, PHASE.DEDUPE, 1);
 
   // 1) 墓碑：按 deletedAt 谁新听谁合并（kind 缺失的旧数据按 card 处理）
@@ -657,7 +676,7 @@ export async function importBackup(backup, opts = {}) {
   }
   await db.transaction('rw', ...txTables, async () => {
   fireProgress(opts, PHASE.TOMBSTONES, 0);
-  const tombstones = mergeTombstones(await db.tombstones.toArray(), backup.tombstones || []);
+  const tombstones = mergeTombstones(await db.tombstones.toArray(), backup.tombstones || [], opts);
   if (tombstones.length) await db.tombstones.bulkPut(tombstones);
   fireProgress(opts, PHASE.TOMBSTONES, 1);
 
@@ -683,6 +702,10 @@ export async function importBackup(backup, opts = {}) {
       // 复用 0b 步提前算好的去重结果（已跳过异 id 同内容卡并生成 idRemap），避免重复计算
       incoming = cardDedupe.kept;
       stats.duplicated += cardDedupe.duplicated;
+    } else if (t.table === 'wordCards') {
+      // round30 P2-6：复用 0b 步词卡去重结果（独立 id 空间），避免重复建卡 + 引用悬空
+      incoming = wordCardDedupe.kept;
+      stats.duplicated += wordCardDedupe.duplicated;
     }
     if (clearedBefore) incoming = filterClearedRows(incoming, clearedBefore);
     if (!incoming.length) continue;
@@ -699,7 +722,7 @@ export async function importBackup(backup, opts = {}) {
     }
     const base = await db[t.table].toArray();
     const baseMap = new Map(base.map(x => [x.id, x]));
-    const merged = mergeRows(base, incoming, t.merge, { strip: t.strip, extFields: t.extFields });
+    const merged = mergeRows(base, incoming, t.merge, { strip: t.strip, extFields: t.extFields, clockSkew: opts.clockSkew });
     let added = 0, updated = 0;
     const toWrite = [];
     const incomingMap = new Map(incoming.map(x => [x.id, x])); // O(n) 查表，替代循环内 find 的 O(n²)

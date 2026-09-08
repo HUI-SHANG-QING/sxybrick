@@ -223,9 +223,12 @@ function gcTombstones(data, ttlDays) {
 }
 
 // 全量合并：与前端 importBackup 共用 sync-manifest 的纯函数，保证两端合并语义一致
-function merge(base, incoming) {
+// clockSkew = 客户端墙钟 - 中枢墙钟（来自 PUT 请求头的 `x-client-time`），
+// 把客户端推上来的数据时间戳换算到中枢帧，与本地行（中枢帧）公平比 LWW，
+// 防「快时钟客户端」静默覆盖中枢更晚的本地编辑（round30 P2-3，与前端 importBackup 对称）。
+function merge(base, incoming, clockSkew = 0) {
   const out = {};
-  out.tombstones = mergeTombstones(base.tombstones, incoming.tombstones);
+  out.tombstones = mergeTombstones(base.tombstones, incoming.tombstones, { clockSkew });
   for (const t of ALL_TABLES) {
     // 与前端 sync.js 的 exportRows 同口径：应用清单上的 exportFilter。
     // 之前中枢不过滤 —— 老客户端推上来的 kind='auto' 派生图谱边会被中枢存下来，
@@ -239,7 +242,7 @@ function merge(base, incoming) {
     // 挡不住从 base 原样带出来的历史残留 —— 于是「A 清空本地 Key」后中枢仍会回灌。
     // 中枢不是任何人的本地设备，strip 字段对它一律无意义：存进来即丢弃。
     const baseRows = sanitizeStripRows(base[t.table], t.strip);
-    out[t.table] = mergeRows(baseRows, inRows, t.merge, { strip: t.strip, extFields: t.extFields });
+    out[t.table] = mergeRows(baseRows, inRows, t.merge, { strip: t.strip, extFields: t.extFields, clockSkew });
   }
 
   // 卡片：应用墓碑（删除跨设备传播）+ 级联清理复习记录与孤儿图片 + 复活卡清除墓碑
@@ -528,7 +531,10 @@ const server = createServer(async (req, res) => {
         // 审计 B8：load→merge→save 整体进 per-scope 串行队列，
         // 消除并发 PUT 的「基于旧数据合并」覆盖丢失
         const merged = await withScopeLock(scope, () => {
-          const m = merge(loadScopedData(scope), incoming);
+          // round30 P2-3：客户端墙钟 - 中枢墙钟 = 换算量；客户端推上来的时间戳减它即中枢帧
+          const clientTs = Number(req.headers['x-client-time']);
+          const clockSkew = Number.isFinite(clientTs) ? clientTs - Date.now() : 0;
+          const m = merge(loadScopedData(scope), incoming, clockSkew);
           saveScopedData(scope, m);
           return m;
         });

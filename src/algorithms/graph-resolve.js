@@ -130,6 +130,12 @@ export function resolveGraph(rawEdges, cards, opts = {}) {
       // 下游 nodeById() 回查 label 渲染显示名，无 cardId 的资料型边退回应文本。
       from: fromKey || fromLabel,
       to: toKey || toLabel,
+      // round30（P1-3）：透传有向性。graphAuto 的 prereq 边有向（A 是 B 的前置）、
+      // related 边无向（落库带 directed:false）；此前不携带 directed，下游 edgesToForest
+      // 把无向 related 也当成 from→to 前置链 → 导图/智能出题画出错误的伪层级。
+      // 语义：directed !== false 即视为有向——老数据（manual/AI label 型边、旧 auto 边）
+      // 没有 directed 字段，它们历史上就走「from→to 前置链」，缺省保持有向不回归。
+      directed: e.directed !== false,
       label,
       labelKind,
       subject,
@@ -221,6 +227,10 @@ export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualK
     const t = String(e.to || '').trim();
     if (!f || !t || f === t) continue;
     all.add(f); all.add(t);
+    // round30（P1-3）：只有「有向边」参与父→子层级构建；无向 related 边（显式
+    // directed:false，graphAuto 落库）不应被当前置依赖，否则导图/智能出题会画出错误的
+    // 层级链。directed 缺省 = 有向（老数据历史语义），仅显式 false 才跳过。
+    if (e.directed === false) continue;
     if (!childrenOf.has(f)) childrenOf.set(f, []);
     childrenOf.get(f).push(t);
     inDeg.set(t, (inDeg.get(t) || 0) + 1);

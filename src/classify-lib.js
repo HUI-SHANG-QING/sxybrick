@@ -123,7 +123,13 @@ export async function classifyAllCards({ dryRun = false, threshold = 0.12 } = {}
     textOf: c => `${c.front || ''} ${c.back || ''}`,
     hasLabel: c => !!c.subject && !isUnclassified(c.subject),
     preview: c => ({ front: String(c.front || '').slice(0, 30) }),
-    write: (c, label) => db.cards.update(c.id, { subject: label }),
+    // round30（P1-2）：归类写 subject 必须带字段级时间戳 + 更新 updatedAt。
+    // 原写法既不 bump updatedAt 也不打 fieldTs → 合并时 subject 退化为整行 content 赢家
+    // （且 updatedAt 不更新，更易被判负），任何后续其它字段编辑都会把自动归类结果覆盖丢失。
+    write: (c, label) => {
+      const t = now();
+      return db.cards.update(c.id, { subject: label, updatedAt: t, fieldTs: { ...(c.fieldTs || {}), subject: t } });
+    },
     nothingReason: '没有带科目的卡片可作训练样本——先手动给几张卡设定科目，模型才有依据',
   }, { dryRun, threshold });
 }

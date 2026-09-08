@@ -172,6 +172,12 @@ export async function createWordCard(payload = {}) {
     ease: 2.5, level: 0, intervalDays: 0, dueAt: t,
     reviewedAt: 0, consolidation: null, fsrs: null,
     createdAt: t, updatedAt: t,
+    // round30（P1-1）：字段级时间戳初始化——与 cards 侧 createCard 同纪律。
+    // 内容字段（word/phonetic/meaning/example/exampleTrans/note/tags/source/subject）
+    // 与状态字段 familiar 各自登记初始时间戳，使跨设备字段级合并对英语模块真正生效
+    // （否则这些字段因不在 CARD_CONTENT_FIELDS 且无 fieldTs，会退化为整行 LWW → 并发改不同字段静默丢改）。
+    // 注意：EXT_FIELDS（AI 生成、并集保护）不进 fieldTs——它们由 sync-manifest 的 extFields 并集逻辑处理。
+    fieldTs: { word: t, phonetic: t, meaning: t, example: t, exampleTrans: t, note: t, tags: t, source: t, subject: t, familiar: t },
   };
   if (!card.word) throw new Error('单词/内容不能为空');
   await db.wordCards.put(card);
@@ -184,19 +190,26 @@ export async function updateWordCard(id, patch = {}) {
     const cur = await db.wordCards.get(id);
     if (!cur) return null;
     const next = { ...cur };
+    // round30（P1-1）：字段级时间戳——只 bump 本次真正 diff 变化的字段，
+    // 与 repo.updateCard 同纪律。其余字段的 fieldTs 保留原值，不随整行 updatedAt 漂移，
+    // 使合并侧能逐字段取新（解决英语模块并发改不同字段丢一端修改）。
+    const ts = { ...(cur.fieldTs || {}) };
+    const t = now();
     for (const k of ['word', 'phonetic', 'meaning', 'example', 'exampleTrans', 'note', 'source', 'subject']) {
-      if (patch[k] !== undefined) next[k] = String(patch[k]).trim();
+      if (patch[k] !== undefined) { next[k] = String(patch[k]).trim(); ts[k] = t; }
     }
     if (patch.kind !== undefined && WORD_KINDS.includes(patch.kind)) next.kind = patch.kind;
     if (patch.tags !== undefined && Array.isArray(patch.tags)) {
       next.tags = patch.tags.map(String).filter(Boolean);
+      ts.tags = t;
     }
     // v26 扩展字段：整体覆盖（AI 生成结果或手动编辑的数组/对象）
     for (const k of EXT_FIELDS) {
       if (patch[k] !== undefined) next[k] = patch[k];
     }
     if (!next.word) throw new Error('单词/内容不能为空');
-    next.updatedAt = now();
+    next.updatedAt = t;
+    next.fieldTs = ts;
     await db.wordCards.put(next);
     return next;
   });
@@ -270,14 +283,18 @@ export async function markFamiliar(id, value = 1) {
   });
 }
 
-// 设置批注（note 字段，updatedAt 跟踪；跨设备按 updatedAt 合并）
+// 设置批注（note 字段）。round30（P1-1）：补字段级时间戳 fieldTs.note——
+// note 是 wordCards 内容字段，不在 CARD_CONTENT_FIELDS，若无 fieldTs 会退化为整行 LWW，
+// 跨设备「一端改释义、另一端改批注」会丢一端。
 export async function setWordNote(id, text) {
   return db.transaction('rw', db.wordCards, async () => {
     const cur = await db.wordCards.get(id);
     if (!cur) return null;
     const note = String(text || '').slice(0, 2000);
-    await db.wordCards.put({ ...cur, note, updatedAt: now() });
-    return { ...cur, note, updatedAt: now() };
+    const t = now();
+    const patch = { ...cur, note, updatedAt: t, fieldTs: { ...(cur.fieldTs || {}), note: t } };
+    await db.wordCards.put(patch);
+    return patch;
   });
 }
 

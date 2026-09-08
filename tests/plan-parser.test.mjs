@@ -28,6 +28,16 @@ test('extractQuantity：无数量', () => {
   assert.deepEqual(extractQuantity('随便看看'), { targetCount: null, estimatedMinutes: null });
 });
 
+test('extractQuantity：超大时长 clamp 到 1440（round30 P2-7）', () => {
+  // LLM 可能吐出荒谬时长（600 分钟=10h、3600 分钟=一天半）；时间轴/联动分析/同步
+  // 都吃这个值，必须在解析层 clamp，防止 start+est 无限膨胀。
+  assert.deepEqual(extractQuantity('刷题 600 分钟'), { targetCount: null, estimatedMinutes: 600 });
+  assert.deepEqual(extractQuantity('全天冲刺 3600 分钟'), { targetCount: null, estimatedMinutes: 1440 }, '超过一天的时长 clamp 到 1440');
+  assert.deepEqual(extractQuantity('复习 48 小时'), { targetCount: null, estimatedMinutes: 1440 }, '小时制同样 clamp');
+  // 负值/小数取整：'-25 分钟' 无匹配（- 号不参与数字正则），纯数字路径已过滤；小数正常取整
+  assert.deepEqual(extractQuantity('专注 1.5 小时'), { targetCount: null, estimatedMinutes: 90 });
+});
+
 // ──────────────── inferType ────────────────
 
 test('inferType：动作分类', () => {

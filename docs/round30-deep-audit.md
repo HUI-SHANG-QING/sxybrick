@@ -149,3 +149,30 @@
 5. **P2-1 trainWeights 内部排序**（防个性化权重静默失真，无报错难察觉）。
 
 > 注：P1-1 / P1-2 属于同一根因（fieldTs 写入纪律未全面贯彻），建议合并为一个 commit 一次性补齐 `word-repo.js` + `repo.js:683` + `classify-lib.js:126`，并补 `wordCards` 字段级合并回归测试。
+
+---
+
+## 7. 修复状态（round30-fix，2026-09-08）
+
+全部 P1/P2/P3 项已在本轮修复并回归（P0=0；P3-5 番茄通知默认静音为**有意保留**——
+用户显式偏好「提醒默认静音、声音需显式开启」，与审计「首次完成提示授权」冲突，不改）。
+
+| 编号 | 修复内容 | 位置 |
+|---|---|---|
+| P1-1 | wordCards 字段级合并：createWordCard 全字段 fieldTs 初始化；updateWordCard/setWordNote 逐字段 bump | src/word-repo.js |
+| P1-2 | setMarked / classifyAllCards 补 fieldTs（事务内重读 cur 合并 fieldTs，防并发内容编辑被旧快照覆盖） | src/repo.js / src/classify-lib.js |
+| P1-3 | resolveGraph 透传 `directed`（`e.directed !== false` 即视为有向——老边缺省不回归）；edgesToForest 仅显式 `directed===false` 跳过层级；**graphAuto 落库补写 directed**（prereq=true / related=false，此前只存内存不落库，根因在此） | src/algorithms/graph-resolve.js / graphAuto.js |
+| P1-4 | pomoSessions roundId 作主键（提供时）→ DB 层真正幂等，双标签页各插一行根治 | src/repo.js |
+| P2-1 | trainWeights 按 reviewedAt 升序内部排序后再构轨迹 | src/fsrs.js |
+| P2-2 | jaccard 改加权实现（min/max 按词频，标签/科目 ×3 强信号真正生效） | src/analysis/local-analyzer.js |
+| P2-3 | 跨设备时钟偏移补偿：客户端用中枢 HTTP `Date` 头、中枢用 `x-client-time` 请求头估算 skew，mergeRows/mergeTombstones 入口把 incoming 时间戳换算到本机帧（含 fieldTs/dueAt 等 12 个时间字段）；文件导入无时间源→skew=0，靠 stats.conflicts 可视化提示 | src/sync-manifest.js / src/sync.js / sync-hub/hub.js |
+| P2-4 | telemetry 补 pagehide + visibilitychange(hidden) 兜底 flush | src/utils/telemetry.js |
+| P2-5 | pushNotification 修剪改 `orderBy().reverse().offset().primaryKeys()`（O(大表) 全表扫描 → O(需删数)） | src/agent/proactive.js |
+| P2-6 | wordCards 跨设备内容去重（word+meaning+subject 键）+ `WORD_CARD_REF_FIELDS` 注册 + wordReviews/cardWordLinks 引用重定向（复合键 id 重算） | src/sync-dedup.js / src/sync.js |
+| P2-7 | estimatedMinutes 解析/存储双 clamp（0~1440，parser + addDailyTask/updateDailyTask 兜底）；渲染高度本就有 maxBottom 截断，「跨午夜」标签为既有意图特性保留 | src/utils/plan-parser.js / src/repo.js |
+| P2-8 | coMistake 薄弱判定 rating<=1（模糊答对也算薄弱信号，原仅 rating===0） | src/algorithms/graphAuto.js |
+| P3-1 | mergeRows/mergeTombstones 入口 JSON 深拷兜底（未来直调传 reactive 也不 DataCloneError） | src/sync-manifest.js |
+| P3-2 | B1 checklist 增 [6]「敏感字段→strip 登记」 | src/sync-manifest.js |
+| P3-3/4 | 函数重命名 rankByBaseness/topDegreeBridges + matrix 同源护栏 | src/analysis/local-analyzer.js |
+
+验证：i18n 双闸 ✓（--js 基线重锚 407 行）· dep-check 0 环 ✓ · **node --test 961/961** ✓ · vite build ✓ · sync-coverage-audit ✓。

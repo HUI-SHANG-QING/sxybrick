@@ -407,6 +407,10 @@ export function buildScheduleBoard(tasks = [], opts = {}) {
     label: `${fmtHour(it.task.scheduledHour)}–${fmtHour(it.task.scheduledHour + (it.task.estimatedMinutes || defaultDur) / 60)}`,
     // 标题显示行数随块高自适应（防长文字溢出）
     clamp: it.height <= 72 ? 1 : it.height <= 144 ? 2 : 3,
+    // 注：label 结束时刻不截断——「跨午夜任务」（如 23:00 起 90min）是既有意图特性
+    // （测试锁定 '23:00–次日00:30'），块高已由上方 maxBottom 截断到网格底，标签如实
+    // 显示真实结束时刻即可。超长时长已在解析/存储层 clamp（plan-parser/repo 的
+    // MAX_ESTIMATED_MINUTES=1440），不会出现无限膨胀的虚假标签。
   }));
 
   return {
