@@ -12,7 +12,7 @@ import ExportButton from '../components/ExportButton.vue';
 import { exportCardsToJSON, exportCardsToCSV, exportCardsToMarkdown } from '../utils/exporters.js';
 import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, failCountMap, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, attachFailCounts, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { genVariants } from '../utils/genVariants.js';
@@ -206,11 +206,8 @@ async function loadCards() {
     let list = data.items;
     // round29：failCount 是 reviews 流水的聚合值，不是卡片持久字段——此前只有「错题集」
     // 模式会算，导致同一份数据在没开该开关的设备上永远不显示红标，看起来像同步丢数据。
-    // 统一附加（带缓存，见 repo.failCountMap），让答错次数在所有模式下跨设备一致。
-    try {
-      const fm = await failCountMap();
-      if (fm.size) list = list.map(c => (fm.has(c.id) ? { ...c, failCount: fm.get(c.id) } : c));
-    } catch { /* 聚合失败不应影响列表展示 */ }
+    // 统一注入（repo.attachFailCounts，内部走带缓存的 failCountMap），跨设备表现一致。
+    list = await attachFailCounts(list);
     if (filters._untagged) list = list.filter(c => !c.tags || !c.tags.length);
     if (filters._zombieIds && filters._zombieIds.size) {
       list = list.filter(c => filters._zombieIds.has(c.id));

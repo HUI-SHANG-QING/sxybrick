@@ -458,7 +458,12 @@ async function _getGraphDrivenReviewPlan(opts = {}) {
   for (const r of reviews) if (r.rating === 0) failCount.set(r.cardId, (failCount.get(r.cardId) || 0) + 1);
 
   let seeds = cards.filter(c => c.dueAt <= nowTs);
-  const weak = cards.filter(c => c.marked || (failCount.get(c.id) || 0) >= 2);
+  // round29：failCount 是 reviews 的聚合派生值，db.cards 原始行没有该字段。
+  // 本函数内它只用于上面的筛选判定，但这些 weak 会作为 seeds 流进返回的复习路径、
+  // 被上游直接当「带 failCount 的卡」消费（本项目多处按 c.failCount 判薄弱，
+  // 缺字段是静默失效而非报错）。Map 已算好，顺手附加，零额外成本。
+  const weak = cards.filter(c => c.marked || (failCount.get(c.id) || 0) >= 2)
+    .map(c => ({ ...c, failCount: failCount.get(c.id) || 0 }));
   const seedSet = new Map();
   for (const c of seeds) seedSet.set(c.id, c);
   for (const c of weak) if (!seedSet.has(c.id)) seedSet.set(c.id, c);

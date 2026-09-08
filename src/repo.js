@@ -928,6 +928,22 @@ export async function failCountMap() {
   return m;
 }
 
+// round29：把「答错次数」批量附加到卡片行上（列表/分析入口统一用它，不要在各处直读 c.failCount）。
+// 背景：failCount 是 reviews 流水的聚合派生值，db.cards 的原始行里没有这个字段——
+// 凡是从 bulkGet/listCards/toArray 拿到卡片就直接读 c.failCount 的地方，值恒为 undefined
+// （表现为「错 undefined 次」或薄弱判定静默失效）。语义同 repo-core.rankWeakCards。
+// 无失败记录的卡保持原对象引用（零拷贝）；聚合失败时原样返回，绝不阻断调用方。
+export async function attachFailCounts(cards) {
+  if (!Array.isArray(cards) || !cards.length) return cards; // 非数组/空数组透明返回，由调用方兜底
+  try {
+    const fm = await failCountMap();
+    if (!fm.size) return cards;
+    return cards.map(c => (fm.has(c.id) ? { ...c, failCount: fm.get(c.id) } : c));
+  } catch {
+    return cards;
+  }
+}
+
 // ---------- 复习提醒建议 ----------
 export async function getReviewSuggestion() {
   // 建议核心已抽至 repo-core.buildReviewSuggestion（N9）

@@ -10,7 +10,7 @@ import './_env.mjs';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { db } from '../src/db.js';
-import { createCard, review, failCountMap } from '../src/repo.js';
+import { createCard, review, failCountMap, attachFailCounts } from '../src/repo.js';
 
 after(async () => { try { await db.close(); } catch { /* 已关闭 */ } });
 
@@ -42,4 +42,22 @@ test('failCountMap：始终返回 Map，无数据时不抛', async () => {
   const m = await failCountMap();
   assert.ok(m instanceof Map);
   assert.equal(typeof m.get, 'function');
+});
+
+// round29 收口：attachFailCounts 是「卡片行 → 带 failCount」的唯一入口。
+// db.cards 原始行没有该字段，此前各处直读 c.failCount 恒为 undefined（静默失效）。
+test('attachFailCounts：注入答错次数，无记录的卡保持原引用（零拷贝）', async () => {
+  const hit = await mkCard('D-hit-round29');
+  const clean = await mkCard('D-clean-round29');
+  await review(hit.id, 0, 1);
+  const out = await attachFailCounts([{ ...clean }, { ...hit }]);
+  const byId = new Map(out.map(c => [c.id, c]));
+  assert.equal(byId.get(hit.id).failCount, 1, '答错过的卡应带上次数');
+  assert.equal(byId.get(clean.id).failCount, undefined, '无失败记录不应凭空造 0');
+});
+
+test('attachFailCounts：空数组 / 非数组输入不抛且原样返回', async () => {
+  assert.deepEqual(await attachFailCounts([]), []);
+  assert.equal(await attachFailCounts(null), null);
+  assert.equal(await attachFailCounts(undefined), undefined);
 });

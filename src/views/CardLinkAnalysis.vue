@@ -9,7 +9,7 @@ import { useRoute, useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
 import { db, uid } from '../db.js';
-import { listCards, createCardGroup } from '../repo.js';
+import { listCards, createCardGroup, attachFailCounts } from '../repo.js';
 import { getAIConfig, hasAIKey } from '../ai.js';
 import { runAnalysis } from '../analysis/link-engine.js';
 import { normalizeGraphEnds } from '../algorithms/graph-resolve.js';
@@ -140,7 +140,13 @@ async function runPreset(key) {
 
   busy.value = true;
   try {
-    const result = await runAnalysis(cards.value, { preset: key, mode: mode.value }, getAIConfig(), {});
+    // round29：cards 直接来自 db.cards.bulkGet / listCards，是原始行，不含 failCount
+    // （它是 reviews 流水的聚合派生值）。不注入的话下游两个纯算法模块会静默失效：
+    //   · ai-analyzer.cardBriefer 的「薄弱(错N次)」标记永不出现 → AI 拿不到薄弱信号
+    //   · local-analyzer.learningPath 的「薄弱优先」排序退化为只看 ease<2.2
+    // 在唯一的分析入口统一注入，保持算法模块不依赖 db。
+    const analyzed = await attachFailCounts([...cards.value]);
+    const result = await runAnalysis(analyzed, { preset: key, mode: mode.value }, getAIConfig(), {});
     await pushResult(result, userMsg.question);
   } catch (e) {
     console.error('[CardLinkAnalysis] preset analysis failed:', key, e?.message || e);
