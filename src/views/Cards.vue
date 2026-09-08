@@ -12,7 +12,7 @@ import ExportButton from '../components/ExportButton.vue';
 import { exportCardsToJSON, exportCardsToCSV, exportCardsToMarkdown } from '../utils/exporters.js';
 import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, failCountMap, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { genVariants } from '../utils/genVariants.js';
@@ -42,7 +42,23 @@ const route = useRoute();
 
 const viewMode = ref(localStorage.getItem('sxy_view') || 'scroll');
 const sortBy = ref(localStorage.getItem('sxy_card_sort') || 'updated');
-const filters = reactive(JSON.parse(localStorage.getItem('sxy_card_filters') || '{"q":"","subject":"","tags":[],"logic":"AND"}'));
+// round29 修：localStorage 里的筛选条件是用户手改/旧版本都可能写坏的值
+// （'undefined' 字面量、缺字段、tags 非数组）。此前直接 JSON.parse → 坏值抛错会让整个
+// 组件 setup 崩掉（白屏）；缺字段则让筛选静默失效。统一按白名单归一化后使用。
+function normalizeFilters(raw) {
+  const d = { q: '', subject: '', tags: [], logic: 'AND' };
+  try {
+    const o = raw ? JSON.parse(raw) : null;
+    if (o && typeof o === 'object') {
+      if (typeof o.q === 'string') d.q = o.q;
+      if (typeof o.subject === 'string') d.subject = o.subject;
+      if (Array.isArray(o.tags)) d.tags = o.tags.filter(x => typeof x === 'string');
+      if (o.logic === 'AND' || o.logic === 'OR' || o.logic === 'NOT') d.logic = o.logic;
+    }
+  } catch { /* 坏值：退回默认筛选，不阻断渲染 */ }
+  return d;
+}
+const filters = reactive(normalizeFilters(localStorage.getItem('sxy_card_filters')));
 
 const subjects = ref([]);
 const allTags = ref([]);
@@ -188,6 +204,13 @@ async function loadCards() {
       sortBy: sortBy.value,
     });
     let list = data.items;
+    // round29：failCount 是 reviews 流水的聚合值，不是卡片持久字段——此前只有「错题集」
+    // 模式会算，导致同一份数据在没开该开关的设备上永远不显示红标，看起来像同步丢数据。
+    // 统一附加（带缓存，见 repo.failCountMap），让答错次数在所有模式下跨设备一致。
+    try {
+      const fm = await failCountMap();
+      if (fm.size) list = list.map(c => (fm.has(c.id) ? { ...c, failCount: fm.get(c.id) } : c));
+    } catch { /* 聚合失败不应影响列表展示 */ }
     if (filters._untagged) list = list.filter(c => !c.tags || !c.tags.length);
     if (filters._zombieIds && filters._zombieIds.size) {
       list = list.filter(c => filters._zombieIds.has(c.id));
@@ -218,6 +241,7 @@ watch(() => [filters.q, filters.subject, filters.logic], () => {
     _prevSubject = filters.subject;
     if (filters.tags.length) filters.tags = [];
   }
+  saveCardFilters(); // round29：q 一并落盘，否则搜索词刷新即丢、与该次查询不同步
   loadCards();
 });
 // 标签变化（不含 subject 变化引发的清空）单独触发 loadCards
@@ -338,12 +362,21 @@ async function onSaved() {
 }
 
 let searchTimer = null;
-const searchInput = ref(localStorage.getItem('sxy_card_search') || '');
+// round29 修（检索失败根因）：searchInput 与 filters.q 曾是两个互不同步的 localStorage 源
+// （sxy_card_search / sxy_card_filters.q）。sxy_card_filters 只在 subject/tags/logic 变化时
+// 落盘，于是刷新后出现「输入框里是上次搜的词、filters.q 却是更旧的词」——列表按错误的词
+// 过滤，且因为输入框值没变，watch 永不触发 → 表现为「检索失败、强制刷新也没用，
+// 换一个浏览器（localStorage 干净）就好了」。
+// 统一为单一数据源：filters.q 是唯一权威值，searchInput 只是它的输入镜像。
+const searchInput = ref(filters.q);
+try { localStorage.removeItem('sxy_card_search'); } catch { /* 隐私模式下忽略 */ }
 watch(searchInput, v => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(() => { filters.q = v.trim(); }, 300);
-  localStorage.setItem('sxy_card_search', v);
 });
+// 移动端输入法兜底：回车立即生效，不等 300ms 防抖（中文输入法下 composition 期间
+// v-model 可能不更新，防抖定时器拿到的是组词中的半成品）
+function flushSearch() { clearTimeout(searchTimer); filters.q = searchInput.value.trim(); }
 
 const highlightId = ref('');
 
@@ -714,7 +747,7 @@ async function rescueAll() {
           <option value="subject">{{ t('views.cards.sortSubject') }}</option>
         </select>
         <span style="flex:1"></span>
-        <input v-model="searchInput" class="input" style="max-width:280px" :placeholder="t('views.cards.searchPlaceholder')" />
+        <input v-model="searchInput" class="input" style="max-width:280px" :placeholder="t('views.cards.searchPlaceholder')" @keyup.enter="flushSearch" />
         <button class="btn small" @click="saveSmart">{{ t('views.cards.saveCombo') }}</button>
       </div>
       <div class="row">
@@ -824,7 +857,7 @@ async function rescueAll() {
           <div class="tags">
             <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
             <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
-            <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '答错{n}次', { n: item.failCount }) }}</span>
+            <span v-if="item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '答错{n}次', { n: item.failCount }) }}</span>
             <span style="flex:1"></span>
             <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)" :title="(expandAllByDefault ? (collapsedIds.has(item.id) ? t('views.cards.expandDetailTitle') : t('views.cards.collapseDetailTitle')) : (collapsedIds.has(item.id) ? t('views.cards.collapseDetailTitle') : t('views.cards.expandDetailTitle')))">
               {{ expandAllByDefault ? (collapsedIds.has(item.id) ? t('views.cards.expandDetail') : t('views.cards.collapseDetail')) : (collapsedIds.has(item.id) ? t('views.cards.collapseDetail') : t('views.cards.expandDetail')) }}
@@ -865,7 +898,7 @@ async function rescueAll() {
         <div class="tags">
           <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
           <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
-          <span v-if="weakMode && item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '答错{n}次', { n: item.failCount }) }}</span>
+          <span v-if="item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '答错{n}次', { n: item.failCount }) }}</span>
           <span style="flex:1"></span>
           <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)">
             {{ expandAllByDefault ? (collapsedIds.has(item.id) ? t('views.cards.expandDetail') : t('views.cards.collapseDetail')) : (collapsedIds.has(item.id) ? t('views.cards.collapseDetail') : t('views.cards.expandDetail')) }}

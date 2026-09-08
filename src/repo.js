@@ -905,6 +905,29 @@ export async function weakCards(limit = 100, minFail = 2) {
   return rankWeakCards(cards, reviews, { limit, minFail });
 }
 
+// round29：全局「答错次数」映射（cardId -> rating===0 的次数），带缓存。
+// 背景：failCount 不是卡片持久字段，而是 reviews 流水的聚合值（见 repo-core.rankWeakCards）。
+// 此前只有「错题集」模式会算它，于是没开该开关的设备上永远看不到红标，用户误以为同步丢数据。
+// 列表每次搜索都全表扫描 reviews 太贵（万级流水约百毫秒），故用「行数 + 最新 reviewedAt」
+// 组成轻量 key 做缓存：复习/清理必然改变其一，命中时零扫描。
+let _failCountCache = { key: '', map: new Map() };
+export async function failCountMap() {
+  let cnt = 0, last = null;
+  try {
+    [cnt, last] = await Promise.all([
+      db.reviews.count(),
+      db.reviews.orderBy('reviewedAt').last(),
+    ]);
+  } catch { /* 索引不可用时退化为每次重算 */ }
+  const key = `${cnt}|${last ? last.reviewedAt : 0}|${last ? last.id : ''}`;
+  if (cnt && _failCountCache.key === key) return _failCountCache.map;
+  const all = await db.reviews.toArray();
+  const m = new Map();
+  for (const r of all) if (r.rating === 0) m.set(r.cardId, (m.get(r.cardId) || 0) + 1);
+  _failCountCache = { key, map: m };
+  return m;
+}
+
 // ---------- 复习提醒建议 ----------
 export async function getReviewSuggestion() {
   // 建议核心已抽至 repo-core.buildReviewSuggestion（N9）
