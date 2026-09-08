@@ -214,6 +214,49 @@ export function mergeCardPair(local, incoming, extFields = []) {
   const content = incTs > locTs ? incoming : (locTs > incTs ? local : (tiebreak(incoming, local) ? incoming : local));
   const srs = incRev > locRev ? incoming : (locRev > incRev ? local : (tiebreak(incoming, local) ? incoming : local));
   const out = { ...content, updatedAt: Math.max(incTs, locTs) };
+  // round29 修（P0）：内容侧此前是**整行 LWW** —— CARD_CONTENT_FIELDS 只存在于定义处，
+  // 从未参与合并，导致两端并发编辑不同字段（A 改 front / B 改 back）时一端修改静默丢失，
+  // 与文件顶部「内容字段按 updatedAt 字段级合并」的承诺不符。
+  // 现在按字段级时间戳 fieldTs 逐字段取新：写入侧（repo.updateCard）对本次真正改动的字段
+  // 记录 fieldTs[f]。老数据没有 fieldTs → 退化用整行 updatedAt → 行为与修复前一致（安全）。
+  const tsOf = (row, f) => {
+    const ts = row && row.fieldTs;
+    return ts && typeof ts === 'object' && Number.isFinite(ts[f]) ? ts[f] : null;
+  };
+  // 字段集 = 内容组 ∪ 两端 fieldTs 记录过的任意字段——后者让派生/状态字段
+  // （linkedNoteIds / quickCheckedAt / wordCards 的 familiar·kind 等）也能享受同样的
+  // 逐字段保护，只要它们的写入点按约定 bump fieldTs[f]（不再随整行覆盖丢失）。
+  const _extra = new Set([...Object.keys(incoming.fieldTs || {}), ...Object.keys(local.fieldTs || {})]);
+  const mergeFields = new Set([...CARD_CONTENT_FIELDS, ..._extra]);
+  for (const f of mergeFields) {
+    if (CARD_SRS_FIELDS.includes(f)) continue; // SRS 由 reviewedAt 驱动，不参与字段级内容合并
+    const it = tsOf(incoming, f);
+    const lt = tsOf(local, f);
+    // 任一端都没有该字段的独立时间戳 → 沿用整行 updatedAt（旧语义，保证向后兼容）
+    if (it === null && lt === null) continue;
+    const iTs = it === null ? incTs : it;
+    const lTs = lt === null ? locTs : lt;
+    let winner;
+    if (iTs !== lTs) {
+      winner = iTs > lTs ? incoming : local;
+    } else {
+      // fieldTs 平局（含一端是旧客户端/旧数据：改了字段但只 bump 了整行 updatedAt、
+      // 没维护 fieldTs）——单凭字段级时间戳分不出谁真改过，回退到整行 updatedAt 判定，
+      // 与「两端都无 fieldTs」时完全一致（向后兼容，不丢更新）。
+      winner = incTs > locTs ? incoming : (locTs > incTs ? local : (tiebreak(incoming, local) ? incoming : local));
+    }
+    // 赢家缺该字段（老版本包/老客户端）时退回另一端——否则会把本地已有值抹成 undefined
+    const loser = winner === incoming ? local : incoming;
+    const v = winner[f] !== undefined ? winner[f] : loser[f];
+    if (v !== undefined) out[f] = v;
+  }
+  // fieldTs 自身取两端逐字段最大值（它是元数据，不是内容，不参与 LWW 覆盖）
+  const tsKeys = new Set([...Object.keys(incoming.fieldTs || {}), ...Object.keys(local.fieldTs || {})]);
+  if (tsKeys.size) {
+    const mergedTs = { ...(local.fieldTs || {}), ...(incoming.fieldTs || {}) };
+    for (const f of tsKeys) mergedTs[f] = Math.max(Number(incoming.fieldTs?.[f]) || 0, Number(local.fieldTs?.[f]) || 0);
+    out.fieldTs = mergedTs;
+  }
   for (const f of CARD_SRS_FIELDS) {
     if (srs && srs[f] !== undefined) out[f] = srs[f];
   }

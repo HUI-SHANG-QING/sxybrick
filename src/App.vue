@@ -200,7 +200,15 @@ function loadCoreNavs() {
     const raw = localStorage.getItem(CORE_KEY);
     if (raw) {
       const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) { coreNavs.value = arr; hasCoreSetting.value = true; }
+      if (Array.isArray(arr)) {
+        // round29：恢复后校验 path 是否仍存在于当前导航表——路由下架/改名后残留的
+        // 旧 path 会让「始终显示的导航项」永久错位，用户改不动也看不出原因。
+        const valid = new Set(navItems.map(n => n.path));
+        const kept = arr.filter(p => valid.has(p));
+        coreNavs.value = kept.length ? kept : [...DEFAULT_CORE_NAVS];
+        hasCoreSetting.value = true;
+        if (kept.length !== arr.length) localStorage.setItem(CORE_KEY, JSON.stringify(coreNavs.value));
+      }
     }
   } catch {}
 }

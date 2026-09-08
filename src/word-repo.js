@@ -253,7 +253,10 @@ export async function markFamiliar(id, value = 1) {
     const cur = await db.wordCards.get(id);
     if (!cur) return null;
     const v = value ? 1 : 0;
-    const patch = { familiar: v, updatedAt: now() };
+    const t = now();
+    // round29：familiar 是状态字段，不在内容组也不在 SRS 组 → 此前随整行 LWW 漂移
+    // （一端标熟词、另一端改 note 就会把熟词标记吞掉）。登记字段级时间戳即可逐字段取新。
+    const patch = { familiar: v, updatedAt: t, fieldTs: { ...(cur.fieldTs || {}), familiar: t } };
     if (v === 1) patch.dueAt = now() + 365 * 86400000; // 熟词一年后到期（等于移出活跃队列）
     else {
       patch.dueAt = now(); // 取消熟词：立即重新进入复习队列

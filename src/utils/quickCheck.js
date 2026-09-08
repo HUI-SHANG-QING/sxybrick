@@ -53,6 +53,10 @@ export async function recordQuickCheck(cardId, remembered) {
     // M1 时间戳漏 bump：只写 quickCheckedAt 的话，该校验动作无任何活跃时间字段推进，
     // 卡片不随内容侧增量包上传、对端永远看不到这次校验。quickCheckedAt 随内容侧合并
     // （非 SRS 排期字段），故 bump updatedAt 而非 reviewedAt。
-    await db.cards.put({ ...card, quickCheckedAt: now, updatedAt: now });
+    // round29：同上——登记字段级时间戳，避免 quickCheckedAt 被对端的整行覆盖回退
+    await db.cards.put({
+      ...card, quickCheckedAt: now, updatedAt: now,
+      fieldTs: { ...(card.fieldTs || {}), quickCheckedAt: now },
+    });
   }
 }

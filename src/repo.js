@@ -17,6 +17,7 @@ import { pad2 } from './utils/format.js';
 // 审计 D7：日期 key 统一走 time.dateKey（补零 yyyy-MM-dd），与 word/streak 同源，
 // 否则 repo 本地一份 localDateStr 独立实现会在未来格式演进时跨表整日错位。
 import { dateKey as createDateKey } from './utils/time.js';
+import { CARD_CONTENT_FIELDS } from './sync-manifest.js';
 // N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
 import {
   DEFAULT_SUBJECTS,
@@ -160,7 +161,11 @@ export async function listCards({ q = '', subject = '', tags = [], logic = 'AND'
   else if (sortBy === 'due') cards.sort((a, b) => (a.dueAt - b.dueAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   else if (sortBy === 'subject') cards.sort((a, b) => String(a.subject || '').localeCompare(String(b.subject || '')) || (b.updatedAt - a.updatedAt));
   else cards.sort((a, b) => (b.updatedAt - a.updatedAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  const dueCount = all.filter(c => c.dueAt <= now()).length;
+  // round29：dueCount 是「全部卡片」的到期数（与筛选无关），此前在已经拿到 all 之后
+  // 又全表 filter 一遍；排序本身是 O(n log n)，这里顺带一次遍历算完即可。
+  const nowTs = now();
+  let dueCount = 0;
+  for (const c of all) if (c.dueAt <= nowTs) dueCount++;
   return { items: cards, total: cards.length, dueCount };
 }
 
@@ -187,6 +192,10 @@ export async function createCard(payload) {
     // 哨兵语义。此前 cards 不写该字段（undefined），而 sync-manifest 曾用 `?? updatedAt`
     // 兜底，导致「只改内容未复习」的卡在 SRS 合并里覆盖对端已复习的调度。现在 0 是权威哨兵。
     ease: 2.5, level: 0, intervalDays: 0, reviewedAt: 0, fsrs: null, dueAt: t, createdAt: t, updatedAt: t,
+    // round29：字段级合并的写入侧。新卡所有内容字段的时间戳 = 创建时刻；
+    // 之后 updateCard 只 bump 本次真正改动的字段，让跨设备合并能逐字段取新
+    // （不再整行覆盖）。老数据没有该字段 → 合并侧自动退回整行 LWW，向后兼容。
+    fieldTs: CARD_CONTENT_FIELDS.reduce((m, f) => { m[f] = t; return m; }, {}),
   };
   await db.cards.put(card);
   fireHook('onCardSaved', card);
@@ -214,6 +223,14 @@ export async function updateCard(id, payload) {
       difficulty: payload.difficulty !== undefined ? r.value.difficulty : (old.difficulty ?? 'basic'),
       frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
     };
+    // round29：只给「本次真正变化」的内容字段打时间戳（逐字段 diff）。
+    // 这样设备 A 改 front、设备 B 改 back 时，合并侧能各自取新，而不是整行互相覆盖。
+    const t = card.updatedAt;
+    const fieldTs = { ...(old.fieldTs || {}) };
+    for (const f of CARD_CONTENT_FIELDS) {
+      if (JSON.stringify(card[f]) !== JSON.stringify(old[f])) fieldTs[f] = t;
+    }
+    card.fieldTs = fieldTs;
     await db.cards.put(card);
     fireHook('onCardSaved', card);
     return card;
@@ -377,7 +394,12 @@ export async function restoreFromTrash(t) {
         const set = new Set(c.linkedNoteIds || []);
         if (!set.has(t.id)) {
           set.add(t.id);
-          await db.cards.update(c.id, { linkedNoteIds: [...set], updatedAt: now() });
+          const tNow = now();
+          // round29：派生/状态字段同样要登记字段级时间戳，否则合并时随整行 LWW 漂移
+          await db.cards.update(c.id, {
+            linkedNoteIds: [...set], updatedAt: tNow,
+            fieldTs: { ...(c.fieldTs || {}), linkedNoteIds: tNow },
+          });
         }
       }
     }
@@ -418,6 +440,17 @@ export async function deleteCard(id) {
     // 审计 #10：记录被清洗引用的 noteId，恢复时补回 linkedCardIds
     // 性能：此前这里与下方第 8 步**各扫一次 db.notes 全表**（同一次删除里两遍全表物化，
     // 笔记多时删卡明显变慢）。两次都在同一事务内且中间不写 notes，故只扫一次、两处复用。
+    // round29：清洗「其它卡 → 本卡」的变式血缘引用。此前只清了 notes.linkedCardIds，
+    // 派生卡的 sourceCardId 会指向已删除的源卡（幽灵引用），跨设备后血缘/变式重罚逻辑失效。
+    // 删卡是低频操作，这里用一次全表 filter 换引用完整性（sourceCardId 无索引）。
+    const derivedCards = await db.cards.filter(c => c.sourceCardId === id).toArray();
+    for (const d of derivedCards) {
+      const tNow = now();
+      await db.cards.update(d.id, {
+        sourceCardId: null, updatedAt: tNow,
+        fieldTs: { ...(d.fieldTs || {}), sourceCardId: tNow },
+      });
+    }
     const allNotes = await db.notes.toArray();
     const linkedNotes = allNotes.filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.includes(id));
     const linkedNoteIds = linkedNotes.map(n => n.id);
@@ -1328,7 +1361,11 @@ export async function deleteNote(id) {
       const cards = (await db.cards.bulkGet(linkedCardIds)).filter(Boolean);
       for (const c of cards) {
         if (Array.isArray(c.linkedNoteIds) && c.linkedNoteIds.includes(id)) {
-          await db.cards.update(c.id, { linkedNoteIds: c.linkedNoteIds.filter(x => x !== id), updatedAt: now() });
+          const tNow = now();
+          await db.cards.update(c.id, {
+            linkedNoteIds: c.linkedNoteIds.filter(x => x !== id), updatedAt: tNow,
+            fieldTs: { ...(c.fieldTs || {}), linkedNoteIds: tNow },
+          });
         }
       }
     }

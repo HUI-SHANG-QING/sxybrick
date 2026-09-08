@@ -456,7 +456,18 @@ let historySeq = 0;
 async function loadHistory() {
   const seq = ++historySeq;
   historyLoading.value = true;
-  try { history.value = await reviewHistory(300); if (seq !== historySeq) return; } // 审计 F-14
+  try {
+    history.value = await reviewHistory(300);
+    if (seq !== historySeq) return; // 审计 F-14
+    // round29：collapsedIds 存的是「已背记录里被收起的卡 id」，删卡后这些 id 永不回收，
+    // 集合只增不减（纯脏数据，不自愈）。每次拉到历史后剔除已不存在的 id。
+    // 注：不做 real/test 键隔离——两个域是物理隔离的 Dexie 实例且 id 为 uuid，冲突可忽略。
+    if (collapsedIds.value.size && history.value.length) {
+      const valid = new Set(history.value.map(h => h.id));
+      const kept = [...collapsedIds.value].filter(id => valid.has(id));
+      if (kept.length !== collapsedIds.value.size) { collapsedIds.value = new Set(kept); saveCollapsed(); }
+    }
+  }
   catch (e) { toast(e.message, 'error'); }
   finally { historyLoading.value = false; }
 }
