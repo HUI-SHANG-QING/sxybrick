@@ -182,9 +182,28 @@ function plain(md) {
 
 function typeName(type) { return type === 'cloze' ? t('views.cards.typeCloze') : type === 'choice' ? t('views.cards.typeChoice') : type === 'writing' ? t('views.cards.typeWriting') : ''; }
 
+// round29 自愈：筛选条件是从 localStorage 恢复的，若其中科目/标签在当前数据里已不存在
+// （删过科目、清过数据、跨版本升级），筛选会永远命中 0 条——表现就是「检索坏了」，
+// 而强制刷新清不掉（状态每次都被恢复）。这里在拿到最新科目/标签表后剔除失效项。
+// 仅在列表非空时判定，避免数据尚未就绪时误清用户的有效筛选。
+let _staleFiltersPruned = false;
 async function loadMeta() {
   subjects.value = await getSubjects();
+  if (filters.subject && subjects.value.length && !subjects.value.some(s => s.name === filters.subject)) {
+    filters.subject = '';
+  }
   allTags.value = await getTags(filters.subject);
+  if (!_staleFiltersPruned) {
+    _staleFiltersPruned = true;
+    if (filters.tags.length && allTags.value.length) {
+      const valid = new Set(allTags.value.map(t => t.name));
+      const kept = filters.tags.filter(t => valid.has(t));
+      if (kept.length !== filters.tags.length) {
+        filters.tags = kept;
+        saveCardFilters();
+      }
+    }
+  }
 }
 
 let loadSeq = 0;

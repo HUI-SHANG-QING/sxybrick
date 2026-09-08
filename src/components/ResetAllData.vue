@@ -94,7 +94,10 @@ function resetFlow() {
     <div class="hint" style="margin-bottom:8px;line-height:1.6">
       将删除当前账户（{{ /* 单用户，无档案 */ '本机' }}）在浏览器里的<strong>全部本地数据</strong>：
       所有卡片、复习记录、错题、AI 对话、计划、图谱、备忘录、同步记录、埋点等，且<strong>不可恢复</strong>。<br/>
-      为防止误触，必须<strong>确认 {{ REQUIRED_CONFIRMS }} 次</strong>，且<strong>每次间隔 &gt; 3 秒</strong>、<strong>全程等待 ≥ 10 秒</strong>。
+      为防止误触，必须<strong>确认 {{ REQUIRED_CONFIRMS }} 次</strong>，且<strong>每次间隔 &gt; 3 秒</strong>、<strong>全程等待 ≥ 10 秒</strong>。<br/>
+      <strong>⚠️ 清空只作用于本机。</strong>如果你启用了局域网同步，下次同步时<strong>电脑端中枢与其他设备上的数据会重新回到这台设备</strong>
+      （本机此前删除的卡片也会一并恢复，因为本机的删除记录随清空一起消失）。
+      要彻底清空：每台设备各执行一次，并删除电脑端中枢的数据文件后重启中枢。
     </div>
 
     <!-- 先备份引导：清空不可逆，入口处直接给按钮，而不是只写一句"请先备份" -->

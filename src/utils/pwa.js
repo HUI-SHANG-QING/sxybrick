@@ -17,6 +17,10 @@ const updateCallbacks = new Set();
 const offlineReadyCallbacks = new Set();
 const quotaCallbacks = new Set();
 let swRegistered = false;
+// registerSW 返回的 activate 函数（vite-plugin-pwa prompt 模式的官方激活入口）。
+// 此前它被丢弃，applyUpdate 只能靠 postMessage(SKIP_WAITING) + reload 兜底；
+// 一旦 SW 未监听该消息，reload 后仍是旧 SW 控制页面 = 用户「点了更新却还是旧版本」。
+let activateSw = null;
 
 // SW 是否需要刷新（onNeedRefresh 时置 true，用户点击刷新后置 false）
 let needRefresh = false;
@@ -35,7 +39,7 @@ export function initPwa(opts = {}) {
   // 注册 SW：onNeedRefresh 在「新版本已下载完毕，等待激活」时触发；
   //   onOfflineReady 在「所有预缓存资源已就绪，可离线启动」时触发
   if (typeof registerSW === 'function') {
-    registerSW({
+    activateSw = registerSW({
       immediate: true,
       onNeedRefresh() {
         needRefresh = true;
@@ -138,6 +142,18 @@ export async function forceResetPwa() {
  * 失败时静默降级为直接 reload，确保用户总能拿到新版
  */
 export async function applyUpdate() {
+  // 官方路径优先：updateSW(true) 会让 waiting 中的 SW 立即接管并刷新页面。
+  // 它内部已处理 controllerchange / reload，比手写 postMessage 可靠。
+  if (typeof activateSw === 'function') {
+    try {
+      await activateSw(true);
+      // 兜底：极少数浏览器 activate 后未自动刷新，1.5s 后强制 reload
+      setTimeout(() => { try { window.location.reload(); } catch {} }, 1500);
+      return;
+    } catch (e) {
+      console.warn('[PWA] updateSW 失败，降级 SKIP_WAITING:', e?.message || e);
+    }
+  }
   try {
     if ('serviceWorker' in navigator) {
       const reg = await navigator.serviceWorker.getRegistration();

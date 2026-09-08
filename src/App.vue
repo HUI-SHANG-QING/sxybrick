@@ -459,10 +459,10 @@ async function enableReminder() {
       <div v-if="!online" class="pwa-chip pwa-offline" title="当前离线，数据保存在本地，联网后自动同步">
         <span>📵</span><span>离线模式</span>
       </div>
-      <div v-if="swNeedRefresh" class="pwa-chip pwa-update" title="应用新版本已下载完毕，点击立即更新">
+      <div v-if="swNeedRefresh" class="pwa-chip pwa-update" title="应用新版本已下载完毕，点击立即更新" @click="reloadForUpdate" style="cursor:pointer">
         <span>🆕</span><span>有新版本可用</span>
-        <button class="pwa-act" @click="reloadForUpdate">立即更新</button>
-        <button class="pwa-dismiss" @click="dismissSwUpdate" title="本次忽略">×</button>
+        <button class="pwa-act" @click.stop="reloadForUpdate">立即更新</button>
+        <button class="pwa-dismiss" @click.stop="dismissSwUpdate" title="本次忽略">×</button>
       </div>
       <div v-else-if="quotaWarn" class="pwa-chip pwa-quota" :title="`已用 ${quotaWarn.usagePercent}%（${fmtBytes(quotaWarn.usage)} / ${fmtBytes(quotaWarn.quota)}），建议导出备份后清理旧数据`">
         <span>💾</span><span>本地存储已用 {{ quotaWarn.usagePercent }}%</span>
