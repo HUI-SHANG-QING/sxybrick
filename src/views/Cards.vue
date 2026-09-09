@@ -74,6 +74,13 @@ const pageCount = computed(() => Math.max(1, Math.ceil(items.value.length / PAGE
 const pagedItems = computed(() => items.value.slice((pageNo.value - 1) * PAGE_SIZE, pageNo.value * PAGE_SIZE));
 // 列表变短（过滤/删除）导致页码越界时自动收回到最后一页
 watch(pageCount, (c) => { if (pageNo.value > c) pageNo.value = c; });
+// 筛选/排序变化后回到第 1 页：越界回收只在「页码 > 总页数」时触发，
+// 若在第 5 页改科目而新结果仍有 10 页，页码不变 → 用户看到的是新结果集的第 5 页切片，
+// 观感就像筛选没生效。改条件即回第 1 页。
+watch(
+  () => [filters.q, filters.subject, filters.logic, filters.tags.join(','), sortBy.value].join('|'),
+  () => { pageNo.value = 1; },
+);
 
 // ---------- 资产体检跳转支持（?zombie=1 / ?dupGroup=key / ?orphan=1 / ?expandAll=1） ----------
 const activeFilterBanner = ref('');   // 顶部提示：当前是从资产体检跳过来的哪一组
@@ -936,12 +943,6 @@ async function rescueAll() {
             <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? t('views.cards.generating') : t('views.cards.variant') }}</button> <button class="btn small" @click="openDiagnose(item)">{{ t('views.cards.diagnose') }}</button> <button class="btn small" @click="openHistory(item)">{{ t('views.cards.history') }}</button>           <button class="btn small danger" @click="remove(item)">{{ t('views.cards.del') }}</button>
         </div>
       </div>
-      <!-- E3：分页条（仅 page 视图且多于一页时显示；scroll 视图走 VirtualList 不在此） -->
-      <div v-if="pageCount > 1" class="pager no-print" style="display:flex;align-items:center;justify-content:center;gap:10px;margin:14px 0">
-        <button class="chip mini" :disabled="pageNo <= 1" @click="pageNo--">{{ t('views.cards.pagePrev', '上一页') }}</button>
-        <span class="hint">{{ pageNo }} / {{ pageCount }} · {{ t('views.cards.totalN', '共 {n} 张', { n: items.length }) }}</span>
-        <button class="chip mini" :disabled="pageNo >= pageCount" @click="pageNo++">{{ t('views.cards.pageNext', '下一页') }}</button>
-      </div>
     </template>
     </VirtualList>
 
@@ -975,6 +976,15 @@ async function rescueAll() {
           <button class="btn small" :class="{ danger: item.marked }" @click="toggleMarked(item)">{{ item.marked ? t('views.cards.unmark') : t('views.cards.mark') }}</button> <button class="btn small" @click="openEdit(item)">{{ t('views.cards.edit') }}</button>
           <button class="btn small" @click="genVariantsFor(item)" :disabled="variantBusy.has(item.id)">{{ variantBusy.has(item.id) ? t('views.cards.generating') : t('views.cards.variant') }}</button> <button class="btn small" @click="openDiagnose(item)">{{ t('views.cards.diagnose') }}</button> <button class="btn small" @click="openHistory(item)">{{ t('views.cards.history') }}</button> <button class="btn small danger" @click="remove(item)">{{ t('views.cards.del') }}</button>
         </div>
+      </div>
+      <!-- E3：分页条（page 视图专用；scroll 视图走 VirtualList 内置虚拟滚动，无需分页）。
+           ⚠️ 回归提醒：此块必须留在 <template v-else> 内、v-for 之后——
+           曾误放进 VirtualList 的 #default 插槽（插槽按可见项逐项渲染），
+           导致滚动模式每张卡下方重复出现分页条、分页模式反而完全没有翻页控件。 -->
+      <div v-if="pageCount > 1" class="pager no-print" style="display:flex;align-items:center;justify-content:center;gap:10px;margin:14px 0">
+        <button class="chip mini" :disabled="pageNo <= 1" @click="pageNo--">{{ t('views.cards.pagePrev', '上一页') }}</button>
+        <span class="hint">{{ pageNo }} / {{ pageCount }} · {{ t('views.cards.totalN', '共 {n} 张', { n: items.length }) }}</span>
+        <button class="chip mini" :disabled="pageNo >= pageCount" @click="pageNo++">{{ t('views.cards.pageNext', '下一页') }}</button>
       </div>
     </template>
 
