@@ -76,7 +76,7 @@ export function toFsrsGrade(rating) {
 }
 
 /** 可提取性 R = (1 + t/(9S))^-1，t=自上次复习经过天数 */
-export function retrievability(S, elapsedDays, w = DEFAULT_WEIGHTS) {
+export function retrievability(S, elapsedDays, _w = DEFAULT_WEIGHTS) {
   // 审计 P3-7：w 参数当前不参与公式计算（公式 (1+t/(9s))^-1 与 w 无关），
   // 保留仅为签名兼容——下游调用方统一传 w，删掉会导致调用方报错。
   const s = Math.max(0.01, S);

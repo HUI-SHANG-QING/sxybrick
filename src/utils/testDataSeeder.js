@@ -2,7 +2,7 @@
 // M3 演示模式：预置测试数据。首次进入演示模式且测试库为空时自动填充，
 // 让各功能（卡片/复习/卡组/搜索/同步/分析/单词本/计划/资料库/知识图谱/AI 文档）都能立即演示。
 // 只写测试库（db 已切到 sxybrick-test 实例），绝不触碰真实数据。
-import { db, uid } from '../db.js';
+import { db } from '../db.js';
 
 const DAY = 86400000;
 const NOW = Date.now();

@@ -1,7 +1,7 @@
 // 情境变式生成：为同一知识点生成不同问法/场景的变式卡
 // 认知科学依据：同一知识点在不同情境下回忆，避免"学会背题而非学会知识"
 // 一次生成多张变式，写入卡片库关联原始卡
-import { chatAI, hasAIKey } from '../ai.js';
+import { chatAI } from '../ai.js';
 import { createCard } from '../repo.js';
 import { offlineGenVariants, shouldFallback, isNetworkError } from './offlineAI.js';
 import { parseLLMJsonArray } from './llm-json.js';

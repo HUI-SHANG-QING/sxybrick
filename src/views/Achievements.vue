@@ -122,7 +122,7 @@ onMounted(refresh);
           <circle v-if="trunkRatio > 0.05" cx="200" :cy="445 - trunkH - 4" :r="18 + trunkRatio * 26"
                   fill="var(--green)" opacity="0.12" />
           <!-- 分枝 -->
-          <g v-for="(b, i) in treeBranches" :key="b.cat">
+          <g v-for="b in treeBranches" :key="b.cat">
             <!-- 每层 y：从主干下方向上排布 -->
             <path :d="branchPath(b)"
                   :stroke="b.alive ? 'var(--green)' : 'var(--ink-3, #bbb)'" stroke-width="3.5"

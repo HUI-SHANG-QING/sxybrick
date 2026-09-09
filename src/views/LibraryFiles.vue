@@ -57,9 +57,11 @@ const ocrSettings = ref({ lang: 'chi_sim+eng', langPath: '', cloud: { enabled: f
 
 function loadOcrSettings() {
   const s = getOcrSettings();
+  // 对象字面量曾出现两个 cloud 键：第一个在 `...s` 展开时会被 s.cloud 整体覆盖、
+  // 随后又由第二个 cloud 键接管——前一个是死代码且触发 no-dupe-keys。保留语义：
+  // 默认值兜底 + s.cloud 增量合并（后者负责真正的合并逻辑）。
   ocrSettings.value = {
     lang: 'chi_sim+eng', langPath: '',
-    cloud: { enabled: false, endpoint: '', apiKey: '', model: 'gpt-4o-mini' },
     ...s,
     cloud: { enabled: false, endpoint: '', apiKey: '', model: 'gpt-4o-mini', ...(s.cloud || {}) },
   };

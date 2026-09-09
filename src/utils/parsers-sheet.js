@@ -44,7 +44,7 @@ export function cellToText(v) {
  * 纯函数、零依赖，浏览器与 Node 都可测。
  */
 export function parseCsvRows(text) {
-  const s = String(text ?? '').replace(/^﻿/, '');
+  const s = String(text ?? '').replace(/^\uFEFF/, '');
   const rows = [];
   let row = [];
   let field = '';

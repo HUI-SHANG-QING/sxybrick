@@ -113,14 +113,6 @@ function markPushed(key) {
   saveDedup(map);
 }
 
-function isQuietHour(d = new Date()) {
-  const h = d.getHours();
-  if (SCHEDULER.quietStart <= SCHEDULER.quietEnd) {
-    return h >= SCHEDULER.quietStart && h < SCHEDULER.quietEnd;
-  }
-  return h >= SCHEDULER.quietStart || h < SCHEDULER.quietEnd;
-}
-
 // ---------- 规则建议引擎（免费、零延迟）----------
 
 export async function generateRuleSuggestions() {

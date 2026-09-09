@@ -19,7 +19,7 @@ export function splitQA(text) {
     // 题号开头：1. 1、 1） (1) 一、 等
     const qm = line.match(/^\s*(?:[（(]?(\d{1,3})[)）.、．]|([一二三四五六七八九十]{1,3})[、．.])\s*(.+)$/);
     // 答案/解析标记（行首）
-    const am = line.match(/^[【\[]?(?:参考答案?|答案解析?|解析|解答|详解|答)[】\]]?[:：]?\s*(.*)$/);
+    const am = line.match(/^[【[]?(?:参考答案?|答案解析?|解析|解答|详解|答)[】\]]?[:：]?\s*(.*)$/);
     if (qm && !inBack) {
       if (cur) cards.push(finishQACard(cur));
       cur = { front: [line], back: [] };

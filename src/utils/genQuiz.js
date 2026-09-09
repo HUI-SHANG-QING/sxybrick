@@ -127,7 +127,7 @@ export async function genQuiz(cards, opts = {}) {
   }
 
   // 准备知识点摘要（喂给 LLM，避免超长）
-  const knowledge = cards.slice(0, 30).map((c, i) => ({
+  const knowledge = cards.slice(0, 30).map((c) => ({
     id: c.id,
     q: plain(c.front).slice(0, 120),
     a: plain(c.back).slice(0, 150),

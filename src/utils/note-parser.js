@@ -24,7 +24,7 @@
 
 // 双向链接识别正则：`[[xxx]]` 或 `[[xxx|别名]]`
 //   排除换行嵌入 `[[abc\ndef]]`，避免误识别
-const WIKI_LINK_RE = /\[\[([^\[\]\n|]+?)(?:\|([^\[\]\n|]+?))?\]\]/g;
+const WIKI_LINK_RE = /\[\[([^[\]\n|]+?)(?:\|([^[\]\n|]+?))?\]\]/g;
 // #标签识别正则：`#xxx` 不再含空白字符 + 中文英文都允许
 const TAG_RE = /(?:^|[\s\u3000,，;；])#([\p{L}\p{N}_-]+)/gu;
 
@@ -143,8 +143,8 @@ export function summarize(content, { len = 120 } = {}) {
   if (!content) return '';
   // 优先去掉双向链接的 [[ ]]
   const clean = String(content)
-    .replace(/\[\[([^\[\]\n|]+?)(?:\|[^\[\]\n|]+?)?\]\]/g, '$1')
-    .replace(/[#*`>\-]+/g, ' ')
+    .replace(/\[\[([^[\]\n|]+?)(?:\|[^[\]\n|]+?)?\]\]/g, '$1')
+    .replace(/[#*`>-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   return clean.length > len ? clean.slice(0, len) + '…' : clean;

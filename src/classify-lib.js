@@ -22,6 +22,12 @@
 import { db } from './db.js';
 import { trainClassifier, classify, toTrainSample } from './utils/classifier.js';
 
+// round30（P1-2）回归修复：classify 的 write 回调里用 now() 打时间戳，
+// 但本模块从未定义/导入 now —— 自动归类一旦写回（subject 命中）即抛
+// ReferenceError，归类功能整体失效（lint 门禁当时失效，未能拦住）。
+// 与 repo.js 的 `const now = () => Date.now()` 同口径，不引额外依赖。
+const now = () => Date.now();
+
 /** 视为「尚未分类」的值 */
 const UNCLASSIFIED_VALUES = new Set(['', '未分类', 'uncategorized', 'none', 'null']);
 export function isUnclassified(v) {

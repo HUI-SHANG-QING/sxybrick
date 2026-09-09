@@ -167,7 +167,7 @@ export default defineConfig({
           },
           {
             // 图床 / 图标源：StaleWhileRevalidate（先返回缓存秒级可用，后台异步拉新版）
-            urlPattern: ({ url, request }) => request.destination === 'image',
+            urlPattern: ({ request }) => request.destination === 'image',
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'sxybrick-img',

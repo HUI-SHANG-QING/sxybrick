@@ -23,7 +23,7 @@ function toPlain(t) {
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/\$\$?[^$\n]+\$\$?/g, ' $1 ')
-    .replace(/[*_#>~`|\[\](){}=]/g, '')
+    .replace(/[*_#>~`|[\](){}=]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

@@ -121,7 +121,7 @@ export function heatmapOption(heat = []) {
   return {
     tooltip: {
       formatter: p => {
-        const [dow, week, rate, date, total, done] = p.data;
+        const [dow, _week, rate, date, total, done] = p.data;
         return `${date}（周${yLabels[dow]}）<br/>完成率：${rate}%<br/>${done}/${total} 任务`;
       },
     },

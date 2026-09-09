@@ -49,7 +49,7 @@ export function initPwa(opts = {}) {
         offlineReady = true;
         offlineReadyCallbacks.forEach(cb => { try { cb(); } catch {} });
       },
-      onRegisteredSW(swUrl, reg) {
+      onRegisteredSW() {
         // autoUpdate 模式下 vite-plugin-pwa 会自动检查更新；这里仅记录日志便于排查
         // 不主动调用 update() 以避免与服务端产生额外请求
       },

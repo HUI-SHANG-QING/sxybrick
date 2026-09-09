@@ -13,7 +13,7 @@
 import { db, uid } from './db.js';
 // 复用记忆卡调度器（SM-2/FSRS 自动切换）与权重配置：避免两套调度逻辑漂移
 import { scheduleReview } from './srs.js';
-import { getSchedConfig, refreshSchedConfig, formatDue, trashItem, findOrphanImages } from './repo.js';
+import { getSchedConfig, formatDue, trashItem, findOrphanImages } from './repo.js';
 import { isMastered, dayWindowOf } from './repo-core.js';
 import { extractImageIds } from './images.js';
 import { retrievability } from './fsrs.js';

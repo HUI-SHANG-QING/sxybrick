@@ -285,11 +285,9 @@ export async function batchGenerateModeQuestions({
       } else {
         r = { ok: false, reason: 'throw:' + (settled.reason?.message || settled.reason) };
       }
-      let savedModes = null;
       let savedOk = false;
       if (r.ok) {
         const merged = applyModeQuestions(card, r.modes);
-        savedModes = merged.modeQuestions;
         generated += Object.keys(r.modes).length;
         if (saveFn) {
           try {

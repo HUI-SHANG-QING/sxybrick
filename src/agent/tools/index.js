@@ -25,8 +25,6 @@ import {
   listGraphEdges,
   listDocs,
   createDoc,
-  updateDoc,
-  deleteDoc,
 } from '../../repo.js';
 import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards, getGraphDrivenReviewPlan, generateAutoPlan, getCalibration } from '../analytics.js';
 import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';

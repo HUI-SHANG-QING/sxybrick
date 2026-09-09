@@ -7,11 +7,11 @@
 import { agentRegistry, toolRegistry } from './registry.js';
 import { runReActAgent } from './agents/base.js';
 import { stringifyReply } from './reply.js'; // 归一化 reply 为非空 string，杜绝 UI 空白行
-import { buildStudyContext, buildFullContext } from './context.js';
+import { buildFullContext } from './context.js';
 import { buildMemoryText } from './memory.js';
 import { chat as llmChat } from './llm.js';
 import { TraceKind } from './types.js';
-import { runPipeline, shouldUsePipeline, PRESET_PIPELINES } from './pipeline.js';
+import { runPipeline, shouldUsePipeline } from './pipeline.js';
 import { offlineChat, shouldFallback, isNetworkError } from '../utils/offlineAI.js';
 import { t } from '../i18n/index.js'; // UI-facing trace / agentName 经 i18n 字典（check-view-i18n --js 闸门）
 

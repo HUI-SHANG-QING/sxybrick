@@ -26,6 +26,7 @@ export function routeParser(ext) {
 /** 文件名 → 安全 OPFS 相对路径（去 Windows 非法字符/控制字符/空格，防路径穿越） */
 export function normalizeOpfsPath(name) {
   const base = String(name || 'unnamed')
+    // eslint-disable-next-line no-control-regex -- 有意剔除控制字符(\u0000-\u001f)与 Windows 非法文件名字符
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_')
     .replace(/\s+/g, '_')
     .replace(/^\.+/, '') // 防隐藏文件/相对路径

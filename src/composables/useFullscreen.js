@@ -57,7 +57,7 @@ export function useFullscreen(targetRef, onChange) {
         isFullscreen.value = true;
         notify();
         return;
-      } catch (e) {
+      } catch {
         // 被 iframe / CSP 拦下 → 退化成 CSS 全屏
       }
     }

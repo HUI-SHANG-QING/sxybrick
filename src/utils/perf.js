@@ -12,7 +12,7 @@ export function startPerfMonitor() {
   try {
     const po = new PerformanceObserver((list) => {
       const now = performance.now();
-      for (const e of list.getEntries()) recent.push(now);
+      for (const _e of list.getEntries()) recent.push(now);
       recent = recent.filter(t => now - t < 5000);
       if (recent.length >= 3 && !degraded.value) {
         degraded.value = true;

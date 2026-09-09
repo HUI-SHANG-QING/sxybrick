@@ -59,7 +59,7 @@ export async function createPluginCtx(pluginId, scope) {
         if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
           new Notification('SxyBrick 插件', { body: String(text) });
         }
-      } catch (e) { /* 通知失败不影响主流程 */ }
+      } catch { /* 通知失败不影响主流程 */ }
       console.log(`[plugin:${pluginId}]`, String(text));
     },
     log(...args) { console.log(`[plugin:${pluginId}]`, ...args); },
@@ -83,7 +83,7 @@ function activatePlugin(row, mod) {
   if (mod && !instances.has(row.id)) {
     instances.set(row.id, { mod, manifest: { name: row.id, version: row.version, tools: row.tools, hooks: row.hooks }, blobUrl: null });
   }
-  const { tools, agents } = pluginActivationSummary(row, mod);
+  const { tools } = pluginActivationSummary(row, mod);
   const conflicts = [];
   for (const t of row.tools || []) {
     const existing = toolRegistry.get(t.name);

@@ -234,7 +234,6 @@ function buildCompletion(plan, reviews, pomodoro, cards, exams, docs, memos) {
  * @param {Array} planTasks
  */
 function buildRisks(planTasks) {
-  const now = Date.now();
   const pastNoon = new Date().getHours() >= 12;
   const out = [];
   for (const t of planTasks) {

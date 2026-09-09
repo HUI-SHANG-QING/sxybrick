@@ -69,7 +69,6 @@ let _flushTimer = null;
 let _flushInProgress = false;
 const FLUSH_INTERVAL = 200;   // 毫秒：最晚多久 flush 一次
 const FLUSH_BATCH = 40;       // 条数：到多少立即 flush
-const DEDUP_WINDOW_MS = 50;   // 毫秒：DOM B 级去重窗口（防止用户长按/连点产生的抖动）
 const _lastSeen = new Map();  // key: 去重指纹 -> 最后写入时间 ms
 
 function dedupKey(op) {
@@ -84,7 +83,6 @@ export async function _flush(force = false) {
   try {
     while (_buffer.length) {
       const batch = _buffer.splice(0, Math.min(100, _buffer.length));
-      // eslint-disable-next-line no-await-in-loop
       await db.userOps.bulkPut(batch);
     }
   } catch (e) {

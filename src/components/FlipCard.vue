@@ -55,7 +55,7 @@ const clueHint = computed(() => {
   if (!autoClue.value) return '';
   // 清洗 markdown/标点后取首字 + 字数
   const back = String(props.card.back || '')
-    .replace(/[#*`_\[\]()!~>\-]/g, '')
+    .replace(/[#*`_[\]()!~>-]/g, '')
     .replace(/\s+/g, '')
     .trim();
   if (!back) return '';
@@ -71,7 +71,7 @@ const hintText = computed(() => mdToSpeech(props.card.back).slice(0, 40) || '（
 
 // 默写判定：忽略空格/标点/大小写后逐字比对
 function normalizeWriting(s) {
-  return String(s || '').toLowerCase().replace(/[\s，。、；：,.;:!?！？'"“”‘’()（）\[\]【】]/g, '');
+  return String(s || '').toLowerCase().replace(/[\s，。、；：,.;:!?！？'"“”‘’()（）[\]【】]/g, '');
 }
 function checkWriting() {
   const user = normalizeWriting(writingAnswer.value);
@@ -101,7 +101,7 @@ const choiceData = computed(() => {
   const options = [];
   let answer = '';
   for (const line of String(props.card.back || '').split('\n')) {
-    const m = line.match(/^\s*([A-Da-d])[\.、．)）]\s*(.+)/);
+    const m = line.match(/^\s*([A-Da-d])[.、．)）]\s*(.+)/);
     if (m) options.push({ key: m[1].toUpperCase(), text: m[2].trim() });
     const am = line.match(/答案\s*[:：]\s*([A-Da-d])/);
     if (am) answer = am[1].toUpperCase();

@@ -144,15 +144,6 @@ const CARD_COLS = [
   { key: 'createdAt', label: '创建时间', transform: v => v ? new Date(v).toISOString() : '' },
 ];
 
-function pickRow(card, cols) {
-  const obj = {};
-  for (const c of cols) {
-    const raw = card?.[c.key];
-    obj[c.key] = c.transform ? c.transform(raw) : (raw ?? '');
-  }
-  return obj;
-}
-
 export function exportCardsToJSON(cards, meta = {}) {
   return toJSON(cards, { meta: { kind: 'cards', count: cards.length, ...meta } });
 }
@@ -224,15 +215,6 @@ export function exportMemosToCSV(memos) {
 
 // ──────────────── 业务：Notes（通用笔记 schema；供 P7.1 复用） ────────────────
 
-const NOTE_COLS = [
-  { key: 'id', label: 'ID' },
-  { key: 'title', label: '标题' },
-  { key: 'category', label: '分类' },
-  { key: 'tags', label: '标签', transform: arr => Array.isArray(arr) ? arr.join(',') : '' },
-  { key: 'content', label: '正文' },
-  { key: 'updatedAt', label: '更新时间', transform: v => v ? new Date(v).toISOString() : '' },
-];
-
 export function exportNotesToJSON(notes) {
   return toJSON(notes, { meta: { kind: 'notes', count: notes.length } });
 }
@@ -281,7 +263,7 @@ export function exportGraphToJSON(edges, meta = {}) {
 }
 
 /** GraphML（导入 Gephi / Cytoscape / Neo4j 等图工具的标准格式） */
-export function exportGraphToGraphML(edges, meta = {}) {
+export function exportGraphToGraphML(edges, _meta = {}) {
   const nodeIds = new Set();
   edges.forEach(e => { nodeIds.add(e.from); nodeIds.add(e.to); });
   const lines = [

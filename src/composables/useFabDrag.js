@@ -24,8 +24,6 @@ import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue';
 
 // 曼哈顿总位移 14 以内视为点击（手指点按天然抖动，欧式约 10px）
 const CLICK_DIST = 14;
-// 250ms 内按下-抬起无条件算点击（避免抖动误判成拖动）
-const CLICK_MS = 250;
 
 function pointOf(e) {
   if (e.touches) return e.touches[0] || (e.changedTouches && e.changedTouches[0]) || e;

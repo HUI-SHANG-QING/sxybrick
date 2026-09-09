@@ -450,7 +450,7 @@ async function saveGenerated() {
     });
     if (created) n++; else skipped++;
   }
-  toast(skipped ? t('views.knowledgeGraph.savedSkip', undefined, { n, skip }) : t('views.knowledgeGraph.savedAll', undefined, { n }), 'success');
+  toast(skipped ? t('views.knowledgeGraph.savedSkip', undefined, { n, skip: skipped }) : t('views.knowledgeGraph.savedAll', undefined, { n }), 'success');
   await loadSaved();
   try { T.graphSave(savedEdges.value.length); } catch {}
 }

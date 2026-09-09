@@ -28,7 +28,7 @@ export function setSanitizerWindow(win) {
 // DOMPurify 默认会剥掉 blob: 协议，而本项目本地图片（OPFS/IndexedDB）正是 blob: URL，
 // 不显式放行会导致所有本地图片在净化后消失。data: 仅对图片放开。
 const ALLOWED_URI_REGEXP =
-  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix|blob):|data:image\/[a-z+.\-]+;base64,|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+  /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix|blob):|data:image\/[a-z+.-]+;base64,|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
 
 function getPurify() {
   if (_purify) return _purify;

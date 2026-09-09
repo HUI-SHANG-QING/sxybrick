@@ -58,7 +58,7 @@ export async function loadParser(parserId) {
       return (await import('./parsers-docx.js')).extractDocxText;
     case 'text': {
       // txt/md 无需解析器：直接读文本
-      return async (blobOrText, opts = {}) => {
+      return async (blobOrText) => {
         if (typeof blobOrText === 'string') return { text: extractTextRaw(blobOrText) };
         const text = await blobOrText.text();
         return { text: extractTextRaw(text) };
@@ -85,7 +85,7 @@ export async function parseFile(ext, source, opts = {}) {
 }
 
 /** 校验解析结果完整性：非空 + 长度合理（防静默丢失） */
-export function assertParsedOk(result, size) {
+export function assertParsedOk(result, _size) {
   const text = result?.text;
   if (typeof text !== 'string' || !text.trim()) {
     throw new Error('解析结果为空——文件可能是扫描版图片 PDF，需要 OCR 能力');

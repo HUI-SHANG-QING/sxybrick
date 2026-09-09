@@ -22,7 +22,6 @@ export const LLM_PROVIDERS = [
 ];
 
 // ---------- Schema（与 AI 输出对齐） ----------
-const SCHEMA_EXAMPLE = `{"level":"simple|long","sentence":"...","translation":"..."}`;
 const SCHEMA_OUTPUT = `{
   "synonyms": ["..."],
   "collocations": ["..."],

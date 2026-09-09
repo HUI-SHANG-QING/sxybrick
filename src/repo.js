@@ -1,6 +1,6 @@
 // 数据访问层：把原版 Express 后端的业务逻辑，改写成对本地 IndexedDB 的读写
 import { db, uid } from './db.js';
-import { computeNext, applyFeedback, scheduleReview, seedFsrsFromSm2, RETRIEVAL_STRENGTH_OPTIONS } from './srs.js';
+import { applyFeedback, scheduleReview, seedFsrsFromSm2, RETRIEVAL_STRENGTH_OPTIONS } from './srs.js';
 // P3-4 插件事件钩子：业务动作后向已启用插件分发（fire-and-forget，不阻塞也不抛错）
 // 静态导入无循环依赖：plugins/registry 只依赖 db.js 与 agent/registry.js，不依赖 repo.js
 import { triggerHook } from './plugins/registry.js';

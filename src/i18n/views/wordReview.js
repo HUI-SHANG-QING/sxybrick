@@ -14,7 +14,6 @@ export const zh = {
   scopeGroup: '按词组',
   scopeGroupSelect: '选择要复习的词组',
   scopeGroupArchived: '备用',
-  scopeGroup: '按词组',
 
   // 模式（13 种：自适应 + 12）
   modeLabel: '复习模式',
@@ -95,7 +94,6 @@ export const zh = {
   yourAnswer: '你的答案',
   correctToast: '答对了',
   wrongToast: '答错了',
-  noTargetHint: '此单词缺少释义/拼写，无法判分，请跳过',
   noMeaningHint: '（该单词暂无释义）',
   eeSynonymPrefix: '与以下词语义相近：',
   eeFallbackHint: '（暂无英文释义素材，已退回中文提示）',
@@ -151,7 +149,6 @@ export const en = {
   scopeGroup: 'By group',
   scopeGroupSelect: 'Pick a word group to review',
   scopeGroupArchived: 'Parked',
-  scopeGroup: 'By group',
 
   modeLabel: 'Mode',
   modeAdaptive: 'Adaptive (BuBei-style)',
@@ -226,7 +223,6 @@ export const en = {
   yourAnswer: 'Your answer',
   correctToast: 'Correct',
   wrongToast: 'Wrong',
-  noTargetHint: 'This word is missing meaning/spelling, cannot grade — please skip',
   noMeaningHint: '(No meaning available for this word)',
   eeSynonymPrefix: 'Close in meaning to: ',
   eeFallbackHint: '(No English definition material — fell back to a Chinese hint)',

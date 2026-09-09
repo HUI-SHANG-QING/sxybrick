@@ -73,6 +73,7 @@ export async function countData() {
 export async function buildBackup(subject) {
   let cards = await db.cards.toArray();
   if (subject) cards = cards.filter(c => c.subject === subject);
+  // 科目卡组分享：subject 过滤后只带该科目卡的复习记录（按 cardId 收窄）
   const cardIds = new Set(cards.map(c => c.id));
 
   const parts = {};
@@ -124,7 +125,6 @@ export async function buildIncrementalBackup(lastSyncAt = 0, opts = {}) {
     // 缺时间戳）——`0 > 0` 恒假会让它们永久漏传，水位单调递增后再无补传路径
     return ts > since || (since === 0 && ts === 0);
   });
-  const cardIds = new Set(cards.map(c => c.id));
 
   const parts = {};
   for (const t of getEffectiveSyncTables()) {
@@ -435,7 +435,6 @@ export function parseAnkiLines(text) {
 // 首次（无 lastSyncAt）退化为全量。中枢侧按同一 sync-manifest 合并，增量包结构兼容全量合并。
 // M3：增量水位按 scope 分开（real/test 各自维护，互不干扰）
 const hubLastSyncKey = () => backupScope() === 'test' ? 'sxy_hub_last_sync_test' : 'sxy_hub_last_sync';
-const HUB_LAST_SYNC_KEY = 'sxy_hub_last_sync'; // 保留旧键兼容（real 域）
 
 // ---------- 同步水位（P0 修复：单模块同步不得推进全局水位） ----------
 // 水位 = 「上次成功上传到中枢的时刻」，增量包只上传 livenessTs(row) > since 的行。

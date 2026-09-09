@@ -7,7 +7,7 @@
 //   5) 源文档溯源（把原文存为 AI 文档，生成的卡片通过 source 字段回链）
 //   6) 冷启动模板（针对 0 卡新用户的预设学科包，解决"空库没人想用"的冷启动问题）
 // 设计原则：纯前端、模块化、无额外 LLM 调用做评分（省 token、可离线）
-import { chatAI, hasAIKey } from '../ai.js';
+import { chatAI } from '../ai.js';
 import { listCards, createCard, createDoc } from '../repo.js';
 // round37 E1：offlineAI 改为函数内动态 import——静态 import 会让
 // agent/index → tools → genDeck → ai → agent/index 成环（TDZ 风险，
@@ -17,7 +17,11 @@ import { listCards, createCard, createDoc } from '../repo.js';
 import { parseLLMJsonArray } from './llm-json.js';
 import { t } from '../i18n/index.js';
 // 评分/题型决策为纯函数，下沉到无依赖的 genScoring.js（避免 offlineAI↔genDeck 双向环 TDZ）
-export { decideType, scoreCard } from './genScoring.js';
+// ⚠️ 必须本地 import 一份：`export { x } from './y.js'` 只是转发导出，不会把 x 引入本模块
+// 作用域——此前 decideType/scoreCard 在本文件内直接调用却未导入，运行时抛 ReferenceError
+// （智能卡组生成的题型决策/质量评分路径全断，lint 门禁失效期间无人发现）。
+import { decideType, scoreCard } from './genScoring.js';
+export { decideType, scoreCard };
 
 // round37 E1：offlineAI 惰性动态 import（带缓存）——移出静态初始化图，
 // 断开 agent/index→tools→genDeck→ai→agent/index 环。仅离线降级路径触发。
@@ -66,7 +70,7 @@ export function keywords(text) {
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/\$\$?([^$\n]+)\$\$?/g, ' $1 ')
-    .replace(/[`*_#>~|\-\[\](){}=]/g, ' ')
+    .replace(/[`*_#>~|\-[\](){}=]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   const set = new Set();
@@ -163,18 +167,6 @@ export async function generateChunk(chunk, subjectHint = '') {
 }
 
 // 把本地兜底卡片包装成与 AI 路径一致的返回结构
-function formatOfflineResult(cards, sourceDocId, opts) {
-  return {
-    sourceDocId,
-    candidates: cards.map(enrichCard),
-    deduped: cards.map(enrichCard),
-    chunks: 1,
-    meta: { subject: opts.subject || '', title: opts.title || '' },
-    count: cards.length,
-    offline: true, // 标记：本次为离线降级产物
-  };
-}
-
 export function parseCards(text) {
   try {
     const arr = parseLLMJsonArray(text); // 空输出/非 JSON → 抛可读错误（此处按契约吞掉，块级跳过）

@@ -16,7 +16,7 @@ import { db } from './db.js';
 import {
   allCards, listGraphEdges, createGraphEdge,
   weakCards, getStats, getReviewSuggestion,
-  createCard, applyCardFeedback, addPomoSession, updatePlan,
+  createCard, updatePlan,
 } from './repo.js';
 import { subscribeDbChanged } from './utils/dbEvents.js';
 
@@ -43,7 +43,6 @@ if (typeof window !== 'undefined') {
 import { dayWindowOf } from './repo-core.js';
 
 const now = () => Date.now();
-const DAY = 86400000;
 
 // ---------- 文本工具：关键词提取（简版 TF + 位置加权） ----------
 
@@ -66,8 +65,8 @@ function tokenize(text) {
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
     .replace(/\$\$?([^$\n]+)\$\$?/g, ' $1 ')
-    .replace(/[*_#>`~|\-]/g, ' ')
-    .replace(/[，。、；：？！,.;:?!()（）\[\]【】「」"''""']/g, ' ')
+    .replace(/[*_#>`~|-]/g, ' ')
+    .replace(/[，。、；：？！,.;:?!()（）[\]【】「」"''""']/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   const tokens = [];
@@ -394,10 +393,7 @@ export async function recommendTodaySequence(opt = {}) {
 
   const nowTs = now();
   // 审计 F-30：两个 DB 查询并行（reviews + dueCards 各自独立，无依赖）
-  const [reviews, dueCardsList] = await Promise.all([
-    db.reviews.orderBy('reviewedAt').reverse().limit(2000).toArray(),
-    db.cards.where('dueAt').belowOrEqual(nowTs).toArray(),
-  ]);
+  const reviews = await db.reviews.orderBy('reviewedAt').reverse().limit(2000).toArray();
   const failCount = new Map();
   for (const r of reviews) if (r.rating === 0) failCount.set(r.cardId, (failCount.get(r.cardId) || 0) + 1);
 
