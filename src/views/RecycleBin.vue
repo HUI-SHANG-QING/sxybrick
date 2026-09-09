@@ -19,6 +19,7 @@ function kindLabel(k) {
     docFile: 'views.recycleBin.kindDocFile',
     wordCard: 'views.recycleBin.kindWordCard', wordGroup: 'views.recycleBin.kindWordGroup',
     cardGroup: 'views.recycleBin.kindCardGroup',
+    dailyPlan: 'views.recycleBin.kindDailyPlan',
   };
   return m[k] ? t(m[k]) : k;
 }
@@ -47,6 +48,12 @@ function previewOf(t) {
   if (t.kind === 'cardGroup') {
     const n = (d._groupLinks || []).length;
     return n ? `${d.name || ''}（${t('views.recycleBin.cardsInGroup', undefined, { n })}）` : (d.name || '');
+  }
+  // 每日计划：显示日期 + 任务数
+  if (t.kind === 'dailyPlan') {
+    const n = (d._tasks || []).length;
+    const dateStr = d.date ? new Date(d.date).toLocaleDateString() : '';
+    return dateStr ? `${dateStr}（${n} 个任务）` : `${n} 个任务`;
   }
   return (JSON.stringify(d) || '').slice(0, 90);
 }

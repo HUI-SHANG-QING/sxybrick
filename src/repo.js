@@ -324,6 +324,8 @@ export async function restoreFromTrash(t) {
     wordCard: 'wordCards', wordGroup: 'wordGroups',
     // v40 卡组对等：普通卡组删除也进回收站（与 wordGroup 同机制），恢复时一并还原成员关联
     cardGroup: 'cardGroups',
+    // 审计（round35 小问题1）：每日计划删除进回收站，恢复时还原计划+任务
+    dailyPlan: 'dailyPlans',
   }[t.kind];
   if (!table) return false;
   // 深拷贝快照：RecycleBin.vue 的 items 是 ref 数组，元素经 Vue 深层响应式代理包裹，
@@ -343,8 +345,10 @@ export async function restoreFromTrash(t) {
   const noteLinkedCardIds = t.kind === 'note' && Array.isArray(data.linkedCardIds) ? data.linkedCardIds : null;
   const text = typeof data._text === 'string' ? data._text : null;
   const edges = data._edges || null;
+  // 审计（round35 小问题1）：每日计划快照含 _tasks，恢复时还原到 dailyTasks 表
+  const dailyTasks = t.kind === 'dailyPlan' ? (data._tasks || null) : null;
   delete data._reviews; delete data._groupLinks; delete data._text; delete data._textLen; delete data._edges;
-  delete data._cardWordLinks; delete data._embeddings; delete data._linkedNoteIds;
+  delete data._cardWordLinks; delete data._embeddings; delete data._linkedNoteIds; delete data._tasks;
   const transform = RESTORE_TRANSFORMS[t.kind];
   const row = { ...(transform ? transform(data) : data), id: t.id, updatedAt: Date.now() };
   const tables = [db[table], db.tombstones, db.trash];
@@ -360,6 +364,7 @@ export async function restoreFromTrash(t) {
   if (edges && edges.length) tables.push(db.graphEdges);
   if (linkedNoteIds && linkedNoteIds.length) tables.push(db.notes);
   if (noteLinkedCardIds && noteLinkedCardIds.length) tables.push(db.cards);
+  if (dailyTasks && dailyTasks.length) tables.push(db.dailyTasks);
   await db.transaction('rw', ...tables, async () => {
     await db[table].put(row);
     // 审计 P2：恢复 note 时裁剪幽灵 linkedCardIds——快照中的 linkedCardIds 可能包含
@@ -400,6 +405,11 @@ export async function restoreFromTrash(t) {
       await db.graphEdges.bulkPut(edges.map(e => ({ ...e, updatedAt: Date.now() })));
       // 同时清掉删资料时为这些边写的墓碑，否则恢复后会被自己的墓碑再删一遍
       await db.tombstones.bulkDelete(edges.map(e => e.id));
+    }
+    // 审计（round35 小问题1）：恢复每日计划的任务 + 清掉为它们写的墓碑
+    if (dailyTasks && dailyTasks.length) {
+      await db.dailyTasks.bulkPut(dailyTasks.map(task => ({ ...task })));
+      await db.tombstones.bulkDelete(dailyTasks.map(task => task.id));
     }
     await db.tombstones.delete(t.id);
     await db.trash.delete(t.id);
@@ -1390,10 +1400,17 @@ async function cascadeDeletePlanTasks(planId, ts = now()) {
 /** 删除整日计划 + 其任务（联级） */
 export async function deleteDailyPlan(planId) {
   const t = now();
+  // 审计（round35 小问题1）：删前存回收站快照——此前 deleteDailyPlan 只写墓碑不存 trash，
+  // 用户误删后回收站里找不到、无法恢复。与 deletePlan/deleteCard 同口径：快照含计划+任务，
+  // 恢复路径按 kind='dailyPlan' 还原 dailyPlans+dailyTasks。
+  const plan = await db.dailyPlans.get(planId);
+  if (!plan) return;
+  const tasks = await db.dailyTasks.where('planId').equals(planId).toArray();
   // round17 R17-10：删计划 + 级联删任务 + 双墓碑包进同一事务（createDailyPlan:606 已事务化，
   // 删除路径此前漏了同款）——中途任一步异常会留下「计划没了但任务/墓碑残留」的孤儿数据，
   // 且墓碑缺失会让对端同步把已删任务推回
-  await db.transaction('rw', db.dailyPlans, db.dailyTasks, db.tombstones, async () => {
+  await db.transaction('rw', db.dailyPlans, db.dailyTasks, db.tombstones, db.trash, async () => {
+    await trashItem(planId, 'dailyPlan', { ...plain(plan), _tasks: tasks });
     await cascadeDeletePlanTasks(planId, t);
     await db.dailyPlans.delete(planId);
     await db.tombstones.put({ id: planId, kind: 'dailyPlan', deletedAt: t });

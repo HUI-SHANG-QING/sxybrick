@@ -105,8 +105,12 @@ export async function buildBackup(subject) {
   // 打卡元数据：每日目标 goal（存 db.meta，随同步走；打卡天数/今日复习由 reviews 推导）
   const goalMeta = subject ? null : await db.meta.get('goal');
   const streakMeta = goalMeta ? { goal: goalMeta.value, updatedAt: goalMeta.updatedAt || 0 } : null;
+  // 审计（round35 小问题2）：考试日期 examAt 存 db.meta，此前不进同步——
+  // 换设备后倒计时失效、复习调度的「临考窗口感知」也失效。与 goal 同口径随包走。
+  const examMetaRow = subject ? null : await db.meta.get('examAt');
+  const examMeta = examMetaRow ? { examAt: examMetaRow.value, updatedAt: examMetaRow.updatedAt || 0 } : null;
 
-  return { version: BACKUP_VERSION, app: 'sxybrick', scope: backupScope(), exportedAt: Date.now(), tombstones, images, streakMeta, ...parts };
+  return { version: BACKUP_VERSION, app: 'sxybrick', scope: backupScope(), exportedAt: Date.now(), tombstones, images, streakMeta, examMeta, ...parts };
 }
 
 // P3-3 增量同步：只导出 updatedAt > lastSyncAt 的行（卡片按 max(updatedAt, reviewedAt, wrongReasonAt) 判定）
@@ -155,10 +159,13 @@ export async function buildIncrementalBackup(lastSyncAt = 0, opts = {}) {
 
   const goalMeta = await db.meta.get('goal');
   const streakMeta = goalMeta ? { goal: goalMeta.value, updatedAt: goalMeta.updatedAt || 0 } : null;
+  // 审计（round35 小问题2）：考试日期随增量包走
+  const examMetaRow = await db.meta.get('examAt');
+  const examMeta = examMetaRow ? { examAt: examMetaRow.value, updatedAt: examMetaRow.updatedAt || 0 } : null;
 
   return {
     version: BACKUP_VERSION, app: 'sxybrick', scope: backupScope(), exportedAt: Date.now(),
-    incremental: true, since, tombstones, images, streakMeta, ...parts,
+    incremental: true, since, tombstones, images, streakMeta, examMeta, ...parts,
   };
 }
 
@@ -921,6 +928,13 @@ export async function importBackup(backup, opts = {}) {
     const local = await db.meta.get('goal');
     if (!local || (backup.streakMeta.updatedAt || 0) >= (local.updatedAt || 0)) {
       await db.meta.put({ key: 'goal', value: backup.streakMeta.goal, updatedAt: backup.streakMeta.updatedAt || Date.now() });
+    }
+  }
+  // 审计（round35 小问题2）：考试日期 examAt 导入——updatedAt 谁新听谁，与 goal 同口径
+  if (backup.examMeta && backup.examMeta.examAt != null) {
+    const local = await db.meta.get('examAt');
+    if (!local || (backup.examMeta.updatedAt || 0) >= (local.updatedAt || 0)) {
+      await db.meta.put({ key: 'examAt', value: backup.examMeta.examAt, updatedAt: backup.examMeta.updatedAt || Date.now() });
     }
   }
   }); // end db.transaction（P0：整段导入原子化）

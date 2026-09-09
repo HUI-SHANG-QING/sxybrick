@@ -344,6 +344,12 @@ function merge(base, incoming, clockSkew = 0) {
     streakMeta = incoming.streakMeta;
   }
   out.streakMeta = streakMeta;
+  // 审计（round35 小问题2）：考试日期 examAt 与 streakMeta 同口径合并——updatedAt 谁新听谁
+  let examMeta = base.examMeta || null;
+  if (incoming.examMeta && (!examMeta || (incoming.examMeta.updatedAt || 0) >= (examMeta.updatedAt || 0))) {
+    examMeta = incoming.examMeta;
+  }
+  out.examMeta = examMeta;
   // 审计 C2：记录最近一次设备推送，供墓碑 GC 判定「生态是否仍活跃」。
   out.lastPushAt = Math.max(base.lastPushAt || 0, incoming.exportedAt || 0, Date.now());
   // 审计 S-6：附带被 GC 掉的墓碑 id 清单——客户端据此 bulkDelete 本地残留墓碑，

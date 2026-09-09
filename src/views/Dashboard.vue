@@ -34,6 +34,7 @@ async function load() {
       listAchievements(), listDocs(), listExams(),
     ]);
     stats.value = s;
+    _lastRenderDay = new Date().toDateString(); // 审计（round35 小问题3）：记录本次渲染日，供 visibilitychange 跨午夜判定
     weak.value = w;
     plans.value = (p || []).filter(x => x.status === 'active').slice(0, 4);
     // 审计 P1-2（round33）：总复习数只计真实复习（快检是自测，不算复习量）
@@ -71,9 +72,30 @@ function renderTrend() {
 // 图表实例必须随组件销毁（2026-08-29 修复）：
 //   Dashboard 是根路由，此前全程只 init 不 dispose → 每次进出首页泄漏一个 ECharts 实例
 //   （canvas + zrender 状态，约 3~5MB），反复进出会耗尽浏览器 canvas 配额导致整页崩溃。
+let midnightTimer = null;
+// 审计（round35 小问题3）：页面开过午夜，「今日」格子不亮——stats 不变则 heatCells 不重算，
+// new Date() 停留在打开时刻。方案：① 排到下个午夜 00:00 自动 reload；② 标签页从后台切回时
+// 若日期已变也 reload（用户可能凌晨才切回）。reload 让 stats 重取、heatCells 用新日期重建。
+function scheduleMidnightReload() {
+  clearTimeout(midnightTimer);
+  const now = new Date();
+  const next = new Date(now); next.setHours(24, 0, 0, 0); // 次日 00:00
+  const ms = next.getTime() - now.getTime();
+  midnightTimer = setTimeout(() => { load(); scheduleMidnightReload(); }, ms + 1000);
+}
+function onVisibility() {
+  if (document.visibilityState === 'visible') {
+    // 切回时若日期与上次渲染日不同，说明跨过了午夜，立即刷新
+    const todayKey = new Date().toDateString();
+    if (_lastRenderDay && _lastRenderDay !== todayKey) load();
+  }
+}
+let _lastRenderDay = null;
 onBeforeUnmount(() => {
   try { trendChart?.dispose(); } catch { /* 容器已先卸载时忽略 */ }
   trendChart = null;
+  clearTimeout(midnightTimer); midnightTimer = null;
+  document.removeEventListener('visibilitychange', onVisibility);
 });
 
 // 365 天热力图（GitHub 式）
@@ -133,7 +155,13 @@ const abilityItems = computed(() => stats.value ? [
   { label: t('views.dashboard.abilityCoverage'), v: stats.value.ability.coverage },
 ] : []);
 
-onMounted(async () => { await load(); if (hasAIKey()) askCoach(); });
+onMounted(async () => {
+  await load();
+  if (hasAIKey()) askCoach();
+  // 审计（round35 小问题3）：午夜自动刷新 + 后台切回跨午夜检测
+  scheduleMidnightReload();
+  document.addEventListener('visibilitychange', onVisibility);
+});
 </script>
 
 <template>
