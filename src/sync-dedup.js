@@ -11,6 +11,22 @@
 // 2026-08-31（round12）补充：被跳过的「异 id 同内容」卡，其关联数据（复习记录 / 图谱边 / 卡组关联）
 // 仍带着旧 cardId 进入合并 → 变成指向不存在卡片的孤儿行。故返回 idRemap（跳过 id → 保留 id），
 // 由 importBackup 在合并前把引用重定向到保留下来的那张卡，避免复习/图谱污染。
+/**
+ * round34 H2：正文自由文本里的双向链接（[[c-card-id]] / [[d-doc-id]]）不被结构化字段重映射覆盖。
+ * 导入去重把「异 id 同内容」卡跳过→保留时，指向被跳过卡的链接会变悬空死链。这里把正文里的
+ * [[c-${old}]] 重定向到 [[c-${kept}]]（doc 链接同理）。仅对 card idRemap 命中者替换，避免误伤。
+ */
+export function remapWikilinks(text, idRemap) {
+  if (typeof text !== 'string' || !idRemap || !idRemap.size) return text;
+  let out = text;
+  for (const [oldId, keptId] of idRemap) {
+    if (oldId === keptId) continue;
+    out = out.split(`[[c-${oldId}]]`).join(`[[c-${keptId}]]`)
+            .split(`[[d-${oldId}]]`).join(`[[d-${keptId}]]`);
+  }
+  return out;
+}
+
 export function dedupeIncomingCards(incoming, baseById, baseCards = []) {
   const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
   const keyToKeptId = new Map(); // 内容键 → 保留下来的 id（本地优先，其次批次内首个保留的 incoming）
@@ -147,6 +163,10 @@ export function remapCardRefs(backup, idRemap) {
       if (key === 'cardWordLinks' && typeof r.id === 'string' && r.id.includes(':')) {
         row = { ...row, id: `${row.cardId}:${row.wordCardId}` };
       }
+      // round34 H2：正文自由文本里的 [[c-card-id]] 双向链接——去重保留旧卡时重定向到保留卡，
+      // 否则指向被跳过卡的链接变悬空死链（笔记/导图正文、备忘正文都可能含）。
+      if (typeof row.content === 'string') row = { ...row, content: remapWikilinks(row.content, idRemap) };
+      else if (typeof row.text === 'string') row = { ...row, text: remapWikilinks(row.text, idRemap) };
       return row;
     });
   }

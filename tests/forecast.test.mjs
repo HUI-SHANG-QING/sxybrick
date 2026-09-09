@@ -42,6 +42,10 @@ test('逾期卡：计入 backlog，并推到今天（第 0 天）复习', () => 
   assert.equal(r.backlog, 1);
   assert.equal(r.byDay[0].count, 1);
   assert.equal(r.totalDue, 1);
+  // round34 L3：逾期=今日，byDay[0] 已包含 backlog —— 结构化标记防消费者双计
+  assert.equal(r.backlogIncludedInToday, true);
+  // 若消费者把 backlog 叠加到 byDay[0] 会双计：校验「今日总量 == byDay[0]（含 backlog）」即可
+  assert.ok(r.backlog <= r.byDay[0].count, 'backlog 只是细分，不应大于今日负载');
 });
 
 test('遗忘回炉：rating=0 只计「当天是否要复习」，不按重学次数重复计数', () => {

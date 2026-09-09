@@ -78,6 +78,9 @@ const MIME = {
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
   '.webmanifest': 'application/manifest+json; charset=utf-8',
+  // round34 M14：dist 含 .wasm（PDF.js/字体等），用 WebAssembly.instantiateStreaming
+  // 加载时需 application/wasm，octet-stream 会直接抛错 → 局域网离线功能静默失效。
+  '.wasm': 'application/wasm',
 };
 
 function emptyData() {
@@ -122,18 +125,52 @@ function safeRenameSync(from, to) {
 // 数据写入统一走异步原子写（saveScopedData）——见下方 atomicWriteAsync
 
 // M3：按 scope 加载/保存独立数据文件（real → 原文件；test → hub-data-test.json）
+// 审计 P2-1（round34）：test 隔离不依赖 .json 后缀——HUB_DATA_FILE 自定义为
+// /tmp/hubdata 这类无扩展名路径时，旧 replace(/\.json$/) 不命中，test scope
+// 直接读写真实数据文件，隔离失效。改为去任意扩展名后拼接。
 function scopedFile(scope) {
-  return scope === 'test' ? DATA_FILE.replace(/\.json$/, '-test.json') : DATA_FILE;
+  return scope === 'test' ? DATA_FILE.replace(/\.[^./\\]*$/, '') + '-test.json' : DATA_FILE;
+}
+// 审计 P1-1（round34）：读失败 ≠ 文件损坏。GET 的 loadScopedData 不在 withScopeLock 内，
+// 与 PUT 的 renameP(tmp→f) 并发时 readFileSync 可能瞬态 EBUSY/EPERM（Windows 文件占用）——
+// 旧实现一律 recoverCorrupt 会把「完好的数据文件」改名扔掉并返回空包，
+// 下次 PUT 基于空数据合并 → 中枢全量数据静默清零。
+// 修复：① 瞬态 IO 错误按 safeRenameSync 同款重试；② 非 IO 错误（真损坏）先延迟重读
+// 二次确认，仍失败才判损坏改名；③ 从未出现过的「不存在的表结构」不做猜测，保守返回空。
+function readScopeFileWithRetry(f) {
+  const transient = ['EBUSY', 'EPERM', 'EACCES'];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return readFileSync(f, 'utf8');
+    } catch (e) {
+      if (attempt < 3 && transient.includes(e.code)) {
+        const deadline = Date.now() + 50 * (attempt + 1);
+        while (Date.now() < deadline) { /* spin */ }
+        continue;
+      }
+      throw e;
+    }
+  }
 }
 function loadScopedData(scope) {
   const f = scopedFile(scope);
   if (!existsSync(f)) return emptyData();
   try {
-    const raw = JSON.parse(readFileSync(f, 'utf8'));
+    const raw = JSON.parse(readScopeFileWithRetry(f));
     return { ...emptyData(), ...raw };
   } catch {
-    recoverCorrupt(f);
-    return emptyData();
+    // 二次确认：延迟 200ms 重读一次——若第一次失败是 PUT rename 窗口/JSON 半写
+    // （atomicWriteAsync 写 tmp 再 rename，f 本身不会被半写，但保险起见仍确认），
+    // 重读成功则按正常数据处理，绝不误伤完好文件。
+    try {
+      const deadline = Date.now() + 200;
+      while (Date.now() < deadline) { /* spin */ }
+      const raw = JSON.parse(readScopeFileWithRetry(f));
+      return { ...emptyData(), ...raw };
+    } catch {
+      recoverCorrupt(f);
+      return emptyData();
+    }
   }
 }
 // 异步原子写（round33 P4）：整包 JSON.stringify + 落盘在真实同步中是 MB 级同步 IO，
@@ -338,6 +375,14 @@ function readBody(req, limitBytes = 50 * 1024 * 1024) {
   });
 }
 
+// 审计 P1-3（round34）：无凭据 DoS 防线——PUT 的 HMAC 绑定 body 摘要，HMAC 模式
+// 必须先读体才能验签，旧实现在鉴权前按单请求 50MB 收包：无凭据者可并发多连接
+// 各灌 50MB。防线：① 既无签名头也无 token 的请求不收包直接 401；
+// ② HMAC 模式（鉴权前必须收包）受全局在途字节预算约束，超限 429；
+// ③ token 模式先鉴权（token 在头里，无需 body）再收包，收包时已是已授权连接。
+const UNAUTH_BODY_CAP = 100 * 1024 * 1024; // 全局同时鉴权前在途字节上限 100MB
+let unauthBodyInFlight = 0;
+
 function json(req, res, code, obj, extraHeaders = {}) {
   const origin = req?.headers?.origin;
   const cors = corsHeaders(origin, { host: req?.headers?.host, allowList: ALLOW_ORIGIN });
@@ -509,14 +554,44 @@ const server = createServer(async (req, res) => {
   const scopeMatch = pathname.match(/^\/backup\/(real|test)$/) || (pathname === '/backup' ? [null, 'real'] : null);
   if (scopeMatch) {
     const scope = scopeMatch[1];
-    // PUT 需要先读原始体（签名绑定了请求体摘要）；GET 无体
+    // PUT 需要先读原始体（签名绑定了请求体摘要）；GET 无体。
+    // 审计 P1-3（round34）：三分支防线——① 无签名头且无 token：不收包直接 401；
+    // ② token 模式：先鉴权（token 在头里无需 body）再收包，收包时已是已授权连接；
+    // ③ HMAC 模式：验签前必须收包，受全局在途字节预算约束（超限 429）。
     let raw = '';
     if (req.method === 'PUT') {
-      try {
-        const r = await readBody(req);
-        raw = r.raw;
-      } catch (e) {
-        return json(req, res, 400, { error: '请求体解析失败：' + e.message });
+      const hasSig = req.headers['x-sync-challenge'] && req.headers['x-sync-sig'];
+      const hasToken = Boolean(req.headers['x-sync-token']);
+      if (!hasSig && !hasToken) {
+        // 无任何凭据：不读 body，直接标准 401（req.resume 耗尽流避免连接悬挂）
+        req.resume();
+        const auth0 = authenticate(req, '');
+        return unauthorized(req, res, auth0);
+      }
+      if (hasSig) {
+        // HMAC：验签前必须收原始体——全局预算防并发灌包
+        if (unauthBodyInFlight > UNAUTH_BODY_CAP) {
+          return json(req, res, 429, { error: '中枢正忙（鉴权请求并发过高），请稍后重试' }, { 'Retry-After': '3' });
+        }
+        unauthBodyInFlight += 50 * 1024 * 1024; // 按单请求上限预占（实际可能更小）
+        try {
+          const r = await readBody(req);
+          raw = r.raw;
+        } catch (e) {
+          return json(req, res, 400, { error: '请求体解析失败：' + e.message });
+        } finally {
+          unauthBodyInFlight -= 50 * 1024 * 1024;
+        }
+      } else {
+        // token 模式：token 在头里，先鉴权再收包
+        const auth0 = authenticate(req, '');
+        if (!auth0.ok) return unauthorized(req, res, auth0);
+        try {
+          const r = await readBody(req);
+          raw = r.raw;
+        } catch (e) {
+          return json(req, res, 400, { error: '请求体解析失败：' + e.message });
+        }
       }
     }
     const auth = authenticate(req, raw);

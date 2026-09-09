@@ -49,7 +49,7 @@ const H = { 'Content-Type': 'application/json' };
 
 function makePacket(extra = {}) {
   return {
-    version: 7, app: 'sxybrick', scope: 'real', exportedAt: Date.now(),
+    version: 8, app: 'sxybrick', scope: 'real', exportedAt: Date.now(),
     tombstones: [], streakMeta: null,
     cards: [], reviews: [], images: [], notes: [],
     privacyRecords: [],

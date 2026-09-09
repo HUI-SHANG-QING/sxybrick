@@ -15,7 +15,7 @@
 //   FSRS 路径的难度 D 与稳定度 S 已自适应卡片难度与错因信号，故不复用 SM-2 的错因惩罚与
 //   短期巩固状态机（避免双重惩罚）；wrongReason 仍写入复习日志供分析。
 import { schedule as fsrsSchedule, MAX_STABILITY } from './fsrs.js';
-import { examWindowUrgency, compressIntoWindow, applyElasticDue } from './algorithms/scheduling.js';
+import { examWindowUrgency, compressIntoWindow, applyElasticDue, EXAM_BUFFER_DAYS } from './algorithms/scheduling.js';
 
 const MIN = 60 * 1000;
 const DAY = 24 * 60 * MIN;
@@ -293,6 +293,8 @@ export function scheduleReview(card, rating, intensity = 1, guessed = false, opt
   }
   // 审计 F-9：弹性顺延后兜底——若考试窗口压缩后的 due 被弹性推过考试日，
   // 顺延到下一个工作日可能越过考试日，考试窗口压缩完全失效。回钳到 examAt。
-  if (opts.examAt && r.dueAt > opts.examAt) r.dueAt = opts.examAt;
+  // round34 L4：回钳点必须与 compressIntoWindow 的缓冲一致（examAt - EXAM_BUFFER_DAYS 天），
+  // 否则弹性顺延把 due 推到 (examAt-缓冲, examAt] 区间内时，回钳到 examAt 会丢掉那半天缓冲。
+  if (opts.examAt && r.dueAt > opts.examAt - EXAM_BUFFER_DAYS * DAY) r.dueAt = opts.examAt - EXAM_BUFFER_DAYS * DAY;
   return r;
 }

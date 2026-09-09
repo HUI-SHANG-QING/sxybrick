@@ -24,6 +24,9 @@ export async function getStreak() {
   // 审计 P1-2 + D-4（round33）：① quickCheck 不计入连击（自测当天不算「学习活跃」，
   // 否则只做快检就白拿连击）；② 用 reviewedAt 索引把扫描限定在最近 MAX_LOOKBACK_DAYS 天，
   // 替代全表 toArray（万级 reviews 每次进首页全量物化）。
+  // round34 L5：因扫描窗口硬封 MAX_LOOKBACK_DAYS(400) 天，连续打卡 >400 天的超长连击会被
+  // 静默截断为 ≤400（窗口外的早期复习记录不在扫描范围内）。属可接受的行为变化，但 UI 应在
+  // 连击显示处注明「近 400 天连续打卡」，避免长连击用户误以为计数归零。返回值为实际窗口内连击数。
   const since = Date.now() - MAX_LOOKBACK_DAYS * 86400000;
   const reviews = (await db.reviews.where('reviewedAt').above(since).toArray()).filter(isRealReview);
   const days = new Set(reviews.map(r => dateKey(r.reviewedAt)));

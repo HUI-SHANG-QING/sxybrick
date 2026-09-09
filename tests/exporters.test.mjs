@@ -20,7 +20,8 @@ test('toJSON：包裹 meta + 漂亮格式', () => {
   const out = JSON.parse(toJSON([{ a: 1 }]));
   assert.equal(out.app, 'SxyBrick');
   assert.equal(out.exportFormatVersion, 1);
-  assert.match(out.exportedAt, /^\d{4}-\d{2}-\d{2}T/);
+  // round34 M2：exportedAt 改为本地时区格式（YYYY-MM-DD HH:mm，原 UTC ISO 与 App 内显示差一天）
+  assert.match(out.exportedAt, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
   assert.equal(out.kind, undefined);  // meta 不传 kind
   assert.deepEqual(out.payload, [{ a: 1 }]);
 });

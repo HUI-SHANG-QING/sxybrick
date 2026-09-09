@@ -110,3 +110,20 @@ test('R17-7 检索强度乘子不突破 365 天上限', () => {
   const explain = scheduleReview(hi, 2, 1, false, { scheduler: 'sm2', retrievalStrength: 'explain' });
   assert.ok(explain.intervalDays <= 365, `explain(×1.5) 不得把 365 推到 547（实际 ${explain.intervalDays}）`);
 });
+
+test('round34 L4: 弹性顺延越过考期后回钳保留半天缓冲（不再丢到 examAt）', () => {
+  const now = new Date(2026, 8, 20, 12, 0, 0).getTime(); // 2026-09-20 中午
+  const examAt = now + 4 * DAY;                          // 09-24 中午
+  const cap = examAt - 0.5 * DAY;                        // 09-24 00:00（compressIntoWindow 的缓冲点）
+  const dkey = (ts) => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  // 把 09-24 ~ 09-26 全设为休息日 → 压缩到 cap 后弹性会一路顺延越过考期
+  const restDays = { dates: [dkey(examAt), dkey(examAt + DAY), dkey(examAt + 2 * DAY)] };
+  // 大稳定度卡：FSRS 排出的下次复习远在考后 → 触发 compressIntoWindow
+  const card = { level: 2, ease: 2.5, fsrs: { s: 365, d: 5, reps: 3, last: now - DAY } };
+  const r = scheduleReview(card, 2, 1, false, { scheduler: 'fsrs', now, examAt, restDays, desiredRetention: 0.9 });
+  assert.equal(r.dueAt, cap,
+    '弹性顺延越过考期后应回钳到 examAt-0.5 天（保留缓冲），而非 examAt');
+});

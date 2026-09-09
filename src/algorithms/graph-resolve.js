@@ -235,9 +235,11 @@ export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualK
     childrenOf.get(f).push(t);
     inDeg.set(t, (inDeg.get(t) || 0) + 1);
   }
-  // 环上的点入度都 > 0，此时退化为「全部节点当候选根」，保证不丢节点
+  // 环上的点入度都 > 0，此时退化为「全部节点当候选根」，保证不丢节点。
+  // round34 M15：全成环时按入度升序挑锚点（入度小的更像「源」），让层级尽量贴合「源→汇」，
+  // 减少把中间节点误置为顶层子树（此前按 Set 插入序展开，环会塌成散叶、子节点显示错位）。
   let roots = [...all].filter(n => !inDeg.has(n));
-  if (!roots.length) roots = [...all];
+  if (!roots.length) roots = [...all].sort((a, b) => (inDeg.get(a) || 0) - (inDeg.get(b) || 0));
 
   // ⚠️ 2026-08-30 修复（复杂度爆炸 + 节点重复）：
   //   旧实现 `build(k, new Set(visited))` 每次传的是**副本** ——
@@ -248,6 +250,8 @@ export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualK
   //   改为全局 visited + placed：每个节点最多展开一次、最多挂一次 → O(V+E)。
   const visited = new Set();  // 已展开（防环）
   const placed = new Set();   // 已挂进森林（保证一个节点只出现一次）
+  const onPath = new Set();   // 当前递归链上的节点（用于检测真正的回边 → 判定含环）
+  let hasCycle = false;
 
   // round17 R17-22：递归深度护栏——线性前置链（graphAuto 可生成 A→B→C→… 串联）若链长
   // 数千，无护栏时递归深度 = 链长 → RangeError 栈溢出，导图/树视图崩溃。
@@ -255,14 +259,18 @@ export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualK
   const MAX_DEPTH = 512;
   const build = (label, depth = 0) => {
     if (visited.has(label) || depth > MAX_DEPTH) return null;
+    if (onPath.has(label)) { hasCycle = true; return null; } // 回边 → 真环
     visited.add(label);
+    onPath.add(label);
     placed.add(label);
     const kids = [];
     for (const k of childrenOf.get(label) || []) {
+      if (onPath.has(k)) { hasCycle = true; continue; } // 回边：k 在当前递归链上 → 真环
       if (visited.has(k) || placed.has(k)) continue; // 已在别处出现 → 不重复挂
       const built = build(k, depth + 1);
       if (built) kids.push(built);
     }
+    onPath.delete(label);
     // R16-2：节点名走 labelMap 回查显示名（键可能是 cardId），查不到才退回字面量
     return { name: labelMap?.get(label) ?? label, children: kids };
   };
@@ -278,6 +286,8 @@ export function edgesToForest(edges, { rootLabel = '📚 知识图谱', virtualK
     if (!placed.has(n)) subTrees.push({ name: labelMap?.get(n) ?? n, children: [] });
   }
 
-  if (subTrees.length === 1) return { root: subTrees[0], virtual: false };
-  return { root: { name: rootLabel, [virtualKey]: true, children: subTrees }, virtual: true };
+  // round34 M15：把「是否含环」透传给调用方（导图/树视图据此标注「含环，层级为近似展开」），
+  // 不再静默把环塌成孤立叶误导用户。节点零丢失（上方残留补挂已保证）。
+  if (subTrees.length === 1) return { root: subTrees[0], virtual: false, hasCycle };
+  return { root: { name: rootLabel, [virtualKey]: true, children: subTrees }, virtual: true, hasCycle };
 }

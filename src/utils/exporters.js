@@ -27,6 +27,19 @@
 const APP_META = { app: 'SxyBrick', exportFormatVersion: 1 };
 
 /**
+ * 本地时区日期时间格式化（round34 M2）：导出原本用 toISOString() 走 UTC，
+ * 与中国时区用户 App 内显示差一天。这里用本地时区输出机器可读的 YYYY-MM-DD HH:mm，
+ * 与界面一致且纯函数（无 i18n 依赖，Node 可测）。
+ */
+function fmtLocal(ts) {
+  if (ts == null || ts === '') return '';
+  const d = ts instanceof Date ? ts : new Date(Number(ts));
+  if (!Number.isFinite(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/**
  * 触发浏览器下载。返回 blob 供测试断言（Node 环境无 DOM）。
  * @returns {Blob | null} 浏览器环境下返回 null（已触发下载）；Node 环境返回原 blob。
  */
@@ -62,7 +75,7 @@ function makeBlob(text, mime) {
 export function toJSON(payload, { pretty = true, meta = {} } = {}) {
   const obj = {
     ...APP_META,
-    exportedAt: new Date().toISOString(),
+    exportedAt: fmtLocal(Date.now()),
     ...meta,
     payload,
   };
@@ -140,8 +153,8 @@ const CARD_COLS = [
   { key: 'ease', label: '难度' },
   { key: 'level', label: '等级' },
   { key: 'intervalDays', label: '间隔(天)' },
-  { key: 'dueAt', label: '到期时间', transform: v => v ? new Date(v).toISOString() : '' },
-  { key: 'createdAt', label: '创建时间', transform: v => v ? new Date(v).toISOString() : '' },
+  { key: 'dueAt', label: '到期时间', transform: v => fmtLocal(v) },
+  { key: 'createdAt', label: '创建时间', transform: v => fmtLocal(v) },
 ];
 
 export function exportCardsToJSON(cards, meta = {}) {
@@ -161,7 +174,7 @@ export function exportCardsToMarkdown(cards, meta = {}) {
   lines.push(`# 卡片导出`);
   if (meta.subject) lines.push(`> 科目：${meta.subject}`);
   if (meta.tag) lines.push(`> 标签：${meta.tag}`);
-  lines.push(`> 导出时间：${new Date().toISOString()}`);
+  lines.push(`> 导出时间：${fmtLocal(Date.now())}`);
   lines.push(`> 共 ${cards.length} 张\n`);
   lines.push(mdTable(
     CARD_COLS.map(c => c.label),
@@ -182,7 +195,7 @@ const MEMO_COLS = [
     m?.important && m?.urgent ? '重要×紧急' :
     m?.important ? '重要×非紧急' :
     m?.urgent ? '非重要×紧急' : '非重要×非紧急' },
-  { key: 'createdAt', label: '创建时间', transform: v => v ? new Date(v).toISOString() : '' },
+  { key: 'createdAt', label: '创建时间', transform: v => fmtLocal(v) },
 ];
 
 export function exportMemosToJSON(memos) {
@@ -192,7 +205,7 @@ export function exportMemosToJSON(memos) {
 export function exportMemosToMarkdown(memos) {
   const lines = [
     `# 备忘录导出`,
-    `> 导出时间：${new Date().toISOString()}`,
+    `> 导出时间：${fmtLocal(Date.now())}`,
     `> 共 ${memos.length} 条\n`,
     mdTable(
       MEMO_COLS.map(c => c.label),
@@ -222,7 +235,7 @@ export function exportNotesToJSON(notes) {
 export function exportNotesToMarkdown(notes) {
   const lines = [
     `# 笔记导出`,
-    `> 导出时间：${new Date().toISOString()}`,
+    `> 导出时间：${fmtLocal(Date.now())}`,
     `> 共 ${notes.length} 条\n`,
   ];
   for (const n of notes) {
@@ -249,7 +262,7 @@ function edgeToRow(e) {
     type: e.type || 'card-card',
     docId: e.docId || '',
     subject: e.subject || '',
-    createdAt: e.createdAt ? new Date(e.createdAt).toISOString() : '',
+    createdAt: fmtLocal(e.createdAt),
   };
 }
 
@@ -303,7 +316,7 @@ function escapeXml(s) {
 export function exportGraphToMarkdown(edges) {
   const lines = [
     `# 知识图谱导出`,
-    `> 导出时间：${new Date().toISOString()}`,
+    `> 导出时间：${fmtLocal(Date.now())}`,
     `> 共 ${edges.length} 条边\n`,
     mdTable(
       ['起点', '关系', '终点', '类型', '来源资料', '科目'],
@@ -330,7 +343,7 @@ const DOC_COLS = [
   { key: 'status', label: '状态' },
   { key: 'sizeText', label: '大小' },
   { key: 'textLen', label: '文本字数' },
-  { key: 'createdAt', label: '上传时间', transform: v => v ? new Date(v).toISOString() : '' },
+  { key: 'createdAt', label: '上传时间', transform: v => fmtLocal(v) },
 ];
 
 export function exportLibraryToJSON(docFiles, countTextLenFn) {
@@ -345,11 +358,11 @@ export function exportLibraryToMarkdown(docFiles, countTextLenFn) {
   const rows = docFiles.map(d => [
     d.id, d.name || '', d.subject || '', d.type || '', d.status || '',
     d.sizeText || '', typeof countTextLenFn === 'function' ? (countTextLenFn(d.id) || 0) : (d.textLen || 0),
-    d.createdAt ? new Date(d.createdAt).toISOString() : '',
+    d.createdAt ? fmtLocal(d.createdAt) : '',
   ]);
   return [
     `# 资料库导出`,
-    `> 导出时间：${new Date().toISOString()}`,
+    `> 导出时间：${fmtLocal(Date.now())}`,
     `> 共 ${docFiles.length} 个资料\n`,
     mdTable(DOC_COLS.map(c => c.label), rows),
   ].join('\n');

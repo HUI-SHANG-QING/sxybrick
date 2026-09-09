@@ -88,7 +88,9 @@ const dbHealthMsg = computed(() => {
   const s = dbHealth.value;
   if (s === 'blocked') return '数据被其它打开的页面占用，请关闭旧页面后刷新';
   if (s === 'versionchange') return '数据版本正在升级，本页已让位，请刷新';
-  if (s === 'error') return '本地数据库打开失败（可能处于无痕模式或存储已满），请检查浏览器设置';
+  // 审计 P2-7（round34）：db.js 写入的状态是 `error:${name}` 带后缀格式（db.js:408），
+  // 旧判断 s === 'error' 永不命中 → 用户看到裸错误码而非友好提示。改前缀匹配。
+  if (s.startsWith('error')) return '本地数据库打开失败（可能处于无痕模式或存储已满），请检查浏览器设置';
   return s;
 });
 let unsubDbHealth = null;

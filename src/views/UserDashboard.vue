@@ -126,7 +126,9 @@ async function loadAll() {
       queryUserOps({ from, to, groupBy: 'type' }),
       queryUserOps({ from, to, groupBy: 'dayHour' }),
       queryUserOps({ from, to, groupBy: null }),
-      queryUserOps({ from: from365, to, groupBy: 'day' }),
+      // 审计 P2-6（round34）：排除 review_rate——它与 reviews 行是同一动作的两次记录，
+      // 热力图合并三源时 review_rate 会双计（颜色虚深/活跃天虚高）
+      queryUserOps({ from: from365, to, groupBy: 'day', excludeTypes: ['review_rate'] }),
       // mixTrend：分 module × 日
       (async () => {
         const rows = await queryUserOps({ from, to, groupBy: null });

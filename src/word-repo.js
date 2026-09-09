@@ -168,6 +168,9 @@ function pickExt(payload) {
 }
 
 export async function createWordCard(payload = {}) {
+  // round34 H3：去响应式 Proxy——调用方常传 Vue 响应式 form.value（AI 填充/编辑后），
+  // 直接写 IndexedDB 会因结构化克隆失败抛 DataCloneError（被 save 的 catch 当「保存失败」吞掉）。
+  payload = plain(payload);
   const kind = WORD_KINDS.includes(payload.kind) ? payload.kind : 'word';
   const t = now();
   const card = {
@@ -193,7 +196,9 @@ export async function createWordCard(payload = {}) {
     // 与状态字段 familiar 各自登记初始时间戳，使跨设备字段级合并对英语模块真正生效
     // （否则这些字段因不在 CARD_CONTENT_FIELDS 且无 fieldTs，会退化为整行 LWW → 并发改不同字段静默丢改）。
     // 注意：EXT_FIELDS（AI 生成、并集保护）不进 fieldTs——它们由 sync-manifest 的 extFields 并集逻辑处理。
-    fieldTs: { word: t, phonetic: t, meaning: t, example: t, exampleTrans: t, note: t, tags: t, source: t, subject: t, familiar: t },
+    // 审计 P2-4（round34）：补 kind——round33 给 updateWordCard 补了 kind bump，
+    // 但新建卡 fieldTs 漏登记 kind 键 → 新卡的 kind 仍退化为整行 LWW。
+    fieldTs: { kind: t, word: t, phonetic: t, meaning: t, example: t, exampleTrans: t, note: t, tags: t, source: t, subject: t, familiar: t },
   };
   if (!card.word) throw new Error('单词/内容不能为空');
   await db.wordCards.put(card);
@@ -201,6 +206,9 @@ export async function createWordCard(payload = {}) {
 }
 
 export async function updateWordCard(id, patch = {}) {
+  // round34 H3：去响应式 Proxy（同 createWordCard）——否则 EXT 字段（defs/例句…）的
+  // 响应式数组原样进 db.wordCards.put → DataCloneError。
+  patch = plain(patch);
   // 审计：事务内重读+合并，防止并发编辑 lost update（AI 填充 modeQuestions 与用户手改 meaning 同时提交时旧快照整行覆盖）
   return db.transaction('rw', db.wordCards, async () => {
     const cur = await db.wordCards.get(id);
@@ -277,6 +285,8 @@ export async function deleteWordCard(id) {
   if (orphanImages.length) {
     await db.tombstones.bulkPut(orphanImages.map(id => ({ id, kind: 'image', deletedAt: now() })));
     await db.images.bulkDelete(orphanImages);
+    // round34 M5：同步剔除 imageRefs 反向索引里的悬空引用行，保持索引与主表一致。
+    await db.imageRefs.where('imageId').anyOf(orphanImages).delete();
   }
   return true;
 }
@@ -503,7 +513,13 @@ export async function dueWordCards(opts = {}) {
   // 5000+ 词场景每次打开复习页全表物化+全量 sort 会明显卡顿。
   // 先用索引范围查询收窄到期卡，kind/parkArchived 留在内存二次过滤（量级极小）。
   const t = now();
-  let rows = await db.wordCards.where('dueAt').belowOrEqual(t).toArray();
+  // round34 M7：索引查询不含 dueAt 为 undefined/null 的行（不在索引中）→ 这些遗留/损坏行
+  // 永不入队（「幽灵词卡」）。补一次空值扫描，缺失 dueAt 视为已到期（dueAt=0）。
+  const [due, missing] = await Promise.all([
+    db.wordCards.where('dueAt').belowOrEqual(t).toArray(),
+    db.wordCards.filter(r => r.dueAt == null).toArray(),
+  ]);
+  let rows = due.concat(missing);
   rows = rows.filter(r =>
     SCHEDULABLE_KINDS.includes(r.kind) &&
     !r.familiar);

@@ -73,5 +73,9 @@ export function initialStabilityForCard(card, pretestMap) {
   const subj = card?.subject || 'default';
   const base = pretestMap && pretestMap[subj];
   if (typeof base !== 'number') return null;
-  return Math.max(0.5, base * (DIFF_ADJ[difficultyToNum(card?.difficulty)] ?? 1.0));
+  // 审计 P2-2（round34）：不再乘 DIFF_ADJ——pretestMap 里存的 base 来自
+  // estimateInitialStability（:62 处已按难度烘焙过难度系数），此处再乘一次
+  // 是双重折扣（basic 卡 1.1×1.1=1.21 高估）。base 本身已是「该科目做过前测的
+  // 估计稳定度」，直接使用。
+  return Math.max(0.5, base);
 }

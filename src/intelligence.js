@@ -449,8 +449,10 @@ export async function recommendTodaySequence(opt = {}) {
 
   if (!candidates.length) return { sequence: [], segments: [], summary: '今日暂无到期/薄弱卡片，可以放松一下，或主动开新卡', phase };
 
-  // 第一轮排序：按优先级降序，同优先级按难度升序（易的在前）
-  candidates.sort((a, b) => (b.priority - a.priority) || (a.difficulty - b.difficulty) || (a.level - b.level));
+  // 第一轮排序：按优先级降序，同优先级按难度降序（难的在前）。
+  // round34 L2：薄弱队列应优先啃硬卡——此前 (a.difficulty - b.difficulty) 把 basic(0) 排在
+  // challenge(2) 前，等于先做简单卡、把最该优先巩固的硬卡留到最后。改为难的优先。
+  candidates.sort((a, b) => (b.priority - a.priority) || (b.difficulty - a.difficulty) || (a.level - b.level));
 
   // 第二轮：交错混科 + 变式分散
   // 按科目分组（保持组内已排序）

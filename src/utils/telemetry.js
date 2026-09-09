@@ -83,13 +83,19 @@ export async function _flush(force = false) {
   try {
     while (_buffer.length) {
       const batch = _buffer.splice(0, Math.min(100, _buffer.length));
-      await db.userOps.bulkPut(batch);
+      try {
+        await db.userOps.bulkPut(batch);
+      } catch (e) {
+        // 审计 P2-8（round34）：失败批次回填 buffer——旧实现的 catch 在 while 外层，
+        // 已 splice 出来的 batch 直接丢失（注释声称「丢回 buffer 尾部」但实际没做）。
+        // 改为逐批 try：失败批次回填尾部（保持其余数据顺序），超限丢最旧（保护内存），
+        // 并 break 留给下轮重试。
+        console.warn('[telemetry] flush failed，批次回填', e);
+        _buffer.push(...batch);
+        if (_buffer.length > 500) _buffer.splice(0, _buffer.length - 500);
+        break;
+      }
     }
-  } catch (e) {
-    // 失败不重抛（避免阻塞主流程），丢回 buffer 尾部（限长 500 防止内存溢出）
-    console.warn('[telemetry] flush failed', e);
-    if (_buffer.length < 500) { /* 留给下轮 */ }
-    else { _buffer.length = 0; } // 超限直接丢弃（保护内存）
   } finally {
     _flushInProgress = false;
   }

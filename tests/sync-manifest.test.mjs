@@ -19,7 +19,7 @@ test('清单：33 张表全部登记且策略合法', () => {
   // v31（通用卡↔英语词卡链接）cardWordLinks → 33
   // 审查：userOps 保留在同步清单（分析用），由 repo.pruneUserOps() 做 365 天保留期清理（写墓碑）
   assert.equal(SYNC_TABLES.length, 33);
-  assert.equal(BACKUP_VERSION, 7);
+  assert.equal(BACKUP_VERSION, 8);
   const names = SYNC_TABLES.map(t => t.table);
   // privacyRecords 不在默认同步清单
   assert.ok(!names.includes('privacyRecords'), 'privacyRecords 不应默认入同步');

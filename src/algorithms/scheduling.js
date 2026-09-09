@@ -63,6 +63,10 @@ export function examWindowUrgency(card, examAt, opts = {}) {
   return { urgency: Number(Math.min(1, urgency).toFixed(3)), atExamR: Number(atExamR.toFixed(3)), dueBeforeExam };
 }
 
+// round34 L4：考试窗口压缩保留的「考前缓冲」常数（天）。compressIntoWindow 与 srs.js 的
+// 末位回钳必须共用同一值，否则弹性顺延把 due 推过缓冲后回钳到 examAt 会丢掉这半天缓冲。
+export const EXAM_BUFFER_DAYS = 0.5;
+
 /**
  * 考试窗口压缩：若卡片 due 落在考试之后，把下次复习拉回考前窗口内。
  * 不改变 FSRS 真实稳定度，只在「展示/排程优先级」层面对 dueAt 做软约束。
@@ -71,8 +75,8 @@ export function examWindowUrgency(card, examAt, opts = {}) {
 export function compressIntoWindow(dueAt, examAt, opts = {}) {
   const nowTs = opts.now ?? Date.now();
   if (!examAt || dueAt <= examAt) return dueAt;
-  // 考前至少保留半天缓冲；把 due 拉到 (examAt - 0.5 天) 之内最近的时点
-  const cap = examAt - 0.5 * DAY_MS;
+  // 考前至少保留半天缓冲；把 due 拉到 (examAt - EXAM_BUFFER_DAYS 天) 之内最近的时点
+  const cap = examAt - EXAM_BUFFER_DAYS * DAY_MS;
   return Math.max(nowTs, Math.min(dueAt, cap));
 }
 

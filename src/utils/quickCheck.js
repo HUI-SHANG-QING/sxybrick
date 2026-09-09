@@ -48,15 +48,17 @@ export async function recordQuickCheck(cardId, remembered) {
     type: 'quick',
   });
   // 在卡片上标记本次校验时间（Dexie 动态字段，不需 schema 变更）
-  const card = await db.cards.get(cardId);
-  if (card) {
-    // M1 时间戳漏 bump：只写 quickCheckedAt 的话，该校验动作无任何活跃时间字段推进，
-    // 卡片不随内容侧增量包上传、对端永远看不到这次校验。quickCheckedAt 随内容侧合并
-    // （非 SRS 排期字段），故 bump updatedAt 而非 reviewedAt。
-    // round29：同上——登记字段级时间戳，避免 quickCheckedAt 被对端的整行覆盖回退
-    await db.cards.put({
-      ...card, quickCheckedAt: now, updatedAt: now,
+  // 审计 P1-2（round34）：get + 整行 put 是两个独立事务且整行覆盖——窗口期内
+  // repo.review() 提交的 SRS 进度（ease/level/dueAt/fsrs）会被旧快照回滚，
+  // 是 B11 差量写改造的最后一个漏网点。改为单事务内 update 差量写：
+  // 只动 quickCheckedAt/updatedAt/fieldTs，不触碰并发写入的 SRS 字段。
+  await db.transaction('rw', db.cards, async () => {
+    const card = await db.cards.get(cardId);
+    if (!card) return;
+    await db.cards.update(cardId, {
+      quickCheckedAt: now,
+      updatedAt: now,
       fieldTs: { ...(card.fieldTs || {}), quickCheckedAt: now },
     });
-  }
+  });
 }

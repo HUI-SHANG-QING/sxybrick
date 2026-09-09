@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { pageView } from './utils/telemetry.js';
+import { getDbStatus } from './db.js';
 
 const routes = [
   { path: '/', component: () => import('./views/Dashboard.vue') },
@@ -79,4 +80,20 @@ export const router = createRouter({
 // P1·9：路由切换后自动埋点 page_view（恐怖监控的页面级基础来源）
 router.afterEach((to) => {
   try { pageView(to.path || '/'); } catch { /* 不阻塞主流程 */ }
+});
+
+// 审计 P2-7（round34）：db 打开失败的全局守卫——各视图 onMounted 的 load() 在
+// 库不可用时都会抛错（视图侧已有逐个 catch，此处兜全局一遍）。dbHealth 前缀
+// `error:` 时提示一次，不阻塞导航（App.vue 横幅持续展示状态）。
+let _dbFailWarned = false;
+router.beforeEach(() => {
+  if (_dbFailWarned) return true;
+  try {
+    const s = getDbStatus();
+    if (typeof s === 'string' && s.startsWith('error')) {
+      _dbFailWarned = true;
+      console.warn('[router] 本地数据库不可用（' + s + '），页面数据将无法加载');
+    }
+  } catch { /* getDbStatus 异常不阻塞导航 */ }
+  return true;
 });

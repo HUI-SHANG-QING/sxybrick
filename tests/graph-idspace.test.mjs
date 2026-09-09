@@ -113,10 +113,23 @@ test('edgesToForest: 有环不丢节点、不死循环', () => {
     { from: 'A', to: 'B' }, { from: 'B', to: 'C' }, { from: 'C', to: 'A' }, // 三元环
     { from: 'D', to: 'A' },
   ];
-  const { root } = edgesToForest(edges);
+  const { root, hasCycle } = edgesToForest(edges);
+  assert.equal(hasCycle, true, '含环图必须透传 hasCycle=true（round34 M15）');
   const seen = new Set();
   (function walk(n) { if (!n) return; seen.add(n.name); (n.children || []).forEach(walk); })(root);
   for (const n of ['A', 'B', 'C', 'D']) assert.ok(seen.has(n), `${n} 不该被环吞掉`);
+});
+
+test('edgesToForest: DAG 不误报 hasCycle（round34 M15）', () => {
+  const edges = [
+    { from: 'A', to: 'B' }, { from: 'B', to: 'C' }, { from: 'D', to: 'B' },
+  ];
+  const { root, hasCycle, virtual } = edgesToForest(edges);
+  assert.equal(hasCycle, false, '纯 DAG 不应误报含环');
+  assert.equal(virtual, true, '两棵子树应包虚拟根');
+  const names = [];
+  (function walk(n) { if (!n) return; names.push(n.name); (n.children || []).forEach(walk); })(root);
+  for (const n of ['A', 'B', 'C', 'D']) assert.ok(names.includes(n), `${n} 不应丢失`);
 });
 
 test('edgesToForest: 森林（多根）会包一层虚拟根', () => {

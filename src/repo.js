@@ -1,5 +1,5 @@
 // 数据访问层：把原版 Express 后端的业务逻辑，改写成对本地 IndexedDB 的读写
-import { db, uid } from './db.js';
+import { db, uid, currentDbMode } from './db.js';
 import { applyFeedback, scheduleReview, seedFsrsFromSm2, RETRIEVAL_STRENGTH_OPTIONS } from './srs.js';
 // P3-4 插件事件钩子：业务动作后向已启用插件分发（fire-and-forget，不阻塞也不抛错）
 // 静态导入无循环依赖：plugins/registry 只依赖 db.js 与 agent/registry.js，不依赖 repo.js
@@ -17,7 +17,7 @@ import { pad2 } from './utils/format.js';
 // 审计 D7：日期 key 统一走 time.dateKey（补零 yyyy-MM-dd），与 word/streak 同源，
 // 否则 repo 本地一份 localDateStr 独立实现会在未来格式演进时跨表整日错位。
 import { dateKey as createDateKey } from './utils/time.js';
-import { CARD_CONTENT_FIELDS } from './sync-manifest.js';
+import { CARD_CONTENT_FIELDS, kindOf } from './sync-manifest.js';
 // N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
 import {
   DEFAULT_SUBJECTS,
@@ -234,10 +234,10 @@ export async function updateCard(id, payload) {
       marked: payload.marked !== undefined ? r.value.marked : (old.marked ?? false),
       mnemonic: r.value.mnemonic,
       wrongReason: r.value.wrongReason,
-      // 审计 P2-2（round33）：wrongReason 变化（含经 CardModal 清空）必须推进 wrongReasonAt，
-      // 否则合并侧 WRA 相等时「优先保留有内容一方」会把本端的清空/修改被对端旧错因顶回
-      // （与 review() 路径已修的 P0 同型残留）。
-      wrongReasonAt: r.value.wrongReason !== (old.wrongReason || '') ? (r.value.wrongReason ? now() : (old.wrongReasonAt || 0) + 1 || 1) : (old.wrongReasonAt || 0),
+      // 审计 P2-3（round33→34）：wrongReason 变化（含经 CardModal 清空）必须推进 wrongReasonAt。
+      // round33 曾用「旧值+1」当清空哨兵——旧 WRA=0 时哨兵=1，对端任何真实时间戳必胜，
+      // 清空仍被顶回。改为 now()，与 review 路径（:886）同口径：清空也按真实时间取新。
+      wrongReasonAt: r.value.wrongReason !== (old.wrongReason || '') ? now() : (old.wrongReasonAt || 0),
       difficulty: payload.difficulty !== undefined ? r.value.difficulty : (old.difficulty ?? 'basic'),
       frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
     };
@@ -411,7 +411,9 @@ export async function restoreFromTrash(t) {
         const set = new Set(n.linkedCardIds || []);
         if (!set.has(t.id)) {
           set.add(t.id);
-          await db.notes.put({ ...n, linkedCardIds: [...set], updatedAt: Date.now() });
+          // round34 H1：linkedCardIds 变更必须 bump fieldTs，否则字段级合并会把它当未变更而丢改
+          await db.notes.put({ ...n, linkedCardIds: [...set], updatedAt: Date.now(),
+            fieldTs: { ...(n.fieldTs || {}), linkedCardIds: Date.now() } });
         }
       }
     }
@@ -547,7 +549,9 @@ export async function deleteCard(id) {
     //    结构上仍是悬空引用；笔记侧把引用数组清洗掉并 bump updatedAt 随内容侧同步）
     //    复用第 1 步的 linkedNotes（同一事务内，中间无写入），不再重复全表扫描
     for (const n of linkedNotes) {
-      await db.notes.put({ ...n, linkedCardIds: n.linkedCardIds.filter(x => x !== id), updatedAt: now() });
+      // round34 H1：linkedCardIds 变更 bump fieldTs，字段级合并才认得这次改动
+      await db.notes.put({ ...n, linkedCardIds: n.linkedCardIds.filter(x => x !== id), updatedAt: now(),
+        fieldTs: { ...(n.fieldTs || {}), linkedCardIds: now() } });
     }
   });
   // 9) 清理不再被任何卡片引用的孤儿图片。round26 D3：**先写墓碑、后物理删**——
@@ -556,6 +560,10 @@ export async function deleteCard(id) {
   if (orphanImages.length) {
     await db.tombstones.bulkPut(orphanImages.map(id => ({ id, kind: 'image', deletedAt: now() })));
     await db.images.bulkDelete(orphanImages);
+    // round34 M5：同步剔除 imageRefs 反向索引里指向这些图的悬空引用行（该索引由
+    // rebuildImageRefs 全量重建、写路径不维护 → 不删会累积孤儿引用，下次 rebuild 虽能纠正，
+    // 但常态下保持索引与主表一致更稳）。
+    await db.imageRefs.where('imageId').anyOf(orphanImages).delete();
   }
   fireHook('onCardDeleted', { id });
 }
@@ -712,6 +720,74 @@ export async function pruneUserOps({ keepDays = 365 } = {}) {
     await db.userOps.bulkDelete(ids);
     await db.tombstones.bulkPut(ids.map(id => ({ id, kind: 'userOp', deletedAt: nowTs })));
   });
+  return ids.length;
+}
+
+// round34 M3：墓碑表（tombstones）永不清理——每次增量备份全量随包发送，
+// 删除越多包越大、同步/导入越慢。补一个 TTL/GC：删除时间超过最大离线窗口的墓碑，
+// 且本地对应行确实已不存在（避免误删仍在等待传播的删除），定期清除。
+// 保留 30 天窗口给所有设备完成同步；超期且本地无残留行即可安全 GC。
+const TOMB_KIND_TABLE = {
+  card: 'cards', wordCard: 'wordCards', note: 'notes', image: 'images',
+  review: 'reviews', wordReview: 'wordReviews', graphEdge: 'graphEdges',
+  embedding: 'embeddings', doc: 'docs', docFile: 'docFiles', memo: 'memos',
+  mindmap: 'mindmaps', plan: 'plans', dailyPlan: 'dailyPlans', dailyTask: 'dailyTasks',
+  cardGroup: 'cardGroups', cardGroupLink: 'cardGroupLinks', cardWordLink: 'cardWordLinks',
+  wordGroup: 'wordGroups', wordGroupLink: 'wordGroupLinks', exam: 'exams',
+  analysisSession: 'analysisSessions', analysisMessage: 'analysisMessages',
+  userOp: 'userOps', pomoSession: 'pomoSessions', weeklyReport: 'weeklyReports',
+  achievement: 'achievements', syllabusMeaning: 'syllabusMeanings',
+};
+export async function pruneTombstones({ maxAgeDays = 30, maxPerRun = 5000 } = {}) {
+  const cutoff = Date.now() - maxAgeDays * 86400000;
+  const all = await db.tombstones.toArray();
+  const candidates = all.filter(t => (t.deletedAt || 0) < cutoff).slice(0, maxPerRun);
+  if (!candidates.length) return 0;
+  // 按 kind 分组后 bulkGet 存在性判定（避免逐条 get 的 N 次查询）
+  const byTable = new Map();
+  for (const t of candidates) {
+    const table = TOMB_KIND_TABLE[kindOf(t)];
+    if (!table || t.id == null) continue;
+    if (!byTable.has(table)) byTable.set(table, []);
+    byTable.get(table).push(t);
+  }
+  const skip = new Set(); // 本地对应行仍存在 → 删除尚未生效，墓碑不能删（否则复活）
+  for (const [table, rows] of byTable) {
+    let present = [];
+    try {
+      present = (await db[table].bulkGet(rows.map(r => r.id))).filter(Boolean).map(r => r.id);
+    } catch { /* 缺表则视为可清 */ }
+    for (const r of rows) if (present.includes(r.id)) skip.add(r.id);
+  }
+  const ids = candidates.map(t => t.id).filter(id => !skip.has(id));
+  if (!ids.length) return 0;
+  await db.tombstones.bulkDelete(ids);
+  return ids.length;
+}
+
+// round34 M4：aiUsage（EXCLUDED_FROM_SYNC，本地审计用）随每次 AI 调用无上限增长 → 本地膨胀。
+// 按日期裁剪（同 pruneUserOps 纪律，本地表不跨设备故无需写墓碑）。
+export async function pruneAiUsage({ keepDays = 90, maxPerRun = 10000 } = {}) {
+  const cutoff = Date.now() - keepDays * 86400000;
+  const ids = await db.aiUsage.where('t').below(cutoff).limit(maxPerRun).primaryKeys();
+  if (!ids.length) return 0;
+  await db.aiUsage.bulkDelete(ids);
+  return ids.length;
+}
+
+// round34 M4：privacyRecords（EXCLUDED_FROM_SYNC，隐私监控本地落库）无上限增长。
+// 按 updatedAt/date 裁剪；本地表不参与同步，直接 bulkDelete。
+export async function prunePrivacyRecords({ keepDays = 180, maxPerRun = 10000 } = {}) {
+  const cutoff = Date.now() - keepDays * 86400000;
+  const rows = await db.privacyRecords.toArray();
+  const ids = [];
+  for (const r of rows) {
+    if (ids.length >= maxPerRun) break;
+    const ts = r.updatedAt || (r.date ? new Date(r.date).getTime() : 0) || 0;
+    if (ts && ts < cutoff) ids.push(r.id);
+  }
+  if (!ids.length) return 0;
+  await db.privacyRecords.bulkDelete(ids);
   return ids.length;
 }
 
@@ -954,7 +1030,9 @@ export async function reviewHistory(limit = 200) {
   // round33 D-5：只 bulkGet 这 ≤200 条涉及的卡片——此前全表 allCards() 只为挂 front/back，
   // 万卡级每次翻「已背记录」都物化整表（reviews 页/历史查看的高频路径）。
   const ids = [...new Set(reviews.map(r => r.cardId).filter(Boolean))];
-  const cardMap = new Map((ids.length ? await db.cards.bulkGet(ids) : []).map(c => [c.id, c]));
+  // round34 C1：bulkGet 对库中已删的卡返回 undefined，直接 .map(c=>[c.id,c]) 会崩；
+  // 先滤掉（下一行 card?.front 已预期卡片可能不存在）。
+  const cardMap = new Map((ids.length ? await db.cards.bulkGet(ids) : []).filter(Boolean).map(c => [c.id, c]));
   const label = ['没记住', '还模糊', '记住了'];
   return reviews.map(r => {
     const card = cardMap.get(r.cardId);
@@ -1004,7 +1082,9 @@ async function dashboardSnapshot() {
         db.cards.orderBy('updatedAt').last().catch(() => undefined),
         db.reviews.orderBy('reviewedAt').last().catch(() => undefined),
       ]);
-      return `${cc}|${rc}|${cLast ? cLast.updatedAt : 0}|${rLast ? rLast.reviewedAt : 0}`;
+      // round34 H4：缓存键纳入当前 DB 模式（real/test=演示），防止切换演示库后
+      // 撞到相同 count/时间戳键而返回另一模式的 cards+reviews 快照。
+      return `${currentDbMode()}|${cc}|${rc}|${cLast ? cLast.updatedAt : 0}|${rLast ? rLast.reviewedAt : 0}`;
     } catch { return ''; } // 索引不可用时退化为每次都重建
   };
   if (_dashSnap && _dashSnap.key === (await mkKey())) return _dashSnap;
@@ -1034,7 +1114,7 @@ export async function failCountMap() {
       db.reviews.orderBy('reviewedAt').last(),
     ]);
   } catch { /* 索引不可用时退化为每次重算 */ }
-  const key = `${cnt}|${last ? last.reviewedAt : 0}|${last ? last.id : ''}`;
+  const key = `${currentDbMode()}|${cnt}|${last ? last.reviewedAt : 0}|${last ? last.id : ''}`;
   // round29 审查：去掉原先的 `cnt &&`（空表时永远绕过缓存、每次都全表扫描）；
   // 复合键本身不完备（原地改写/同 id 替换一条非最新复习时行数与最新 reviewedAt 都不变），
   // 故写路径必须调 invalidateFailCountCache() 显式失效，见下方各写入点。
@@ -1086,7 +1166,9 @@ export async function listMemos() {
 export async function addMemo(payload) {
   const text = String(payload?.text || '').trim();
   if (!text) return null;
-  const m = { id: uid(), text, important: !!payload.important, urgent: !!payload.urgent, at: Date.now(), createdAt: Date.now() };
+  // round34 H1：fieldTs 初始化（备忘录可编辑字段 text/important/urgent）
+  const m = { id: uid(), text, important: !!payload.important, urgent: !!payload.urgent, at: Date.now(), createdAt: Date.now(),
+    fieldTs: { text: Date.now(), important: Date.now(), urgent: Date.now() } };
   await db.memos.put(m);
   fireHook('onMemoSaved', m);
   return m;
@@ -1417,7 +1499,9 @@ export async function createNote(payload) {
   const check = validateNote(norm);
   if (!check.valid) throw new Error('笔记无效：' + check.errors.join('；'));
   const t = now();
-  const note = { id: uid(), ...norm, createdAt: t, updatedAt: t };
+  // round34 H1：字段级时间戳初始化（与卡片侧 createCard 同纪律）——跨设备并发改不同字段不丢一端。
+  const note = { id: uid(), ...norm, createdAt: t, updatedAt: t,
+    fieldTs: { content: t, title: t, tags: t, category: t, subject: t, linkedCardIds: t } };
   await db.notes.put(note);
   fireHook('onNoteSaved', note);
   return note;
@@ -1433,10 +1517,15 @@ export async function updateNote(id, payload) {
     const check = validateNote(norm);
     if (!check.valid) throw new Error('笔记无效：' + check.errors.join('；'));
     const t = now();
-    const out = { ...cur, ...norm, id, updatedAt: t };
-    await db.notes.put(out);
-    fireHook('onNoteSaved', out);
-    return out;
+    // round34 H1：只 bump 本次真正变化的字段时间戳，使合并侧逐字段取新（并发改不同字段不丢）。
+    const fts = { ...(cur.fieldTs || {}) };
+    for (const k of ['content', 'title', 'tags', 'category', 'subject', 'linkedCardIds']) {
+      if (norm[k] !== cur[k]) fts[k] = t;
+    }
+    const out2 = { ...norm, fieldTs: fts };
+    await db.notes.put(out2);
+    fireHook('onNoteSaved', out2);
+    return out2;
   });
 }
 
@@ -1464,6 +1553,19 @@ export async function deleteNote(id) {
       }
     }
   });
+  // round34 M6：笔记正文可能经 [[sxy-img://id]] 引用图片，删除笔记后若这些图不再被任何
+  // 其它笔记/卡/资料引用，应作为孤儿清理并写墓碑 + 清反向索引（否则残留图随同步扩散，
+  // 与 deleteCard / deleteWordCard 的孤儿图口径对齐）。
+  // 注意：上面的事务已删除 note 行，故 findOrphanImages 不会再把它计入「在用」。
+  const noteImgIds = extractImageIds(JSON.stringify(old || {}));
+  if (noteImgIds.length) {
+    const orphanImages = await findOrphanImages(noteImgIds);
+    if (orphanImages.length) {
+      await db.tombstones.bulkPut(orphanImages.map(id => ({ id, kind: 'image', deletedAt: now() })));
+      await db.images.bulkDelete(orphanImages);
+      await db.imageRefs.where('imageId').anyOf(orphanImages).delete();
+    }
+  }
 }
 
 /** 反向链接：哪些笔记的 content 里有 [[id]]？ */
@@ -1503,6 +1605,8 @@ export async function createPlan(payload) {
     id: uid(), title, content,
     status: ['active', 'done', 'archived'].includes(payload?.status) ? payload.status : 'active',
     createdAt: t, updatedAt: t,
+    // round34 H1：fieldTs 初始化（计划可编辑字段 title/content/status）
+    fieldTs: { title: t, content: t, status: t },
   };
   await db.plans.put(p);
   return p;
@@ -1512,6 +1616,10 @@ export async function updatePlan(id, patch) {
     const old = await db.plans.get(id);
     if (!old) throw new Error('计划不存在');
     const p = plain({ ...old, ...(patch || {}), updatedAt: now() });
+    // round34 H1：字段级时间戳——只 bump 变化的字段
+    const fts = { ...(old.fieldTs || {}) };
+    for (const k of ['title', 'content', 'status']) if (p[k] !== old[k]) fts[k] = now();
+    p.fieldTs = fts;
     await db.plans.put(p);
     return p;
   });
@@ -1714,7 +1822,9 @@ export async function createMindmap(payload) {
     ? payload.root
     : { id: uid(), label: String(payload?.rootLabel || '中心主题').trim() || '中心主题', children: [] };
   const t = now();
-  const m = { id: uid(), title, root: plain(root), createdAt: t, updatedAt: t };
+  const m = { id: uid(), title, root: plain(root), createdAt: t, updatedAt: t,
+    // round34 H1：fieldTs 初始化（导图可编辑字段 title/root）
+    fieldTs: { title: t, root: t } };
   await db.mindmaps.put(m);
   return m;
 }
@@ -1723,6 +1833,10 @@ export async function updateMindmap(id, patch) {
     const old = await db.mindmaps.get(id);
     if (!old) throw new Error('导图不存在');
     const m = plain({ ...old, ...(patch || {}), updatedAt: now() });
+    // round34 H1：字段级时间戳——只 bump 变化的字段
+    const fts = { ...(old.fieldTs || {}) };
+    for (const k of ['title', 'root']) if (m[k] !== old[k]) fts[k] = now();
+    m.fieldTs = fts;
     await db.mindmaps.put(m);
     return m;
   });
@@ -1853,16 +1967,19 @@ export async function recordUserOp(type, payload = null, extra = {}) {
 //   groupBy: 'day' | 'hour' | 'module' | 'type' | 'category' | 'dayHour' | null(全量返回数组)
 // 返回：groupBy=null → 原始数组；否则 Map(key → count) 或 数组（day/hour 有序）
 export async function queryUserOps(opts = {}) {
-  const { from = 0, to = Date.now(), groupBy = null } = opts;
+  const { from = 0, to = Date.now(), groupBy = null, excludeTypes = null } = opts;
   const tIdx = db.userOps.where('t');
   // 审计 D9：无 from 时原实现全表 toArray + 内存过滤（埋点十万行场景徒增物化）。
   // 统一用 't' 索引范围，只物化 [0, to] 区间。
   const arr = from > 0
     ? await tIdx.between(from, to, true, true).toArray()
     : await tIdx.belowOrEqual(to).toArray();
-  if (!groupBy) return arr;
+  // 审计 P2-6（round34）：支持类型排除——热力图合并 reviews+wordReviews 时，
+  // userOps 的 review_rate 与 reviews 行是同一动作的两次记录，需排除防双计。
+  const filtered = excludeTypes?.length ? arr.filter(o => !excludeTypes.includes(o.type)) : arr;
+  if (!groupBy) return filtered;
   // 分组聚合核心已抽至 repo-core.groupUserOps（N9）
-  return groupUserOps(arr, groupBy);
+  return groupUserOps(filtered, groupBy);
 }
 
 // 4) 最佳 / 最坏拍档（A/B/C/D 四类 + 近期/长期 + 正/反 共 16 种组合）

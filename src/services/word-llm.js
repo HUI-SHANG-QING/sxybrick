@@ -199,8 +199,14 @@ async function callChatCompletion({ base, apiKey, model, prompt, system, source 
   } catch (e) {
     // 5xx 服务端瞬时故障 & 超时/网络错误：重试1次（attempt < MAX_ATTEMPTS 时 continue）
     // 4xx 客户端错误（鉴权/参数）：直接失败不重试
+    // 审计 P2-9（round34）：外部取消（AbortError + signal 已中止）不重试——
+    // 旧判定把 AbortError 当瞬时网络错误，用户/上层取消后白等 1s，
+    // 再用同一个已 aborted 的 signal 重发，必然立刻再次 AbortError（白烧一轮循环）。
+    // 超时兜底（AbortSignal.timeout）抛的是 TimeoutError，与外部取消区分开。
+    const isExternalCancel = e?.name === 'AbortError' && signal?.aborted;
     const is5xx = e?.message?.startsWith('HTTP 5');
-    const isNetErr = e?.name === 'TimeoutError' || e?.name === 'AbortError' || /fetch|network|ECONNREFUSED/i.test(e?.message || '');
+    const isTimeout = e?.name === 'TimeoutError';
+    const isNetErr = !isExternalCancel && (isTimeout || /fetch|network|ECONNREFUSED/i.test(e?.message || ''));
     if (attempt < MAX_ATTEMPTS && (is5xx || isNetErr)) {
       await new Promise(r => setTimeout(r, 1000)); // 间隔1s
       continue; // 重试
@@ -210,6 +216,7 @@ async function callChatCompletion({ base, apiKey, model, prompt, system, source 
       promptTokens: estimateTokens(prompt), completionTokens: estimateTokens(content),
       durationMs: Date.now() - t0, ok: false, est: 1,
     });
+    if (isExternalCancel) throw e; // 取消原样上抛，调用方按取消处理
     if (isNetErr) throw new Error('LLM 请求超时或已中断（30s），请检查网络后重试');
     throw e;
   }

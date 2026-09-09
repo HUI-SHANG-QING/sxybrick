@@ -185,7 +185,18 @@ async function genTop5() {
   await load();
 }
 
-onMounted(async () => { loading.value = true; try { await Promise.all([load(), loadSubjects()]); } finally { loading.value = false; } });
+// 审计 P2-7（round34）：onMounted 补 try/catch——db 打开失败时 load() 裸抛
+// unhandled rejection，且 loading 卡死转圈。失败时展示空态而非崩溃。
+onMounted(async () => {
+  loading.value = true;
+  try {
+    await Promise.all([load(), loadSubjects()]);
+  } catch (e) {
+    console.warn('[WrongBook] init failed:', e?.message || e);
+  } finally {
+    loading.value = false;
+  }
+});
 </script>
 
 <template>

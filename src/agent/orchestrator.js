@@ -48,6 +48,22 @@ function routeIntent(text) {
   return 'tutor'; // 默认：答疑导师（知识点疑问）
 }
 
+// 审计 P2-10（round34）：意图分级注入——buildFullContext 每轮跑 5 个库查询
+// （getStats/weakCards/getReviewSuggestion/getTags/getModuleSummary）并注入数百 token，
+// 「你好」「谢谢」这类寒暄也付全量成本，长期使用 token 占用无意义膨胀。
+// 启发式：输入含学习意图关键词、疑问词、或长度足以承载实质问题（≥12字）时才构建全量上下文；
+// 否则只保留记忆文本（memorykeeper 依赖它，且成本可控）。
+const CHITCHAT_RE = /^(你好|您好|hi|hello|嗨|哈喽|在吗|谢谢|感谢|辛苦|拜拜|再见|早上好|下午好|晚上好|晚安|ok|好的|嗯|哦)[!！。~～\s]*$/i;
+function needsFullContext(userInput) {
+  const t = String(userInput || '').trim();
+  if (!t) return false;
+  if (CHITCHAT_RE.test(t)) return false;
+  if (t.length >= 12) return true; // 足够长，视为实质问题
+  const intentKeys = INTENT_RULES.flatMap((r) => r.keys);
+  const questionWords = ['什么', '怎么', '为什么', '如何', '哪', '吗', '？', '?', '解释', '讲', '帮我'];
+  return intentKeys.some((k) => t.includes(k)) || questionWords.some((k) => t.includes(k));
+}
+
 /**
  * 执行一次用户任务（一轮对话）。
  * @param {object} opt
@@ -82,7 +98,12 @@ export async function runTask(opt) {
   }
 
   // 1) 构建上下文（学习数据 + RAG 检索增强 + 长期记忆）
-  const [studyContext, memoryText] = await Promise.all([buildFullContext(userInput), buildMemoryText()]);
+  // 审计 P2-10（round34）：寒暄/超短输入跳过全量上下文（省 5 个库查询 + 数百 token），
+  // 只保留记忆文本；实质问题维持原有全量注入，Agent 行为不变。
+  const [studyContext, memoryText] = await Promise.all([
+    needsFullContext(userInput) ? buildFullContext(userInput) : Promise.resolve(''),
+    buildMemoryText(),
+  ]);
   // 2) 路由 / 选定 Agent（先于 ctx 解析，便于把 agentId 注入工具上下文，
   //    这样多智能体协作时 write_blackboard 能把发现正确归因到调用它的 Agent，而非 'unknown'）
   const resolvedId = agentId || routeIntent(userInput);

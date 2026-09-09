@@ -83,7 +83,10 @@ export async function getCardAnalytics(cardId) {
   const daysActive = Math.max(1, Math.floor((now() - (firstReviewedAt === Infinity ? (card.createdAt || now()) : firstReviewedAt)) / DAY));
   const freqPerDay = +(total / daysActive).toFixed(2);
   const last7 = reviews.filter(r => r.reviewedAt >= now() - 7 * DAY).length;
-  const correctRate = total ? Math.round((remembered / total) * 100) : null;
+  // round34 M16：correctRate 应计「至少模糊回想」（rating>=1）为已掌握——原只数 rating===2，
+  // 仅「模糊」答的卡被算成 0% 掌握，误导分析。fuzzy 仍单独保留用于细分。
+  const recalled = reviews.filter(r => r.rating >= 1).length;
+  const correctRate = total ? Math.round((recalled / total) * 100) : null;
   return {
     id: card.id,
     subject: card.subject,
@@ -284,6 +287,11 @@ async function _getConfusablePairs(limit = 10) {
   // 直接全对配对会 O(n²) 冻结主线程（万卡级=秒级白屏）。候选超限时按错题数截断
   // （错得越多越值得先配对），单次预算 ≤ 400² 次比较，页面不冻结、结果仍有意义。
   const PAIR_MAX = 400;
+  // round34 L6：候选按错次截断 top-400 是「主线程 fallback 量级护栏」的取舍（见上方注释）。
+  // 副作用：在 >400 张卡各自都至少有 1 次错、但某对「各自仅错 1 次」的真实易混对，
+  // 可能因该对被排在 400 名之外而落选——这类低频易混对不会进候选。属有意的设计取舍：
+  // 用算力预算换主线程不冻结，优先保留错得最多的卡参与配对。如需不漏真实易混对，
+  // 可改为「按共错采样」或把配对计算迁到 worker（已支持，CSP/file:// 下才走此 fallback）。
   if (candidates.length > PAIR_MAX) {
     candidates.sort((a, b) => (wrongCount.get(b.id) || 0) - (wrongCount.get(a.id) || 0));
     candidates.length = PAIR_MAX;
@@ -416,12 +424,15 @@ function classifyEdge(label) {
 }
 
 function mapLabelsToCards(cards) {
+  // round34 L1：同一 front 可能属于多张卡（或 front≡back），原实现后写覆盖前写，
+  // 第二张卡从映射里被静默丢弃、无法作为图端点解析。改为按 label 存数组，保住所有卡；
+  // 解析时取数组首张，findCardForLabel 的 includes 兜底仍能命中其余卡。
   const byLabel = new Map();
   for (const c of cards) {
-    const f = String(c.front || '').replace(/[*_#>`~|-]/g, '').trim();
-    const b = String(c.back || '').replace(/[*_#>`~|-]/g, '').trim();
-    byLabel.set(f.toLowerCase(), c);
-    if (!byLabel.has(b.toLowerCase())) byLabel.set(b.toLowerCase(), c);
+    const f = String(c.front || '').replace(/[*_#>`~|-]/g, '').trim().toLowerCase();
+    const b = String(c.back || '').replace(/[*_#>`~|-]/g, '').trim().toLowerCase();
+    if (f) { if (!byLabel.has(f)) byLabel.set(f, []); byLabel.get(f).push(c); }
+    if (b && !byLabel.has(b)) byLabel.set(b, [c]);
   }
   return byLabel;
 }
@@ -429,7 +440,8 @@ function mapLabelsToCards(cards) {
 function findCardForLabel(label, byLabel, cards) {
   if (!label) return null;
   const key = String(label).toLowerCase();
-  if (byLabel.has(key)) return byLabel.get(key);
+  const arr = byLabel.get(key);
+  if (arr && arr.length) return arr[0];
   const lc = String(label).toLowerCase();
   for (const c of cards) {
     if (String(c.front || '').toLowerCase().includes(lc)) return c;

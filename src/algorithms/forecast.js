@@ -81,6 +81,10 @@ export function forecastDue(cards, days = 30, opts = {}) {
     // 洪峰预测虚高。0 视为无有效到期时间，退回 createdAt。
     const rawDue = card.dueAt;
     const firstDue = (Number.isFinite(rawDue) && rawDue > 0) ? rawDue : (card.createdAt ?? now);
+    // round34 L3：逾期卡「既入 backlog 又计入今日负载」是设计如此——逾期=今日要补，
+    // 故下方循环里 reviewAt=max(due,start)=start、idx=0，会使 byDay[0] 也 +1。
+    // 语义：**byDay[0] 已包含 backlog**（今日实际要复习的量）。容量规划消费者切勿
+    // 再叠加 backlog，否则逾期卡被双计、今日负载虚高。
     if (firstDue < start) backlog++; // 当前已逾期、待补的卡
 
     let due = firstDue;
@@ -131,5 +135,8 @@ export function forecastDue(cards, days = 30, opts = {}) {
     backlog,
     peak,
     avgPerDay: Math.round((total / n) * 10) / 10,
+    // round34 L3：语义提示消费者——byDay[0]（今日）已把 backlog 计入（逾期=今日要补），
+    // 容量规划展示时勿再叠加 backlog 双计。用结构化布尔表达，文案交给视图层字典。
+    backlogIncludedInToday: true,
   };
 }

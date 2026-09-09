@@ -158,9 +158,16 @@ const dangerConfirm = ref('');
 async function wipeUserOps() {
   if (dangerConfirm.value !== '清空埋点') return toast(t('views.export.wipeOpsPrompt'), 'warn');
   try {
+    // round34 M9：一键清空必须表达为墓碑，否则 hub/对端仍留存旧埋点，下次全量拉取会把已清行
+    // 「复活」到本机与其它设备（此前只清本地 + 写设备本地水位，水位不跨设备 → 对端无水位 → 复活）。
+    // 先取 ids 再清表，随后补齐 userOp 墓碑；增量同步把它带去 hub/对端，importBackup 的 cascade
+    // 阶段（applyTombstones('userOp')）据此删行。水位作为防御纵深保留（过滤入站旧行）。
+    const ids = await db.userOps.toCollection().primaryKeys();
     await db.userOps.clear();
-    // F10（round15 P2）：写「已清空水位」——否则下轮同步把 hub/对端的历史埋点灌回，
-    // 「撤销监控」失效（此前 clearedBeforeKey/filterClearedRows 是死代码）。
+    if (ids.length) {
+      const nowMs = Date.now();
+      await db.tombstones.bulkPut(ids.map(id => ({ id, kind: 'userOp', deletedAt: nowMs })));
+    }
     localStorage.setItem(clearedBeforeKey('userOps'), String(Date.now()));
     dangerConfirm.value = '';
     await refreshCounts();

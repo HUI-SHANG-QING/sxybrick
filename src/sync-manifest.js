@@ -3,7 +3,11 @@
 // 新增数据表时只需在此登记，导出/导入/中枢合并便自动覆盖，避免多处遗漏。
 // 注意：本文件必须保持"无浏览器依赖"，因为 hub.js 会直接在 Node 里 import 它。
 
-export const BACKUP_VERSION = 7;
+// round34 M10：每次 schema 演进（新增表/字段）必须 +1——旧客户端（同号）与新中枢合并时
+// 会撞上它根本没有的 Dexie 表 → bulkPut 抛错、整批导入失败（P0）。当前 schema 已到 v31
+// （cardWordLinks 等），此前漏 bump，这里补到 8 并作为硬性纪律。导入侧 sync.js 用
+// `backup.version > BACKUP_VERSION` 拒绝过高版本（清晰「请升级」而非崩溃），v7 旧包仍可导入。
+export const BACKUP_VERSION = 8;
 
 // merge 策略：
 //   card      卡片专属：内容字段按 updatedAt、SRS 字段按 reviewedAt、错因按 wrongReasonAt 字段级合并
@@ -282,7 +286,13 @@ export function mergeCardPair(local, incoming, extFields = []) {
   const incWR = incoming.wrongReason ?? '';
   const locWR = local.wrongReason ?? '';
   let chosen, chosenTs;
-  if (incWRA > locWRA) { chosen = incoming; chosenTs = incWRA; }
+  // round34 M1：清除语义必须胜出——本地显式清空（wrongReason 为空）时，无论对端时间戳多新，
+  // 都不应被对端「带晚于清空时刻的真实时间戳的旧错因」覆盖（原 `+1` 干扰可被对端 WRA 击败）。
+  // 规则：本地为空且对端非空 → 本地清除胜（保留空）；对端为空且本地非空 → 保留本地；
+  // 两端都空或都有内容 → 退化为时间戳较新者（原函数语义）。
+  if (!locWR && incWR) { chosen = local; chosenTs = locWRA; }       // 本地已清空，维持清空
+  else if (locWR && !incWR) { chosen = local; chosenTs = locWRA; } // 对端清空，保留本地错因
+  else if (incWRA > locWRA) { chosen = incoming; chosenTs = incWRA; }
   else if (locWRA > incWRA) { chosen = local; chosenTs = locWRA; }
   else {
     // 时间戳相等：优先保留有内容的一方，避免「一方改了错因但没 bump 时间戳」被空值覆盖
@@ -409,6 +419,29 @@ function cloneSafe(rows) {
 //   strip 退化成「半程保护」。在「本机从未配置 Key + 中枢/旧包里驻留过他人 Key」的组合下，
 //   凭证会被灌进本机（且 A 清空本地 Key 后中枢旧值仍会回灌）。
 //   与导出侧同口径即可根治：incoming 的 strip 字段一律丢弃。
+/**
+ * round34 H1：字段级合并（自由文本可编辑表）。当且仅当两端都带 fieldTs 时调用（见 mergeRows
+ * updatedAt 分支）。规则：对每字段取 fieldTs 较新者；仅一端有的字段保留该端；id 不可变不参与。
+ * fieldTs 自身取各字段较新者；updatedAt 取较新。strip 字段在调用前已由 sanitizeStripRow 剔除，
+ * 故不会从 incoming 灌入凭证。任一侧缺 fieldTs 时调用方会退化为整行 LWW，无回归。
+ */
+export function mergeByFieldTs(cur, xr, strip = []) {
+  const cf = (cur.fieldTs && typeof cur.fieldTs === 'object') ? cur.fieldTs : {};
+  const xf = (xr.fieldTs && typeof xr.fieldTs === 'object') ? xr.fieldTs : {};
+  const out = { ...cur };
+  for (const k of Object.keys(xr)) {
+    if (k === 'id' || k === 'createdAt' || k === 'fieldTs') continue;
+    if (strip.includes(k)) continue; // 双保险：凭证字段绝不采纳 incoming
+    const ct = cf[k] ?? 0;
+    const xt = xf[k] ?? 0;
+    if (xt >= ct) out[k] = xr[k]; // 对端较新或相等 → 取对端（与整行收敛一致）
+  }
+  out.fieldTs = { ...cf };
+  for (const k of Object.keys(xf)) out.fieldTs[k] = Math.max(out.fieldTs[k] || 0, xf[k] || 0);
+  out.updatedAt = Math.max(cur.updatedAt ?? 0, xr.updatedAt ?? 0);
+  return out;
+}
+
 export function mergeRows(base, incoming, strategy, opts = {}) {
   const strip = Array.isArray(opts.strip) ? opts.strip.filter(Boolean) : [];
   // round30 P3-1：入口统一深拷兜底（JSON 往返剥 Proxy，与 importBackup L607 同口径）。
@@ -458,6 +491,12 @@ export function mergeRows(base, incoming, strategy, opts = {}) {
     }
     if (strategy === 'chat') { m.set(x.id, mergeChatPair(cur, xr)); continue; }
     if (strategy === 'updatedAt') {
+      // round34 H1：字段级合并——当两端都带 fieldTs（自由文本可编辑表 notes/memos/mindmaps/plans
+      // 的创建/更新路径会 bump），按「每字段谁的新听谁」合并，杜绝「跨设备并发改不同字段丢一端」。
+      // 任一侧缺 fieldTs（旧数据/生成表 docs/exams/graphEdges…）则退化为整行 LWW（原语义，不回归）。
+      if (cur.fieldTs && xr.fieldTs && typeof cur.fieldTs === 'object' && typeof xr.fieldTs === 'object') {
+        m.set(x.id, mergeByFieldTs(cur, xr, strip)); continue;
+      }
       const a = cur.updatedAt ?? cur.createdAt ?? 0;
       const b = xr.updatedAt ?? xr.createdAt ?? 0;
       if (b > a) {

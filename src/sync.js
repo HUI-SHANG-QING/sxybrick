@@ -35,7 +35,7 @@ import { pad2 } from './utils/format.js';
 // 审计 C3：导入后跨 tab 广播数据变更
 import { notifyDbChanged } from './utils/dbEvents.js';
 // 审计 C5：导入/同步应用墓碑后清扫孤儿复习行（父卡已不存在的 reviews/wordReviews）
-import { sweepOrphanRows, repairBrokenDueAt, pruneUserOps, invalidateFailCountCache } from './repo.js';
+import { sweepOrphanRows, repairBrokenDueAt, pruneUserOps, pruneTombstones, pruneAiUsage, prunePrivacyRecords, invalidateFailCountCache } from './repo.js';
 // 快照标签里的时间跟随界面语言（此前硬编码 'zh-CN'，英文界面下仍是"2026/8/30 19:48"中文习惯）
 import { fmtLocaleDateTime } from './utils/locale-date.js';
 
@@ -685,7 +685,14 @@ export async function importBackup(backup, opts = {}) {
   // 被跳过的词卡其 wordReviews/cardWordLinks 引用经 remapCardRefs 的 WORD_CARD_REF_FIELDS 重定向。
   let wordCardDedupe = { kept: (backup.wordCards || []).filter(x => x && x.id), duplicated: 0, idRemap: new Map() };
   if (wordCardDedupe.kept.length) {
-    const baseWordCards = await db.wordCards.toArray();
+    // round34 M8：防御式读取——老/部分 schema 上 db.wordCards 可能不存在会抛错并 abort 整个导入。
+    // 包一层 try/catch，缺表时按空库处理（与 demo-seeder 同纪律），保证导入主链不被打断。
+    let baseWordCards = [];
+    try {
+      baseWordCards = await db.wordCards.toArray();
+    } catch (e) {
+      console.warn('[sync] 读取 wordCards 失败（可能缺表，按空处理）:', e?.message || e);
+    }
     const baseWordCardsMap = new Map(baseWordCards.map(x => [x.id, x]));
     wordCardDedupe = dedupeIncomingWordCards(wordCardDedupe.kept, baseWordCardsMap, baseWordCards);
     if (wordCardDedupe.idRemap.size) {
@@ -818,7 +825,9 @@ export async function importBackup(backup, opts = {}) {
       .filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.some(id => removedSet.has(id)));
     if (linkedNotes.length) {
       for (const n of linkedNotes) {
-        await db.notes.put({ ...n, linkedCardIds: n.linkedCardIds.filter(x => !removedSet.has(x)), updatedAt: Date.now() });
+        // round34 H1：linkedCardIds 变更 bump fieldTs，字段级合并才认得这次改动
+        await db.notes.put({ ...n, linkedCardIds: n.linkedCardIds.filter(x => !removedSet.has(x)), updatedAt: Date.now(),
+          fieldTs: { ...(n.fieldTs || {}), linkedCardIds: Date.now() } });
       }
     }
     // round15 P1：级联远端孤儿——卡片删除在源端已删 embeddings（sourceId 索引 + sourceType='card'）
@@ -875,9 +884,23 @@ export async function importBackup(backup, opts = {}) {
     if (wRes.stale.length) await db.tombstones.bulkDelete(wRes.stale);
     if (wRes.removed.length) {
       await db.wordCards.bulkDelete(wRes.removed);
+      // 审计 P2-5（round34）：级联物理删必须补墓碑——wordReviews/links 此前只删不记，
+      // 同 id 行（老包/bridge 通道/其他设备未收到删除）下次合并时按「新行」回灌，
+      // 幽灵复习记录复活并计入统计。与源端 deleteWordCard（word-repo.js:264-274）
+      // 的墓碑纪律同口径：删谁就给谁写墓碑。
+      const nowMs = Date.now();
+      const wReviews = await db.wordReviews.where('cardId').anyOf(wRes.removed).toArray();
+      const wGroupLinks = await db.wordGroupLinks.where('cardId').anyOf(wRes.removed).toArray();
+      const cwLinks = await db.cardWordLinks.where('wordCardId').anyOf(wRes.removed).toArray();
+      const cascadeTombstones = [
+        ...wReviews.map(r => ({ id: r.id, kind: 'wordReview', deletedAt: nowMs })),
+        ...wGroupLinks.map(l => ({ id: l.id, kind: 'wordGroupLink', deletedAt: nowMs })),
+        ...cwLinks.map(l => ({ id: l.id, kind: 'cardWordLink', deletedAt: nowMs })),
+      ];
       await db.wordReviews.where('cardId').anyOf(wRes.removed).delete();
       await db.wordGroupLinks.where('cardId').anyOf(wRes.removed).delete();
       await db.cardWordLinks.where('wordCardId').anyOf(wRes.removed).delete();
+      if (cascadeTombstones.length) await db.tombstones.bulkPut(cascadeTombstones);
       stats.deleted = (stats.deleted || 0) + wRes.removed.length;
     }
   }
@@ -955,6 +978,21 @@ export async function importBackup(backup, opts = {}) {
     const n = await pruneUserOps();
     if (n) console.info(`[sync] 埋点保留期清理 ${n} 行（>365 天）`);
   } catch (e) { console.warn('[sync] pruneUserOps 失败（不阻断导入）:', e?.message || e); }
+
+  // round34 M3/M4：导入完成顺手做一轮本地 GC，避免墓碑/AI 用量/隐私记录无限膨胀。
+  // 全部 try/catch 包裹，失败仅告警、绝不阻断导入主链（数据无损，下次导入再试）。
+  try {
+    const n = await pruneTombstones();
+    if (n) console.info(`[sync] 墓碑 GC 清理 ${n} 条（超离线窗口且本地已无残留行）`);
+  } catch (e) { console.warn('[sync] pruneTombstones 失败（不阻断导入）:', e?.message || e); }
+  try {
+    const n = await pruneAiUsage();
+    if (n) console.info(`[sync] AI 用量裁剪 ${n} 条（>90 天）`);
+  } catch (e) { console.warn('[sync] pruneAiUsage 失败（不阻断导入）:', e?.message || e); }
+  try {
+    const n = await prunePrivacyRecords();
+    if (n) console.info(`[sync] 隐私记录裁剪 ${n} 条（>180 天）`);
+  } catch (e) { console.warn('[sync] prunePrivacyRecords 失败（不阻断导入）:', e?.message || e); }
 
   // 审计 C3：导入完成即向所有 tab 广播数据已变更（跨 tab 缓存失效）。
   notifyDbChanged('import');

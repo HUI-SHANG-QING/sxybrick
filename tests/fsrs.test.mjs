@@ -326,10 +326,23 @@ test('P0 回归: 即便权重被拟合到异常值，hard 也不得反超 good�
   const sHard = stabilityAfterRecall(5, 5, 0.9, 2, bad);
   const sGood = stabilityAfterRecall(5, 5, 0.9, 3, bad);
   assert.ok(sHard <= sGood + 1e-9, `w15=5 被钳制后 hard(${sHard}) 仍应 ≤ good(${sGood})`);
+  // round34 M13：w16<1 时 easy 加成钳到 1 —— grade 4 不得反弱于 good
+  const sEasy = stabilityAfterRecall(5, 5, 0.9, 4, bad);
+  assert.ok(sEasy >= sGood - 1e-9, `w16=0.01 被钳制后 easy(${sEasy}) 仍应 ≥ good(${sGood})（语义不反向）`);
   // 权重为 NaN/Infinity 时不得污染结果
   const nan = DEFAULT_WEIGHTS.slice();
   nan[15] = NaN;
   assert.ok(Number.isFinite(stabilityAfterRecall(5, 5, 0.9, 2, nan)), 'w15=NaN 不产生 NaN');
+});
+
+test('round34 M12: stabilityAfterRecall 内部钳制 D —— 未 clamp 的 D>11 不再把间隔锁死', () => {
+  // 修复前：D=20 直接进 (11-D) → factor 负 → nextS 被钳到 0.1 死锁
+  const sBadD = stabilityAfterRecall(5, 20, 0.9, 3); // D>10，函数内应钳到 10
+  const sGoodD = stabilityAfterRecall(5, 10, 0.9, 3); // 上限 10
+  assert.ok(sBadD > 0.1, `D=20 时 nextS(${sBadD}) 不得被锁死到 0.1`);
+  assert.equal(sBadD, sGoodD, 'D>10 与 D=10 应等价（内部统一钳 [1,10]）');
+  const sLowD = stabilityAfterRecall(5, 0, 0.9, 3);
+  assert.equal(sLowD, stabilityAfterRecall(5, 1, 0.9, 3), 'D<1 与 D=1 应等价');
 });
 
 // ---------- P0 回归：NaN 防护 ----------

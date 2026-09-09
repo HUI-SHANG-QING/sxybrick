@@ -115,11 +115,16 @@ export function nextDifficulty(D, grade, w = DEFAULT_WEIGHTS) {
  */
 export function stabilityAfterRecall(S, D, R, grade, w = DEFAULT_WEIGHTS) {
   const s = Math.max(0.01, S);
-  const factor = Math.exp(w[7]) * (11 - D) * Math.pow(s, -w[8]) * (Math.exp(w[9] * (1 - R)) - 1);
+  // round34 M12：原始 D 未钳制——若任何路径传入未 clamp 的 difficulty（D>11），
+  // (11-D) 变负 → factor 负 → nextS 可能 ≤0.1 被钳，静默把间隔锁死。统一钳到 [1,10]。
+  const dEff = clamp(D, 1, 10);
+  const factor = Math.exp(w[7]) * (11 - dEff) * Math.pow(s, -w[8]) * (Math.exp(w[9] * (1 - R)) - 1);
   // hard 惩罚：仅缩放增长量，且钳制 ≤1（结构保证 hard ≤ good）
   const hardPenalty = grade === 2 ? clamp(Number.isFinite(w[15]) ? w[15] : 1, 0.01, 1) : 1;
-  // easy 加成：缩放整体稳定度（训练器可把它拟合到 >1 或 <1，但不会改变 hard/good 序关系）
-  const easyBonus = grade === 4 ? Math.max(0.01, Number.isFinite(w[16]) ? w[16] : 1) : 1;
+  // round34 M13：easy 加成必须 ≥1（与 hard 对称的结构护栏）——训练器梯度界 [0.01,100]
+  // 可把 w16 拟合到 <1，导致 grade=4（简单）比 good 还弱（语义反向）。当前生产不发 grade4
+  // （toFsrsGrade 上限 3）故为死代码，但启用即反转，这里硬性兜底。
+  const easyBonus = grade === 4 ? Math.max(1, Number.isFinite(w[16]) ? w[16] : 1) : 1;
   // 稳定度上限：不封顶的话，长期全对的卡 S 会一路涨到上千（实测旧权重下 S=1873），
   // 一旦答错，stabilityAfterForget 的 (S+1)^w13 项会把它打回一个与真实记忆强度无关的巨大值；
   // 且 nextInterval 早在 365 天就截断了，更大的 S 没有任何调度意义。
@@ -270,6 +275,9 @@ export function trainWeights(reviews, cardsById, opts = {}) {
         const g0 = revs[0].grade;
         s = initStability(g0, weights); d = initDifficulty(g0, weights); reps = 1; last = revs[0].reviewedAt;
       } else {
+        // round34 M11：种子态（init 非空）应保留其真实 s/d 并作为「首测无先验」处理：
+        // reps=0 使 j=0 走 seed 分支（不计入 loss，与 backfillCardCalibration 口径一致），
+        // 避免用伪造 R≈1 给首测计分导致 n 虚高、报告 loss 失真。
         s = init.s; d = init.d; reps = 0; last = 0;
       }
       for (let j = 0; j < revs.length; j++) {
