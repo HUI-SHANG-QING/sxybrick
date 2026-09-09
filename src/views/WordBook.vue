@@ -238,7 +238,10 @@ onMounted(async () => {
     }
   }
 });
-watch([filterKind, filterReviewed, filterFamiliar], load);
+// 审计 P1-1：watch 对数组源回调签名为 (newValue, oldValue)，
+// 直接传 load 会把数组当 seq 传入 load(seq)，守卫恒真 → 筛选切换不刷新列表。
+// 改为箭头函数 + bump loadSeq，与 onSearch 保持一致。
+watch([filterKind, filterReviewed, filterFamiliar], () => { loadSeq++; load(loadSeq); });
 
 let loadSeq = 0;
 let searchTimer = null;
@@ -296,7 +299,9 @@ async function persistGroups(cardId) {
 
 let unsubDb = null;
 onMounted(() => { unsubDb = subscribeDbChanged(() => { if (!showAdd.value) load(); }); });
-onUnmounted(() => { if (unsubDb) unsubDb(); });
+// 审计 P3-5：清理 searchTimer——此前仅 onSearch 内 clearTimeout，
+// 用户在搜索框输入后快速切换路由，定时器回调仍会执行并写旧状态
+onUnmounted(() => { clearTimeout(searchTimer); if (unsubDb) unsubDb(); });
 
 async function genMaterials() {
   const word = form.value.word.trim();

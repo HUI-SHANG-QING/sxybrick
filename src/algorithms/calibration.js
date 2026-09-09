@@ -24,7 +24,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * 已带 predR 的记录优先用落盘值（真实），模拟值只补缺。
  * 返回 [{ reviewedAt, rating, predR, simulated }]，首条复习无先验状态 → predR=null。
  */
-export function backfillCardCalibration(reviews) {
+export function backfillCardCalibration(reviews, weights = DEFAULT_WEIGHTS) {
   const rows = [...(reviews || [])].sort((a, b) => (a.reviewedAt || 0) - (b.reviewedAt || 0));
   const out = [];
   let s = null, d = null, last = null;
@@ -35,18 +35,18 @@ export function backfillCardCalibration(reviews) {
     if (typeof r.predR === 'number' && Number.isFinite(r.predR)) {
       predR = r.predR; // 落盘的真实预测
     } else if (s !== null && last !== null) {
-      predR = retrievability(s, (t - last) / DAY_MS); // 回溯模拟补估
+      predR = retrievability(s, (t - last) / DAY_MS, weights); // 回溯模拟补估
       simulated = true;
     }
     // 状态推进（无论 predR 来源，都用模拟链推进——落盘 predR 的记录推进后偏差极小）
     if (s === null) {
-      s = initStability(grade); d = initDifficulty(grade);
+      s = initStability(grade, weights); d = initDifficulty(grade, weights);
     } else {
       const elapsed = Math.max(0, (t - last) / DAY_MS);
-      const R = retrievability(s, elapsed);
-      if (r.rating > 0) s = stabilityAfterRecall(s, d, R, grade);
-      else s = stabilityAfterForget(s, d, R);
-      d = nextDifficulty(d, grade);
+      const R = retrievability(s, elapsed, weights);
+      if (r.rating > 0) s = stabilityAfterRecall(s, d, R, grade, weights);
+      else s = stabilityAfterForget(s, d, R, weights);
+      d = nextDifficulty(d, grade, weights);
     }
     last = t;
     out.push({ reviewedAt: t, rating: r.rating, predR, simulated });
@@ -134,13 +134,16 @@ export function calibrationStats(rows) {
  * 多卡聚合入口：按 cardId 分组回溯模拟后整体统计。
  * reviews: 全部复习记录（任意顺序）；cardsById 可选（未用，保留扩展位）。
  */
-export function computeCalibration(reviews) {
+export function computeCalibration(reviews, { weights = DEFAULT_WEIGHTS } = {}) {
+  // 审计 P2：过滤 quickCheck 行——type='quick' 不计入校准回测（快速检测距真实复习仅10分钟~1h，
+  // FSRS 预测 R≈0.99+，被当真实样本会把高 R 桶 delta 拉偏）
+  const real = (reviews || []).filter(r => r.type !== 'quick');
   const byCard = new Map();
-  for (const r of reviews || []) {
+  for (const r of real) {
     if (!byCard.has(r.cardId)) byCard.set(r.cardId, []);
     byCard.get(r.cardId).push(r);
   }
   const rows = [];
-  for (const list of byCard.values()) rows.push(...backfillCardCalibration(list));
+  for (const list of byCard.values()) rows.push(...backfillCardCalibration(list, weights));
   return calibrationStats(rows);
 }

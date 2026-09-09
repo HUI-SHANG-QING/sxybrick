@@ -188,13 +188,14 @@ export function computeNext(card, rating, intensity = 1, guessed = false, opts =
  *   - 费曼练习加成：ease +0.03（上限 2.8），不改等级
  * 不改 level 与 updatedAt（内容未变），只动 ease/dueAt，与双时间戳同步模型兼容。
  */
-export function applyFeedback(card, { score = null, feynman = false } = {}) {
+export function applyFeedback(card, { score = null, feynman = false, nowTs = null } = {}) {
+  const _now = nowTs ?? Date.now(); // 审计 P3-7：注入 nowTs，保持纯函数纯度
   let ease = typeof card.ease === 'number' ? card.ease : 2.5;
-  let dueAt = typeof card.dueAt === 'number' ? card.dueAt : Date.now();
+  let dueAt = typeof card.dueAt === 'number' ? card.dueAt : _now;
   if (typeof score === 'number') {
     if (score < 40) {
       ease = Math.max(1.3, ease - 0.15);
-      dueAt = Math.min(dueAt, Date.now() + 30 * 60 * 1000);
+      dueAt = Math.min(dueAt, _now + 30 * 60 * 1000);
     } else if (score >= 85) {
       ease = Math.min(2.8, ease + 0.05);
     }

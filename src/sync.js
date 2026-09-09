@@ -466,7 +466,10 @@ export function resolveSince(storage, { globalKey, table }) {
  * @param {{setItem:(k:string,v:string)=>void}} storage
  */
 export function advanceWatermark(storage, { globalKey, table, value, allTables = [] }) {
-  const v = String(value);
+  // 审计 P3-10：单调钳制——时钟回拨会导致新水位 < 旧水位 → 下次同步重复重传。
+  // 取旧值与新值的 max 保证水位只增不减（重传幂等，不会漏数据）
+  const prev = Number(storage?.getItem?.(table ? tableSyncKeyOf(globalKey, table) : globalKey)) || 0;
+  const v = String(Math.max(prev, value));
   const put = (k) => { try { storage?.setItem?.(k, v); } catch { /* 配额/隐私模式忽略 */ } };
   if (table) { put(tableSyncKeyOf(globalKey, table)); return; }
   put(globalKey);

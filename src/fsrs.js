@@ -77,6 +77,8 @@ export function toFsrsGrade(rating) {
 
 /** 可提取性 R = (1 + t/(9S))^-1，t=自上次复习经过天数 */
 export function retrievability(S, elapsedDays, w = DEFAULT_WEIGHTS) {
+  // 审计 P3-7：w 参数当前不参与公式计算（公式 (1+t/(9s))^-1 与 w 无关），
+  // 保留仅为签名兼容——下游调用方统一传 w，删掉会导致调用方报错。
   const s = Math.max(0.01, S);
   const t = Math.max(0, elapsedDays);
   return Math.pow(1 + t / (9 * s), -1);
@@ -84,7 +86,7 @@ export function retrievability(S, elapsedDays, w = DEFAULT_WEIGHTS) {
 
 /** 初始稳定度 S0（首次复习） */
 export function initStability(grade, w = DEFAULT_WEIGHTS) {
-  if (grade === 4) return Math.max(0.1, w[2] * w[3]); // easy
+  if (grade === 4) return Math.max(0.1, w[2] * w[3]); // easy（预留档：生产 toFsrsGrade 只产 1/2/3，此分支当前不可达）
   if (grade === 1) return Math.max(0.1, w[0]);
   if (grade === 2) return Math.max(0.1, w[1]);
   return Math.max(0.1, w[2]); // good
@@ -219,7 +221,7 @@ export function schedule(card, rating, opts = {}) {
 //
 // @param reviews  [{ cardId, rating, reviewedAt }] 按时间升序
 // @param cardsById Map(cardId → { fsrs:{s,d,reps,last} 初始空, createdAt })
-// @param opts { weights?, iters?, lr?, desiredRetention?, eps? }
+// @param opts { weights?, iters?, lr?, eps? }
 // @returns { weights, loss, samples }
 export function trainWeights(reviews, cardsById, opts = {}) {
   const w0 = (opts.weights || DEFAULT_WEIGHTS).slice();
@@ -252,7 +254,7 @@ export function trainWeights(reviews, cardsById, opts = {}) {
       // 一条 reviewedAt 缺失/NaN 的复习会让 elapsed=NaN → R=NaN → log(NaN)=NaN 累加进
       // total → 整轮 loss 变 NaN，个性化权重训练静默失效（用户只觉得"算法没变聪明"）。
       reviews: sorted.filter(r => Number.isFinite(r.reviewedAt))
-        .map(r => ({ grade: toFsrsGrade(r.rating), y: r.rating >= 2 ? 1 : 0, reviewedAt: r.reviewedAt })),
+        .map(r => ({ grade: toFsrsGrade(r.rating), y: r.rating > 0 ? 1 : 0, reviewedAt: r.reviewedAt })),
     });
   }
 

@@ -34,6 +34,8 @@ export const SCHEDULABLE_KINDS = ['word', 'phrase', 'sentence'];
 export async function reviewWord(cardId, rating, opts = {}) {
   const card = await db.wordCards.get(cardId);
   if (!card) throw new Error('单词卡不存在');
+  // 审计 P3-6：rating 白名单校验——对齐 repo.js:743-744，防非法 rating 值写入
+  if (![0, 1, 2].includes(Number(rating))) throw new Error('无效评分：rating 必须为 0/1/2');
   if (card.kind === 'template') {
     // 范文不参与调度：仅记录一次浏览（reviewedAt bump），不重排 dueAt。
     // round15 P1：不 bump updatedAt（与下方普通复习路径一致）——浏览范文是「复习动作」，

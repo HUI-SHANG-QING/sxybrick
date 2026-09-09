@@ -353,6 +353,16 @@ export async function restoreFromTrash(t) {
   if (noteLinkedCardIds && noteLinkedCardIds.length) tables.push(db.cards);
   await db.transaction('rw', ...tables, async () => {
     await db[table].put(row);
+    // 审计 P2：恢复 note 时裁剪幽灵 linkedCardIds——快照中的 linkedCardIds 可能包含
+    // 已被 pruneTrash 永久删除的卡片 ID（bulkGet 返回 null），残留会导致 UI 显示
+    // 「关联了 N 张卡片」但点进去找不到对应卡片。事务内 bulkGet 求交集，只保留仍存在的卡片。
+    if (t.kind === 'note' && noteLinkedCardIds && noteLinkedCardIds.length) {
+      const existingCards = await db.cards.bulkGet(noteLinkedCardIds);
+      const existingIds = existingCards.filter(Boolean).map(c => c.id);
+      if (existingIds.length !== noteLinkedCardIds.length) {
+        await db.notes.update(t.id, { linkedCardIds: existingIds, updatedAt: Date.now() });
+      }
+    }
     if (reviews && reviews.length) {
       // 复习快照的 cardId 即本卡 id，原样还原（review 自带 id 用于幂等覆盖）
       await reviewsTable.bulkPut(reviews.map(r => ({ ...r })));
@@ -809,7 +819,8 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
     let adaptive = null;
     if (opts.adaptive) {
       const recent = await db.reviews.where('cardId').equals(cardId).reverse().sortBy('reviewedAt');
-      const last10 = recent.slice(0, 10);
+      // 审计 P2：过滤 quickCheck 行——快速检测不计入 SRS，混入 failRate 会触发 ×0.8 惩罚
+      const last10 = recent.filter(r => r.type !== 'quick').slice(0, 10);
       const fail = last10.filter(r => r.rating === 0).length;
       adaptive = { reviews: last10.length, failRate: last10.length ? fail / last10.length : 0 };
     }

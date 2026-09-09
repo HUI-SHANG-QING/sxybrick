@@ -255,17 +255,19 @@ export function countReviewsInWindow(reviews, win) {
 }
 
 export function computeStats(cards, reviews, nowTs = Date.now()) {
+  // 审计 P2：过滤 quickCheck 行——快速检测不计入 SRS 统计（today/mastery/trend/ratingDist 等）
+  const real = (reviews || []).filter(r => r.type !== 'quick');
   const totalCards = cards.length;
-  const totalReviews = reviews.length;
+  const totalReviews = real.length;
 
   // 今日复习 = 去重卡片数（同一张卡今天复习多次只算 1 张）—— 口径见 countReviewsInWindow
-  const todayReviews = countReviewsInWindow(reviews, dayWindowOf(nowTs)).cards;
+  const todayReviews = countReviewsInWindow(real, dayWindowOf(nowTs)).cards;
   const dueToday = cards.filter(c => c.dueAt <= nowTs).length;
 
   // 热力图：近 365 天
   const since = nowTs - 365 * DAY;
   const heat = {};
-  for (const r of reviews) {
+  for (const r of real) {
     if (r.reviewedAt < since) continue;
     const d = new Date(r.reviewedAt);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -277,7 +279,7 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   const since90 = nowTs - 90 * DAY;
   const agg = {};
   for (const c of cards) { const k = c.subject || '未分类'; if (!agg[k]) agg[k] = { sum: 0, n: 0 }; }
-  for (const r of reviews) {
+  for (const r of real) {
     if (r.reviewedAt < since90) continue;
     const c = cardMap.get(r.cardId);
     const key = c?.subject || '未分类';
@@ -305,7 +307,7 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
 
   // 近 14 天趋势（单趟扫描分桶，避免原「每天 filter 一次」的 O(14·N)）
   const trendBucket = new Map(); // 当天 0 点时间戳 → 计数
-  for (const r of reviews) {
+  for (const r of real) {
     if (r.reviewedAt < nowTs - 14 * DAY) continue;
     const d = new Date(r.reviewedAt);
     const ds = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -322,15 +324,15 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   const subjectCards = {};
   for (const c of cards) { const k = c.subject || '未分类'; subjectCards[k] = (subjectCards[k] || 0) + 1; }
   const ratingDist = { 0: 0, 1: 0, 2: 0 };
-  for (const r of reviews) if (ratingDist[r.rating] !== undefined) ratingDist[r.rating]++;
+  for (const r of real) if (ratingDist[r.rating] !== undefined) ratingDist[r.rating]++;
 
   // 24 小时复习时间分布
   const hourly = new Array(24).fill(0);
-  for (const r of reviews) hourly[new Date(r.reviewedAt).getHours()]++;
+  for (const r of real) hourly[new Date(r.reviewedAt).getHours()]++;
 
   // 近 30 天遗忘率（单趟扫描分桶，避免原「每天 filter 一次」的 O(30·N)）
   const forgotBucket = new Map(); // 当天 0 点时间戳 → { total, forgot }
-  for (const r of reviews) {
+  for (const r of real) {
     if (r.reviewedAt < nowTs - 30 * DAY) continue;
     const d = new Date(r.reviewedAt);
     const ds = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -354,9 +356,9 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   // 与上面 mastery 分支同一口径：无数据记 0，另给 noData 标记供 UI 显示「暂无数据」。
   const hasReviews = totalReviews > 0;
   const total = totalReviews || 1;
-  const correct = hasReviews ? Math.round((reviews.filter(r => r.rating === 2).length / total) * 100) : 0;
-  const stable = hasReviews ? Math.round((1 - reviews.filter(r => r.rating === 0).length / total) * 100) : 0;
-  const reviewedCount = new Set(reviews.map(r => r.cardId)).size;
+  const correct = hasReviews ? Math.round((real.filter(r => r.rating === 2).length / total) * 100) : 0;
+  const stable = hasReviews ? Math.round((1 - real.filter(r => r.rating === 0).length / total) * 100) : 0;
+  const reviewedCount = new Set(real.map(r => r.cardId)).size;
   const coverage = totalCards ? Math.round((reviewedCount / totalCards) * 100) : 0;
   const ability = { mastery: avgMastery, correct, stable, coverage, noData: !hasReviews };
 

@@ -4,7 +4,7 @@
 // 全部只读，纯前端查询 IndexedDB，零服务器。
 
 import { db } from '../db.js';
-import { getStats, weakCards, isPomoCountable } from '../repo.js';
+import { getStats, weakCards, isPomoCountable, getSchedConfig } from '../repo.js';
 import { getReplyStats } from './reply.js';
 import { trainWeights } from '../fsrs.js';
 
@@ -175,8 +175,10 @@ export async function getCrossModuleInsight() {
 export async function prepareFsrsTrainingData() {
   const [reviews, cards] = await Promise.all([db.reviews.toArray(), db.cards.toArray()]);
   const cardsById = new Map(cards.map(c => [c.id, c]));
+  // 审计 P2：过滤 quickCheck 行——快速检测距真实复习仅10分钟~1h，混入训练数据
+  // 会合成"近距高R+高成功"分布，拟合权重偏向过度乐观
   reviews.sort((a, b) => (a.reviewedAt || 0) - (b.reviewedAt || 0));
-  return { reviews, cardsById };
+  return { reviews: reviews.filter(r => r.type !== 'quick'), cardsById };
 }
 // 训练用户 FSRS 权重（自动 offload 到 worker；样本不足/无 worker 回退默认）
 export async function trainFsrsModel() {
@@ -721,8 +723,8 @@ export async function getAssetHealth() {
 // FSRS 预测记忆概率 vs 实际正确率的分桶对比；纯函数在 algorithms/calibration.js，这里只做 IO。
 import { computeCalibration } from '../algorithms/calibration.js';
 export async function getCalibration() {
-  const reviews = await db.reviews.toArray();
-  return computeCalibration(reviews);
+  const [reviews, cfg] = await Promise.all([db.reviews.toArray(), getSchedConfig()]);
+  return computeCalibration(reviews, { weights: cfg.weights });
 }
 
 // ---------- 到期洪峰预测（Due Forecast）----------
