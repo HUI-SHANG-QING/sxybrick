@@ -6,6 +6,7 @@
 //   2) 同时把打包好的前端（dist/）直接提供出来，手机浏览器打开 http://<电脑IP>:18080 即用。
 import { createServer } from 'node:http';
 import { readFileSync, writeFileSync, existsSync, renameSync } from 'node:fs';
+import { writeFile as writeFileP, rename as renameP } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, resolve } from 'node:path';
 import { networkInterfaces } from 'node:os';
@@ -89,16 +90,6 @@ function recoverCorrupt(file) {
   }
 }
 
-function loadData() {
-  if (!existsSync(DATA_FILE)) return emptyData();
-  try {
-    const raw = JSON.parse(readFileSync(DATA_FILE, 'utf8'));
-    return { ...emptyData(), ...raw }; // 旧版本数据文件缺新表时自动补齐空数组
-  } catch {
-    recoverCorrupt(DATA_FILE);
-    return emptyData();
-  }
-}
 
 // O2（round13）：Windows 上目标文件正被其他进程读取时 renameSync 抛 EBUSY/EPERM。
 // 重试 3 次、每次间隔递增，覆盖「另一个 hub 实例或浏览器正在读」的瞬态争用。
@@ -120,12 +111,7 @@ function safeRenameSync(from, to) {
   }
 }
 
-// 原子写入：先写临时文件再改名，避免写入中途崩溃损坏数据文件
-function saveData(data) {
-  const tmp = DATA_FILE + '.tmp';
-  writeFileSync(tmp, JSON.stringify(data));
-  safeRenameSync(tmp, DATA_FILE);
-}
+// 数据写入统一走异步原子写（saveScopedData）——见下方 atomicWriteAsync
 
 // M3：按 scope 加载/保存独立数据文件（real → 原文件；test → hub-data-test.json）
 function scopedFile(scope) {
@@ -142,11 +128,28 @@ function loadScopedData(scope) {
     return emptyData();
   }
 }
-function saveScopedData(scope, data) {
-  const f = scopedFile(scope);
+// 异步原子写（round33 P4）：整包 JSON.stringify + 落盘在真实同步中是 MB 级同步 IO，
+// writeFileSync 会阻塞事件循环（期间所有 GET/静态资源/其它请求全被卡住）。
+// 改 fs/promises：不阻塞；仍走 tmp→rename 原子替换，崩溃不损坏数据文件。
+async function atomicWriteAsync(f, data) {
   const tmp = f + '.tmp';
-  writeFileSync(tmp, JSON.stringify(data));
-  safeRenameSync(tmp, f);
+  await writeFileP(tmp, JSON.stringify(data));
+  const errs = ['EBUSY', 'EPERM', 'ENOTEMPTY', 'EACCES'];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await renameP(tmp, f);
+      return;
+    } catch (e) {
+      if (attempt < 3 && errs.includes(e.code)) {
+        await new Promise(r => setTimeout(r, 50 * (attempt + 1)));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+async function saveScopedData(scope, data) {
+  await atomicWriteAsync(scopedFile(scope), data);
 }
 
 // 审计 B8：per-scope 串行队列。此前两台设备并发 PUT 同一 scope 时，
@@ -530,12 +533,12 @@ const server = createServer(async (req, res) => {
         }
         // 审计 B8：load→merge→save 整体进 per-scope 串行队列，
         // 消除并发 PUT 的「基于旧数据合并」覆盖丢失
-        const merged = await withScopeLock(scope, () => {
+        const merged = await withScopeLock(scope, async () => {
           // round30 P2-3：客户端墙钟 - 中枢墙钟 = 换算量；客户端推上来的时间戳减它即中枢帧
           const clientTs = Number(req.headers['x-client-time']);
           const clockSkew = Number.isFinite(clientTs) ? clientTs - Date.now() : 0;
           const m = merge(loadScopedData(scope), incoming, clockSkew);
-          saveScopedData(scope, m);
+          await saveScopedData(scope, m);
           return m;
         });
         return json(req, res, 200, { version: BACKUP_VERSION, app: 'sxybrick', scope, exportedAt: Date.now(), ...merged });
