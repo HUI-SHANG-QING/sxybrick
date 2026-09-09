@@ -160,7 +160,7 @@ async function loadAll() {
       // 仅浏览页面不产生任何埋点 → userOps 为空 → 热力图空白。
       // reviews/wordReviews 的 reviewedAt 是最真实的学习活跃指标，合并后热力图永不为空。
       (async () => {
-        const rows = await db.reviews.where('reviewedAt').aboveOrEqual(from365).toArray();
+        const rows = (await db.reviews.where('reviewedAt').aboveOrEqual(from365).toArray()).filter(x => x.type !== 'quick');
         const map = new Map();
         for (const r of rows) { const k = iso(new Date(r.reviewedAt)); map.set(k, (map.get(k) || 0) + 1); }
         return map;

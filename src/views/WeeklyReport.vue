@@ -37,7 +37,7 @@ async function loadHistory() { reports.value = await listWeeklyReports(); }
 async function aggregate(ws) {
   const from = ws, to = ws + 7 * DAY;
   const [reviews, cards, pomos, docs, plans, chats, edges, memos] = await Promise.all([
-    db.reviews.toArray(), db.cards.toArray(), db.pomoSessions.toArray(),
+    db.reviews.toArray().then(rs => rs.filter(r => r.type !== 'quick')), db.cards.toArray(), db.pomoSessions.toArray(),
     db.docs.toArray(), db.plans.toArray(), db.aiChats.toArray(), db.graphEdges.toArray(), db.memos.toArray(),
   ]);
   const rWeek = reviews.filter(r => r.reviewedAt >= from && r.reviewedAt < to);

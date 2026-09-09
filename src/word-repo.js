@@ -18,6 +18,7 @@ import { isMastered, dayWindowOf } from './repo-core.js';
 import { extractImageIds } from './images.js';
 import { retrievability } from './fsrs.js';
 import { retrievalGrading } from './algorithms/session.js';
+import { initialStabilityForCard } from './algorithms/pretest.js';
 // round17 R17-11：日期 key 统一走 time.dateKey（补零）——与 streak.js 同源，杜绝两套格式
 import { dateKey } from './utils/time.js';
 
@@ -57,10 +58,23 @@ export async function reviewWord(cardId, rating, opts = {}) {
       adaptive = { reviews: last10.length, failRate: last10.length ? fail / last10.length : 0 };
     } catch { adaptive = null; }
   }
-  const next = scheduleReview(card, rating, 1, false, {
+  // 审计 P1-1（round33）：第4参 guessed 此前硬编码 false，而下方定级用 !!opts.guessed——
+  // 用户勾「蒙对」时落库 grade=hard（正确）但调度按真掌握推进（level+=1/全间隔），
+  // 蒙对的词间隔被系统性拉长。与卡片侧 repo.review（透传 guessed）对齐。
+  // 审计 P2-1（round33）：前测冷启动对齐——卡片侧 repo.review 会读 pretestStability
+  // meta 并透传 initialStability，单词侧漏传导致做过前测的科目里单词卡首审仍走默认 S0，
+  // 前测估计对单词侧静默失效。与 repo.review 对齐读取。
+  let initialStability;
+  try {
+    const pretestRow = await db.meta.get('pretestStability');
+    const pretestMap = pretestRow && typeof pretestRow.value === 'object' ? pretestRow.value : null;
+    initialStability = initialStabilityForCard(card, pretestMap);
+  } catch { /* meta 读取失败不影响调度主流程 */ }
+  const next = scheduleReview(card, rating, 1, !!opts.guessed, {
     scheduler: cfg.scheduler,
     weights: cfg.weights,
     desiredRetention: opts.desiredRetention,
+    initialStability,
     // round16 R16-3：检索强度信号透传——采集(WordReview)/落库(wordReviews 字段)/同步(manifest)
     // 三段早已打通，唯独这最后一段断：不传的话单词侧 SRS 间隔永远享受不到
     // generate(×1.25)/explain(×1.5) 乘子（卡片侧 repo.review 早已透传，此处对齐）
@@ -200,7 +214,13 @@ export async function updateWordCard(id, patch = {}) {
     for (const k of ['word', 'phonetic', 'meaning', 'example', 'exampleTrans', 'note', 'source', 'subject']) {
       if (patch[k] !== undefined) { next[k] = String(patch[k]).trim(); ts[k] = t; }
     }
-    if (patch.kind !== undefined && WORD_KINDS.includes(patch.kind)) next.kind = patch.kind;
+    // 审计 P2-3（round33）：kind 改动必须 bump fieldTs.kind——sync-manifest 的字段级
+    // 合并宣称 kind 享受保护，但写路径漏 bump → 词↔短语/范文的类型改动被对端
+    // 整行 LWW 回退（template 回退会重新进 SRS 队列）。
+    if (patch.kind !== undefined && WORD_KINDS.includes(patch.kind)) {
+      if (next.kind !== patch.kind || !ts.kind) ts.kind = t;
+      next.kind = patch.kind;
+    }
     if (patch.tags !== undefined && Array.isArray(patch.tags)) {
       next.tags = patch.tags.map(String).filter(Boolean);
       ts.tags = t;
@@ -716,8 +736,11 @@ export async function wordCheckinCalendar(days = 35) {
 }
 
 // ---------- 大纲词表元信息（wordSyllabusMeta：单行 id='kaoyan2027'，仅展示用） ----------
+// round33 A-3：写入必须带 updatedAt——清单侧 merge 已从 idOnly 改为 updatedAt（谁新听谁），
+// 行无 updatedAt 时合并时间戳恒 0，双端都退回 canonical，元信息更新仍会丢。
 export async function saveSyllabusMetaRow(meta = {}) {
-  const row = { id: 'kaoyan2027', ...meta, loadedAt: now() };
+  const t = now();
+  const row = { id: 'kaoyan2027', ...meta, loadedAt: t, updatedAt: t };
   await db.wordSyllabusMeta.put(row);
   return row;
 }

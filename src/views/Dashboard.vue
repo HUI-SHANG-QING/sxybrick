@@ -36,7 +36,8 @@ async function load() {
     stats.value = s;
     weak.value = w;
     plans.value = (p || []).filter(x => x.status === 'active').slice(0, 4);
-    const reviewsCount = await db.reviews.count();
+    // 审计 P1-2（round33）：总复习数只计真实复习（快检是自测，不算复习量）
+    const reviewsCount = await db.reviews.filter(r => r.type !== 'quick').count();
     assets.value = {
       cards: s.totalCards, reviews: reviewsCount, plans: p?.length || 0,
       mindmaps: mm.length, graphEdges: ge.length, pomoToday: pomo,

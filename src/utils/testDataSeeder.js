@@ -494,3 +494,45 @@ export async function seedTestDatabase() {
       await db.wordCheckins.bulkPut(checkins);
     });
 }
+
+/**
+ * 演示库「时间滚动」修复（round33 S-3）
+ *
+ * 背景：演示数据在播种瞬间以当时 NOW 为基准生成 dueAt/reviewedAt，模块加载一次即固定。
+ * 演示库放着过夜/过周后，所有演示卡 dueAt 全部落在过去 → 第二天打开全是「逾期红」，
+ * 演示效果完全失真（用户以为功能坏了）。
+ *
+ * 每次进入演示模式（且库非空，即非首播）时调用：把 demo-* 卡/词卡中
+ * 已过期（dueAt < 今天 0 点）的下次到期时间，按「id 哈希确定性分布」重铺到
+ * 今天 0 点 + (0~5 天) + (8~16 点)——保证队列里既有今天可立即复习的、也有未来排期的。
+ * 确定性哈希避免每次进入都把所有 dueAt 挪一遍（幂等：未过期的行不动）。
+ * 只处理 demo- 前缀行，绝不触碰真实数据；失败静默返回 0（不阻塞进演示）。
+ */
+export async function refreshDemoSchedule() {
+  try {
+    const DAY = 86400000;
+    const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+    const base = today0.getTime();
+    const hash = (s) => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+    const nextDue = (id) => base + (hash(id) % 6) * DAY + ((hash(id + '#h') % 9) + 8) * 3600e3;
+    let n = 0;
+
+    const cards = await db.cards.filter(c => typeof c.id === 'string' && c.id.startsWith('demo-')).toArray();
+    const dueCards = cards.filter(c => !(Number.isFinite(c.dueAt) && c.dueAt >= base));
+    if (dueCards.length) {
+      await db.cards.bulkPut(dueCards.map(c => ({ ...c, dueAt: nextDue(c.id) })));
+      n += dueCards.length;
+    }
+
+    try {
+      const words = await db.wordCards.filter(c => typeof c.id === 'string' && c.id.startsWith('demo-')).toArray();
+      const dueWords = words.filter(c => !(Number.isFinite(c.dueAt) && c.dueAt >= base));
+      if (dueWords.length) {
+        await db.wordCards.bulkPut(dueWords.map(c => ({ ...c, dueAt: nextDue(c.id) })));
+        n += dueWords.length;
+      }
+    } catch { /* 老库无 wordCards 表时跳过 */ }
+
+    return n;
+  } catch { return 0; }
+}

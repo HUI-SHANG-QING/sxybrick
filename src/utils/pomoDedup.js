@@ -8,7 +8,11 @@
 // roundId），用 localStorage 记录集做跨标签页幂等判重；BroadcastChannel 只作低延迟
 // 同步（携带 rid 即时标记），不再依赖脆弱的 5s 时间窗。
 const KEY = 'sxy_pomo_recorded';
-const MEM_CAP = 30;
+// round33 E-3：容量 30 → 500。原 30 条在密集使用 + 异常重放（崩溃后恢复重复提交）时，
+// 旧 rid 很快被挤出记录集 → isRoundRecorded 失忆 → 同一轮可能再次入账（极端双写）。
+// 500 条约 15~20KB localStorage，可覆盖数月密集专注；即便极端溢出，淘汰窗口也远超
+// 任何现实的异常重放时间跨度（幂等兜底仍由 roundId 派生保证）。
+const MEM_CAP = 500;
 
 // 无 localStorage 环境（node 测试）的兜底内存集
 const mem = new Set();

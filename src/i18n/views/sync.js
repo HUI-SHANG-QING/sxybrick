@@ -183,6 +183,8 @@ export const zh = {
   hubUnreachableToast: '无法访问 Hub：{msg}',
   syncDone: '与电脑同步完成：{stats}',
   syncFail: '同步失败：{msg}',
+  // round33 并发同步互斥：重入被拒属提示而非故障（数据层回 code=SYNC_IN_FLIGHT）
+  syncInFlight: '已有同步正在进行，请等它完成后再点',
   deckExported: '卡组已导出（含署名信息），发给同学导入即可',
   ankiExported: '已导出 Anki 文本（可在 Anki 桌面版「导入 → 文本文件」使用）',
   noAnkiRows: '未解析出卡片行',
@@ -435,6 +437,7 @@ export const en = {
   hubUnreachableToast: 'Cannot reach Hub: {msg}',
   syncDone: 'Sync with PC complete: {stats}',
   syncFail: 'Sync failed: {msg}',
+  syncInFlight: 'A sync is already running — please wait for it to finish',
   deckExported: 'Deck exported (with attribution); send to classmates to import',
   ankiExported: 'Anki text exported (usable in Anki desktop "Import → Text file")',
   noAnkiRows: 'No card rows parsed',

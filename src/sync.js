@@ -476,7 +476,31 @@ export function advanceWatermark(storage, { globalKey, table, value, allTables =
 }
 
 // M5：opts.table 指定单模块同步（只推送该表；hub 返回全量包仍整体合并 = 全模块拉取更新）
+// 审计 P2-5（round33）：模块级互斥锁——Sync.vue 的三个同步入口（全量/单模块/全部模块）
+// 此前各自只查自己的 UI 标志，两个面板可并发进入 syncWithHub，各自独立取 startedAt
+// 算水位并在 importBackup 后推进，交错时增量判定与状态面板记录互相污染。
+// 在数据层统一加锁：同一时刻只允许一个 syncWithHub 在跑；重入调用立即拒绝并提示。
+let _hubSyncInFlight = null;
+
 export async function syncWithHub(hubUrl, token, opts = {}) {
+  if (_hubSyncInFlight) {
+    // 数据层不产 localized 文案（i18n 铁律）：只回 code，由 Sync.vue 用 t() 渲染。
+    // 与 GIST_CONFLICT 同型——调用方据此决定「提示」而非「记错误态」。
+    const e = new Error('sync in flight');
+    e.code = 'SYNC_IN_FLIGHT';
+    throw e;
+  }
+  _hubSyncInFlight = (async () => {
+    try {
+      return await _syncWithHubInner(hubUrl, token, opts);
+    } finally {
+      _hubSyncInFlight = null;
+    }
+  })();
+  return _hubSyncInFlight;
+}
+
+async function _syncWithHubInner(hubUrl, token, opts = {}) {
   const hub = String(hubUrl || '').replace(/\/+$/, '');
   if (!hub) throw new Error('请先填写电脑端同步中枢地址');
   // M3：hub 端点按 scope 路由（/backup/real | /backup/test），中枢侧独立数据文件
@@ -541,7 +565,10 @@ export async function syncWithHub(hubUrl, token, opts = {}) {
   const _dateHdr = res.headers && res.headers.get ? res.headers.get('date') : null;
   const _serverTs = _dateHdr ? Date.parse(_dateHdr) : NaN;
   const clockSkew = Number.isFinite(_serverTs) ? _serverTs - _reqStart : 0;
-  const stats = await importBackup(merged, { ...opts, clockSkew });
+  const stats = await importBackup(merged, { ...opts, clockSkew, skipSnapshot: true });
+  // 审计 D-1（round33）：hub 同步是高频自动合并路径（每次拉取都整包合并），
+  // 每次落一份全量快照既占存储配额又让快照列表噪声化（与 R18-2 对 Gist pull-merge
+  // 的 skipSnapshot 决策一致）。回滚手段仍是「手动导出/导入备份」，不受影响。
   // 审计 S-6：hub 墓碑回收回传——中枢 GC 掉的墓碑在客户端可能仍驻留（客户端墓碑只增不减），
   // 响应体里的 gcTombIds 是本次被中枢回收的墓碑 id 清单，据此 bulkDelete 消除永久膨胀。
   if (Array.isArray(merged.gcTombIds) && merged.gcTombIds.length) {
@@ -837,6 +864,23 @@ export async function importBackup(backup, opts = {}) {
     if (toClear.length) await db.tombstones.bulkDelete(toClear);
   }
   fireProgress(opts, PHASE.CASCADE, 0.5);
+
+  // 3.5) 词卡墓碑：与卡片块同型——源端 deleteWordCard 会写 link 墓碑并物理删，
+  // 但对端若在墓碑同步之前就存在这些行（首同步/老包/bridge 通道），link 行永驻为
+  // 指向幽灵词的悬空行。wordCard 无「按 cardId 索引的级联」，补一处兜底，
+  // 与 cards 的 link 级联（上方 cardGroupLinks/cardWordLinks anyOf）口径一致。
+  {
+    const wordsNow = await db.wordCards.toArray();
+    const wRes = applyTombstones(wordsNow, tombstones, 'wordCard');
+    if (wRes.stale.length) await db.tombstones.bulkDelete(wRes.stale);
+    if (wRes.removed.length) {
+      await db.wordCards.bulkDelete(wRes.removed);
+      await db.wordReviews.where('cardId').anyOf(wRes.removed).delete();
+      await db.wordGroupLinks.where('cardId').anyOf(wRes.removed).delete();
+      await db.cardWordLinks.where('wordCardId').anyOf(wRes.removed).delete();
+      stats.deleted = (stats.deleted || 0) + wRes.removed.length;
+    }
+  }
 
   // 4) 其余各表墓碑：删除已在其他设备删除的记录；已「复活」（编辑晚于删除）的记录清除墓碑
   //    （此时卡级联已删完被删卡的复习行，review 墓碑不会再被误判复活而提前清掉）

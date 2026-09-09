@@ -20,6 +20,8 @@
  */
 
 import { db } from '../db.js';
+// 审计 P1-2（round33）：每日协同的「复习次数/评分分布」只计真实复习，排除 quickCheck
+import { isRealReview } from '../repo-core.js';
 
 /** 本地日期串 YYYY-MM-DD */
 function localDateStr(d = new Date()) {
@@ -27,7 +29,7 @@ function localDateStr(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** 把日期串转为 [dayStart, dayEnd) 毫秒时间戳 */
+/** 把日期串转为 [dayStart, dayEnd) 毫秒时间戳（左闭右开，与 repo-core.dayWindowOf 同口径） */
 function dayRange(dateStr) {
   const dayStart = new Date(dateStr + 'T00:00:00').getTime();
   return [dayStart, dayStart + 86400000];
@@ -85,7 +87,10 @@ export async function getDailySynergy(date = localDateStr(), planTasks = null) {
 
 async function aggregateReviews(dayStart, dayEnd) {
   const base = { count: 0, bySubject: {}, byGrade: { 0: 0, 1: 0, 2: 0 } };
-  const rows = await SAFE(() => db.reviews.where('reviewedAt').between(dayStart, dayEnd, true, true).toArray(), []);
+  // 审计 P1-2 + B-2（round33）：① 排除 quickCheck；② 上界改左闭右开——
+  // 此前 between(...,true,true) 会把次日 00:00:00.000 那条算进今天，
+  // 与 getDailyReality / computeStats（dayWindowOf，左闭右开）差 1ms 双口径。
+  const rows = (await SAFE(() => db.reviews.where('reviewedAt').between(dayStart, dayEnd, true, false).toArray(), [])).filter(isRealReview);
   base.count = rows.length;
   // round17 R17-4：reviews 不冗余 subject（只存 cardId）——此前 `r.subject || '未分类'`
   // 让所有复习落「未分类」，科目维度永远失真。一次性 join 卡片表取 subject。

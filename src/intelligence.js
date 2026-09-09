@@ -290,7 +290,7 @@ export async function recommendGraphEdges(opt = {}) {
 
   // 3) 共现关联：常在同一复习时段出现的卡
   try {
-    const reviews = await db.reviews.orderBy('reviewedAt').reverse().limit(500).toArray();
+    const reviews = realReviews(await db.reviews.orderBy('reviewedAt').reverse().limit(500).toArray());
     if (reviews.length > 20) {
       // 按日分桶
       const byDay = new Map();
@@ -392,9 +392,12 @@ export async function recommendTodaySequence(opt = {}) {
   if (!cards.length) return { sequence: [], segments: [], summary: '还没有卡片', phase: 'unknown' };
 
   const nowTs = now();
-  // 审计 F-30：两个 DB 查询并行（reviews + dueCards 各自独立，无依赖）
   // 审计 P1-2（round32）：quickCheck 行不计入薄弱判定——统一口径 isRealReview
-  const reviews = realReviews(await db.reviews.orderBy('reviewedAt').reverse().limit(2000).toArray());
+  // 审计 D-7（round33）：原实现只取「最近 2000 条」算 failCount——重度用户超 2000 条后
+  // 早期高频错题从窗口滑出 → 序列里该卡不再判薄弱、排期失真。改「近 90 天全量」索引
+  // 查询：窗口语义（近期错题才算薄弱，陈旧错误可能已掌握）比硬 limit 更有产品意义，
+  // 万级行 toArray 一次在序列加载路径可接受（与 weakCards 的全史口径差异见函数注释）。
+  const reviews = realReviews(await db.reviews.where('reviewedAt').above(nowTs - 90 * 86400000).toArray());
   const failCount = new Map();
   for (const r of reviews) if (r.rating === 0) failCount.set(r.cardId, (failCount.get(r.cardId) || 0) + 1);
 
@@ -570,7 +573,7 @@ export async function smartRemediation(cardId, opt = {}) {
   if (!card) throw new Error('卡片不存在');
 
   // 1) 诊断：错因 + 复习历史 + 关联卡
-  const reviews = await db.reviews.where('cardId').equals(cardId).reverse().sortBy('reviewedAt');
+  const reviews = realReviews(await db.reviews.where('cardId').equals(cardId).reverse().sortBy('reviewedAt'));
   const last10 = reviews.slice(0, 10);
   const fail = last10.filter(r => r.rating === 0).length;
   const fuzzy = last10.filter(r => r.rating === 1).length;
@@ -713,7 +716,7 @@ function planProgressShape(plan, reviewedIds, todaySessions = []) {
 async function fetchTodayRows() {
   const { start, end } = dayWindowOf();
   const [reviews, sessions] = await Promise.all([
-    db.reviews.where('reviewedAt').between(start, end, true, false).toArray(),
+    realReviews(await db.reviews.where('reviewedAt').between(start, end, true, false).toArray()),
     db.pomoSessions.where('startedAt').between(start, end, true, false).toArray(),
   ]);
   return { reviewedIds: new Set(reviews.map(r => r.cardId)), sessions };

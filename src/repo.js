@@ -37,6 +37,7 @@ import {
   groupUserOps,
   dayWindowOf,
   isRealReview,
+  realReviews,
 } from './repo-core.js';
 
 export { DEFAULT_SUBJECTS };
@@ -195,6 +196,9 @@ export async function createCard(payload) {
     marked: r.value.marked,
     mnemonic: r.value.mnemonic,
     wrongReason: r.value.wrongReason,
+    // 审计 P2-2（round33）：创建时带错因则初始化 wrongReasonAt——否则合并侧 WRA=0
+    // 时「优先保留有内容一方」会把后续清空操作顶回。
+    wrongReasonAt: r.value.wrongReason ? t : 0,
     sourceCardId: r.value.sourceCardId || null,
     difficulty: r.value.difficulty,
     tags: r.value.tags, frontChars: [...r.value.front].length, backChars: [...r.value.back].length,
@@ -230,6 +234,10 @@ export async function updateCard(id, payload) {
       marked: payload.marked !== undefined ? r.value.marked : (old.marked ?? false),
       mnemonic: r.value.mnemonic,
       wrongReason: r.value.wrongReason,
+      // 审计 P2-2（round33）：wrongReason 变化（含经 CardModal 清空）必须推进 wrongReasonAt，
+      // 否则合并侧 WRA 相等时「优先保留有内容一方」会把本端的清空/修改被对端旧错因顶回
+      // （与 review() 路径已修的 P0 同型残留）。
+      wrongReasonAt: r.value.wrongReason !== (old.wrongReason || '') ? (r.value.wrongReason ? now() : (old.wrongReasonAt || 0) + 1 || 1) : (old.wrongReasonAt || 0),
       difficulty: payload.difficulty !== undefined ? r.value.difficulty : (old.difficulty ?? 'basic'),
       frontChars: [...r.value.front].length, backChars: [...r.value.back].length, updatedAt: now(),
     };
@@ -434,22 +442,25 @@ export async function restoreFromTrash(t) {
         return typeof tb.id === 'string' && tb.id.startsWith(`embed-${t.id}-`);
       });
     if (embeddingTombStale.length) await db.tombstones.bulkDelete(embeddingTombStale.map(tb => tb.id));
-    // 审计 F-3：资料恢复后自动触发 RAG 重建——docFile 和 doc（AI 文档）均可能含向量嵌入，
-    // 删除时 embed 墓碑已写，恢复时墓碑虽清但向量未重建 → RAG 对该资料永久失明。
-    if (t.kind === 'docFile' || t.kind === 'doc') {
-      try { const { parseDoc } = await import('./docs-lib.js'); parseDoc(t.id).catch(() => {}); } catch { /* import 失败不阻塞恢复 */ }
-    }
-    // 审计 P2-3（round32）：卡片恢复后同样触发向量重建——deleteCard 已物理删 embeddings 行，
-    // 墓碑虽清但 card/wordCard 恢复后无人重建向量 → RAG/语义搜索对该卡永久失明。
-    // indexCard 内部 embed 失败会 reject，用 .catch 吞掉不阻塞恢复主流程。
-    if (t.kind === 'card') {
-      try {
-        const { indexCard } = await import('./agent/retrieval.js');
-        const card = await db.cards.get(t.id);
-        if (card) indexCard(card).catch(() => {});
-      } catch { /* import 失败不阻塞恢复 */ }
-    }
   });
+  // 审计 F-3 + D-8（round33）：RAG 向量重建**移到事务提交后**再触发——
+  // 旧实现把 parseDoc/indexCard 的 fire-and-forget 放在事务回调内，异步重建可能跨越
+  // 事务边界触发 TransactionInactiveError，被 .catch 吞掉 → 该卡/资料向量永久失明且无提示。
+  if (t.kind === 'docFile' || t.kind === 'doc') {
+    try {
+      const { parseDoc } = await import('./docs-lib.js');
+      parseDoc(t.id).catch((e) => { console.warn('[restore] parseDoc 重建失败', e?.message || e); });
+    } catch { /* import 失败不阻塞恢复 */ }
+  }
+  // 卡片恢复后同样触发向量重建——deleteCard 已物理删 embeddings 行，
+  // 墓碑虽清但 card 恢复后无人重建向量 → RAG/语义搜索对该卡永久失明。
+  if (t.kind === 'card') {
+    try {
+      const { indexCard } = await import('./agent/retrieval.js');
+      const card = await db.cards.get(t.id);
+      if (card) indexCard(card).catch((e) => { console.warn('[restore] indexCard 重建失败', e?.message || e); });
+    } catch { /* import 失败不阻塞恢复 */ }
+  }
   return true;
 }
 
@@ -831,7 +842,9 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
     // 自适应节奏（C4）：按该卡近 10 次复习的错误率微调间隔（仅开启时计算）
     let adaptive = null;
     if (opts.adaptive) {
-      const recent = await db.reviews.where('cardId').equals(cardId).reverse().sortBy('reviewedAt');
+      // 审计 P1-2（round33）：自适应节奏的近 10 次样本排除 quickCheck——自测不是真复习，
+    // 否则快检失败会压低间隔（与检索分级/训练同口径）。
+    const recent = realReviews(await db.reviews.where('cardId').equals(cardId).reverse().sortBy('reviewedAt'));
       // 审计 P2：过滤 quickCheck 行——快速检测不计入 SRS，混入 failRate 会触发 ×0.8 惩罚
       const last10 = recent.filter(r => r.type !== 'quick').slice(0, 10);
       const fail = last10.filter(r => r.rating === 0).length;
@@ -937,8 +950,11 @@ export async function applyCardFeedback(cardId, signal = {}) {
 
 // ---------- 已背记录 ----------
 export async function reviewHistory(limit = 200) {
-  const reviews = await db.reviews.orderBy('reviewedAt').reverse().limit(limit).toArray();
-  const cardMap = new Map((await allCards()).map(c => [c.id, c]));
+  const reviews = realReviews(await db.reviews.orderBy('reviewedAt').reverse().limit(limit).toArray());
+  // round33 D-5：只 bulkGet 这 ≤200 条涉及的卡片——此前全表 allCards() 只为挂 front/back，
+  // 万卡级每次翻「已背记录」都物化整表（reviews 页/历史查看的高频路径）。
+  const ids = [...new Set(reviews.map(r => r.cardId).filter(Boolean))];
+  const cardMap = new Map((ids.length ? await db.cards.bulkGet(ids) : []).map(c => [c.id, c]));
   const label = ['没记住', '还模糊', '记住了'];
   return reviews.map(r => {
     const card = cardMap.get(r.cardId);
@@ -954,7 +970,7 @@ export async function reviewHistory(limit = 200) {
 // ---------- 单卡复习历史 ----------
 export async function getCardHistory(id) {
   const card = await db.cards.get(id);
-  const reviews = await db.reviews.where('cardId').equals(id).reverse().sortBy('reviewedAt');
+  const reviews = realReviews(await db.reviews.where('cardId').equals(id).reverse().sortBy('reviewedAt'));
   const label = ['没记住', '还模糊', '记住了'];
   return {
     card: card || null,
@@ -968,8 +984,38 @@ export async function getCardHistory(id) {
 // ---------- 错题集 / 薄弱卡片 ----------
 export async function weakCards(limit = 100, minFail = 2) {
   // 排名核心已抽至 repo-core.rankWeakCards（N9）
-  const [cards, reviews] = await Promise.all([allCards(), db.reviews.toArray()]);
+  const { cards, reviews } = await dashboardSnapshot();
   return rankWeakCards(cards, reviews, { limit, minFail });
+}
+
+// round33 C-2：Dashboard 首屏三个全表聚合（getStats / weakCards / getReviewSuggestion）
+// 此前各自 allCards()+reviews.toArray()，万卡级每次进首页读 6 遍全表（主线程阻塞）。
+// 共享一份「cards+reviews 快照」：读时用 count+最新时间戳组 key 校验，命中即零全表；
+// 多个并发调用共享同一个进行中的加载 Promise（只物化一次）。写路径无需显式失效——
+// 任何增删改都会改变 count 或最新时间戳之一（复习必写 review 行、卡片编辑 bump updatedAt），
+// 与 failCountMap 的 key 校验同型，天然无陈旧窗口。
+let _dashSnap = null;
+let _dashLoading = null;
+async function dashboardSnapshot() {
+  const mkKey = async () => {
+    try {
+      const [cc, rc, cLast, rLast] = await Promise.all([
+        db.cards.count(), db.reviews.count(),
+        db.cards.orderBy('updatedAt').last().catch(() => undefined),
+        db.reviews.orderBy('reviewedAt').last().catch(() => undefined),
+      ]);
+      return `${cc}|${rc}|${cLast ? cLast.updatedAt : 0}|${rLast ? rLast.reviewedAt : 0}`;
+    } catch { return ''; } // 索引不可用时退化为每次都重建
+  };
+  if (_dashSnap && _dashSnap.key === (await mkKey())) return _dashSnap;
+  if (!_dashLoading) {
+    _dashLoading = (async () => {
+      const [cards, reviews] = await Promise.all([db.cards.toArray(), db.reviews.toArray()]);
+      _dashSnap = { key: await mkKey(), cards, reviews };
+      return _dashSnap;
+    })();
+  }
+  try { return await _dashLoading; } finally { _dashLoading = null; }
 }
 
 // round29：全局「答错次数」映射（cardId -> rating===0 的次数），带缓存。
@@ -993,8 +1039,10 @@ export async function failCountMap() {
   // 复合键本身不完备（原地改写/同 id 替换一条非最新复习时行数与最新 reviewedAt 都不变），
   // 故写路径必须调 invalidateFailCountCache() 显式失效，见下方各写入点。
   if (_failCountCache.key === key) return _failCountCache.map;
-  const all = await db.reviews.toArray();
+  const all = realReviews(await db.reviews.toArray());
   const m = new Map();
+  // 审计 P1-2（round33）：quickCheck 行不计入 failCount——统一口径 realReviews。
+  // quick 答错直接推高计数会把卡误标红/送进错题本重点区。
   for (const r of all) if (r.rating === 0) m.set(r.cardId, (m.get(r.cardId) || 0) + 1);
   _failCountCache = { key, map: m };
   return m;
@@ -1019,14 +1067,15 @@ export async function attachFailCounts(cards) {
 // ---------- 复习提醒建议 ----------
 export async function getReviewSuggestion() {
   // 建议核心已抽至 repo-core.buildReviewSuggestion（N9）
-  const [cards, reviews] = await Promise.all([allCards(), db.reviews.toArray()]);
-  return buildReviewSuggestion(cards, reviews, now());
+  // 审计 P1-2（round33）：复习建议基于真实复习，排除 quickCheck 自测行
+  const { cards, reviews } = await dashboardSnapshot();
+  return buildReviewSuggestion(cards, realReviews(reviews), now());
 }
 
 // ---------- 统计 ----------
 export async function getStats() {
-  // 统计核心已抽至 repo-core.computeStats（N9）
-  const [cards, reviews] = await Promise.all([allCards(), db.reviews.toArray()]);
+  // 统计核心已抽至 repo-core.computeStats（N9）；computeStats 内部排除 quickCheck 行
+  const { cards, reviews } = await dashboardSnapshot();
   return computeStats(cards, reviews, now());
 }
 
@@ -1312,7 +1361,7 @@ export async function getDailyReality(date = localDateStr()) {
   let reviewsToday = 0;
   try {
     // 左闭右开：与 dayWindowOf 一致（此前 end 取闭区间会把次日 00:00:00 整点那条算进来）
-    reviewsToday = await db.reviews.where('reviewedAt').between(dayStart, dayEnd, true, false).count();
+    reviewsToday = await db.reviews.where('reviewedAt').between(dayStart, dayEnd, true, false).filter(r => r.type !== 'quick').count();
   } catch { reviewsToday = 0; }
 
   // 今日番茄分钟（pomoSessions 表）
@@ -1567,9 +1616,14 @@ export async function deleteDoc(id) {
   //   ② graphEdges 快照+删+墓碑（幽灵边常驻并跨设备传播）
   //   ③ embeddings 删+墓碑（RAG 检索到已删资料的幽灵向量）
   const text = await db.docTexts.get(id);
+  // round33 A-1：资料边的 from/to 存的是知识点 label（见 saveGraphEdge 用 e.docId 判重），
+  // 原实现只按 from/to.equals(docId) 匹配 → 资料边永远匹配不到 → 幽灵边常驻并随同步回灌。
+  // docId 无索引（db.js graphEdges 索引不含它），补一次 filter 全表兜住「资料型边」；
+  // 删除为低频操作，图谱万级内全表 filter 一次可接受。
   const edgeMap = new Map();
   for (const e of await db.graphEdges.where('from').equals(id).toArray()) edgeMap.set(e.id, e);
   for (const e of await db.graphEdges.where('to').equals(id).toArray()) edgeMap.set(e.id, e);
+  for (const e of await db.graphEdges.filter(e => e.docId === id).toArray()) edgeMap.set(e.id, e);
   const edges = [...edgeMap.values()];
   const embRows = await db.embeddings.where('sourceId').equals(id).and(e => e.sourceType === 'doc').toArray();
   await db.transaction('rw', db.docs, db.trash, db.tombstones, db.docTexts, db.graphEdges, db.embeddings, async () => {
@@ -1780,7 +1834,7 @@ export async function zombieCardIds() {
   // 判定核心已抽至 repo-core.selectZombieIds（N9）
   const [cards, reviewed] = await Promise.all([
     db.cards.toArray(),
-    db.reviews.toArray().then(rs => rs.map(r => r.cardId)),
+    db.reviews.toArray().then(rs => realReviews(rs).map(r => r.cardId)),
   ]);
   return selectZombieIds(cards, reviewed, Date.now());
 }
@@ -1841,7 +1895,7 @@ export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = fal
   // —— A：科目学习频次（基于复习评分/卡片新建）
   if (kind === 'A') {
     // 优先从 cards.reviews + card subject 取真实数据
-    const reviews = (await db.reviews.where('reviewedAt').above(since - 1).toArray());
+    const reviews = realReviews(await db.reviews.where('reviewedAt').above(since - 1).toArray());
     if (reviews.length < 3) return dataNotEnough;
     const cardMap = new Map((await db.cards.bulkGet(reviews.map(r => r.cardId)).then(list => list.filter(Boolean).map(c => [c.id, c]))));
     const cnt = new Map();
@@ -1887,7 +1941,7 @@ export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = fal
 
   // —— C：最常共现知识点对（基于复习连续两张卡 subject + tags + front 首字共现）
   if (kind === 'C') {
-    const reviews = (await db.reviews.where('reviewedAt').above(since - 1).limit(200).reverse().toArray()).reverse();
+    const reviews = realReviews(await db.reviews.where('reviewedAt').above(since - 1).limit(200).reverse().toArray()).reverse();
     if (reviews.length < 8) return dataNotEnough;
     const cardIds = [...new Set(reviews.map(r => r.cardId))];
     const cardMap = new Map((await db.cards.bulkGet(cardIds).then(list => list.filter(Boolean).map(c => [c.id, c]))));
@@ -1930,7 +1984,7 @@ export async function bestWorstPartners({ rangeDays = 7, kind = 'D', worst = fal
   // —— D：最活跃 / 最不活跃 单份资产（基于 userOps 里卡片 id 出现的次数 / 僵尸）
   if (kind === 'D') {
     // 先从 reviews + ops 聚合每卡片的活跃分
-    const reviews = (await db.reviews.where('reviewedAt').above(since - 1).toArray());
+    const reviews = realReviews(await db.reviews.where('reviewedAt').above(since - 1).toArray());
     const opCards = [];
     for (const o of ops) { if (o.payload?.cardId) opCards.push(String(o.payload.cardId)); }
     const score = new Map();

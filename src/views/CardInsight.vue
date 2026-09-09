@@ -123,7 +123,7 @@ async function load() {
 
 async function selectCard(c) {
   sel.value = c;
-  const reviews = await db.reviews.where('cardId').equals(c.id).toArray();
+  const reviews = (await db.reviews.where('cardId').equals(c.id).toArray()).filter(r => r.type !== 'quick');
   hist.value = reviews;
   const plan = await derivePrereqPlan(c.id);
   prereq.value = plan.prereqCardIds;

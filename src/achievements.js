@@ -34,7 +34,8 @@ export const ACHIEVEMENTS = [
 
 // 汇总成就判定所需的全部本地数据（只读）
 export async function collectAchievementStats() {
-  const reviews = await db.reviews.toArray();
+  // 审计 P1-2（round33）：quickCheck 行不计入成就统计——统一口径
+  const reviews = (await db.reviews.toArray()).filter(r => r.type !== 'quick');
   const total = reviews.length || 1;
   const correct = reviews.filter(r => r.rating === 2).length;
   const [cards, pomo, docs, plans, graphEdges, aiMemories, aiChats, mindmaps, reports] = await Promise.all([

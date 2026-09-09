@@ -6,7 +6,7 @@
 //   - 进入演示模式时若测试库为空 → testDataSeeder 自动填充示例数据
 import { defineStore } from 'pinia';
 import { setDbInstance, currentDbMode, MODE_KEY } from '../db.js';
-import { seedTestDatabase, testDbEmpty } from '../utils/testDataSeeder.js';
+import { seedTestDatabase, testDbEmpty, refreshDemoSchedule } from '../utils/testDataSeeder.js';
 
 export const useAppModeStore = defineStore('appMode', {
   state: () => ({
@@ -29,7 +29,10 @@ export const useAppModeStore = defineStore('appMode', {
       if (wanted === 'test') {
         try {
           if (await testDbEmpty()) await seedTestDatabase();
-        } catch { /* 播种失败不阻塞启动：用户可手动重试（进入演示模式入口） */ }
+          // round33 S-3：演示库非空（非首播）时做「时间滚动」——过夜/隔周后 demo 卡
+          // 的 dueAt 已集体过期，全部显示逾期会让演示失真，重新铺到今天起 0~5 天。
+          else await refreshDemoSchedule();
+        } catch { /* 播种/滚动失败不阻塞启动：用户可手动重试（进入演示模式入口） */ }
       }
     },
     /** 进入演示模式（切换实例 + reload） */
@@ -39,6 +42,7 @@ export const useAppModeStore = defineStore('appMode', {
         this.mode = 'test';
         if (typeof localStorage !== 'undefined') localStorage.setItem(MODE_KEY, 'test');
         if (await testDbEmpty()) await seedTestDatabase();
+        else await refreshDemoSchedule(); // round33 S-3：非首播进入演示也滚动到期时间
       } finally {
         location.reload();
       }

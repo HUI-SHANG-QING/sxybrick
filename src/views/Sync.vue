@@ -432,6 +432,12 @@ async function doSync() {
     recordAllModulesOk(rows);
     toast(t('views.sync.syncDone', '与电脑同步完成：{stats}', { stats: fmtStats(stats) }), 'success');
   } catch (e) {
+    // 审计 P2-5（round33）：并发重入被数据层拒绝——这是「提示」不是「故障」，
+    // 绝不记成模块失败（否则面板全红、用户以为同步坏了）。
+    if (e?.code === 'SYNC_IN_FLIGHT') {
+      toast(t('views.sync.syncInFlight', '已有同步正在进行，请等它完成后再点'), 'warn');
+      return;
+    }
     const base = e.message || String(e);
     try { T.syncRun('hub', false); } catch {}
     // M5：同步失败 → 全部模块记失败（保留各自错误原因，面板可重试）
@@ -553,6 +559,10 @@ async function doSyncAll() {
     try { T.syncRun('hub', true); } catch {}
     toast(t('views.sync.allModulesSynced', '✅ 全模块同步完成：{stats}', { stats: fmtStats(stats) }), 'success');
   } catch (e) {
+    if (e?.code === 'SYNC_IN_FLIGHT') {
+      toast(t('views.sync.syncInFlight', '已有同步正在进行，请等它完成后再点'), 'warn');
+      return;
+    }
     recordAllModulesError(e.message || String(e));
     toast(t('views.sync.syncFail', '同步失败：{msg}', { msg: e.message || e }), 'error');
   } finally {
@@ -569,12 +579,16 @@ async function doSyncModule(module) {
   syncingModule.value = module;
   try {
     const stats = await syncWithHub(hub, hubToken.value, { table: module });
+    // round33 D-2：单模块同步**只推送了该表**——其余模块的本地变更并未推送，
+    // 若一并记 ok 会掩盖其真实「待同步」状态（面板与数据不一致）。只更新本模块。
     recordModuleResult(module, { ok: true, rows: stats[module] || 0 });
-    // 其余模块：这次拉取也更新了它们 → 记成功（rows 取 stats）
-    for (const t of getEffectiveSyncTables()) if (t.table !== module) recordModuleResult(t.table, { ok: true, rows: stats[t.table] || 0 });
     await loadCounts();
     toast(t('views.sync.moduleSyncDone', '✅ 「{label}」同步完成', { label: MODULE_LABELS[module] || module }), 'success');
   } catch (e) {
+    if (e?.code === 'SYNC_IN_FLIGHT') {
+      toast(t('views.sync.syncInFlight', '已有同步正在进行，请等它完成后再点'), 'warn');
+      return;
+    }
     recordModuleResult(module, { ok: false, error: e.message || String(e) });
     toast(t('views.sync.moduleSyncFail', '「{label}」同步失败：{msg}', { label: MODULE_LABELS[module] || module, msg: e.message || e }), 'error');
   } finally {

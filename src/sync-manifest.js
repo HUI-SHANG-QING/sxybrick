@@ -141,8 +141,10 @@ export const SYNC_TABLES = [
   { table: 'wordSettings', kind: 'wordSetting', merge: 'updatedAt', strip: ['llmApiKey', 'llmBase'] },
   //   wordCheckins：每日签到（id 含 date，不可变追加）→ idOnly 幂等（同日记多次只留一条）
   { table: 'wordCheckins', kind: 'wordCheckin', merge: 'idOnly' },
-  //   wordSyllabusMeta：大纲词表元信息（id='kaoyan2027'，本机展示用）→ idOnly 幂等
-  { table: 'wordSyllabusMeta', kind: 'wordSyllabusMeta', merge: 'idOnly' },
+  //   wordSyllabusMeta：大纲词表元信息（id='kaoyan2027'，wordCount/loadedAt/source 会随
+  //   大纲版本更新）→ 原 idOnly「已存在即保留」会让先到者的旧值赢、后更新设备的元信息
+  //   永不补传；改 updatedAt 谁新听谁（写入端已带 updatedAt，见 word-repo.saveSyllabusMetaRow）
+  { table: 'wordSyllabusMeta', kind: 'wordSyllabusMeta', merge: 'updatedAt' },
   //   wordExportHistory：导出历史，见上方 EXCLUDED_FROM_SYNC（仅本机，不进同步/备份）
 ];
 
@@ -294,7 +296,17 @@ export function mergeCardPair(local, incoming, extFields = []) {
   for (const f of extFields) {
     const iv = incoming[f];
     const lv = local[f];
-    if (iv !== undefined) out[f] = iv;
+    // 审计 P2-4（round33）：modeQuestions 按 modeId 键级合并——此前整字段取一端，
+    // 两端各为同一词生成不同模式的题（A 造句题 / B 翻译题）时后同步端覆盖先端，
+    // 部分模式的题静默丢失。两端都是普通对象（非数组）时按键合并，冲突键取 incoming
+    // （与并集保护的 incoming 优先语义一致）。数组/异形结构保持原语义不合并。
+    if (f === 'modeQuestions' && iv && lv
+      && typeof iv === 'object' && typeof lv === 'object'
+      && !Array.isArray(iv) && !Array.isArray(lv)) {
+      const merged = { ...lv };
+      for (const k of Object.keys(iv)) merged[k] = iv[k];
+      out[f] = merged;
+    } else if (iv !== undefined) out[f] = iv;
     else if (lv !== undefined) out[f] = lv;
   }
   return out;
@@ -427,9 +439,19 @@ export function mergeRows(base, incoming, strategy, opts = {}) {
       //   判定是否写库，old 与 row 都指向 cur → 差异恒为 0 → 合并结果只在内存、从不落库。
       //   表现为「跨设备错题反思同步后消失」，而 hub 侧（整包保存 data 对象）正常，难以察觉。
       const next = { ...cur };
-      if (xr.selfExplanation !== undefined && (xr.selfExplainAt ?? 0) >= (cur.selfExplainAt ?? 0)) {
-        next.selfExplanation = xr.selfExplanation;
-        if (xr.selfExplainAt) next.selfExplainAt = xr.selfExplainAt;
+      // round33 D-3：selfExplainAt 严格 > 才采纳 incoming；等值但内容不同（同毫秒两侧
+      // 各写不同反思）时按序列化字典序收敛——原 `>=` 平局必取 incoming，双端会来回翻转
+      // （A 收 B 的、B 收 A 的），永不收敛。
+      if (xr.selfExplanation !== undefined) {
+        const at = xr.selfExplainAt ?? 0;
+        const lat = cur.selfExplainAt ?? 0;
+        if (at > lat) {
+          next.selfExplanation = xr.selfExplanation;
+          if (xr.selfExplainAt) next.selfExplainAt = xr.selfExplainAt;
+        } else if (at === lat && String(cur.selfExplanation ?? '') !== String(xr.selfExplanation)) {
+          const take = String(xr.selfExplanation) < String(cur.selfExplanation ?? '');
+          next.selfExplanation = take ? xr.selfExplanation : cur.selfExplanation;
+        }
       }
       m.set(x.id, next);
       continue;

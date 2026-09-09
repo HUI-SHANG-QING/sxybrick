@@ -56,7 +56,9 @@ export const DEFAULT_WEIGHTS = [
   0.29,  // w15 hard 惩罚（<1：hard 增长量约为 good 的 29% → 间隔更短）
   2.61,  // w16 easy 加成（>1：easy 稳定度约为 good 的 2.61 倍 → 间隔更长）
   0.20,  // w17 间隔抖动
-  1.00,  // w18 稳定度上限（×10 天，即 S 上限=10*dflt→实际乘子，保留可训练）
+  1.00,  // w18 历史注释称「稳定度上限」——当前实现未引用该维（MAX_STABILITY=365 为硬编码常量，
+         // 见稳定性钳制处），训练仍会拟合它造成「看似已调优」的假象；作为已知惰性维度保留兼容位，
+         // 勿据注释假定它生效
 ];
 
 export const DEFAULT_DESIRED_RETENTION = 0.9; // 目标保持率 90%
@@ -311,7 +313,11 @@ export function trainWeights(reviews, cardsById, opts = {}) {
     }
     // 归一化梯度（避免量纲不一致导致发散）
     const gn = Math.hypot(...grad) || 1;
-    const next = weights.map((wi, i) => Math.max(0.01, wi - rate * (grad[i] / gn)));
+    // round33 B-2：梯度步加双界（[0.01, 100]）——w[7]/w[9]/w[11]/w[13] 进入 exp()/pow()，
+    // 仅下界时若梯度把某维推高，stabilityAfterRecall 的指数项发散 → S 被钳死
+    // MAX_STABILITY=365、nextInterval 恒返 365 天（复习计划静默崩坏）。上界 100
+    // 远高于正常最优解，不干扰收敛，只防发散。
+    const next = weights.map((wi, i) => Math.min(100, Math.max(0.01, wi - rate * (grad[i] / gn))));
     const cand = lossOf(next);
     if (cand.loss != null && (best.loss == null || cand.loss < best.loss - 1e-9)) {
       weights = next;
@@ -342,7 +348,7 @@ export const WEIGHT_SCHEMA_VERSION = 2;
 /** 序列化用户权重（写入 db.meta 前调用） */
 export function serializeUserWeights(weights) {
   if (!Array.isArray(weights) || weights.length !== DEFAULT_WEIGHTS.length) return null;
-  if (!weights.every(v => Number.isFinite(v) && v >= 0)) return null;
+  if (!weights.every(v => Number.isFinite(v) && v >= 0 && v <= 1000)) return null; // 上界兜底：防越权权重落盘（round33 B-2）
   return { v: WEIGHT_SCHEMA_VERSION, weights: weights.slice() };
 }
 

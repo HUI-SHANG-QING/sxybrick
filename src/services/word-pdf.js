@@ -13,6 +13,7 @@
 //   enList   英文词表：左英文 + 右中文（全填）
 
 import { db, uid } from '../db.js';
+import { dateKey } from '../utils/time.js';
 
 // jsPDF 通过 CDN 动态加载（避免 npm 依赖膨胀；PWA 离线缓存首屏后亦可用）
 let _jspdfLoader = null;
@@ -274,7 +275,9 @@ export async function listExportHistory() {
 export function exportWordText(req) {
   const cards = req.shuffle ? shuffleInPlace(req.cards || []) : (req.cards || []);
   const title = req.title || '单词本';
-  const head = `# ${title}\n> 共 ${cards.length} 词 · 导出 ${new Date().toISOString().slice(0, 10)}\n\n`;
+  // 审计 S-2（round33）：toISOString() 给的是 UTC 日期，本地时区偏 UTC 时导出日期会差一天，
+  // 导出日期属本地语义 → 统一走 dateKey（本地日历日）。
+  const head = `# ${title}\n> 共 ${cards.length} 词 · 导出 ${dateKey()}\n\n`;
   const body = cards
     .map((c, i) => `${i + 1}. ${c.word}  ${c.phonetic || ''}  ${c.meaning || ''}`)
     .join('\n');

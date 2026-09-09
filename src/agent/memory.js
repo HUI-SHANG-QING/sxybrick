@@ -36,17 +36,42 @@ export async function deleteMemory(id) {
   });
 }
 
-/** 把分层记忆拼成注入文本（核心 > 偏好 > 事实） */
+// 审计 S-1（round33）：记忆注入必须有上界——此前把 db.aiMemories 全表拼进系统提示，
+// 用几个月后几十上百条记忆会把上下文撑爆（token 超限 → 请求失败或静默截断掉真正的对话），
+// 且越攒越贵。这里做三层护栏：
+//   ① 分层条数上限（核心/偏好/事实分别限流，核心最贵最珍贵）
+//   ② 单条长度截断（一句话记忆，超长说明提取器抽歪了）
+//   ③ 总字符上限（最后一道保险，按层优先级丢弃）
+// listMemories 按 updatedAt 倒序 → 取前 N 条即「保留最近被刷新/新增的记忆」，
+// 老记忆不会永久占位（被新近的同类记忆自然挤出）。
+const MEM_LIMITS = { core: 12, preference: 12, fact: 20 };
+const MEM_ITEM_MAX = 120;
+const MEM_TOTAL_MAX = 1800;
+
+/** 把分层记忆拼成注入文本（核心 > 偏好 > 事实），带条数/长度/总量三重上界 */
 export async function buildMemoryText() {
   const mems = await listMemories();
   if (!mems.length) return '';
   const g = { core: [], preference: [], fact: [] };
-  for (const m of mems) (g[m.category] || g.fact).push(m.content);
+  for (const m of mems) {
+    const layer = (g[m.category] || g.fact);
+    if (layer.length >= (MEM_LIMITS[m.category] ?? MEM_LIMITS.fact)) continue;
+    const c = String(m.content || '').trim();
+    if (!c) continue;
+    layer.push(c.length > MEM_ITEM_MAX ? c.slice(0, MEM_ITEM_MAX) + '…' : c);
+  }
   const out = ['【Agent 对用户的长期记忆（跨对话，务必记得并遵循）】'];
-  if (g.core.length) out.push('· 核心：' + g.core.join('；'));
-  if (g.preference.length) out.push('· 偏好：' + g.preference.join('；'));
-  if (g.fact.length) out.push('· 事实：' + g.fact.join('；'));
-  return out.join('\n');
+  const lines = [];
+  if (g.core.length) lines.push('· 核心：' + g.core.join('；'));
+  if (g.preference.length) lines.push('· 偏好：' + g.preference.join('；'));
+  if (g.fact.length) lines.push('· 事实：' + g.fact.join('；'));
+  let text = out.concat(lines).join('\n');
+  // 总量护栏：按「事实 → 偏好」顺序丢弃（核心最后才丢）
+  while (text.length > MEM_TOTAL_MAX && lines.length > 1) {
+    lines.pop();
+    text = out.concat(lines).join('\n');
+  }
+  return text;
 }
 
 /**

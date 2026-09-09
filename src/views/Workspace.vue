@@ -36,7 +36,7 @@ async function loadNotifications() {
 }
 async function loadActivity() {
   try {
-    const reviews = await db.reviews.orderBy('reviewedAt').reverse().limit(8).toArray();
+    const reviews = (await db.reviews.orderBy('reviewedAt').reverse().limit(8).toArray()).filter(r => r.type !== 'quick');
     const ids = [...new Set(reviews.map(r => r.cardId))];
     const cards = await db.cards.bulkGet(ids);
     const map = new Map(cards.filter(Boolean).map(c => [c.id, c]));

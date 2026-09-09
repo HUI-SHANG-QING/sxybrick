@@ -96,7 +96,8 @@ export async function autoBuildGraph(opts = {}) {
   } = opts;
 
   const cards = await db.cards.toArray();
-  const reviews = await db.reviews.toArray();
+  // 审计 P1-2（round33）：图谱自动生成的共现/权重只基于真实复习
+  const reviews = (await db.reviews.toArray()).filter(r => r.type !== 'quick');
   const byId = new Map(cards.map(c => [c.id, c]));
 
   const edges = new Map(); // key `${aId}|${bId}` → 边对象（aId < bId，无向）

@@ -72,7 +72,8 @@ export async function shutdownAnalyticsWorker() {
 export async function getCardAnalytics(cardId) {
   const card = await db.cards.get(cardId);
   if (!card) return null;
-  const reviews = await db.reviews.where('cardId').equals(cardId).toArray();
+  // 审计 P1-2（round33）：quickCheck 行不计入单卡统计——统一口径
+  const reviews = (await db.reviews.where('cardId').equals(cardId).toArray()).filter(r => r.type !== 'quick');
   const total = reviews.length;
   const wrong = reviews.filter(r => r.rating === 0).length;
   const fuzzy = reviews.filter(r => r.rating === 1).length;
@@ -105,7 +106,8 @@ export async function getCardAnalytics(cardId) {
 export async function getRecentMistakes(days = 1) {
   const since = now() - days * DAY;
   // N+1 修复：一次全表扫描在内存聚合每卡错误/总数，替代逐卡 getCardAnalytics（N 次 get + N 次索引查询）
-  const reviews = await db.reviews.toArray();
+  // 审计 P1-2（round33）：quickCheck 行不计入错题聚合——统一口径
+  const reviews = (await db.reviews.toArray()).filter(r => r.type !== 'quick');
   const wrongIds = new Set();
   const wrongCount = new Map();
   const totalCount = new Map();
@@ -211,7 +213,8 @@ export async function getModuleSummary() {
 // ---------- 学习画像：跨模块统一打分（0~100） ----------
 export async function getLearningProfile() {
   const stats = await getStats();
-  const reviews = await db.reviews.toArray();
+  // 审计 P1-2（round33）：quickCheck 行不计入学习画像——统一口径
+  const reviews = (await db.reviews.toArray()).filter(r => r.type !== 'quick');
   const mastery = stats.avgMastery || 0;
   const correct = stats.ability?.correct || 0;
   const stable = stats.ability?.stable || 0;
@@ -267,7 +270,8 @@ export async function getLearningProfile() {
 // ---------- 易混卡片自动配对（同科目、双方都有答错记录） ----------
 async function _getConfusablePairs(limit = 10) {
   const cards = await db.cards.toArray();
-  const reviews = await db.reviews.toArray();
+  // 审计 P1-2（round33）：quickCheck 行不计入易混对统计——统一口径
+  const reviews = (await db.reviews.toArray()).filter(r => r.type !== 'quick');
   const wrongCount = new Map();
   for (const r of reviews) if (r.rating === 0) wrongCount.set(r.cardId, (wrongCount.get(r.cardId) || 0) + 1);
 
@@ -276,6 +280,14 @@ async function _getConfusablePairs(limit = 10) {
   const duelWrongKeys = new Set(Array.isArray(dwRow?.value) ? dwRow.value : []);
 
   const candidates = cards.filter(c => (wrongCount.get(c.id) || 0) >= 1);
+  // round33 C-3：主线程 fallback 的量级护栏——worker 不可用（CSP/file:///老浏览器）时
+  // 直接全对配对会 O(n²) 冻结主线程（万卡级=秒级白屏）。候选超限时按错题数截断
+  // （错得越多越值得先配对），单次预算 ≤ 400² 次比较，页面不冻结、结果仍有意义。
+  const PAIR_MAX = 400;
+  if (candidates.length > PAIR_MAX) {
+    candidates.sort((a, b) => (wrongCount.get(b.id) || 0) - (wrongCount.get(a.id) || 0));
+    candidates.length = PAIR_MAX;
+  }
   const pairs = [];
   const seen = new Set();
   for (let i = 0; i < candidates.length; i++) {
@@ -316,7 +328,8 @@ export async function getGapCards(limit = 15) {
 // ---------- D1 遗忘预警：3 天内到期且历史表现不稳的卡（趁没忘先救） ----------
 export async function getForgetRisk(limit = 5) {
   const cards = await db.cards.toArray();
-  const reviews = await db.reviews.toArray();
+  // 审计 P1-2（round33）：quickCheck 行不计入遗忘风险统计——统一口径
+  const reviews = (await db.reviews.toArray()).filter(r => r.type !== 'quick');
   const nowTs = now();
   const fail = new Map(); const total = new Map();
   for (const r of reviews) {
@@ -432,9 +445,11 @@ function findCardForLabel(label, byLabel, cards) {
 async function _getGraphDrivenReviewPlan(opts = {}) {
   const limit = Number(opts?.limit) || 50;
   const includeDueOnly = opts?.includeDueOnly !== false;
-  const [cards, edges, reviews] = await Promise.all([
+  const [cards, edges, reviewsRaw] = await Promise.all([
     db.cards.toArray(), db.graphEdges.toArray(), db.reviews.toArray(),
   ]);
+  // 审计 P1-2（round33）：quickCheck 行不计入图谱复习计划——统一口径
+  const reviews = reviewsRaw.filter(r => r.type !== 'quick');
   if (!edges.length) {
     const nowTs = now();
     let pool = cards;
@@ -675,7 +690,7 @@ export async function generateAutoPlan(days = 7) {
 // ---------- E1 资产健康度：重复卡 / 僵尸卡 / 孤儿图片 / 无标签卡 ----------
 export async function getAssetHealth() {
   const [cards, reviews, images] = await Promise.all([
-    db.cards.toArray(), db.reviews.toArray(), db.images.toArray(),
+    db.cards.toArray(), db.reviews.toArray().then(rs => rs.filter(r => r.type !== 'quick')), db.images.toArray(),
   ]);
   const nowTs = now();
   const norm = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -723,7 +738,8 @@ export async function getAssetHealth() {
 // FSRS 预测记忆概率 vs 实际正确率的分桶对比；纯函数在 algorithms/calibration.js，这里只做 IO。
 import { computeCalibration } from '../algorithms/calibration.js';
 export async function getCalibration() {
-  const [reviews, cfg] = await Promise.all([db.reviews.toArray(), getSchedConfig()]);
+  // 审计 P1-2（round33）：校准只基于真实复习（computeCalibration 内部亦过滤，此处双重保险）
+  const [reviews, cfg] = await Promise.all([db.reviews.toArray().then(rs => rs.filter(r => r.type !== 'quick')), getSchedConfig()]);
   return computeCalibration(reviews, { weights: cfg.weights });
 }
 

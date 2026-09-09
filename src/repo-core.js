@@ -173,7 +173,10 @@ export function filterReviewCandidates(cards, filter = {}, nowTs = Date.now()) {
 // ---------- 薄弱卡片排名（weakCards 核心） ----------
 export function rankWeakCards(cards, reviews, { limit = 100, minFail = 2 } = {}) {
   const fail = new Map();
-  for (const r of reviews) if (r.rating === 0) fail.set(r.cardId, (fail.get(r.cardId) || 0) + 1);
+  // 审计 P1-2（round33）：quickCheck 行不计入薄弱排名——函数内自保过滤
+  // （防调用方漏滤，与 trainWeights 的 quick 自保同型）。rating=0 的 quick 行
+  // 会把卡误送进错题本重点区。
+  for (const r of reviews) if (r.rating === 0 && r.type !== 'quick') fail.set(r.cardId, (fail.get(r.cardId) || 0) + 1);
   return cards
     .filter(c => (fail.get(c.id) || 0) >= minFail || c.marked)
     .map(c => ({ ...c, failCount: fail.get(c.id) || 0 }))

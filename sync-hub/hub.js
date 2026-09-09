@@ -61,10 +61,18 @@ const TOKEN = loadToken();
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  // 审计 P2-7（round33）：Vite 构建产物含 .mjs（如 pdf.worker.min-xxx.mjs）——
+  // 缺失时按 octet-stream 下发，浏览器拒绝以错误 MIME 执行 module script，
+  // 局域网离线导入 PDF 功能静默失效。
+  '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.txt': 'text/plain; charset=utf-8',
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
@@ -415,7 +423,16 @@ function serveStatic(req, res, pathname) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     return res.end('Not found');
   }
-  const body = readFileSync(p);
+  // 审计 P2-6（round33）：readFileSync 兜底——existsSync 只兜 ENOENT，
+  // Windows 文件被占用（EACCES/EPERM）或 existsSync 与 read 之间文件被删（TOCTOU）
+  // 仍会抛出 → 异步 handler 内异常 → 响应悬挂、客户端 SocketError。
+  let body;
+  try {
+    body = readFileSync(p);
+  } catch {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    return res.end('Not found');
+  }
   const origin = req?.headers?.origin;
   const cors = isOriginAllowed(origin, { host: req?.headers?.host, allowList: ALLOW_ORIGIN })
     ? { 'Access-Control-Allow-Origin': origin || '*', Vary: 'Origin' }

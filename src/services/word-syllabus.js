@@ -12,6 +12,7 @@
 // 注意 `with { type: 'json' }`：Vite/Rollup 与 Node ESM 都要求（Node 缺属性会直接
 // 抛 ERR_IMPORT_ATTRIBUTE_MISSING），加上后本模块才能被 node --test 直接覆盖。
 import vocabData from '../data/kaoyan-vocab-2027.json' with { type: 'json' };
+import { dateKey } from '../utils/time.js';
 // 内置中文释义种子（离线兜底）：仅覆盖最高频的一批大纲词，
 // 其余由「AI 智能模块」批量生成后写入本地库（优先级高于种子，见 services/word-meaning.js）。
 import seedData from '../data/kaoyan-vocab-meanings-seed.json' with { type: 'json' };
@@ -121,7 +122,9 @@ export function filterBySyllabus(words) {
 export function exportSyllabus(format = 'md') {
   const list = listSyllabus();
   const meta = getSyllabusMeta();
-  const stamp = new Date().toISOString().slice(0, 10);
+  // 审计 S-2（round33）：toISOString() 是 UTC 日期——东八区 08:00 前（乃至其它时区傍晚）
+  // 导出会写成「前一天」。导出日期属本地语义，统一走本地 dateKey。
+  const stamp = dateKey();
   if (format === 'md') {
     return `# ${meta.title}\n\n> ${meta.disclaimer}\n> 共 ${list.length} 词 · 导出 ${stamp}\n\n` +
       list.map((w, i) => `${i + 1}. ${w}`).join('\n');
