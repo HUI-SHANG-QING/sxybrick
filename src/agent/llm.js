@@ -43,14 +43,18 @@ export async function chat(messages, cfg, opts = {}) {
     stream: !!opts.stream,
   };
 
-  // P1-9 超时控制：调用方未传入 signal 时自建 AbortController（默认 60s，可被 opts.timeoutMs 覆盖）。
-  // 这样即便上层忘了传 signal，单次 LLM 调用也不会永久挂起。
+  // P1-9 超时控制：单次 LLM 调用不允许永久挂起（默认 60s，可被 opts.timeoutMs 覆盖）。
+  // 审计 P2-5（round32）：此前 `external || 自建` 在调用方传入 signal 时把超时兜底整个丢弃
+  // ——外部中断与超时是 AND 关系（任一触发都该中断），不是 OR。改用 AbortSignal.any
+  // 让两者同时生效；旧环境无 AbortSignal.any 时退回原行为（外部 signal 时无超时，不比之前差）。
   let ctrl;
   let timeoutId;
   const external = opts.signal;
-  const signal = external || (ctrl = new AbortController()).signal;
   const timeoutMs = opts.timeoutMs ?? 60000;
-  if (!external) timeoutId = setTimeout(() => ctrl.abort(), timeoutMs);
+  const timeoutSignal = (ctrl = new AbortController(), (timeoutId = setTimeout(() => ctrl.abort(), timeoutMs)), ctrl.signal);
+  const signal = (external && typeof AbortSignal !== 'undefined' && AbortSignal.any)
+    ? AbortSignal.any([external, timeoutSignal])
+    : (external || timeoutSignal);
 
   try {
     const res = await fetch(`${base}/chat/completions`, {
@@ -79,26 +83,31 @@ export async function chat(messages, cfg, opts = {}) {
   const decoder = new TextDecoder();
   let buf = '';
   let full = '';
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split('\n');
-    buf = lines.pop() || '';
-    for (const line of lines) {
-      const s = line.trim();
-      if (!s || !s.startsWith('data:')) continue;
-      const payload = s.slice(5).trim();
-      if (payload === '[DONE]') continue;
-      try {
-        const json = JSON.parse(payload);
-        const delta = json?.choices?.[0]?.delta?.content || '';
-        if (delta) {
-          full += delta;
-          opts.onToken?.(delta, full);
-        }
-      } catch { /* 忽略非 JSON 行 */ }
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+      for (const line of lines) {
+        const s = line.trim();
+        if (!s || !s.startsWith('data:')) continue;
+        const payload = s.slice(5).trim();
+        if (payload === '[DONE]') continue;
+        try {
+          const json = JSON.parse(payload);
+          const delta = json?.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            full += delta;
+            opts.onToken?.(delta, full);
+          }
+        } catch { /* 忽略非 JSON 行 */ }
+      }
     }
+  } finally {
+    // 审计 P2-5（round32）：abort/异常退出时释放 SSE 连接体——否则底层 socket 挂到服务端超时
+    try { await reader.cancel(); } catch { /* 已关闭/不支持时忽略 */ }
   }
   reportUsage(null, full, true);
   return full;

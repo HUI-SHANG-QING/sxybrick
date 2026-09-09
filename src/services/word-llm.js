@@ -182,7 +182,12 @@ async function callChatCompletion({ base, apiKey, model, prompt, system, source 
       }),
       // round23 P2-3：provider 直连必须有超时（30s），否则批量出题/补释义可永久挂死；
       // 外层批量任务可传 AbortSignal 做真中断（P2-4）。
-      signal: signal || AbortSignal.timeout(timeoutMs),
+      // 审计 P2-4（round32）：此前 `signal || timeout` 在传外部 signal 时把超时兜底丢弃了
+      // ——外部信号与超时是 AND 关系（两者任一触发都该中断），不是 OR。改用 AbortSignal.any
+      // 让两者同时生效；旧环境无 AbortSignal.any 时退回原 || 行为（至少不比之前差）。
+      signal: (typeof AbortSignal !== 'undefined' && AbortSignal.any)
+        ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)].filter(Boolean))
+        : (signal || AbortSignal.timeout(timeoutMs)),
     });
     if (!resp.ok) {
       const txt = await resp.text().catch(() => '');

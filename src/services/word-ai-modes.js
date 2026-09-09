@@ -267,8 +267,12 @@ export async function batchGenerateModeQuestions({
   // 审计 F-26：分批并发——AI 调用是网络 IO 密集型（每张 2-3s），逐张串行总耗时 = N×2~3s。
   // 改为每批 3 张并发调用，批内全部完成后顺序保存（DB 写入需保序避免 lost update）。
   // 3 并发是稳妥选择：不打爆 LLM 服务端、移动端内存可控、总耗时 ≈ ceil(N/3)×2~3s。
+  // 审计 P2-6（round32）：取消穿透——此前 onProgress 返回 false 只 break 内层循环，
+  // 外层仍会对下一批发起 Promise.allSettled AI 调用（费用照烧，需再等一整批才停）。
+  // 加 cancelled 标志，内层取消后外层直接退出。
   const BATCH = 3;
-  for (let batchStart = 0; batchStart < list.length; batchStart += BATCH) {
+  let cancelled = false;
+  for (let batchStart = 0; batchStart < list.length && !cancelled; batchStart += BATCH) {
     if (signal?.aborted) break;
     const batch = list.slice(batchStart, batchStart + BATCH);
     // 批内并发 AI 调用
@@ -322,7 +326,7 @@ export async function batchGenerateModeQuestions({
           saved,
           current: { id: card.id, word: card.word, ok: r.ok },
         });
-        if (keepGoing === false) break;
+        if (keepGoing === false) { cancelled = true; break; }
       }
     }
   }

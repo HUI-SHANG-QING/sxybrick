@@ -9,6 +9,18 @@ const MAX_CHARS = 8000;
 
 const DAY = 86400000;
 
+// ---------- 复习记录统一口径 ----------
+// 审计 P1-2（round32）：quickCheck 行（type='quick'）不计入 SRS/统计/序列/分级——
+// 此前「不计入」约定只落在写入端注释，读取端各处自行过滤导致分波漏改
+// （round31 修了 4 处，本轮又发现 intelligence/repo 两处）。统一在此提供判定与过滤：
+// 所有消费 db.reviews 的下游必须经 isRealReview / realReviews，禁止裸读全量。
+export function isRealReview(r) {
+  return r && r.type !== 'quick';
+}
+export function realReviews(reviews) {
+  return (reviews || []).filter(isRealReview);
+}
+
 // ---------- 卡片校验与规范化 ----------
 export function validateCard(body) {
   const front = String(body.front ?? '').trim();

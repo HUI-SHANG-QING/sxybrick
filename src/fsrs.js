@@ -253,7 +253,9 @@ export function trainWeights(reviews, cardsById, opts = {}) {
       // round29 审查：调度路径(schedule)对 fsrs.last 有 isFinite 守卫，但训练路径没有——
       // 一条 reviewedAt 缺失/NaN 的复习会让 elapsed=NaN → R=NaN → log(NaN)=NaN 累加进
       // total → 整轮 loss 变 NaN，个性化权重训练静默失效（用户只觉得"算法没变聪明"）。
-      reviews: sorted.filter(r => Number.isFinite(r.reviewedAt))
+      // 审计 P1-2（round32）：quickCheck 行（type='quick'）防御性过滤——当前调用方
+      // （prepareFsrsTrainingData）已过滤，此处自保，防止未来新调用方漏过滤。
+      reviews: sorted.filter(r => Number.isFinite(r.reviewedAt) && r.type !== 'quick')
         .map(r => ({ grade: toFsrsGrade(r.rating), y: r.rating > 0 ? 1 : 0, reviewedAt: r.reviewedAt })),
     });
   }

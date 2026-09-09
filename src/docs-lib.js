@@ -97,7 +97,15 @@ async function drain() {
   try {
     while (queue.length) {
       const id = queue.shift();
-      await parseDoc(id);
+      // 审计 P2-7（round32）：单任务 try/catch——此前 parseDoc reject（DB 抖动/文件缺失）
+      // 会冒泡出 drain，enqueueParse 的 void drain() 产生 unhandledrejection，
+      // 且 finally 后 draining=false 但队列残留任务永久卡死直到下次 enqueue。
+      // 捕获后继续处理下一任务，失败任务的状态机由 parseDoc 内部标 failed。
+      try {
+        await parseDoc(id);
+      } catch (e) {
+        console.warn('[docs-lib] parseDoc failed for', id, e?.message || e);
+      }
     }
   } finally {
     draining = false;
@@ -323,12 +331,17 @@ async function recognizeLocal(image, lang, onProgress) {
 }
 
 /** 默认识别入口：配置了云端（OpenAI 兼容视觉）走云端，否则本地 Tesseract */
-async function defaultRecognize(image, { lang, onProgress } = {}) {
+async function defaultRecognize(image, { lang, onProgress, signal } = {}) {
   const cloud = getOcrSettings().cloud;
   if (cloud?.enabled && cloud.endpoint && cloud.apiKey) {
     const req = buildCloudOcrRequest(image, cloud);
+    // 审计 P2-7（round32）：透传 signal + 30s 超时兜底——此前云端 fetch 既不接用户取消
+    // 也没有超时，端点不可达时整条 ocrDoc 流水线无限挂起。
+    const sig = (typeof AbortSignal !== 'undefined' && AbortSignal.any)
+      ? AbortSignal.any([signal, AbortSignal.timeout(30000)].filter(Boolean))
+      : (signal || AbortSignal.timeout(30000));
     const res = await fetch(req.url, {
-      method: 'POST', headers: req.headers, body: JSON.stringify(req.body),
+      method: 'POST', headers: req.headers, body: JSON.stringify(req.body), signal: sig,
     });
     if (!res.ok) throw new Error(`云端 OCR 失败 HTTP ${res.status}`);
     return parseCloudOcrResponse(await res.json());
@@ -352,7 +365,8 @@ async function ocrImageBlob(blob, { recognize, lang, onProgress, signal }) {
     } catch { /* 原样交给识别器内部处理 */ }
   }
   if (signal?.aborted) throw new DOMException('OCR 已取消', 'AbortError');
-  return recognize(source, { lang, onProgress });
+  // 审计 P2-7（round32）：signal 透传给识别器——云端分支靠它接收用户取消
+  return recognize(source, { lang, onProgress, signal });
 }
 
 /** 扫描版 PDF 识别：pdfjs 逐页渲染（2x 缩放）canvas → 逐页识别 → 全文拼接（内存受控、可取消） */

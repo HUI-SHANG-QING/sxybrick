@@ -36,6 +36,7 @@ import {
   computeStats,
   groupUserOps,
   dayWindowOf,
+  isRealReview,
 } from './repo-core.js';
 
 export { DEFAULT_SUBJECTS };
@@ -438,6 +439,16 @@ export async function restoreFromTrash(t) {
     if (t.kind === 'docFile' || t.kind === 'doc') {
       try { const { parseDoc } = await import('./docs-lib.js'); parseDoc(t.id).catch(() => {}); } catch { /* import 失败不阻塞恢复 */ }
     }
+    // 审计 P2-3（round32）：卡片恢复后同样触发向量重建——deleteCard 已物理删 embeddings 行，
+    // 墓碑虽清但 card/wordCard 恢复后无人重建向量 → RAG/语义搜索对该卡永久失明。
+    // indexCard 内部 embed 失败会 reject，用 .catch 吞掉不阻塞恢复主流程。
+    if (t.kind === 'card') {
+      try {
+        const { indexCard } = await import('./agent/retrieval.js');
+        const card = await db.cards.get(t.id);
+        if (card) indexCard(card).catch(() => {});
+      } catch { /* import 失败不阻塞恢复 */ }
+    }
   });
   return true;
 }
@@ -720,7 +731,9 @@ async function buildReviewsByCard(cards) {
   const map = new Map();
   if (!ids.length) return map;
   const revs = await db.reviews.where('cardId').anyOf(ids).toArray();
+  // 审计 P1-2（round32）：quickCheck 行不计入检索分级——统一口径 isRealReview
   for (const r of revs) {
+    if (!isRealReview(r)) continue;
     if (!map.has(r.cardId)) map.set(r.cardId, []);
     map.get(r.cardId).push(r);
   }
@@ -2292,10 +2305,12 @@ export async function setCardGroups(cardIds, addGroupIds = [], removeGroupIds = 
  * 返回 { parked: 被停车的卡 id 集合 }，供 Review 构建队列时排除。
  */
 export async function getParkedCardIds() {
-  const [links, groups, cards] = await Promise.all([
+  // 审计 P2-2（round32）：删除 cards 全表扫描——parked 判定只依赖 links/groups 两张小表，
+  // anyOf 已含全部分组卡的 id；未分组卡不停车（旧行为），根本不需要遍历 cards。
+  // 此前万卡级时每次进复习队列都整表物化 cards，击穿了 reviewQueue 的 dueAt 索引收窄优化。
+  const [links, groups] = await Promise.all([
     db.cardGroupLinks.toArray(),
     db.cardGroups.toArray(),
-    db.cards.toArray(),
   ]);
   if (!groups.length || !links.length) return new Set();
   const statusOf = new Map(groups.map(g => [g.id, g.status]));
@@ -2307,8 +2322,8 @@ export async function getParkedCardIds() {
   }
   // 只把「显式分过组且全在备用组」的卡停车；未分组卡保持旧行为（照常复习）
   const parked = new Set();
-  for (const c of cards) {
-    if (anyOf.has(c.id) && !activeOf.has(c.id)) parked.add(c.id);
+  for (const cardId of anyOf) {
+    if (!activeOf.has(cardId)) parked.add(cardId);
   }
   return parked;
 }

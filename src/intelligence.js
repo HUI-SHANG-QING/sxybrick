@@ -40,7 +40,7 @@ async function allCardsCached() {
 if (typeof window !== 'undefined') {
   try { subscribeDbChanged(() => invalidateCardsCache()); } catch { /* 忽略 */ }
 }
-import { dayWindowOf } from './repo-core.js';
+import { dayWindowOf, realReviews } from './repo-core.js';
 
 const now = () => Date.now();
 
@@ -393,7 +393,8 @@ export async function recommendTodaySequence(opt = {}) {
 
   const nowTs = now();
   // 审计 F-30：两个 DB 查询并行（reviews + dueCards 各自独立，无依赖）
-  const reviews = await db.reviews.orderBy('reviewedAt').reverse().limit(2000).toArray();
+  // 审计 P1-2（round32）：quickCheck 行不计入薄弱判定——统一口径 isRealReview
+  const reviews = realReviews(await db.reviews.orderBy('reviewedAt').reverse().limit(2000).toArray());
   const failCount = new Map();
   for (const r of reviews) if (r.rating === 0) failCount.set(r.cardId, (failCount.get(r.cardId) || 0) + 1);
 

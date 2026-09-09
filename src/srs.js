@@ -282,7 +282,9 @@ export function scheduleReview(card, rating, intensity = 1, guessed = false, opt
     r.examUrgency = eu.urgency;
     r.atExamR = eu.atExamR;
     // 若下次复习落在考试之后，软压缩到考前窗口
-    r.dueAt = compressIntoWindow(r.dueAt, opts.examAt, opts.now);
+    // 审计 P2-1（round32）：第三参是 opts 对象（内部取 opts.now），此前误传数字 opts.now
+    // → 对象上取 .now 为 undefined → 回落 Date.now()，破坏了纯函数注入 now 的确定性
+    r.dueAt = compressIntoWindow(r.dueAt, opts.examAt, { now: opts.now });
   }
   // 节假日弹性：due 落在休息日则顺延到最近工作日（仅展示/排程层）
   if (opts.restDays && opts.restDays.weekdays?.length || opts.restDays?.dates?.length) {
