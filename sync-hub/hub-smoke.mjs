@@ -19,14 +19,23 @@ const h = await idx.text();
 log('GET / ->', idx.status, h.includes('<div id="app">') ? 'html-ok' : 'html-BAD', 'ct=', idx.headers.get('content-type'));
 
 // 从 index.html 动态解析真实资源名（产物哈希每次构建都会变；硬编码会误报）
-const assetPath = (h.match(/(?:src|href)="([^"]*assets\/[^"]+\.js)"/) || [])[1];
+// round40：① 兼容双引号/单引号/无引号（旧正则只认双引号，构建工具换引号风格会**静默**
+//            跳过这条检查 = 测试悄悄失效）；② 解析不到就报错退出（不再静默跳过）。
+const assetMatch = h.match(/(?:src|href)=["']?([^"'\s>]*assets\/[^"'\s>]+\.js)["']?/);
+const assetPath = assetMatch ? assetMatch[1] : null;
 if (assetPath) {
   const js = await fetch(B + (assetPath.startsWith('/') ? assetPath : '/' + assetPath));
   const jt = await js.text();
-  const isJs = jt.startsWith('import') || jt.includes('export{') || jt.includes('const ') || jt.includes('function');
+  // 判 JS 的判据保持宽松（只要求像 JS），但**必须**同时确认 HTTP 200 且不是 HTML 错误页
+  const looksJs = jt.startsWith('import') || jt.includes('export{') || jt.includes('const ') || jt.includes('function');
+  const isHtml = /^\s*<(!doctype|html)/i.test(jt);
+  const isJs = looksJs && !isHtml;
   log('GET', assetPath, '->', js.status, 'is-js=', isJs);
+  if (js.status !== 200 || !isJs) process.exitCode = 1;
 } else {
-  log('GET assets/*.js -> 跳过（index.html 未引用 js 资源？）');
+  // 关键：不再静默跳过——解析规则失效必须让脚本变红，否则这条检查会悄悄消失
+  log('GET assets/*.js -> ✗ 未能从 index.html 解析出 JS 资源引用（解析规则可能已失效，请更新正则）');
+  process.exitCode = 1;
 }
 
 // —— 2) 正向：带密码读写（必须在任何失败请求之前）

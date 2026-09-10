@@ -577,17 +577,10 @@ const server = createServer(async (req, res) => {
       res.writeHead(204, { Vary: 'Origin' });
       return res.end();
     }
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': origin || '*',
-      'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS,HEAD',
-      // 修复（用户报障：三端局域网同步全失败）：白名单补 x-client-time——round30 P2-3
-      // 给客户端 PUT 加了时钟偏移补偿头（sync.js:597），但本白名单没跟着更新。
-      // 浏览器预检要求 Access-Control-Request-Headers 的每个头都在白名单内，
-      // 缺失 → 预检失败 → 真正的 PUT 永远发不出去（跨域场景三端全挂，本机同源不受影响）。
-      'Access-Control-Allow-Headers': 'Content-Type, x-sync-token, x-sync-challenge, x-sync-sig, x-client-time',
-      'Access-Control-Max-Age': '3600',
-      Vary: 'Origin',
-    });
+    // round40：**单一源**——直接复用 auth-core 的 corsHeaders()（json() 响应用的同一份），
+    // 不再在本文件硬编码一份白名单。历史事故：白名单写了两份，补 x-client-time 时只改了
+    // 这一处、漏了 auth-core（跨域预检失败 → 三端同步全挂）。合并后结构上不可能再漏。
+    res.writeHead(204, corsHeaders(origin, { host: req.headers.host, allowList: ALLOW_ORIGIN }));
     return res.end();
   }
 
