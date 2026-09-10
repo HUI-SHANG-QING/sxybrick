@@ -580,7 +580,11 @@ const server = createServer(async (req, res) => {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': origin || '*',
       'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS,HEAD',
-      'Access-Control-Allow-Headers': 'Content-Type, x-sync-token, x-sync-challenge, x-sync-sig',
+      // 修复（用户报障：三端局域网同步全失败）：白名单补 x-client-time——round30 P2-3
+      // 给客户端 PUT 加了时钟偏移补偿头（sync.js:597），但本白名单没跟着更新。
+      // 浏览器预检要求 Access-Control-Request-Headers 的每个头都在白名单内，
+      // 缺失 → 预检失败 → 真正的 PUT 永远发不出去（跨域场景三端全挂，本机同源不受影响）。
+      'Access-Control-Allow-Headers': 'Content-Type, x-sync-token, x-sync-challenge, x-sync-sig, x-client-time',
       'Access-Control-Max-Age': '3600',
       Vary: 'Origin',
     });
