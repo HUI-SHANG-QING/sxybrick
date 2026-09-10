@@ -137,35 +137,37 @@ function scopedFile(scope) {
 // 下次 PUT 基于空数据合并 → 中枢全量数据静默清零。
 // 修复：① 瞬态 IO 错误按 safeRenameSync 同款重试；② 非 IO 错误（真损坏）先延迟重读
 // 二次确认，仍失败才判损坏改名；③ 从未出现过的「不存在的表结构」不做猜测，保守返回空。
-function readScopeFileWithRetry(f) {
+// 审计 P2-2（round36）：自旋改异步 setTimeout——round34 的 while(Date.now()) 空转
+// 会把 Node 单线程事件循环整个停摆（所有连接冻结最长 500ms）。两个调用方（GET :619、
+// PUT merge :650）均在 async 上下文，安全改造。
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function readScopeFileWithRetry(f) {
   const transient = ['EBUSY', 'EPERM', 'EACCES'];
   for (let attempt = 0; ; attempt++) {
     try {
       return readFileSync(f, 'utf8');
     } catch (e) {
       if (attempt < 3 && transient.includes(e.code)) {
-        const deadline = Date.now() + 50 * (attempt + 1);
-        while (Date.now() < deadline) { /* spin */ }
+        await sleep(50 * (attempt + 1));
         continue;
       }
       throw e;
     }
   }
 }
-function loadScopedData(scope) {
+async function loadScopedData(scope) {
   const f = scopedFile(scope);
   if (!existsSync(f)) return emptyData();
   try {
-    const raw = JSON.parse(readScopeFileWithRetry(f));
+    const raw = JSON.parse(await readScopeFileWithRetry(f));
     return { ...emptyData(), ...raw };
   } catch {
     // 二次确认：延迟 200ms 重读一次——若第一次失败是 PUT rename 窗口/JSON 半写
     // （atomicWriteAsync 写 tmp 再 rename，f 本身不会被半写，但保险起见仍确认），
     // 重读成功则按正常数据处理，绝不误伤完好文件。
+    await sleep(200);
     try {
-      const deadline = Date.now() + 200;
-      while (Date.now() < deadline) { /* spin */ }
-      const raw = JSON.parse(readScopeFileWithRetry(f));
+      const raw = JSON.parse(await readScopeFileWithRetry(f));
       return { ...emptyData(), ...raw };
     } catch {
       recoverCorrupt(f);
@@ -344,10 +346,16 @@ function merge(base, incoming, clockSkew = 0) {
     streakMeta = incoming.streakMeta;
   }
   out.streakMeta = streakMeta;
-  // 审计（round35 小问题2）：考试日期 examAt 与 streakMeta 同口径合并——updatedAt 谁新听谁
+  // 审计（round35 小问题2）：考试日期 examAt 与 streakMeta 同口径合并——updatedAt 谁新听谁。
+  // 审计 P1-1（round36）：平局改严格 > + 字典序兜底（同 sync.js，防两端同时间戳来回翻转）。
   let examMeta = base.examMeta || null;
-  if (incoming.examMeta && (!examMeta || (incoming.examMeta.updatedAt || 0) >= (examMeta.updatedAt || 0))) {
-    examMeta = incoming.examMeta;
+  if (incoming.examMeta) {
+    const incTs = incoming.examMeta.updatedAt || 0;
+    const baseTs = examMeta?.updatedAt || 0;
+    if (!examMeta || incTs > baseTs
+      || (incTs === baseTs && String(incoming.examMeta.examAt) > String(examMeta.examAt ?? ''))) {
+      examMeta = incoming.examMeta;
+    }
   }
   out.examMeta = examMeta;
   // 审计 C2：记录最近一次设备推送，供墓碑 GC 判定「生态是否仍活跃」。
@@ -366,18 +374,24 @@ function readBody(req, limitBytes = 50 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
+    // 审计 P2-1（round36）：半关闭连接兜底——客户端收包中途断开时 Node 常只触发
+    // 'close' 不触发 'error'，旧实现 promise 永不 settle → HMAC 预算的 finally
+    // 永不释放 → 泄漏 2 次后所有 HMAC PUT 恒 429 直至进程重启。
+    let settled = false;
+    const done = (fn) => (v) => { if (!settled) { settled = true; fn(v); } };
+    req.on('close', () => { if (!settled) { settled = true; reject(new Error('连接中断')); } });
     req.on('data', (c) => {
       size += c.length;
-      if (size > limitBytes) { reject(new Error('请求体过大')); req.destroy(); return; }
+      if (size > limitBytes) { done(reject)(new Error('请求体过大')); req.destroy(); return; }
       chunks.push(c);
     });
-    req.on('end', () => {
+    req.on('end', done(() => {
       const raw = Buffer.concat(chunks).toString('utf8');
       if (!raw) return resolve({ raw: '', json: null });
       try { resolve({ raw, json: JSON.parse(raw) }); }
       catch (e) { reject(e); }
-    });
-    req.on('error', reject);
+    }));
+    req.on('error', done(reject));
   });
 }
 
@@ -604,7 +618,7 @@ const server = createServer(async (req, res) => {
     if (!auth.ok) return unauthorized(req, res, auth);
 
     if (req.method === 'GET') {
-      const data = loadScopedData(scope);
+      const data = await loadScopedData(scope); // 审计 P2-2（round36）：改异步后需 await
       // M7：隐私 opt-in 只在客户端有效——默认不下发隐私表（隐私记录不进任何
       // 未显式声明的设备/备份）；客户端确认要同步隐私时带 ?includePrivacy=1。
       const includePrivacy = url.searchParams.get('includePrivacy') === '1';
@@ -635,7 +649,7 @@ const server = createServer(async (req, res) => {
           // round30 P2-3：客户端墙钟 - 中枢墙钟 = 换算量；客户端推上来的时间戳减它即中枢帧
           const clientTs = Number(req.headers['x-client-time']);
           const clockSkew = Number.isFinite(clientTs) ? clientTs - Date.now() : 0;
-          const m = merge(loadScopedData(scope), incoming, clockSkew);
+          const m = merge(await loadScopedData(scope), incoming, clockSkew); // 审计 P2-2（round36）：await 异步化
           await saveScopedData(scope, m);
           return m;
         });

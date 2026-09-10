@@ -514,12 +514,22 @@ export async function dueWordCards(opts = {}) {
   // 先用索引范围查询收窄到期卡，kind/parkArchived 留在内存二次过滤（量级极小）。
   const t = now();
   // round34 M7：索引查询不含 dueAt 为 undefined/null 的行（不在索引中）→ 这些遗留/损坏行
-  // 永不入队（「幽灵词卡」）。补一次空值扫描，缺失 dueAt 视为已到期（dueAt=0）。
-  const [due, missing] = await Promise.all([
-    db.wordCards.where('dueAt').belowOrEqual(t).toArray(),
-    db.wordCards.filter(r => r.dueAt == null).toArray(),
-  ]);
-  let rows = due.concat(missing);
+  // 永不入队（「幽灵词卡」）。
+  // 审计 P3-2（round36）：missing 补扫是**无索引全表物化**，且每次进复习页都跑——
+  // 5000+ 词场景下与 D-5 索引优化的初衷自相矛盾。改为**一次性修复**：首次发现缺失
+  // dueAt 的行时统一补 dueAt=0（视为已到期），并用 meta 哨兵标记完成；此后热路径
+  // 不再全表扫描。新卡 createWordCard 恒设 dueAt，缺失只来自老版本遗留/损坏数据。
+  const due = await db.wordCards.where('dueAt').belowOrEqual(t).toArray();
+  let rows = due;
+  const repaired = await db.meta.get('missingDueAtRepaired');
+  if (!repaired) {
+    const missing = await db.wordCards.filter(r => r.dueAt == null).toArray();
+    if (missing.length) {
+      await db.wordCards.bulkPut(missing.map(r => ({ ...r, dueAt: 0, updatedAt: t })));
+    }
+    await db.meta.put({ key: 'missingDueAtRepaired', value: true, updatedAt: t });
+    if (missing.length) rows = rows.concat(missing.map(r => ({ ...r, dueAt: 0 })));
+  }
   rows = rows.filter(r =>
     SCHEDULABLE_KINDS.includes(r.kind) &&
     !r.familiar);

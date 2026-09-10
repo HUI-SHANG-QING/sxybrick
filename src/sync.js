@@ -930,11 +930,17 @@ export async function importBackup(backup, opts = {}) {
       await db.meta.put({ key: 'goal', value: backup.streakMeta.goal, updatedAt: backup.streakMeta.updatedAt || Date.now() });
     }
   }
-  // 审计（round35 小问题2）：考试日期 examAt 导入——updatedAt 谁新听谁，与 goal 同口径
+  // 审计（round35 小问题2）：考试日期 examAt 导入——updatedAt 谁新听谁，与 goal 同口径。
+  // 审计 P1-1（round36）：平局改严格 > + 字典序兜底——旧 >= 平局取 incoming，
+  // 两端同 updatedAt 不同值时随同步顺序来回翻转（与 round23 确定性收敛口径不一致）。
   if (backup.examMeta && backup.examMeta.examAt != null) {
     const local = await db.meta.get('examAt');
-    if (!local || (backup.examMeta.updatedAt || 0) >= (local.updatedAt || 0)) {
-      await db.meta.put({ key: 'examAt', value: backup.examMeta.examAt, updatedAt: backup.examMeta.updatedAt || Date.now() });
+    const incTs = backup.examMeta.updatedAt || 0;
+    const locTs = local?.updatedAt || 0;
+    const incomingWins = !local || incTs > locTs
+      || (incTs === locTs && String(backup.examMeta.examAt) > String(local.value ?? ''));
+    if (incomingWins) {
+      await db.meta.put({ key: 'examAt', value: backup.examMeta.examAt, updatedAt: incTs || Date.now() });
     }
   }
   }); // end db.transaction（P0：整段导入原子化）

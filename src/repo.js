@@ -385,14 +385,18 @@ export async function restoreFromTrash(t) {
       await db.tombstones.bulkDelete(reviews.map(r => r.id));
     }
     if (links && links.length) {
-      await linksTable.bulkPut(links.map(l => ({ ...l })));
+      // 审计 P1-2（round36）：links 同样 bump updatedAt——源端 deleteCard/deleteWordGroup
+      // 会为这些关联行写墓碑，原样恢复的旧行在墓碑回灌下二次丢失（同 cwLinks/dailyTasks）。
+      await linksTable.bulkPut(links.map(l => ({ ...l, updatedAt: Date.now() })));
       // 连带清除「删卡/删词组时为这些关联行写的墓碑」，否则恢复后
       // 下次同步会被自己的墓碑重新删掉（墓碑 deletedAt > link.addedAt）
       await db.tombstones.bulkDelete(links.map(l => l.id));
     }
     if (cwLinks && cwLinks.length) {
       // 审计 A2：还原卡↔词关联 + 清掉为这些链接写的墓碑（同 links 机制）
-      await db.cardWordLinks.bulkPut(cwLinks.map(l => ({ ...l })));
+      // 审计 P1-2（round36）：恢复统一 bump updatedAt——原样写回的旧时间戳小于对端墓碑
+      // deletedAt，下轮同步墓碑回灌会把恢复的行再删一遍（快照已消费 → 永久丢失）。
+      await db.cardWordLinks.bulkPut(cwLinks.map(l => ({ ...l, updatedAt: Date.now() })));
       await db.tombstones.bulkDelete(cwLinks.map(l => l.id));
     }
     if (text) {
@@ -407,8 +411,11 @@ export async function restoreFromTrash(t) {
       await db.tombstones.bulkDelete(edges.map(e => e.id));
     }
     // 审计（round35 小问题1）：恢复每日计划的任务 + 清掉为它们写的墓碑
+    // 审计 P1-2（round36）：tasks 统一 bump updatedAt（同 graphEdges :405 口径）——
+    // deleteDailyPlan 给每个任务写了 dailyTask 墓碑，原样恢复的旧 updatedAt ≤ deletedAt，
+    // 下轮同步墓碑回灌 → 任务再删光且快照已消费，永久丢失。
     if (dailyTasks && dailyTasks.length) {
-      await db.dailyTasks.bulkPut(dailyTasks.map(task => ({ ...task })));
+      await db.dailyTasks.bulkPut(dailyTasks.map(task => ({ ...task, updatedAt: Date.now() })));
       await db.tombstones.bulkDelete(dailyTasks.map(task => task.id));
     }
     await db.tombstones.delete(t.id);
@@ -1231,9 +1238,14 @@ export async function createDailyPlan(payload) {
 
   // 覆盖重建 + 新建全部包进单个事务（round15 P1：任一步失败整体回滚，
   // 杜绝「旧计划已清空但新计划未建成」的半残态——此前逐条删除无事务保护）
-  await db.transaction('rw', db.dailyPlans, db.dailyTasks, db.tombstones, async () => {
+  // 审计 P3-3（round36）：覆盖重建同样先存回收站快照——旧口径只有显式删除
+  // （deleteDailyPlan）进回收站，「重新规划」覆盖掉的旧计划无法找回。
+  // 快照含计划+全部任务，恢复路径与删除共用 kind='dailyPlan'。
+  await db.transaction('rw', db.dailyPlans, db.dailyTasks, db.tombstones, db.trash, async () => {
     const existing = await db.dailyPlans.where('date').equals(date).toArray();
     for (const p of existing) {
+      const oldTasks = await db.dailyTasks.where('planId').equals(p.id).toArray();
+      await trashItem(p.id, 'dailyPlan', { ...plain(p), _tasks: oldTasks });
       // 级联删任务必须逐条写墓碑，否则对端会把旧任务推回来、与新计划混在一起
       await cascadeDeletePlanTasks(p.id, t);
       await db.dailyPlans.delete(p.id);

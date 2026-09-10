@@ -38,7 +38,10 @@ const busy = ref(false);
 // 状态改为结构化字段，不再拼一整条中文串 —— 旧实现靠 status.split(' · ') 拆段渲染，
 // 一旦文案里出现 ' · '（英文用逗号）就会错位，且无法本地化。
 const stat = ref(null);       // { days, ops, modules, types, active365, total365 }
-const today = new Date();
+// 审计 P2-3（round36）：today 改为取值函数——旧实现是 setup 期快照，
+// 页面跨午夜后热力图/日序列/今日格子缺「今天」一列且不随刷新恢复（须重开页面）。
+// 每次调用取当前时间，loadAll 刷新即获得正确日期，无需额外定时器。
+const todayNow = () => new Date();
 const pad = n => String(n).padStart(2, '0');
 const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
@@ -144,7 +147,7 @@ async function loadAll() {
         // 按日期序列（rangeDays 天补齐 + 每个 module 一列）
         const dates = [];
         const cur = new Date(from); cur.setHours(0, 0, 0, 0);
-        const today0 = new Date(today); today0.setHours(0, 0, 0, 0);
+        const today0 = new Date(todayNow()); today0.setHours(0, 0, 0, 0);
         while (cur <= today0) { dates.push(iso(cur)); cur.setDate(cur.getDate() + 1); }
         const series = mlist.map(m => ({
           name: m,
@@ -180,7 +183,7 @@ async function loadAll() {
     // 补全日序列（如果某天没数据也显示 0）
     const dateMap = new Map(byDay.map(x => [x.date, x.count]));
     const cur = new Date(from); cur.setHours(0, 0, 0, 0);
-    const today0 = new Date(today); today0.setHours(0, 0, 0, 0);
+    const today0 = new Date(todayNow()); today0.setHours(0, 0, 0, 0);
     const datesFull = [];
     while (cur <= today0) { const k = iso(cur); datesFull.push({ date: k, count: dateMap.get(k) || 0 }); cur.setDate(cur.getDate() + 1); }
 
@@ -189,7 +192,7 @@ async function loadAll() {
     const d365 = new Map(byDay365.map(x => [x.date, x.count]));
     for (const [k, v] of reviewDays365) d365.set(k, (d365.get(k) || 0) + v);
     for (const [k, v] of wordReviewDays365) d365.set(k, (d365.get(k) || 0) + v);
-    const start365 = new Date(today); start365.setHours(0, 0, 0, 0); start365.setDate(start365.getDate() - 364);
+    const start365 = new Date(todayNow()); start365.setHours(0, 0, 0, 0); start365.setDate(start365.getDate() - 364);
     const st = start365.getDay();
     start365.setDate(start365.getDate() - st);
     const ccc = [];
@@ -614,7 +617,21 @@ function renderChart(key, option, opts = {}) {
       return real || '#334155';
     });
   };
-  const patched = JSON.parse(JSON.stringify(option || {}), (k, v) => (typeof v === 'string' ? patchCSSVar(v) : v));
+  // 审计 P2-4（round36）：JSON 序列化会剥掉 option 里的所有函数——formatter/axisLabel
+  // （如热力图 x 轴月份标签）全部失效，x 轴显示原始列号、tooltip 降级。
+  // 改为递归克隆：函数原样保留，字符串才做 CSS 变量补丁；对象/数组递归，其余原值返回。
+  const patchValue = (v) => {
+    if (typeof v === 'string') return patchCSSVar(v);
+    if (typeof v === 'function') return v; // formatter 等回调原样保留
+    if (Array.isArray(v)) return v.map(patchValue);
+    if (v && typeof v === 'object') {
+      const out = {};
+      for (const k of Object.keys(v)) out[k] = patchValue(v[k]);
+      return out;
+    }
+    return v;
+  };
+  const patched = patchValue(option || {});
   h.c.setOption(patched, true);
 }
 let _ro = null;

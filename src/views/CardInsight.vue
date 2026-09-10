@@ -92,8 +92,11 @@ const ptSavedS = ref('');
 const examTs = computed(() => examDate.value ? new Date(examDate.value).getTime() : 0);
 
 // 考试日期落库（db.meta.examAt）：供复习页/调度器跨页读取（考试窗口压缩 + 紧迫度标注）
+// 审计 P1-1（round36）：补 updatedAt——合并侧（sync.js/hub.js）按「updatedAt 谁新听谁」
+// 裁决，旧写入端不记时间 → updatedAt 恒 0，任何远端 meta 都能覆盖本机刚设置的日期，
+// 考试倒计时与临考窗口调度随之失效。
 watch(examDate, async (v) => {
-  await db.meta.put({ key: 'examAt', value: v || '' });
+  await db.meta.put({ key: 'examAt', value: v || '', updatedAt: Date.now() });
 });
 
 const filtered = computed(() => {
