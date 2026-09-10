@@ -70,6 +70,27 @@ export async function countData() {
   return out;
 }
 
+// 审计 P2-5（round37）：调度配置类 meta 此前只有 goal/examAt 走手工同步通道，
+// 而 scheduler（调度器选择）/ fsrsWeights（个性化训练权重）/ fsrsInfo（训练元信息）/
+// pretestStability（前测估计的初始稳定性 S0）四项**完全不随同步走** ——
+// 换设备后新设备用默认参数排复习，与旧设备算出的 dueAt 系统性分叉（同一张卡两端到期日不同）。
+// 与 goal/examMeta 同口径打包为顶层 schedMeta，逐 key 按 updatedAt 严格 LWW + 时钟偏移合并。
+export const SCHED_META_KEYS = ['scheduler', 'fsrsWeights', 'fsrsInfo', 'pretestStability'];
+async function collectSchedMeta(disabled, since = 0) {
+  if (disabled) return null; // 单模块/科目包不带（与 goal/examMeta 一致）
+  const rows = await db.meta.bulkGet(SCHED_META_KEYS);
+  const out = {};
+  SCHED_META_KEYS.forEach((k, i) => {
+    const r = rows[i];
+    if (!r || r.value === undefined) return;
+    const ts = r.updatedAt || 0;
+    // 增量模式只带变更过的 key；since=0（全量）时放行 updatedAt 为 0 的遗留行
+    if (since > 0 && ts <= since) return;
+    out[k] = { value: r.value, updatedAt: ts };
+  });
+  return Object.keys(out).length ? out : null;
+}
+
 export async function buildBackup(subject) {
   let cards = await db.cards.toArray();
   if (subject) cards = cards.filter(c => c.subject === subject);
@@ -109,8 +130,10 @@ export async function buildBackup(subject) {
   // 换设备后倒计时失效、复习调度的「临考窗口感知」也失效。与 goal 同口径随包走。
   const examMetaRow = subject ? null : await db.meta.get('examAt');
   const examMeta = examMetaRow ? { examAt: examMetaRow.value, updatedAt: examMetaRow.updatedAt || 0 } : null;
+  // 审计 P2-5（round37）：调度配置四 key 随包走（否则换设备后调度系统性分叉）
+  const schedMeta = await collectSchedMeta(!!subject);
 
-  return { version: BACKUP_VERSION, app: 'sxybrick', scope: backupScope(), exportedAt: Date.now(), tombstones, images, streakMeta, examMeta, ...parts };
+  return { version: BACKUP_VERSION, app: 'sxybrick', scope: backupScope(), exportedAt: Date.now(), tombstones, images, streakMeta, examMeta, schedMeta, ...parts };
 }
 
 // P3-3 增量同步：只导出 updatedAt > lastSyncAt 的行（卡片按 max(updatedAt, reviewedAt, wrongReasonAt) 判定）
@@ -162,10 +185,12 @@ export async function buildIncrementalBackup(lastSyncAt = 0, opts = {}) {
   // 审计（round35 小问题2）：考试日期随增量包走
   const examMetaRow = await db.meta.get('examAt');
   const examMeta = examMetaRow ? { examAt: examMetaRow.value, updatedAt: examMetaRow.updatedAt || 0 } : null;
+  // 审计 P2-5（round37）：调度配置四 key（增量：只带 updatedAt > since 的）
+  const schedMeta = await collectSchedMeta(false, since);
 
   return {
     version: BACKUP_VERSION, app: 'sxybrick', scope: backupScope(), exportedAt: Date.now(),
-    incremental: true, since, tombstones, images, streakMeta, examMeta, ...parts,
+    incremental: true, since, tombstones, images, streakMeta, examMeta, schedMeta, ...parts,
   };
 }
 
@@ -185,7 +210,14 @@ export async function saveSnapshot(label, kind = 'manual') {
     sizeBytes += JSON.stringify(arr).length;
   }
   rows.tombstones = await db.tombstones.toArray();
-  rows.goal = (await db.meta.get('goal'))?.value ?? null;
+  // 审计 P3（round37）：快照此前只存 goal 的「值」，回滚却用 snap.createdAt 当
+  // updatedAt（时间戳被污染为快照时刻 → 回滚后恒压过对端真实修改）；examAt 与
+  // 调度配置四 key 根本不进快照，回滚后直接丢失。改存「整行（值 + 原时间戳）」并补足字段。
+  const goalRow = await db.meta.get('goal');
+  rows.goal = goalRow ? { value: goalRow.value, updatedAt: goalRow.updatedAt || 0 } : null;
+  const examRow = await db.meta.get('examAt');
+  rows.examAt = examRow ? { value: examRow.value, updatedAt: examRow.updatedAt || 0 } : null;
+  rows.schedMeta = await collectSchedMeta(false);
   const snap = { id: uid(), label: String(label || '').slice(0, 80), kind, createdAt: Date.now(), rows, sizeBytes };
   await db.snapshots.put(snap);
   // 超出上限：按 createdAt 删最旧的
@@ -253,9 +285,34 @@ export async function restoreSnapshot(id) {
       await db.tombstones.clear();
       if (snap.rows.tombstones?.length) await db.tombstones.bulkPut(snap.rows.tombstones);
     }
-    // 打卡目标回滚
-    if (snap.rows?.goal != null) {
-      await db.meta.put({ key: 'goal', value: snap.rows.goal, updatedAt: snap.createdAt });
+    // 打卡目标回滚（审计 P3/round37：兼容旧快照的 number 形态；新快照带原始 updatedAt，
+    // 不再用 snap.createdAt 污染时间戳——否则回滚后的值恒为「最新」而压过对端真实修改）
+    const goalSnap = snap.rows?.goal;
+    if (goalSnap != null) {
+      const isRow = goalSnap && typeof goalSnap === 'object';
+      await db.meta.put({
+        key: 'goal',
+        value: isRow ? goalSnap.value : goalSnap,
+        updatedAt: isRow ? (goalSnap.updatedAt || snap.createdAt) : snap.createdAt,
+      });
+    }
+    // 审计 P3（round37）：考试日期回滚（此前快照不含该字段 → 回滚后倒计时丢失）
+    const examSnap = snap.rows?.examAt;
+    if (examSnap != null) {
+      const isRow = examSnap && typeof examSnap === 'object';
+      await db.meta.put({
+        key: 'examAt',
+        value: isRow ? examSnap.value : examSnap,
+        updatedAt: isRow ? (examSnap.updatedAt || snap.createdAt) : snap.createdAt,
+      });
+    }
+    // 审计 P3（round37）：调度配置四 key 回滚（按快照原时间戳写回）
+    if (snap.rows?.schedMeta && typeof snap.rows.schedMeta === 'object') {
+      for (const k of SCHED_META_KEYS) {
+        const e = snap.rows.schedMeta[k];
+        if (!e || e.value === undefined) continue;
+        await db.meta.put({ key: k, value: e.value, updatedAt: e.updatedAt || snap.createdAt });
+      }
     }
   });
   return { restoredAt: snap.createdAt, label: snap.label, restored: restore, skipped: skip };
@@ -923,11 +980,21 @@ export async function importBackup(backup, opts = {}) {
   }
   fireProgress(opts, PHASE.CASCADE, 1);
 
+  // round37：meta 属「手工合并通道」，此前没有接时钟偏移（只有 mergeRows 接了
+  // opts.clockSkew）。统一在此取值，供下方 goal/examMeta 比较时换算到本机帧。
+  const skew = Number.isFinite(opts.clockSkew) ? opts.clockSkew : 0;
+
   // 5) 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
+  // 审计 P1（round37）：① 平局改严格 > + 字典序兜底（与 examMeta/round36、hub.js 同口径，
+  //   旧 >= 平局取 incoming → 两端同 updatedAt 不同值时随同步顺序来回翻转）；
+  // ② 补 clockSkew 换算——incoming 时间戳换算到本机帧再比（round30 P2-3 在 meta 分支的
+  //   复现：快时钟对端的 goal 原本永远压过本机）。
   if (backup.streakMeta && typeof backup.streakMeta.goal === 'number') {
     const local = await db.meta.get('goal');
-    if (!local || (backup.streakMeta.updatedAt || 0) >= (local.updatedAt || 0)) {
-      await db.meta.put({ key: 'goal', value: backup.streakMeta.goal, updatedAt: backup.streakMeta.updatedAt || Date.now() });
+    const incTs = (backup.streakMeta.updatedAt || 0) - skew;
+    const locTs = local?.updatedAt || 0;
+    if (!local || incTs > locTs || (incTs === locTs && String(backup.streakMeta.goal) > String(local.value ?? ''))) {
+      await db.meta.put({ key: 'goal', value: backup.streakMeta.goal, updatedAt: incTs || Date.now() });
     }
   }
   // 审计（round35 小问题2）：考试日期 examAt 导入——updatedAt 谁新听谁，与 goal 同口径。
@@ -935,12 +1002,27 @@ export async function importBackup(backup, opts = {}) {
   // 两端同 updatedAt 不同值时随同步顺序来回翻转（与 round23 确定性收敛口径不一致）。
   if (backup.examMeta && backup.examMeta.examAt != null) {
     const local = await db.meta.get('examAt');
-    const incTs = backup.examMeta.updatedAt || 0;
+    // 审计 P2-3（round37）：补 clockSkew 换算（与 goal 同款、与 hub.js 同口径）
+    const incTs = (backup.examMeta.updatedAt || 0) - skew;
     const locTs = local?.updatedAt || 0;
     const incomingWins = !local || incTs > locTs
       || (incTs === locTs && String(backup.examMeta.examAt) > String(local.value ?? ''));
     if (incomingWins) {
       await db.meta.put({ key: 'examAt', value: backup.examMeta.examAt, updatedAt: incTs || Date.now() });
+    }
+  }
+  // 审计 P2-5（round37）：调度配置四 key 导入——与 goal/examMeta 同口径
+  // （严格 LWW + 时钟偏移换算；值可能为对象，平局用 JSON 字典序确定性收敛）。
+  if (backup.schedMeta && typeof backup.schedMeta === 'object') {
+    for (const k of SCHED_META_KEYS) {
+      const inc = backup.schedMeta[k];
+      if (!inc || inc.value === undefined) continue;
+      const cur = await db.meta.get(k);
+      const incTs = (inc.updatedAt || 0) - skew;
+      const curTs = cur?.updatedAt || 0;
+      const incWins = !cur || incTs > curTs
+        || (incTs === curTs && JSON.stringify(inc.value) > JSON.stringify(cur.value ?? null));
+      if (incWins) await db.meta.put({ key: k, value: inc.value, updatedAt: incTs || Date.now() });
     }
   }
   }); // end db.transaction（P0：整段导入原子化）

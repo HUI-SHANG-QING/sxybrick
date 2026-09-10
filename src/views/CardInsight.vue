@@ -96,6 +96,11 @@ const examTs = computed(() => examDate.value ? new Date(examDate.value).getTime(
 // 裁决，旧写入端不记时间 → updatedAt 恒 0，任何远端 meta 都能覆盖本机刚设置的日期，
 // 考试倒计时与临考窗口调度随之失效。
 watch(examDate, async (v) => {
+  // 审计 P1（round37）：load() 回填已存日期会触发本 watch → 值没变却 bump 了
+  // updatedAt（「值旧章新」），多设备上会击穿 LWW 裁决、反向覆盖远端的真实修改。
+  // 回写前先比对当前库里的值：一致则视为「仅回填」，不写库、不刷新时间戳。
+  const cur = await db.meta.get('examAt');
+  if (cur && String(cur.value ?? '') === String(v || '')) return;
   await db.meta.put({ key: 'examAt', value: v || '', updatedAt: Date.now() });
 });
 

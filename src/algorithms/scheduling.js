@@ -92,7 +92,13 @@ export function prioritizeForExam(cards, examAt, opts = {}) {
     const e = examWindowUrgency(c, examAt, opts);
     return { c, score: e.urgency };
   });
-  scored.sort((a, b) => b.score - a.score);
+  // 审计 P3（round37）：考试窗口压缩会把一批卡的 dueAt 全部拉到 examAt-缓冲（同一毫秒）
+  // → urgency 分数完全相同，排序退化为「数组原序」（实际是 FIFO），用户看不到优先差异。
+  // 分数相同时用二级键给出确定性、且有意义（且与"更该先复习"一致）的顺序：
+  // ① 失败次数多者优先；② id 字典序（跨设备稳定，避免两端顺序漂移）。
+  scored.sort((a, b) => b.score - a.score
+    || (b.c.failCount || 0) - (a.c.failCount || 0)
+    || String(a.c.id).localeCompare(String(b.c.id)));
   return scored.map(({ c, score }) => ({ ...c, _examUrgency: score }));
 }
 

@@ -111,7 +111,13 @@ const chartHolders = {
 };
 const heatmapCells = ref([]); // GitHub 式 365 天格子（CSS 绘制，ECharts 可选冗余）
 
+// 审计 P1（round37）：loadAll 并发竞态守卫。rangeDays / locale 两个 watch 都会触发
+// loadAll，连点或切语言时两次请求赛跑——慢的那个后到并覆盖先到的结果，
+// 出现「标题写 7 天、图表是 365 天」且无法恢复。用自增序号让过期请求自行退出。
+let _loadSeq = 0;
+
 async function loadAll() {
+  const my = ++_loadSeq;
   busy.value = true;
   try {
     await flushTelemetry();
@@ -177,6 +183,9 @@ async function loadAll() {
         return map;
       })(),
     ]);
+    // 审计 P1（round37）：查询完成即判过期——期间若已有更新的 loadAll 启动，
+    // 放弃本次（不写任何 ref、不 renderChart），杜绝「慢的旧请求后渲染覆盖新结果」。
+    if (my !== _loadSeq) return;
 
     const totalCount = rawAll.length;
 
@@ -509,12 +518,15 @@ async function loadAll() {
       series: rawMix.series,
     });
 
+    // 埋点前再判一次：期间若已有更新的 loadAll 启动，本次结果整体作废（不写 ref、不渲染）
+    if (my !== _loadSeq) return;
     recordUserOp('dashboard_view', { rangeDays: rangeDays.value, totalOps: totalCount }, { category: String(rangeDays.value) });
   } catch (e) {
     toast(T('loadFail', { msg: e.message }), 'error');
     console.error(e);
   } finally {
-    busy.value = false;
+    // 过期请求不得解除 busy —— 否则新请求仍在跑时按钮/chip 提前可用
+    if (my === _loadSeq) busy.value = false;
   }
 }
 
@@ -624,6 +636,9 @@ function renderChart(key, option, opts = {}) {
     if (typeof v === 'string') return patchCSSVar(v);
     if (typeof v === 'function') return v; // formatter 等回调原样保留
     if (Array.isArray(v)) return v.map(patchValue);
+    // 审计 P3（round37）：Date/RegExp/Map/Set 等「非普通对象」落进下面的 plain-object
+    // 分支会被克隆成 {} —— 图表配置里一旦出现时间轴/阈值对象就静默画错。原值返回。
+    if (v instanceof Date || v instanceof RegExp || v instanceof Map || v instanceof Set) return v;
     if (v && typeof v === 'object') {
       const out = {};
       for (const k of Object.keys(v)) out[k] = patchValue(v[k]);
@@ -696,7 +711,7 @@ const countsBanner = computed(() => {
       <div class="udb-head-right">
         <div class="chip-row">
           <span class="field-label" style="margin:0">{{ T('rangeLabel') }}</span>
-          <button v-for="r in [7,14,30,90,365]" :key="r" class="chip" :class="{ on: rangeDays === r }" @click="rangeDays = r">{{ T('rangeDays', { n: r }) }}</button>
+          <button v-for="r in [7,14,30,90,365]" :key="r" class="chip" :class="{ on: rangeDays === r }" :disabled="busy" @click="rangeDays = r">{{ T('rangeDays', { n: r }) }}</button>
         </div>
         <button class="btn small" :disabled="busy" @click="loadAll">{{ T('refresh') }}</button>
       </div>

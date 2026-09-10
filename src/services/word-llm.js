@@ -208,6 +208,14 @@ async function callChatCompletion({ base, apiKey, model, prompt, system, source 
     const isTimeout = e?.name === 'TimeoutError';
     const isNetErr = !isExternalCancel && (isTimeout || /fetch|network|ECONNREFUSED/i.test(e?.message || ''));
     if (attempt < MAX_ATTEMPTS && (is5xx || isNetErr)) {
+      // 审计 P3（round37）：这次尝试已经真实发出并消耗了 token（5xx/超时也可能已计费），
+      // 但原实现只在「最终失败/成功」时记一笔 → 重试场景下用量面板系统性低估。
+      // 重试前先补记本次失败。
+      await recordUsage({
+        source, model,
+        promptTokens: estimateTokens(prompt), completionTokens: estimateTokens(content),
+        durationMs: Date.now() - t0, ok: false, est: 1,
+      });
       await new Promise(r => setTimeout(r, 1000)); // 间隔1s
       continue; // 重试
     }

@@ -498,7 +498,10 @@ export async function getParkedWordCardIds() {
   const anyOf = new Set();    // cardId 是否属于任意组
   for (const l of links) {
     anyOf.add(l.cardId);
-    if (statusOf.get(l.groupId) === 'active') activeOf.add(l.cardId);
+    // 审计 P3（round37）：旧版本创建的组没有 status 字段（undefined）→ `=== 'active'`
+    // 判定为假 → 整组卡被误判「已停车」而消失。语义上「停车」= 归档，改反向判定：
+    // 只要不是显式 archived 就算在用（与 createWordGroup 的 active/archived 二值对齐）。
+    if (statusOf.get(l.groupId) !== 'archived') activeOf.add(l.cardId);
   }
   const parked = new Set();
   for (const id of anyOf) if (!activeOf.has(id)) parked.add(id);
@@ -523,12 +526,22 @@ export async function dueWordCards(opts = {}) {
   let rows = due;
   const repaired = await db.meta.get('missingDueAtRepaired');
   if (!repaired) {
-    const missing = await db.wordCards.filter(r => r.dueAt == null).toArray();
-    if (missing.length) {
-      await db.wordCards.bulkPut(missing.map(r => ({ ...r, dueAt: 0, updatedAt: t })));
-    }
-    await db.meta.put({ key: 'missingDueAtRepaired', value: true, updatedAt: t });
-    if (missing.length) rows = rows.concat(missing.map(r => ({ ...r, dueAt: 0 })));
+    // 审计 P1-1（round37）：原实现是「整行快照 → bulkPut 整行覆盖」——踩 B11 红线。
+    // 快照与写回之间的窗口期内，并发的 reviewWord（SRS 提交）会被旧快照整行回滚：
+    // 复习进度丢失，且 dueAt 被重置为 0 → 该词立刻重新到期。
+    // 改为**差量 patch**（db.wordCards.bulkUpdate，与 repo.js:123 同款）：
+    // 只写 dueAt/updatedAt 两个字段，其余字段一律不碰；补扫与 meta 哨兵包进同一
+    // rw 事务，保证「补了但哨兵没写」不会留下重复补扫，也不会半途失败留残。
+    await db.transaction('rw', db.wordCards, db.meta, async () => {
+      const missing = await db.wordCards.filter(r => r.dueAt == null).toArray();
+      if (missing.length) {
+        await db.wordCards.bulkUpdate(
+          missing.map(r => ({ key: r.id, changes: { dueAt: 0, updatedAt: t } })),
+        );
+      }
+      await db.meta.put({ key: 'missingDueAtRepaired', value: true, updatedAt: t });
+      if (missing.length) rows = rows.concat(missing.map(r => ({ ...r, dueAt: 0 })));
+    });
   }
   rows = rows.filter(r =>
     SCHEDULABLE_KINDS.includes(r.kind) &&

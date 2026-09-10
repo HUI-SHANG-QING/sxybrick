@@ -344,6 +344,10 @@ export async function restoreFromTrash(t) {
   // deleteNote 事务清洗了卡片侧的 linkedNoteIds，恢复时必须加回。
   const noteLinkedCardIds = t.kind === 'note' && Array.isArray(data.linkedCardIds) ? data.linkedCardIds : null;
   const text = typeof data._text === 'string' ? data._text : null;
+  // 审计 P3（round37）：_textLen 在下方的清理里被 delete，恢复写 docTexts 时再读
+  // `data._textLen ?? text.length` 恒走 fallback → 原长度被静默改写（死代码）。
+  // 删除前先取出，恢复时按快照原值还原。
+  const savedTextLen = Number.isFinite(data._textLen) ? data._textLen : null;
   const edges = data._edges || null;
   // 审计（round35 小问题1）：每日计划快照含 _tasks，恢复时还原到 dailyTasks 表
   const dailyTasks = t.kind === 'dailyPlan' ? (data._tasks || null) : null;
@@ -401,7 +405,7 @@ export async function restoreFromTrash(t) {
     }
     if (text) {
       await db.docTexts.put({
-        id: t.id, text, textLen: data._textLen ?? text.length, updatedAt: Date.now(),
+        id: t.id, text, textLen: savedTextLen ?? text.length, updatedAt: Date.now(),
       });
     }
     if (edges && edges.length) {
@@ -1228,7 +1232,10 @@ export async function createDailyPlan(payload) {
     id: uid(),
     planId,
     date,
-    ...task,
+    // 审计 P3（round37）：调用方传的是 preview.value.tasks（ref 深响应式 → 元素/嵌套
+    // 字段可能是 Proxy）。对象字面量只做浅展开，嵌套子对象仍是 Proxy，落 IndexedDB 时
+    // structuredClone 会抛 DataCloneError。JSON 往返剥壳（任务为纯 JSON，无 Blob/Date）。
+    ...JSON.parse(JSON.stringify(task || {})),
     status: 'pending',
     completedAt: null,
     completionNote: '',

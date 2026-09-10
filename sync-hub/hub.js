@@ -158,16 +158,32 @@ async function readScopeFileWithRetry(f) {
 async function loadScopedData(scope) {
   const f = scopedFile(scope);
   if (!existsSync(f)) return emptyData();
+  // 审计 P1（round37）：必须区分两类失败——
+  //   ① IO 错误（readFileSync 抛错：被杀软/备份软件持句柄、EIO、权限瞬断等）：
+  //      数据文件内容是完好的，此时**绝不能**改名丢弃——中枢数据集会被清零，
+  //      而客户端增量水位已推进，未变更行永不重推 → 数据永久丢失。应向上抛，
+  //      由 GET/PUT 的 try/catch 返回 5xx，客户端下次同步自愈。
+  //   ② 语法损坏（读到内容但 JSON.parse 失败）：才走二次确认 + recoverCorrupt。
+  let text;
   try {
-    const raw = JSON.parse(await readScopeFileWithRetry(f));
+    text = await readScopeFileWithRetry(f);
+  } catch (e) {
+    throw new Error(`读取中枢数据文件失败（IO，未改动文件）：${e?.message || e}`);
+  }
+  try {
+    const raw = JSON.parse(text);
     return { ...emptyData(), ...raw };
   } catch {
-    // 二次确认：延迟 200ms 重读一次——若第一次失败是 PUT rename 窗口/JSON 半写
-    // （atomicWriteAsync 写 tmp 再 rename，f 本身不会被半写，但保险起见仍确认），
-    // 重读成功则按正常数据处理，绝不误伤完好文件。
+    // 二次确认：延迟 200ms 重读一次，仍解析失败才判损坏。
     await sleep(200);
+    let text2;
     try {
-      const raw = JSON.parse(await readScopeFileWithRetry(f));
+      text2 = await readScopeFileWithRetry(f);
+    } catch (e) {
+      throw new Error(`读取中枢数据文件失败（IO，未改动文件）：${e?.message || e}`);
+    }
+    try {
+      const raw = JSON.parse(text2);
       return { ...emptyData(), ...raw };
     } catch {
       recoverCorrupt(f);
@@ -341,16 +357,27 @@ function merge(base, incoming, clockSkew = 0) {
   if (ttlDays > 0) { const gc = gcTombstones(out, ttlDays); out.tombstones = gc.kept; gcTombIds = gc.gcIds; }
 
   // 打卡元数据（每日目标 goal）：updatedAt 谁新听谁
+  // 审计 P1（round37）：① 平局改严格 > + 字典序兜底，与 examMeta/round36 口径对齐
+  //   （旧 >= 平局取 incoming，两端同 updatedAt 不同值时随同步顺序来回翻转）；
+  // ② 补 clockSkew 换算——incoming 时间戳先换算到中枢帧再比，否则快时钟客户端
+  //   的 goal 永远压过慢时钟端（round30 P2-3 要防的场景在 meta 分支复发）。
   let streakMeta = base.streakMeta || null;
-  if (incoming.streakMeta && (!streakMeta || (incoming.streakMeta.updatedAt || 0) >= (streakMeta.updatedAt || 0))) {
-    streakMeta = incoming.streakMeta;
+  if (incoming.streakMeta) {
+    const incTs = (incoming.streakMeta.updatedAt || 0) - clockSkew;
+    const baseTs = streakMeta?.updatedAt || 0;
+    if (!streakMeta || incTs > baseTs
+      || (incTs === baseTs && String(incoming.streakMeta.goal) > String(streakMeta.goal ?? ''))) {
+      streakMeta = incoming.streakMeta;
+    }
   }
   out.streakMeta = streakMeta;
   // 审计（round35 小问题2）：考试日期 examAt 与 streakMeta 同口径合并——updatedAt 谁新听谁。
   // 审计 P1-1（round36）：平局改严格 > + 字典序兜底（同 sync.js，防两端同时间戳来回翻转）。
   let examMeta = base.examMeta || null;
   if (incoming.examMeta) {
-    const incTs = incoming.examMeta.updatedAt || 0;
+    // 审计 P2-3（round37）：补 clockSkew 换算（与 streakMeta 同款），
+    // incoming 时间戳先减偏移换算到中枢帧，再与本地帧比较。
+    const incTs = (incoming.examMeta.updatedAt || 0) - clockSkew;
     const baseTs = examMeta?.updatedAt || 0;
     if (!examMeta || incTs > baseTs
       || (incTs === baseTs && String(incoming.examMeta.examAt) > String(examMeta.examAt ?? ''))) {
@@ -358,6 +385,25 @@ function merge(base, incoming, clockSkew = 0) {
     }
   }
   out.examMeta = examMeta;
+  // 审计 P2-5（round37）：调度配置四 key（scheduler/fsrsWeights/fsrsInfo/pretestStability）
+  // 与 examMeta 同款逐 key LWW + clockSkew 换算；否则换设备后调度参数分叉。
+  const SCHED_KEYS = ['scheduler', 'fsrsWeights', 'fsrsInfo', 'pretestStability'];
+  let schedMeta = base.schedMeta ? { ...base.schedMeta } : null;
+  if (incoming.schedMeta && typeof incoming.schedMeta === 'object') {
+    if (!schedMeta) schedMeta = {};
+    for (const k of SCHED_KEYS) {
+      const inc = incoming.schedMeta[k];
+      if (!inc || inc.value === undefined) continue;
+      const cur = schedMeta[k];
+      const incTs = (inc.updatedAt || 0) - clockSkew;
+      const curTs = cur?.updatedAt || 0;
+      if (!cur || incTs > curTs
+        || (incTs === curTs && JSON.stringify(inc.value) > JSON.stringify(cur.value ?? null))) {
+        schedMeta[k] = { value: inc.value, updatedAt: incTs };
+      }
+    }
+  }
+  out.schedMeta = schedMeta;
   // 审计 C2：记录最近一次设备推送，供墓碑 GC 判定「生态是否仍活跃」。
   out.lastPushAt = Math.max(base.lastPushAt || 0, incoming.exportedAt || 0, Date.now());
   // 审计 S-6：附带被 GC 掉的墓碑 id 清单——客户端据此 bulkDelete 本地残留墓碑，
@@ -618,7 +664,14 @@ const server = createServer(async (req, res) => {
     if (!auth.ok) return unauthorized(req, res, auth);
 
     if (req.method === 'GET') {
-      const data = await loadScopedData(scope); // 审计 P2-2（round36）：改异步后需 await
+      // 审计 P1（round37）：loadScopedData 遇到持久 IO 错误会向上抛（不再误判损坏改名）。
+      // 此处显式兜底为 500——客户端下次同步自愈，绝不让异常冒到进程外。
+      let data;
+      try {
+        data = await loadScopedData(scope); // 审计 P2-2（round36）：改异步后需 await
+      } catch (e) {
+        return json(req, res, 500, { error: e?.message || '中枢读取数据失败' });
+      }
       // M7：隐私 opt-in 只在客户端有效——默认不下发隐私表（隐私记录不进任何
       // 未显式声明的设备/备份）；客户端确认要同步隐私时带 ?includePrivacy=1。
       const includePrivacy = url.searchParams.get('includePrivacy') === '1';

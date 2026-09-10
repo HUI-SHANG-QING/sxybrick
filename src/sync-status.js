@@ -161,6 +161,9 @@ export async function getModuleStatus(opts = {}) {
       const TS_INDEX = {
         userOps: 't', embeddings: 'updatedAt',
         reviews: 'reviewedAt', wordReviews: 'reviewedAt', cards: 'updatedAt',
+        // 审计 P3（round37）：wordCards 未登记 → >5000 行时走 limit(5000) 采样，
+        // 一次修复（dueAt 哨兵等）批量 bump 的新时间戳可能采不到，面板误报「无变更」。
+        wordCards: 'updatedAt',
       };
       if (count > 5000 && TS_INDEX[t.table]) {
         const newest = await db[t.table].orderBy(TS_INDEX[t.table]).last();
