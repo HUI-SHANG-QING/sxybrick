@@ -239,7 +239,13 @@ async function loadAll() {
       // 故 data 用列号字符串数组，月份标签改由 axisLabel.formatter 按列索引查 buildHeatXLabels。
       xAxis: { type: 'category', data: Array.from({ length: Math.ceil(ccc.length / 7) }, (_, i) => String(i)), splitArea: { show: false }, axisLabel: { color: '#888', fontSize: 10, formatter: (v, i) => buildHeatXLabels(ccc)[i] || '' } },
       yAxis: { type: 'category', data: WEEK_SUN_AXIS.value, axisLabel: { color: '#888', fontSize: 10 }, splitArea: { show: false } },
-      visualMap: { min: 0, max: Math.max(1, maxHeat), calculable: false, orient: 'horizontal', left: 'center', bottom: 4, inRange: { color: ['#ebedf0','#c6f0d0','#5cd66a','#2cbe4e','#006d32'] }, textStyle: { color: '#888' } },
+      // 关键修复（round38）：series.data 是 4 元组 [x, y, count, date]，而 visualMap
+      // **默认取「最后一个维度」**当数值 —— 于是它拿到的是 date 字符串，无法映射到
+      // [min,max] 色带，所有格子都被当成无值 → 整张图全是 0 值浅灰（数据一个都不上色，
+      // 用户看到的就是「空的」）。heatmap 的维度语义是 0=x / 1=y / 2=value，
+      // 必须显式声明 dimension: 2 才能取到 count。
+      // （168h 热力图的 data 是 3 元组、value 在末维，故不受影响 —— 这也是它一直正常的原因。）
+      visualMap: { dimension: 2, min: 0, max: Math.max(1, maxHeat), calculable: false, orient: 'horizontal', left: 'center', bottom: 4, inRange: { color: ['#ebedf0','#c6f0d0','#5cd66a','#2cbe4e','#006d32'] }, textStyle: { color: '#888' } },
       series: [{
         type: 'heatmap', data: buildHeatSeries(ccc), label: { show: false },
         // round27 修：描边从 var(--panel)（浅主题下≈白，与底色融成一片）改为可见浅灰 #dfe3e8，
@@ -249,7 +255,9 @@ async function loadAll() {
       }],
       title: { text: T('chart.heatmap'), left: 'center', top: 4, textStyle: { fontSize: 13, color: 'var(--ink)', fontWeight: 600 } },
       // 全 0 时叠加居中提示，避免用户在白屏上怀疑图表没渲染
-      ...(maxHeat <= 1 && ccc.every(c => !c.count) ? {
+      // round38 修：原条件还带 `maxHeat <= 1`，导致「最多的那天只有 1 次活动」时也误报
+      // 「尚无 365 天活动记录」——只要有一格非 0 就不该说没有记录。
+      ...(ccc.every(c => !c.count) ? {
         graphic: [{ type: 'text', left: 'center', top: '52%', style: { text: T('chart.heatmapEmpty', '尚无 365 天活动记录——复习/编辑卡片后会自动点亮格子'), fontSize: 12, fill: '#888' } }],
       } : {}),
     }, { allowEmpty: true }); // 全 0 也照 GitHub 习惯铺满格子，不降级成「暂无数据」骨架
