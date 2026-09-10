@@ -237,7 +237,12 @@ export function corsHeaders(origin, ctx = {}) {
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET,PUT,OPTIONS,HEAD',
-    'Access-Control-Allow-Headers': 'Content-Type, x-sync-token, x-sync-challenge, x-sync-sig',
+    // ⚠️ 必须与 hub.js 的 OPTIONS 预检白名单保持一致：前端会带 4 个自定义头
+    // （x-sync-token / x-sync-challenge / x-sync-sig / x-client-time）。
+    // x-client-time 是 round30 P2-3 加的时钟偏移补偿头——此前只补了 hub.js 的预检分支、
+    // 漏了这份共享白名单，属"同型修复留尾巴"；浏览器预检只认这两者中真正生效的那份，
+    // 任一遗漏都会让跨域 PUT 直接发不出去（本机同源不触发预检，故不易发现）。
+    'Access-Control-Allow-Headers': 'Content-Type, x-sync-token, x-sync-challenge, x-sync-sig, x-client-time',
     'Access-Control-Max-Age': '3600',
     Vary: 'Origin',
   };

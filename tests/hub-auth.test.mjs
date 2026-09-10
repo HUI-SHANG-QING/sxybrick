@@ -5,7 +5,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac, randomBytes } from 'node:crypto';
-import { mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -368,4 +368,24 @@ test('E2E: 静态资源目录穿越被拦截', async () => {
       assert.ok(!text2.includes('"devDependencies"'), '编码绕过同样不得泄露');
     }
   });
+});
+
+// round39：CORS 白名单一致性（防"同型修复留尾巴"）
+// 前端会带 4 个自定义头（x-sync-token / x-sync-challenge / x-sync-sig / x-client-time），
+// 浏览器预检要求它们**全部**出现在 Allow-Headers 里，任一缺失 → 真正的 PUT 发不出去。
+// 历史事故：x-client-time 只补了 hub.js 的预检分支、漏了 auth-core.corsHeaders
+// （本机同源不触发预检，所以一直没发现，跨域三端全挂）。本测试同时锁住两处。
+test('CORS 白名单：覆盖前端全部自定义头，且 hub.js 与 auth-core 两处完全一致', () => {
+  const FRONT_HEADERS = ['content-type', 'x-sync-token', 'x-sync-challenge', 'x-sync-sig', 'x-client-time'];
+  const core = corsHeaders('http://localhost:5173', { host: '192.168.1.5:18080' })['Access-Control-Allow-Headers'];
+  assert.ok(core, 'corsHeaders 应对允许的 Origin 返回白名单');
+  const fromCore = core.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  for (const h of FRONT_HEADERS) {
+    assert.ok(fromCore.includes(h), `corsHeaders 白名单缺少前端发送的头：${h}`);
+  }
+  const hubSrc = readFileSync(HUB_JS, 'utf8');
+  const m = hubSrc.match(/'Access-Control-Allow-Headers':\s*'([^']+)'/);
+  assert.ok(m, 'hub.js 应存在 Access-Control-Allow-Headers 白名单');
+  const fromHub = m[1].split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  assert.deepEqual([...fromCore].sort(), [...fromHub].sort(), 'hub.js 预检白名单与 auth-core.corsHeaders 必须完全一致');
 });
