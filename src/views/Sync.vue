@@ -358,6 +358,26 @@ function saveHub() {
   toast(t('views.sync.hubSaved'), 'success');
 }
 
+// round39：HTTPS 页面无法直接请求 HTTP 中枢（混合内容 + 本地网络访问权限 + CORS 三层都会拦），
+// 但**顶层导航不受混合内容限制** —— 直接在新标签打开中枢自托管页面（同为 HTTP）。
+// 那个页面里中枢地址默认就是它自己的源（同源），只需要填一次同步密码，同步即可稳定成功。
+function openHubPage() {
+  const url = String(hubUrl.value || '').trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(url)) { toast(t('views.sync.hubAddrNeeded'), 'error'); return; }
+  window.open(url, '_blank', 'noopener');
+}
+
+async function copyHubAddr() {
+  const url = String(hubUrl.value || '').trim().replace(/\/+$/, '');
+  if (!/^https?:\/\//i.test(url)) { toast(t('views.sync.hubAddrNeeded'), 'error'); return; }
+  try {
+    await navigator.clipboard.writeText(url);
+    toast(t('views.sync.hubCopied', undefined, { url }), 'success');
+  } catch {
+    toast(t('views.sync.hubCopyFail'), 'error');
+  }
+}
+
 // 常见错误原因诊断（Fail to fetch / CORS / 混合内容）
 function diagnoseFetchError(msg, url) {
   const text = String(msg || '').toLowerCase();
@@ -853,9 +873,19 @@ async function refreshStatus() { await loadModuleStatus(); }
 
       <div v-if="isOnGhPages" class="hub-banner hub-warn">
         {{ t('views.sync.ghPagesWarn') }}
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn small" @click="openHubPage">{{ t('views.sync.hubOpenBtn') }}</button>
+          <button class="btn small" @click="copyHubAddr">{{ t('views.sync.hubCopyBtn') }}</button>
+        </div>
+        <div class="hint" style="margin-top:6px;font-size:12px">{{ t('views.sync.hubEnterPwdHint') }}</div>
       </div>
       <div v-else-if="isHttps && hubUrl && /^http:\/\//i.test(hubUrl)" class="hub-banner hub-warn">
         {{ t('views.sync.httpsWarn') }}
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn small" @click="openHubPage">{{ t('views.sync.hubOpenBtn') }}</button>
+          <button class="btn small" @click="copyHubAddr">{{ t('views.sync.hubCopyBtn') }}</button>
+        </div>
+        <div class="hint" style="margin-top:6px;font-size:12px">{{ t('views.sync.hubEnterPwdHint') }}</div>
       </div>
 
       <div class="field-label" style="margin-top:0">{{ t('views.sync.hubAddrLabel') }}</div>
