@@ -285,8 +285,6 @@ export async function deleteWordCard(id) {
   if (orphanImages.length) {
     await db.tombstones.bulkPut(orphanImages.map(id => ({ id, kind: 'image', deletedAt: now() })));
     await db.images.bulkDelete(orphanImages);
-    // round34 M5：同步剔除 imageRefs 反向索引里的悬空引用行，保持索引与主表一致。
-    await db.imageRefs.where('imageId').anyOf(orphanImages).delete();
   }
   return true;
 }

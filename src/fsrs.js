@@ -55,11 +55,14 @@ export const DEFAULT_WEIGHTS = [
   0.29,  // w14 遗忘更新：e^(-w14*R) 衰减
   0.29,  // w15 hard 惩罚（<1：hard 增长量约为 good 的 29% → 间隔更短）
   2.61,  // w16 easy 加成（>1：easy 稳定度约为 good 的 2.61 倍 → 间隔更长）
-  0.20,  // w17 间隔抖动
+  0.20,  // w17 间隔抖动（仅 fuzz 使用，不进入 loss → 不参与训练，保留用户设定）
   1.00,  // w18 历史注释称「稳定度上限」——当前实现未引用该维（MAX_STABILITY=365 为硬编码常量，
-         // 见稳定性钳制处），训练仍会拟合它造成「看似已调优」的假象；作为已知惰性维度保留兼容位，
-         // 勿据注释假定它生效
+         // 见稳定性钳制处）；作为已知惰性维度保留兼容位，勿据注释假定它生效
 ];
+
+// round38 ⑤：可训练维度数 = w0..w16（17 个）。w17（抖动）与 w18（未引用）不进入任何
+// loss 计算，梯度恒 0；训练循环据此跳过它们，避免无谓计算（约省 5%）并保持其值不变。
+export const TRAINABLE_WEIGHT_COUNT = 17;
 
 export const DEFAULT_DESIRED_RETENTION = 0.9; // 目标保持率 90%
 // 稳定度上限（天）。与 nextInterval 的 365 天硬上限保持一致：
@@ -312,7 +315,12 @@ export function trainWeights(reviews, cardsById, opts = {}) {
   const PATIENCE = 4;
   for (let it = 0; it < iters; it++) {
     const grad = new Array(weights.length).fill(0);
-    for (let i = 0; i < weights.length; i++) {
+    // round38 ⑤：只对「真正被公式引用」的维度求梯度。索引 17（w17 间隔抖动）与
+    // 18（w18 稳定度上限，当前实现未引用）不参与任何 loss 计算 → 其梯度恒为 0，
+    // 继续计算纯粹浪费（每轮 19 维 ×2 次 lossOf → 省掉 2 维约省 ~5% 训练时间），
+    // 且 0 梯度下数值上也不会改变这两维。保留数组长度 19（其他模块按 length===19 校验）。
+    const trainable = Math.min(weights.length, TRAINABLE_WEIGHT_COUNT);
+    for (let i = 0; i < trainable; i++) {
       const up = weights.slice(); up[i] += eps;
       const dn = weights.slice(); dn[i] -= eps;
       const lu = lossOf(up).loss ?? best.loss ?? 0;
@@ -325,7 +333,8 @@ export function trainWeights(reviews, cardsById, opts = {}) {
     // 仅下界时若梯度把某维推高，stabilityAfterRecall 的指数项发散 → S 被钳死
     // MAX_STABILITY=365、nextInterval 恒返 365 天（复习计划静默崩坏）。上界 100
     // 远高于正常最优解，不干扰收敛，只防发散。
-    const next = weights.map((wi, i) => Math.min(100, Math.max(0.01, wi - rate * (grad[i] / gn))));
+    // round38 ⑤：非训练维度（grad=0）原样保留，不做 clamp 以免动到 w17 抖动/ w18。
+    const next = weights.map((wi, i) => (i < trainable ? Math.min(100, Math.max(0.01, wi - rate * (grad[i] / gn))) : wi));
     const cand = lossOf(next);
     if (cand.loss != null && (best.loss == null || cand.loss < best.loss - 1e-9)) {
       weights = next;

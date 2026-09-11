@@ -10,13 +10,18 @@ import { SYNC_TABLES, EXCLUDED_FROM_SYNC, PRIVACY_SYNC_TABLES } from '../src/syn
 const root = fileURLToPath(new URL('..', import.meta.url));
 const dbSrc = readFileSync(join(root, 'src', 'db.js'), 'utf8');
 
-// 解析所有 d.version(N).stores({ ... }) 块，提取表名
+// 解析所有 d.version(N).stores({ ... }) 块，提取表名（按版本顺序，支持 Dexie 的 `表: null` 删表语义）
 const tables = new Map(); // name -> 首次出现的 version
 for (const m of dbSrc.matchAll(/d\.version\((\d+)\)\.stores\(\{([\s\S]*?)\n\}\);/g)) {
   const ver = Number(m[1]);
   for (const line of m[2].split('\n')) {
-    const tm = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:/);
-    if (tm && !tables.has(tm[1])) tables.set(tm[1], ver);
+    const tm = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.*?),?\s*$/);
+    if (!tm) continue;
+    const name = tm[1];
+    const spec = String(tm[2] || '').trim();
+    // round38：Dexie 约定「新版本里把表置 null」= 删除该表 → 从表集合中移除
+    if (spec === 'null') { tables.delete(name); continue; }
+    if (!tables.has(name)) tables.set(name, ver);
   }
 }
 

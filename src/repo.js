@@ -17,7 +17,7 @@ import { pad2 } from './utils/format.js';
 // 审计 D7：日期 key 统一走 time.dateKey（补零 yyyy-MM-dd），与 word/streak 同源，
 // 否则 repo 本地一份 localDateStr 独立实现会在未来格式演进时跨表整日错位。
 import { dateKey as createDateKey } from './utils/time.js';
-import { CARD_CONTENT_FIELDS, kindOf } from './sync-manifest.js';
+import { CARD_CONTENT_FIELDS, kindOf, tombKindTable } from './sync-manifest.js';
 // N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
 import {
   DEFAULT_SUBJECTS,
@@ -581,10 +581,6 @@ export async function deleteCard(id) {
   if (orphanImages.length) {
     await db.tombstones.bulkPut(orphanImages.map(id => ({ id, kind: 'image', deletedAt: now() })));
     await db.images.bulkDelete(orphanImages);
-    // round34 M5：同步剔除 imageRefs 反向索引里指向这些图的悬空引用行（该索引由
-    // rebuildImageRefs 全量重建、写路径不维护 → 不删会累积孤儿引用，下次 rebuild 虽能纠正，
-    // 但常态下保持索引与主表一致更稳）。
-    await db.imageRefs.where('imageId').anyOf(orphanImages).delete();
   }
   fireHook('onCardDeleted', { id });
 }
@@ -618,15 +614,11 @@ export async function cleanupOrphanImages(ids) {
   return removed;
 }
 
-/**
- * 审计：重建 imageRefs 反向索引（db.js v32）。
- * 扫描所有含 sxy-img:// 引用的表，提取每行内引用的图片 id，写入 imageRefs 表。
- * 幂等：每次全量清空后重建，保证索引与主表一致。
- * @returns {Promise<number>} 写入的引用行总数
- */
 // round26 D3：孤儿图**纯读预检**（不删除）。配合删除路径「先写墓碑 → 后物理删」，
 // 消除「图已物理删但墓碑未写 → 删除不跨设备传播」的窗口（崩溃点落在两步骤之间时，
 // 最坏只剩本地图残留，墓碑已发出去让对端对齐删除，无坏方向）。
+// round38 ②：此前的 rebuildImageRefs / imageRefs 派生索引已删除（只写不读、且 round26 D4
+// 判定其快速路径不安全）——孤儿判定统一走本函数的六表全量扫描（正确性优先）。
 export async function findOrphanImages(ids) {
   const idSet = new Set((ids || []).filter(Boolean));
   if (!idSet.size) return [];
@@ -641,30 +633,7 @@ export async function findOrphanImages(ids) {
   return [...idSet].filter((id) => !used.has(id));
 }
 
-export async function rebuildImageRefs() {
-  const refTables = [
-    { name: 'cards', rows: await allCards() },
-    { name: 'wordCards', rows: await db.wordCards.toArray() },
-    { name: 'notes', rows: await db.notes.toArray() },
-    { name: 'docs', rows: await db.docs.toArray() },
-    { name: 'memos', rows: await db.memos.toArray() },
-    { name: 'mindmaps', rows: await db.mindmaps.toArray() },
-  ];
-  const refs = [];
-  for (const { name, rows } of refTables) {
-    for (const row of rows) {
-      const imageIds = extractImageIds(JSON.stringify(row));
-      for (const imgId of imageIds) {
-        refs.push({ id: `${imgId}:${name}:${row.id}`, imageId: imgId, refTable: name, refId: row.id });
-      }
-    }
-  }
-  await db.transaction('rw', db.imageRefs, async () => {
-    await db.imageRefs.clear();
-    if (refs.length) await db.imageRefs.bulkPut(refs);
-  });
-  return refs.length;
-}
+// round38 ②：rebuildImageRefs 已随 imageRefs 死表一并删除（见 findOrphanImages 上方说明）。
 
 /**
  * 审计 C5（跨设备孤儿复习行清扫）：删除墓碑只清除「被删行」本身，不会级联它的子表——
@@ -684,7 +653,7 @@ export async function sweepOrphanRows() {
   const wordCardIds = new Set(wordCards.map(c => c.id));
   const delReviews = reviews.filter(r => !cardIds.has(r.cardId)).map(r => r.id);
   const delWord = wordReviews.filter(r => !wordCardIds.has(r.cardId)).map(r => r.id);
-  if (delReviews.length) { invalidateFailCountCache(); await db.reviews.bulkDelete(delReviews); }
+  if (delReviews.length) { invalidateFailCountCache(); invalidateDashboardCache(); await db.reviews.bulkDelete(delReviews); }
   if (delWord.length) await db.wordReviews.bulkDelete(delWord);
   return delReviews.length + delWord.length;
 }
@@ -748,20 +717,9 @@ export async function pruneUserOps({ keepDays = 365 } = {}) {
 // 删除越多包越大、同步/导入越慢。补一个 TTL/GC：删除时间超过最大离线窗口的墓碑，
 // 且本地对应行确实已不存在（避免误删仍在等待传播的删除），定期清除。
 // 保留 30 天窗口给所有设备完成同步；超期且本地无残留行即可安全 GC。
-const TOMB_KIND_TABLE = {
-  card: 'cards', wordCard: 'wordCards', note: 'notes', image: 'images',
-  review: 'reviews', wordReview: 'wordReviews', graphEdge: 'graphEdges',
-  embedding: 'embeddings', doc: 'docs', docFile: 'docFiles', memo: 'memos',
-  mindmap: 'mindmaps', plan: 'plans', dailyPlan: 'dailyPlans', dailyTask: 'dailyTasks',
-  cardGroup: 'cardGroups', cardGroupLink: 'cardGroupLinks', cardWordLink: 'cardWordLinks',
-  wordGroup: 'wordGroups', wordGroupLink: 'wordGroupLinks', exam: 'exams',
-  analysisSession: 'analysisSessions', analysisMessage: 'analysisMessages',
-  userOp: 'userOps', pomoSession: 'pomoSessions', weeklyReport: 'weeklyReports',
-  achievement: 'achievements', syllabusMeaning: 'syllabusMeanings',
-  // v33（round38）：新增同步表的墓碑 kind 映射（供 pruneTombstones GC 查本地残留行）
-  notification: 'notifications', error: 'errors', aiUsage: 'aiUsage',
-  wordExportHistory: 'wordExportHistory', wordStudyLog: 'wordStudyLog',
-};
+// round38 ④：墓碑 kind → 表名映射改为从同步清单自动派生（tombKindTable），
+// 杜绝手写清单漂移导致某些 kind（如 groupLink/pomo/memory/privacy）的墓碑永不 GC。
+const TOMB_KIND_TABLE = tombKindTable();
 export async function pruneTombstones({ maxAgeDays = 30, maxPerRun = 5000 } = {}) {
   const cutoff = Date.now() - maxAgeDays * 86400000;
   const all = await db.tombstones.toArray();
@@ -1011,6 +969,7 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
     // 卡片与复习记录同事务双写：任何一步失败整体回滚，不留半残状态
     await db.cards.update(cardId, cardUpdate);
     invalidateFailCountCache();
+    invalidateDashboardCache();
     await db.reviews.put({
       id: reviewId, cardId, reviewedAt: nowTs, rating,
       predR,
@@ -1031,6 +990,7 @@ export async function attachSelfExplanation(reviewId, text) {
   if (!r) return null;
   const selfExplanation = String(text || '').trim().slice(0, 500);
   invalidateFailCountCache();
+  invalidateDashboardCache();
   await db.reviews.put({ ...r, selfExplanation, selfExplainAt: Date.now() });
   return true;
 }
@@ -1126,6 +1086,14 @@ async function dashboardSnapshot() {
   }
   try { return await _dashLoading; } finally { _dashLoading = null; }
 }
+
+/**
+ * round38 ③：显式失效首页统计快照（_dashSnap）。
+ * 说明：缓存 key 已含 count + 最新 updatedAt/reviewedAt + DB 模式，任何常规增删改都会
+ * 自动改变 key（天然无陈旧窗口）；此函数提供**显式入口**，供未来「不改变 count 与最大
+ * 时间戳」的写路径兜底，避免那种场景下首页读到陈旧统计。
+ */
+export function invalidateDashboardCache() { _dashSnap = null; _dashLoading = null; }
 
 // round29：全局「答错次数」映射（cardId -> rating===0 的次数），带缓存。
 // 背景：failCount 不是卡片持久字段，而是 reviews 流水的聚合值（见 repo-core.rankWeakCards）。
@@ -1598,7 +1566,7 @@ export async function deleteNote(id) {
     }
   });
   // round34 M6：笔记正文可能经 [[sxy-img://id]] 引用图片，删除笔记后若这些图不再被任何
-  // 其它笔记/卡/资料引用，应作为孤儿清理并写墓碑 + 清反向索引（否则残留图随同步扩散，
+  // 其它笔记/卡/资料引用，应作为孤儿清理并写墓碑（否则残留图随同步扩散，
   // 与 deleteCard / deleteWordCard 的孤儿图口径对齐）。
   // 注意：上面的事务已删除 note 行，故 findOrphanImages 不会再把它计入「在用」。
   const noteImgIds = extractImageIds(JSON.stringify(old || {}));
@@ -1607,7 +1575,6 @@ export async function deleteNote(id) {
     if (orphanImages.length) {
       await db.tombstones.bulkPut(orphanImages.map(id => ({ id, kind: 'image', deletedAt: now() })));
       await db.images.bulkDelete(orphanImages);
-      await db.imageRefs.where('imageId').anyOf(orphanImages).delete();
     }
   }
 }
@@ -1747,6 +1714,8 @@ export async function createDoc(payload) {
     tags: (Array.isArray(payload?.tags) ? payload.tags : []).map(x => String(x).trim().slice(0, 20)).filter(Boolean).slice(0, 16),
     source: String(payload?.source || '').trim().slice(0, 60),
     createdAt: t, updatedAt: t,
+    // round38：字段级时间戳——跨设备并发改不同字段不再整行覆盖丢一端
+    fieldTs: { title: t, content: t, type: t, tags: t, source: t },
   };
   await db.docs.put(d);
   return d;
@@ -1755,7 +1724,12 @@ export async function updateDoc(id, patch) {
   return db.transaction('rw', db.docs, async () => {
     const old = await db.docs.get(id);
     if (!old) throw new Error('文档不存在');
-    const d = plain({ ...old, ...(patch || {}), updatedAt: now() });
+    const t = now();
+    const d = plain({ ...old, ...(patch || {}), updatedAt: t });
+    // round38：只 bump 本次真正变化字段的 fieldTs（合并侧 mergeByFieldTs 据此逐字段取新）
+    const fts = { ...(old.fieldTs || {}) };
+    for (const k of ['title', 'content', 'type', 'tags', 'source']) if (d[k] !== old[k]) fts[k] = t;
+    d.fieldTs = fts;
     await db.docs.put(d);
     return d;
   });
@@ -1961,6 +1935,8 @@ export async function saveExam(payload) {
     score: Number(payload?.score) || 0,
     total: Number(payload?.total) || 0,
     createdAt: t, updatedAt: t,
+    // round38：字段级时间戳（跨设备并发改不同字段不再整行覆盖）
+    fieldTs: { title: t, subject: t, questions: t, score: t, total: t },
   };
   await db.exams.put(e);
   fireHook('onExamFinished', e);
@@ -1977,7 +1953,12 @@ export async function updateExam(id, patch) {
   return db.transaction('rw', db.exams, async () => {
     const old = await db.exams.get(id);
     if (!old) throw new Error('成绩不存在');
-    const e = plain({ ...old, ...(patch || {}), updatedAt: now() });
+    const t = now();
+    const e = plain({ ...old, ...(patch || {}), updatedAt: t });
+    // round38：字段级时间戳——只 bump 本次真正变化的字段
+    const fts = { ...(old.fieldTs || {}) };
+    for (const k of ['title', 'subject', 'questions', 'score', 'total']) if (e[k] !== old[k]) fts[k] = t;
+    e.fieldTs = fts;
     await db.exams.put(e);
     return e;
   });

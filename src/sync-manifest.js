@@ -27,8 +27,8 @@ export const EXCLUDED_FROM_SYNC = [
   //   docBlobs：OPFS 降级时暂存的原文件二进制（v24）
   //   trash：回收站快照（删除语义由墓碑表达，快照仅本机恢复用；跨设备恢复会与对端
   //          残留墓碑「你恢复、它再删」互相打架，故不随同步）
-  //   imageRefs：图片引用反向索引（v32，本地派生表，可由卡内容重建）
-  'docTexts', 'docBlobs', 'trash', 'imageRefs',
+  //   imageRefs：已于 db v33 删除（round38 ②，只写不读的死表），不再登记。
+  'docTexts', 'docBlobs', 'trash',
 ];
 
 // 隐私敏感表——默认不入同步/全量导出，需用户显式 opt-in（PIPL 合规）
@@ -170,6 +170,20 @@ export const SYNC_TABLES = [
 export function shouldExportRow(entry, row) {
   if (!entry || typeof entry.exportFilter !== 'function') return true;
   try { return entry.exportFilter(row) !== false; } catch { return true; }
+}
+
+/**
+ * 墓碑 kind → 表名 映射（供 repo.pruneTombstones 反查「本地是否仍有残留行」）。
+ * round38 ④：**由本清单自动派生**，杜绝手写清单漂移——历史隐患是手写表漏登记了
+ * `groupLink`(cardGroupLinks) / `pomo`(pomoSessions) / `memory`(aiMemories) / `privacy`(privacyRecords)
+ * 等 kind，导致这些墓碑永远查不到对应表、被 GC 逻辑跳过（墓碑只增不减）。
+ * 新增同步表时无需再改任何手写清单（清单=唯一事实来源这一不变量终于对墓碑也成立）。
+ * @param {object} extra 需要指向非同步表的额外 kind（一般不需要）
+ */
+export function tombKindTable(extra = {}) {
+  const map = {};
+  for (const t of [...SYNC_TABLES, ...PRIVACY_SYNC_TABLES]) map[t.kind || t.table] = t.table;
+  return { ...map, ...extra };
 }
 
 // 卡片字段级合并分组：
@@ -442,9 +456,17 @@ export function mergeByFieldTs(cur, xr, strip = []) {
   for (const k of Object.keys(xr)) {
     if (k === 'id' || k === 'createdAt' || k === 'fieldTs') continue;
     if (strip.includes(k)) continue; // 双保险：凭证字段绝不采纳 incoming
+    // round38 ①：对端独有字段直接采纳（本端无值 → 无冲突）
+    if (!(k in cur)) { out[k] = xr[k]; continue; }
     const ct = cf[k] ?? 0;
     const xt = xf[k] ?? 0;
-    if (xt >= ct) out[k] = xr[k]; // 对端较新或相等 → 取对端（与整行收敛一致）
+    if (xt > ct) { out[k] = xr[k]; continue; }
+    if (xt < ct) continue; // 本端较新 → 保留本端
+    // 平局（同一字段两端时间戳相等，常见于同毫秒并发编辑）：必须**确定性收敛**——
+    // 此前 `xt >= ct` 无条件取对端，导致 A 取 B 的值、B 取 A 的值，两台设备
+    // 各自显示对方的版本且每次同步来回横跳（永久不一致）。改为与 mergeRows /
+    // mergeCardPair 同口径：按序列化字典序取小者，两端收敛到同一 canonical。
+    if (JSON.stringify(xr[k]) < JSON.stringify(cur[k])) out[k] = xr[k];
   }
   out.fieldTs = { ...cf };
   for (const k of Object.keys(xf)) out.fieldTs[k] = Math.max(out.fieldTs[k] || 0, xf[k] || 0);

@@ -255,6 +255,31 @@ test('trainWeights: 足量样本 → 19 维有限权重与有限损失', () => {
   assert.ok(r.samples >= 8, '损失样本数应 >= 8');
 });
 
+test('round38 ⑤: 训练只更新可训练维度（w17 抖动 / w18 未引用维度保持不变）', () => {
+  const cardsById = new Map([
+    ['a', { fsrs: null, createdAt: T - 30 * DAY }],
+    ['b', { fsrs: null, createdAt: T - 30 * DAY }],
+  ]);
+  const reviews = [];
+  for (const id of ['a', 'b']) {
+    let t = T - 20 * DAY;
+    for (let i = 0; i < 5; i++) {
+      reviews.push({ cardId: id, rating: i % 3 === 0 ? 1 : 2, reviewedAt: t });
+      t += 3 * DAY;
+    }
+  }
+  // 给出可辨识的 w17/w18，训练后必须原样保留（它们不参与任何 loss 计算）
+  const seed = DEFAULT_WEIGHTS.slice();
+  seed[17] = 0.33; // fuzz
+  seed[18] = 0.77; // 未引用维度
+  const r = trainWeights(reviews, cardsById, { iters: 5, weights: seed });
+  assert.equal(r.weights[17], 0.33, 'w17（fuzz）不得被训练改动');
+  assert.equal(r.weights[18], 0.77, 'w18（未引用）不得被训练改动；若此断言失败说明 w18 已被公式引用，需加入 TRAINABLE_WEIGHT_COUNT');
+  // 同时确认训练确有生效（可训练维至少有一维发生变化）
+  const changed = r.weights.slice(0, 17).some((v, i) => v !== seed[i]);
+  assert.ok(changed, '可训练维度（w0..w16）应至少有一维被训练更新');
+});
+
 // ---------- 持久化权重合并 ----------
 
 test('mergeUserWeights: v2 结构合法 → 原样返回副本', () => {

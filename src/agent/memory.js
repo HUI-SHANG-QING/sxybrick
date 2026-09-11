@@ -21,6 +21,8 @@ export async function addMemory(item) {
     importance: item?.importance || 2,
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    // round38：字段级时间戳（为将来「记忆可编辑」路径预留逐字段合并语义）
+    fieldTs: { content: Date.now(), category: Date.now(), importance: Date.now() },
   };
   await db.aiMemories.put(m);
   return m;

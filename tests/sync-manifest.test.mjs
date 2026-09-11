@@ -9,6 +9,7 @@ import {
   EXCLUDED_FROM_SYNC, PRIVACY_SYNC_TABLES,
   CARD_SRS_FIELDS, WORD_EXT_FIELDS,
   mergeCardPair, mergeRows, mergeTombstones, applyTombstones, kindOf, shiftRowClock,
+  mergeByFieldTs, tombKindTable,
 } from '../src/sync-manifest.js';
 
 test('清单：38 张表全部登记且策略合法', () => {
@@ -210,9 +211,42 @@ test('applyTombstones：旧行删除 / 新行复活标记 stale / kind 隔离', 
 // ---------- round15 P2：清空水位 + 本地表登记 ----------
 
 test('EXCLUDED_FROM_SYNC：本地表 docTexts/docBlobs/trash 已登记（清单=唯一事实来源）', () => {
-  // round38：aiUsage/wordExportHistory 已转入 SYNC_TABLES，仅剩有硬性障碍的本地表
-  for (const t of ['docTexts', 'docBlobs', 'trash', 'imageRefs', 'snapshots', 'plugins']) {
+  // round38：aiUsage/wordExportHistory 已转入 SYNC_TABLES；imageRefs 已删除（v33）
+  for (const t of ['docTexts', 'docBlobs', 'trash', 'snapshots', 'plugins']) {
     assert.ok(EXCLUDED_FROM_SYNC.includes(t), `本地表 ${t} 应登记在排除清单`);
+  }
+});
+
+test('round38 ①：mergeByFieldTs 平局按字典序确定性收敛（不再两端各取对方）', () => {
+  const ts = 1000;
+  const a = { id: 'n1', title: 'AAA', fieldTs: { title: ts }, updatedAt: ts };
+  const b = { id: 'n1', title: 'BBB', fieldTs: { title: ts }, updatedAt: ts };
+  const ab = mergeByFieldTs(a, b); // A 合并「对端 B」
+  const ba = mergeByFieldTs(b, a); // B 合并「对端 A」
+  assert.equal(ab.title, ba.title, '两端必须收敛到同一值（否则永久横跳）');
+  assert.equal(ab.title, 'AAA', '平局取字典序小者（"AAA" < "BBB"）');
+  // 较新时间戳仍按字段级 LWW 胜出（回归保护）
+  const newer = { id: 'n1', title: 'ZZZ', fieldTs: { title: ts + 1 }, updatedAt: ts + 1 };
+  assert.equal(mergeByFieldTs(a, newer).title, 'ZZZ', '对端较新 → 取对端');
+  assert.equal(mergeByFieldTs(newer, a).title, 'ZZZ', '本端较新 → 保留本端');
+  // 对端独有字段直接采纳（无冲突）
+  const only = mergeByFieldTs({ id: 'n1', fieldTs: {} }, { id: 'n1', subject: 'X', fieldTs: { subject: 5 } });
+  assert.equal(only.subject, 'X', '对端独有字段应采纳');
+  // strip 字段永不采纳 incoming
+  assert.equal(mergeByFieldTs({ id: 'n1', fieldTs: {} }, { id: 'n1', k: 'SECRET', fieldTs: { k: 5 } }, ['k']).k, undefined);
+});
+
+test('round38 ④：墓碑 kind→表 由同步清单自动派生（无漏登记，含历史漏网 kind）', () => {
+  const map = tombKindTable();
+  for (const t of [...SYNC_TABLES, ...PRIVACY_SYNC_TABLES]) {
+    assert.equal(map[t.kind || t.table], t.table, `kind ${t.kind} 应映射到 ${t.table}`);
+  }
+  // 历史手写清单漏登记的 kind（曾导致这些墓碑永不 GC）——自动派生后必须已覆盖
+  for (const [k, tbl] of [
+    ['groupLink', 'cardGroupLinks'], ['pomo', 'pomoSessions'], ['memory', 'aiMemories'],
+    ['privacy', 'privacyRecords'], ['userOp', 'userOps'], ['card', 'cards'],
+  ]) {
+    assert.equal(map[k], tbl, `kind ${k} 应映射到 ${tbl}`);
   }
 });
 

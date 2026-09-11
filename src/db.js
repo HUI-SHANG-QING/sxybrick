@@ -322,13 +322,18 @@ d.version(31).stores({
   cardWordLinks: 'id, cardId, wordCardId, addedAt',
 });
 
-// v32：imageRefs 图片反向引用索引（审计结构性收口）
-//   根治 image GC 六表全量 JSON.stringify 扫描的 O(n) 成本与口径漂移风险：
-//   · 任何写含 sxy-img:// 字段的行时维护引用集（put 前 diff 旧行）；
-//   · cleanupOrphanImages / sync.js / hub GC 全部改走索引查询，O(引用数)；
-//   · 本地表，不入同步（可从主表重建，属派生数据）。
+// v32：imageRefs 图片反向引用索引（曾计划用于加速 image GC）——**已于 v33 删除**。
+//   round26 D4 判定其快速路径不安全（写路径未维护引用集 → 过期索引会误删仍在用的图），
+//   故 cleanupOrphanImages 一直走六表全量扫描；该表随后从未被任何代码读取（只写不读）。
+//   round38 ② 移除，避免死表误用与存储/复杂度浪费。
 d.version(32).stores({
   imageRefs: 'id, imageId, refTable, refId',
+});
+
+// v33（round38）：删除 imageRefs 死表。Dexie 约定：在新版本把表置 null 即删除该表
+// （老库升级时物理删表；不存在该表的新库不受影响）。图片孤儿判定继续走六表全量扫描（正确性优先）。
+d.version(33).stores({
+  imageRefs: null,
 });
 
 } // end defineSchema
