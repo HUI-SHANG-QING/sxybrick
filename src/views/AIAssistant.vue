@@ -115,6 +115,17 @@ async function send() {
 function scroll() { nextTick(() => { box.value?.scrollTo({ top: box.value.scrollHeight }); }); }
 function scrollToUser(i) { document.getElementById('msg-' + i)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
+// 删除时间轴上的某个提问节点：连同其后紧跟的 AI 回复一起删除
+function deleteUserNode(nodeIdx) {
+  const n = userNodes.value[nodeIdx];
+  if (!n) return;
+  const start = n.index;
+  let end = start + 1;
+  if (currentChat.value.messages[end]?.role === 'assistant') end++;
+  currentChat.value.messages.splice(start, end - start);
+  persist();
+}
+
 // ---- 设置 / 测试 ----
 const testing = ref(false);
 async function testConnection() {
@@ -266,7 +277,7 @@ onMounted(async () => {
       <button class="chip" style="border-color:var(--green);color:var(--green)" @click="coldOpen = true">{{ t('views.aiAssistant.coldDeckBtn') }}</button>
     </div>
 
-    <div class="ai-body">
+    <div class="ai-body" :class="{ 'fs-mode': aiFs }">
       <!-- 左栏：历史对话（移动端默认隐藏，点按钮展开） -->
       <div class="chat-side" :class="{ expanded: showSidebar }">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -276,9 +287,8 @@ onMounted(async () => {
         <EmptyState v-if="!chats.length" compact icon="🤖" :title="t('views.aiAssistant.emptyHistoryTitle')" :message="t('views.aiAssistant.emptyHistoryMsgPrefix') + t('views.aiAssistant.genDeckBtn') + t('views.aiAssistant.emptyHistoryMsgSuffix')" />
         <div v-for="c in chats" :key="c.id" class="chat-item" :class="{ active: c.id === currentChat.id }" @click="selectChat(c.id)">
           <div class="chat-item-title">{{ c.title || t('views.aiAssistant.newChatTitle') }}</div>
-          <div class="chat-item-meta">{{ c.messages?.length || 0 }}{{ t('views.aiAssistant.msgCountSuffix') }}
-            <a style="float:right;color:var(--red);cursor:pointer" @click.stop="removeChat(c.id)">{{ t('views.aiAssistant.delLink') }}</a>
-          </div>
+          <div class="chat-item-meta">{{ c.messages?.length || 0 }}{{ t('views.aiAssistant.msgCountSuffix') }}</div>
+          <button class="node-close" :title="t('views.aiAssistant.delLink')" @click.stop="removeChat(c.id)">✕</button>
         </div>
       </div>
 
@@ -305,9 +315,10 @@ onMounted(async () => {
           <button class="btn mini" @click="showTimeline = false" style="font-size:11px">✕</button>
         </div>
         <EmptyState v-if="!userNodes.length" compact icon="🤖" :title="t('views.aiAssistant.emptyNodesTitle')" :message="t('views.aiAssistant.emptyNodesMsg')" />
-        <div v-for="n in userNodes" :key="n.index" class="tl-node" :title="n.text" @click="scrollToUser(n.index)">
+        <div v-for="(n, ni) in userNodes" :key="n.index" class="tl-node" :title="n.text" @click="scrollToUser(n.index)">
           <span class="tl-dot"></span>
           <span class="tl-text">{{ n.text.slice(0, 12) }}</span>
+          <button class="node-close sm" @click.stop="deleteUserNode(ni)">✕</button>
         </div>
       </div>
     </div>
@@ -461,6 +472,11 @@ onMounted(async () => {
 .chat-box { grid-column: 2; grid-row: 2; min-height: 0; }
 .timeline { grid-column: 3; grid-row: 1 / -1; }
 .chat-side, .timeline { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 10px; overflow-y: auto; overflow-x: hidden; }
+/* 缩放/全屏模式：隐藏左右侧栏，消息流占满整个宽度 */
+.ai-body.fs-mode { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+.ai-body.fs-mode .chat-side, .ai-body.fs-mode .timeline { display: none; }
+.ai-body.fs-mode .chat-fs-row { grid-column: 1; grid-row: 1; }
+.ai-body.fs-mode .chat-box { grid-column: 1; grid-row: 2; }
 .side-title { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
 /* 历史对话 / 提问节点：悬停放大、离开缩小（仅桌面指针设备；触屏无 hover，点按走 :active 反馈） */
 @media (hover: hover) and (pointer: fine) {
@@ -471,11 +487,28 @@ onMounted(async () => {
   .tl-node:hover { transform: scale(1.05); background: var(--code-inline); border-radius: 6px; }
   .tl-node:active { transform: scale(.97); }
 }
-.chat-item { padding: 8px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; }
+.chat-item { padding: 8px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; position: relative; }
 .chat-item:hover { background: var(--code-inline); }
 .chat-item.active { background: var(--code-bg); }
-.chat-item-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-item-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 20px; }
 .chat-item-meta { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
+/* 关闭按钮：默认隐藏，悬停时展开显示（桌面指针设备） */
+.node-close {
+  position: absolute; top: 6px; right: 4px;
+  width: 20px; height: 20px; line-height: 1;
+  border: none; border-radius: 5px; background: transparent;
+  color: var(--ink-2); font-size: 13px; cursor: pointer;
+  opacity: 0; transition: opacity .15s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.node-close:hover { background: var(--red); color: #fff; }
+.chat-item:hover .node-close, .tl-node:hover .node-close { opacity: 1; }
+.node-close.sm { position: static; margin-left: auto; width: 18px; height: 18px; font-size: 11px; flex: none; }
+/* 触屏设备无 hover：长按/点按节点时显示关闭（用 :active 兜底） */
+@media (hover: none) {
+  .node-close { opacity: .4; }
+  .chat-item:active .node-close, .tl-node:active .node-close { opacity: 1; }
+}
 .chat-fs-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 .chat-box { overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; }
 .msg { display: flex; margin-bottom: 12px; }

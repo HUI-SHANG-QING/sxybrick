@@ -21,6 +21,16 @@
       <span class="pt-val">{{ ptFam }}（{{ t('views.cardInsight.famLevels')[ptFam] }}）</span>
       <button class="btn small" @click="savePretest">{{ t('views.cardInsight.savePretest') }}</button>
       <span class="pt-saved" v-if="ptSaved">{{ t('views.cardInsight.pretestSaved', '已存：S ≈ {s} 天', { s: ptSavedS }) }}</span>
+      <button class="btn mini pt-detail-btn" @click="ptDetailOpen = !ptDetailOpen">{{ ptDetailOpen ? t('views.cardInsight.collapseBtn', '▲ 收起') : t('views.cardInsight.expandBtn', '▼ 点击展开查看') }}</button>
+      <div v-if="ptDetailOpen" class="pt-detail">
+        <div class="pt-detail-title">{{ t("views.cardInsight.ptDetailTitle", "前测数值说明") }}</div>
+        <div class="pt-detail-row"><b>{{ t("views.cardInsight.ptSubjLabel", "科目") }}</b>{{ t("views.cardInsight.ptSubjDesc", "：选择冷启动科目，结果按科目分别保存。") }}</div>
+        <div class="pt-detail-row"><b>{{ t("views.cardInsight.ptFamLabel", "熟悉度 0~5") }}</b>{{ t("views.cardInsight.ptFamDesc", "：0=完全不会→0.5天，5=滚瓜烂熟→12天基准。当前5对应12天。") }}</div>
+        <div class="pt-detail-row"><b>{{ t("views.cardInsight.ptFactorLabel", "难度系数") }}</b>{{ t("views.cardInsight.ptFactorDesc", "：线代命中0.82（理科首次更难内化）。") }}</div>
+        <div class="pt-detail-row"><b>{{ t("views.cardInsight.ptDiffLabel", "难度微调") }}</b>{{ t("views.cardInsight.ptDiffDesc", "：basic新卡×1.1。") }}</div>
+        <div class="pt-detail-row"><b>{{ t("views.cardInsight.ptSLabel", "S≈10.8天") }}</b>{{ t("views.cardInsight.ptSDesc", " = 12.0 × 0.82 × 1.1 = 10.82。即新卡首次复习间隔约10.8天。") }}</div>
+        <div class="pt-detail-row ok">{{ t("views.cardInsight.ptOk", "✓ 数值计算正确。保存后无复习历史的新卡用此S起步，已有历史的卡不受影响。") }}</div>
+      </div>
     </div>
 
     <div class="cols">
@@ -88,6 +98,7 @@ const ptSubject = ref('');
 const ptFam = ref(2);
 const ptSaved = ref(false);
 const ptSavedS = ref('');
+const ptDetailOpen = ref(false);
 
 const examTs = computed(() => examDate.value ? new Date(examDate.value).getTime() : 0);
 
@@ -220,6 +231,12 @@ load();
 .pt-range { width: 160px; }
 .pt-val { min-width: 90px; }
 .pt-saved { color: var(--green); }
+.pt-detail-btn { margin-left: auto; flex: none; }
+.pt-detail { width: 100%; margin-top: 8px; padding: 10px 12px; background: var(--code-bg); border-radius: 8px; font-size: 12px; line-height: 1.7; color: var(--ink-2); }
+.pt-detail-title { font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+.pt-detail-row { margin-bottom: 4px; }
+.pt-detail-row b { color: var(--ink); }
+.pt-detail-row.ok { color: var(--green); margin-top: 6px; }
 .sec { margin-top: 14px; }
 .sec h3 { font-size: 14px; margin: 0 0 8px; color: var(--ink-2); }
 .chip { display: inline-block; margin: 4px; cursor: pointer; }
