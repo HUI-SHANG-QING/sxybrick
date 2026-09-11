@@ -123,6 +123,9 @@ function scrollToUser(i) { document.getElementById('msg-' + i)?.scrollIntoView({
 function deleteUserNode(nodeIdx) {
   const n = userNodes.value[nodeIdx];
   if (!n) return;
+  // 竞态防护：AI 正在回复时，该提问的回复还没 push 进来。此刻删问题，
+  // 回复 resolve 后会 push 到消息末尾，变成「没有问题的孤儿回答」。直接拒绝。
+  if (loading.value) { toast(t('views.aiAssistant.waitReply', 'AI 正在回复，请稍候再删除'), 'warning'); return; }
   const start = n.index;
   let end = start + 1;
   if (currentChat.value.messages[end]?.role === 'assistant') end++;
@@ -483,45 +486,45 @@ onMounted(async () => {
 .ai-body.fs-mode .chat-fs-row { grid-column: 1; grid-row: 1; }
 .ai-body.fs-mode .chat-box { grid-column: 1; grid-row: 2; }
 .side-title { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
-/* 历史对话 / 提问节点：悬停放大、离开缩小（仅桌面指针设备；触屏无 hover，点按走 :active 反馈） */
-@media (hover: hover) and (pointer: fine) {
-  .chat-item { transition: transform .18s ease, background .18s ease; }
-  .chat-item:hover { transform: scale(1.035); }
+/* 历史对话 / 提问节点：悬停时节点区域明显展开、移开自动收缩（任何 hover 设备；触屏走 :active） */
+@media (hover: hover) {
+  .chat-item { transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
+  .chat-item:hover { transform: scale(1.04); background: var(--code-inline); box-shadow: 0 2px 8px rgba(0,0,0,.06); z-index: 1; }
   .chat-item:active { transform: scale(.99); }
-  .tl-node { transition: transform .18s ease, background .18s ease; }
-  .tl-node:hover { transform: scale(1.05); background: var(--code-inline); border-radius: 6px; }
+  .tl-node { transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
+  .tl-node:hover { transform: scale(1.06); background: var(--code-inline); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.06); z-index: 1; }
   .tl-node:active { transform: scale(.97); }
 }
-.chat-item { padding: 8px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; position: relative; }
-.chat-item:hover { background: var(--code-inline); }
+.chat-item { padding: 8px; border-radius: 8px; cursor: pointer; margin-bottom: 4px; position: relative; transition: background .18s ease; }
 .chat-item.active { background: var(--code-bg); }
 .chat-item-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 20px; }
 .chat-item-meta { font-size: 11px; color: var(--ink-2); margin-top: 2px; }
-/* 关闭按钮：默认隐藏，悬停时展开显示（桌面指针设备） */
+/* 关闭按钮：常驻可见（避免用户找不到），悬停节点或按钮本身时高亮为红色；
+   桌面 hover 展开、触控端 :active 反馈，均保证可点按删除。 */
 .node-close {
   position: absolute; top: 6px; right: 4px;
   width: 20px; height: 20px; line-height: 1;
   border: none; border-radius: 5px; background: transparent;
   color: var(--ink-2); font-size: 13px; cursor: pointer;
-  opacity: 0; transition: opacity .15s ease;
+  opacity: .75;
+  transition: opacity .15s ease, background .15s ease, color .15s ease, transform .15s ease;
   display: flex; align-items: center; justify-content: center;
 }
-.node-close:hover { background: var(--red); color: #fff; }
-.chat-item:hover .node-close, .tl-node:hover .node-close { opacity: 1; }
+.chat-item:hover .node-close, .tl-node:hover .node-close { opacity: 1; color: var(--red); }
+.node-close:hover, .chat-item:hover .node-close:hover, .tl-node:hover .node-close:hover { background: var(--red); color: #fff; transform: scale(1.1); }
 .node-close.sm { position: static; margin-left: auto; width: 18px; height: 18px; font-size: 11px; flex: none; }
-/* 触屏设备无 hover：关闭按钮常驻可见、可直接点按删除（保证手机/平板触控兼容）；
-   按下时高亮为红色，给明确反馈。 */
+/* 触屏设备：关闭按钮保持可见、底色更明显、点按变红，触碰目标扩到 24px */
 @media (hover: none) {
-  .node-close { opacity: .6; background: var(--code-bg); }
+  .node-close { opacity: .85; background: var(--code-bg); }
   .chat-item:active .node-close, .tl-node:active .node-close { opacity: 1; background: var(--red); color: #fff; }
   .node-close.sm { width: 24px; height: 24px; font-size: 13px; }
 }
 .chat-fs-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
-.chat-box { overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; }
+.chat-box { overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; transition: font-size .15s ease; }
 .msg { display: flex; margin-bottom: 12px; }
 .msg.user { justify-content: center; }
 .msg.assistant { justify-content: center; }
-.bubble { max-width: 82%; width: 100%; padding: 12px 18px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.75; font-size: 1em; }
+.bubble { max-width: 82%; width: 100%; padding: 12px 18px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.75; font-size: 1em; transition: font-size .15s ease; }
 .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
 .msg.assistant .bubble { background: var(--code-bg); color: var(--ink); border-bottom-left-radius: 4px; }
 .tl-node { display: flex; align-items: center; gap: 6px; padding: 7px 4px; cursor: pointer; border-bottom: 1px dashed var(--line); }

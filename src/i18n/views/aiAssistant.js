@@ -24,6 +24,7 @@ export const zh = {
   newChatTitle: '新对话',
   msgCountSuffix: ' 条',
   delLink: '删',
+  waitReply: 'AI 正在回复，请稍候再删除',
 
   // ——— 右栏：提问节点 ———
   nodesTitle: '提问节点',
@@ -136,6 +137,7 @@ export const en = {
   newChatTitle: 'New Chat',
   msgCountSuffix: ' msgs',
   delLink: 'Del',
+  waitReply: 'AI is replying, please wait before deleting',
 
   // ——— Right column: question nodes ———
   nodesTitle: 'Question Nodes',
