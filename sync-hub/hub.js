@@ -776,9 +776,11 @@ server.listen(PORT, HOST, () => {
   console.log('     VirtualBox / VMware / 169.254.x 这些虚拟网卡手机一律访问不到，不用试。');
   console.log('   · 打不开的按顺序自查：');
   console.log('       1) 先在本机浏览器打开上面那个地址，能出应用页面 = 中枢在该网卡正常；');
-  console.log('       2) 仍打不开多半是 Windows 防火墙：USB 共享网络常被识别为「公用网络」而拦掉入站。');
-  console.log('          管理员 PowerShell/CMD 执行这一行即可：');
-  console.log('          netsh advfirewall firewall add rule name="SxyBrick Hub 18080" dir=in action=allow protocol=TCP localport=18080');
+  console.log('       2) 仍打不开多半是 Windows 防火墙：USB 共享网络常被识别为「公用网络」而拦掉入站');
+  console.log('          （特征：手机报 ERR_CONNECTION_TIMED_OUT，而 80 端口能开、本机能开）。');
+  console.log('          ★ 最省事：右键 sync-hub\\allow-firewall.bat → 以管理员身份运行（只需一次）');
+  console.log('          或管理员执行这一行：');
+  console.log('          netsh advfirewall firewall add rule name="SxyBrick Hub ' + PORT + '" dir=in action=allow protocol=TCP localport=' + PORT + ' profile=any');
   console.log('          （或在 Windows 安全中心 → 允许应用通过防火墙 → 勾选 node/npm 的专用与公用网络）');
   console.log('       3) 手机浏览器地址必须以 http:// 开头（不要 https，也不要带多余路径）。');
   console.log('   · ⚠ 地址必须带端口 :' + PORT + '——只输 http://<IP> 会打到 80 端口。');
