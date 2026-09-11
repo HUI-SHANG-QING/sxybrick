@@ -384,7 +384,8 @@ export function mergeUserWeights(stored) {
   if (!stored || stored.v !== WEIGHT_SCHEMA_VERSION) return fallback();
   const w = stored.weights;
   if (!Array.isArray(w) || w.length !== DEFAULT_WEIGHTS.length) return fallback();
-  // 校验每个权重为有限正数，否则回退默认
-  if (!w.every(v => Number.isFinite(v) && v >= 0)) return fallback();
+  // 校验每个权重为有限正数，且与写侧 serializeUserWeights 的上界一致（<=1000），
+  // 否则一条 >1000 的脏权重（备份导入/手改 meta）会被直接拿去调度
+  if (!w.every(v => Number.isFinite(v) && v >= 0 && v <= 1000)) return fallback();
   return w.slice();
 }
