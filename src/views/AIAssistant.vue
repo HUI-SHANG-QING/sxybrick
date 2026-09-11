@@ -27,9 +27,11 @@ const aiFs = ref(false);
 const toggleAiFs = () => { aiFs.value = !aiFs.value; };
 // 阅读文本字号缩放（复用项目统一机制：字号重排，非 transform，不糊；按模块持久化；Ctrl+滚轮快捷）
 const { scale, fontStyle, zoomIn, zoomOut, reset, onWheel } = useTextZoom('aiAssistant');
-// 审计 F-移动端：侧栏 toggle 状态（移动端默认隐藏，点按钮展开）
-const showSidebar = ref(false);
-const showTimeline = ref(false);
+// 侧栏/提问节点显隐：桌面端默认展开（点 ✕ 才收起），移动端默认收起为抽屉（点按钮展开）。
+// 用初始视口宽度判定，避免桌面默认就按 no-left/no-right 把两栏藏掉。
+const __isWide = typeof window !== 'undefined' && window.matchMedia('(min-width: 901px)').matches;
+const showSidebar = ref(__isWide);
+const showTimeline = ref(__isWide);
 
 const showSettings = ref(false);
 const cfg = ref(getAIConfig());
@@ -284,7 +286,7 @@ onMounted(async () => {
       <button class="chip" style="border-color:var(--green);color:var(--green)" @click="coldOpen = true">{{ t('views.aiAssistant.coldDeckBtn') }}</button>
     </div>
 
-    <div class="ai-body" :class="{ 'fs-mode': aiFs }">
+    <div class="ai-body" :class="{ 'fs-mode': aiFs, 'no-left': !showSidebar || aiFs, 'no-right': !showTimeline || aiFs }">
       <!-- 左栏：历史对话（移动端默认隐藏，点按钮展开） -->
       <div class="chat-side" :class="{ expanded: showSidebar }">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -485,6 +487,27 @@ onMounted(async () => {
 .ai-body.fs-mode .chat-side, .ai-body.fs-mode .timeline { display: none; }
 .ai-body.fs-mode .chat-fs-row { grid-column: 1; grid-row: 1; }
 .ai-body.fs-mode .chat-box { grid-column: 1; grid-row: 2; }
+/* 桌面端：点左右栏 ✕ 关闭按钮隐藏对应侧栏、对话区扩宽（移动端侧栏是抽屉，单独处理，不在此列）。
+   仅桌面生效，避免 `grid-template-columns` 覆盖移动端单列布局。 */
+@media (min-width: 901px) {
+  /* 仅关左栏（历史）：右栏(提问节点)保留，对话区占中间全部宽度 */
+  .ai-body.no-left { grid-template-columns: 1fr 120px; }
+  .ai-body.no-left .chat-side { display: none; }
+  .ai-body.no-left .chat-fs-row { grid-column: 1; }
+  .ai-body.no-left .chat-box { grid-column: 1; }
+  .ai-body.no-left .timeline { grid-column: 2; grid-row: 1 / -1; }
+  /* 仅关右栏（提问节点）：左栏(历史)保留，对话区扩宽 */
+  .ai-body.no-right { grid-template-columns: 180px 1fr; }
+  .ai-body.no-right .timeline { display: none; }
+  .ai-body.no-right .chat-fs-row { grid-column: 2; }
+  .ai-body.no-right .chat-box { grid-column: 2; }
+  /* 两边都关（或全屏）：对话区占满整行 */
+  .ai-body.no-left.no-right { grid-template-columns: 1fr; }
+  .ai-body.no-left.no-right .chat-side,
+  .ai-body.no-left.no-right .timeline { display: none; }
+  .ai-body.no-left.no-right .chat-fs-row { grid-column: 1; }
+  .ai-body.no-left.no-right .chat-box { grid-column: 1; }
+}
 .side-title { font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 8px; }
 /* 历史对话 / 提问节点：悬停时节点区域明显展开、移开自动收缩（任何 hover 设备；触屏走 :active） */
 @media (hover: hover) {
