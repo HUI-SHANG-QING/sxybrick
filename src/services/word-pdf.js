@@ -69,7 +69,7 @@ function renderRow(card, mode) {
 }
 
 /**
- * 写导出历史（仅本地表 wordExportHistory，不进同步）。
+ * 写导出历史（wordExportHistory，round38 起跨设备同步；本地保留策略触发删除时写墓碑）。
  * word-pdf.js 与 word-print.js 共用，避免两处重复实现与保留策略漂移。
  * @returns {Promise<boolean>} 是否写入成功
  */

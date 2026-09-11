@@ -81,7 +81,7 @@ d.version(10).stores({
   notifications: 'id, read, createdAt',
 });
 
-// v11：新增本地错误日志表（#16 错误边界+日志，便于排查看不见的崩溃）
+// v11：新增错误日志表（#16 错误边界+日志，便于排查看不见的崩溃；round38 起跨设备同步）
 // severity: 'error'|'warn'；ctx: 组件/路由名；stack: 错误堆栈
 d.version(11).stores({
   errors: 'id, createdAt, severity',
@@ -182,7 +182,7 @@ d.version(20).stores({
 });
 
 // v21：AI 用量账本（P2-27）——本地记账，不进同步（已入 EXCLUDED_FROM_SYNC）；
-//   用量属于本设备计费上下文，跨设备合并无意义
+//   round38 起并入同步表（跨设备统一计量）；删除/裁剪以墓碑表达删除语义
 //   id, t(ms 主索引), source(调用方标签：chat/agent:xxx/pipeline:xxx/docqa/genDeck/mindmap/embedding...)
 //   model, promptTokens, completionTokens, totalTokens, durationMs, ok(0/1), est(0/1 是否估算值)
 d.version(21).stores({
@@ -250,7 +250,7 @@ d.version(25).stores({
 //     AI 失败时回退策略等。跨设备同步（key 不进同步：在 sync-manifest 里走 exportFilter 剔除）
 //   wordCheckins：每日签到（id, date(YYYY-MM-DD 主索引), count(连续天数), createdAt）
 //   wordExportHistory：导出历史（id, kind('a4write'|'zhList'|'enList'|'md'|'anki'|'csv'),
-//     total, scope, lang, ordered, createdAt, fileName, sizeBytes, pageCount）。仅本地。
+//     total, scope, lang, ordered, createdAt, fileName, sizeBytes, pageCount）。round38 起跨设备同步。
 //   wordSyllabusMeta：考研大纲词表元信息（id='kaoyan2027', wordCount, loadedAt, source）
 //     ——真实词表走 src/data/kaoyan-vocab-2027.json 动态 import，本表只存元信息以便统计页展示
 d.version(26).stores({
@@ -267,8 +267,8 @@ d.version(26).stores({
 // v27：英语模块对标成熟单词 App 补全
 //   wordCards 扩展字段（非索引）：derived(派生词数组[{word,meaning}]，与 rootAffix/syllable 配套)
 //   wordStudyLog：学习时长流水（id=`t-${date}`, date, ms 当日累计毫秒, updatedAt）。
-//     仅本机（EXCLUDED_FROM_SYNC）：时长按设备使用语境累计，跨设备相加会虚增
-//     （同一人在两台设备交替学与同步串数据不同），与 wordExportHistory 同口径。
+//     round38 起跨设备同步（idOnly）：同一天两端各自累计，合并按 id 幂等（不做求和，
+//     避免跨设备相加虚增）；如需跨设备求和需改为按设备分片键。
 d.version(27).stores({
   wordCards: 'id, kind, subject, dueAt, updatedAt, createdAt, familiar',
   wordReviews: 'id, cardId, reviewedAt',

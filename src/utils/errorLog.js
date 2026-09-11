@@ -1,4 +1,4 @@
-// 本地错误日志（#16）：持久化到 IndexedDB，便于排查用户端看不见的崩溃
+// 错误日志（#16）：持久化到 IndexedDB，便于排查用户端看不见的崩溃（round38 起跨设备同步）
 // 全局 errorHandler / unhandledrejection / ErrorBoundary 都写这里
 import { db, uid } from '../db.js';
 

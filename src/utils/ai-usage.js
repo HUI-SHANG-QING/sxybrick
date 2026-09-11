@@ -1,7 +1,7 @@
 // src/utils/ai-usage.js
 // AI 用量账本（P2-27）：记录每次 AI 调用的 token 数 / 耗时 / 费用。
 // - 数据来源：API 响应的 usage 字段优先（est=0）；缺失时按字符数估算（est=1）
-// - 存储：db.aiUsage（v21 本地表，不同步——用量属于本设备计费上下文，已入 EXCLUDED_FROM_SYNC）
+// - 存储：db.aiUsage（v21；round38 起并入同步表，跨设备统一计量——清晰的\"已删除\"语义由墓碑表达）
 // - 费用仅为估算：内置模型费率表（元/百万 token），实际账单以 API 服务商为准
 
 import { db, uid } from '../db.js';
