@@ -528,7 +528,7 @@ function detectPort80InUse() {
 function usbHints(name) {  const s = String(name || '').toLowerCase();
   if (/rndis|usb|android|remote ndis|tether/.test(s)) return '  ← USB/手机USB共享，手机连数据线时优先用这个';
   if (/hyper-v|virtual|vmware|virtualbox|wsl|loopback/.test(s)) return '  ← 虚拟网卡，手机一般访问不到';
-  if (/wi-fi|wifi|wireless|wlan|802\.11/.test(s)) return '  ← WiFi 网卡，手机需连同一WiFi';
+  if (/wi-fi|wifi|wireless|wlan|802\.11/.test(s)) return '  ← WiFi 网卡，手机需连同一WiFi（校园网/公共WiFi 常做客户端隔离，手机可能访问不到）';
   // 注意：Windows 里手机 USB 共享网络（RNDIS）通常显示成「以太网 2」这类名字，
   // 名字里未必含 rndis/usb，容易让人以为是普通有线而漏掉 —— 提示里要点明。
   if (/ethernet|eth|lan|以太网|local area/.test(s)) return '  ← 有线网卡（手机USB共享网络在Windows里通常也叫「以太网2」，用数据线时优先试它）';
@@ -783,6 +783,12 @@ server.listen(PORT, HOST, () => {
   console.log('          netsh advfirewall firewall add rule name="SxyBrick Hub ' + PORT + '" dir=in action=allow protocol=TCP localport=' + PORT + ' profile=any');
   console.log('          （或在 Windows 安全中心 → 允许应用通过防火墙 → 勾选 node/npm 的专用与公用网络）');
   console.log('       3) 手机浏览器地址必须以 http:// 开头（不要 https，也不要带多余路径）。');
+  console.log('       4) 手机连同一 WiFi 仍超时、但两台设备都能上网 → 该 WiFi 开了「客户端隔离」');
+  console.log('          （校园网 / 图书馆 / 公共 WiFi 常见：设备之间禁止互访，应用层无解）。');
+  console.log('          改用下面任一种点对点组网，都比公共 WiFi 稳：');
+  console.log('          · 手机 USB 共享网络（数据线，当前最稳）；');
+  console.log('          · 手机开热点 → 电脑连该热点 → 用电脑 WLAN 的新地址；');
+  console.log('          · 电脑开「移动热点」→ 手机连 → 用 http://192.168.137.1:' + PORT + '。');
   console.log('   · ⚠ 地址必须带端口 :' + PORT + '——只输 http://<IP> 会打到 80 端口。');
   // 80 被 IIS 占用时给出针对性提示（实测：Windows 常见 IIS/http.sys 占 80，
   // 手机漏端口时打开的是 IIS 欢迎页，极易被误判成"中枢有问题"）。
