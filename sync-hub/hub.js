@@ -516,7 +516,9 @@ function usbHints(name) {
   if (/rndis|usb|android|remote ndis|tether/.test(s)) return '  ← USB/手机USB共享，手机连数据线时优先用这个';
   if (/hyper-v|virtual|vmware|virtualbox|wsl|loopback/.test(s)) return '  ← 虚拟网卡，手机一般访问不到';
   if (/wi-fi|wifi|wireless|wlan|802\.11/.test(s)) return '  ← WiFi 网卡，手机需连同一WiFi';
-  if (/ethernet|eth|lan|以太网|local area/.test(s)) return '  ← 有线网卡';
+  // 注意：Windows 里手机 USB 共享网络（RNDIS）通常显示成「以太网 2」这类名字，
+  // 名字里未必含 rndis/usb，容易让人以为是普通有线而漏掉 —— 提示里要点明。
+  if (/ethernet|eth|lan|以太网|local area/.test(s)) return '  ← 有线网卡（手机USB共享网络在Windows里通常也叫「以太网2」，用数据线时优先试它）';
   return '';
 }
 
@@ -757,6 +759,14 @@ server.listen(PORT, HOST, () => {
   console.log('\n   💡 USB/数据线连接小贴士：');
   console.log('   · 安卓：设置 → 连接与共享 → 打开「USB 共享网络」（手机从电脑获取网络，并出现 USB/RNDIS 网卡 IP）。');
   console.log('   · iPhone：电脑安装 iTunes → 数据线连接 → 设置「个人热点」→ 选择「仅 USB」。');
-  console.log('   · 仍无法访问？请在 Windows 安全中心放防火墙：允许应用通过防火墙 → 勾选 node/npm 的专用/公用网络。');
+  console.log('   · 手机用 USB 共享网络时，Windows 那张网卡通常叫「以太网 2 / RNDIS」——请用它对应的地址；');
+  console.log('     VirtualBox / VMware / 169.254.x 这些虚拟网卡手机一律访问不到，不用试。');
+  console.log('   · 打不开的按顺序自查：');
+  console.log('       1) 先在本机浏览器打开上面那个地址，能出应用页面 = 中枢在该网卡正常；');
+  console.log('       2) 仍打不开多半是 Windows 防火墙：USB 共享网络常被识别为「公用网络」而拦掉入站。');
+  console.log('          管理员 PowerShell/CMD 执行这一行即可：');
+  console.log('          netsh advfirewall firewall add rule name="SxyBrick Hub 18080" dir=in action=allow protocol=TCP localport=18080');
+  console.log('          （或在 Windows 安全中心 → 允许应用通过防火墙 → 勾选 node/npm 的专用与公用网络）');
+  console.log('       3) 手机浏览器地址必须以 http:// 开头（不要 https，也不要带多余路径）。');
   if (!existsSync(DIST)) console.log('\n⚠ 尚未找到 dist/，请先运行 npm run build 再访问网页。');
 });
