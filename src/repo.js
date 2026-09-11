@@ -950,7 +950,7 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
     // 校准回测（calibration）：用复习前的 fsrs 状态计算当时预测 R，落盘进复习记录。
     // 历史记录无 predR 由 calibration.js 回溯模拟补估；从这里起的新数据都是真实值。
     const predR = (card.fsrs && Number.isFinite(card.fsrs.s) && Number.isFinite(card.fsrs.last))
-      ? Number(retrievability(card.fsrs.s, (nowTs - card.fsrs.last) / 86400000).toFixed(4))
+      ? Number(retrievability(card.fsrs.s, Math.max(0, (nowTs - card.fsrs.last) / 86400000)).toFixed(4))
       : null;
     // round17 R17-6：SM-2 路径 next.fsrs 为 undefined 时，不能原样保留 card.fsrs——
     // 那样 fsrs.last 永远停在「最后一次 FSRS 复习」时刻，用户切回 FSRS 后 elapsedDays
@@ -1009,6 +1009,10 @@ export async function applyCardFeedback(cardId, signal = {}) {
     // 不 bump reviewedAt 则本次排期变更不进增量包，对端回滚。不碰 updatedAt（内容侧）。
     // 差量写：只 merge 本次改动的 SRS 字段，不回写整行。
     await db.cards.update(cardId, { ease: f.ease, dueAt: f.dueAt, reviewedAt: Date.now() });
+    // 审计：与 review() 同口径——排期/复习状态变了就失效今日待复习与错题计数缓存，
+    // 否则语音/费曼加成改了 dueAt，首页数字最长 60s 仍显示旧值。
+    invalidateFailCountCache();
+    invalidateDashboardCache();
     return f;
   });
 }
