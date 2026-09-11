@@ -13,7 +13,7 @@
 import { db, uid } from './db.js';
 // 复用记忆卡调度器（SM-2/FSRS 自动切换）与权重配置：避免两套调度逻辑漂移
 import { scheduleReview } from './srs.js';
-import { getSchedConfig, formatDue, trashItem, findOrphanImages } from './repo.js';
+import { getSchedConfig, formatDue, trashItem, findOrphanImages, invalidateFailCountCache, invalidateDashboardCache } from './repo.js';
 import { isMastered, dayWindowOf } from './repo-core.js';
 import { extractImageIds } from './images.js';
 import { retrievability } from './fsrs.js';
@@ -87,7 +87,7 @@ export async function reviewWord(cardId, rating, opts = {}) {
   });
   const nowTs = now();
   const predR = (card.fsrs && Number.isFinite(card.fsrs.s) && Number.isFinite(card.fsrs.last))
-    ? Number(retrievability(card.fsrs.s, (nowTs - card.fsrs.last) / 86400000).toFixed(4))
+    ? Number(retrievability(card.fsrs.s, Math.max(0, (nowTs - card.fsrs.last) / 86400000)).toFixed(4))
     : null;
   // P2-C 口径对齐（round13）：与 repo.review 同用 retrievalGrading 定级
   // （failed/hard/medium/easy 四档 + gradeScore 0-1 + guessed/responseMs/retrievalStrength 信号），
@@ -126,6 +126,9 @@ export async function reviewWord(cardId, rating, opts = {}) {
     });
     return { ...next, dueText: formatDue(next.dueAt), reviewId };
   });
+  // 与 repo.review 同口径：排期/复习状态变了就刷新今日待复习与错题计数缓存
+  invalidateFailCountCache();
+  invalidateDashboardCache();
   // 审计：复习即当日学习 → 自动补签到（幂等；失败不影响复习主流程）
   await ensureCheckinToday();
   return result;
