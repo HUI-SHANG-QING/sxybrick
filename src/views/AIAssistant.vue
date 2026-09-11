@@ -8,7 +8,9 @@ import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLA
 import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';
 import FullscreenButton from '../components/FullscreenButton.vue';
+import TextZoomBar from '../components/TextZoomBar.vue';
 // useFullscreen 已替换为简单 ref（移动端全屏不需要复杂 composable）
+import { useTextZoom } from '../composables/useTextZoom.js';
 import { speak } from '../utils/tts.js';
 import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
@@ -23,6 +25,8 @@ const box = ref(null);
 // 全屏/非全屏：对话内容占满整个屏幕专心阅读（非字号缩放）
 const aiFs = ref(false);
 const toggleAiFs = () => { aiFs.value = !aiFs.value; };
+// 阅读文本字号缩放（复用项目统一机制：字号重排，非 transform，不糊；按模块持久化；Ctrl+滚轮快捷）
+const { scale, fontStyle, zoomIn, zoomOut, reset, onWheel } = useTextZoom('aiAssistant');
 // 审计 F-移动端：侧栏 toggle 状态（移动端默认隐藏，点按钮展开）
 const showSidebar = ref(false);
 const showTimeline = ref(false);
@@ -296,9 +300,10 @@ onMounted(async () => {
       <div class="chat-fs-row">
         <button class="btn mini" @click="showSidebar = !showSidebar" style="margin-right:6px;font-size:12px">📋 {{ t('views.aiAssistant.historyTitle') }}</button>
         <button class="btn mini" @click="showTimeline = !showTimeline" style="margin-right:6px;font-size:12px">📌 {{ t('views.aiAssistant.nodesTitle') }}</button>
+        <TextZoomBar :scale="scale" @zoom-in="zoomIn" @zoom-out="zoomOut" @reset="reset" />
         <FullscreenButton :active="aiFs" @toggle="toggleAiFs" />
       </div>
-      <div ref="box" class="chat-box">
+      <div ref="box" class="chat-box" :style="fontStyle" @wheel="onWheel">
         <div v-if="!currentChat.messages.length" class="hint" style="text-align:center;padding:40px">
           {{ t('views.aiAssistant.chatEmpty') }}
         </div>
@@ -504,17 +509,19 @@ onMounted(async () => {
 .node-close:hover { background: var(--red); color: #fff; }
 .chat-item:hover .node-close, .tl-node:hover .node-close { opacity: 1; }
 .node-close.sm { position: static; margin-left: auto; width: 18px; height: 18px; font-size: 11px; flex: none; }
-/* 触屏设备无 hover：长按/点按节点时显示关闭（用 :active 兜底） */
+/* 触屏设备无 hover：关闭按钮常驻可见、可直接点按删除（保证手机/平板触控兼容）；
+   按下时高亮为红色，给明确反馈。 */
 @media (hover: none) {
-  .node-close { opacity: .4; }
-  .chat-item:active .node-close, .tl-node:active .node-close { opacity: 1; }
+  .node-close { opacity: .6; background: var(--code-bg); }
+  .chat-item:active .node-close, .tl-node:active .node-close { opacity: 1; background: var(--red); color: #fff; }
+  .node-close.sm { width: 24px; height: 24px; font-size: 13px; }
 }
 .chat-fs-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 .chat-box { overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; }
 .msg { display: flex; margin-bottom: 12px; }
 .msg.user { justify-content: center; }
 .msg.assistant { justify-content: center; }
-.bubble { max-width: 82%; width: 100%; padding: 12px 18px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.75; font-size: 15px; }
+.bubble { max-width: 82%; width: 100%; padding: 12px 18px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.75; font-size: 1em; }
 .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
 .msg.assistant .bubble { background: var(--code-bg); color: var(--ink); border-bottom-left-radius: 4px; }
 .tl-node { display: flex; align-items: center; gap: 6px; padding: 7px 4px; cursor: pointer; border-bottom: 1px dashed var(--line); }
@@ -606,6 +613,6 @@ onMounted(async () => {
   /* 输入区：语音+输入框+发送挤一行会误触，窄屏改为输入框独占一行 */
   .input-row { flex-wrap: wrap; }
   .input-row .input { flex: 1 1 100%; }
-  .bubble { max-width: 95%; font-size: 14px; padding: 10px 14px; }
+  .bubble { max-width: 95%; font-size: .92em; padding: 10px 14px; }
 }
 </style>
