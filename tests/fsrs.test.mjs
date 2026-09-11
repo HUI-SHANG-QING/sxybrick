@@ -280,6 +280,30 @@ test('round38 ⑤: 训练只更新可训练维度（w17 抖动 / w18 未引用�
   assert.ok(changed, '可训练维度（w0..w16）应至少有一维被训练更新');
 });
 
+test('round42 F1: 首测（j=0）不计分——init 路径与 seed 路径口径一致', () => {
+  // 多张卡复习序列完全相同，首测均为 rating=0（忘记）。样本足量（>=8）以免 trainWeights 短路。
+  // 修复前：init 路径首测在 elapsed=0 下 R 恒为 1，对「首测就忘」贡献 ~13.8 巨量 loss 且多计 1 样本；
+  //         seed 路径首测走 reps===0 跳过计分 → 两路径 loss.n / loss.loss 不一致。
+  // 修复后：init 路径首测也跳过计分，两路径完全对齐。
+  const seq = [
+    { rating: 0, reviewedAt: T - 20 * DAY },
+    { rating: 2, reviewedAt: T - 17 * DAY },
+    { rating: 1, reviewedAt: T - 14 * DAY },
+  ];
+  const mk = (id, fsrs) => [id, { fsrs, createdAt: T - 30 * DAY }];
+  const s0 = initStability(toFsrsGrade(0), DEFAULT_WEIGHTS);
+  const d0 = initDifficulty(toFsrsGrade(0), DEFAULT_WEIGHTS);
+  const initCards = new Map(['a', 'b', 'c'].map((id) => mk(id, null))); // 无 fsrs → init 路径
+  const seedCards = new Map(['a', 'b', 'c'].map((id) => mk(id, { s: s0, d: d0, reps: 0, last: 0 }))); // seed 路径
+  const build = (ids) => ids.flatMap((id) => seq.map((r) => ({ cardId: id, rating: r.rating, reviewedAt: r.reviewedAt })));
+  const rInit = trainWeights(build(['a', 'b', 'c']), initCards, { iters: 2 });
+  const rSeed = trainWeights(build(['a', 'b', 'c']), seedCards, { iters: 2 });
+  assert.equal(rInit.n, rSeed.n, '首测不计分后两路径样本数一致（修复前 init 多计 1）');
+  assert.equal(rInit.loss, rSeed.loss, '首测不计分后两路径损失一致（修复前 init 首测贡献巨量 loss）');
+  assert.ok(Number.isFinite(rInit.loss) && Number.isFinite(rSeed.loss), 'loss 有限，无 NaN/Infinity');
+  assert.ok(rInit.weights.every((v) => Number.isFinite(v)), '权重全有限');
+});
+
 // ---------- 持久化权重合并 ----------
 
 test('mergeUserWeights: v2 结构合法 → 原样返回副本', () => {

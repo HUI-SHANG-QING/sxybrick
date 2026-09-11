@@ -275,8 +275,10 @@ export function trainWeights(reviews, cardsById, opts = {}) {
     for (const { init, reviews: revs } of cardTrajectories) {
       let s, d, reps, last;
       if (!init) {
-        const g0 = revs[0].grade;
-        s = initStability(g0, weights); d = initDifficulty(g0, weights); reps = 1; last = revs[0].reviewedAt;
+        // round42 F1：与 seed 分支口径一致——首测（j=0）在 elapsed=0 下 R 恒为 1，不提供 S0 校准信号，
+  // 反而对「首测就忘」的卡贡献 ~13.8 的巨量 loss 轻微拉偏权重。改令首测走 reps===0 分支
+  // （只据 grade 初始化 s/d、不计分），与 seed 路径（init 非空时 reps=0）完全对齐。
+  s = initStability(revs[0].grade, weights); d = initDifficulty(revs[0].grade, weights); reps = 0; last = 0;
       } else {
         // round34 M11：种子态（init 非空）应保留其真实 s/d 并作为「首测无先验」处理：
         // reps=0 使 j=0 走 seed 分支（不计入 loss，与 backfillCardCalibration 口径一致），

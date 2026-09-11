@@ -345,6 +345,15 @@ export function mergeCardPair(local, incoming, extFields = []) {
     } else if (iv !== undefined) out[f] = iv;
     else if (lv !== undefined) out[f] = lv;
   }
+  // round42 F3：兜底保留「本地独有字段」。合并基底是「内容赢家整行」——当内容赢家为对端、
+  // 且本地卡有个既不在 CARD_CONTENT_FIELDS、又从未 bump fieldTs、也不在 CARD_SRS_FIELDS 的
+  // 字段（未来扩展的非标准字段）时，上面字段级合并不会覆盖它，它会被整行覆盖丢进对端。
+  // 这里补一道：凡本地有、合并结果 out 没有的字段（id 不可变跳过），一律保留本地值。
+  // 绝不与已合并字段冲突（out 已有则不进），且让 out 与本地键集更一致（sameShape 更易成立）。
+  for (const k of Object.keys(local)) {
+    if (k === 'id') continue;
+    if (!(k in out)) out[k] = local[k];
+  }
   return out;
 }
 

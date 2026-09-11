@@ -324,6 +324,25 @@ test('R17-9 mergeCardPair：扩展字段并集保留，形状较简的设备不�
   assert.deepEqual(merged2.synonyms, ['give up', 'forsake'], 'incoming 新时扩展字段随内容赢家');
 });
 
+test('round42 F3：mergeCardPair 保留本地独有（未登记 fieldTs 的扩展）字段，不被内容赢家整行覆盖', () => {
+  // 本地卡有个未来扩展字段 extraLocal（不在 CARD_CONTENT_FIELDS、未 bump fieldTs、不在 CARD_SRS_FIELDS），
+  // 对端同卡内容更新（成为内容赢家）但不含该字段——修复前会整行覆盖把 extraLocal 丢进对端。
+  const local = { id: 'c1', front: 'Q', back: 'A', updatedAt: 1000, extraLocal: '本地独有值' };
+  const incoming = { id: 'c1', front: 'Q+', back: 'A+', updatedAt: 2000 };
+  const merged = mergeCardPair(local, incoming);
+  assert.equal(merged.front, 'Q+', '内容按 updatedAt 赢家（对端新）');
+  assert.equal(merged.extraLocal, '本地独有值', 'F3：本地独有字段在跨设备冲突合并中被保留（修复前会丢失）');
+
+  // 本地为内容赢家时独有字段本就保留（不依赖兜底，回归确认）
+  const local2 = { id: 'c1', front: 'Q+', back: 'A+', updatedAt: 2000, extraLocal: 'v2' };
+  const incoming2 = { id: 'c1', front: 'Q', back: 'A', updatedAt: 1000 };
+  assert.equal(mergeCardPair(local2, incoming2).extraLocal, 'v2', '本地为内容赢家时独有字段本就保留');
+
+  // 对端独有字段（本地没有）随内容赢家进入，不被兜底误删
+  const incoming3 = { id: 'c1', front: 'Q+', back: 'A+', updatedAt: 2000, extraRemote: '对端独有' };
+  assert.equal(mergeCardPair({ id: 'c1', front: 'Q', back: 'A', updatedAt: 1000 }, incoming3).extraRemote, '对端独有', '对端独有字段随内容赢家进入');
+});
+
 // ---------- round30 P2-3：跨设备时钟偏移补偿 ----------
 
 test('P2-3 shiftRowClock：把时间戳从对端时钟帧换算到本机帧（减 skew）', () => {
