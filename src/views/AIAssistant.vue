@@ -9,7 +9,7 @@ import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';
 import FullscreenButton from '../components/FullscreenButton.vue';
 import TextZoomBar from '../components/TextZoomBar.vue';
-// useFullscreen 已替换为简单 ref（移动端全屏不需要复杂 composable）
+import { useFullscreen } from '../composables/useFullscreen.js';
 import { useTextZoom } from '../composables/useTextZoom.js';
 import { speak } from '../utils/tts.js';
 import { T } from '../utils/telemetry.js';
@@ -22,9 +22,10 @@ const input = ref('');
 const loading = ref(false);
 const box = ref(null);
 
-// 全屏/非全屏：对话内容占满整个屏幕专心阅读（非字号缩放）
-const aiFs = ref(false);
-const toggleAiFs = () => { aiFs.value = !aiFs.value; };
+// 全屏/非全屏：真正的浏览器全屏（requestFullscreen），iframe/CSP 拦下时退化 CSS 铺满。
+// 全屏目标 = 整个 .ai-wrap（AI 助手页占满整屏）；aiFs 同时驱动 fs-mode 隐藏左右侧栏。
+const aiRoot = ref(null);
+const { isFullscreen: aiFs, toggle: toggleAiFs } = useFullscreen(aiRoot);
 // 阅读文本字号缩放（复用项目统一机制：字号重排，非 transform，不糊；按模块持久化；Ctrl+滚轮快捷）
 const { scale, fontStyle, zoomIn, zoomOut, reset, onWheel } = useTextZoom('aiAssistant');
 // 侧栏/提问节点显隐：桌面端默认展开（点 ✕ 才收起），移动端默认收起为抽屉（点按钮展开）。
@@ -270,7 +271,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="ai-wrap">
+  <div ref="aiRoot" class="ai-wrap" :class="{ 'ai-fs': aiFs }">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <h2 style="margin:0">{{ t('views.aiAssistant.headerTitle') }}</h2>
       <button class="btn primary small" @click="createNew">{{ t('views.aiAssistant.newChatBtn') }}</button>
@@ -472,6 +473,9 @@ onMounted(async () => {
   height: calc(100vh - 140px);
   height: calc(100dvh - 140px); /* 移动浏览器地址栏收起时 100vh 偏大 → 用 dvh（不支持时回退 vh） */
 }
+/* 全屏态：真实 Fullscreen 或 CSS 退化铺满都会带 .ai-fs。
+   去掉 960px 居中约束、占满整屏高度（否则真实全屏里仍被 max-width 卡成窄条、且底部留 140px）。 */
+.ai-wrap.ai-fs { max-width: none; height: 100vh; height: 100dvh; }
 .quick-bar { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
 /* 4 个子元素但只声明了 3 列 → 旧的 auto-flow 把「全屏按钮行」塞进中间列、
    「消息流」被挤到第 3 列(120px)顶到右上角，中间只剩一块灰底。
