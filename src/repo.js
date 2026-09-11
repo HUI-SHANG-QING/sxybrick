@@ -1704,6 +1704,11 @@ export async function listDocs() {
 export async function getDoc(id) {
   return (await db.docs.get(id)) || null;
 }
+// round38：文档/模考的「可编辑字段」清单——create（初始化 fieldTs）与 update（diff bump）
+// 共用同一常量，避免两处各写一份、以后加字段漏改一处导致该字段无字段级保护。
+const DOC_EDITABLE_FIELDS = ['title', 'content', 'type', 'tags', 'source'];
+const EXAM_EDITABLE_FIELDS = ['title', 'subject', 'questions', 'score', 'total'];
+
 export async function createDoc(payload) {
   const title = String(payload?.title || '').trim() || '未命名文档';
   const content = String(payload?.content || '').trim();
@@ -1715,7 +1720,7 @@ export async function createDoc(payload) {
     source: String(payload?.source || '').trim().slice(0, 60),
     createdAt: t, updatedAt: t,
     // round38：字段级时间戳——跨设备并发改不同字段不再整行覆盖丢一端
-    fieldTs: { title: t, content: t, type: t, tags: t, source: t },
+    fieldTs: Object.fromEntries(DOC_EDITABLE_FIELDS.map(k => [k, t])),
   };
   await db.docs.put(d);
   return d;
@@ -1728,7 +1733,7 @@ export async function updateDoc(id, patch) {
     const d = plain({ ...old, ...(patch || {}), updatedAt: t });
     // round38：只 bump 本次真正变化字段的 fieldTs（合并侧 mergeByFieldTs 据此逐字段取新）
     const fts = { ...(old.fieldTs || {}) };
-    for (const k of ['title', 'content', 'type', 'tags', 'source']) if (d[k] !== old[k]) fts[k] = t;
+    for (const k of DOC_EDITABLE_FIELDS) if (d[k] !== old[k]) fts[k] = t;
     d.fieldTs = fts;
     await db.docs.put(d);
     return d;
@@ -1935,8 +1940,8 @@ export async function saveExam(payload) {
     score: Number(payload?.score) || 0,
     total: Number(payload?.total) || 0,
     createdAt: t, updatedAt: t,
-    // round38：字段级时间戳（跨设备并发改不同字段不再整行覆盖）
-    fieldTs: { title: t, subject: t, questions: t, score: t, total: t },
+    // round38：字段级时间戳（跨设备并发改不同字段不再整行覆盖）——与 updateExam 共用同一字段清单
+    fieldTs: Object.fromEntries(EXAM_EDITABLE_FIELDS.map(k => [k, t])),
   };
   await db.exams.put(e);
   fireHook('onExamFinished', e);
@@ -1955,9 +1960,9 @@ export async function updateExam(id, patch) {
     if (!old) throw new Error('成绩不存在');
     const t = now();
     const e = plain({ ...old, ...(patch || {}), updatedAt: t });
-    // round38：字段级时间戳——只 bump 本次真正变化的字段
+    // round38：字段级时间戳——只 bump 本次真正变化的字段（清单与 saveExam 共用）
     const fts = { ...(old.fieldTs || {}) };
-    for (const k of ['title', 'subject', 'questions', 'score', 'total']) if (e[k] !== old[k]) fts[k] = t;
+    for (const k of EXAM_EDITABLE_FIELDS) if (e[k] !== old[k]) fts[k] = t;
     e.fieldTs = fts;
     await db.exams.put(e);
     return e;

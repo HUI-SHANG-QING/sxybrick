@@ -34,8 +34,12 @@ const STORAGE_KEY = 'sxybrick.proactive.dedup';
 const AI_SUMMARY_KEY = 'sxybrick.proactive.aiSummaryDate';
 
 // ---------- 通知持久化（IndexedDB：db.notifications）----------
+// round38 ②：notifications 已并入同步且改为 updatedAt 策略（全局已读语义：一处已读处处已读）。
+// 因此——① 创建时带 updatedAt（供 LWW 比较）；② 任何读状态变更必须 bump updatedAt，否则不传播；
+//         ③ 任何删除（超量清理/清空/单删）必须写墓碑 kind='notification'，否则对端下次同步复活。
 
 export async function pushNotification(n) {
+  const t = Date.now();
   const item = {
     id: n.id || uid(),
     key: n.key || '',
@@ -44,7 +48,8 @@ export async function pushNotification(n) {
     title: String(n.title || '').slice(0, 120),
     body: String(n.body || '').slice(0, 600),
     action: n.action || null,
-    createdAt: Date.now(),
+    createdAt: t,
+    updatedAt: t, // round38：LWW 基准（read 变更会续推）
     read: 0, // 0=未读 1=已读（整数以支持 IndexedDB 索引）
   };
   await db.notifications?.put(item);
@@ -53,7 +58,14 @@ export async function pushNotification(n) {
     // createdAt 已建索引，用 reverse + offset(maxNotifications) 直接取「超出配额的旧行主键」批量删除，
     // 复杂度 O(超额) 而非 O(全表)，内存也不加载全部行。
     const excessIds = await db.notifications?.orderBy('createdAt').reverse().offset(SCHEDULER.maxNotifications).primaryKeys();
-    if (excessIds && excessIds.length) await db.notifications?.bulkDelete(excessIds);
+    // round38 ②：删除必须写墓碑（否则对端持有的旧行下次同步会复活）
+    if (excessIds && excessIds.length) {
+      const nowTs = Date.now();
+      await db.transaction('rw', db.notifications, db.tombstones, async () => {
+        await db.notifications.bulkDelete(excessIds);
+        await db.tombstones.bulkPut(excessIds.map(id => ({ id, kind: 'notification', deletedAt: nowTs })));
+      });
+    }
   } catch { /* noop */ }
   return item;
 }
@@ -69,21 +81,37 @@ export async function unreadCount() {
 }
 
 export async function markRead(id) {
-  await db.notifications?.update(id, { read: 1 });
+  // round38 ②：差量写 + bump updatedAt —— 全局已读（否则对端红点不消失）
+  await db.notifications?.update(id, { read: 1, updatedAt: Date.now() });
 }
 
 export async function markAllRead() {
   if (!db.notifications) return;
   const unread = await db.notifications.where('read').equals(0).toArray();
-  if (unread.length) await db.notifications.bulkPut(unread.map((u) => ({ ...u, read: 1 })));
+  if (unread.length) {
+    const nowTs = Date.now();
+    await db.notifications.bulkPut(unread.map((u) => ({ ...u, read: 1, updatedAt: nowTs })));
+  }
 }
 
 export async function clearAllNotifications() {
-  await db.notifications?.clear();
+  // round38 ②：清空写墓碑，防对端复活
+  const ids = await db.notifications.toCollection().primaryKeys();
+  await db.transaction('rw', db.notifications, db.tombstones, async () => {
+    await db.notifications.clear();
+    if (ids.length) {
+      const nowTs = Date.now();
+      await db.tombstones.bulkPut(ids.map(id => ({ id, kind: 'notification', deletedAt: nowTs })));
+    }
+  });
 }
 
 export async function deleteNotification(id) {
-  await db.notifications?.delete(id);
+  // round38 ②：单删写墓碑，防对端复活
+  await db.transaction('rw', db.notifications, db.tombstones, async () => {
+    await db.notifications.delete(id);
+    await db.tombstones.put({ id, kind: 'notification', deletedAt: Date.now() });
+  });
 }
 
 // ---------- 去重冷却（localStorage）----------

@@ -250,6 +250,46 @@ test('round38 ④：墓碑 kind→表 由同步清单自动派生（无漏登记
   }
 });
 
+test('round38 ④b：源码里所有墓碑 kind 都能在派生映射中找到表（防未来手滑）', async () => {
+  const { readFileSync, readdirSync, statSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const files = [];
+  const walk = (d) => {
+    for (const e of readdirSync(d)) {
+      if (e === 'node_modules' || e.startsWith('.')) continue;
+      const p = join(d, e);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (e.endsWith('.js')) files.push(p);
+    }
+  };
+  for (const r of ['src', 'sync-hub']) walk(r);
+  assert.ok(files.length > 40, `扫描文件数异常（${files.length}）——测试可能空跑`);
+  const map = tombKindTable();
+  const missing = [];
+  let scannedKinds = 0;
+  for (const f of files) {
+    for (const line of readFileSync(f, 'utf8').split('\n')) {
+      if (!line.includes('deletedAt')) continue; // 墓碑行形状：{ id, kind: 'x', deletedAt }
+      const m = line.match(/kind:\s*'([a-zA-Z][a-zA-Z0-9]*)'/);
+      if (m) { scannedKinds++; if (!map[m[1]]) missing.push(`${f.replace(/\\/g, '/')}: kind '${m[1]}'`); }
+    }
+  }
+  assert.ok(scannedKinds > 5, `墓碑 kind 采样数异常（${scannedKinds}）——测试可能空跑`);
+  assert.deepEqual(missing, [],
+    `以下墓碑 kind 未映射到表 → pruneTombstones 将永不回收它们：\n  ${missing.join('\n  ')}`);
+});
+
+test('round38 ②：notifications 用 updatedAt 策略——已读状态跨设备传播且两端收敛', () => {
+  const entry = SYNC_TABLES.find(t => t.table === 'notifications');
+  assert.equal(entry.merge, 'updatedAt', '已读状态需靠 updatedAt 传播（idOnly 不会传播已存在行的更新）');
+  const unread = { id: 'n1', read: 0, updatedAt: 100 };
+  const readLater = { id: 'n1', read: 1, updatedAt: 200 };
+  const ab = mergeRows([unread], [readLater], 'updatedAt');
+  const ba = mergeRows([readLater], [unread], 'updatedAt');
+  assert.equal(ab[0].read, 1, '较晚的已读状态应胜出');
+  assert.equal(ba[0].read, 1, '反序合并也应得到同一结果（收敛，红点不再各亮各的）');
+});
+
 test('filterClearedRows：水位之前的历史行被过滤（隐私删除语义）', async () => {
   const { filterClearedRows, livenessTs } = await import('../src/sync-manifest.js');
   const rows = [

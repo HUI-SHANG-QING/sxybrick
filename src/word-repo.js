@@ -637,15 +637,33 @@ export async function wordReviewedTotal() {
   return db.wordReviews.count();
 }
 
-// ---------- 学习时长（wordStudyLog：id=`t-${date}`，date=YYYY-MM-DD，ms 当日累计） ----------
-// 仅本机累计（不进同步）：时长是设备使用语境数据，跨设备相加会虚增同一人的实际学习时间。
+// ---------- 学习时长（wordStudyLog：id=`t-${date}-${deviceId}`，date=YYYY-MM-DD，ms 当日累计） ----------
+// round38：本表已并入同步。为「跨设备统一又不丢」，改为**按设备分片**：
+//   · 写入：每台设备写自己的行 `t-${date}-${deviceId}`，行之间互不覆盖（idOnly 合并安全）；
+//   · 读取：按 date 求和（今日）/ 全表求和（累计）→ 手机 30min + 平板 20min = 50min。
+//   · 旧行 `t-${date}`（升级前/未升级设备所写）仍带 date 字段 → 一并计入，无重复计数。
 // 写入侧（WordReview.commit）每答一题累加一次，单次增量封顶 5 分钟——防挂机页面虚增时长。
 const STUDY_TIME_MAX_DELTA = 5 * 60 * 1000;
+
+// 设备本地标识（存 db.meta，随行不参与同步——meta 仅同步 goal/examAt/schedMeta 等已知键）。
+let _deviceIdCache = null;
+async function localDeviceId() {
+  if (_deviceIdCache) return _deviceIdCache;
+  try {
+    const row = await db.meta.get('deviceId');
+    if (row?.value) { _deviceIdCache = String(row.value); return _deviceIdCache; }
+  } catch { /* 忽略，走新建 */ }
+  const id = uid().slice(0, 12);
+  try { await db.meta.put({ key: 'deviceId', value: id, updatedAt: Date.now() }); } catch { /* 忽略 */ }
+  _deviceIdCache = id;
+  return id;
+}
+
 export async function recordWordStudyTime(deltaMs) {
   const ms = Math.max(0, Math.min(Number(deltaMs) || 0, STUDY_TIME_MAX_DELTA));
   if (!ms) return 0;
   const date = todayStr();
-  const id = `t-${date}`;
+  const id = `t-${date}-${await localDeviceId()}`;
   await db.transaction('rw', db.wordStudyLog, async () => {
     const cur = await db.wordStudyLog.get(id);
     await db.wordStudyLog.put({
@@ -656,12 +674,12 @@ export async function recordWordStudyTime(deltaMs) {
   });
   return ms;
 }
-// 今日学习时长（毫秒）
+// 今日学习时长（毫秒）——按 date 汇总所有设备行（含旧格式行）
 export async function wordStudyTimeToday() {
-  const row = await db.wordStudyLog.get(`t-${todayStr()}`);
-  return row?.ms || 0;
+  const rows = await db.wordStudyLog.where('date').equals(todayStr()).toArray();
+  return rows.reduce((s, r) => s + (r?.ms || 0), 0);
 }
-// 累计学习时长（毫秒）——全表 ms 求和
+// 累计学习时长（毫秒）——全表 ms 求和（自然跨设备汇总）
 export async function wordStudyTimeTotal() {
   const rows = await db.wordStudyLog.toArray();
   return rows.reduce((s, r) => s + (r?.ms || 0), 0);

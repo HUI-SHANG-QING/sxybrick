@@ -151,12 +151,14 @@ export const SYNC_TABLES = [
   //   wordExportHistory：导出历史（见下方 v33 条目——round38 起改为跨设备同步）
   { table: 'wordExportHistory', kind: 'wordExportHistory', merge: 'idOnly' },
   // ── v33（round38，用户要求）：原「本机日志/统计」类改为跨设备同步，统一多设备视图 ──
-  //   notifications：本机提示（idOnly 幂等；内容不可变，已读状态按设备本地）
+  //   notifications：本机提示。round38 ②：改 updatedAt 策略（**全局已读**语义——一处已读
+  //     处处已读）；已读操作 bump updatedAt，删除/清空写墓碑 kind='notification'。
   //   errors：错误日志（idOnly；清空走墓碑 kind='error'，防对端复活）
   //   aiUsage：AI 用量账本（idOnly；pruneAiUsage/清空均写墓碑 kind='aiUsage'）
   //   wordExportHistory：英语导出历史（idOnly；过期清理写墓碑 kind='wordExportHistory'）
-  //   wordStudyLog：英语学习时长流水（idOnly；id=`t-YYYY-MM-DD` 追加式天然幂等）
-  { table: 'notifications', kind: 'notification', merge: 'idOnly' },
+  //   wordStudyLog：英语学习时长流水（idOnly；round38 ① 按设备分片 id=`t-YYYY-MM-DD-<deviceId>`，
+  //     读取按 date/全表求和 → 跨设备不丢也不虚增）
+  { table: 'notifications', kind: 'notification', merge: 'updatedAt' },
   { table: 'errors', kind: 'error', merge: 'idOnly' },
   { table: 'aiUsage', kind: 'aiUsage', merge: 'idOnly' },
   { table: 'wordStudyLog', kind: 'wordStudyLog', merge: 'idOnly' },
@@ -546,11 +548,15 @@ export function mergeRows(base, incoming, strategy, opts = {}) {
           m.set(x.id, xr);
         }
       } else if (b === a) {
-        if (JSON.stringify(cur) !== JSON.stringify(xr)) {
+        // round38：平局分支只序列化一次并复用——此前对超长行（文档 content / 资料）会重复
+        // JSON.stringify 3~4 次（纯性能，语义与收敛结果不变）。
+        const cs = JSON.stringify(cur);
+        const xs = JSON.stringify(xr);
+        if (cs !== xs) {
           // round23 P2-2：同时间戳但内容不同（跨设备时钟偏差可造成）→ 确定性收敛：
           // 两设备都选 canonical（序列化字典序小者），杜绝「A 认 B、B 认 A」的反复横跳
           // 或各自保留造成跨设备永久不一致。
-          m.set(x.id, JSON.stringify(xr) < JSON.stringify(cur) ? xr : cur);
+          m.set(x.id, xs < cs ? xr : cur);
         } else {
           m.set(x.id, xr); // 内容一致，无差别
         }

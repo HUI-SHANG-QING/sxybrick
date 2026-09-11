@@ -51,6 +51,22 @@ test('wordStudyTimeTotal：累计 = 全表 ms 求和（含当日）', async () =
   assert.ok(total >= today, '累计时长不小于今日时长');
 });
 
+test('round38 ①：同一天多设备分片求和——一端时长不再丢失', async () => {
+  await db.wordStudyLog.clear(); // 隔离
+  await recordWordStudyTime(1000); // 本机 1s
+  const local = (await db.wordStudyLog.toArray())[0];
+  assert.ok(/_/.test(local.id) || /-/.test(local.id), '本机行 id 应含分片（date 之外）');
+  assert.match(local.id, /^t-\d{4}-\d{2}-\d{2}-/, `本机 id 应为 t-<date>-<deviceId>，实际 ${local.id}`);
+  // 模拟「另一台设备同步进来的同一天行」（不同 id、同一 date）
+  await db.wordStudyLog.put({ id: `t-${local.date}-otherdevice`, date: local.date, ms: 2000, updatedAt: 1 });
+  assert.equal(await wordStudyTimeToday(), 3000, '今日应为两台之和（1000 + 2000），不丢任何一端');
+  assert.equal(await wordStudyTimeToday(), 3000, '重复读取不改变结果（幂等，无累加副作用）');
+  // 旧格式行（升级前 `t-<date>`，无设备后缀）也须计入，且不重复计数
+  await db.wordStudyLog.put({ id: `t-${local.date}`, date: local.date, ms: 500, updatedAt: 1 });
+  assert.equal(await wordStudyTimeToday(), 3500, '旧格式行应一并汇总');
+  await db.wordStudyLog.clear();
+});
+
 // ---------------- B. 派生字段（derived / syllable） ----------------
 
 test('derived / syllable：createWordCard 落库 + updateWordCard 往返', async () => {
