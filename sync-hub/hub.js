@@ -10,6 +10,7 @@ import { writeFile as writeFileP, rename as renameP } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize, sep, resolve } from 'node:path';
 import { networkInterfaces } from 'node:os';
+import { connect } from 'node:net';
 import { randomBytes } from 'node:crypto';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES,
@@ -511,8 +512,20 @@ function unauthorized(req, res, info) {
   }, headers);
 }
 
-function usbHints(name) {
-  const s = String(name || '').toLowerCase();
+// 手机若把端口写漏（只输 http://IP），请求会打到 80 端口 —— Windows 上 80 常被
+// IIS（http.sys，PID 4）占用，于是手机看到的是 IIS「Internet Information Services」欢迎页，
+// 用户会误以为"中枢坏了"。这里探测本机 80 是否有服务，只在真被占用时给出针对性提示。
+function detectPort80InUse() {
+  return new Promise((resolve) => {
+    const s = connect({ host: '127.0.0.1', port: 80, timeout: 400 });
+    const done = (v) => { try { s.destroy(); } catch {} resolve(v); };
+    s.once('connect', () => done(true));
+    s.once('error', () => done(false));
+    s.once('timeout', () => done(false));
+  });
+}
+
+function usbHints(name) {  const s = String(name || '').toLowerCase();
   if (/rndis|usb|android|remote ndis|tether/.test(s)) return '  ← USB/手机USB共享，手机连数据线时优先用这个';
   if (/hyper-v|virtual|vmware|virtualbox|wsl|loopback/.test(s)) return '  ← 虚拟网卡，手机一般访问不到';
   if (/wi-fi|wifi|wireless|wlan|802\.11/.test(s)) return '  ← WiFi 网卡，手机需连同一WiFi';
@@ -768,5 +781,14 @@ server.listen(PORT, HOST, () => {
   console.log('          netsh advfirewall firewall add rule name="SxyBrick Hub 18080" dir=in action=allow protocol=TCP localport=18080');
   console.log('          （或在 Windows 安全中心 → 允许应用通过防火墙 → 勾选 node/npm 的专用与公用网络）');
   console.log('       3) 手机浏览器地址必须以 http:// 开头（不要 https，也不要带多余路径）。');
+  console.log('   · ⚠ 地址必须带端口 :' + PORT + '——只输 http://<IP> 会打到 80 端口。');
+  // 80 被 IIS 占用时给出针对性提示（实测：Windows 常见 IIS/http.sys 占 80，
+  // 手机漏端口时打开的是 IIS 欢迎页，极易被误判成"中枢有问题"）。
+  detectPort80InUse().then((busy) => {
+    if (busy) {
+      console.log('     （本机 80 端口已被其他服务占用——常见是 IIS。手机若看到');
+      console.log('       「Internet Information Services」欢迎页，就是端口漏写了，请补上 :' + PORT + '）');
+    }
+  }).catch(() => {});
   if (!existsSync(DIST)) console.log('\n⚠ 尚未找到 dist/，请先运行 npm run build 再访问网页。');
 });
