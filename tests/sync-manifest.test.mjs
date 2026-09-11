@@ -11,20 +11,23 @@ import {
   mergeCardPair, mergeRows, mergeTombstones, applyTombstones, kindOf, shiftRowClock,
 } from '../src/sync-manifest.js';
 
-test('清单：33 张表全部登记且策略合法', () => {
+test('清单：38 张表全部登记且策略合法', () => {
   // v19 → 20；v22（M1）cardGroups + cardGroupLinks → 22；v23（M2）analysisSessions + analysisMessages → 24；
   // v25（英语单词模块）wordCards + wordReviews + wordGroups + wordGroupLinks → 28；
-  // v26（英语模块升级）wordSettings + wordCheckins + wordSyllabusMeta → 31（wordExportHistory 入 EXCLUDED_FROM_SYNC）
+  // v26（英语模块升级）wordSettings + wordCheckins + wordSyllabusMeta → 31
   // v30（大纲中文释义）syllabusMeanings → 32
   // v31（通用卡↔英语词卡链接）cardWordLinks → 33
+  // v33（round38，用户要求）notifications/errors/aiUsage/wordExportHistory/wordStudyLog → 38
   // 审查：userOps 保留在同步清单（分析用），由 repo.pruneUserOps() 做 365 天保留期清理（写墓碑）
-  assert.equal(SYNC_TABLES.length, 33);
-  assert.equal(BACKUP_VERSION, 8);
+  assert.equal(SYNC_TABLES.length, 38);
+  assert.equal(BACKUP_VERSION, 9);
   const names = SYNC_TABLES.map(t => t.table);
   // privacyRecords 不在默认同步清单
   assert.ok(!names.includes('privacyRecords'), 'privacyRecords 不应默认入同步');
-  // wordExportHistory 是仅本机记录，不入同步
-  assert.ok(!names.includes('wordExportHistory'), 'wordExportHistory 不应入同步');
+  // round38：原「仅本机」的 5 张表已并入同步
+  for (const t of ['notifications', 'errors', 'aiUsage', 'wordExportHistory', 'wordStudyLog']) {
+    assert.ok(names.includes(t), `${t} 应入同步（round38）`);
+  }
   for (const need of ['cards', 'reviews', 'images', 'aiChats', 'aiMemories', 'memos', 'plans', 'graphEdges', 'docs', 'docFiles', 'pomoSessions', 'mindmaps', 'weeklyReports', 'achievements', 'exams', 'embeddings', 'userOps', 'notes', 'dailyPlans', 'dailyTasks', 'cardGroups', 'cardGroupLinks', 'cardWordLinks', 'analysisSessions', 'analysisMessages', 'wordCards', 'wordReviews', 'wordGroups', 'wordGroupLinks', 'wordSettings', 'wordCheckins', 'wordSyllabusMeta']) {
     assert.ok(names.includes(need), `缺少表 ${need}`);
   }
@@ -51,9 +54,13 @@ test('v26 钩子：wordSettings 跨设备 strip 敏感字段（llmApiKey/llmBase
   assert.equal(exported.dailyGoal, 20, '非敏感字段保留');
 });
 
-test('排除表：notifications/errors 故意不同步', () => {
-  assert.ok(EXCLUDED_FROM_SYNC.includes('notifications'));
-  assert.ok(EXCLUDED_FROM_SYNC.includes('errors'));
+test('round38：原「仅本机」5 表已并入同步，且有硬性障碍的 2 表仍排除', () => {
+  for (const t of ['notifications', 'errors', 'aiUsage', 'wordExportHistory', 'wordStudyLog']) {
+    assert.ok(!EXCLUDED_FROM_SYNC.includes(t), `${t} 不应再在排除清单（round38 已入同步）`);
+  }
+  // snapshots（整库 dump）与 plugins（可执行代码/可能含密钥）保持本机
+  assert.ok(EXCLUDED_FROM_SYNC.includes('snapshots'));
+  assert.ok(EXCLUDED_FROM_SYNC.includes('plugins'));
 });
 
 test('隐私表：默认不入同步，opt-in 清单存在', () => {
@@ -203,7 +210,8 @@ test('applyTombstones：旧行删除 / 新行复活标记 stale / kind 隔离', 
 // ---------- round15 P2：清空水位 + 本地表登记 ----------
 
 test('EXCLUDED_FROM_SYNC：本地表 docTexts/docBlobs/trash 已登记（清单=唯一事实来源）', () => {
-  for (const t of ['docTexts', 'docBlobs', 'trash', 'aiUsage', 'wordExportHistory']) {
+  // round38：aiUsage/wordExportHistory 已转入 SYNC_TABLES，仅剩有硬性障碍的本地表
+  for (const t of ['docTexts', 'docBlobs', 'trash', 'imageRefs', 'snapshots', 'plugins']) {
     assert.ok(EXCLUDED_FROM_SYNC.includes(t), `本地表 ${t} 应登记在排除清单`);
   }
 });

@@ -88,11 +88,19 @@ export async function recordExportHistory(entry = {}) {
       pageCount: Number(entry.pageCount || 0),
     });
     // 保留策略：近一年 + 最多 30 条（避免本地表膨胀）
+    // round38：wordExportHistory 已入同步表，删除必须写墓碑（kind='wordExportHistory'），
+    // 否则对端旧副本下次拉取把清理掉的行复活。
     const YEAR = 365 * 24 * 3600 * 1000;
     const cutoff = Date.now() - YEAR;
     const all = await db.wordExportHistory.orderBy('createdAt').reverse().toArray();
     const stale = all.filter((x, i) => i >= 30 || (x.createdAt || 0) < cutoff);
-    if (stale.length) await db.wordExportHistory.bulkDelete(stale.map((x) => x.id));
+    if (stale.length) {
+      const nowTs = Date.now();
+      await db.transaction('rw', db.wordExportHistory, db.tombstones, async () => {
+        await db.wordExportHistory.bulkDelete(stale.map((x) => x.id));
+        await db.tombstones.bulkPut(stale.map((x) => ({ id: x.id, kind: 'wordExportHistory', deletedAt: nowTs })));
+      });
+    }
     return true;
   } catch (e) {
     console.warn('[word-export] write history failed:', e);

@@ -90,7 +90,14 @@ export async function aggregateUsage(days = 30) {
   return agg;
 }
 
-/** 清空全部用量记录 */
+/** 清空全部用量记录（round38：aiUsage 已入同步表，清空必须写墓碑，否则对端复活） */
 export async function clearUsage() {
-  await db.aiUsage.clear();
+  const ids = await db.aiUsage.toCollection().primaryKeys();
+  await db.transaction('rw', db.aiUsage, db.tombstones, async () => {
+    await db.aiUsage.clear();
+    if (ids.length) {
+      const nowTs = Date.now();
+      await db.tombstones.bulkPut(ids.map(id => ({ id, kind: 'aiUsage', deletedAt: nowTs })));
+    }
+  });
 }

@@ -16,11 +16,17 @@ export async function logError(err, ctx = {}) {
   };
   try {
     await db.errors.put(row);
-    // 超量清理：删最旧的
+    // 超量清理：删最旧的（round38：errors 已入同步表，删除必须写墓碑，否则对端复活）
     const count = await db.errors.count();
     if (count > MAX_ERRORS) {
       const stale = await db.errors.orderBy('createdAt').limit(count - MAX_ERRORS).toArray();
-      for (const r of stale) await db.errors.delete(r.id);
+      if (stale.length) {
+        const nowTs = Date.now();
+        await db.transaction('rw', db.errors, db.tombstones, async () => {
+          await db.errors.bulkDelete(stale.map(r => r.id));
+          await db.tombstones.bulkPut(stale.map(r => ({ id: r.id, kind: 'error', deletedAt: nowTs })));
+        });
+      }
     }
   } catch { /* 日志自身失败不能拖垮主流程 */ }
   console.error('[errorLog]', row.message, e);
@@ -32,5 +38,13 @@ export async function getErrors(limit = 50) {
 }
 
 export async function clearErrors() {
-  await db.errors.clear();
+  // round38：errors 已入同步表，清空必须写墓碑（kind='error'），否则对端旧副本下次拉取复活
+  const ids = await db.errors.toCollection().primaryKeys();
+  await db.transaction('rw', db.errors, db.tombstones, async () => {
+    await db.errors.clear();
+    if (ids.length) {
+      const nowTs = Date.now();
+      await db.tombstones.bulkPut(ids.map(id => ({ id, kind: 'error', deletedAt: nowTs })));
+    }
+  });
 }

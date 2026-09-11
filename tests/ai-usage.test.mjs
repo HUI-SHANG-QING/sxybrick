@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
 import { db } from '../src/db.js';
-import { EXCLUDED_FROM_SYNC } from '../src/sync-manifest.js';
+import { EXCLUDED_FROM_SYNC, SYNC_TABLES } from '../src/sync-manifest.js';
 import { estimateTokens, estimateCost, recordUsage, aggregateUsage, clearUsage } from '../src/utils/ai-usage.js';
 
 after(async () => { try { await db.close(); } catch {} });
@@ -57,6 +57,7 @@ test('记录 + 聚合：token 求和、按来源/模型分组、时间窗口', a
   assert.equal(empty.calls, 0);
 });
 
-test('aiUsage 在 EXCLUDED_FROM_SYNC：用量账本不进同步/导出', () => {
-  assert.ok(EXCLUDED_FROM_SYNC.includes('aiUsage'));
+test('aiUsage 已入同步表（round38）：用量账本跨设备统一', () => {
+  assert.ok(SYNC_TABLES.some(t => t.table === 'aiUsage'), 'aiUsage 应登记在 SYNC_TABLES');
+  assert.ok(!EXCLUDED_FROM_SYNC.includes('aiUsage'), 'aiUsage 不应再在排除清单');
 });

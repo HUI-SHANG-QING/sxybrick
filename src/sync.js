@@ -91,6 +91,26 @@ async function collectSchedMeta(disabled, since = 0) {
   return Object.keys(out).length ? out : null;
 }
 
+/**
+ * 收集包内内容引用的图片 id：卡片 front/back + 笔记/资料/备忘/导图正文。
+ * 与本地 GC（repo.cleanupOrphanImages / findOrphanImages 扫 6 表）口径对齐——
+ * 消除「卡片删除后某图仅被笔记/资料正文以 sxy-img:// 残留引用 → 本地不删但不随包」的漏导边角。
+ * @param {Array} cards 本次打包的卡片
+ * @param {object} parts 本次打包的各表行（notes/docs/memos/mindmaps 优先复用，避免重复 IO）
+ */
+function collectPackImageIds(cards, parts) {
+  const ids = new Set();
+  for (const c of cards || []) {
+    for (const id of extractImageIds((c?.front || '') + '\n' + (c?.back || ''))) ids.add(id);
+  }
+  for (const tbl of ['notes', 'docs', 'memos', 'mindmaps']) {
+    for (const r of (parts?.[tbl] || [])) {
+      for (const id of extractImageIds(JSON.stringify(r))) ids.add(id);
+    }
+  }
+  return ids;
+}
+
 export async function buildBackup(subject) {
   let cards = await db.cards.toArray();
   if (subject) cards = cards.filter(c => c.subject === subject);
@@ -114,9 +134,8 @@ export async function buildBackup(subject) {
   // 科目分享包不携带墓碑（同学设备与你的删除历史无关）
   const tombstones = subject ? [] : await db.tombstones.toArray();
 
-  // 收集被打包卡片引用的图片
-  const ids = new Set();
-  for (const c of cards) for (const id of extractImageIds(c.front + '\n' + c.back)) ids.add(id);
+  // 收集被打包内容引用的图片（卡片 front/back + 笔记/资料/备忘/导图正文）
+  const ids = collectPackImageIds(cards, parts);
   const images = [];
   for (const id of ids) {
     const row = await db.images.get(id);
@@ -171,9 +190,8 @@ export async function buildIncrementalBackup(lastSyncAt = 0, opts = {}) {
   // 增量包仍带全量墓碑（删除传播不可遗漏）
   const tombstones = await db.tombstones.toArray();
 
-  // 增量包的图片：只带本次变更卡片引用的图片
-  const ids = new Set();
-  for (const c of cards) for (const id of extractImageIds(c.front + '\n' + c.back)) ids.add(id);
+  // 增量包的图片：本次变更卡片 + 本次变更的笔记/资料/备忘/导图正文引用（口径同全量包）
+  const ids = collectPackImageIds(cards, parts);
   const images = [];
   for (const id of ids) {
     const row = await db.images.get(id);

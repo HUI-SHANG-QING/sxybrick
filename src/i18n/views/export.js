@@ -71,7 +71,8 @@ export const zh = {
   uncategorized: '未分类',
   noFileSelected: '尚未选择文件。',
   systemExportTitle: '🧰 系统级数据导出 / 一键同步备份',
-  systemExportHint: '「全量数据包」包含卡片 / 复习 / AI / 导图 / 周报 / 成就 / 模考 / 通知 / 错误日志 / 操作埋点(userOps) / 人生隐私(privacyRecords) 全部模块，与「同步 / 局域网一键同步」走同一条链路，可直接跨设备导入。',
+  systemExportHint: '「全量数据包」包含卡片 / 复习 / AI / 导图 / 周报 / 成就 / 模考 / 通知 / 错误日志 / 操作埋点(userOps) / AI 用量 / 导出历史 / 学习时长 等全部跨设备模块（开启隐私同步后还含人生隐私），与「同步 / 局域网一键同步」走同一条链路，可直接跨设备导入。',
+  localOnlyNote: '按设计不跨设备（不进数据包、也不参与同步）：资料原文件与解析全文、回收站、回滚快照、插件（可能含密钥）、图片索引。它们只保存在本机——资料原文需在新设备重新上传。',
   packing: '打包中…',
   fullBackupBtn: '📦 导出全量数据包（一键同步）',
   // M14 加密备份（.sxybrick）：AES-GCM 加密，离设备文件不含明文
@@ -223,7 +224,8 @@ export const en = {
   uncategorized: 'Uncategorized',
   noFileSelected: 'No file selected yet.',
   systemExportTitle: '🧰 System-level data export / one-click sync backup',
-  systemExportHint: 'The "full data package" includes every module — cards / reviews / AI / mindmaps / weekly reports / achievements / exams / notifications / error logs / operation telemetry (userOps) / life privacy (privacyRecords). It uses the same pipeline as "Sync / LAN one-click sync" and can be imported across devices.',
+  systemExportHint: 'The "full data package" includes every cross-device module — cards / reviews / AI / mindmaps / weekly reports / achievements / exams / notifications / error logs / operation telemetry (userOps) / AI usage / export history / study time (plus life privacy when privacy sync is on). It uses the same pipeline as "Sync / LAN one-click sync" and can be imported across devices.',
+  localOnlyNote: 'By design these never leave this device (not in the package, not synced): document originals and parsed full text, recycle bin, rollback snapshots, plugins (may contain keys), image index. They stay local only — document originals must be re-uploaded on a new device.',
   packing: 'Packaging…',
   fullBackupBtn: '📦 Export full data package (one-click sync)',
   // M14 encrypted backup (.sxybrick): AES-GCM encrypted, no plaintext on disk

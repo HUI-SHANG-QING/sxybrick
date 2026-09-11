@@ -28,7 +28,7 @@ const privacy = new Set(PRIVACY_SYNC_TABLES.map(t => (typeof t === 'string' ? t 
 // 这些不是漏同步，但同步范围可能与整表不同 —— 注释里写明真实口径，便于人工核对。
 const SPECIAL_CASED = {
   tombstones: '经 backup.tombstones 全量传播（删除语义，必须同步）',
-  meta: '经 backup.streakMeta 同步【仅 goal 打卡目标】，其余 meta 键不同步',
+  meta: '经 backup.streakMeta/examMeta/schedMeta 同步【goal 打卡目标 + examAt 考试日期 + scheduler/fsrsWeights/fsrsInfo/pretestStability 调度配置】，其余 meta 键本地不同步',
 };
 
 const missing = [];

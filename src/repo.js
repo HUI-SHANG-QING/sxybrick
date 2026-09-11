@@ -758,6 +758,9 @@ const TOMB_KIND_TABLE = {
   analysisSession: 'analysisSessions', analysisMessage: 'analysisMessages',
   userOp: 'userOps', pomoSession: 'pomoSessions', weeklyReport: 'weeklyReports',
   achievement: 'achievements', syllabusMeaning: 'syllabusMeanings',
+  // v33（round38）：新增同步表的墓碑 kind 映射（供 pruneTombstones GC 查本地残留行）
+  notification: 'notifications', error: 'errors', aiUsage: 'aiUsage',
+  wordExportHistory: 'wordExportHistory', wordStudyLog: 'wordStudyLog',
 };
 export async function pruneTombstones({ maxAgeDays = 30, maxPerRun = 5000 } = {}) {
   const cutoff = Date.now() - maxAgeDays * 86400000;
@@ -786,13 +789,18 @@ export async function pruneTombstones({ maxAgeDays = 30, maxPerRun = 5000 } = {}
   return ids.length;
 }
 
-// round34 M4：aiUsage（EXCLUDED_FROM_SYNC，本地审计用）随每次 AI 调用无上限增长 → 本地膨胀。
-// 按日期裁剪（同 pruneUserOps 纪律，本地表不跨设备故无需写墓碑）。
+// round34 M4：aiUsage 随每次 AI 调用无上限增长 → 本地膨胀，按日期裁剪。
+// round38：aiUsage 已并入同步表（v33）→ 走 idOnly 合并，absence ≠ deletion；
+// 裁剪必须写墓碑（kind='aiUsage'），否则中枢/对端旧副本下次拉取会把清掉的行复活。
 export async function pruneAiUsage({ keepDays = 90, maxPerRun = 10000 } = {}) {
   const cutoff = Date.now() - keepDays * 86400000;
   const ids = await db.aiUsage.where('t').below(cutoff).limit(maxPerRun).primaryKeys();
   if (!ids.length) return 0;
-  await db.aiUsage.bulkDelete(ids);
+  const nowTs = now();
+  await db.transaction('rw', db.aiUsage, db.tombstones, async () => {
+    await db.aiUsage.bulkDelete(ids);
+    await db.tombstones.bulkPut(ids.map(id => ({ id, kind: 'aiUsage', deletedAt: nowTs })));
+  });
   return ids.length;
 }
 

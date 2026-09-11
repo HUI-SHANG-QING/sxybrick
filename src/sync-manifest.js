@@ -3,31 +3,30 @@
 // 新增数据表时只需在此登记，导出/导入/中枢合并便自动覆盖，避免多处遗漏。
 // 注意：本文件必须保持"无浏览器依赖"，因为 hub.js 会直接在 Node 里 import 它。
 
-// round34 M10：每次 schema 演进（新增表/字段）必须 +1——旧客户端（同号）与新中枢合并时
-// 会撞上它根本没有的 Dexie 表 → bulkPut 抛错、整批导入失败（P0）。当前 schema 已到 v31
-// （cardWordLinks 等），此前漏 bump，这里补到 8 并作为硬性纪律。导入侧 sync.js 用
-// `backup.version > BACKUP_VERSION` 拒绝过高版本（清晰「请升级」而非崩溃），v7 旧包仍可导入。
-export const BACKUP_VERSION = 8;
+// round34 M10 → round38：新增 5 张同步表（notifications/errors/aiUsage/wordExportHistory/wordStudyLog）
+// 属同步集合演进，必须 +1。导入侧 sync.js 用 `backup.version > BACKUP_VERSION` 拒绝过高版本
+// （清晰「请升级」而非崩溃），更低版本旧包仍可导入。
+export const BACKUP_VERSION = 9;
 
 // merge 策略：
 //   card      卡片专属：内容字段按 updatedAt、SRS 字段按 reviewedAt、错因按 wrongReasonAt 字段级合并
 //   updatedAt 按 max(updatedAt ?? createdAt ?? 0) 谁新听谁
 //   idOnly    按 id 幂等（不可变记录：复习、图片、番茄专注、向量嵌入）
 
-// 本地日志/通知表——设备本地诊断数据，故意不同步（跨设备无意义且增大包体积）
-// snapshots：同步快照仅本机回滚用，跨设备无意义且增大包体积
-// plugins：插件为本机扩展，跨设备无意义且可能含敏感配置（API Key 等）
-// aiUsage：AI 用量账本（P2-27），本设备计费上下文，不同步
-// wordExportHistory：英语模块导出历史（仅本机记录，跨设备无意义且增大包体积）
+// round38（用户要求）：原「本机日志/统计」类表改为跨设备同步（见 SYNC_TABLES 尾部 v33 条目）。
+// 仍显式排除的表仅剩「有硬性技术障碍」的两张：
+// snapshots：快照行内含「全库所有表 + 墓碑 + 元数据」的完整 dump（见 sync.js saveSnapshot）——
+//   一份快照≈整库大小，跨设备同步 N 份 = N× 库体积 → 中枢/包体爆炸，且快照仅本机回滚用。
+// plugins：以 ES Module 代码字符串存库（plugins/manifest.js），跨设备同步＝执行外来代码，
+//   且代码/配置可能含硬编码 API Key → 安全风险，保持本机。
 export const EXCLUDED_FROM_SYNC = [
-  'notifications', 'errors', 'snapshots', 'plugins', 'aiUsage', 'wordExportHistory',
-  // v27：英语学习时长流水——本机使用语境累计，跨设备相加会虚增，不同步
-  'wordStudyLog',
+  'snapshots', 'plugins',
   // round15 P2：本地表补登记（此前在 db 存在但不进同步、也不在排除清单——
   // 破坏「清单 = 唯一事实来源」不变量，未来误加 SYNC_TABLES 无防护）。
   //   docTexts：解析全文（大字段，id 与 docFiles 一一对应）
   //   docBlobs：OPFS 降级时暂存的原文件二进制（v24）
-  //   trash：回收站快照（删除语义由墓碑表达，快照仅本机恢复用）
+  //   trash：回收站快照（删除语义由墓碑表达，快照仅本机恢复用；跨设备恢复会与对端
+  //          残留墓碑「你恢复、它再删」互相打架，故不随同步）
   //   imageRefs：图片引用反向索引（v32，本地派生表，可由卡内容重建）
   'docTexts', 'docBlobs', 'trash', 'imageRefs',
 ];
@@ -149,7 +148,18 @@ export const SYNC_TABLES = [
   //   大纲版本更新）→ 原 idOnly「已存在即保留」会让先到者的旧值赢、后更新设备的元信息
   //   永不补传；改 updatedAt 谁新听谁（写入端已带 updatedAt，见 word-repo.saveSyllabusMetaRow）
   { table: 'wordSyllabusMeta', kind: 'wordSyllabusMeta', merge: 'updatedAt' },
-  //   wordExportHistory：导出历史，见上方 EXCLUDED_FROM_SYNC（仅本机，不进同步/备份）
+  //   wordExportHistory：导出历史（见下方 v33 条目——round38 起改为跨设备同步）
+  { table: 'wordExportHistory', kind: 'wordExportHistory', merge: 'idOnly' },
+  // ── v33（round38，用户要求）：原「本机日志/统计」类改为跨设备同步，统一多设备视图 ──
+  //   notifications：本机提示（idOnly 幂等；内容不可变，已读状态按设备本地）
+  //   errors：错误日志（idOnly；清空走墓碑 kind='error'，防对端复活）
+  //   aiUsage：AI 用量账本（idOnly；pruneAiUsage/清空均写墓碑 kind='aiUsage'）
+  //   wordExportHistory：英语导出历史（idOnly；过期清理写墓碑 kind='wordExportHistory'）
+  //   wordStudyLog：英语学习时长流水（idOnly；id=`t-YYYY-MM-DD` 追加式天然幂等）
+  { table: 'notifications', kind: 'notification', merge: 'idOnly' },
+  { table: 'errors', kind: 'error', merge: 'idOnly' },
+  { table: 'aiUsage', kind: 'aiUsage', merge: 'idOnly' },
+  { table: 'wordStudyLog', kind: 'wordStudyLog', merge: 'idOnly' },
 ];
 
 /**

@@ -43,6 +43,9 @@ export const MODULE_LABELS = {
   // v26 英语模块升级
   wordSettings: '单词设置', wordCheckins: '单词签到', wordSyllabusMeta: '大纲词表元信息',
   syllabusMeanings: '大纲词中文释义',
+  // v33（round38）：原「仅本机」的日志/统计表并入同步
+  notifications: '通知', errors: '错误日志', aiUsage: 'AI 用量',
+  wordExportHistory: '导出历史', wordStudyLog: '学习时长',
   // 隐私敏感表（默认不入同步，用户 opt-in 后出现在面板）
   privacyRecords: '隐私记录',
 };
@@ -56,6 +59,8 @@ const MODULE_ORDER_HINT = [
   'dailyPlans', 'dailyTasks', 'wordCards', 'wordReviews',
   'wordGroups', 'wordGroupLinks', 'wordSettings', 'wordCheckins',
   'wordSyllabusMeta', 'syllabusMeanings', 'userOps', 'privacyRecords',
+  // v33（round38）：日志/统计表并入同步
+  'notifications', 'errors', 'aiUsage', 'wordExportHistory', 'wordStudyLog',
 ];
 
 /**

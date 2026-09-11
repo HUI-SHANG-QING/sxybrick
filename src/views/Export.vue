@@ -813,6 +813,10 @@ async function doApkgImport() {
         </button>
         <button class="chip" @click="refreshCounts">{{ t('views.export.refreshStats') }}</button>
       </div>
+      <!-- round38：显式列出「不跨设备」的类别，避免用户误以为导出/同步丢数据 -->
+      <div class="hint" style="margin:10px 0 0;color:var(--muted)">
+        {{ t('views.export.localOnlyNote') }}
+      </div>
     </div>
 
     <div class="panel no-print" style="margin-top:14px">

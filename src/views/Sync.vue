@@ -681,6 +681,10 @@ async function refreshStatus() { await loadModuleStatus(); }
       <div class="hint" style="margin-top:8px">
         {{ t('views.sync.statusHint') }}
       </div>
+      <!-- round38：显式说明哪些数据按设计不跨设备，避免误解为同步遗漏 -->
+      <div class="hint" style="margin-top:4px;color:var(--muted)">
+        {{ t('views.sync.localOnlyNote') }}
+      </div>
     </div>
 
     <!-- 手动同步 -->
