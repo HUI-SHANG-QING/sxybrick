@@ -753,7 +753,12 @@ server.listen(PORT, HOST, () => {
     console.log('     建议用 HUB_HOST=<内网IP> 只绑一张网卡，或确认防火墙已勾选「专用网络」。');
   }
   console.log(`   鉴权：HMAC-SHA256 挑战-响应（v${AUTH_VERSION}，同步密码不上网）＋ 失败指数退避锁定`);
-  console.log(`   跨域：仅允许同源与 localhost${ALLOW_ORIGIN.length ? `，另加白名单 ${ALLOW_ORIGIN.join(', ')}` : ''}`);
+  console.log(`   跨域：同源与 localhost${ALLOW_ORIGIN.length ? `，另加白名单 ${ALLOW_ORIGIN.join(', ')}` : '（未配置额外来源）'}`);
+  if (!ALLOW_ORIGIN.length) {
+    console.log('   · 安卓手机想「在 GitHub Pages 页面里直接点同步」需先放行该域，否则会被 CORS 拒：');
+    console.log('     双击 sync-hub\\start-hub.bat 启动（已预置你的 Pages 域），或先设环境变量：');
+    console.log('     set HUB_ALLOW_ORIGIN=https://<你的Pages域>   （Origin 不带路径，多域用逗号分隔）');
+  }
   console.log('   下面列了本机全部 IPv4 网卡，请选与你手机/平板同一网段的地址。\n');
   const ifaces = networkInterfaces();
   let any = false;

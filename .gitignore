@@ -3,7 +3,7 @@ dist
 dist_bak_*
 dev-dist
 outputs
-sync-hub/hub-data.json
+sync-hub/hub-data*.json   # 含 .backup-* 备份，避免 22MB 数据文件误提交
 sync-hub/hub-token.txt
 sxybrick-测试数据包-*.json
 .DS_Store
