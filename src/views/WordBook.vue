@@ -13,7 +13,8 @@ import {
 } from '../word-repo.js';
 import { linkCardWord, unlinkCardWord, allCardWordLinks } from '../repo.js';
 import { generateWordMaterials } from '../services/word-llm.js';
-import { isInSyllabus, getSyllabusMeta, listSyllabus } from '../services/word-syllabus.js';
+import { enrichWordMaterials } from '../services/word-enrich.js';
+import { isInSyllabus, getSyllabusMeta, listSyllabus, builtinMeaning } from '../services/word-syllabus.js';
 import { getMeanings, meaningCoverage, syncWithSyllabus } from '../services/word-meaning.js';
 import { ocrImageText } from '../docs-lib.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
@@ -427,7 +428,45 @@ async function toggleFamiliar(c) {
   await load();
 }
 
-function openDetail(c) { detail.value = c; detailTab.value = 'collocations'; exOpen.value = new Set(); showDetail.value = true; refreshLinked(); }
+// 详情抽屉的**本地降级填充**（只读合并，绝不写库、绝不覆盖用户手填内容）：
+//  ① 富词条库命中（word-enrich）：释义/例句/长难句解析/搭配/短语/派生/词根/同义词/助记 全套；
+//  ② 未命中 → 降级到内置种子释义库（已 100% 覆盖考研大纲词），至少让释义区不空白；
+//  ③ 都没有 → 标记 none，由 UI 明确提示「未收录」。
+// 这样「大纲内但尚未收录完整词条」的词不再显示成一片「暂无内容」。
+function fillFromLocalBank(card) {
+  const c = card || {};
+  const word = String(c.word || '').trim();
+  if (!word) return { ...c, _localSource: 'none' };
+  const out = { ...c };
+  const take = (key, val) => {
+    if (val == null) return;
+    if (Array.isArray(val)) { if (!(out[key] || []).length && val.length) out[key] = val; }
+    else if (!String(out[key] || '').trim() && String(val).trim()) out[key] = val;
+  };
+  const r = enrichWordMaterials({ word, levels: settings.value?.exampleLevels });
+  if (r.ok && r.data) {
+    const d = r.data;
+    take('defs', d.defs); take('pos', d.pos); take('examples', d.examples);
+    take('collocations', d.collocations); take('phrases', d.phrases);
+    take('derived', d.derived); take('synonyms', d.synonyms);
+    take('rootAffix', d.rootAffix); take('syllable', d.syllable);
+    if (d.mnemonic) take('mnemonics', [d.mnemonic]);
+    out._localSource = 'full';
+    return out;
+  }
+  const m = builtinMeaning(word);
+  if (m) {
+    if (!(out.defs || []).length && !String(out.meaning || '').trim()) {
+      out.defs = [{ pos: out.pos || '', meaning: m }];
+    }
+    out._localSource = 'seed';
+    return out;
+  }
+  out._localSource = 'none';
+  return out;
+}
+
+function openDetail(c) { detail.value = fillFromLocalBank(c); detailTab.value = 'collocations'; exOpen.value = new Set(); showDetail.value = true; refreshLinked(); }
 
 // ---- 详情卡（对标成熟单词 App：音节大字 / 多词性释义 / 例句高亮 / 四 Tab） ----
 const detailTab = ref('collocations'); // collocations | derived | root | synonyms | linked
@@ -502,6 +541,14 @@ function detailExamples(c) {
   if (c?.examples?.length) return c.examples;
   return c?.example ? [{ level: '', sentence: c.example, translation: c.exampleTrans || '' }] : [];
 }
+
+// Tab 与例句区的空态文案分层（避免把"仅缺某一项"误报成"完全未收录"）
+const tabEmptyText = computed(() => {
+  const src = detail.value?._localSource;
+  if (src === 'seed') return t('views.wordBook.tabEmptySeed');
+  if (src === 'full') return t('views.wordBook.tabFieldMissing');
+  return t('views.wordBook.tabEmptyNone');
+});
 
 function speakWord(w) { speak(w, { lang: settings.value?.accent === 'auto' ? 'en-US' : settings.value?.accent }); }
 
@@ -930,6 +977,8 @@ async function addOcrWords() {
             <button class="de-x" :title="exOpen.has(i) ? t('views.wordBook.exCollapse') : t('views.wordBook.exExpand')" @click="toggleExample(i)">{{ exOpen.has(i) ? '▾' : '▸' }}</button>
           </div>
         </div>
+        <!-- 本地库暂无该词例句时的明确提示（长难句解析随例句一并补齐） -->
+        <p v-else class="hint" style="margin:6px 0 0">{{ t('views.wordBook.examplesPending') }}</p>
 
         <!-- 四 Tab：词组搭配 / 派生 / 词根 / 近义 -->
         <div class="detail-tabs">
@@ -953,7 +1002,7 @@ async function addOcrWords() {
                 <span v-for="p in detail.phrases" :key="p" class="dtb-chip dtb-chip-p">{{ p }}</span>
               </div>
             </div>
-            <p v-if="!(detail.collocations || []).length && !(detail.phrases || []).length" class="dtb-empty">{{ t('views.wordBook.tabEmpty') }}</p>
+            <p v-if="!(detail.collocations || []).length && !(detail.phrases || []).length" class="dtb-empty">{{ tabEmptyText }}</p>
           </template>
 
           <!-- 派生 -->
@@ -964,7 +1013,7 @@ async function addOcrWords() {
                 <span class="dtb-mean">{{ dv.meaning }}</span>
               </div>
             </div>
-            <p v-else class="dtb-empty">{{ t('views.wordBook.tabEmpty') }}</p>
+            <p v-else class="dtb-empty">{{ tabEmptyText }}</p>
           </template>
 
           <!-- 词根（词根词缀 + 音节 + 助记） -->
@@ -981,7 +1030,7 @@ async function addOcrWords() {
               <div class="ds-label">{{ t('views.wordBook.detailMnemonics') }}</div>
               <p class="dtb-text">{{ detail.mnemonics.join('；') }}</p>
             </div>
-            <p v-if="!detail.rootAffix && !detail.syllable && !(detail.mnemonics || []).length" class="dtb-empty">{{ t('views.wordBook.tabEmpty') }}</p>
+            <p v-if="!detail.rootAffix && !detail.syllable && !(detail.mnemonics || []).length" class="dtb-empty">{{ tabEmptyText }}</p>
           </template>
 
           <!-- 近义（同义词 + 易混淆） -->
@@ -999,7 +1048,7 @@ async function addOcrWords() {
                 <span class="dtb-mean">{{ cf.meaning }}</span>
               </div>
             </div>
-            <p v-if="!(detail.synonyms || []).length && !(detail.confusions || []).length" class="dtb-empty">{{ t('views.wordBook.tabEmpty') }}</p>
+            <p v-if="!(detail.synonyms || []).length && !(detail.confusions || []).length" class="dtb-empty">{{ tabEmptyText }}</p>
           </template>
 
           <!-- v31：关联通用卡（同一知识点，多对多；反向入口） -->

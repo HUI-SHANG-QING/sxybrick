@@ -15,6 +15,7 @@ import {
   recordWordStudyTime, wordStudyTimeToday, wordStudyTimeTotal,
 } from '../src/word-repo.js';
 import { generateWordMaterials } from '../src/services/word-llm.js';
+import { hasLocalEntry } from '../src/services/word-enrich.js';
 import { WORD_EXT_FIELDS } from '../src/sync-manifest.js';
 import { EXT_FIELDS } from '../src/word-repo.js';
 
@@ -92,36 +93,40 @@ test('derived / syllable：createWordCard 落库 + updateWordCard 往返', async
 // ---------------- C. word-llm：新字段归一化 ----------------
 
 test('generateWordMaterials：syllable / defs / derived / rootAffix 归一化', async () => {
+  // 本用例验证的是「AI 通道的脏数据归一化」：必须走 AI 通道，因此所选词需满足
+  // 「在大纲内（否则被门控拒绝）」且「本地词库未收录（否则本地优先命中，不走 AI）」。
+  // banner 当前满足两者；一旦它被收进本地词库，下面的前置断言会直接报出原因。
+  assert.ok(!hasLocalEntry('banner'), 'banner 已被本地词库收录 —— 本用例必须走 AI 通道，请改用其他未收录的大纲词');
   const agentCtx = {
     runAgent: async () => JSON.stringify({
-      syllable: '  al·ter·na·tive  ',
+      syllable: '  ban·ner  ',
       defs: [
-        { pos: 'adj.', meaning: '可替代的' },
-        { pos: 'n.', meaning: '可供选择的事物' },
+        { pos: 'n.', meaning: '横幅，标语' },
+        { pos: 'n.', meaning: '（网络）横幅广告' },
         null, // 噪音行应被过滤
       ],
-      synonyms: ['substitute'],
-      collocations: ['an alternative plan'],
-      phrases: ['have no alternative but to do'],
+      synonyms: ['flag'],
+      collocations: ['hang a banner'],
+      phrases: ['under the banner of'],
       derived: [
-        { word: 'alternatively', meaning: 'adv. 或者' },
+        { word: 'banner ad', meaning: 'n. 横幅广告' },
         { word: '', meaning: '空词应被过滤' },
       ],
-      rootAffix: '  alter(改变) + -ative(形容词后缀)  ',
+      rootAffix: '  ban(旗) + -er(名词后缀)  ',
       examples: [
-        { level: 'simple', sentence: 'We need an alternative plan.', translation: '我们需要一个替代计划。' },
+        { level: 'simple', sentence: 'A banner hung across the street.', translation: '一条横幅横挂在街上。' },
       ],
-      pos: 'adj./n.',
-      mnemonic: 'alt 记「改变」',
+      pos: 'n.',
+      mnemonic: 'ban 记「旗」',
     }),
   };
-  const out = await generateWordMaterials({ word: 'alternative', settings: {}, agentCtx, allowAi: true });
+  const out = await generateWordMaterials({ word: 'banner', settings: {}, agentCtx, allowAi: true });
   assert.equal(out.ok, true);
-  assert.equal(out.data.syllable, 'al·ter·na·tive', '音节应 trim');
+  assert.equal(out.data.syllable, 'ban·ner', '音节应 trim');
   assert.equal(out.data.defs.length, 2, 'defs 空行应被过滤');
-  assert.deepEqual(out.data.defs[0], { pos: 'adj.', meaning: '可替代的' });
+  assert.deepEqual(out.data.defs[0], { pos: 'n.', meaning: '横幅，标语' });
   assert.equal(out.data.derived.length, 1, '空 word 的派生项应被过滤');
-  assert.equal(out.data.rootAffix, 'alter(改变) + -ative(形容词后缀)', '词根应 trim');
+  assert.equal(out.data.rootAffix, 'ban(旗) + -er(名词后缀)', '词根应 trim');
   // 补档：缺 long 例句应本地补一条
   assert.deepEqual(out.data.examples.map((e) => e.level).sort(), ['long', 'simple']);
 });
