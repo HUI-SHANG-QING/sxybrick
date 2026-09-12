@@ -1,7 +1,7 @@
 {
   "shard": "b",
   "from": "bachelor",
-  "to": "benefit",
+  "to": "bitter",
   "entries": {
     "bachelor": {
       "syllable": "bach·e·lor",
@@ -3516,6 +3516,306 @@
       ],
       "mnemonic": "be·lieve 记「相信」；belief 信念，believe in 信奉"
     },
+    "belong": {
+      "syllable": "be·long",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "属于，归……所有；应归入（某类）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（belong to）是……的成员；适应（某地）"
+        }
+      ],
+      "rootAffix": "be-（使）+ long（古义 along/belonging）→ 归属于",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "This book belongs to the library.",
+          "translation": "这本书属于图书馆。",
+          "analysis": "简单句：主语 This book + 谓语 belongs + 状语 to the library。belong to 表「属于」，后接所有者。"
+        },
+        {
+          "level": "long",
+          "sentence": "The decision belongs to those who must live with its consequences, not to the experts who advise them, a principle easily stated yet routinely ignored when advice is mistaken for authority.",
+          "translation": "这个决定属于那些必须承担其后果的人，而非建议他们的专家——这条原则说起来容易，却常在被把建议误当权威时遭到忽视。",
+          "analysis": "复合句。主句 The decision belongs to those...，其内 who must live with its consequences 为定语从句修饰 those。not to the experts who advise them 并列宾语，who advise them 定语从句修饰 experts。a principle... 为同位语，其内 easily stated yet routinely ignored 为过去分词作后置定语，when 引导时间状语从句（advice is mistaken for authority，mistake A for B 表「把 A 误当 B」）。"
+        }
+      ],
+      "collocations": [
+        "belong to",
+        "belong in/with",
+        "where you belong"
+      ],
+      "phrases": [
+        "belong to sb. 属于某人",
+        "feel you belong 感到融入"
+      ],
+      "derived": [
+        {
+          "word": "belonging",
+          "meaning": "n. 归属感；所有物"
+        }
+      ],
+      "synonyms": [
+        "own",
+        "pertain",
+        "fit"
+      ],
+      "mnemonic": "be·long 记「属于」；belong to 后接所有者"
+    },
+    "below": {
+      "syllable": "be·low",
+      "pos": "prep./adv.",
+      "defs": [
+        {
+          "pos": "prep.",
+          "meaning": "在……下面；低于（某标准/温度）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "在下方；在下文"
+        }
+      ],
+      "rootAffix": "be-（by）+ low（低）→ 在下方",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The temperature fell below zero.",
+          "translation": "气温降到了零度以下。",
+          "analysis": "简单句：主语 The temperature + 谓语 fell + 状语 below zero。below 表「低于（某一数值）」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The cost of inaction stays hidden below the headlines because its victims are diffuse and its bill arrives years late, so the cheaper option today quietly becomes the dearer one tomorrow.",
+          "translation": "不作为的代价藏在头条之下，因为其受害面分散、账单迟来数年，于是今日看似更便宜的选择悄悄变成了明日更贵的一个。",
+          "analysis": "复合句。主句 The cost... stays hidden below the headlines，其后 because 引导原因状语从句（its victims are diffuse and its bill arrives years late，and 并列）。so 引导结果状语从句，其内 the cheaper option today 主语，becomes 系动词，the dearer one tomorrow 表语。"
+        }
+      ],
+      "collocations": [
+        "below average",
+        "below zero",
+        "far below"
+      ],
+      "phrases": [
+        "below the surface 表面之下",
+        "below par 低于标准"
+      ],
+      "derived": [
+        {
+          "word": "low",
+          "meaning": "adj. 低的"
+        }
+      ],
+      "synonyms": [
+        "under",
+        "beneath",
+        "less than"
+      ],
+      "mnemonic": "be·low 记「在……下」；below zero 零下"
+    },
+    "belt": {
+      "syllable": "belt",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "腰带，皮带；地带（如 green belt）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "用带系紧；猛击（口语）"
+        }
+      ],
+      "rootAffix": "源自古英语 belt（带）→ 拉丁 balteus",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He tightened his safety belt before takeoff.",
+          "translation": "起飞前他系紧了安全带。",
+          "analysis": "简单句：主语 He + 谓语 tightened + 宾语 his safety belt + 时间 before takeoff。safety belt 表「安全带」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The agricultural belt that had fed the city for a century shrank as concrete crept outward, a loss that no supermarket aisle could truly replace because it severed the link between eater and soil.",
+          "translation": "那条供养城市一个世纪的农业地带随着混凝土向外蔓延而萎缩，这道损失任何超市货架都无法真正弥补，因为它切断了食者与土地的联系。",
+          "analysis": "复合句。主句 The agricultural belt... shrank，其前 that had fed the city for a century 为定语从句修饰 belt，as concrete crept outward 为时间状语从句。a loss that no supermarket aisle could truly replace 为同位语，that 定语从句修饰 loss，because 引导原因状语从句（it severed the link between eater and soil）。"
+        }
+      ],
+      "collocations": [
+        "safety belt",
+        "belt up",
+        "green belt"
+      ],
+      "phrases": [
+        "tighten one's belt 节衣缩食",
+        "below the belt 不公正的（拳击下盘犯规）"
+      ],
+      "derived": [
+        {
+          "word": "belted",
+          "meaning": "adj. 束带的；有腰带的"
+        }
+      ],
+      "synonyms": [
+        "strap",
+        "zone",
+        "girdle"
+      ],
+      "mnemonic": "belt 记「腰带」；tighten one's belt 节衣缩食"
+    },
+    "bench": {
+      "syllable": "bench",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "长凳，长椅；工作台；（体育）替补席"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使替补出场（be benched）"
+        }
+      ],
+      "rootAffix": "源自古英语 benc（长凳）→ 原始日耳曼 *bankiz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "An old man sat on the park bench.",
+          "translation": "一位老人坐在公园长椅上。",
+          "analysis": "简单句：主语 An old man + 谓语 sat + 状语 on the park bench。bench 此处表「长椅」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The scientist spent decades at a workbench most people never see, a quiet persistence that produced results flashed across screens in a single evening, the contrast between years of effort and seconds of attention.",
+          "translation": "这位科学家在多数人从未目睹的工作台前耗费了数十年，那份安静的坚持产出的成果却在一个晚上便刷满屏幕——数年努力与数秒关注之间形成了鲜明反差。",
+          "analysis": "复合句。主句 The scientist spent decades at a workbench，其内 most people never see 为省略 that 的定语从句修饰 workbench。a quiet persistence that produced results... 为同位语，that 定语从句修饰 persistence，flashed across screens 为过去分词作后置定语修饰 results，in a single evening 状语。the contrast between... and... 为同位语。"
+        }
+      ],
+      "collocations": [
+        "on the bench",
+        "workbench",
+        "park bench"
+      ],
+      "phrases": [
+        "warm the bench 坐冷板凳（当替补）",
+        "bench press 卧推"
+      ],
+      "derived": [
+        {
+          "word": "benchmark",
+          "meaning": "n. 基准，参照点"
+        }
+      ],
+      "synonyms": [
+        "seat",
+        "pew",
+        "stall"
+      ],
+      "mnemonic": "bench 记「长凳/工作台」；benchmark 基准"
+    },
+    "bend": {
+      "syllable": "bend",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "使弯曲；弯腰；屈从"
+        },
+        {
+          "pos": "n.",
+          "meaning": "弯曲处，弯道"
+        }
+      ],
+      "rootAffix": "源自古英语 bendan（使弯曲）→ 原始日耳曼 *bandijaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She bent down to pick up the pen.",
+          "translation": "她弯下腰捡起那支笔。",
+          "analysis": "简单句：主语 She + 谓语 bent down + 目的状语 to pick up the pen。bend down 表「弯腰」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A rule that bends for one favored case soon bends for all, until the standard everyone agreed to means nothing, which is why fair systems resist exceptions even when the exception seems harmless.",
+          "translation": "为某个受惠情形而弯的规则很快会为所有人弯，直到众人认同的标准变得毫无意义——这正是公平体系即便例外看似无害也要拒绝例外的缘由。",
+          "analysis": "复合句。主句 A rule... soon bends for all，其前 that bends for one favored case 为定语从句修饰 rule。until 引导时间状语从句（the standard... means nothing），everyone agreed to 为省略 that 的定语从句修饰 standard。which 引导非限制性定语从句指代前文，其内 why 引导表语从句（fair systems resist exceptions even when...）。"
+        }
+      ],
+      "collocations": [
+        "bend down",
+        "bend the rules",
+        "bend over"
+      ],
+      "phrases": [
+        "bend one's mind to 专心于",
+        "on bended knee 跪着（恳求）"
+      ],
+      "derived": [
+        {
+          "word": "bent",
+          "meaning": "adj. 弯曲的；n. 偏好"
+        }
+      ],
+      "synonyms": [
+        "curve",
+        "bow",
+        "yield"
+      ],
+      "mnemonic": "bend 记「弯曲」；bend the rules 通融/破例"
+    },
+    "beneath": {
+      "syllable": "be·neath",
+      "pos": "prep./adv.",
+      "defs": [
+        {
+          "pos": "prep.",
+          "meaning": "在……正下方；低于（身份/价值）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "在下方"
+        }
+      ],
+      "rootAffix": "be-（by）+ neath（下，古英语 neothera）→ 在下方",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They found a box buried beneath the floor.",
+          "translation": "他们找到一个埋在地板下的盒子。",
+          "analysis": "简单句：主语 They + 谓语 found + 宾语 a box + 宾语补足 buried beneath the floor。beneath 表「在……正下方」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Beneath the calm report lay a dispute no one had named, a conflict that mattered more than the figures on the page because it would decide whose version of the story outlived the meeting.",
+          "translation": "在那份平静的报告之下，藏着一场无人点破的争端——这场冲突比纸面数字更重要，因为它将决定谁的叙述在会议之后存续。",
+          "analysis": "复合句（倒装）。Beneath the calm report lay a dispute 为地点状语前置的倒装句（正常语序 a dispute lay beneath...）。no one had named 为定语从句修饰 dispute。a conflict that mattered more than... 为同位语，that 定语从句修饰 conflict，because 引导原因状语从句（it would decide whose version... outlived the meeting）。"
+        }
+      ],
+      "collocations": [
+        "beneath the surface",
+        "far beneath",
+        "beneath contempt"
+      ],
+      "phrases": [
+        "beneath one's dignity 有失身份",
+        "beneath the skin 皮下/内在"
+      ],
+      "derived": [
+        {
+          "word": "neath",
+          "meaning": "prep. 在……之下（诗/古，罕用）"
+        }
+      ],
+      "synonyms": [
+        "under",
+        "below",
+        "underneath"
+      ],
+      "mnemonic": "be·neath 记「在……正下方」；比 below 更正式"
+    },
     "benefit": {
       "syllable": "ben·e·fit",
       "pos": "n./v.",
@@ -3575,6 +3875,1270 @@
       ],
       "易混辨析": "benefit（好处）/ beneficial（有益的，形容词）/ benevolent（仁慈的）/ beneficiary（受益人）——bene 同根「好」家族",
       "mnemonic": "bene(好)+fit(做) → 做出好处 → 益处、受益"
+    },
+    "beside": {
+      "syllable": "be·side",
+      "pos": "prep.",
+      "defs": [
+        {
+          "pos": "prep.",
+          "meaning": "在……旁边；与……相比"
+        },
+        {
+          "pos": "prep.",
+          "meaning": "（beside the point）离题，不相干"
+        }
+      ],
+      "rootAffix": "be-（by）+ side（边）→ 在旁边",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She sat beside her brother during the film.",
+          "translation": "看电影时她坐在哥哥旁边。",
+          "analysis": "简单句：主语 She + 谓语 sat + 状语 beside her brother + 时间 during the film。beside 表「在……旁边」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The objection, though loudly stated, fell beside the point, for the question was not whether the method was elegant but whether it reached the truth the committee had promised to pursue.",
+          "translation": "那条反对意见虽被高声提出，却离题了，因为问题不在于方法是否优雅，而在于它是否抵达了委员会承诺追寻的真相。",
+          "analysis": "复合句。主句 The objection... fell beside the point（beside the point 表「离题」），其前 though loudly stated 为让步状语（省略主谓 though it was）。for 引导原因状语从句，其主句 the question was not A but B，whether 引导表语从句（the method was elegant / it reached the truth the committee had promised to pursue，had promised 定语从句修饰 committee）。"
+        }
+      ],
+      "collocations": [
+        "beside the point",
+        "sit beside",
+        "beside oneself"
+      ],
+      "phrases": [
+        "beside the point 离题",
+        "beside oneself with 极度（喜怒）"
+      ],
+      "derived": [
+        {
+          "word": "aside",
+          "meaning": "adv. 在旁边；撇开"
+        }
+      ],
+      "synonyms": [
+        "next to",
+        "by",
+        "alongside"
+      ],
+      "mnemonic": "be·side 记「在旁边」；beside the point 离题（别与 besides 混淆）"
+    },
+    "best": {
+      "syllable": "best",
+      "pos": "adj./adv.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "最好的（good 的最高级）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "最好地（well 的最高级）"
+        }
+      ],
+      "rootAffix": "good/well 的最高级，源自古英语 betst",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "This is the best book I have read this year.",
+          "translation": "这是我今年读过最好的书。",
+          "analysis": "简单句：主语 This + 系词 is + 表语 the best book，其后 I have read this year 为定语从句修饰 book。best 为 good 最高级。"
+        },
+        {
+          "level": "long",
+          "sentence": "The best solution is rarely the one praised in the moment, because the option that pleases everyone now usually defers the hard trade-off that later proves unavoidable, and the cost of delay is paid by people not in the room.",
+          "translation": "最佳方案很少是当下被称赞的那个，因为此刻取悦所有人的选项通常会推迟那个后来证明不可避免的两难，而延迟的代价由不在场的人承担。",
+          "analysis": "复合句。主句 The best solution is rarely the one praised in the moment，其内 praised in the moment 过去分词作后置定语。because 引导原因状语从句，其主句 the option... usually defers the hard trade-off，that later proves unavoidable 定语从句修饰 trade-off，and 并列 the cost of delay is paid by people not in the room（not in the room 后置定语）。"
+        }
+      ],
+      "collocations": [
+        "the best",
+        "best of all",
+        "do one's best"
+      ],
+      "phrases": [
+        "make the best of 充分利用",
+        "best wishes 祝好"
+      ],
+      "derived": [
+        {
+          "word": "better",
+          "meaning": "adj./adv. 更好的（比较级）"
+        },
+        {
+          "word": "good",
+          "meaning": "adj. 好的（原级）"
+        }
+      ],
+      "synonyms": [
+        "finest",
+        "optimal",
+        "superior"
+      ],
+      "mnemonic": "best 是 good/well 最高级；比较级 better"
+    },
+    "bet": {
+      "syllable": "bet",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "打赌，下注；敢说（I bet）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "赌注，打赌"
+        }
+      ],
+      "rootAffix": "源自古英语 bet（打赌/押注，与 abet 同源）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I bet he will be late again.",
+          "translation": "我敢说他又要迟到了。",
+          "analysis": "简单句：主语 I + 谓语 bet + 宾语从句 he will be late again。I bet (that)... 口语表「我敢说/肯定」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Every plan that ignored the risk was a silent bet that things would stay calm, a wager no one had signed but everyone had made by the mere act of proceeding as if danger were someone else's problem.",
+          "translation": "每个无视风险的方案都是一场「事态将保持平静」的无声赌注——这场赌局无人签字，却被每个人以「照常推进、仿佛危险是别人的事」之举下了注。",
+          "analysis": "复合句。主句 Every plan... was a silent bet，其内 that ignored the risk 定语从句修饰 plan，that things would stay calm 为 bet 的同位语从句。a wager no one had signed but everyone had made 同位语，no one had signed / everyone had made 并列定语从句，by the mere act of proceeding as if danger were... 为方式状语（as if 虚拟）。"
+        }
+      ],
+      "collocations": [
+        "I bet",
+        "bet on",
+        "make a bet"
+      ],
+      "phrases": [
+        "bet one's bottom dollar 孤注一掷",
+        "you bet 当然"
+      ],
+      "derived": [
+        {
+          "word": "better",
+          "meaning": "n. 下注者（罕）"
+        },
+        {
+          "word": "betting",
+          "meaning": "n. 下注"
+        }
+      ],
+      "synonyms": [
+        "wager",
+        "gamble",
+        "stake"
+      ],
+      "mnemonic": "bet 记「打赌」；I bet 我敢说"
+    },
+    "betray": {
+      "syllable": "be·tray",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "背叛，出卖；辜负；泄露（秘密）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（表情）暴露，显露（真实情感）"
+        }
+      ],
+      "rootAffix": "be-（完全）+ tray（交出，拉丁 tradere）→ 交出（不该交的）→ 背叛",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "His face betrayed no emotion at all.",
+          "translation": "他脸上丝毫没有流露出情绪。",
+          "analysis": "简单句：主语 His face + 谓语 betrayed + 宾语 no emotion + 状语 at all。betray 此处表「暴露、显露」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The data betrayed the claim more clearly than any critic could, because the numbers refused to bend toward the story the report was paid to tell, leaving the authors to explain a gap no polish could hide.",
+          "translation": "数据比任何批评者都更清楚地出卖了那番说辞，因为数字拒绝向那份报告受雇要讲的故事低头，让作者只能去解释一个再怎么润色也藏不住的缺口。",
+          "analysis": "复合句。主句 The data betrayed the claim，其前 more clearly than any critic could 为比较状语从句（省略谓语 betray）。because 引导原因状语从句，其主句 the numbers refused to bend toward the story，the report was paid to tell 定语从句修饰 story，leaving the authors to explain a gap 现在分词作结果状语，no polish could hide 定语从句修饰 gap。"
+        }
+      ],
+      "collocations": [
+        "betray sb.",
+        "betray a secret",
+        "betray oneself"
+      ],
+      "phrases": [
+        "betray one's trust 辜负信任",
+        "betray no sign of 毫无……迹象"
+      ],
+      "derived": [
+        {
+          "word": "betrayal",
+          "meaning": "n. 背叛，出卖"
+        },
+        {
+          "word": "betrayer",
+          "meaning": "n. 背叛者"
+        }
+      ],
+      "synonyms": [
+        "deceive",
+        "reveal",
+        "abandon"
+      ],
+      "mnemonic": "be·tray 记「背叛/暴露」；betrayal 背叛（名词）"
+    },
+    "better": {
+      "syllable": "bet·ter",
+      "pos": "adj./adv.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "更好的（good 的比较级）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "更好地（well 的比较级）；更"
+        }
+      ],
+      "rootAffix": "good/well 的比较级，源自古英语 betera",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "This version works better than the old one.",
+          "translation": "这个版本比旧版运行得更好。",
+          "analysis": "简单句：主语 This version + 谓语 works + 状语 better + 比较 than the old one。better 为 well 比较级。"
+        },
+        {
+          "level": "long",
+          "sentence": "A smaller, better-understood step beats a grand plan no one follows, because motion that actually happens compounds while ambition that stalls merely decorates the slide it was written on.",
+          "translation": "一个更小、更被理解的步骤胜过无人执行的宏大计划，因为真正发生的行动会复利累积，而搁浅的雄心只不过装饰了写它的那张幻灯片。",
+          "analysis": "复合句。主句 A smaller, better-understood step beats a grand plan，其内 no one follows 定语从句修饰 plan。because 引导原因状语从句，其主句 motion... compounds，that actually happens 定语从句修饰 motion，while 并列 ambition that stalls merely decorates the slide，it was written on 定语从句修饰 slide。"
+        }
+      ],
+      "collocations": [
+        "better than",
+        "get better",
+        "better off"
+      ],
+      "phrases": [
+        "had better 最好",
+        "for the better 好转"
+      ],
+      "derived": [
+        {
+          "word": "best",
+          "meaning": "adj./adv. 最好的（最高级）"
+        },
+        {
+          "word": "betterment",
+          "meaning": "n. 改善"
+        }
+      ],
+      "synonyms": [
+        "superior",
+        "improved",
+        "preferable"
+      ],
+      "mnemonic": "better 是 good/well 比较级；had better 最好"
+    },
+    "between": {
+      "syllable": "be·tween",
+      "pos": "prep.",
+      "defs": [
+        {
+          "pos": "prep.",
+          "meaning": "在（两者）之间；介于……之间"
+        },
+        {
+          "pos": "prep.",
+          "meaning": "（数量/程度）介于；为……所共有"
+        }
+      ],
+      "rootAffix": "be-（by）+ twain（二，古英语 tween）→ 在二者之间",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The shop stands between the bank and the post office.",
+          "translation": "那家店位于银行与邮局之间。",
+          "analysis": "简单句：主语 The shop + 谓语 stands + 状语 between the bank and the post office。between 表「在两者之间」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The truth lay between the two accounts, neither of which was wholly false yet each of which omitted the part that would have embarrassed its teller, so the honest version required stitching both half-lies into one.",
+          "translation": "真相介于两种说法之间，二者皆非全假，却都省略了会令讲述者难堪的那部分，于是诚实的版本需要把两半谎言缝成一整段。",
+          "analysis": "复合句。主句 The truth lay between the two accounts，其内 neither of which was wholly false 非限制性定语从句（neither 否定代词），yet each of which omitted the part 并列，that would have embarrassed its teller 定语从句修饰 part。so 引导结果状语从句，其主句 the honest version required stitching both half-lies into one。"
+        }
+      ],
+      "collocations": [
+        "between A and B",
+        "in between",
+        "read between the lines"
+      ],
+      "phrases": [
+        "between you and me 只你我知",
+        "fall between two stools 两头落空"
+      ],
+      "derived": [
+        {
+          "word": "betwixt",
+          "meaning": "prep. 在……之间（古/诗）"
+        }
+      ],
+      "synonyms": [
+        "among",
+        "amid",
+        "intervening"
+      ],
+      "mnemonic": "be·tween 记「在两者之间」；read between the lines 体会言外之意"
+    },
+    "bewilder": {
+      "syllable": "be·wil·der",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "使迷惑，使不知所措"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（局面）把……弄糊涂"
+        }
+      ],
+      "rootAffix": "be-（使）+ wilder（荒野的，lost in the wild）→ 如入荒野般迷路 → 使困惑",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The strange instructions bewildered the new user.",
+          "translation": "那奇怪的说明把新用户弄糊涂了。",
+          "analysis": "简单句：主语 The strange instructions + 谓语 bewildered + 宾语 the new user。bewilder 表「使迷惑」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The sudden change of rules bewildered a team that had just learned the old ones, a confusion that cost a week of quiet progress because no one wished to admit they had stopped understanding the game they were paid to play.",
+          "translation": "规则的突然变更把刚学会旧规的团队弄糊涂了，这份混乱让一周的平稳进展付诸东流，因为无人愿承认自己已不再懂那盘受雇要玩的局。",
+          "analysis": "复合句。主句 The sudden change... bewildered a team，其内 that had just learned the old ones 定语从句修饰 team。a confusion that cost a week... 为同位语，that 定语从句修饰 confusion，because 引导原因状语从句（no one wished to admit they had stopped understanding...，they had stopped 宾语从句省略 that）。"
+        }
+      ],
+      "collocations": [
+        "bewilder sb.",
+        "bewildering array",
+        "utterly bewildered"
+      ],
+      "phrases": [
+        "bewildering variety 令人眼花缭乱的多样",
+        "leave sb. bewildered 使某人茫然"
+      ],
+      "derived": [
+        {
+          "word": "bewilderment",
+          "meaning": "n. 困惑，迷惘"
+        },
+        {
+          "word": "bewildering",
+          "meaning": "adj. 令人困惑的"
+        }
+      ],
+      "synonyms": [
+        "confuse",
+        "puzzle",
+        "perplex"
+      ],
+      "mnemonic": "be·wil·der 记「使迷惑」；bewilderment 困惑（名词）"
+    },
+    "beyond": {
+      "syllable": "be·yond",
+      "pos": "prep./adv.",
+      "defs": [
+        {
+          "pos": "prep.",
+          "meaning": "在……那一边；超出（范围/能力）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "在更远处；此外"
+        }
+      ],
+      "rootAffix": "be-（by）+ yond（古义 yonder/那边的）→ 在那边之外",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The problem is beyond my knowledge.",
+          "translation": "这个问题超出了我的知识范围。",
+          "analysis": "简单句：主语 The problem + 系词 is + 表语 beyond my knowledge。beyond 表「超出（能力/范围）」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The value of the method lay beyond the metric the committee tracked, for the gain that mattered was the habit of checking assumptions, a skill no quarterly score could capture yet every future decision would quietly depend on.",
+          "translation": "该方法的价值超出了委员会所追踪的指标，因为真正要紧的收获是「核查假设」的习惯——这门本事任何季度评分都捕捉不到，却会被今后每个决定悄悄倚仗。",
+          "analysis": "复合句。主句 The value... lay beyond the metric，其内 the committee tracked 定语从句修饰 metric。for 引导原因状语从句，其主句 the gain... was the habit of checking assumptions，a skill no quarterly score could capture 同位语，yet every future decision would quietly depend on 并列，depend on 后省略 which（指代 skill）。"
+        }
+      ],
+      "collocations": [
+        "beyond doubt",
+        "beyond repair",
+        "far beyond"
+      ],
+      "phrases": [
+        "beyond one's reach 力所不及",
+        "beyond belief 难以置信"
+      ],
+      "derived": [
+        {
+          "word": "yond",
+          "meaning": "adj./adv. 那边的（古/诗）"
+        }
+      ],
+      "synonyms": [
+        "past",
+        "exceeding",
+        "outside"
+      ],
+      "mnemonic": "be·yond 记「超出/在……之外」；beyond doubt 毫无疑问"
+    },
+    "bicycle": {
+      "syllable": "bi·cy·cle",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "自行车，脚踏车"
+        },
+        {
+          "pos": "v.",
+          "meaning": "骑自行车"
+        }
+      ],
+      "rootAffix": "bi-（二，拉丁）+ cycle（轮，希腊 kyklos）→ 两轮车",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He rode his bicycle to school every day.",
+          "translation": "他每天骑自行车上学。",
+          "analysis": "简单句：主语 He + 谓语 rode + 宾语 his bicycle + 状语 to school every day。ride a bicycle 表「骑自行车」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The bicycle that once symbolized freedom for teenagers now serves commuters avoiding the cost of fuel, a shift that turned a toy of youth into a tool of thrift without anyone planning the change.",
+          "translation": "那曾象征青少年自由的自行车，如今服务着躲避油费的通勤者——这一转变把青年的玩具变成了节俭的工具，而无人筹划过这变化。",
+          "analysis": "复合句。主句 The bicycle... now serves commuters，其前 that once symbolized freedom for teenagers 为定语从句修饰 bicycle，avoiding the cost of fuel 现在分词作后置定语修饰 commuters。a shift that turned... 为同位语，that 定语从句修饰 shift，turned A into B 结构，without anyone planning the change 为伴随状语。"
+        }
+      ],
+      "collocations": [
+        "ride a bicycle",
+        "by bicycle",
+        "bicycle lane"
+      ],
+      "phrases": [
+        "bicycle rack 自行车架",
+        "mountain bicycle 山地车"
+      ],
+      "derived": [
+        {
+          "word": "bicyclist",
+          "meaning": "n. 骑自行车的人"
+        },
+        {
+          "word": "bike",
+          "meaning": "n. 自行车（口语）"
+        }
+      ],
+      "synonyms": [
+        "bike",
+        "cycle",
+        "two-wheeler"
+      ],
+      "mnemonic": "bi·cy·cle = bi(二)+cycle(轮) 自行车"
+    },
+    "bid": {
+      "syllable": "bid",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "出价，投标；吩咐（bid sb. do）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "出价，投标；努力（a bid for）"
+        }
+      ],
+      "rootAffix": "源自古英语 bēodan（命令/提供）→ 出价、投标",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They bid 500 dollars for the old painting.",
+          "translation": "他们为那幅旧画出价 500 美元。",
+          "analysis": "简单句：主语 They + 谓语 bid + 宾语 500 dollars + 状语 for the old painting。bid for 表「为……出价」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The losing bid revealed more than the winning one, because the gap between what each side offered exposed the assumptions they held about the asset's true worth, assumptions the final price quietly confirmed or shattered.",
+          "translation": "失败的出价比成功的更说明问题，因为各方出价之间的差距暴露了他们对资产真实价值的假设——而这些假设，最终价格或默默印证，或一举粉碎。",
+          "analysis": "复合句。主句 The losing bid revealed more than the winning one，than 引导比较状语从句（省略谓语 revealed）。because 引导原因状语从句，其主句 the gap... exposed the assumptions，they held about the asset's true worth 定语从句修饰 assumptions，assumptions the final price quietly confirmed or shattered 为同位语（confirmed or shattered 并列谓语，price 主语）。"
+        }
+      ],
+      "collocations": [
+        "bid for",
+        "bid up",
+        "make a bid"
+      ],
+      "phrases": [
+        "bid farewell 道别",
+        "in a bid to 企图/力求"
+      ],
+      "derived": [
+        {
+          "word": "bidder",
+          "meaning": "n. 出价者，投标人"
+        },
+        {
+          "word": "bidding",
+          "meaning": "n. 投标；吩咐"
+        }
+      ],
+      "synonyms": [
+        "offer",
+        "tender",
+        "propose"
+      ],
+      "mnemonic": "bid 记「出价/投标」；bid farewell 道别"
+    },
+    "big": {
+      "syllable": "big",
+      "pos": "adj./adv.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "大的，巨大的；重要的"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "夸大地；成功地（口语）"
+        }
+      ],
+      "rootAffix": "源自古英语 bīg（强大/高大）→ 原始日耳曼 *bugjaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They live in a big house near the lake.",
+          "translation": "他们住在湖边一所大房子里。",
+          "analysis": "简单句：主语 They + 谓语 live + 状语 in a big house + 地点 near the lake。big 表「大的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The big launch that everyone feared fizzled without drama, a relief that taught the team more than a triumph would have, because failure at small scale is cheap while success at large scale hides the cracks that later break.",
+          "translation": "那场人人惧怕的大发布平淡收场，这份宽慰比一场胜利更能教训团队，因为小规模的失败代价低，而大规模的成功会掩盖日后崩裂的裂缝。",
+          "analysis": "复合句。主句 The big launch... fizzled without drama，其内 that everyone feared 定语从句修饰 launch。a relief that taught the team more than a triumph would have 为同位语，that 定语从句修饰 relief，than 比较状语从句（省略 taught）。because 引导原因状语从句，其内 failure at small scale is cheap 并列 while success at large scale hides the cracks，that later break 定语从句修饰 cracks。"
+        }
+      ],
+      "collocations": [
+        "a big deal",
+        "big business",
+        "think big"
+      ],
+      "phrases": [
+        "big on 热衷于",
+        "make it big 获得成功"
+      ],
+      "derived": [
+        {
+          "word": "bigger",
+          "meaning": "adj. 更大的（比较级）"
+        },
+        {
+          "word": "biggest",
+          "meaning": "adj. 最大的（最高级）"
+        }
+      ],
+      "synonyms": [
+        "large",
+        "great",
+        "huge"
+      ],
+      "mnemonic": "big 记「大的」；think big 志向远大"
+    },
+    "bike": {
+      "syllable": "bike",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "自行车；摩托车（口语）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "骑自行车；骑摩托车"
+        }
+      ],
+      "rootAffix": "bicycle 的缩略（bi- + cycle）→ 两轮车",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We went for a bike ride along the river.",
+          "translation": "我们沿河骑车兜了一圈。",
+          "analysis": "简单句：主语 We + 谓语 went for + 宾语 a bike ride + 状语 along the river。bike ride 表「骑车出行」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The city that invested in bike lanes found commuters trading idle time in traffic for motion they could control, a change that improved mood more than maps predicted because the rider, not the schedule, set the pace.",
+          "translation": "那座投资自行车道城市的居民，把堵车时的闲置换成了自己能掌控的移动——这变化提振情绪之效超出地图预测，因为定节奏的是骑行者而非时刻表。",
+          "analysis": "复合句。主句 The city... found commuters trading idle time... for motion，其内 they could control 定语从句修饰 motion。a change that improved mood... 为同位语，that 定语从句修饰 change，more than maps predicted 比较状语，because 引导原因状语从句（the rider, not the schedule, set the pace）。"
+        }
+      ],
+      "collocations": [
+        "by bike",
+        "ride a bike",
+        "bike lane"
+      ],
+      "phrases": [
+        "bike path 自行车道",
+        "get on one's bike 行动起来"
+      ],
+      "derived": [
+        {
+          "word": "bicycle",
+          "meaning": "n. 自行车（正式）"
+        },
+        {
+          "word": "biker",
+          "meaning": "n. 骑行者；摩托党"
+        }
+      ],
+      "synonyms": [
+        "bicycle",
+        "cycle",
+        "two-wheeler"
+      ],
+      "mnemonic": "bike 是 bicycle 口语缩略；也指摩托车"
+    },
+    "bill": {
+      "syllable": "bill",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "账单；纸币；议案（法案）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "给……开账单；宣传（bill as）"
+        }
+      ],
+      "rootAffix": "源自古法语 bille（清单/木牌）→ 账单、票据",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Please pay the electricity bill on time.",
+          "translation": "请按时交电费账单。",
+          "analysis": "简单句：谓语 pay + 宾语 the electricity bill + 状语 on time（祈使句，省略 you）。bill 表「账单」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The bill that promised relief arrived loaded with clauses no voter had read, a text that grew heavier in committee than on the campaign trail, because every group that won a line also added a cost someone else would later dispute.",
+          "translation": "那项承诺救济的法案到来时满载无人读过的条款，文本在委员会里比在竞选路上更沉重，因为每赢得一行利益的群体也添了一笔日后被人质疑的代价。",
+          "analysis": "复合句。主句 The bill... arrived loaded with clauses，其内 that promised relief 定语从句修饰 bill，no voter had read 定语从句修饰 clauses。a text that grew heavier... 为同位语，that 定语从句修饰 text，than on the campaign trail 比较状语，because 引导原因状语从句（every group that won a line also added a cost，someone else would later dispute 定语从句修饰 cost）。"
+        }
+      ],
+      "collocations": [
+        "pay the bill",
+        "a ten-dollar bill",
+        "pass a bill"
+      ],
+      "phrases": [
+        "fit the bill 符合要求",
+        "bill of rights 权利法案"
+      ],
+      "derived": [
+        {
+          "word": "billing",
+          "meaning": "n. 计费；宣传"
+        }
+      ],
+      "synonyms": [
+        "invoice",
+        "note",
+        "act"
+      ],
+      "mnemonic": "bill 三义：账单/钞票/法案；pay the bill 付账"
+    },
+    "billion": {
+      "syllable": "bil·lion",
+      "pos": "n./adj.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "十亿（1,000,000,000）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "十亿的；极大量的"
+        }
+      ],
+      "rootAffix": "bi-（二）+ million（百万）→ 原指「二百万的二次方」→ 现英式/美式均表十亿",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The project cost over a billion dollars.",
+          "translation": "该项目耗资逾十亿美元。",
+          "analysis": "简单句：主语 The project + 谓语 cost + 状语 over a billion dollars。billion 表「十亿」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A billion dollars sounds like a plan until one asks what it buys, for the number that impresses in a speech buys less than the same sum spent with discipline, and waste at scale looks responsible only because the digits are too large to picture.",
+          "translation": "十亿美元听起来像是个方案，直到有人问它究竟买来什么——因为在演讲中唬人的数目，买到的不如同等金额被 disciplined 地花出去的多，而规模化的浪费之所以显得合理，只因那数字大到无从想象。",
+          "analysis": "复合句。主句 A billion dollars sounds like a plan，until 引导时间状语从句（one asks what it buys，what 宾语从句）。for 引导原因状语从句，其主句 the number... buys less than the same sum spent with discipline（than 比较，spent 过去分词修饰 sum），and 并列 waste at scale looks responsible only because the digits are too large to picture（because 原因状语从句，too...to 结构）。"
+        }
+      ],
+      "collocations": [
+        "a billion",
+        "billions of",
+        "over a billion"
+      ],
+      "phrases": [
+        "a billion thanks 万分感谢",
+        "not a billion miles from 离……不远"
+      ],
+      "derived": [
+        {
+          "word": "billionaire",
+          "meaning": "n. 亿万富翁"
+        }
+      ],
+      "synonyms": [
+        "milliard",
+        "thousand million",
+        "vast sum"
+      ],
+      "mnemonic": "bil·lion 记「十亿」；billionaire 亿万富翁"
+    },
+    "bin": {
+      "syllable": "bin",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "箱，仓，垃圾箱（如 dustbin）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把……装入箱（bin sth.）"
+        }
+      ],
+      "rootAffix": "源自古英语 binn（箱/篓）→ 原始日耳曼 *binją",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Throw the bottle into the recycling bin.",
+          "translation": "把瓶子扔进回收箱。",
+          "analysis": "简单句：谓语 Throw + 宾语 the bottle + 状语 into the recycling bin（祈使句）。bin 表「箱/桶」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The data that seemed lost was merely binned under a label no one checked, a reminder that the hardest information to find is often the information someone filed and then forgot, rather than the information that was never kept.",
+          "translation": "那看似丢失的数据不过是被归到一个无人查看的标签下——这提醒我们：最难找到的信息往往是被人归档后便遗忘的，而非从未保存的。",
+          "analysis": "复合句。主句 The data... was merely binned under a label，其内 that seemed lost 定语从句修饰 data，no one checked 定语从句修饰 label。a reminder that... 为同位语，that 引导从句（the hardest information to find is often the information someone filed and then forgot，someone filed 定语从句，rather than 表「而非」，the information that was never kept 并列）。"
+        }
+      ],
+      "collocations": [
+        "dustbin",
+        "recycling bin",
+        "bread bin"
+      ],
+      "phrases": [
+        "bin liner 垃圾袋",
+        "in the bin 被丢弃"
+      ],
+      "derived": [
+        {
+          "word": "binning",
+          "meaning": "n. 装箱；分箱"
+        }
+      ],
+      "synonyms": [
+        "box",
+        "container",
+        "trash can"
+      ],
+      "mnemonic": "bin 记「箱/垃圾箱」；recycling bin 回收箱"
+    },
+    "bind": {
+      "syllable": "bind",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "绑，捆；使结合；约束（法律/义务）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "窘境，束缚（in a bind）"
+        }
+      ],
+      "rootAffix": "源自古英语 bindan（绑）→ 原始日耳曼 *bindaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She bound the books with a strong rope.",
+          "translation": "她用结实的绳子把书捆了起来。",
+          "analysis": "简单句：主语 She + 谓语 bound（bind 过去式）+ 宾语 the books + 状语 with a strong rope。bind 表「捆、绑」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The contract that bound both sides also bound their hands, because the clause meant to prevent cheating by one party silently prevented adaptation by both, a lock that protected the deal and froze it at once.",
+          "translation": "那约束双方的合同也捆住了他们的手，因为本为防一方作弊而设的条款，悄悄也阻止了双方的变通——这把锁既护住了交易，也立刻把它冻住。",
+          "analysis": "复合句。主句 The contract... also bound their hands，其内 that bound both sides 定语从句修饰 contract。because 引导原因状语从句，其主句 the clause... prevented adaptation by both，meant to prevent cheating by one party 过去分词作后置定语修饰 clause，a lock that protected the deal and froze it at once 为同位语，that 定语从句修饰 lock。"
+        }
+      ],
+      "collocations": [
+        "bind together",
+        "bind sb. to",
+        "in a bind"
+      ],
+      "phrases": [
+        "bind up 包扎；装订",
+        "bind over 责令（出庭）"
+      ],
+      "derived": [
+        {
+          "word": "binding",
+          "meaning": "adj./n. 有约束力的；装订"
+        },
+        {
+          "word": "bound",
+          "meaning": "adj. 被绑的；必定的"
+        }
+      ],
+      "synonyms": [
+        "tie",
+        "fasten",
+        "oblige"
+      ],
+      "mnemonic": "bind 记「绑/约束」；binding 有约束力的"
+    },
+    "biochemistry": {
+      "syllable": "bi·o·chem·is·try",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "生物化学（研究生命体的化学过程）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（泛指）生命物质的化学组成与代谢"
+        }
+      ],
+      "rootAffix": "bio-（生命，希腊 bios）+ chemistry（化学）→ 生命化学",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She majors in biochemistry at the university.",
+          "translation": "她在大学主修生物化学。",
+          "analysis": "简单句：主语 She + 谓语 majors + 状语 in biochemistry + 地点 at the university。major in 表「主修」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Biochemistry explains why a cell that looks idle is in fact a factory, because every quiet surface hides reactions no microscope shows, and the chemistry that sustains life is precisely the chemistry we cannot see.",
+          "translation": "生物化学解释了为何一个看似闲置的细胞实则是座工厂，因为每片安静的表面都藏着显微镜看不见的反应，而维系生命的化学恰恰是我们看不到的化学。",
+          "analysis": "复合句。主句 Biochemistry explains why...，why 引导宾语从句（a cell... is in fact a factory，that looks idle 定语从句修饰 cell）。because 引导原因状语从句，其主句 every quiet surface hides reactions，no microscope shows 定语从句修饰 reactions，and 并列 the chemistry... is precisely the chemistry we cannot see（we cannot see 定语从句修饰 chemistry）。"
+        }
+      ],
+      "collocations": [
+        "biochemistry lab",
+        "molecular biochemistry",
+        "study biochemistry"
+      ],
+      "phrases": [
+        "department of biochemistry 生物化学系",
+        "biochemistry and molecular biology 生化与分子生物"
+      ],
+      "derived": [
+        {
+          "word": "biochemist",
+          "meaning": "n. 生物化学家"
+        },
+        {
+          "word": "biochemical",
+          "meaning": "adj. 生化的"
+        }
+      ],
+      "synonyms": [
+        "life chemistry",
+        "chemical biology",
+        "molecular bioscience"
+      ],
+      "mnemonic": "bi·o·chem·is·try = bio(生命)+chemistry 生物化学"
+    },
+    "biology": {
+      "syllable": "bi·ol·o·gy",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "生物学"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（某生物群体的）生活习性、生态"
+        }
+      ],
+      "rootAffix": "bio-（生命）+ -logy（学问，希腊 logos）→ 生命之学",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Biology is the study of living things.",
+          "translation": "生物学是研究生物的学科。",
+          "analysis": "简单句：主语 Biology + 系词 is + 表语 the study of living things。living things 表「生物」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Biology teaches that no species survives alone, because each organism depends on others it neither sees nor names, a truth that economies forget whenever they treat nature as a free input rather than a partner that must be repaid.",
+          "translation": "生物学告诉我们没有物种能独自存活，因为每一生物都依赖那些它既看不见也叫不出名字的他者——这真相经济体总在把自然当作免费投入而非须偿还的伙伴时遗忘。",
+          "analysis": "复合句。主句 Biology teaches that...，that 引导宾语从句（no species survives alone）。because 引导原因状语从句，其主句 each organism depends on others，it neither sees nor names 定语从句修饰 others。a truth that economies forget... 为同位语，that 定语从句修饰 truth，whenever 引导时间状语从句（they treat nature as A rather than B，rather than 表「而非」，that must be repaid 定语从句修饰 partner）。"
+        }
+      ],
+      "collocations": [
+        "study biology",
+        "molecular biology",
+        "cell biology"
+      ],
+      "phrases": [
+        "biology class 生物课",
+        "marine biology 海洋生物学"
+      ],
+      "derived": [
+        {
+          "word": "biologist",
+          "meaning": "n. 生物学家"
+        },
+        {
+          "word": "biological",
+          "meaning": "adj. 生物的"
+        }
+      ],
+      "synonyms": [
+        "life science",
+        "bioscience",
+        "natural history"
+      ],
+      "mnemonic": "bi·ol·o·gy = bio+logy 生物学；biologist 生物学家"
+    },
+    "bird": {
+      "syllable": "bird",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "鸟，禽"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（口语）家伙，人（young bird）"
+        }
+      ],
+      "rootAffix": "源自古英语 brid（幼鸟）→ 原始日耳曼 *bridz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A small bird sang on the branch outside.",
+          "translation": "一只小鸟在窗外枝头歌唱。",
+          "analysis": "简单句：主语 A small bird + 谓语 sang + 状语 on the branch outside。bird 表「鸟」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The early bird catches the worm, yet the patient one also eats, a saying that hides a sharper point: haste helps only when the prize is scarce and first-come decides, while in most work the steady hand outlasts the rushed one.",
+          "translation": "早起的鸟捉到虫，然而有耐心的鸟也有食——这谚语藏着一个更尖锐的点：唯有奖品稀缺且先到先得时，急躁才管用；而多数工作中，稳健者比匆忙者更持久。",
+          "analysis": "复合句。主句 The early bird catches the worm，yet 转折 the patient one also eats。a saying that hides a sharper point 为同位语，that 定语从句修饰 saying，其冒号后 haste helps only when... 主句（when 时间状语从句），while 并列 in most work the steady hand outlasts the rushed one。"
+        }
+      ],
+      "collocations": [
+        "a bird in the hand",
+        "early bird",
+        "bird watch"
+      ],
+      "phrases": [
+        "kill two birds with one stone 一石二鸟",
+        "birds of a feather 物以类聚"
+      ],
+      "derived": [
+        {
+          "word": "birdie",
+          "meaning": "n. 小鸟；小鸟球（高尔夫）"
+        }
+      ],
+      "synonyms": [
+        "fowl",
+        "avian",
+        "feathered creature"
+      ],
+      "mnemonic": "bird 记「鸟」；kill two birds 一石二鸟"
+    },
+    "birth": {
+      "syllable": "birth",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "出生，诞生；起源"
+        },
+        {
+          "pos": "v.",
+          "meaning": "生（孩子），产生"
+        }
+      ],
+      "rootAffix": "源自古英语 berð（出生，与 bear 同源）→ 原始日耳曼 *berthiz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The birth of the nation is marked by a holiday.",
+          "translation": "这个国家的诞生由一个节日来纪念。",
+          "analysis": "简单句：主语 The birth + 系词 is marked + 状语 by a holiday。birth 此处表「诞生、成立」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The birth of an idea is less an event than a process, because what feels like a sudden insight is usually the last step of a long quiet assembly that the mind had been doing without announcing it to its owner.",
+          "translation": "一个想法的诞生与其说是事件，不如说是过程，因为看似灵光一现的东西，通常是大脑长期默默装配的最后一步，而它并未向主人宣告。",
+          "analysis": "复合句。主句 The birth... is less an event than a process（less A than B）。because 引导原因状语从句，其主句 what feels like a sudden insight is usually the last step，what 主语从句，of a long quiet assembly 后置定语，that the mind had been doing without announcing it to its owner 定语从句修饰 assembly（without announcing 伴随）。"
+        }
+      ],
+      "collocations": [
+        "give birth",
+        "date of birth",
+        "birth rate"
+      ],
+      "phrases": [
+        "by birth 天生地",
+        "a new birth 新生"
+      ],
+      "derived": [
+        {
+          "word": "bear",
+          "meaning": "v. 生育；承受（同源）"
+        },
+        {
+          "word": "birthday",
+          "meaning": "n. 生日"
+        }
+      ],
+      "synonyms": [
+        "origin",
+        "nativity",
+        "beginning"
+      ],
+      "mnemonic": "birth 记「出生」；give birth 生育，birthday 生日"
+    },
+    "biscuit": {
+      "syllable": "bis·cuit",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "饼干（英）；小软面包（美）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（陶/瓷）淡褐色"
+        }
+      ],
+      "rootAffix": "bis-（二，拉丁）+ cuit（烤，coquere）→ 烤两次 → 饼干（原指重烤至脆）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He dipped a biscuit into his tea.",
+          "translation": "他把一块饼干浸进茶里。",
+          "analysis": "简单句：主语 He + 谓语 dipped + 宾语 a biscuit + 状语 into his tea。dip...into 表「把……浸入」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The recipe that looked simple on the page failed in the oven, a gap between written instruction and real result that humbles every cook who trusts words more than the dough beneath their hands.",
+          "translation": "那在纸上看似简单的配方在烤箱里失败了，这文字说明与真实结果间的缺口，让每个更信文字而非手中面团的人谦卑。",
+          "analysis": "复合句。主句 The recipe... failed in the oven，其内 that looked simple on the page 定语从句修饰 recipe。a gap that humbles every cook... 为同位语，that 定语从句修饰 gap，who trusts words more than the dough beneath their hands 定语从句修饰 cook（more than 比较）。"
+        }
+      ],
+      "collocations": [
+        "a pack of biscuits",
+        "digestive biscuit",
+        "biscuit tin"
+      ],
+      "phrases": [
+        "take the biscuit 最离谱（英俚）",
+        "ship's biscuit 硬船饼"
+      ],
+      "derived": [
+        {
+          "word": "bisque",
+          "meaning": "n. 浓汤（同源 distant）"
+        }
+      ],
+      "synonyms": [
+        "cookie",
+        "cracker",
+        "crisp"
+      ],
+      "mnemonic": "bis·cuit = bis(二)+cuit(烤) 饼干（烤两次）"
+    },
+    "bit": {
+      "syllable": "bit",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "一点，少量；小片（a bit of）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（计算机）比特，位（binary digit）"
+        }
+      ],
+      "rootAffix": "bite 的过去式/名词化 → 一小口/一小块；计算机义为 binary digit 缩略",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Could you wait a bit longer, please?",
+          "translation": "请您再稍等一会儿好吗？",
+          "analysis": "简单句：谓语 wait + 宾语 a bit longer（a bit 表「一点儿」，修饰比较级 longer）。省略 you。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bit of honesty early saves a flood of excuse later, because the small admission that costs little now prevents the larger lie that would cost everything once the truth surfaces on its own.",
+          "translation": "早一点坦诚省下日后一大堆借口，因为此刻代价微小的承认，能阻止那个真相自己浮出时、将付出一切的更大谎言。",
+          "analysis": "复合句。主句 A bit of honesty early saves a flood of excuse later。because 引导原因状语从句，其主句 the small admission... prevents the larger lie，that costs little now 定语从句修饰 admission，that would cost everything once the truth surfaces on its own 定语从句修饰 lie（once 时间状语从句）。"
+        }
+      ],
+      "collocations": [
+        "a bit of",
+        "a little bit",
+        "quite a bit"
+      ],
+      "phrases": [
+        "bit by bit 一点点地",
+        "do one's bit 尽本分"
+      ],
+      "derived": [
+        {
+          "word": "bite",
+          "meaning": "v. 咬（源）"
+        },
+        {
+          "word": "bitter",
+          "meaning": "adj. 苦的（同源 distant）"
+        }
+      ],
+      "synonyms": [
+        "piece",
+        "fragment",
+        "little"
+      ],
+      "mnemonic": "bit 记「一点」；a bit of 一点；计算机义=比特"
+    },
+    "bite": {
+      "syllable": "bite",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "咬，叮；刺痛"
+        },
+        {
+          "pos": "n.",
+          "meaning": "咬，一口；咬伤"
+        }
+      ],
+      "rootAffix": "源自古英语 bītan（咬）→ 原始日耳曼 *bītaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The dog bit the mailman on the leg.",
+          "translation": "狗咬了邮差的腿。",
+          "analysis": "简单句：主语 The dog + 谓语 bit + 宾语 the mailman + 状语 on the leg。bite 表「咬」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The policy that sounded gentle bit harder than warned, because the small print that no one read shifted the cost onto the people least able to pay, a sting that arrived only after the vote made it irreversible.",
+          "translation": "那听起来温和的政策咬得比预警更狠，因为无人细读的小字把代价转嫁到最无力支付的人身上——这一刺痛只在投票使其不可逆后才到来。",
+          "analysis": "复合句。主句 The policy... bit harder than warned，than 引导比较状语从句（省略谓语 bit）。because 引导原因状语从句，其主句 the small print... shifted the cost onto the people，that no one read 定语从句修饰 print，least able to pay 后置定语修饰 people，a sting that arrived... 为同位语，that 定语从句修饰 sting，after 时间状语从句（the vote made it irreversible）。"
+        }
+      ],
+      "collocations": [
+        "bite into",
+        "get bitten",
+        "bite the bullet"
+      ],
+      "phrases": [
+        "bite off more than one can chew 贪多嚼不烂",
+        "bite one's tongue 忍住不说"
+      ],
+      "derived": [
+        {
+          "word": "bitten",
+          "meaning": "adj. 被咬的（过去分词）"
+        },
+        {
+          "word": "biting",
+          "meaning": "adj. 刺痛的；尖刻的"
+        }
+      ],
+      "synonyms": [
+        "gnaw",
+        "sting",
+        "nip"
+      ],
+      "mnemonic": "bite 记「咬」；bite the bullet 咬牙硬撑"
+    },
+    "bitter": {
+      "syllable": "bit·ter",
+      "pos": "adj./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "苦的；痛苦的，怀恨的"
+        },
+        {
+          "pos": "n.",
+          "meaning": "苦啤酒；苦味（the bitter）"
+        }
+      ],
+      "rootAffix": "源自古英语 biter（苦的）→ 原始日耳曼 *bitraz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The medicine left a bitter taste in her mouth.",
+          "translation": "那药在她嘴里留下苦味。",
+          "analysis": "简单句：主语 The medicine + 谓语 left + 宾语 a bitter taste + 状语 in her mouth。bitter 表「苦的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The bitter dispute ended not with a settlement but with silence, a quiet that felt like peace yet stored resentment that would surface at the next small friction, because wounds left unspoken do not close, they wait.",
+          "translation": "那场苦涩的争端不是以和解、而是以沉默收场——这份安静看似和平，却囤积了会在下次小摩擦浮现的怨气，因为未说出口的伤口不会愈合，它们只是等待。",
+          "analysis": "复合句。主句 The bitter dispute ended not with A but with B。a quiet that felt like peace yet stored resentment... 为同位语，that felt like peace 定语从句，yet stored resentment 并列，that would surface at the next small friction 定语从句修饰 resentment。because 引导原因状语从句（wounds left unspoken do not close, they wait，left unspoken 过去分词作后置定语，they wait 并列句）。"
+        }
+      ],
+      "collocations": [
+        "bitter taste",
+        "bitter cold",
+        "bitter enemy"
+      ],
+      "phrases": [
+        "to the bitter end 拼到底",
+        "bitter pill to swallow 难以接受的事"
+      ],
+      "derived": [
+        {
+          "word": "bitterness",
+          "meaning": "n. 苦味；痛苦"
+        },
+        {
+          "word": "bitterly",
+          "meaning": "adv. 痛苦地；强烈地"
+        }
+      ],
+      "synonyms": [
+        "harsh",
+        "resentful",
+        "acrid"
+      ],
+      "mnemonic": "bit·ter 记「苦的/痛苦的」；to the bitter end 拼到底"
     }
   }
 }
