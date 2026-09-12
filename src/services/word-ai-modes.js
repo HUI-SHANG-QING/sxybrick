@@ -11,6 +11,7 @@
 //      与 EXT_FIELDS 一起受 WORD_EXT_FIELDS 并集保护，跨设备同步不丢。
 //   3. 不信任 LLM —— 全部结果过 validateModeQuestion，不合规直接丢弃该模式（绝不写脏数据）。
 import { callLlmJson, hasLlmChannel } from './word-llm.js';
+import { localMeaning } from './word-enrich.js';
 import { normalizeWordKey } from './word-syllabus.js';
 
 /**
@@ -334,67 +335,85 @@ export async function batchGenerateModeQuestions({
 }
 
 // ---------- 大纲中文释义批量补齐 ----------
-// 4956 词不可能一次性生成：按批（默认 40 词/批）调用，逐批落库，
-// 支持进度回调与中断（onBatch 返回 false 即停止），失败批次不影响已落库批次。
+// 补全改本地优先：先查内置词库（services/word-enrich.js → src/data/word-enrich.json），
+// 命中即落库，零 AI 调用、零费用；未收录的词默认跳过（不臆造），
+// 仅当调用方显式传 allowAi 才回落 AI 通道（默认全站不传）。
+// 仍按批（默认 40 词/批）推进，支持进度回调与中断（onBatch 返回 false 即停止），
+// 失败批次不影响已落库批次。
 export async function batchGenerateMeanings({
-  words, settings, agentCtx, batchSize = 40, onBatch, signal,
+  words, settings, agentCtx, batchSize = 40, onBatch, signal, allowAi = false,
 }) {
   const list = (words || []).map((w) => String(w || '').trim()).filter(Boolean);
-  if (!list.length) return { ok: false, reason: 'empty-words', generated: 0, failed: 0, batches: 0 };
+  if (!list.length) return { ok: false, reason: 'empty-words', generated: 0, failed: 0, skipped: 0, batches: 0 };
 
   const batches = [];
   for (let i = 0; i < list.length; i += batchSize) batches.push(list.slice(i, i + batchSize));
 
   let generated = 0;
   let failed = 0;
+  let skipped = 0; // 本地词库暂未收录而跳过的词数（非失败）
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i];
-    const prompt = `你是考研英语词汇专家。请为下列英文单词各给出**一个**最常用、最贴合考研语境的中文释义。
+
+    // ① 本地词库优先：内置词表取释义，零 AI 调用、零费用。
+    //    校验口径与 AI 路径完全一致（必须含中文、长度合理、且不是把单词本身抄回来）。
+    const entries = [];
+    for (const w of batch) {
+      const val = String(localMeaning(w) || '').trim();
+      if (val && /[一-龥]/.test(val) && val.length <= 60 && normalizeWordKey(val) !== normalizeWordKey(w)) {
+        entries.push({ word: w, meaning: val, source: 'local' });
+      }
+    }
+
+    // ② 未收录的词默认跳过（不调用付费 AI、不臆造）。
+    //    仅当调用方显式传 allowAi 才对剩余词回落 AI 通道。
+    const pending = allowAi ? batch.filter((w) => !entries.some((e) => e.word === w)) : [];
+    if (pending.length) {
+      const prompt = `你是考研英语词汇专家。请为下列英文单词各给出**一个**最常用、最贴合考研语境的中文释义。
 
 单词列表：
-${batch.map((w, k) => `${k + 1}. ${w}`).join('\n')}
+${pending.map((w, k) => `${k + 1}. ${w}`).join('\n')}
 
 要求：
 1. 只输出 JSON：{"meanings":{"<单词>":"<中文释义>"}}，key 必须与上面给出的单词完全一致（含大小写）。
 2. 中文释义简洁（≤ 30 字），多义项用「；」分隔，最多 3 个义项。
 3. 不要音标、不要例句、不要解释性文字；生僻义项不要。`;
-    let entries = [];
-    try {
-      const res = await callLlmJson({
-        prompt, settings, agentCtx, signal,
-        agentInput: batch.join(','),
-        source: 'english-syllabus-meaning',
-        task: 'word-syllabus-meanings',
-        system: '你是考研英语词汇专家。严格输出 JSON，不要任何额外文字。',
-      });
-      if (res.ok) {
-        const map = res.data?.meanings && typeof res.data.meanings === 'object' ? res.data.meanings : {};
-        for (const w of batch) {
-          const m = map[w] ?? map[String(w).toLowerCase()];
-          const val = String(m || '').trim();
-          // 校验：必须是中文、非空、长度合理、且不是把单词本身抄回来
-          if (val && /[一-龥]/.test(val) && val.length <= 60 && normalizeWordKey(val) !== normalizeWordKey(w)) {
-            entries.push({ word: w, meaning: val, source: 'ai' });
+      try {
+        const res = await callLlmJson({
+          prompt, settings, agentCtx, signal,
+          agentInput: pending.join(','),
+          source: 'english-syllabus-meaning',
+          task: 'word-syllabus-meanings',
+          system: '你是考研英语词汇专家。严格输出 JSON，不要任何额外文字。',
+        });
+        if (res.ok) {
+          const map = res.data?.meanings && typeof res.data.meanings === 'object' ? res.data.meanings : {};
+          for (const w of pending) {
+            const m = map[w] ?? map[String(w).toLowerCase()];
+            const val = String(m || '').trim();
+            // 校验：必须是中文、非空、长度合理、且不是把单词本身抄回来
+            if (val && /[一-龥]/.test(val) && val.length <= 60 && normalizeWordKey(val) !== normalizeWordKey(w)) {
+              entries.push({ word: w, meaning: val, source: 'ai' });
+            }
           }
         }
+      } catch (e) {
+        console.warn('[word-ai-modes] meaning batch failed:', e?.message || e);
       }
-    } catch (e) {
-      console.warn('[word-ai-modes] meaning batch failed:', e?.message || e);
     }
     if (entries.length) {
       const { setMeanings } = await import('./word-meaning.js');
-      const n = await setMeanings(entries, { source: 'ai' });
+      const n = await setMeanings(entries, { source: 'local' });
       generated += n;
-      failed += batch.length - entries.length;
-    } else {
-      failed += batch.length;
     }
+    // 未命中本批的词 = 本地词库暂未收录：明确记为 skipped（不是失败，也绝不臆造）
+    skipped += batch.length - entries.length;
     if (onBatch) {
-      const keepGoing = onBatch({ done: i + 1, total: batches.length, generated, failed });
+      const keepGoing = onBatch({ done: i + 1, total: batches.length, generated, failed, skipped });
       if (keepGoing === false) break;
     }
   }
-  return { ok: generated > 0, generated, failed, batches: batches.length };
+  return { ok: generated > 0, generated, failed, skipped, batches: batches.length };
 }
 
 export { hasLlmChannel };

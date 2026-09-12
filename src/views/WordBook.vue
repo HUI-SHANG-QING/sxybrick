@@ -306,8 +306,8 @@ onUnmounted(() => { clearTimeout(searchTimer); if (unsubDb) unsubDb(); });
 async function genMaterials() {
   const word = form.value.word.trim();
   if (!word) { toast(t('views.wordBook.wordRequired'), 'warn'); return; }
-  if (!settings.value?.aiEnabled) { toast(t('views.wordBook.aiGenOff'), 'warn'); return; }
-  if (!isInSyllabus(word)) { toast(t('views.wordBook.aiGenSkip'), 'warn'); return; }
+  // 本地补全：查内置词库即可（零 AI 调用、零网络、零费用），
+  // 不再要求「已开启 AI」或「在大纲词表内」——收录即补全，未收录提示跳过。
   genRunning.value = true;
   try {
     const r = await generateWordMaterials({ word, levels: settings.value.exampleLevels, settings: settings.value });
@@ -356,7 +356,9 @@ function isWordOnly() {
 // 失败/未开启/超纲都静默跳过，不阻塞保存，也不弹错误（由 save 侧决定是否提示）。
 async function autoGenerateSilent() {
   const word = String(form.value.word || '').trim();
-  if (!settings.value?.aiEnabled || !isInSyllabus(word)) return false;
+  if (!word) return false;
+  // 本地补全：直接查内置词库（零 AI 调用、零网络、零费用），
+  // 因此不再要求「已开启 AI」或「在大纲词表内」——本地词库收录即补全。
   try {
     const r = await generateWordMaterials({ word, levels: settings.value.exampleLevels, settings: settings.value });
     if (!r.ok || !r.data) return false;
@@ -425,10 +427,18 @@ async function toggleFamiliar(c) {
   await load();
 }
 
-function openDetail(c) { detail.value = c; detailTab.value = 'collocations'; showDetail.value = true; refreshLinked(); }
+function openDetail(c) { detail.value = c; detailTab.value = 'collocations'; exOpen.value = new Set(); showDetail.value = true; refreshLinked(); }
 
 // ---- 详情卡（对标成熟单词 App：音节大字 / 多词性释义 / 例句高亮 / 四 Tab） ----
 const detailTab = ref('collocations'); // collocations | derived | root | synonyms | linked
+// 例句展开/收起：默认全部收起（只显英文句），点击展开翻译+长难句解析；
+// 换词打开详情时清空（detail.word 变化即重置，避免旧展开态串词）
+const exOpen = ref(new Set());
+function toggleExample(i) {
+  const next = new Set(exOpen.value);
+  if (next.has(i)) next.delete(i); else next.add(i);
+  exOpen.value = next;
+}
 
 // v31：反向关联——本英语词挂着的通用卡（多对多；从 cardWordLinks 反查）
 const linkedCards = ref([]);
@@ -602,29 +612,30 @@ function toggleOcr(i) {
   ocrSelected.value = s;
 }
 
-// 加入单个词：已有同词跳过；大纲内且 AI 开启则自动生成同义词/词组/短语/例句补齐
+// 加入单个词：已有同词跳过；命中本地词库则补齐释义/同义词/词组/短语/例句（含长难句解析）
 async function addOcrWord(word) {
   const w = String(word || '').trim();
   if (!w) return { word: w, status: 'empty' };
   const exists = cards.value.some((c) => String(c.word || '').trim().toLowerCase() === w.toLowerCase());
   if (exists) return { word: w, status: 'skip' };
   const card = await createWordCard({ kind: 'word', word: w, subject: t('views.wordBook.defaultSubject'), source: t('views.wordBook.ocrSource') });
-  if (settings.value?.aiEnabled && isInSyllabus(w)) {
-    try {
-      const r = await generateWordMaterials({ word: w, levels: settings.value.exampleLevels, settings: settings.value });
-      if (r.ok && r.data) {
-        const d = r.data;
-        await updateWordCard(card.id, {
-          meaning: d.defs?.[0]?.meaning || '',
-          pos: d.pos || '',
-          synonyms: d.synonyms, collocations: d.collocations,
-          phrases: d.phrases, examples: d.examples,
-          mnemonics: d.mnemonic ? [d.mnemonic] : [],
-        });
-        return { word: w, status: 'ok' };
-      }
-    } catch { /* 生成失败仅保留单词卡，不中断批量流程 */ }
-  }
+  // 本地补全：查内置词库（零 AI 调用、零网络），与 AI 开关 / 是否在大纲内无关。
+  try {
+    const r = await generateWordMaterials({ word: w, levels: settings.value?.exampleLevels, settings: settings.value });
+    if (r.ok && r.data) {
+      const d = r.data;
+      await updateWordCard(card.id, {
+        meaning: d.defs?.[0]?.meaning || '',
+        pos: d.pos || '',
+        synonyms: d.synonyms, collocations: d.collocations,
+        phrases: d.phrases, examples: d.examples,
+        mnemonics: d.mnemonic ? [d.mnemonic] : [],
+      });
+      return { word: w, status: 'ok' };
+    }
+    // 本地词库暂未收录：明确标记，便于上层统计与提示（不臆造任何内容）
+    if (r?.reason === 'not-in-local-wordbank') return { word: w, status: 'notCovered' };
+  } catch { /* 补全失败仅保留单词卡，不中断批量流程 */ }
   return { word: w, status: 'wordOnly' };
 }
 
@@ -632,14 +643,20 @@ async function addOcrWords() {
   const idxs = [...ocrSelected.value].filter((i) => i >= 0 && i < ocrWords.value.length);
   if (!idxs.length) { toast(t('views.wordBook.ocrEmpty'), 'warn'); return; }
   ocrAdding.value = true;
-  let added = 0, generated = 0;
+  let added = 0, generated = 0, notCovered = 0;
   try {
     for (const i of idxs) {
       const r = await addOcrWord(ocrWords.value[i]);
       if (r.status === 'ok') { added++; generated++; }
+      else if (r.status === 'notCovered') { added++; notCovered++; }
       else if (r.status === 'wordOnly') added++;
     }
-    toast(t('views.wordBook.ocrDone', undefined, { n: added, m: generated }), 'success');
+    // 有未收录词时追加说明：明确告知是本地词库暂未收录，而非失败（不臆造内容）
+    toast(
+      t('views.wordBook.ocrDone', undefined, { n: added, m: generated })
+        + (notCovered ? t('views.wordBook.ocrNotCoveredHint', undefined, { k: notCovered }) : ''),
+      'success',
+    );
     ocrShow.value = false;
     await load();
   } catch (err) {
@@ -894,16 +911,23 @@ async function addOcrWords() {
           <span v-if="detail.familiar" class="tag tag-fam">★ {{ t('views.wordBook.familiarBadge') }}</span>
         </div>
 
-        <!-- 例句：目标词加粗 + 中英对照 -->
+        <!-- 例句：目标词加粗 + 中英对照；默认收起（只显英文句），点击展开翻译+长难句解析 -->
         <div class="detail-examples" v-if="detailExamples(detail).length">
           <div class="de-title">{{ t('views.wordBook.detailExamples') }}</div>
-          <div v-for="(ex, i) in detailExamples(detail)" :key="i" class="de-item">
+          <div v-for="(ex, i) in detailExamples(detail)" :key="i" class="de-item" :class="{ open: exOpen.has(i) }">
             <span v-if="ex.level" class="de-lv" :class="'lv-' + ex.level">{{ exampleLevelLabels[ex.level] || ex.level }}</span>
-            <div class="de-body">
+            <div class="de-body de-toggle" @click="toggleExample(i)">
               <div class="de-sent" v-html="highlightWord(ex.sentence, detail.word)"></div>
-              <div class="de-trans" v-if="ex.translation">{{ ex.translation }}</div>
+              <div class="de-more" v-if="exOpen.has(i)">
+                <div class="de-trans" v-if="ex.translation">{{ ex.translation }}</div>
+                <div class="de-analysis" v-if="ex.analysis">
+                  <span class="de-analysis-label">{{ t('views.wordBook.exAnalysis') }}</span>
+                  {{ ex.analysis }}
+                </div>
+              </div>
             </div>
             <button class="de-spk" @click="speak(ex.sentence)">🔊</button>
+            <button class="de-x" :title="exOpen.has(i) ? t('views.wordBook.exCollapse') : t('views.wordBook.exExpand')" @click="toggleExample(i)">{{ exOpen.has(i) ? '▾' : '▸' }}</button>
           </div>
         </div>
 
@@ -1251,6 +1275,12 @@ async function addOcrWords() {
 .detail-examples { margin-top: 12px; }
 .de-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
 .de-item { display: flex; gap: 8px; align-items: flex-start; padding: 8px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; }
+.de-item.open { border-color: var(--brand, #2f6f4f); }
+.de-toggle { cursor: pointer; }
+.de-more { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.de-analysis { font-size: 12px; color: var(--ink-2); margin-top: 4px; line-height: 1.6; }
+.de-analysis-label { display: inline-block; font-size: 11px; font-weight: 600; color: var(--brand, #2f6f4f); border: 1px solid var(--line); border-radius: 6px; padding: 0 6px; margin-right: 6px; }
+.de-x { border: none; background: none; cursor: pointer; color: var(--ink-3, #999); font-size: 12px; padding: 2px 4px; flex: none; }
 .de-lv { font-size: 11px; padding: 2px 7px; border-radius: 8px; flex-shrink: 0; background: var(--line); color: var(--ink-2); }
 .de-lv.lv-simple { background: #e7eefe; color: #2f5bd0; }
 .de-lv.lv-long { background: #fdeede; color: #c47f1a; }

@@ -1,0 +1,916 @@
+{
+  "meta": {
+    "title": "英语单词本地补全词库（人工编写，零 AI 调用）",
+    "version": "batch-1",
+    "batch": 1,
+    "note": "本词库内容为离线编写、随应用发布，补全时不调用任何付费 AI 接口，也不发起网络请求。每条含：多义项释义(defs)、分档例句(examples，含长难句解析 analysis)、词组搭配(collocations)、短语(phrases)、派生词(derived)、词根词缀(rootAffix)、近义词(synonyms)、助记(mnemonic)。未收录的词一律明确提示跳过，绝不臆造。",
+    "schema": {
+      "examples[].level": "simple(简易) | long(长难句)",
+      "examples[].analysis": "长难句解析：句子结构、从句、特殊句式与词义在此语境下的取义"
+    },
+    "nextBatchFrom": "allege"
+  },
+  "entries": {
+    "abandon": {
+      "syllable": "ab·an·don",
+      "pos": "v./n.",
+      "defs": [
+        { "pos": "v.", "meaning": "放弃，中止（计划、希望等）" },
+        { "pos": "v.", "meaning": "遗弃，离弃（人）" },
+        { "pos": "n.", "meaning": "放纵，任性" }
+      ],
+      "rootAffix": "a-(去，向)+bandon(控制、管辖权) → 交出控制权 → 放弃",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He abandoned his car in the snow and walked home.",
+          "translation": "他把车丢在雪地里，步行回家。",
+          "analysis": "简单句：主语 He + 谓语 abandoned + 宾语 his car，连词 and 并列第二个谓语 walked。abandon 此处取「丢弃、遗弃」义，宾语为具体物品。"
+        },
+        {
+          "level": "long",
+          "sentence": "Although the researchers had invested years in the project, they were forced to abandon it when the funding agency withdrew its support, leaving a great deal of preliminary data unused.",
+          "translation": "尽管研究者在该项目上投入了数年，但在资助机构撤回支持后，他们被迫放弃，致使大量前期数据闲置。",
+          "analysis": "主从复合句。Although 引导让步状语从句（had invested 为过去完成时，表先于主句发生）；主句 they were forced to abandon it 为被动结构；when 引导时间状语从句；句末 leaving... 为现在分词短语作结果状语。abandon 取「中止、放弃」义，宾语为抽象事物 project。"
+        }
+      ],
+      "collocations": ["abandon one's hope 放弃希望", "abandon the plan 放弃计划", "abandon oneself to 沉溺于", "abandoned property 遗弃财产"],
+      "phrases": ["abandon hope of 放弃…的希望", "with abandon 放纵地；尽情地"],
+      "derived": [
+        { "word": "abandoned", "meaning": "adj. 被遗弃的；废弃的" },
+        { "word": "abandonment", "meaning": "n. 放弃；遗弃" },
+        { "word": "abandonment rate", "meaning": "n. 放弃率" }
+      ],
+      "synonyms": ["desert", "forsake", "give up", "relinquish"],
+      "mnemonic": "a-(一个)+band(乐队)+on → 一个乐队散了 → 放弃、抛弃"
+    },
+    "abolish": {
+      "syllable": "a·bol·ish",
+      "pos": "v.",
+      "defs": [{ "pos": "v.", "meaning": "废除，废止（法律、制度、习俗等）" }],
+      "rootAffix": "ab-(离开、去掉)+ol(生长)+-ish(动词后缀) → 使其不再生长 → 废止",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Parliament voted to abolish the tax.",
+          "translation": "议会投票废除了这项税收。",
+          "analysis": "简单句：主语 Parliament + 谓语 voted + 不定式 to abolish the tax 作宾语。abolish 的宾语常为法律、制度、税收等制度性名词。"
+        },
+        {
+          "level": "long",
+          "sentence": "The reformers argued that slavery would not disappear of its own accord, and that only legislation could abolish an institution so deeply rooted in the economic life of the region.",
+          "translation": "改革者主张，奴隶制不会自行消亡，唯有立法才能废除这一在该地区经济生活中根深蒂固的制度。",
+          "analysis": "多重复合句。主句 The reformers argued 后接两个由 that 引导的并列宾语从句（第二个 that 不可省略）；第二从句中 so deeply rooted in... 为过去分词短语作后置定语修饰 institution。abolish 强调通过法律或正式手段彻底终止。"
+        }
+      ],
+      "collocations": ["abolish slavery 废除奴隶制", "abolish the death penalty 废除死刑", "abolish a law 废除法律", "abolish the monarchy 废除君主制"],
+      "phrases": ["abolish...altogether 彻底废除", "vote to abolish 投票废除"],
+      "derived": [
+        { "word": "abolition", "meaning": "n. （法律、制度的）废除" },
+        { "word": "abolitionist", "meaning": "n. 废除主义者" },
+        { "word": "abolishable", "meaning": "adj. 可废除的" }
+      ],
+      "synonyms": ["repeal", "annul", "eradicate", "do away with"],
+      "mnemonic": "ab-(去掉)+olish → 去掉旧制 → 废除"
+    },
+    "absorb": {
+      "syllable": "ab·sorb",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "吸收（液体、光、热等）" },
+        { "pos": "v.", "meaning": "理解，掌握（知识、信息）" },
+        { "pos": "v.", "meaning": "使全神贯注，吸引" }
+      ],
+      "rootAffix": "ab-(离开、去掉)+sorb(吸收) → 吸走 → 吸收",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Plants absorb carbon dioxide from the air.",
+          "translation": "植物从空气中吸收二氧化碳。",
+          "analysis": "简单句：主语 Plants + 谓语 absorb + 宾语 carbon dioxide + 状语 from the air。此处为「吸收物质」的本义。"
+        },
+        {
+          "level": "long",
+          "sentence": "So rapidly did the young chemist absorb the new theory that within a year she was able to apply it to problems her supervisors had considered intractable.",
+          "translation": "这位年轻的化学家吸收新理论的速度如此之快，以至于一年内她已能将其用于导师们曾认为棘手的问题。",
+          "analysis": "倒装 + 结果状语从句。句首 So rapidly 提前引起部分倒装（助动词 did 提至主语 the young chemist 之前）；that 引导结果状语从句；从句中 her supervisors had considered intractable 为省略关系代词的定语从句修饰 problems。absorb 取「理解、掌握」的引申义。"
+        }
+      ],
+      "collocations": ["absorb nutrients 吸收养分", "absorb information 吸收信息", "be absorbed in 专心于", "absorb the impact 缓冲冲击"],
+      "phrases": ["absorb...into 把…吸收进/并入", "be absorbed by 被…吸收；被…吸引"],
+      "derived": [
+        { "word": "absorbent", "meaning": "adj. 能吸收的 n. 吸收剂" },
+        { "word": "absorption", "meaning": "n. 吸收；专注" },
+        { "word": "absorbing", "meaning": "adj. 引人入胜的" }
+      ],
+      "synonyms": ["assimilate", "soak up", "take in", "engross"],
+      "mnemonic": "ab-(加强)+sorb(吸) → 吸进去 → 吸收"
+    },
+    "abstract": {
+      "syllable": "ab·stract",
+      "pos": "adj./n./v.",
+      "defs": [
+        { "pos": "adj.", "meaning": "抽象的（与具体相对）" },
+        { "pos": "n.", "meaning": "摘要，提要" },
+        { "pos": "v.", "meaning": "提取，抽取" }
+      ],
+      "rootAffix": "abs-(离开)+tract(拉) → 从具体中抽出来 → 抽象",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The idea of justice is abstract.",
+          "translation": "正义的概念是抽象的。",
+          "analysis": "简单句：主语 The idea of justice + 系动词 is + 表语 abstract。abstract 作形容词，与 concrete（具体的）相对。"
+        },
+        {
+          "level": "long",
+          "sentence": "While the lecture began with a series of concrete case studies, it gradually moved towards more abstract questions about the nature of responsibility, which many students found difficult to follow.",
+          "translation": "讲座虽以一系列具体案例开篇，却逐渐转向关于责任本质的更抽象问题，许多学生感到难以跟上。",
+          "analysis": "复合句。While 引导让步状语从句（此处相当于 although，不表时间）；主句 it gradually moved towards...；句末 which 引导非限制性定语从句，修饰整个主句内容。句中 abstract 与 concrete 形成对比。"
+        }
+      ],
+      "collocations": ["abstract concept 抽象概念", "abstract thinking 抽象思维", "in the abstract 抽象地；理论上", "abstract noun 抽象名词"],
+      "phrases": ["abstract...from 从…中提取", "make an abstract of 做…的摘要"],
+      "derived": [
+        { "word": "abstraction", "meaning": "n. 抽象；抽象概念" },
+        { "word": "abstractly", "meaning": "adv. 抽象地" },
+        { "word": "abstractness", "meaning": "n. 抽象性" }
+      ],
+      "synonyms": ["conceptual", "theoretical", "summary", "intangible"],
+      "mnemonic": "abs-(离开)+tract(拉) → 从具体中拉出来 → 抽象"
+    },
+    "absurd": {
+      "syllable": "ab·surd",
+      "pos": "adj.",
+      "defs": [{ "pos": "adj.", "meaning": "荒谬的，荒唐的，不合理的" }],
+      "rootAffix": "ab-(加强)+surd(聋；不合理) → 不合常理 → 荒谬",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "It was absurd to blame him for the accident.",
+          "translation": "把事故归咎于他是荒谬的。",
+          "analysis": "简单句：it 作形式主语，真正主语为不定式短语 to blame him for the accident。absurd 常用于 It is absurd to do 结构。"
+        },
+        {
+          "level": "long",
+          "sentence": "The proposal that the university should charge students for library access seemed so absurd that it was withdrawn almost as soon as it was published.",
+          "translation": "大学应向学生收取图书馆使用费这一提议显得如此荒谬，以至于几乎在公布的同时就被撤回了。",
+          "analysis": "复合句。主语 The proposal 后接 that 引导的同位语从句（说明 proposal 的具体内容）；so...that 引导结果状语从句；从句内含 as soon as 引导的时间状语从句。absurd 强调违背常理到令人发笑。"
+        }
+      ],
+      "collocations": ["absurd idea 荒唐的想法", "absurd behaviour 荒唐的行为", "utterly absurd 荒谬绝伦", "absurd to suppose 假设…是荒谬的"],
+      "phrases": ["it is absurd to 做…是荒谬的", "the absurd 荒诞（的事物）"],
+      "derived": [
+        { "word": "absurdity", "meaning": "n. 荒谬；荒唐事" },
+        { "word": "absurdly", "meaning": "adv. 荒谬地；出奇地" }
+      ],
+      "synonyms": ["ridiculous", "preposterous", "nonsensical", "ludicrous"],
+      "mnemonic": "ab-(加强)+surd(音似「傻的」) → 荒谬的"
+    },
+    "abundant": {
+      "syllable": "a·bun·dant",
+      "pos": "adj.",
+      "defs": [{ "pos": "adj.", "meaning": "丰富的，充裕的，大量的" }],
+      "rootAffix": "ab-(加强)+und(波浪)+-ant(形容词后缀) → 如波涛般涌来 → 丰富的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The region has abundant natural resources.",
+          "translation": "该地区拥有丰富的自然资源。",
+          "analysis": "简单句：主语 The region + 谓语 has + 宾语 abundant natural resources。abundant 作定语修饰 resources。"
+        },
+        {
+          "level": "long",
+          "sentence": "Evidence that dietary fibre protects against certain diseases is now abundant, yet many people still consume far less than the amount recommended by health authorities.",
+          "translation": "膳食纤维可预防某些疾病的证据如今已十分充分，然而许多人的摄入量仍远低于卫生部门推荐的水平。",
+          "analysis": "并列复合句（yet 连接两个分句）。第一分句中 that 引导同位语从句，修饰主语 Evidence；第二分句中 far less than the amount recommended by health authorities 含比较结构与过去分词短语作后置定语。abundant 在此作表语。"
+        }
+      ],
+      "collocations": ["abundant supply 供应充足", "abundant evidence 充分的证据", "abundant in 富于…，…丰富", "abundant resources 丰富的资源"],
+      "phrases": ["be abundant in 富含；盛产", "an abundance of 大量的"],
+      "derived": [
+        { "word": "abundance", "meaning": "n. 丰富，充裕" },
+        { "word": "abundantly", "meaning": "adv. 丰富地；充分地" }
+      ],
+      "synonyms": ["plentiful", "ample", "copious", "profuse"],
+      "mnemonic": "ab-(加强)+und(波浪)+ant → 波涛般涌来 → 丰富的"
+    },
+    "abuse": {
+      "syllable": "a·buse",
+      "pos": "v./n.",
+      "defs": [
+        { "pos": "v.", "meaning": "滥用，妄用（权力、资源等）" },
+        { "pos": "v./n.", "meaning": "虐待；辱骂" }
+      ],
+      "rootAffix": "ab-(离开、偏离)+use(使用) → 偏离正当地使用 → 滥用",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He abused his position as manager.",
+          "translation": "他滥用了经理的职权。",
+          "analysis": "简单句：主语 He + 谓语 abused + 宾语 his position + 定语 as manager。abuse 取「滥用（权力）」义。"
+        },
+        {
+          "level": "long",
+          "sentence": "What disturbed the investigators most was not merely that the funds had been misused, but that the abuse had continued for years without anyone in authority noticing.",
+          "translation": "最令调查者不安的不仅是资金被挪用，而是这种滥用持续了数年，竟无一位当权者察觉。",
+          "analysis": "复合句。主语为 What 引导的主语从句；表语由 not merely that... but that... 两个并列的表语从句构成；第二从句中 without anyone in authority noticing 为 without 复合结构（宾语 + 现在分词）作伴随状语。"
+        }
+      ],
+      "collocations": ["abuse of power 滥用权力", "drug abuse 药物滥用", "child abuse 虐待儿童", "verbal abuse 言语辱骂"],
+      "phrases": ["abuse one's authority 滥用职权", "open to abuse 易被滥用"],
+      "derived": [
+        { "word": "abusive", "meaning": "adj. 辱骂的；滥用的" },
+        { "word": "abuser", "meaning": "n. 滥用者；施虐者" }
+      ],
+      "synonyms": ["misuse", "exploit", "mistreat", "misapply"],
+      "mnemonic": "ab-(偏离)+use(用) → 用得不对 → 滥用"
+    },
+    "academic": {
+      "syllable": "ac·a·dem·ic",
+      "pos": "adj./n.",
+      "defs": [
+        { "pos": "adj.", "meaning": "学术的；学校的，学业的" },
+        { "pos": "adj.", "meaning": "纯理论的，不切实际的" },
+        { "pos": "n.", "meaning": "大学教师，学者" }
+      ],
+      "rootAffix": "源自 Akademia（柏拉图讲学的园林）→ 学术的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She has an excellent academic record.",
+          "translation": "她有出色的学业成绩。",
+          "analysis": "简单句：主语 She + 谓语 has + 宾语 an excellent academic record。academic 作定语，此处指「学业的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Whether the new curriculum will raise standards or merely add to teachers' workload is still an open question, and one that many academics believe cannot be settled without long-term research.",
+          "translation": "新课程究竟会提高水准还是仅仅增加教师负担，仍是一个悬而未决的问题，且许多学者认为不经过长期研究便无法定论。",
+          "analysis": "复合句。主语为 Whether...or... 引导的主语从句；主句 is still an open question；and one that... 中 one 指代 question，后接 that 引导的定语从句，从句内又含被动结构 cannot be settled。academics 在此作名词「大学教师、学者」。"
+        }
+      ],
+      "collocations": ["academic performance 学业成绩", "academic year 学年", "academic research 学术研究", "academic freedom 学术自由"],
+      "phrases": ["academic circle 学术界", "purely academic 纯理论的；不切实际的"],
+      "derived": [
+        { "word": "academy", "meaning": "n. 学会；研究院；专科学校" },
+        { "word": "academically", "meaning": "adv. 学术上；学业上" }
+      ],
+      "synonyms": ["scholarly", "educational", "theoretical", "pedantic"],
+      "mnemonic": "源自柏拉图讲学的 Akademia 园林 → 学术的"
+    },
+    "accelerate": {
+      "syllable": "ac·cel·er·ate",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "加速，加快" },
+        { "pos": "v.", "meaning": "（使）提前发生" }
+      ],
+      "rootAffix": "ac-(加强)+celer(快速)+-ate(动词后缀) → 使更快",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The car accelerated to overtake the truck.",
+          "translation": "汽车加速以超越卡车。",
+          "analysis": "简单句：主语 The car + 谓语 accelerated + 不定式 to overtake the truck 作目的状语。accelerate 为「加速」本义。"
+        },
+        {
+          "level": "long",
+          "sentence": "If global warming continues to accelerate, the rate at which species disappear may soon exceed anything recorded in the fossil record.",
+          "translation": "如果全球变暖继续加速，物种消失的速度可能很快超过化石记录中所记载的任何时期。",
+          "analysis": "复合句。If 引导条件状语从句；主句中 the rate 后接 at which 引导的定语从句（介词 at + 关系代词，源自 at the rate）；句末 anything recorded in the fossil record 含过去分词短语作后置定语。"
+        }
+      ],
+      "collocations": ["accelerate growth 加速增长", "accelerate the process 加快进程", "accelerate economic development 加快经济发展", "rapidly accelerate 迅速加速"],
+      "phrases": ["accelerate...by 以…加速", "accelerate away 加速驶离"],
+      "derived": [
+        { "word": "acceleration", "meaning": "n. 加速；加速度" },
+        { "word": "accelerator", "meaning": "n. 加速器；油门" }
+      ],
+      "synonyms": ["speed up", "hasten", "expedite", "quicken"],
+      "mnemonic": "ac-(加强)+celer(速度)+ate → 加速"
+    },
+    "accommodate": {
+      "syllable": "ac·com·mo·date",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "容纳；为…提供住宿" },
+        { "pos": "v.", "meaning": "适应，顺应（accommodate to）" }
+      ],
+      "rootAffix": "ac-(向)+com-(共同)+mod(方式、尺度)+-ate → 使尺寸相合 → 容纳",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The hall can accommodate 500 people.",
+          "translation": "这个礼堂可容纳 500 人。",
+          "analysis": "简单句：主语 The hall + 情态动词 can + 谓语 accommodate + 宾语 500 people。accommodate 取「容纳」义，主语常为空间或设施。"
+        },
+        {
+          "level": "long",
+          "sentence": "Rather than expecting newcomers to accommodate themselves to existing routines, the department revised its procedures so that different working styles could be supported.",
+          "translation": "该部门并未指望新人去适应既有流程，而是修订了程序，以便支持不同的工作风格。",
+          "analysis": "复合句。句首 Rather than 后接动名词 expecting... 作对比状语，其中含 accommodate oneself to 结构；主句 the department revised its procedures；so that 引导目的状语从句（含被动 could be supported）。"
+        }
+      ],
+      "collocations": ["accommodate to 适应", "accommodate guests 接待客人", "accommodate a need 满足需求", "accommodate up to 最多容纳"],
+      "phrases": ["accommodate oneself to 使自己适应", "be accommodated in 被安置在"],
+      "derived": [
+        { "word": "accommodation", "meaning": "n. 住宿；适应；和解" },
+        { "word": "accommodating", "meaning": "adj. 乐于助人的；随和的" }
+      ],
+      "synonyms": ["house", "hold", "adapt", "reconcile"],
+      "mnemonic": "ac+com(共同)+mod(模式)+ate → 调到同一模式 → 容纳/适应"
+    },
+    "accompany": {
+      "syllable": "ac·com·pa·ny",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "陪伴，陪同" },
+        { "pos": "v.", "meaning": "伴随，与…同时发生" },
+        { "pos": "v.", "meaning": "为…伴奏" }
+      ],
+      "rootAffix": "ac-(向)+com-(共同)+pan(面包)+-y → 一同分食面包的人 → 同伴",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She accompanied her mother to the station.",
+          "translation": "她陪母亲去了车站。",
+          "analysis": "简单句：主语 She + 谓语 accompanied + 宾语 her mother + 状语 to the station。accompany 为及物动词，后直接接人，不加介词。"
+        },
+        {
+          "level": "long",
+          "sentence": "The rapid rise in unemployment was accompanied by a sharp increase in crime, a pattern that has been observed in every recession since the 1970s.",
+          "translation": "失业率的急剧上升伴随着犯罪率的猛增，这一模式自 1970 年代以来在每次经济衰退中都能见到。",
+          "analysis": "复合句。主句为被动结构 was accompanied by；a pattern 为同位语，概括前文整个现象，后接 that 引导的定语从句；从句中 since the 1970s 为时间状语，与现在完成时 has been observed 呼应。"
+        }
+      ],
+      "collocations": ["accompany sb to 陪某人去", "be accompanied by 伴随着；由…陪同", "accompany on the piano 用钢琴伴奏", "closely accompany 紧密伴随"],
+      "phrases": ["accompany...with 以…伴随", "accompanying circumstances 伴随情况"],
+      "derived": [
+        { "word": "accompaniment", "meaning": "n. 伴随物；伴奏" },
+        { "word": "accompanist", "meaning": "n. 伴奏者" }
+      ],
+      "synonyms": ["escort", "attend", "go with", "coincide with"],
+      "mnemonic": "ac+com(共同)+pany(同伴) → 一起去 → 陪伴"
+    },
+    "accomplish": {
+      "syllable": "ac·com·plish",
+      "pos": "v.",
+      "defs": [{ "pos": "v.", "meaning": "完成，实现（任务、目标等）" }],
+      "rootAffix": "ac-(向)+com-(完全)+pl(填满)+-ish → 填满至完成 → 完成",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They accomplished the task ahead of schedule.",
+          "translation": "他们提前完成了任务。",
+          "analysis": "简单句：主语 They + 谓语 accomplished + 宾语 the task + 状语 ahead of schedule。accomplish 强调成功完成有一定难度的事。"
+        },
+        {
+          "level": "long",
+          "sentence": "Little of what the committee set out to accomplish has actually been achieved, largely because the members could not agree on priorities.",
+          "translation": "委员会着手要完成的事情中，实际达成的寥寥无几，主要因为成员们无法就优先事项达成一致。",
+          "analysis": "复合句。主语 Little of what... 中 what 引导的从句作介词 of 的宾语；谓语 has been achieved 为现在完成时的被动；because 引导原因状语从句，其中含固定搭配 agree on。"
+        }
+      ],
+      "collocations": ["accomplish a goal 实现目标", "accomplish a task 完成任务", "accomplish nothing 一事无成", "successfully accomplish 成功完成"],
+      "phrases": ["accomplish...through 通过…完成", "be accomplished in 擅长；精通"],
+      "derived": [
+        { "word": "accomplishment", "meaning": "n. 成就；完成" },
+        { "word": "accomplished", "meaning": "adj. 有造诣的；熟练的" }
+      ],
+      "synonyms": ["achieve", "complete", "fulfil", "attain"],
+      "mnemonic": "ac+com(完全)+plish(完成) → 全部做完 → 完成"
+    },
+    "accumulate": {
+      "syllable": "ac·cu·mu·late",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "积累，积聚" },
+        { "pos": "v.", "meaning": "（数量）逐渐增加" }
+      ],
+      "rootAffix": "ac-(加强)+cumul(堆积)+-ate → 不断堆积 → 积累",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He accumulated a large fortune.",
+          "translation": "他积累了大笔财富。",
+          "analysis": "简单句：主语 He + 谓语 accumulated + 宾语 a large fortune。accumulate 取「积累（财富、经验）」义。"
+        },
+        {
+          "level": "long",
+          "sentence": "Dust had accumulated on the shelves for so long that removing it required masks, and the air in the room became difficult to breathe.",
+          "translation": "架子上积了太久的灰尘，清理时甚至需要戴口罩，房间里的空气也变得难以呼吸。",
+          "analysis": "并列复合句。第一分句含 so...that 引导的结果状语从句（主语 Dust，谓语 had accumulated 为过去完成时，表先于清理发生）；第二分句 the air...became difficult to breathe 中不定式 to breathe 用主动形式表被动含义。"
+        }
+      ],
+      "collocations": ["accumulate experience 积累经验", "accumulate wealth 积累财富", "accumulate evidence 积累证据", "gradually accumulate 逐渐积累"],
+      "phrases": ["accumulate...over time 随时间积累", "accumulated interest 累计利息"],
+      "derived": [
+        { "word": "accumulation", "meaning": "n. 积累；堆积物" },
+        { "word": "accumulative", "meaning": "adj. 累积的" }
+      ],
+      "synonyms": ["amass", "gather", "build up", "accrue"],
+      "mnemonic": "ac+cumul(堆积)+ate → 越堆越多 → 积累"
+    },
+    "accurate": {
+      "syllable": "ac·cu·rate",
+      "pos": "adj.",
+      "defs": [
+        { "pos": "adj.", "meaning": "准确的，精确的" },
+        { "pos": "adj.", "meaning": "（人）谨慎认真的" }
+      ],
+      "rootAffix": "ac-(向)+cur(关心、照料)+-ate → 精心对待 → 精确",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The report gives an accurate account of the events.",
+          "translation": "报告准确地记述了事件经过。",
+          "analysis": "简单句：主语 The report + 谓语 gives + 宾语 an accurate account + 定语 of the events。accurate 作定语修饰 account。"
+        },
+        {
+          "level": "long",
+          "sentence": "For the conclusions to be accurate, the data must be collected under conditions that can be reproduced by other researchers.",
+          "translation": "为使结论准确，数据必须在其他研究者可复现的条件下采集。",
+          "analysis": "复合句。句首 For the conclusions to be accurate 为 for 复合不定式结构，作目的/条件状语；主句 the data must be collected 为含情态动词的被动；that 引导定语从句修饰 conditions，从句内亦为被动 can be reproduced。"
+        }
+      ],
+      "collocations": ["accurate information 准确的信息", "accurate measurement 精确测量", "highly accurate 高度准确", "accurate to 精确到"],
+      "phrases": ["be accurate in 在…方面准确", "accurate account 准确的描述"],
+      "derived": [
+        { "word": "accuracy", "meaning": "n. 准确性，精确度" },
+        { "word": "accurately", "meaning": "adv. 准确地" },
+        { "word": "inaccurate", "meaning": "adj. 不准确的" }
+      ],
+      "synonyms": ["precise", "exact", "correct", "faithful"],
+      "mnemonic": "ac+cur(关心)+ate → 精心对待 → 准确的"
+    },
+    "accuse": {
+      "syllable": "ac·cuse",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "指控，控告（accuse sb of）" },
+        { "pos": "v.", "meaning": "指责，谴责" }
+      ],
+      "rootAffix": "ac-(向)+cuse(理由、诉讼) → 提出诉讼 → 指控",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She accused him of lying.",
+          "translation": "她指责他撒谎。",
+          "analysis": "简单句：主语 She + 谓语 accused + 宾语 him + of lying。注意固定搭配 accuse sb of (doing) sth，介词 of 后接动名词。"
+        },
+        {
+          "level": "long",
+          "sentence": "The company was accused of having concealed evidence that its products were unsafe, a charge it denied for more than a decade.",
+          "translation": "该公司被指控隐瞒其产品不安全的证据，这一指控被其否认了十多年。",
+          "analysis": "复合句。主句为被动 was accused of，后接动名词的完成式 having concealed（表先于指控发生）；that 引导定语从句修饰 evidence；a charge 为同位语，后接省略关系代词的定语从句 it denied...。"
+        }
+      ],
+      "collocations": ["accuse sb of 指控某人…", "falsely accuse 诬告", "accuse of theft 指控盗窃", "be accused of 被指控"],
+      "phrases": ["accuse...of doing 指控…做了", "the accused 被告"],
+      "derived": [
+        { "word": "accusation", "meaning": "n. 指控，控告" },
+        { "word": "accuser", "meaning": "n. 原告；控告者" },
+        { "word": "accusatory", "meaning": "adj. 指责的" }
+      ],
+      "synonyms": ["charge", "indict", "blame", "denounce"],
+      "mnemonic": "ac+cuse(诉讼) → 提起诉讼 → 指控"
+    },
+    "achieve": {
+      "syllable": "a·chieve",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "实现，达到（目标、目的）" },
+        { "pos": "v.", "meaning": "取得（成就、成功）" }
+      ],
+      "rootAffix": "a-(向)+chief(头、顶端) → 到达顶端 → 实现",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He achieved his goal of running a marathon.",
+          "translation": "他实现了跑马拉松的目标。",
+          "analysis": "简单句：主语 He + 谓语 achieved + 宾语 his goal + 定语 of running a marathon。achieve 的宾语常为 goal、aim、result 等。"
+        },
+        {
+          "level": "long",
+          "sentence": "What the reforms achieved was not so much a reduction in costs as a change in the way resources were allocated across departments.",
+          "translation": "这些改革所取得的，与其说是成本的降低，不如说是资源在各部门间分配方式的改变。",
+          "analysis": "复合句。主语为 What 引导的主语从句；主句谓语为 not so much A as B 结构（与其说是 A 不如说是 B）；B 部分中 the way 后接省略 that/in which 的定语从句 resources were allocated...。"
+        }
+      ],
+      "collocations": ["achieve success 取得成功", "achieve a goal 实现目标", "achieve results 取得成果", "achieve recognition 获得认可"],
+      "phrases": ["achieve...through 通过…实现", "achieve one's potential 发挥潜能"],
+      "derived": [
+        { "word": "achievement", "meaning": "n. 成就；实现" },
+        { "word": "achievable", "meaning": "adj. 可实现的" }
+      ],
+      "synonyms": ["attain", "accomplish", "realise", "reach"],
+      "mnemonic": "a(到)+chief(顶端) → 到顶端 → 实现"
+    },
+    "acknowledge": {
+      "syllable": "ac·knowl·edge",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "承认（事实、错误等）" },
+        { "pos": "v.", "meaning": "感谢，致谢" },
+        { "pos": "v.", "meaning": "确认收到" }
+      ],
+      "rootAffix": "ac-(加强)+knowledge(知晓) → 使知晓 → 承认",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He acknowledged his mistake.",
+          "translation": "他承认了自己的错误。",
+          "analysis": "简单句：主语 He + 谓语 acknowledged + 宾语 his mistake。acknowledge 后可直接接名词，也可接 that 从句或动名词。"
+        },
+        {
+          "level": "long",
+          "sentence": "Although the author acknowledged that her conclusions were preliminary, she argued that they were consistent with findings reported by several independent groups.",
+          "translation": "尽管作者承认其结论是初步的，但她主张这些结论与若干独立研究团队所报告的发现相一致。",
+          "analysis": "复合句。Although 引导让步状语从句，从句中 that 引导宾语从句；主句 she argued 后接 that 宾语从句；consistent with findings reported by... 中 reported 为过去分词短语作后置定语。"
+        }
+      ],
+      "collocations": ["acknowledge a mistake 承认错误", "acknowledge receipt 确认收到", "acknowledge the fact 承认事实", "widely acknowledged 公认的"],
+      "phrases": ["acknowledge...as 承认…是", "acknowledge that 承认…"],
+      "derived": [
+        { "word": "acknowledgement", "meaning": "n. 承认；致谢；回执" },
+        { "word": "acknowledged", "meaning": "adj. 公认的" }
+      ],
+      "synonyms": ["admit", "concede", "recognise", "confirm"],
+      "mnemonic": "ac+knowledge(知道) → 让人知道 → 承认"
+    },
+    "acquire": {
+      "syllable": "ac·quire",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "获得，取得（技能、知识、财产等）" },
+        { "pos": "v.", "meaning": "学到，养成（习惯）" }
+      ],
+      "rootAffix": "ac-(向)+quir(寻求)+-e → 去寻求 → 获得",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Children acquire language naturally.",
+          "translation": "儿童自然地习得语言。",
+          "analysis": "简单句：主语 Children + 谓语 acquire + 宾语 language + 状语 naturally。acquire 强调潜移默化地习得（语言、技能）。"
+        },
+        {
+          "level": "long",
+          "sentence": "It is often argued that the skills acquired at university matter less than the ability to acquire new ones as circumstances change.",
+          "translation": "人们常说，大学里学到的技能不如随环境变化而获取新技能的能力重要。",
+          "analysis": "复合句。It 为形式主语，真正主语为 that 引导的主语从句；从句中 acquired at university 为过去分词短语作后置定语修饰 skills；比较结构 matter less than...；句末 to acquire new ones 为不定式作 ability 的定语。"
+        }
+      ],
+      "collocations": ["acquire knowledge 获取知识", "acquire a skill 掌握技能", "acquire a habit 养成习惯", "newly acquired 新获得的"],
+      "phrases": ["acquire...from 从…获得", "acquire a taste for 逐渐喜欢上"],
+      "derived": [
+        { "word": "acquisition", "meaning": "n. 获得；习得；收购" },
+        { "word": "acquired", "meaning": "adj. 后天获得的" }
+      ],
+      "synonyms": ["obtain", "gain", "attain", "procure"],
+      "mnemonic": "ac+quir(寻求)+e → 寻求得到 → 获得"
+    },
+    "adapt": {
+      "syllable": "a·dapt",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "使适应，使适合（adapt to）" },
+        { "pos": "v.", "meaning": "改编，改写" }
+      ],
+      "rootAffix": "ad-(向)+apt(适合) → 使适合 → 适应",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "It took him a while to adapt to the new school.",
+          "translation": "他花了一些时间才适应新学校。",
+          "analysis": "It took sb time to do 句型：it 为形式主语，真正主语为不定式 to adapt to the new school。adapt 后接 to + 名词/动名词。"
+        },
+        {
+          "level": "long",
+          "sentence": "Species that fail to adapt to changing conditions either migrate or disappear, and the fossil record shows that the latter has been far more common.",
+          "translation": "未能适应环境变化的物种要么迁徙，要么消失，而化石记录表明后者远为常见。",
+          "analysis": "并列复合句。第一分句中 that fail to adapt... 为定语从句修饰 Species，either...or... 连接并列谓语；第二分句中 that 引导宾语从句，the latter 指代前文 disappear。"
+        }
+      ],
+      "collocations": ["adapt to 适应", "adapt oneself to 使自己适应", "well adapted 适应性强的", "adapt for 为…改编"],
+      "phrases": ["adapt...to 使…适应", "be adapted from 改编自"],
+      "derived": [
+        { "word": "adaptation", "meaning": "n. 适应；改编本" },
+        { "word": "adaptable", "meaning": "adj. 适应性强的" },
+        { "word": "adaptive", "meaning": "adj. 适应的" }
+      ],
+      "synonyms": ["adjust", "accommodate", "modify", "tailor"],
+      "mnemonic": "ad(去)+apt(适合) → 去适合 → 适应"
+    },
+    "adequate": {
+      "syllable": "ad·e·quate",
+      "pos": "adj.",
+      "defs": [
+        { "pos": "adj.", "meaning": "足够的，充分的" },
+        { "pos": "adj.", "meaning": "胜任的，尚可的" }
+      ],
+      "rootAffix": "ad-(向)+equ(相等)+-ate → 与需求相等 → 足够",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The lighting here is not adequate for reading.",
+          "translation": "这里的光线不足以阅读。",
+          "analysis": "简单句：主语 The lighting + 系动词 is + 表语 not adequate + 状语 for reading。adequate for 表示「对…而言足够」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Unless adequate funding is provided, the programme will be unable to serve the population for which it was designed.",
+          "translation": "除非提供充足的资金，该项目将无法服务其目标人群。",
+          "analysis": "复合句。Unless 引导条件状语从句（含被动 is provided）；主句 will be unable to serve；句末 for which it was designed 为「介词 + 关系代词」引导的定语从句，修饰 the population。"
+        }
+      ],
+      "collocations": ["adequate supply 供应充足", "adequate for 对…足够", "adequate evidence 充分的证据", "barely adequate 勉强够用"],
+      "phrases": ["be adequate to 胜任；足以应付", "adequate to the task 能胜任任务"],
+      "derived": [
+        { "word": "adequacy", "meaning": "n. 足够；胜任" },
+        { "word": "adequately", "meaning": "adv. 充分地" },
+        { "word": "inadequate", "meaning": "adj. 不足的" }
+      ],
+      "synonyms": ["sufficient", "enough", "satisfactory", "competent"],
+      "mnemonic": "ad+equ(相等)+ate → 与需求相等 → 足够的"
+    },
+    "adhere": {
+      "syllable": "ad·here",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "坚持，遵守（adhere to）" },
+        { "pos": "v.", "meaning": "黏附，附着" }
+      ],
+      "rootAffix": "ad-(向)+her(黏) → 黏上去 → 黏附/坚持",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "All members must adhere to the rules.",
+          "translation": "所有成员都必须遵守规则。",
+          "analysis": "简单句：主语 All members + 情态动词 must + 谓语 adhere + to the rules。adhere to 为固定搭配，后接规则、原则、标准等。"
+        },
+        {
+          "level": "long",
+          "sentence": "Firms that adhere strictly to the guidelines are less likely to face penalties, though compliance can be costly in the short term.",
+          "translation": "严格遵守准则的企业受处罚的可能性较小，尽管短期合规成本可能很高。",
+          "analysis": "复合句。主句主语 Firms 后接 that 引导的定语从句；be likely to 结构；though 引导让步状语从句，其中 compliance 为名词化作主语。"
+        }
+      ],
+      "collocations": ["adhere to 坚持；遵守", "adhere to a principle 坚持原则", "adhere strictly 严格遵守", "firmly adhere 牢牢黏附"],
+      "phrases": ["adhere to the letter 严格遵守字面规定", "adhere together 黏在一起"],
+      "derived": [
+        { "word": "adherence", "meaning": "n. 坚持；遵守" },
+        { "word": "adherent", "meaning": "n. 拥护者 adj. 黏附的" },
+        { "word": "adhesive", "meaning": "adj. 有黏性的 n. 黏合剂" }
+      ],
+      "synonyms": ["stick", "cling", "comply with", "observe"],
+      "mnemonic": "ad(去)+here(黏) → 黏上去 → 坚持/黏附"
+    },
+    "adjust": {
+      "syllable": "ad·just",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "调整，调节" },
+        { "pos": "v.", "meaning": "适应（adjust to）" }
+      ],
+      "rootAffix": "ad-(向)+just(正确、公正) → 使正确 → 调整",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "You can adjust the seat to your height.",
+          "translation": "你可以按身高调节座椅。",
+          "analysis": "简单句：主语 You + 情态动词 can + 谓语 adjust + 宾语 the seat + 状语 to your height。adjust 取「调节」义。"
+        },
+        {
+          "level": "long",
+          "sentence": "Having spent years in a highly structured environment, she found it difficult to adjust to a job in which priorities changed from day to day.",
+          "translation": "在高度结构化的环境中待了多年后，她发现很难适应一份优先事项每天都在变的工作。",
+          "analysis": "复合句。句首 Having spent... 为现在分词的完成式作原因状语（表先于主句发生）；主句 she found it difficult to adjust... 中 it 为形式宾语；句末 in which 引导定语从句修饰 a job。"
+        }
+      ],
+      "collocations": ["adjust to 适应", "adjust the settings 调整设置", "adjust a policy 调整政策", "automatically adjust 自动调节"],
+      "phrases": ["adjust oneself to 使自己适应", "adjust...accordingly 相应调整"],
+      "derived": [
+        { "word": "adjustment", "meaning": "n. 调整；适应" },
+        { "word": "adjustable", "meaning": "adj. 可调节的" }
+      ],
+      "synonyms": ["adapt", "regulate", "modify", "fine-tune"],
+      "mnemonic": "ad+just(正确) → 弄正确 → 调整"
+    },
+    "admit": {
+      "syllable": "ad·mit",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "承认，供认" },
+        { "pos": "v.", "meaning": "准许进入，接纳" }
+      ],
+      "rootAffix": "ad-(向)+mit(送、放) → 放进去 → 接纳/承认",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He admitted that he was wrong.",
+          "translation": "他承认自己错了。",
+          "analysis": "简单句：主语 He + 谓语 admitted + that 引导的宾语从句。admit 后可接名词、that 从句或动名词，但不接不定式。"
+        },
+        {
+          "level": "long",
+          "sentence": "Not until the final audit did the department admit that the figures it had published for the previous three years were unreliable.",
+          "translation": "直到最后一次审计，该部门才承认其此前三年公布的数据不可靠。",
+          "analysis": "倒装句。Not until 置于句首引起主句部分倒装（助动词 did 提至主语 the department 之前）；that 引导宾语从句；从句中 it had published for the previous three years 为省略关系代词的定语从句修饰 the figures。"
+        }
+      ],
+      "collocations": ["admit a mistake 承认错误", "admit to doing 承认做了", "be admitted to 被…录取/接纳", "frankly admit 坦率承认"],
+      "phrases": ["admit...into 准许…进入", "admit of 容许；有…的余地"],
+      "derived": [
+        { "word": "admission", "meaning": "n. 承认；准入；录取" },
+        { "word": "admittance", "meaning": "n. 进入许可" },
+        { "word": "admittedly", "meaning": "adv. 诚然；公认地" }
+      ],
+      "synonyms": ["confess", "acknowledge", "concede", "allow entry"],
+      "mnemonic": "ad+mit(送) → 放进来 → 接纳/承认"
+    },
+    "adopt": {
+      "syllable": "a·dopt",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "采用，采取（方法、政策等）" },
+        { "pos": "v.", "meaning": "收养" }
+      ],
+      "rootAffix": "ad-(向)+opt(选择) → 选来用 → 采用",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The committee adopted the proposal.",
+          "translation": "委员会采纳了这项提议。",
+          "analysis": "简单句：主语 The committee + 谓语 adopted + 宾语 the proposal。adopt 取「正式采纳」义。"
+        },
+        {
+          "level": "long",
+          "sentence": "Countries that adopted the measure early reported fewer hospital admissions than those which waited until the outbreak was already widespread.",
+          "translation": "较早采取该措施的国家，其住院人数少于等到疫情已广泛蔓延才行动的国家。",
+          "analysis": "复合句。主句主语 Countries 后接 that 引导的定语从句；比较结构 fewer... than those；those 后接 which 引导的定语从句；until 引导时间状语从句，其中 was already widespread 为系表结构。"
+        }
+      ],
+      "collocations": ["adopt a policy 采取政策", "adopt an approach 采用方法", "adopt a child 收养孩子", "widely adopted 被广泛采用"],
+      "phrases": ["adopt...as 把…作为…采用", "adopt a resolution 通过决议"],
+      "derived": [
+        { "word": "adoption", "meaning": "n. 采用；收养" },
+        { "word": "adoptive", "meaning": "adj. 收养的" },
+        { "word": "adoptee", "meaning": "n. 被收养者" }
+      ],
+      "synonyms": ["embrace", "take up", "accept", "assume"],
+      "mnemonic": "ad+opt(选择) → 选来用 → 采用"
+    },
+    "advocate": {
+      "syllable": "ad·vo·cate",
+      "pos": "v./n.",
+      "defs": [
+        { "pos": "v.", "meaning": "提倡，主张，拥护" },
+        { "pos": "n.", "meaning": "拥护者，提倡者" }
+      ],
+      "rootAffix": "ad-(向)+voc(叫喊)+-ate → 为…呼喊 → 提倡",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She advocates a more flexible approach.",
+          "translation": "她提倡更灵活的方法。",
+          "analysis": "简单句：主语 She + 谓语 advocates + 宾语 a more flexible approach。advocate 作动词时后接名词或动名词，不接不定式。"
+        },
+        {
+          "level": "long",
+          "sentence": "Those who advocate cutting public spending argue that the resulting savings outweigh the short-term costs, a claim that remains fiercely contested.",
+          "translation": "主张削减公共开支的人认为，由此节省的开支超过短期代价，这一说法仍受到激烈质疑。",
+          "analysis": "复合句。主语 Those 后接 who 引导的定语从句；谓语 argue 后接 that 宾语从句；句末 a claim 为同位语，后接 that 引导的定语从句（含被动 remains contested）。advocate 后接动名词 cutting。"
+        }
+      ],
+      "collocations": ["advocate for 为…倡导/辩护", "advocate a policy 主张一项政策", "strong advocate 坚定的拥护者", "advocate of reform 改革的倡导者"],
+      "phrases": ["advocate doing 主张做", "an advocate of …的拥护者"],
+      "derived": [
+        { "word": "advocacy", "meaning": "n. 提倡；辩护" },
+        { "word": "advocator", "meaning": "n. 拥护者" }
+      ],
+      "synonyms": ["support", "champion", "recommend", "proponent"],
+      "mnemonic": "ad+voc(喊)+ate → 为…呐喊 → 提倡"
+    },
+    "affect": {
+      "syllable": "af·fect",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "影响，作用" },
+        { "pos": "v.", "meaning": "（疾病）侵袭，感染" },
+        { "pos": "v.", "meaning": "感动，使悲伤" }
+      ],
+      "rootAffix": "af-(向)+fect(做、作用于) → 作用于 → 影响",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Bad weather affected the harvest.",
+          "translation": "恶劣天气影响了收成。",
+          "analysis": "简单句：主语 Bad weather + 谓语 affected + 宾语 the harvest。affect 为及物动词，宾语即被影响的对象（注意与名词 effect「结果」区分）。"
+        },
+        {
+          "level": "long",
+          "sentence": "How deeply children are affected by what they see online depends less on the amount of time spent than on whether adults discuss it with them.",
+          "translation": "儿童受其所见网络内容影响的程度，与其说取决于上网时长，不如说取决于成人是否与之讨论。",
+          "analysis": "复合句。主语为 How 引导的主语从句（含被动 are affected by）；谓语为 depends less on A than on B 比较结构；A 中 spent 为过去分词作后置定语修饰 time；B 为 whether 引导的宾语从句。"
+        }
+      ],
+      "collocations": ["adversely affect 不利影响", "be affected by 受…影响", "affect the outcome 影响结果", "directly affect 直接影响"],
+      "phrases": ["affect...deeply 深受影响", "be deeply affected 深受感动"],
+      "derived": [
+        { "word": "affection", "meaning": "n. 喜爱；感情" },
+        { "word": "affected", "meaning": "adj. 受影响的；做作的" },
+        { "word": "unaffected", "meaning": "adj. 未受影响的" }
+      ],
+      "synonyms": ["influence", "impact", "alter", "move"],
+      "mnemonic": "af+fect(做) → 对…起作用 → 影响"
+    },
+    "aggressive": {
+      "syllable": "ag·gres·sive",
+      "pos": "adj.",
+      "defs": [
+        { "pos": "adj.", "meaning": "侵略的，好斗的" },
+        { "pos": "adj.", "meaning": "积极进取的，有闯劲的" }
+      ],
+      "rootAffix": "ag-(向)+gress(走)+-ive → 走向对方 → 侵略",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He became aggressive after drinking.",
+          "translation": "他酒后变得好斗。",
+          "analysis": "简单句：主语 He + 系动词 became + 表语 aggressive + 状语 after drinking。aggressive 作表语，此处为「好斗的」贬义。"
+        },
+        {
+          "level": "long",
+          "sentence": "While an aggressive marketing campaign may boost sales in the short term, it can damage a brand's reputation if customers feel they are being manipulated.",
+          "translation": "虽然激进的营销活动可能在短期提振销量，但若顾客感到被操纵，则可能损害品牌声誉。",
+          "analysis": "复合句。While 引导让步状语从句；主句 it can damage...；if 引导条件状语从句；从句中 they are being manipulated 为现在进行时的被动。aggressive 此处为「积极进取的」中性义。"
+        }
+      ],
+      "collocations": ["aggressive behaviour 攻击性行为", "aggressive marketing 激进营销", "aggressive expansion 积极扩张", "increasingly aggressive 越来越咄咄逼人"],
+      "phrases": ["be aggressive towards 对…气势汹汹", "aggressive in pursuing 积极追求"],
+      "derived": [
+        { "word": "aggression", "meaning": "n. 侵略；攻击性" },
+        { "word": "aggressor", "meaning": "n. 侵略者" },
+        { "word": "aggressively", "meaning": "adv. 侵略地；积极地" }
+      ],
+      "synonyms": ["hostile", "belligerent", "assertive", "forceful"],
+      "mnemonic": "ag+gress(走)+ive → 向你走来 → 侵略的"
+    },
+    "alleviate": {
+      "syllable": "al·le·vi·ate",
+      "pos": "v.",
+      "defs": [{ "pos": "v.", "meaning": "减轻，缓解（痛苦、问题等）" }],
+      "rootAffix": "al-(加强)+lev(轻)+-iate → 使变轻 → 减轻",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "This medicine should alleviate the pain.",
+          "translation": "这种药应当能减轻疼痛。",
+          "analysis": "简单句：主语 This medicine + 情态动词 should + 谓语 alleviate + 宾语 the pain。alleviate 的宾语常为 pain、suffering、problem 等负面事物。"
+        },
+        {
+          "level": "long",
+          "sentence": "Although the new policy has alleviated some of the pressure on hospitals, it has done little to address the underlying causes of the shortage of staff.",
+          "translation": "尽管新政策缓解了医院的部分压力，但对于人手短缺的根本原因却收效甚微。",
+          "analysis": "复合句。Although 引导让步状语从句（现在完成时 has alleviated）；主句 it has done little to address...；underlying causes 后接 of the shortage of staff 作定语。alleviate 强调部分缓解而非根除。"
+        }
+      ],
+      "collocations": ["alleviate pain 减轻疼痛", "alleviate poverty 扶贫", "alleviate pressure 缓解压力", "help alleviate 有助于缓解"],
+      "phrases": ["alleviate...by 通过…缓解", "alleviate the situation 缓和局势"],
+      "derived": [
+        { "word": "alleviation", "meaning": "n. 减轻，缓解" },
+        { "word": "alleviative", "meaning": "adj. 减轻的" }
+      ],
+      "synonyms": ["relieve", "ease", "mitigate", "lessen"],
+      "mnemonic": "al+lev(轻)+iate → 使变轻 → 减轻"
+    },
+    "allocate": {
+      "syllable": "al·lo·cate",
+      "pos": "v.",
+      "defs": [{ "pos": "v.", "meaning": "分配，配置（资源、时间等）" }],
+      "rootAffix": "al-(向)+loc(地方)+-ate → 安排到某处 → 分配",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The government allocated funds to schools.",
+          "translation": "政府向学校拨付了资金。",
+          "analysis": "简单句：主语 The government + 谓语 allocated + 宾语 funds + 状语 to schools。allocate 常用于 allocate sth to sb/sth 结构。"
+        },
+        {
+          "level": "long",
+          "sentence": "Decisions about how resources should be allocated are rarely purely technical, since they reflect assumptions about which groups deserve priority.",
+          "translation": "关于资源应如何配置的决策很少是纯技术性的，因为这些决策反映了对哪些群体应优先的假设。",
+          "analysis": "复合句。主语 Decisions 后接 about how... 介词宾语从句（含被动 should be allocated）；主句 are rarely purely technical；since 引导原因状语从句；从句中 about which groups deserve priority 为「介词 + 关系代词」引导的宾语从句。"
+        }
+      ],
+      "collocations": ["allocate resources 配置资源", "allocate funds 拨款", "allocate time 分配时间", "allocate to 分配给"],
+      "phrases": ["allocate...among 在…之间分配", "be allocated for 被拨作…之用"],
+      "derived": [
+        { "word": "allocation", "meaning": "n. 分配；拨款" },
+        { "word": "allocable", "meaning": "adj. 可分配的" }
+      ],
+      "synonyms": ["assign", "distribute", "apportion", "allot"],
+      "mnemonic": "al+loc(地方)+ate → 安排到各处 → 分配"
+    }
+  }
+}

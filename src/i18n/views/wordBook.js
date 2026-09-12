@@ -149,6 +149,7 @@ export const zh = {
   ocrAdding: '正在加入…',
   ocrDone: '已加入 {n} 个，其中 {m} 个自动生成资料',
   ocrSource: '图片识别',
+  ocrNotCoveredHint: '，另有 {k} 个词本地词库暂未收录，已仅存单词',
   defaultSubject: '英语',
 
   detailTitle: '单词详情',
@@ -168,9 +169,12 @@ export const zh = {
   linkedSearchPh: '搜索通用卡正面 / 科目…',
   linkedNone: '无候选（暂无匹配的通用卡）',
   linkedHint: '同一知识点的通用卡与英语词互相挂靠；只存映射，两侧内容与复习进度各自独立。',
-  tabEmpty: '暂无内容，可用 AI 生成补齐',
+  tabEmpty: '暂无内容——本地词库未收录该词，暂不提供补全',
   exSimple: '简单句',
   exLong: '长难句',
+  exAnalysis: '长难句解析',
+  exExpand: '展开',
+  exCollapse: '收起',
   copy: '复制',
   copied: '已复制',
 };
@@ -316,6 +320,7 @@ export const en = {
   ocrAdding: 'Adding…',
   ocrDone: 'Added {n}, auto-generated {m}',
   ocrSource: 'OCR',
+  ocrNotCoveredHint: ', {k} words not in the local wordbank — saved as word-only',
   defaultSubject: 'English',
 
   detailTitle: 'Word detail',
@@ -335,9 +340,12 @@ export const en = {
   linkedSearchPh: 'Search card front / subject…',
   linkedNone: 'No candidates (no matching general card)',
   linkedHint: 'General cards and English words share a "same knowledge point" link; mapping only — content and review progress stay independent on both sides.',
-  tabEmpty: 'Nothing yet — use AI generation to fill in',
+  tabEmpty: 'Nothing yet — this word is not in the local wordbank',
   exSimple: 'Simple',
   exLong: 'Long & hard',
+  exAnalysis: 'Sentence analysis',
+  exExpand: 'Expand',
+  exCollapse: 'Collapse',
   copy: 'Copy',
   copied: 'Copied',
 };

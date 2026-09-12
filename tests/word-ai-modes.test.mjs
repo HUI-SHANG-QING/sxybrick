@@ -131,10 +131,12 @@ test('生成全链路：合法结果通过、脏数据被丢弃（fake agent 注
 test('批量补释义：仅合法中文落库、非中文丢弃', async () => {
   const data = { meanings: { q1word: '测试一', q2word: 'test' } };
   const r = await batchGenerateMeanings({
-    words: ['q1word', 'q2word'], settings: {}, agentCtx: fakeAgent(data), batchSize: 10,
+    words: ['q1word', 'q2word'], settings: {}, agentCtx: fakeAgent(data), batchSize: 10, allowAi: true,
   });
   assert.equal(r.generated, 1, '仅中文释义入库');
-  assert.equal(r.failed, 1, '非中文丢弃');
+  // 新契约：非中文/未收录统一记入 skipped（不是失败——本地优先下「未收录」≠「生成失败」）
+  assert.equal(r.failed, 0, '非中文不再计失败');
+  assert.equal(r.skipped, 1, '非中文计入跳过');
   const m = await import('../src/services/word-meaning.js');
   const got = await m.getMeaning('q1word');
   assert.equal(got.meaning, '测试一');

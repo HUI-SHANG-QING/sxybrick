@@ -2,6 +2,10 @@
 // 功能：用户只输入单词 → 自动生成同义词 / 相关词组 / 短语 / 派生词 / 音节 / 词根词缀 /
 //      多义项释义 / 2 种难度的例句（简单句 / 长难句）
 // 设计：
+//   0. 【补全改本地优先】generateWordMaterials 先查本地词库 services/word-enrich.js
+//      （内置词表 src/data/word-enrich.json，含多义项/例句/长难句解析/搭配/派生/词根），
+//      命中即返回，不再调用任何付费 AI；未收录则返回 not-in-local-wordbank 由调用方提示跳过。
+//      仅当调用方显式传 allowAi 时才走下面的 AI 通道（默认全站不传）。
 //   1. 优先复用项目 agent 系统（如果 ctx.agent 可用）；
 //   2. 降级到用户自填 LLM Key（豆包/DeepSeek/OpenAI 兼容）；
 //   3. 调用前用 word-syllabus 过滤；超纲词直接拒生成（返回 skipped）；
@@ -12,6 +16,7 @@
 //       受限内容应自行跳过，由调用方 fallback 到本地预设模板。
 
 import { isInSyllabus, getSyllabusMeta } from './word-syllabus.js';
+import { enrichWordMaterials } from './word-enrich.js';
 import { recordUsage, estimateTokens } from '../utils/ai-usage.js';
 
 // ---------- Provider 配置 ----------
@@ -127,6 +132,19 @@ export function hasLlmChannel(settings, agentCtx) {
 export async function generateWordMaterials(req) {
   const word = String(req?.word || '').trim();
   if (!word) return { ok: false, reason: 'empty-word' };
+
+  // ① 本地词库优先（默认路径）：零 AI 调用、零网络、零费用。
+  //    命中即返回，返回结构与 normalize() 同构，并保留 examples[].analysis（长难句解析）。
+  //    刻意不做大纲过滤——OCR 识别出的词、自建词条同样需要补全。
+  const local = enrichWordMaterials({ word, levels: req?.levels });
+  if (local.ok) return local;
+
+  // ② 未收录：默认明确跳过——不调用付费 AI，也绝不臆造内容，
+  //    由调用方提示「暂未收录」并跳过。仅当调用方显式传入 allowAi 才回落 AI 通道
+  //    （默认全站不传，故补全操作永不产生费用）。
+  if (!req?.allowAi) return { ok: false, reason: 'not-in-local-wordbank', skipped: word };
+
+  // ③ 以下为显式 opt-in 的 AI 回落路径（原有逻辑保留）
   // 大纲过滤
   if (!isInSyllabus(word)) {
     return {

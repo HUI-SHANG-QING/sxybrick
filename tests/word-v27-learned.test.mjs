@@ -115,7 +115,7 @@ test('generateWordMaterials：syllable / defs / derived / rootAffix 归一化', 
       mnemonic: 'alt 记「改变」',
     }),
   };
-  const out = await generateWordMaterials({ word: 'alternative', settings: {}, agentCtx });
+  const out = await generateWordMaterials({ word: 'alternative', settings: {}, agentCtx, allowAi: true });
   assert.equal(out.ok, true);
   assert.equal(out.data.syllable, 'al·ter·na·tive', '音节应 trim');
   assert.equal(out.data.defs.length, 2, 'defs 空行应被过滤');
