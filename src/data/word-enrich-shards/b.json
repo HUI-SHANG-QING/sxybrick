@@ -1895,6 +1895,1627 @@
       ],
       "mnemonic": "搭配：basic skills/needs/principles；副词 basically 在口语与写作中表「基本上」（= essentially）"
     },
+    "basis": {
+      "syllable": "ba·sis",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "基础，根基；根据，依据"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（论点、行动的）出发点，基点"
+        }
+      ],
+      "rootAffix": "源自希腊语 basis（脚步、底座）→ 拉丁 basis → 基础、根基",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The research lacks a solid empirical basis.",
+          "translation": "这项研究缺乏坚实的实证基础。",
+          "analysis": "简单句：主语 The research + 谓语 lacks + 宾语 a solid empirical basis。solid 意为「坚实的」，empirical 意为「实证的、基于经验的」，basis 在此表「基础、依据」。"
+        },
+        {
+          "level": "long",
+          "sentence": "On the basis of these findings, the committee recommended a phased rollout, arguing that a gradual change would be easier to reverse if the assumptions behind the data proved wrong.",
+          "translation": "基于这些发现，委员会建议分阶段推行，理由是若数据背后的假设被证伪，渐进式变动更易撤回。",
+          "analysis": "复合句。On the basis of these findings 为介词短语作状语（basis 表「依据」）。主句 the committee recommended a phased rollout。arguing that... 现在分词短语作伴随状语，其内含 if 引导的条件状语从句（the assumptions behind the data proved wrong），behind the data 为后置定语修饰 assumptions。"
+        }
+      ],
+      "collocations": [
+        "on the basis of",
+        "form the basis of",
+        "provide a basis for"
+      ],
+      "phrases": [
+        "on a daily/weekly basis 按日／按周",
+        "on a regular basis 定期地"
+      ],
+      "derived": [
+        {
+          "word": "basic",
+          "meaning": "adj. 基本的，基础的"
+        },
+        {
+          "word": "basically",
+          "meaning": "adv. 基本上，从根本上说"
+        },
+        {
+          "word": "basics",
+          "meaning": "n. 基础（知识/要点，常用复数）"
+        }
+      ],
+      "synonyms": [
+        "foundation",
+        "ground",
+        "base"
+      ],
+      "mnemonic": "ba·sis 记「基础」；复数 bases 读作 /beɪsiːz/，别与 baseball 的 bases 混淆"
+    },
+    "basket": {
+      "syllable": "bas·ket",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "篮，筐，篓（常用藤、竹、塑料等编成）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（篮球）篮筐，得分单位"
+        }
+      ],
+      "rootAffix": "bas（盆/碗，古英语 bæsk）+ -et（指小后缀，表「小」）→ 小篮",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She put the apples into a wicker basket.",
+          "translation": "她把苹果放进一只柳条篮里。",
+          "analysis": "简单句：主语 She + 谓语 put + 宾语 the apples + 介词短语 into a wicker basket 作状语。wicker 意为「柳条编织的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The shopper balanced a heavy basket on one arm while searching the shelves with the other, a routine that looked effortless only because she had done it thousands of times.",
+          "translation": "这位购物者用一只手臂托着沉甸甸的篮子，另一只手在货架上翻找，这番动作看似轻松，只因她已重复了上千次。",
+          "analysis": "并列复合句。前分句主语 The shopper + 谓语 balanced + 宾语 a heavy basket + 状语 on one arm + 同时 while searching... 现在分词作伴随。后分句 a routine（指代前文动作）为主语，looked 为系动词，effortless 表语，only because 引导原因状语从句（she had done it thousands of times 过去完成时）。"
+        }
+      ],
+      "collocations": [
+        "a basket of",
+        "put sth. in/into a basket",
+        "shopping basket"
+      ],
+      "phrases": [
+        "a basket of fruit 一篮水果",
+        "score a basket（篮球）投中得分"
+      ],
+      "derived": [
+        {
+          "word": "basketball",
+          "meaning": "n. 篮球（运动）"
+        }
+      ],
+      "synonyms": [
+        "basketry",
+        "hamper",
+        "pannier"
+      ],
+      "mnemonic": "bas·ket 联想「bas（碗）+ket（小）」= 小篮；basketball 由 basket+ball 合成"
+    },
+    "bath": {
+      "syllable": "bath",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "洗澡，沐浴"
+        },
+        {
+          "pos": "n.",
+          "meaning": "浴缸，澡盆"
+        }
+      ],
+      "rootAffix": "源自古英语 bæth（洗澡）→ 原始日耳曼 *badam",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He takes a hot bath every evening.",
+          "translation": "他每天晚上洗个热水澡。",
+          "analysis": "简单句：主语 He + 谓语 takes + 宾语 a hot bath。take a bath 为固定搭配，表「洗澡」。"
+        },
+        {
+          "level": "long",
+          "sentence": "After a long day in the field, a warm bath became less a luxury than a necessity, the kind of small recovery that lets the body reset before the next demanding morning.",
+          "translation": "在野外奔波一整天后，一个热水澡与其说是享受，不如说是必需——正是这种微小的恢复，让身体能在次日的紧张清晨前重新调整。",
+          "analysis": "复合句。After a long day... 介词短语作时间状语。主句 a warm bath became less a luxury than a necessity（less A than B 结构，表「与其说 A 不如说 B」）。the kind of small recovery 为同位语，其后 that lets... 为定语从句修饰 recovery，从句内 before the next demanding morning 为时间状语。"
+        }
+      ],
+      "collocations": [
+        "take a bath",
+        "a hot/warm bath",
+        "bath towel"
+      ],
+      "phrases": [
+        "bath and beyond 沐浴及其他（家居卖场名）",
+        "have a bath 洗澡"
+      ],
+      "derived": [
+        {
+          "word": "bathe",
+          "meaning": "v. 洗澡；沐浴；浸洗"
+        },
+        {
+          "word": "bathroom",
+          "meaning": "n. 浴室，洗手间"
+        },
+        {
+          "word": "bathtub",
+          "meaning": "n. 浴缸"
+        }
+      ],
+      "synonyms": [
+        "shower",
+        "tub",
+        "wash"
+      ],
+      "mnemonic": "bath 记「洗澡」；bathroom = bath+room 浴室"
+    },
+    "bathe": {
+      "syllable": "bathe",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "洗澡，沐浴（尤指全身浸泡）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（光线、海水等）覆盖，沐浴于；浸洗（伤口）"
+        }
+      ],
+      "rootAffix": "bath（洗澡）+ -e（动词化后缀）→ 洗澡、沐浴",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The nurse bathed the wound with saline.",
+          "translation": "护士用生理盐水清洗了伤口。",
+          "analysis": "简单句：主语 The nurse + 谓语 bathed + 宾语 the wound + 状语 with saline。saline 意为「盐水的、含盐的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Morning light bathed the valley in a soft gold that slowly climbed the hills, so that the whole landscape seemed to wake before the first bird had sung.",
+          "translation": "晨光以柔和的金色沐浴山谷，并缓缓爬上山坡，以至于整片风景在第一声鸟鸣前仿佛就已苏醒。",
+          "analysis": "复合句。主句 Morning light bathed the valley in a soft gold，bathe...in 意为「以……沐浴/覆盖」。that slowly climbed the hills 为定语从句修饰 gold。so that 引导结果状语从句，其内 before the first bird had sung 为时间状语从句（过去完成时）。"
+        }
+      ],
+      "collocations": [
+        "bathe in",
+        "bathe a wound",
+        "go bathing"
+      ],
+      "phrases": [
+        "be bathed in light/sunshine 沐浴在光/阳光中",
+        "bathe in the sea 在海里游泳"
+      ],
+      "derived": [
+        {
+          "word": "bath",
+          "meaning": "n. 洗澡；浴缸"
+        },
+        {
+          "word": "bathing",
+          "meaning": "n./adj. 游泳，沐浴（的）"
+        }
+      ],
+      "synonyms": [
+        "wash",
+        "cleanse",
+        "soak"
+      ],
+      "mnemonic": "bathe 是 bath 的动词形；be bathed in light 常见「沐浴在光中」"
+    },
+    "battery": {
+      "syllable": "bat·te·ry",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "电池，蓄电池"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（设备内的）一组，一系列；炮兵连"
+        }
+      ],
+      "rootAffix": "bat（打，拉丁 battuere）→ battery 原指「连续打击的装置」→ 引申为电池（提供连续电力）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The remote control needs two AA batteries.",
+          "translation": "遥控器需要两节五号电池。",
+          "analysis": "简单句：主语 The remote control + 谓语 needs + 宾语 two AA batteries。AA 为电池型号。"
+        },
+        {
+          "level": "long",
+          "sentence": "A phone battery that once lasted a full day now drains by noon, a decline so gradual that most users blame the apps rather than the chemistry quietly losing its capacity.",
+          "translation": "一部曾经续航一整天的手机电池如今到中午就耗尽，这种衰退如此缓慢，以至于多数用户归咎于 App，而非那悄悄失去容量的化学机理。",
+          "analysis": "复合句。主句 A phone battery... now drains by noon。that once lasted a full day 为定语从句修饰 battery。a decline so gradual that... 为同位语，so...that 引导结果状语从句，其内 rather than 表「而非」，the chemistry quietly losing its capacity 为独立主格/分词结构作 than 的宾语。"
+        }
+      ],
+      "collocations": [
+        "a battery of",
+        "rechargeable battery",
+        "battery life"
+      ],
+      "phrases": [
+        "battery-powered 电池供电的",
+        "dead battery 没电的电池"
+      ],
+      "derived": [
+        {
+          "word": "bat",
+          "meaning": "n. 球棒；蝙蝠（同源 distant）"
+        },
+        {
+          "word": "batter",
+          "meaning": "v. 连续猛击；n. 面糊"
+        }
+      ],
+      "synonyms": [
+        "cell",
+        "accumulator",
+        "power pack"
+      ],
+      "mnemonic": "bat·te·ry 记「电池」；battery life 表「续航」"
+    },
+    "battle": {
+      "syllable": "bat·tle",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "战斗，战役；斗争，较量"
+        },
+        {
+          "pos": "v.",
+          "meaning": "作战，搏斗；与……斗争"
+        }
+      ],
+      "rootAffix": "bat（打）+ -le（反复/指小）→ 反复交战 → 战斗",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They won the battle but lost the war.",
+          "translation": "他们赢了战役却输了战争。",
+          "analysis": "并列句：They won the battle + but lost the war。battle 表「战役」，war 表「战争」，常用对比强调「局部胜而全局败」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The legal battle stretched for years because each side could afford to appeal every ruling, turning a dispute over a contract into a marathon that exhausted both the parties and the court.",
+          "translation": "这场法律战持续数年，因为双方都负担得起对每一项裁决上诉，把一桩合同纠纷变成了耗尽当事双方与法院的马拉松。",
+          "analysis": "复合句。主句 The legal battle stretched for years，because 引导原因状语从句（each side could afford to appeal every ruling）。现在分词 turning... 作结果状语，其内 into a marathon 为宾语补足，that exhausted both the parties and the court 为定语从句修饰 marathon。"
+        }
+      ],
+      "collocations": [
+        "fight a battle",
+        "a battle against/for",
+        "win/lose a battle"
+      ],
+      "phrases": [
+        "battle with cancer 与癌症斗争",
+        "half the battle 成功的一半"
+      ],
+      "derived": [
+        {
+          "word": "battlefield",
+          "meaning": "n. 战场"
+        },
+        {
+          "word": "battalion",
+          "meaning": "n. 营（军队编制）"
+        }
+      ],
+      "synonyms": [
+        "fight",
+        "combat",
+        "struggle"
+      ],
+      "mnemonic": "bat·tle 记「战斗」；battlefield = battle+field 战场"
+    },
+    "beach": {
+      "syllable": "beach",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "海滩，沙滩，海滨"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（把船）拖上岸；搁浅"
+        }
+      ],
+      "rootAffix": "源自古英语 bæce（溪流边/河岸）→ 后转指「海滨沙滩」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We walked along the beach at sunset.",
+          "translation": "日落时分我们沿着海滩散步。",
+          "analysis": "简单句：主语 We + 谓语 walked + 状语 along the beach + 时间 at sunset。along 表「沿着」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The beach that had been crowded all summer was empty by October, the shuttered cafes and abandoned umbrellas marking a season that ended as quietly as it had begun.",
+          "translation": "整个夏天都人满为患的海滩到了十月空无一人，关门的咖啡馆与弃置的遮阳伞标志着这个季节的结束，一如它开始时那般安静。",
+          "analysis": "复合句。主句 The beach... was empty by October，其前 that had been crowded all summer 为定语从句修饰 beach。the shuttered cafes and abandoned umbrellas marking... 为独立主格结构作伴随，marking 的宾语 a season 后接 that ended... 定语从句，as quietly as it had begun 为比较状语从句。"
+        }
+      ],
+      "collocations": [
+        "on the beach",
+        "a sandy beach",
+        "beach volleyball"
+      ],
+      "phrases": [
+        "go to the beach 去海边",
+        "beach resort 海滨度假地"
+      ],
+      "derived": [
+        {
+          "word": "beachy",
+          "meaning": "adj. 海滩般的，滨风的"
+        },
+        {
+          "word": "beachfront",
+          "meaning": "n./adj. 海滨（的）"
+        }
+      ],
+      "synonyms": [
+        "shore",
+        "coast",
+        "seaside"
+      ],
+      "mnemonic": "beach 记「海滩」；beach volleyball 沙滩排球"
+    },
+    "beam": {
+      "syllable": "beam",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "梁，横梁；光束，光线；（笑脸的）容光"
+        },
+        {
+          "pos": "v.",
+          "meaning": "微笑，眉开眼笑；发射（光/电波）"
+        }
+      ],
+      "rootAffix": "源自古英语 bēam（树/木材/横梁）→ 引申为「光束」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A beam of sunlight fell on the desk.",
+          "translation": "一束阳光照在书桌上。",
+          "analysis": "简单句：主语 A beam of sunlight + 谓语 fell + 状语 on the desk。a beam of 表「一束（光）」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The child beamed at the gift as if the wrapped box contained the very thing long wished for, a smile so wide that it seemed to light the dim room better than the lamp beside it.",
+          "translation": "孩子对着礼物眉开眼笑，仿佛那包装盒里装着期盼已久的东西，笑得那样灿烂，竟比身旁的灯更照亮了昏暗的房间。",
+          "analysis": "复合句。主句 The child beamed at the gift，as if 引导方式状语从句（the wrapped box contained the very thing long wished for，long wished for 为过去分词作后置定语）。a smile so wide that... 为同位语，so...that 引导结果状语从句，其中 better than the lamp beside it 为比较状语。"
+        }
+      ],
+      "collocations": [
+        "a beam of light",
+        "beam at",
+        "laser beam"
+      ],
+      "phrases": [
+        "beam with pleasure 满面笑容",
+        "off beam 错误的，离谱的（英）"
+      ],
+      "derived": [
+        {
+          "word": "beamless",
+          "meaning": "adj. 无梁的；无光的"
+        },
+        {
+          "word": "beaming",
+          "meaning": "adj. 笑容满面的"
+        }
+      ],
+      "synonyms": [
+        "ray",
+        "glow",
+        "smile"
+      ],
+      "mnemonic": "beam 双义：梁/光束/微笑；beaming 笑脸"
+    },
+    "bean": {
+      "syllable": "bean",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "豆，豆子；豆科植物"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（口语）极少钱（beans 表「一文不值」）"
+        }
+      ],
+      "rootAffix": "源自古英语 bēan（豆）→ 原始日耳曼 *bauno",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She cooked rice and green beans for dinner.",
+          "translation": "她晚饭做了米饭和青豆。",
+          "analysis": "简单句：主语 She + 谓语 cooked + 宾语 rice and green beans + 状语 for dinner。green beans 表「青豆、四季豆」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The old man planted beans in rows so straight that neighbours joked the lines had been drawn with a ruler, a precision that betrayed a lifetime of tending the same small plot.",
+          "translation": "老人把豆子种成笔直的行列，邻居们笑话那线条是用尺子画出来的，这份精准暴露出他一生都在照料这同一小块地。",
+          "analysis": "复合句。主句 The old man planted beans in rows so straight that...，so...that 引导结果状语从句（neighbours joked the lines had been drawn with a ruler，joked 后接省略 that 的宾语从句）。a precision that betrayed... 为同位语，that betrayed 定语从句修饰 precision，其内 of tending the same small plot 为后置定语。"
+        }
+      ],
+      "collocations": [
+        "green beans",
+        "coffee bean",
+        "bean curd"
+      ],
+      "phrases": [
+        "not worth a bean 一文不值",
+        "full of beans 精力充沛"
+      ],
+      "derived": [
+        {
+          "word": "beanstalk",
+          "meaning": "n. 豆茎（童话 Jack and the Beanstalk）"
+        },
+        {
+          "word": "soybean",
+          "meaning": "n. 大豆"
+        }
+      ],
+      "synonyms": [
+        "legume",
+        "pulse",
+        "seed"
+      ],
+      "mnemonic": "bean 记「豆」；soybean 大豆，bean curd 豆腐"
+    },
+    "bear": {
+      "syllable": "bear",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "承受，忍受；携带，带有；生育"
+        },
+        {
+          "pos": "n.",
+          "meaning": "熊"
+        }
+      ],
+      "rootAffix": "动词 bear 源自古英语 beran（携带/生育）；名词 bear 同源（载重的兽）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The ice is too thin to bear your weight.",
+          "translation": "冰太薄，承受不住你的重量。",
+          "analysis": "简单句：主语 The ice + 系表 too thin + 不定式 to bear your weight 作结果状语。bear 此处表「承受」。"
+        },
+        {
+          "level": "long",
+          "sentence": "No one should be asked to bear alone the cost of a decision made by many, yet committees routinely shift the burden onto a single colleague who lacks the standing to refuse.",
+          "translation": "不应要求任何人独自承担由众人所做决定的代价，然而委员会却惯于把重担推给一个无力拒绝的同事。",
+          "analysis": "并列复合句。前分句 No one should be asked to bear alone the cost of a decision made by many，made by many 为过去分词作后置定语修饰 decision。yet 转折，主句 committees routinely shift the burden onto a single colleague，其后 who lacks the standing to refuse 为定语从句修饰 colleague，standing 表「地位、资历」。"
+        }
+      ],
+      "collocations": [
+        "bear the burden",
+        "bear in mind",
+        "bear a resemblance to"
+      ],
+      "phrases": [
+        "bear with me 请容忍我",
+        "bear fruit 结出果实；见效"
+      ],
+      "derived": [
+        {
+          "word": "bearing",
+          "meaning": "n. 举止；方位；轴承"
+        },
+        {
+          "word": "birth",
+          "meaning": "n. 出生（同源）"
+        },
+        {
+          "word": "forbear",
+          "meaning": "v. 克制，忍耐"
+        }
+      ],
+      "synonyms": [
+        "endure",
+        "tolerate",
+        "carry"
+      ],
+      "mnemonic": "bear 双义：熊/承受；bear fruit 表「见效」，bear in mind 表「牢记」"
+    },
+    "beard": {
+      "syllable": "beard",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "胡须，络腮胡"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（公然）对抗，蔑视（古义）"
+        }
+      ],
+      "rootAffix": "源自古英语 beard（胡须）→ 原始日耳曼 *bardaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He stroked his long grey beard thoughtfully.",
+          "translation": "他若有所思地捋着自己长长的灰白胡须。",
+          "analysis": "简单句：主语 He + 谓语 stroked + 宾语 his long grey beard + 状语 thoughtfully。stroke 意为「轻抚、捋」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The scholar's beard, which he had not trimmed in months, gave him the air of a sage until a student pointed out that wisdom and facial hair were, regrettably, uncorrelated.",
+          "translation": "这位学者数月未修的胡须让他颇有几分圣贤气象，直到有学生指出：智慧与胡须，遗憾的是，并不相关。",
+          "analysis": "复合句。主句 The scholar's beard gave him the air of a sage，其前 which he had not trimmed in months 为非限制性定语从句修饰 beard。until 引导时间状语从句，其内 that wisdom and facial hair were uncorrelated 为 pointed out 的宾语从句，regrettably 为插入副词。"
+        }
+      ],
+      "collocations": [
+        "grow a beard",
+        "trim one's beard",
+        "a long beard"
+      ],
+      "phrases": [
+        "beard the lion in his den 入虎穴捋虎须（直面强者）",
+        "laugh in one's beard 暗自窃笑"
+      ],
+      "derived": [
+        {
+          "word": "bearded",
+          "meaning": "adj. 有胡须的"
+        },
+        {
+          "word": "beardless",
+          "meaning": "adj. 无胡须的（常指年轻）"
+        }
+      ],
+      "synonyms": [
+        "whiskers",
+        "stubble",
+        "facial hair"
+      ],
+      "mnemonic": "beard 记「胡须」；bearded 有胡子的"
+    },
+    "beast": {
+      "syllable": "beast",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "野兽，走兽"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（贬）粗野的人；令人厌恶的事物"
+        }
+      ],
+      "rootAffix": "源自古法语 beste → 拉丁 bestia（野兽）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A wild beast roamed the forest at night.",
+          "translation": "一只野兽夜间在森林里游荡。",
+          "analysis": "简单句：主语 A wild beast + 谓语 roamed + 宾语 the forest + 状语 at night。roam 意为「漫游、游荡」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The beast of bureaucracy is not a single cruel officer but a system that rewards caution and punishes initiative, so that even well-meaning rules produce outcomes no one intended.",
+          "translation": "官僚主义的怪兽并非某个残忍的官员，而是一套奖励谨慎、惩罚主动性的体制，以至于连善意的规章也会产生无人预期的结果。",
+          "analysis": "复合句。主句 The beast of bureaucracy is not A but B（not...but 结构）。that rewards caution and punishes initiative 为定语从句修饰 system。so that 引导结果状语从句，其内 even well-meaning rules produce outcomes 为主句，no one intended 为省略 that 的定语从句修饰 outcomes。"
+        }
+      ],
+      "collocations": [
+        "wild beast",
+        "beast of burden",
+        "a beast of a"
+      ],
+      "phrases": [
+        "beast of burden 驮兽（如驴马）",
+        "the beast within 内心的兽性"
+      ],
+      "derived": [
+        {
+          "word": "beastly",
+          "meaning": "adj. 野兽般的；讨厌的（英）"
+        },
+        {
+          "word": "bestial",
+          "meaning": "adj. 野兽的；残忍的"
+        }
+      ],
+      "synonyms": [
+        "animal",
+        "creature",
+        "brute"
+      ],
+      "mnemonic": "beast 记「野兽」；beast of burden 驮兽"
+    },
+    "beat": {
+      "syllable": "beat",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "打，击；打败，战胜；有规律地跳动"
+        },
+        {
+          "pos": "n.",
+          "meaning": "节拍，拍子；（心脏的）跳动"
+        }
+      ],
+      "rootAffix": "源自古英语 bēatan（击打）→ 原始日耳曼 *bautan",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Her heart beat fast with excitement.",
+          "translation": "她的心因激动而怦怦直跳。",
+          "analysis": "简单句：主语 Her heart + 谓语 beat + 状语 fast + 原因 with excitement。beat 此处表「（心脏）跳动」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The team that had been written off in spring beat the league leaders by pressing high and forcing errors, a tactic their coach had drilled for months but never dared use until the stakes were highest.",
+          "translation": "那支在春天被看衰的队伍靠高位逼抢、迫使对手失误击败了联赛领头羊——这套战术教练演练了数月，却直到胜负攸关时才敢启用。",
+          "analysis": "复合句。主句 The team... beat the league leaders，其前 that had been written off in spring 为定语从句修饰 team，by pressing high and forcing errors 为方式状语。a tactic... 为同位语，其内 their coach had drilled for months 为省略 that 的定语从句，but never dared use until... 为并列谓语，until the stakes were highest 为时间状语从句。"
+        }
+      ],
+      "collocations": [
+        "beat the drum",
+        "beat a record",
+        "heart beat"
+      ],
+      "phrases": [
+        "beat around the bush 旁敲侧击",
+        "beat it 走开",
+        "can't beat that 无以伦比"
+      ],
+      "derived": [
+        {
+          "word": "beating",
+          "meaning": "n. 殴打；败北"
+        },
+        {
+          "word": "beaten",
+          "meaning": "adj. 被打败的；锤打的"
+        }
+      ],
+      "synonyms": [
+        "hit",
+        "defeat",
+        "pulse"
+      ],
+      "mnemonic": "beat 双义：击打/节拍；beat around the bush 旁敲侧击"
+    },
+    "beautiful": {
+      "syllable": "beau·ti·ful",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "美丽的，漂亮的；美好的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（技艺等）精湛的，绝妙的"
+        }
+      ],
+      "rootAffix": "beaut(y)（美，源自古法语 biauté）+ -ful（充满……的）→ 充满美的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "What a beautiful sunset over the lake!",
+          "translation": "湖上落的夕阳多美啊！",
+          "analysis": "简单句（感叹句）：What a beautiful sunset + 介词短语 over the lake。what 引导感叹句，结构为 What + a + adj. + 名词。"
+        },
+        {
+          "level": "long",
+          "sentence": "The beautiful is not merely what pleases the eye but what survives scrutiny, for a façade that charms at first glance often crumbles once one examines the structure beneath it.",
+          "translation": "美并非仅是悦目之物，而是经得起审视之物，因为初看迷人的外表一旦细究其下的结构，往往便崩塌了。",
+          "analysis": "并列复合句。前分句 The beautiful is not A but B（not...but 结构），what pleases the eye / what survives scrutiny 为名词性从句作表语。for 引导原因状语从句，其主句 a façade... often crumbles，that charmes at first glance 为定语从句修饰 façade，once one examines the structure beneath it 为时间状语从句。"
+        }
+      ],
+      "collocations": [
+        "a beautiful view",
+        "beautiful music",
+        "look beautiful"
+      ],
+      "phrases": [
+        "beautifully done 做得漂亮",
+        "beautiful people 名流（the beautiful people）"
+      ],
+      "derived": [
+        {
+          "word": "beauty",
+          "meaning": "n. 美，美人"
+        },
+        {
+          "word": "beautify",
+          "meaning": "v. 美化"
+        },
+        {
+          "word": "beautifully",
+          "meaning": "adv. 优美地"
+        }
+      ],
+      "synonyms": [
+        "pretty",
+        "lovely",
+        "gorgeous"
+      ],
+      "mnemonic": "beau·ti·ful 记「美丽的」；beauty 美，beautify 美化"
+    },
+    "because": {
+      "syllable": "be·cause",
+      "pos": "conj.",
+      "defs": [
+        {
+          "pos": "conj.",
+          "meaning": "因为，由于（引导原因状语从句）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "（口语）因为（句尾，= because of that）"
+        }
+      ],
+      "rootAffix": "be-（by）+ cause（原因）→ 由于……原因",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We stayed home because it rained.",
+          "translation": "我们待在家里，因为下雨了。",
+          "analysis": "并列复合句：We stayed home + because 引导原因状语从句 it rained。because 表直接原因。"
+        },
+        {
+          "level": "long",
+          "sentence": "The project failed not because the idea was wrong but because no one owned the boring work of execution, a gap that no amount of vision can fill once the initial enthusiasm fades.",
+          "translation": "项目失败，并非因为想法错了，而是因为没人愿意承担执行中那些枯燥的工作——一旦最初的热情褪去，再多的愿景也填不满这道缺口。",
+          "analysis": "复合句。主句 The project failed，其后 not because A but because B 为并列原因状语从句（not...but 强调后者）。a gap that no amount of vision can fill 为同位语，that 定语从句修饰 gap，once the initial enthusiasm fades 为时间状语从句。"
+        }
+      ],
+      "collocations": [
+        "because of",
+        "simply because",
+        "just because"
+      ],
+      "phrases": [
+        "because of sb./sth. 因为某人/某事",
+        "and that's because 那是因为"
+      ],
+      "derived": [
+        {
+          "word": "cause",
+          "meaning": "n. 原因；事业"
+        }
+      ],
+      "synonyms": [
+        "since",
+        "as",
+        "for"
+      ],
+      "mnemonic": "be·cause 记「因为」；because of + 名词（后不接句子）"
+    },
+    "become": {
+      "syllable": "be·come",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "变成，成为；适宜，与……相称"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（事物）出现在（become of 表「……落得……下场」）"
+        }
+      ],
+      "rootAffix": "be-（使）+ come（来）→ 到来、成为",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She became a doctor after years of study.",
+          "translation": "苦读数年后她成为了一名医生。",
+          "analysis": "简单句：主语 She + 谓语 became + 宾语 a doctor + 时间状语 after years of study。become 表「成为」，后接名词不加 to。"
+        },
+        {
+          "level": "long",
+          "sentence": "What becomes of a craft when machines do it faster is not merely an economic question but a cultural one, since the loss of a skill quietly erases the way a community once understood patience and pride.",
+          "translation": "当机器做得更快时，一门手艺会落得何种下场，这不单是经济问题，更是文化问题，因为一门技艺的消失会悄悄抹去一个群体曾经理解耐心与自豪的方式。",
+          "analysis": "复合句。主语从句 What becomes of a craft when machines do it faster（what 引导，when 为时间状语），系动词 is，表语 not merely A but B。since 引导原因状语从句，其主句 the loss of a skill quietly erases the way，a community once understood patience and pride 为省略 that 的定语从句修饰 way。"
+        }
+      ],
+      "collocations": [
+        "become of",
+        "become aware",
+        "become used to"
+      ],
+      "phrases": [
+        "become a reality 成为现实",
+        "what will become of... ……会怎样"
+      ],
+      "derived": [
+        {
+          "word": "becoming",
+          "meaning": "adj. 合适的；动人的"
+        },
+        {
+          "word": "becomer",
+          "meaning": "n. 后到者（罕用）"
+        }
+      ],
+      "synonyms": [
+        "grow",
+        "turn",
+        "get"
+      ],
+      "mnemonic": "be·come 记「成为」；become of 问「下落/下场」"
+    },
+    "bed": {
+      "syllable": "bed",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "床，床铺；苗圃，花坛"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使固定，嵌；给……铺床"
+        }
+      ],
+      "rootAffix": "源自古英语 bedd（床）→ 原始日耳曼 *badjam",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The child is already in bed.",
+          "translation": "孩子已经上床睡觉了。",
+          "analysis": "简单句：主语 The child + 系词 is + 表语 in bed。in bed 表「卧床/就寝」，区别于 on the bed（躺在床面上）。"
+        },
+        {
+          "level": "long",
+          "sentence": "A garden bed that had been neglected for a season revealed, once cleared, a tangle of volunteers and weeds so dense that distinguishing the intended plants from the invaders took an afternoon of patient sorting.",
+          "translation": "荒废了一季的花坛，一经清理便显出一团密集的自生苗与杂草，以至于分辨本栽植物与入侵者竟花了一下午的耐心分拣。",
+          "analysis": "复合句。主句 A garden bed... revealed a tangle，其前 that had been neglected for a season 为定语从句，once cleared 为时间状语（省略主谓 once it was cleared）。so dense that... 结果状语从句，其内 distinguishing... from... 为动名词作主语，took 谓语，an afternoon 宾语，of patient sorting 后置定语。"
+        }
+      ],
+      "collocations": [
+        "go to bed",
+        "make the bed",
+        "a flower bed"
+      ],
+      "phrases": [
+        "bed of roses 安乐窝（常否定）",
+        "early to bed 早睡"
+      ],
+      "derived": [
+        {
+          "word": "bedroom",
+          "meaning": "n. 卧室"
+        },
+        {
+          "word": "bedding",
+          "meaning": "n. 寝具"
+        }
+      ],
+      "synonyms": [
+        "cot",
+        "bunk",
+        "flowerbed"
+      ],
+      "mnemonic": "bed 记「床」；flower bed 花坛，bedroom 卧室"
+    },
+    "bedroom": {
+      "syllable": "bed·room",
+      "pos": "n./adj.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "卧室，寝室"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "有关性事的；卧室的"
+        }
+      ],
+      "rootAffix": "bed（床）+ room（房间）→ 放床的房间",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Please keep your bedroom tidy.",
+          "translation": "请保持卧室整洁。",
+          "analysis": "简单句：谓语 keep + 宾语 your bedroom + 宾语补足 tidy（keep + 宾语 + adj. 表「使……保持……」）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The small bedroom doubled as study and storage, so that every surface held something and the line between rest and work had all but disappeared by the time she finished the semester.",
+          "translation": "这间小卧室兼作书房与储物间，以至于每件平面都堆着东西，到她结束这学期时，休息与工作的界限几乎已消失。",
+          "analysis": "复合句。主句 The small bedroom doubled as study and storage（double as 表「兼作」）。so that 引导结果状语从句，其内 every surface held something 并列，and 后 the line... had all but disappeared 为主句，by the time she finished the semester 为时间状语从句，all but 意为「几乎」。"
+        }
+      ],
+      "collocations": [
+        "master bedroom",
+        "bedroom furniture",
+        "a cozy bedroom"
+      ],
+      "phrases": [
+        "bedroom community 睡城（郊居通勤镇）",
+        "go to the bedroom 回卧室"
+      ],
+      "derived": [
+        {
+          "word": "bed",
+          "meaning": "n. 床"
+        },
+        {
+          "word": "room",
+          "meaning": "n. 房间"
+        }
+      ],
+      "synonyms": [
+        "sleeping room",
+        "chamber",
+        "boudoir"
+      ],
+      "mnemonic": "bed·room = bed+room 卧室；bedroom community 睡城"
+    },
+    "bee": {
+      "syllable": "bee",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "蜜蜂"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（美）邻里协作集会（如 quilting bee 拼布会）"
+        }
+      ],
+      "rootAffix": "源自古英语 bēo（蜜蜂）→ 原始日耳曼 *bēn",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A bee flew from flower to flower collecting nectar.",
+          "translation": "一只蜜蜂在花间飞来飞去采集花蜜。",
+          "analysis": "简单句：主语 A bee + 谓语 flew + 状语 from flower to flower + 现在分词 collecting nectar 作伴随。nectar 意为「花蜜」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The hive collapsed not from a single predator but from the slow loss of foragers, a warning that a system depending on many small workers fails invisibly long before the final blow lands.",
+          "translation": "蜂群崩坏并非源于某个天敌，而是采蜜工蜂的缓慢流失——这警示我们：依赖众多小工的系统，在最后一击落下前很久就已悄然失效。",
+          "analysis": "复合句。主句 The hive collapsed，其后 not from A but from B 为并列原因状语。a warning that... 为同位语，that 引导定语从句修饰 warning，其内 a system depending on many small workers 主语，fails 谓语，invisibly 状语，long before the final blow lands 为时间状语从句。"
+        }
+      ],
+      "collocations": [
+        "a swarm of bees",
+        "bee hive",
+        "busy as a bee"
+      ],
+      "phrases": [
+        "busy as a bee 忙个不停",
+        "make a bee-line for 直奔"
+      ],
+      "derived": [
+        {
+          "word": "beehive",
+          "meaning": "n. 蜂巢"
+        },
+        {
+          "word": "honeybee",
+          "meaning": "n. 蜜蜂（产蜜）"
+        }
+      ],
+      "synonyms": [
+        "honeybee",
+        "insect",
+        "worker"
+      ],
+      "mnemonic": "bee 记「蜜蜂」；busy as a bee 忙如蜂"
+    },
+    "beef": {
+      "syllable": "beef",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "牛肉"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（口语）抱怨，发牢骚（beef about）"
+        }
+      ],
+      "rootAffix": "源自古法语 buef → 拉丁 bos（牛）→ 牛肉",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He ordered a plate of roast beef.",
+          "translation": "他点了一盘烤牛肉。",
+          "analysis": "简单句：主语 He + 谓语 ordered + 宾语 a plate of roast beef。roast 意为「烤的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The manager listened to the team beef about the new schedule yet changed nothing, a pattern that taught everyone the meeting was theatre rather than a genuine search for a better arrangement.",
+          "translation": "经理听团队抱怨新排班却毫无改动，这一做派让大家明白：那场会只是走形式，而非真心寻求更好的安排。",
+          "analysis": "复合句。主句 The manager listened to the team beef about the new schedule，beef about 意为「抱怨」。yet changed nothing 并列谓语。a pattern that taught everyone... 为同位语，that 定语从句修饰 pattern，其内 the meeting was theatre rather than a genuine search 为 taught 的宾语从句，rather than 表「而非」。"
+        }
+      ],
+      "collocations": [
+        "roast beef",
+        "beef up",
+        "beef cattle"
+      ],
+      "phrases": [
+        "beef up 加强，充实",
+        "beef about 抱怨"
+      ],
+      "derived": [
+        {
+          "word": "beefy",
+          "meaning": "adj. 强壮的；牛肉多的"
+        },
+        {
+          "word": "beefsteak",
+          "meaning": "n. 牛排"
+        }
+      ],
+      "synonyms": [
+        "veal",
+        "mutton",
+        "complain"
+      ],
+      "mnemonic": "beef 记「牛肉」；beef up 表「加强」"
+    },
+    "beer": {
+      "syllable": "beer",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "啤酒"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（喻）一杯啤酒（a beer）"
+        }
+      ],
+      "rootAffix": "源自古英语 bēor → 原始日耳曼 *beuzą（大麦酒）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They shared a beer after the game.",
+          "translation": "赛后他们共饮了一杯啤酒。",
+          "analysis": "简单句：主语 They + 谓语 shared + 宾语 a beer + 时间状语 after the game。a beer 侧重「一杯啤酒」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The local brewery survived where larger rivals failed because it treated beer as a craft to be defended, not merely a product to be scaled, a stance that cost growth but earned loyalty.",
+          "translation": "这家本地酒厂在更大对手倒下时存活下来，因为它把啤酒当作一门要守护的工艺，而非仅是可扩产的货物——这一立场牺牲了增长，却赢得了忠诚。",
+          "analysis": "复合句。主句 The local brewery survived，其后 where larger rivals failed 为地点状语从句。because 引导原因状语从句，其内 it treated beer as A not merely B（treat...as 结构），a stance that cost growth but earned loyalty 为同位语，that 定语从句修饰 stance。"
+        }
+      ],
+      "collocations": [
+        "a glass of beer",
+        "brew beer",
+        "beer garden"
+      ],
+      "phrases": [
+        "small beer 无关紧要的事",
+        "beer and skittles 吃喝玩乐"
+      ],
+      "derived": [
+        {
+          "word": "brewery",
+          "meaning": "n. 啤酒厂"
+        },
+        {
+          "word": "brewer",
+          "meaning": "n. 酿酒人"
+        }
+      ],
+      "synonyms": [
+        "ale",
+        "lager",
+        "draught"
+      ],
+      "mnemonic": "beer 记「啤酒」；brewery 啤酒厂"
+    },
+    "before": {
+      "syllable": "be·fore",
+      "pos": "prep./conj./adv.",
+      "defs": [
+        {
+          "pos": "prep.",
+          "meaning": "在……之前；当着……的面"
+        },
+        {
+          "pos": "conj.",
+          "meaning": "在……以前（引导时间状语从句）"
+        }
+      ],
+      "rootAffix": "be-（by）+ fore（前）→ 在前面",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Wash your hands before dinner.",
+          "translation": "晚饭前洗洗手。",
+          "analysis": "简单句（祈使）：Wash your hands + 时间状语 before dinner。before 此处作介词，后接名词。"
+        },
+        {
+          "level": "long",
+          "sentence": "Before the data was published, it passed through three reviews that each found errors the others had missed, a slow process that frustrated the authors but kept the final claim from being wrong in print.",
+          "translation": "在数据发表前，它经历了三轮审稿，每一轮都发现了他人遗漏的错误——这缓慢的过程令作者沮丧，却使最终结论免于见刊即错。",
+          "analysis": "复合句。Before 引导时间状语从句 the data was published, it passed through three reviews 主句。that each found errors the others had missed 为定语从句修饰 reviews，the others had missed 又为其内 errors 的定语从句。a slow process... 为同位语，that frustrated... but kept... 定语从句修饰 process，from being wrong in print 为 keep...from 结构。"
+        }
+      ],
+      "collocations": [
+        "before long",
+        "before now",
+        "the day before"
+      ],
+      "phrases": [
+        "before one's time 早于时代",
+        "before you know it 不知不觉间"
+      ],
+      "derived": [
+        {
+          "word": "fore",
+          "meaning": "adj./n. 前部（前缀/词根）"
+        }
+      ],
+      "synonyms": [
+        "prior to",
+        "earlier than",
+        "ahead of"
+      ],
+      "mnemonic": "be·fore 记「在……之前」；before long 不久以后"
+    },
+    "beg": {
+      "syllable": "beg",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "乞求，恳求；乞讨"
+        },
+        {
+          "pos": "v.",
+          "meaning": "回避，不敢（beg the question 用为「回避问题/丐题」）"
+        }
+      ],
+      "rootAffix": "源自古英语 bedecian（乞求）→ 与 bead（祈祷）同源",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The child begged for another cookie.",
+          "translation": "孩子恳求再要一块饼干。",
+          "analysis": "简单句：主语 The child + 谓语 begged + 状语 for another cookie。beg for 表「恳求得到」。"
+        },
+        {
+          "level": "long",
+          "sentence": "He begged the committee to reconsider, arguing that the rule had been written for a problem that no longer existed, yet the room remained silent because no one wished to reopen a settled debate.",
+          "translation": "他恳请委员会重新考虑，辩称那条规定是为一个已不存在的问题而写；然而全场沉默，因为无人愿意重开已成定论的争论。",
+          "analysis": "复合句。主句 He begged the committee to reconsider（beg sb. to do 结构）。arguing that... 现在分词作伴随，that 宾语从句内 the rule had been written for a problem that no longer existed（that 定语从句修饰 problem）。yet 转折，主句 the room remained silent，because 引导原因状语从句（no one wished to reopen a settled debate）。"
+        }
+      ],
+      "collocations": [
+        "beg for",
+        "beg sb. to do",
+        "beg one's pardon"
+      ],
+      "phrases": [
+        "beg the question 丐题（以未经证实的论点作前提）",
+        "beg off 推辞"
+      ],
+      "derived": [
+        {
+          "word": "beggar",
+          "meaning": "n. 乞丐"
+        },
+        {
+          "word": "begging",
+          "meaning": "n./adj. 乞讨（的）"
+        }
+      ],
+      "synonyms": [
+        "plead",
+        "implore",
+        "entreat"
+      ],
+      "mnemonic": "beg 记「乞求」；beg the question 丐题（逻辑谬误）"
+    },
+    "beggar": {
+      "syllable": "beg·gar",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "乞丐，叫花子"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使赤贫；使难以形容（beggar description 美到无法形容）"
+        }
+      ],
+      "rootAffix": "beg（乞求）+ -ar（施事者后缀）→ 乞讨的人",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A beggar sat by the station door.",
+          "translation": "一名乞丐坐在车站门口。",
+          "analysis": "简单句：主语 A beggar + 谓语 sat + 状语 by the station door。beggar 此处作名词「乞丐」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The view from the ridge beggared description, not because words were lacking but because the scale of the valley defeated every frame a visitor tried to fit it into.",
+          "translation": "山脊上的景致美得难以形容，并非因为缺词，而是因为山谷的宏大击溃了游客试图套用的每一个框式。",
+          "analysis": "复合句。主句 The view... beggared description（beggar description 意为「无法形容」）。not because A but because B 并列原因状语从句。because 后 the scale of the valley defeated every frame 主句，a visitor tried to fit it into 为省略 that 的定语从句修饰 frame。"
+        }
+      ],
+      "collocations": [
+        "a beggar for",
+        "beggar description",
+        "play the beggar"
+      ],
+      "phrases": [
+        "beggar belief 令人难以置信",
+        "beggar description 无法形容"
+      ],
+      "derived": [
+        {
+          "word": "beg",
+          "meaning": "v. 乞求"
+        },
+        {
+          "word": "beggary",
+          "meaning": "n. 赤贫"
+        }
+      ],
+      "synonyms": [
+        "pauper",
+        "vagrant",
+        "mendicant"
+      ],
+      "mnemonic": "beg·gar 记「乞丐」；beggar description 无法形容"
+    },
+    "begin": {
+      "syllable": "be·gin",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "开始，着手；创始"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（事物）始于（begin with/at）"
+        }
+      ],
+      "rootAffix": "be-（使）+ gin（古义 open/begin，与 gain 同源）→ 开启",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The meeting will begin at nine.",
+          "translation": "会议将在九点开始。",
+          "analysis": "简单句：主语 The meeting + 谓语 will begin + 时间状语 at nine。begin 表「开始」，后接时间点用 at。"
+        },
+        {
+          "level": "long",
+          "sentence": "Every habit that now feels automatic began as a deliberate act repeated until the brain stopped noticing the effort, which is why the hardest part is never the act itself but the first week of doing it on purpose.",
+          "translation": "如今看似自动的每一个习惯，都始于一个被反复执行的刻意之举，直到大脑不再察觉那份费力——这也正是最难的部分从来不是动作本身，而是刻意去做它的头一周。",
+          "analysis": "复合句。主句 Every habit... began as a deliberate act，其前 that now feels automatic 为定语从句修饰 habit，repeated until... 为过去分词作后置定语，until 引导时间状语从句（the brain stopped noticing the effort）。which 引导非限制性定语从句指代前文，其内 why 引导表语从句（the hardest part is never A but B）。"
+        }
+      ],
+      "collocations": [
+        "begin with",
+        "begin at",
+        "to begin with"
+      ],
+      "phrases": [
+        "begin with the end in mind 以终为始",
+        "well begun is half done 好的开始是成功的一半"
+      ],
+      "derived": [
+        {
+          "word": "beginning",
+          "meaning": "n. 开始，开端"
+        },
+        {
+          "word": "beginner",
+          "meaning": "n. 初学者"
+        }
+      ],
+      "synonyms": [
+        "start",
+        "commence",
+        "initiate"
+      ],
+      "mnemonic": "be·gin 记「开始」；beginner 初学者，beginning 开端"
+    },
+    "behalf": {
+      "syllable": "be·half",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "利益，方面（仅用于 on behalf of / on one's behalf）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "代表，代替"
+        }
+      ],
+      "rootAffix": "be-（by）+ half（侧/边，古义）→ 在……一边 → 代表",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I speak on behalf of the whole team.",
+          "translation": "我代表整个团队发言。",
+          "analysis": "简单句：主语 I + 谓语 speak + 状语 on behalf of the whole team。on behalf of 表「代表」，为固定搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "The lawyer acted on behalf of a client who could not attend, a role that demanded she voice not her own view but the interest of someone absent, a discipline harder than it sounds when the room expects a person, not a proxy.",
+          "translation": "律师代表一位无法到场的委托人行事，这一角色要求她表达的不是自己的看法，而是缺席者的利益——当全场期待的是「人」而非「代理」时，这比听来更难。",
+          "analysis": "复合句。主句 The lawyer acted on behalf of a client，其内 who could not attend 为定语从句修饰 client。a role that demanded... 为同位语，that 定语从句修饰 role，其内 she voice not A but B（voice 作动词「表达」），of someone absent 后置定语。a discipline harder than it sounds 同位语，when 引导时间状语从句。"
+        }
+      ],
+      "collocations": [
+        "on behalf of",
+        "on one's behalf",
+        "in behalf of"
+      ],
+      "phrases": [
+        "on behalf of sb. 代表某人",
+        "act on behalf of 代理"
+      ],
+      "derived": [
+        {
+          "word": "half",
+          "meaning": "n. 一半（同源词根）"
+        }
+      ],
+      "synonyms": [
+        "interest",
+        "side",
+        "represent"
+      ],
+      "mnemonic": "be·half 只用于 on behalf of 代表；别单独用"
+    },
+    "behave": {
+      "syllable": "be·have",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "表现，举止；守规矩"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（事物）起……作用，表现如（behave like）"
+        }
+      ],
+      "rootAffix": "be-（使）+ have（拥有/举止，古义 hold oneself）→ 持有某种举止",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The children behaved well at the party.",
+          "translation": "孩子们在聚会上表现很好。",
+          "analysis": "简单句：主语 The children + 谓语 behaved + 状语 well + 地点 at the party。behave 表「表现、守规矩」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Markets behave as if they had a memory of past crashes, flinching at the first sign of trouble even when the fundamentals are sound, a reflex that protects investors in panics yet punishes them in ordinary corrections.",
+          "translation": "市场表现得仿佛记得过去的崩盘，在 fundamentals 稳健时仍一有风吹草动便退缩——这种反射在恐慌中保护投资者，却在日常回调中惩罚他们。",
+          "analysis": "复合句。主句 Markets behave as if they had a memory...（as if 引导虚拟语气从句，had 表与现在事实相反的假设）。flinching at... 现在分词作伴随，even when the fundamentals are sound 为让步状语从句。a reflex that protects... yet punishes... 为同位语，that 定语从句修饰 reflex。"
+        }
+      ],
+      "collocations": [
+        "behave oneself",
+        "behave like",
+        "well-behaved"
+      ],
+      "phrases": [
+        "behave yourself 规矩点",
+        "behave as if 表现得像"
+      ],
+      "derived": [
+        {
+          "word": "behavior",
+          "meaning": "n. 行为，举止"
+        },
+        {
+          "word": "behavioral",
+          "meaning": "adj. 行为的"
+        }
+      ],
+      "synonyms": [
+        "act",
+        "conduct",
+        "perform"
+      ],
+      "mnemonic": "be·have 记「表现」；behave yourself 规矩点"
+    },
+    "behavior": {
+      "syllable": "be·hav·ior",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "行为，举止；表现方式"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（机器/物质）特性，反应"
+        }
+      ],
+      "rootAffix": "behave（表现）+ -ior（名词后缀）→ 行为（英式常作 behaviour）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "His behavior surprised everyone at the meeting.",
+          "translation": "他的行为让会上所有人都意外。",
+          "analysis": "简单句：主语 His behavior + 谓语 surprised + 宾语 everyone + 状语 at the meeting。behavior 表「行为、举止」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The strange behavior of the material under heat turned out to be the clue that explained the failure, for what looked like a defect was in fact a predictable response that the original designers had simply forgotten to mention.",
+          "translation": "这种材料在受热下的反常表现最终成了解释失败的关键线索，因为看似缺陷的东西其实是种可预测的反应，只是最初的设计者忘了说明。",
+          "analysis": "复合句。主句 The strange behavior... turned out to be the clue，其内 that explained the failure 为定语从句修饰 clue。for 引导原因状语从句，其主句 what looked like a defect was in fact a predictable response（what 主语从句），that the original designers had simply forgotten to mention 为定语从句修饰 response。"
+        }
+      ],
+      "collocations": [
+        "human behavior",
+        "consumer behavior",
+        "behavior toward"
+      ],
+      "phrases": [
+        "behavior pattern 行为模式",
+        "on one's best behavior 规规矩矩"
+      ],
+      "derived": [
+        {
+          "word": "behave",
+          "meaning": "v. 表现"
+        },
+        {
+          "word": "behavioral",
+          "meaning": "adj. 行为的"
+        }
+      ],
+      "synonyms": [
+        "conduct",
+        "action",
+        "manner"
+      ],
+      "mnemonic": "be·hav·ior 记「行为」（美拼 behavior，英拼 behaviour）"
+    },
+    "behind": {
+      "syllable": "be·hind",
+      "pos": "prep./adv.",
+      "defs": [
+        {
+          "pos": "prep.",
+          "meaning": "在……后面；落后于；是……的原因"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "在后面；落后"
+        }
+      ],
+      "rootAffix": "be-（by）+ hind（后，古义 rear）→ 在后方",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The sun disappeared behind the hills.",
+          "translation": "太阳消失在山后。",
+          "analysis": "简单句：主语 The sun + 谓语 disappeared + 状语 behind the hills。behind 表「在……后面」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The real reason behind the delay was not the weather but a missing signature that no one had noticed, a small gap that grew into a week of stalled work because no process existed to catch such oversights.",
+          "translation": "延误背后的真正原因不是天气，而是一个无人察觉的漏签——这道小缺口演变成一周的停顿，因为本无流程能捕捉此类疏漏。",
+          "analysis": "复合句。主句 The real reason behind the delay was not A but B。that no one had noticed 为定语从句修饰 signature。a small gap that grew into... 为同位语，that 定语从句修饰 gap，because 引导原因状语从句（no process existed to catch such oversights）。"
+        }
+      ],
+      "collocations": [
+        "behind schedule",
+        "fall behind",
+        "stay behind"
+      ],
+      "phrases": [
+        "behind the scenes 幕后",
+        "leave behind 留下"
+      ],
+      "derived": [
+        {
+          "word": "hind",
+          "meaning": "adj. 后面的（如 hind leg 后腿）"
+        }
+      ],
+      "synonyms": [
+        "after",
+        "beyond",
+        "late"
+      ],
+      "mnemonic": "be·hind 记「在……后」；behind the scenes 幕后"
+    },
+    "believe": {
+      "syllable": "be·lieve",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "相信；认为；信仰"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（believe in）信赖；信奉"
+        }
+      ],
+      "rootAffix": "be-（by）+ lieve（古义 dear/trust，与 love 同源）→ 视为可信",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I believe his explanation is honest.",
+          "translation": "我相信他的解释是诚实的。",
+          "analysis": "简单句：主语 I + 谓语 believe + 宾语从句 his explanation is honest。believe 后接 that 宾语从句（that 可省）。"
+        },
+        {
+          "level": "long",
+          "sentence": "We believe what we believe not because the evidence is airtight but because the story fits a world we already trust, which is why two reasonable people can read the same facts and conclude opposite things.",
+          "translation": "我们相信我们所信，并非因为证据无懈可击，而是因为那个故事契合我们已然信任的世界——这也正是两个理性的人读着相同事实却得出相反结论的原因。",
+          "analysis": "复合句。主句 We believe what we believe（what 名词性从句作宾语），其后 not because A but because B 并列原因状语从句。which 引导非限制性定语从句指代前文，其内 why 引导表语从句（two reasonable people can read... and conclude opposite things）。"
+        }
+      ],
+      "collocations": [
+        "believe in",
+        "believe it or not",
+        "hard to believe"
+      ],
+      "phrases": [
+        "believe in sb. 信赖某人",
+        "make believe 假装"
+      ],
+      "derived": [
+        {
+          "word": "belief",
+          "meaning": "n. 信念，相信"
+        },
+        {
+          "word": "believable",
+          "meaning": "adj. 可信的"
+        },
+        {
+          "word": "unbelievable",
+          "meaning": "adj. 难以置信的"
+        }
+      ],
+      "synonyms": [
+        "trust",
+        "think",
+        "accept"
+      ],
+      "mnemonic": "be·lieve 记「相信」；belief 信念，believe in 信奉"
+    },
     "benefit": {
       "syllable": "ben·e·fit",
       "pos": "n./v.",
