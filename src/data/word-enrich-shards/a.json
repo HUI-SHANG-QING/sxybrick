@@ -7505,6 +7505,225 @@
       ],
       "mnemonic": "any 三用法：否定/疑问句表「任何、一些」；肯定句表「任何一个（无一例外）」；与比较级连用表「稍微」（any better）"
     },
+    "apart": {
+      "syllable": "a·part",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "分开，相隔（be apart）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "除…之外（apart from）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "拆开地（take apart）"
+        }
+      ],
+      "rootAffix": "a-（向）+ part（部分）→ 分成几部分 → 分开",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The two villages are ten kilometres apart.",
+          "translation": "这两个村庄相隔十公里。",
+          "analysis": "简单句：主语 The two villages + 系动词 are + 表语 ten kilometres apart。apart 置于距离之后表「相隔」，是固定语序（不能说 apart ten kilometres）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Apart from a handful of specialists, few readers can tell whether a statistical claim is sound, which is why the authority of numbers rests less on mathematics than on the trustworthiness of those who present them.",
+          "translation": "除少数专家之外，很少有读者能判断一个统计主张是否站得住脚；正因如此，数字的权威性更多依赖呈现者的可信度，而不是数学本身。",
+          "analysis": "主从复合句。Apart from a handful of specialists 为句首状语（表「除…之外」）；主句主语 few readers，谓语 can tell，宾语为 whether 引导的宾语从句；which 引导非限制性定语从句指代主句；why 引导表语从句，其中 rests on 的宾语为 the trustworthiness，less...than... 为比较结构。apart 在此取「除…之外」义。"
+        }
+      ],
+      "collocations": [
+        "apart from 除…之外；except for",
+        "tell apart 区分开",
+        "fall apart 崩溃；散架"
+      ],
+      "phrases": [
+        "take sth apart 把…拆开",
+        "set apart 使与众不同"
+      ],
+      "derived": [
+        {
+          "word": "part",
+          "meaning": "n. 部分 v. 分开"
+        },
+        {
+          "word": "partial",
+          "meaning": "adj. 部分的；偏袒的"
+        }
+      ],
+      "synonyms": [
+        "separately",
+        "aside",
+        "except for",
+        "asunder"
+      ],
+      "mnemonic": "apart from（除…之外）与 besides（除…之外还有）语义相反：apart from 常表「减去」，besides 表「添加」——阅读易混"
+    },
+    "apartment": {
+      "syllable": "a·part·ment",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "公寓套房（美式；英式多用 flat）"
+        }
+      ],
+      "rootAffix": "apart（分开）+ -ment（名词后缀）→ 楼房中被分隔出的居住单元 → 公寓",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They rented a small apartment near the campus.",
+          "translation": "他们在校园附近租了一间小公寓。",
+          "analysis": "简单句：主语 They + 谓语 rented + 宾语 a small apartment + 后置定语 near the campus。apartment 为美式用法，英式英语多说 flat。"
+        },
+        {
+          "level": "long",
+          "sentence": "As cities grow denser, apartments that were once considered cramped become attractive again, since the cost of commuting now consumes a larger share of a household budget than the rent saved by living further out.",
+          "translation": "随着城市变得更为密集，曾被看作狭小的公寓重新变得有吸引力，因为通勤成本如今在家庭预算中占的比重，已超过住得更远所省下的房租。",
+          "analysis": "主从复合句。As 引导时间/原因状语从句；主句主语 apartments 后接 that 引导的定语从句，谓语 become attractive again；since 引导原因状语从句，其中 the cost of commuting 为主语（commuting 为动名词），含 a larger share...than the rent 比较结构，saved by living further out 为过去分词短语作后置定语修饰 rent。apartment 取「公寓」义。"
+        }
+      ],
+      "collocations": [
+        "rent an apartment 租公寓",
+        "apartment building 公寓楼",
+        "a furnished apartment 带家具的公寓"
+      ],
+      "phrases": [
+        "studio apartment 单间公寓",
+        "move into an apartment 搬进公寓"
+      ],
+      "derived": [
+        {
+          "word": "flat",
+          "meaning": "n. 公寓（英式）"
+        },
+        {
+          "word": "compartment",
+          "meaning": "n. 隔间；车厢"
+        }
+      ],
+      "synonyms": [
+        "flat",
+        "lodging",
+        "suite",
+        "unit"
+      ],
+      "mnemonic": "美式 apartment / 英式 flat；同源 compartment（隔间）——都含「分隔出的空间」之意"
+    },
+    "apologize": {
+      "syllable": "a·pol·o·gize",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "道歉，认错（apologize to sb for sth）"
+        }
+      ],
+      "rootAffix": "apo-（离开）+ log（言说）+ -ize → 说开脱之言 → 辩解 → 道歉",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He apologized to her for being late.",
+          "translation": "他为迟到向她道了歉。",
+          "analysis": "简单句：主语 He + 谓语 apologized + 对象状语 to her + 原因状语 for being late。固定搭配 apologize **to sb for sth**，两个介词都不能省。"
+        },
+        {
+          "level": "long",
+          "sentence": "Institutions that apologize without changing the practice that caused the harm are not really apologizing, but performing a ritual that buys time until public attention moves elsewhere.",
+          "translation": "那些道了歉却不改变造成损害的做法，不是真正在道歉，而是履行一种仪式，用来拖延时间，直到公众注意力转向别处。",
+          "analysis": "主从复合句。主语 Institutions 后接 that 引导的定语从句（其中 that caused the harm 为定语从句修饰 the practice），谓语 are not really apologizing, but performing...（not...but... 并列结构）；宾语 a ritual 后接 that 引导的定语从句（buys time until public attention moves elsewhere 中 until 引导时间状语从句）。apologize 取「道歉」义。"
+        }
+      ],
+      "collocations": [
+        "apologize to sb for sth 因某事向某人道歉",
+        "apologize sincerely 诚恳道歉",
+        "owe sb an apology 该向某人道歉"
+      ],
+      "phrases": [
+        "apologize profusely 连连道歉",
+        "a public apology 公开道歉"
+      ],
+      "derived": [
+        {
+          "word": "apology",
+          "meaning": "n. 道歉（复数常表「歉意」）"
+        },
+        {
+          "word": "apologetic",
+          "meaning": "adj. 抱歉的"
+        }
+      ],
+      "synonyms": [
+        "say sorry",
+        "make an apology",
+        "express regret"
+      ],
+      "mnemonic": "搭配铁律：apologize **to** sb **for** sth（两个介词缺一不可）；名词 apology 常用复数 make apologies"
+    },
+    "apparent": {
+      "syllable": "ap·par·ent",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "明显的，显而易见的（it is apparent that…）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "表面上的，貌似的（与真实相对）"
+        }
+      ],
+      "rootAffix": "ap-（向）+ par（出现，同 appear）+ -ent → 显现出来的 → 明显的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "It was apparent that she had not read the report.",
+          "translation": "很明显，她没有读那份报告。",
+          "analysis": "主从复合句：It 为形式主语，that 引导真正的主语从句；系表结构 was apparent。it is apparent that... 是引出判断的固定句式，多见于学术与新闻文体。"
+        },
+        {
+          "level": "long",
+          "sentence": "The apparent contradiction between rising output and falling employment disappears once we distinguish between what a factory produces and what it pays for: machines can enlarge the first while shrinking the second.",
+          "translation": "产量上升与就业下降之间表面上的矛盾，一旦我们区分工厂生产了什么与它为此支付了什么，就消失了：机器可以扩大前者，同时压缩后者。",
+          "analysis": "主从复合句。主语 The apparent contradiction（between...and... 为后置定语），谓语 disappears，once 引导时间状语从句（其中 distinguish between A and B 为固定搭配，A、B 均为 what 引导的宾语从句）；冒号后为解释，machines 为主语，can enlarge the first while shrinking the second 中 while 表同时对比。apparent 取「表面上的（未必真实）」义，是本句论证成立的关键——先立「表象矛盾」，再消解它。"
+        }
+      ],
+      "collocations": [
+        "it is apparent that 显而易见",
+        "for no apparent reason 没有明显原因",
+        "apparent contradiction 表面的矛盾"
+      ],
+      "phrases": [
+        "become apparent 变得明显",
+        "apparent cause 表面原因"
+      ],
+      "derived": [
+        {
+          "word": "apparently",
+          "meaning": "adv. 显然；据说"
+        },
+        {
+          "word": "appear",
+          "meaning": "v. 出现；似乎"
+        },
+        {
+          "word": "appearance",
+          "meaning": "n. 出现；外表"
+        }
+      ],
+      "synonyms": [
+        "obvious",
+        "evident",
+        "seeming",
+        "ostensible"
+      ],
+      "mnemonic": "两义需辨：apparent 既可表「明显（= obvious）」，也可表「表面上的（= seeming）」——后者常暗示「其实不然」，是阅读题的关键区分点"
+    },
     "appeal": {
       "syllable": "ap·peal",
       "pos": "v./n.",
@@ -7563,6 +7782,179 @@
         "plead"
       ],
       "mnemonic": "ap(向)+peal(推) → 把请求推过去 → 呼吁；把心推过去 → 吸引"
+    },
+    "appear": {
+      "syllable": "ap·pear",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "出现，显现"
+        },
+        {
+          "pos": "v.",
+          "meaning": "似乎，看起来（appear to do / appear + adj.）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（书刊）发表；（演员）出场"
+        }
+      ],
+      "rootAffix": "ap-（向）+ pear（显现，同 apparent）→ 显现出来 → 出现",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A man appeared at the door.",
+          "translation": "一名男子出现在门口。",
+          "analysis": "简单句：主语 A man + 谓语 appeared + 地点状语 at the door。appear 作不及物动词表「出现」，无被动语态（不说 be appeared）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Findings that appear in a prestigious journal are not necessarily more reliable than those published elsewhere; what matters is whether the study's methods can be inspected by anyone who cares to try.",
+          "translation": "发表在知名期刊上的发现，未必比发表在其他地方的更可靠；关键在于该研究的方法能否被任何愿意尝试的人检视。",
+          "analysis": "并列复合句。第一分句主语 Findings 后接 that 引导的定语从句（appear in 表「发表于」），系表结构 not necessarily more reliable than those published elsewhere（those 指代 findings，published elsewhere 为过去分词短语作后置定语）。分号后第二分句主语为 what 引导的主语从句（what matters），系表结构 is whether...（whether 引导表语从句，其中 who cares to try 为定语从句修饰 anyone）。appear 取「（文章）发表」义。"
+        }
+      ],
+      "collocations": [
+        "appear to be 似乎是",
+        "appear in public 公开露面",
+        "it appears that 看来"
+      ],
+      "phrases": [
+        "appear on the market 上市",
+        "as it appears 如表面所示"
+      ],
+      "derived": [
+        {
+          "word": "appearance",
+          "meaning": "n. 出现；外貌（make an appearance 露面）"
+        },
+        {
+          "word": "apparent",
+          "meaning": "adj. 明显的；表面的"
+        },
+        {
+          "word": "disappear",
+          "meaning": "v. 消失"
+        }
+      ],
+      "synonyms": [
+        "emerge",
+        "show up",
+        "seem",
+        "surface"
+      ],
+      "mnemonic": "appear 无被动（不及物）；appear to do（似乎）与 seem to do 近义，但 appear 更偏「（从证据看）显得」"
+    },
+    "appendix": {
+      "syllable": "ap·pen·dix",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "（书、文件的）附录，附件"
+        },
+        {
+          "pos": "n.",
+          "meaning": "阑尾"
+        }
+      ],
+      "rootAffix": "ap-（向）+ pend（悬挂，同 pendent/depend）+ -ix → 挂在后面的部分 → 附录",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The data are listed in the appendix.",
+          "translation": "数据列在附录中。",
+          "analysis": "简单句：主语 The data（复数，datum 的复数）+ 谓语 are listed（被动）+ 地点状语 in the appendix。appendix 的复数形式为 appendices（书末附录）或 appendixes（解剖学）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Whether the appendix matters depends on who reads the report: specialists turn to it first for the raw figures, while policymakers rarely get past the executive summary that precedes it.",
+          "translation": "附录是否重要取决于谁来读这份报告：专家会先翻到附录查看原始数据，而政策制定者很少能读到排在它前面的摘要之后。",
+          "analysis": "主从复合句。Whether 引导主语从句；主句谓语 depends on，宾语为 who 引导的宾语从句。冒号后为并列对比句：specialists turn to it first（turn to 表「求助于、翻到」）与 policymakers rarely get past...（get past 表「越过、读完」），后者中 that precedes it 为定语从句修饰 the executive summary。appendix 取「附录」义。"
+        }
+      ],
+      "collocations": [
+        "in the appendix 在附录中",
+        "appendix to ……的附录",
+        "remove the appendix 切除阑尾"
+      ],
+      "phrases": [
+        "see appendix 见附录",
+        "appendices and tables 附录与表格"
+      ],
+      "derived": [
+        {
+          "word": "append",
+          "meaning": "v. 附加，增补"
+        },
+        {
+          "word": "appendices",
+          "meaning": "n. appendix 的复数（书末附录）"
+        }
+      ],
+      "synonyms": [
+        "supplement",
+        "attachment",
+        "annex",
+        "addendum"
+      ],
+      "mnemonic": "pend 是「悬挂」词根（depend 依赖，原义「悬挂于」）→ ap+pendix = 挂在正文后面的部分 → 附录；复数 appendices 是考研写作常用形式"
+    },
+    "applaud": {
+      "syllable": "ap·plaud",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "鼓掌，喝彩"
+        },
+        {
+          "pos": "v.",
+          "meaning": "称赞，赞许（applaud sb's decision）"
+        }
+      ],
+      "rootAffix": "ap-（向）+ plaud（拍手，同 plausible 原义「值得鼓掌的」）→ 朝着拍手 → 鼓掌",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The audience applauded for several minutes.",
+          "translation": "观众鼓掌了好几分钟。",
+          "analysis": "简单句：主语 The audience + 谓语 applauded + 时间状语 for several minutes。applaud 可作不及物（鼓掌）或及物（为…鼓掌/称赞）。"
+        },
+        {
+          "level": "long",
+          "sentence": "We applaud the company that admits a mistake, yet we rarely reward the manager who prevented one, which explains why organisations end up with more apologies than improvements.",
+          "translation": "我们称赞承认错误的公司，却很少奖励阻止了错误发生的管理者；这就解释了为什么组织中道歉多于改进。",
+          "analysis": "并列主从复合句。第一分句 We applaud the company 后接 that 引导的定语从句；yet 连接转折分句，we rarely reward the manager 后接 who 引导的定语从句（prevented one 中 one 指代 a mistake）；which 引导非限制性定语从句指代整个并列句；why 引导表语从句（more apologies than improvements 为比较结构）。applaud 取「称赞」义。"
+        }
+      ],
+      "collocations": [
+        "applaud sb for sth 因某事称赞某人",
+        "applaud loudly 热烈鼓掌",
+        "applaud a decision 赞同某项决定"
+      ],
+      "phrases": [
+        "applaud the effort 称赞这份努力",
+        "be widely applauded 广受赞誉"
+      ],
+      "derived": [
+        {
+          "word": "applause",
+          "meaning": "n. 掌声，喝彩"
+        },
+        {
+          "word": "plausible",
+          "meaning": "adj. 看似合理的（同源）"
+        }
+      ],
+      "synonyms": [
+        "clap",
+        "praise",
+        "commend",
+        "acclaim"
+      ],
+      "mnemonic": "plaud 是「拍手」词根（plausible 原义「值得鼓掌的」→ 看似可信的）→ applaud 鼓掌/称赞；名词 applause 不可数"
     },
     "apply": {
       "syllable": "ap·ply",
@@ -7630,6 +8022,124 @@
         "request"
       ],
       "mnemonic": "ap(向)+ply(贴) → 贴上去用 → 应用；把自己贴过去 → 申请"
+    },
+    "appoint": {
+      "syllable": "ap·point",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "任命，委派（appoint sb as/to）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "约定（时间、地点）"
+        }
+      ],
+      "rootAffix": "ap-（向）+ point（点、指定）→ 指定某人/某时 → 任命、约定",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She was appointed as the new director.",
+          "translation": "她被任命为新任主管。",
+          "analysis": "简单句：主语 She + 谓语 was appointed（被动）+ 主补 as the new director。appoint sb as/to sth（任命某人为…）；注意 appointed 后接职务时也可省 as。"
+        },
+        {
+          "level": "long",
+          "sentence": "Boards often appoint outsiders precisely because they are unlikely to owe favours to anyone inside, yet the same distance that guarantees independence also leaves them slow to see the problems that insiders take for granted.",
+          "translation": "董事会常常任命外部人士，恰恰是因为他们不太可能亏欠内部任何人的人情；然而正是这种保证独立性的距离，也使他们迟迟看不到内部人习以为常的问题。",
+          "analysis": "并列主从复合句。第一分句 Boards often appoint outsiders + precisely because 引导原因状语从句（be unlikely to do 结构）。第二分句由 yet 转折，主语为 the same distance，后接 that 引导的定语从句（guarantees independence），谓语 leaves，宾语 them，宾补 slow to see the problems，其后 that insiders take for granted 为定语从句（take sth for granted 结构）。appoint 取「任命」义。"
+        }
+      ],
+      "collocations": [
+        "appoint sb as 任命某人为",
+        "appoint a date 约定日期",
+        "newly appointed 新任的"
+      ],
+      "phrases": [
+        "appoint a committee 任命委员会",
+        "at the appointed time 在约定时间"
+      ],
+      "derived": [
+        {
+          "word": "appointment",
+          "meaning": "n. 任命；约会（make an appointment 预约）"
+        },
+        {
+          "word": "appointee",
+          "meaning": "n. 被任命者"
+        }
+      ],
+      "synonyms": [
+        "nominate",
+        "assign",
+        "designate",
+        "schedule"
+      ],
+      "mnemonic": "appoint 的宾语是「人 + 职位」：appoint him (as) manager；名词 appointment 兼具「任命」与「预约」两义，看语境判断"
+    },
+    "appreciate": {
+      "syllable": "ap·pre·ci·ate",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "感激，感谢"
+        },
+        {
+          "pos": "v.",
+          "meaning": "欣赏，赏识；理解，意识到"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（财产）增值"
+        }
+      ],
+      "rootAffix": "ap-（向）+ preci（价值，同 price/precious）+ -ate → 认识到其价值 → 欣赏、感激",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I really appreciate your help.",
+          "translation": "我非常感激你的帮助。",
+          "analysis": "简单句：主语 I + 状语 really + 谓语 appreciate + 宾语 your help。appreciate 后接**名词或动名词**（appreciate your helping ✓ / appreciate you to help ✗），这是考研写作的常见错点。"
+        },
+        {
+          "level": "long",
+          "sentence": "Only after living abroad do many people appreciate how much of their own culture they had taken for granted, a realisation that often arrives too late to be shared with those who stayed.",
+          "translation": "只有在国外生活过之后，许多人才会意识到自己有那么多文化习惯一直被视作理所当然——而这一认知往往来得太晚，已无法与留在故乡的人分享。",
+          "analysis": "倒装 + 主从复合句。Only after living abroad 置于句首引起**部分倒装**（do many people appreciate）；how much... 为宾语从句作 appreciate 的宾语，其中 they had taken for granted 为定语从句（take sth for granted 结构，for granted 后置）。a realisation 为同位语，后接 that 引导的定语从句（too...to... 结构 + who stayed 定语从句）。appreciate 取「意识到、理解」义。"
+        }
+      ],
+      "collocations": [
+        "appreciate one's help 感激某人的帮助",
+        "appreciate the value of 认识到…的价值",
+        "greatly appreciate 十分感激"
+      ],
+      "phrases": [
+        "I would appreciate it if 若…我将不胜感激",
+        "appreciate the difference 理解其中的差别"
+      ],
+      "derived": [
+        {
+          "word": "appreciation",
+          "meaning": "n. 感激；欣赏；增值"
+        },
+        {
+          "word": "appreciative",
+          "meaning": "adj. 感激的，欣赏的"
+        },
+        {
+          "word": "precious",
+          "meaning": "adj. 珍贵的（同源）"
+        }
+      ],
+      "synonyms": [
+        "value",
+        "recognize",
+        "be grateful for",
+        "cherish"
+      ],
+      "mnemonic": "两条硬规则：① 后接**动名词**（appreciate doing）；② 感谢的客气句式用 I would appreciate **it** if...（it 不可省）——都是写作高频考点"
     },
     "approach": {
       "syllable": "ap·proach",
@@ -7809,6 +8319,177 @@
       ],
       "mnemonic": "ap+prove(验证) → 验明可行 → 批准、赞成"
     },
+    "approximate": {
+      "syllable": "ap·prox·i·mate",
+      "pos": "adj./v.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "大约的，近似的（an approximate figure）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "接近，近似（approximate to）"
+        }
+      ],
+      "rootAffix": "ap-（向）+ proxim（最近的，同 proximity）+ -ate → 接近的 → 近似的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The approximate cost is five thousand yuan.",
+          "translation": "大约的成本是五千元。",
+          "analysis": "简单句：主语 The approximate cost + 系动词 is + 表语 five thousand yuan。approximate 作定语表「大约的」，与 exact（确切的）相对。"
+        },
+        {
+          "level": "long",
+          "sentence": "Although the figures are only approximate, they are accurate enough to show that the gap between the two regions has widened rather than narrowed over the past decade.",
+          "translation": "尽管这些数字只是近似值，但它们已足够准确地表明：过去十年间，两个地区之间的差距扩大而非缩小了。",
+          "analysis": "主从复合句。Although 引导让步状语从句；主句 they are accurate enough to show（enough to 结构）后接 that 引导的宾语从句；从句中那个 the gap 后接 between the two regions 作后置定语，谓语 has widened rather than narrowed（rather than 表对比否定）。approximate 取「近似的」义，与后文 accurate 形成「粗略但足以说明问题」的论证关系。"
+        }
+      ],
+      "collocations": [
+        "approximate value 近似值",
+        "an approximate estimate 粗略估计",
+        "be approximate to 接近…"
+      ],
+      "phrases": [
+        "approximate figures 大致数字",
+        "to an approximate degree 大致上"
+      ],
+      "derived": [
+        {
+          "word": "approximately",
+          "meaning": "adv. 大约（≈ about，更正式）"
+        },
+        {
+          "word": "approximation",
+          "meaning": "n. 近似值；近似"
+        },
+        {
+          "word": "proximity",
+          "meaning": "n. 接近，邻近"
+        }
+      ],
+      "synonyms": [
+        "rough",
+        "estimated",
+        "near",
+        "about"
+      ],
+      "mnemonic": "proxim 是「最近」词根（proximity 邻近）→ approximate 接近的/大约的；副词 approximately 在学术写作中比 about 更正式"
+    },
+    "arbitrary": {
+      "syllable": "ar·bi·tra·ry",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "任意的，武断的，随心所欲的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "专横的，独断的"
+        }
+      ],
+      "rootAffix": "源自拉丁 arbitrarius（由裁决者自由决定的，arbiter 仲裁人）→ 凭裁决者意志 → 任意的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The deadline seems entirely arbitrary.",
+          "translation": "这个截止期限看起来完全是随意定的。",
+          "analysis": "简单句：主语 The deadline + 系动词 seems + 表语 arbitrary + 状语 entirely。arbitrary 表「无内在依据、凭主观而定」，常用于批评规则或决定。"
+        },
+        {
+          "level": "long",
+          "sentence": "Standards that look arbitrary to outsiders often encode distinctions that matter intensely to those who use them, which is why imposing a universal rule can destroy information that no one intended to lose.",
+          "translation": "在外人看来随意的标准，往往编码着对使用者极为重要的区别；正因如此，强推一套普遍规则可能摧毁无人有意丢失的信息。",
+          "analysis": "主从复合句。主语 Standards 后接 that 引导的定语从句，谓语 encode，宾语 distinctions 后接 that 引导的定语从句（matter intensely to those 后接 who 引导的定语从句）。which 引导非限制性定语从句指代主句；why 引导表语从句，其中 can destroy information 后接 that no one intended to lose（定语从句，lose 的宾语为关系代词 that）。arbitrary 取「随意的」义。"
+        }
+      ],
+      "collocations": [
+        "arbitrary decision 武断的决定",
+        "arbitrary power 专断权力",
+        "seemingly arbitrary 看似随意的"
+      ],
+      "phrases": [
+        "at an arbitrary time 在随意的时间",
+        "arbitrary classification 随意的分类"
+      ],
+      "derived": [
+        {
+          "word": "arbitrarily",
+          "meaning": "adv. 任意地，武断地"
+        },
+        {
+          "word": "arbitrate",
+          "meaning": "v. 仲裁（同源）"
+        },
+        {
+          "word": "arbiter",
+          "meaning": "n. 仲裁者；权威"
+        }
+      ],
+      "synonyms": [
+        "random",
+        "capricious",
+        "unjustified",
+        "dictatorial"
+      ],
+      "mnemonic": "同源词串记：arbitrary 武断的 → arbitrate 仲裁 → arbiter 裁决者 —— 都含「由某人说了算」的核心义"
+    },
+    "archaeology": {
+      "syllable": "ar·chae·ol·o·gy",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "考古学"
+        }
+      ],
+      "rootAffix": "archaeo（古代的）+ -logy（学科）→ 研究古代的学问 → 考古学",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She studies archaeology at university.",
+          "translation": "她在大学学习考古学。",
+          "analysis": "简单句：主语 She + 谓语 studies + 宾语 archaeology + 地点状语 at university。archaeology 为不可数名词，学科名首字母通常小写。"
+        },
+        {
+          "level": "long",
+          "sentence": "What makes archaeology slow is not the digging but the interpretation: an object stripped of its context tells us little, so excavators record far more than they intend to study.",
+          "translation": "让考古学进展缓慢的不是挖掘，而是解释：一件失去背景信息的物品几乎说明不了什么，因此发掘者记录的内容远超他们打算研究的部分。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not...but... 对比结构（the digging 与 the interpretation 对照）。冒号后为解释：主语 an object，stripped of its context 为过去分词短语作后置定语，谓语 tells，宾语 us 与 little。so 引导结果分句，excavators 为主语，record far more than they intend to study 为比较结构。archaeology 取「考古学」义。"
+        }
+      ],
+      "collocations": [
+        "archaeological site 考古遗址",
+        "archaeological evidence 考古证据",
+        "field archaeology 田野考古"
+      ],
+      "phrases": [
+        "archaeological excavation 考古发掘",
+        "marine archaeology 水下考古"
+      ],
+      "derived": [
+        {
+          "word": "archaeologist",
+          "meaning": "n. 考古学家"
+        },
+        {
+          "word": "archaeological",
+          "meaning": "adj. 考古学的"
+        },
+        {
+          "word": "archaic",
+          "meaning": "adj. 古代的；过时的"
+        }
+      ],
+      "synonyms": [
+        "excavation",
+        "antiquarianism"
+      ],
+      "mnemonic": "archaeo 表「古代」（同 archaic 古老的）+-logy 表学科 → 考古学；拼写注意 ae 连写（美式亦作 archeology）"
+    },
     "argue": {
       "syllable": "ar·gue",
       "pos": "v.",
@@ -7868,6 +8549,66 @@
       ],
       "mnemonic": "arg(亮)+ue → 把话说得漂亮 → 辩论、主张"
     },
+    "argument": {
+      "syllable": "ar·gu·ment",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "论点，论据；论证（学术核心义）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "争论，争吵"
+        },
+        {
+          "pos": "n.",
+          "meaning": "理由，依据（an argument for/against）"
+        }
+      ],
+      "rootAffix": "argu（使清楚、辩解）+ -ment → 使事情清楚的表述 → 论证；争执",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She presented a strong argument for the change.",
+          "translation": "她为这一改变提出了有力的论据。",
+          "analysis": "简单句：主语 She + 谓语 presented + 宾语 a strong argument + 后置定语 for the change。argument for/against sth 表「支持/反对某事的论据」，是学术写作中的高频用法。"
+        },
+        {
+          "level": "long",
+          "sentence": "The argument is not that regulation is unnecessary but that the form it has taken rewards compliance with paperwork rather than the outcome the paperwork was meant to secure.",
+          "translation": "这一论证的要点并不是监管没有必要，而是监管所采取的形式奖励的是对纸面要求的遵守，而不是这些纸面要求本要确保的结果。",
+          "analysis": "主从复合句。主句为 not that...but that... 的双重表语从句结构（这是学术写作中提出论证的经典句式）。第二个 that 从句中，主语 the form 后接省略关系词的定语从句 it has taken，谓语 rewards，宾语 compliance（with paperwork 为其后置定语），rather than 引出对比项 the outcome，其后 the paperwork was meant to secure 为省略关系词的定语从句。argument 取「论点、论证」义。"
+        }
+      ],
+      "collocations": [
+        "present an argument 提出论点",
+        "a strong argument for/against 支持/反对的有力论据",
+        "lined up arguments 罗列论据",
+        "settle an argument 解决争论"
+      ],
+      "phrases": [
+        "the argument goes that 其论证是…",
+        "for the sake of argument 姑且认为"
+      ],
+      "derived": [
+        {
+          "word": "argue",
+          "meaning": "v. 争论；主张"
+        },
+        {
+          "word": "argumentative",
+          "meaning": "adj. 好争论的；论证性的"
+        }
+      ],
+      "synonyms": [
+        "reasoning",
+        "case",
+        "dispute",
+        "contention"
+      ],
+      "mnemonic": "阅读中 argument 几乎总取「论点/论证」而非「争吵」；引出论证的经典句式：The argument is not that A but that B"
+    },
     "arise": {
       "syllable": "a·rise",
       "pos": "v.",
@@ -7922,6 +8663,995 @@
       ],
       "易混辨析": "arise（问题出现，不及物）/ rise（升起）/ raise（举起，及物）/ arouse（唤起，及物）——考研经典四辨",
       "mnemonic": "a+rise(升) → （无形之物）升起来 → 出现、产生"
+    },
+    "arm": {
+      "syllable": "arm",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "手臂；（椅子的）扶手"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（常复数）武器，军备"
+        },
+        {
+          "pos": "v.",
+          "meaning": "武装，配备武器；提供（necessary information）"
+        }
+      ],
+      "rootAffix": "源自古英语 earm（手臂）与拉丁 arma（武器）两源合流 → 手臂 / 武器",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He broke his arm playing football.",
+          "translation": "他踢足球时摔断了手臂。",
+          "analysis": "简单句：主语 He + 谓语 broke + 宾语 his arm + 时间/伴随状语 playing football（现在分词短语）。arm 取本义「手臂」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Governments that arm their police with military equipment often find that the public grows less willing to cooperate, since people who feel occupied rarely volunteer information.",
+          "translation": "用军事装备武装警察的政府往往会发现，公众变得不那么愿意合作，因为感到被占领的人很少主动提供信息。",
+          "analysis": "主从复合句。主语 Governments 后接 that 引导的定语从句（arm sb with sth 结构），谓语 find，后接 that 引导的宾语从句（the public grows less willing to cooperate 中 grow 为系动词表「变得」）；since 引导原因状语从句，主语 people 后接 who 引导的定语从句（feel occupied 表「感到被占领」）。arm 取动词义「武装」。"
+        }
+      ],
+      "collocations": [
+        "arms control 军备控制",
+        "armed forces 武装力量",
+        "arm in arm 臂挽臂",
+        "take up arms 拿起武器"
+      ],
+      "phrases": [
+        "a shot in the arm 一剂强心针",
+        "welcome with open arms 热情欢迎"
+      ],
+      "derived": [
+        {
+          "word": "armed",
+          "meaning": "adj. 武装的（armed robbery 持械抢劫）"
+        },
+        {
+          "word": "armour",
+          "meaning": "n. 盔甲；装甲"
+        },
+        {
+          "word": "disarm",
+          "meaning": "v. 解除武装"
+        }
+      ],
+      "synonyms": [
+        "weapon",
+        "limb",
+        "equip",
+        "fortify"
+      ],
+      "mnemonic": "arm 双义来自两个词源：手臂（古英语 earm）与武器（拉丁 arma）——由「用手持械」联想串联，复数 arms 才是「武器」"
+    },
+    "army": {
+      "syllable": "ar·my",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "军队，陆军"
+        },
+        {
+          "pos": "n.",
+          "meaning": "大批，大群（an army of volunteers）"
+        }
+      ],
+      "rootAffix": "源自拉丁 armata（武装起来的人，arm 武装 + -ata）→ 武装力量 → 军队",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He joined the army at eighteen.",
+          "translation": "他十八岁时参军。",
+          "analysis": "简单句：主语 He + 谓语 joined + 宾语 the army + 时间状语 at eighteen。join the army 表「参军」；army 指陆军时通常加定冠词。"
+        },
+        {
+          "level": "long",
+          "sentence": "An army of inspectors may be assembled within weeks, yet the habits that allowed the problem to develop took years to form and will not be undone by any number of visits.",
+          "translation": "一支庞大的检查员队伍也许能在几周内组建起来，然而使问题得以发展的那些习惯是多年形成的，再多的检查也无法消除。",
+          "analysis": "并列复合句。第一分句主语 An army of inspectors（an army of 表「大批的」），谓语 may be assembled（被动）+ 时间状语 within weeks。yet 连接转折分句，主语 the habits 后接 that 引导的定语从句（allowed the problem to develop），谓语 took years to form；and 连接第二谓语 will not be undone by any number of visits（被动结构，any number of 表「无论多少」）。army 取引申义「大批」。"
+        }
+      ],
+      "collocations": [
+        "join the army 参军",
+        "army officer 军官",
+        "standing army 常备军"
+      ],
+      "phrases": [
+        "an army of 大批的",
+        "army life 军旅生活"
+      ],
+      "derived": [
+        {
+          "word": "arm",
+          "meaning": "v. 武装 n. 武器"
+        },
+        {
+          "word": "armed",
+          "meaning": "adj. 武装的"
+        }
+      ],
+      "synonyms": [
+        "forces",
+        "troops",
+        "military",
+        "host"
+      ],
+      "mnemonic": "arm（武器）+ -y → 持械的群体 → 军队；引申义 an army of（大批的）在阅读中常见，如 an army of researchers"
+    },
+    "around": {
+      "syllable": "a·round",
+      "pos": "prep./adv.",
+      "defs": [
+        {
+          "pos": "prep.",
+          "meaning": "围绕，环绕；在…各处"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "大约；到处；在附近"
+        }
+      ],
+      "rootAffix": "a-（在）+ round（圆）→ 在圆周上 → 围绕",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "There are trees around the lake.",
+          "translation": "湖的周围有树。",
+          "analysis": "简单句：There be 句型（are trees）+ 地点状语 around the lake。around 作介词表「围绕」，可与 round（英式）互换。"
+        },
+        {
+          "level": "long",
+          "sentence": "Ideas that circulate around a profession for years without being tested can harden into assumptions, and once that happens, evidence pointing the other way is read as an exception rather than as a refutation.",
+          "translation": "一个行业里流传多年却未经检验的观点会固化为想当然的假定；一旦如此，指向相反方向的证据就会被当作例外，而不是反驳。",
+          "analysis": "并列主从复合句。第一分句主语 Ideas 后接 that 引导的定语从句（circulate around a profession 中 around 为介词），谓语 can harden into assumptions。第二分句由 once that happens 引导时间状语从句（that 指代前句），主句主语 evidence，pointing the other way 为现在分词短语作后置定语，谓语 is read（被动），宾语 as an exception rather than as a refutation（read A as B 结构，rather than 表对比）。around 取「在…之间/各处」义。"
+        }
+      ],
+      "collocations": [
+        "around the world 全世界",
+        "all around 四周；到处",
+        "around here 这一带"
+      ],
+      "phrases": [
+        "get around to 抽出时间做",
+        "come around 苏醒；改变看法"
+      ],
+      "derived": [
+        {
+          "word": "round",
+          "meaning": "prep./adj. 环绕；圆的（英式更常用）"
+        },
+        {
+          "word": "surround",
+          "meaning": "v. 包围"
+        }
+      ],
+      "synonyms": [
+        "about",
+        "round",
+        "approximately",
+        "surrounding"
+      ],
+      "mnemonic": "around 兼表「环绕」与「大约」（around 50 people），与 about 近义但更口语；round 在英式英语中常替代 around"
+    },
+    "arouse": {
+      "syllable": "a·rouse",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "唤起，激起（情感、兴趣）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "唤醒（较旧用法）"
+        }
+      ],
+      "rootAffix": "a-（加强）+ rouse（唤醒）→ 使醒来、激起",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The story aroused widespread sympathy.",
+          "translation": "这个故事引起了广泛的同情。",
+          "analysis": "简单句：主语 The story + 谓语 aroused + 宾语 widespread sympathy。arouse 的宾语多为抽象情感（sympathy/interest/suspicion），不能用于「某人被叫醒」的日常语境（用 wake up）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Statistics that arouse suspicion often do so because they are presented without the qualifications that their own sources attached to them, which is a failure of reporting rather than of research.",
+          "translation": "引起怀疑的统计数据，其原因往往在于呈现时省略了数据来源本身附带的限定条件——这是报道的失误，而不是研究的失误。",
+          "analysis": "主从复合句。主语 Statistics 后接 that 引导的定语从句（arouse suspicion），谓语 do so（指代 arouse suspicion）because 引导原因状语从句；从句中 they are presented without the qualifications 为被动结构，that their own sources attached to them 为定语从句修饰 qualifications。which 引导非限制性定语从句指代前文；rather than 表对比否定。arouse 取「引起（情感）」义。"
+        }
+      ],
+      "collocations": [
+        "arouse interest 引起兴趣",
+        "arouse suspicion 引起怀疑",
+        "arouse concern 引起关注"
+      ],
+      "phrases": [
+        "arouse public opinion 唤起舆论",
+        "arouse opposition 激起反对"
+      ],
+      "derived": [
+        {
+          "word": "rouse",
+          "meaning": "v. 唤醒；激励"
+        },
+        {
+          "word": "arousing",
+          "meaning": "adj. 引起…的（interest-arousing）"
+        }
+      ],
+      "synonyms": [
+        "evoke",
+        "provoke",
+        "stimulate",
+        "awaken"
+      ],
+      "mnemonic": "arouse 的宾语是**抽象情感**（arouse interest/suspicion）；若宾语是人（叫醒某人）须用 wake up —— 搭配决定词义"
+    },
+    "arrange": {
+      "syllable": "ar·range",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "安排，筹备（arrange for sth / arrange to do）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "整理，排列（arrange the books）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "改编（乐曲）"
+        }
+      ],
+      "rootAffix": "ar-（向，＝ad-）+ range（排列、行列）→ 排成行列 → 安排、整理",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She arranged the flowers in a vase.",
+          "translation": "她把花插在花瓶里摆好。",
+          "analysis": "简单句：主语 She + 谓语 arranged + 宾语 the flowers + 地点状语 in a vase。arrange 取「摆放、整理」义，宾语为具体物品。"
+        },
+        {
+          "level": "long",
+          "sentence": "Those who arrange the timetable decide, in effect, which subjects are taught when attention is freshest, a power that shapes outcomes without anyone ever voting on it.",
+          "translation": "安排课表的人实际上决定了哪些科目在注意力最集中的时候上——这种权力塑造着结果，却从未经过任何人的表决。",
+          "analysis": "主从复合句。主语 Those 后接 who 引导的定语从句（arrange the timetable），谓语 decide，插入语 in effect 后接 which 引导的宾语从句（which subjects are taught when attention is freshest 中 when 引导时间状语从句）。a power 为同位语，后接 that 引导的定语从句（shapes outcomes without anyone ever voting on it 中 without 引导的介词短语含独立主格 anyone ever voting）。arrange 取「安排」义。"
+        }
+      ],
+      "collocations": [
+        "arrange for 为…作安排",
+        "arrange to do 安排做",
+        "arrange a meeting 安排会议"
+      ],
+      "phrases": [
+        "arrange flowers 插花",
+        "as arranged 按约定"
+      ],
+      "derived": [
+        {
+          "word": "arrangement",
+          "meaning": "n. 安排；布置（make arrangements for 为…作安排）"
+        },
+        {
+          "word": "rearrange",
+          "meaning": "v. 重新安排；重新排列"
+        }
+      ],
+      "synonyms": [
+        "organize",
+        "schedule",
+        "order",
+        "plan"
+      ],
+      "mnemonic": "搭配辨析：arrange **for** sth（为某事作安排）/ arrange **to do** sth（安排做某事）；名词常用复数 make arrangements for"
+    },
+    "arrest": {
+      "syllable": "ar·rest",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "逮捕，拘留"
+        },
+        {
+          "pos": "v.",
+          "meaning": "阻止，抑制（arrest the decline）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "引起（注意）（arrest attention）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "逮捕（under arrest）"
+        }
+      ],
+      "rootAffix": "ar-（向）+ rest（停留，同 rest/stop）→ 使停下来 → 逮捕；阻止",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The police arrested two suspects.",
+          "translation": "警方逮捕了两名嫌疑人。",
+          "analysis": "简单句：主语 The police（集合名词，谓语用复数）+ 谓语 arrested + 宾语 two suspects。arrest 作及物动词，直接接「被逮捕的人」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Measures that arrest the spread of a disease at an early stage look excessive precisely because they work: the disaster they prevent never becomes visible enough to justify them.",
+          "translation": "在早期阻止疾病传播的措施看起来过度，恰恰因为它们是有效的：它们所避免的灾难从未明显到足以证明其必要。",
+          "analysis": "主从复合句。主语 Measures 后接 that 引导的定语从句（arrest the spread of a disease 中 arrest 表「阻止」），系表结构 look excessive，precisely because 引导原因状语从句（they work 表「奏效」）。冒号后为解释：主语 the disaster 后接省略关系词的定语从句 they prevent，谓语 never becomes visible enough to justify them（enough to 结构）。arrest 取「阻止」义。"
+        }
+      ],
+      "collocations": [
+        "under arrest 被捕",
+        "arrest sb for sth 因某事逮捕某人",
+        "house arrest 软禁",
+        "arrest attention 引起注意"
+      ],
+      "phrases": [
+        "make an arrest 实施逮捕",
+        "arrest the decline 遏制下滑"
+      ],
+      "derived": [
+        {
+          "word": "arresting",
+          "meaning": "adj. 引人注目的（an arresting image）"
+        },
+        {
+          "word": "arrestee",
+          "meaning": "n. 被逮捕者"
+        }
+      ],
+      "synonyms": [
+        "detain",
+        "apprehend",
+        "halt",
+        "catch"
+      ],
+      "mnemonic": "arrest 的「阻止」义（arrest the decline 遏制下滑）与「引起注意」义（arrest attention）在考研阅读中很常见，别只记「逮捕」"
+    },
+    "arrive": {
+      "syllable": "ar·rive",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "到达，抵达（arrive at/in）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（时间、事物）来临，出现"
+        },
+        {
+          "pos": "v.",
+          "meaning": "达成（arrive at a conclusion 得出结论）"
+        }
+      ],
+      "rootAffix": "ar-（向）+ rive（岸边，同 river）→ 靠岸 → 到达",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They arrived in Beijing late at night.",
+          "translation": "他们深夜抵达北京。",
+          "analysis": "简单句：主语 They + 谓语 arrived + 地点状语 in Beijing + 时间状语 late at night。arrive **in** + 大地点（城市/国家）、arrive **at** + 小地点（车站/机场）。"
+        },
+        {
+          "level": "long",
+          "sentence": "A conclusion arrived at before the evidence has been examined is not a conclusion but a preference, and no amount of later argument will fully remove the suspicion that it was chosen rather than reached.",
+          "translation": "在证据被检视之前就得出的结论不是结论，而是偏好；再多后续论证也无法完全消除这种怀疑——它是被选定的，而不是被推导出来的。",
+          "analysis": "并列复合句。第一分句主语 A conclusion，arrived at before the evidence has been examined 为过去分词短语作后置定语（arrive at = 得出），系表结构 is not a conclusion but a preference（not...but... 结构）。第二分句主语 no amount of later argument（表「再多的…也不」），谓语 will remove，宾语 the suspicion 后接同位语从句 that it was chosen rather than reached（被动 + rather than 对比）。arrive at 取「得出（结论）」义。"
+        }
+      ],
+      "collocations": [
+        "arrive at 到达（小地方）；得出（结论）",
+        "arrive in 到达（大地方）",
+        "arrive on time 准时到达"
+      ],
+      "phrases": [
+        "arrive at a decision 作出决定",
+        "the moment arrives 时机到来"
+      ],
+      "derived": [
+        {
+          "word": "arrival",
+          "meaning": "n. 到达；到来（on arrival 一到达）"
+        },
+        {
+          "word": "arriving",
+          "meaning": "adj. 即将到达的"
+        }
+      ],
+      "synonyms": [
+        "reach",
+        "get to",
+        "show up",
+        "come"
+      ],
+      "mnemonic": "介词分工必考：arrive **in** 大地点 / arrive **at** 小地点；抽象引申 arrive **at** a conclusion（得出结论）也是高频"
+    },
+    "arrogant": {
+      "syllable": "ar·ro·gant",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "傲慢的，自大的"
+        }
+      ],
+      "rootAffix": "ar-（向）+ rog（要求，同 interrogate）+ -ant → 向人强行要求 → 傲慢",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "His arrogant tone offended the audience.",
+          "translation": "他傲慢的语气冒犯了听众。",
+          "analysis": "简单句：主语 His arrogant tone + 谓语 offended + 宾语 the audience。arrogant 修饰人及其言行，含明显贬义。"
+        },
+        {
+          "level": "long",
+          "sentence": "What looks arrogant in a colleague is often confidence that has not yet been tested, and the same quality, once failures have been absorbed, tends to be renamed as leadership.",
+          "translation": "同事身上看似傲慢的东西，往往只是尚未经受检验的自信；而同样的品质一旦经历过失败，往往就被改称为领导力。",
+          "analysis": "并列复合句。第一分句主语为 what 引导的主语从句（what looks arrogant in a colleague），系表结构 is often confidence，后接 that has not yet been tested（定语从句，被动 + yet 表「尚未」）。and 连接第二分句，主语 the same quality，once failures have been absorbed 为时间状语（被动），谓语 tends to be renamed as（被动 + rename A as B）。arrogant 取「傲慢的」义。"
+        }
+      ],
+      "collocations": [
+        "arrogant attitude 傲慢的态度",
+        "sound arrogant 听起来自大",
+        "an arrogant assumption 自以为是的假定"
+      ],
+      "phrases": [
+        "arrogant disregard for 对…的傲慢无视",
+        "come across as arrogant 给人傲慢的印象"
+      ],
+      "derived": [
+        {
+          "word": "arrogance",
+          "meaning": "n. 傲慢，自大"
+        },
+        {
+          "word": "arrogantly",
+          "meaning": "adv. 傲慢地"
+        }
+      ],
+      "synonyms": [
+        "haughty",
+        "conceited",
+        "presumptuous",
+        "imperious"
+      ],
+      "mnemonic": "rog 是「要求」词根（interrogate 审问、prerogative 特权）→ ar+rog+ant = 总向别人提要求 → 傲慢；名词 arrogance 不可数"
+    },
+    "article": {
+      "syllable": "ar·ti·cle",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "文章，报道（学术文章尤常用）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "物品，物件（an article of clothing）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "条款（法律、合同）；冠词（语法）"
+        }
+      ],
+      "rootAffix": "源自拉丁 articulus（小关节、小部分）→ 分成小段 → 条款；段落成文 → 文章",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She wrote an article about climate policy.",
+          "translation": "她写了一篇关于气候政策的文章。",
+          "analysis": "简单句：主语 She + 谓语 wrote + 宾语 an article + 后置定语 about climate policy。article 取「文章」义，常与 write/publish/cite 搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "An article that reports a finding without describing how the data were collected invites readers to accept a conclusion on the authority of the author alone, which is precisely what peer review is designed to prevent.",
+          "translation": "一篇只报告发现、却不说明数据如何收集的文章，等于请读者仅凭作者权威就接受结论——而这恰恰是同行评审要防止的事。",
+          "analysis": "主从复合句。主语 An article 后接 that 引导的定语从句（reports...without describing... 并列），谓语 invites，宾语 readers，宾补 to accept a conclusion，其后 on the authority of the author alone 为方式状语。which 引导非限制性定语从句指代整个主句；precisely what 引导表语从句（be designed to do 被动）。article 取「文章」义。"
+        }
+      ],
+      "collocations": [
+        "write an article 写文章",
+        "a leading article 社论",
+        "article of clothing 一件衣物",
+        "articles of association 公司章程"
+      ],
+      "phrases": [
+        "in the article 在文中",
+        "a research article 研究论文"
+      ],
+      "derived": [
+        {
+          "word": "articulate",
+          "meaning": "adj. 表达清晰的 v. 清晰表达"
+        },
+        {
+          "word": "articulation",
+          "meaning": "n. 表达；关节"
+        }
+      ],
+      "synonyms": [
+        "essay",
+        "piece",
+        "item",
+        "clause"
+      ],
+      "mnemonic": "一词三义要看语境：文章（学术）/ 物品（an article of furniture）/ 条款（Article 5 第五条、冠词）——法律与语法文本中多为后两义"
+    },
+    "artificial": {
+      "syllable": "ar·ti·fi·cial",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "人造的，人工的（artificial intelligence 人工智能）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "虚假的，做作的（an artificial smile）"
+        }
+      ],
+      "rootAffix": "art（技艺）+ fic（做）+ -ial → 用技艺做出来的 → 人造的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The lake is artificial.",
+          "translation": "这个湖是人工的。",
+          "analysis": "简单句：主语 The lake + 系动词 is + 表语 artificial。artificial 表「人工而非天然」，与 natural 相对。"
+        },
+        {
+          "level": "long",
+          "sentence": "The distinction between natural and artificial is less clear than it appears: a field cleared by farmers centuries ago is now described as natural landscape, while a forest planted last year may be dismissed as artificial.",
+          "translation": "自然与人造的区分并不像表面那样清晰：几百年前由农民开垦出来的田地如今被称为自然景观，而去年前栽下的森林却可能被斥为人工的。",
+          "analysis": "并列复合句。第一分句主语 The distinction（between natural and artificial 为后置定语），系表结构 is less clear than it appears（比较结构，it appears 后省略表语）。冒号后为解释性并列句：a field（cleared by farmers centuries ago 为过去分词短语作后置定语）is now described as natural landscape 与 a forest（planted last year 为后置定语）may be dismissed as artificial，两句构成对照（describe/dismiss A as B 结构）。artificial 取「人工的」义。"
+        }
+      ],
+      "collocations": [
+        "artificial intelligence 人工智能",
+        "artificial light 人造光",
+        "artificial flavouring 人工调味剂",
+        "artificial satellite 人造卫星"
+      ],
+      "phrases": [
+        "artificial means 人工手段",
+        "artificial boundary 人为划定的边界"
+      ],
+      "derived": [
+        {
+          "word": "artificially",
+          "meaning": "adv. 人工地；人为地"
+        },
+        {
+          "word": "artificiality",
+          "meaning": "n. 人造；做作"
+        },
+        {
+          "word": "artifice",
+          "meaning": "n. 巧计，诡计"
+        }
+      ],
+      "synonyms": [
+        "synthetic",
+        "man-made",
+        "simulated",
+        "fake"
+      ],
+      "mnemonic": "art（技艺）+ fic（做）→ 人造的；同族 artifice（巧计）——记住词根就能同时理解「人工」与「做作」两义"
+    },
+    "artistic": {
+      "syllable": "ar·tis·tic",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "艺术的；有艺术天赋的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "富有艺术性的，精美的"
+        }
+      ],
+      "rootAffix": "art（艺术）+ -istic（…的）→ 艺术的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She has strong artistic talent.",
+          "translation": "她有很强的艺术天赋。",
+          "analysis": "简单句：主语 She + 谓语 has + 宾语 strong artistic talent。artistic 修饰 talent/skill 等，表「艺术方面的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Judgements described as purely artistic usually rest on conventions that a community has agreed to treat as natural, which is why what one generation finds moving another finds merely sentimental.",
+          "translation": "被称作纯艺术的判断，通常建立在某个群体已约定视作自然的惯例之上；正因如此，一代人觉得动人的东西，另一代人只觉得感伤。",
+          "analysis": "主从复合句。主语 Judgements，described as purely artistic 为过去分词短语作后置定语，谓语 rest on，宾语 conventions 后接 that 引导的定语从句（a community has agreed to treat as natural 中 treat A as B 结构）。which 引导非限制性定语从句指代主句；why 引导表语从句，其中 what one generation finds moving 为主语从句（find sth + adj. 结构），another finds merely sentimental 为省略结构。artistic 取「艺术的」义。"
+        }
+      ],
+      "collocations": [
+        "artistic talent 艺术天赋",
+        "artistic tradition 艺术传统",
+        "artistic expression 艺术表达"
+      ],
+      "phrases": [
+        "artistic merit 艺术价值",
+        "artistic licence 艺术上的自由发挥"
+      ],
+      "derived": [
+        {
+          "word": "artist",
+          "meaning": "n. 艺术家"
+        },
+        {
+          "word": "artistically",
+          "meaning": "adv. 艺术上"
+        },
+        {
+          "word": "artistry",
+          "meaning": "n. 艺术技巧"
+        }
+      ],
+      "synonyms": [
+        "aesthetic",
+        "creative",
+        "expressive",
+        "refined"
+      ],
+      "mnemonic": "-istic 表「与…有关的」（artistic 艺术的 / realistic 现实的 / characteristic 典型的）——一串形容词一起记"
+    },
+    "ascend": {
+      "syllable": "as·cend",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "上升，攀登（ascend the stairs）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（地位）上升，升迁（ascend to power）"
+        }
+      ],
+      "rootAffix": "a-（向）+ scend（爬，同 descend 下降）→ 向上爬 → 上升",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The balloon ascended slowly into the sky.",
+          "translation": "气球缓缓升上天空。",
+          "analysis": "简单句：主语 The balloon + 谓语 ascended + 方式状语 slowly + 方向状语 into the sky。ascend 为不及物动词，表「上升」本义。"
+        },
+        {
+          "level": "long",
+          "sentence": "Those who ascend quickly in large organisations often do so by mastering the language of the institution rather than its substance, which explains why so few of them can later describe what any particular decision achieved.",
+          "translation": "在大机构中迅速升迁的人，往往是靠精熟该机构的语言而非其实质内容；这就解释了为什么他们中很少有人日后能说清某项决定究竟取得了什么成效。",
+          "analysis": "主从复合句。主语 Those 后接 who 引导的定语从句，谓语 do so（指代 ascend quickly），方式状语 by mastering the language...rather than its substance（rather than 表对比）。which 引出非限制性定语从句指代主句；why 引导表语从句，其中 what any particular decision achieved 为宾语从句作 describe 的宾语。ascend 取「升迁」引申义。"
+        }
+      ],
+      "collocations": [
+        "ascend the throne 登基",
+        "ascend to power 掌权",
+        "ascend the stairs 上楼梯"
+      ],
+      "phrases": [
+        "in ascending order 按升序",
+        "ascend the heights 登上高处"
+      ],
+      "derived": [
+        {
+          "word": "ascent",
+          "meaning": "n. 上升；攀登"
+        },
+        {
+          "word": "ascending",
+          "meaning": "adj. 上升的（升序）"
+        },
+        {
+          "word": "descend",
+          "meaning": "v. 下降（反义）"
+        }
+      ],
+      "synonyms": [
+        "rise",
+        "climb",
+        "mount",
+        "soar"
+      ],
+      "mnemonic": "scend 是「爬」词根：ascend 向上爬 / descend 向下爬 / condescend（俯就，原义「与…同降」）——一串反义对照记"
+    },
+    "ashamed": {
+      "syllable": "a·shamed",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "羞愧的，惭愧的（be ashamed of）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（因害羞而不愿做）（be ashamed to do）"
+        }
+      ],
+      "rootAffix": "a-（加强）+ shame（羞耻）+ -ed → 感到羞耻的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He felt ashamed of what he had said.",
+          "translation": "他为自己说过的话感到羞愧。",
+          "analysis": "简单句：主语 He + 谓语 felt + 表语 ashamed + 原因状语 of what he had said（what 引导宾语从句作 of 的宾语）。注意 ashamed 只作**表语**，不能作定语（不用 an ashamed man）。"
+        },
+        {
+          "level": "long",
+          "sentence": "People are often ashamed of errors that harmed no one, while remaining untroubled by decisions whose consequences they never had to see — a gap in moral accounting that systems of accountability rarely close.",
+          "translation": "人们常为没有伤害任何人的错误感到羞愧，却对从未亲眼见到后果的决定毫无不安——这一道德记账上的空档，问责制度很少能补上。",
+          "analysis": "并列复合句。第一分句 People are often ashamed of errors，that harmed no one 为定语从句，while remaining untroubled by decisions（while + 现在分词作对比状语）后接 whose 引导的定语从句（they never had to see 为定语从句，see 的宾语为关系代词 whose...）。a gap 为同位语，后接 in moral accounting 与 that 引导的定语从句。ashamed 取「羞愧的」义。"
+        }
+      ],
+      "collocations": [
+        "be ashamed of 为…感到羞愧",
+        "be ashamed to do 不好意思做",
+        "feel ashamed 感到羞愧"
+      ],
+      "phrases": [
+        "nothing to be ashamed of 没什么可羞愧的",
+        "deeply ashamed 深感羞愧"
+      ],
+      "derived": [
+        {
+          "word": "shame",
+          "meaning": "n. 羞耻 v. 使羞愧"
+        },
+        {
+          "word": "shameful",
+          "meaning": "adj. 可耻的（修饰事物）"
+        },
+        {
+          "word": "shameless",
+          "meaning": "adj. 无耻的"
+        }
+      ],
+      "synonyms": [
+        "embarrassed",
+        "guilty",
+        "humiliated",
+        "mortified"
+      ],
+      "mnemonic": "shame 家族分工：ashamed 感到羞愧的（**修饰人、作表语**）/ shameful 可耻的（修饰事）/ shameless 无耻的"
+    },
+    "aside": {
+      "syllable": "a·side",
+      "pos": "adv./n.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "在旁边，到一边（put aside）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "（aside from）除…以外"
+        },
+        {
+          "pos": "n.",
+          "meaning": "旁白；（插入的）题外话"
+        }
+      ],
+      "rootAffix": "a-（在）+ side（旁边）→ 在一边",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He stepped aside to let her pass.",
+          "translation": "他闪到一边让她过去。",
+          "analysis": "简单句：主语 He + 谓语 stepped + 状语 aside + 目的状语 to let her pass（let sb do 结构，不带 to）。aside 表「向旁边」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Setting aside for a moment the question of whether the policy will work, we should ask who benefits from it being discussed at all, since attention is itself a scarce resource.",
+          "translation": "暂时搁置这项政策是否有效的问题，我们应当追问：讨论它本身对谁有利——因为注意力本身就是稀缺资源。",
+          "analysis": "主从复合句。Setting aside... 为现在分词短语作状语（set aside 表「搁置」，介词宾语为 the question，后接 whether 引导的同位语从句），主句 we should ask，宾语为 who 引导的宾语从句；it being discussed at all 为动名词复合结构（it 为逻辑主语）。since 引导原因状语从句（itself 强调 attention）。aside 取「搁置一旁」义。"
+        }
+      ],
+      "collocations": [
+        "set aside 搁置；留出",
+        "aside from 除…之外",
+        "put aside 放到一边；存起来",
+        "stand aside 站到一边；袖手旁观"
+      ],
+      "phrases": [
+        "brushing aside 不予理会",
+        "joking aside 说正经的"
+      ],
+      "derived": [
+        {
+          "word": "side",
+          "meaning": "n. 旁边；方面"
+        },
+        {
+          "word": "sideline",
+          "meaning": "n. 副业；边线"
+        }
+      ],
+      "synonyms": [
+        "apart",
+        "to one side",
+        "besides",
+        "digression"
+      ],
+      "mnemonic": "固定搭配高频：set aside（搁置/留出）、aside from（除…之外）、put aside（存起来）——考研阅读与写作都常用"
+    },
+    "aspect": {
+      "syllable": "as·pect",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "方面，层面（one aspect of）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "外观，样子（较旧用法）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（语法）体（如进行体）"
+        }
+      ],
+      "rootAffix": "a-（向）+ spect（看，同 inspect/spectator）→ 看过去的一面 → 方面",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Cost is only one aspect of the problem.",
+          "translation": "成本只是这个问题的一个方面。",
+          "analysis": "简单句：主语 Cost + 系动词 is + 表语 one aspect + 后置定语 of the problem。aspect 取「方面」义，常用 one/many/key aspect(s) of。"
+        },
+        {
+          "level": "long",
+          "sentence": "The aspect of the reform that worries teachers most is not the extra work it requires but the assumption, built into its design, that what cannot be measured does not matter.",
+          "translation": "这项改革最让教师担心的方面，不是它要求的额外工作，而是它设计中内含的那种假定：无法被测量的东西就不重要。",
+          "analysis": "主从复合句。主语 The aspect of the reform 后接 that 引导的定语从句（worries teachers most），系表结构 is not...but...（对比两个表语）。the assumption 后接 built into its design（过去分词短语作后置定语）与 that 引导的同位语从句（说明假定的内容，从句中 what cannot be measured 为主语从句，does not matter 为谓语）。aspect 取「方面」义。"
+        }
+      ],
+      "collocations": [
+        "an important aspect 一个重要方面",
+        "in every aspect 在各方面",
+        "aspect of life 生活的方面",
+        "consider all aspects 考虑各方面"
+      ],
+      "phrases": [
+        "from this aspect 从这个角度看",
+        "a neglected aspect 被忽视的方面"
+      ],
+      "derived": [
+        {
+          "word": "aspectual",
+          "meaning": "adj. 方面的；（语法）体的"
+        },
+        {
+          "word": "perspective",
+          "meaning": "n. 视角（同源 spect）"
+        }
+      ],
+      "synonyms": [
+        "facet",
+        "dimension",
+        "side",
+        "angle"
+      ],
+      "mnemonic": "spect 是「看」词根（inspect 检查、spectator 观众、perspective 视角）→ aspect 即「看到的那一面」→ 方面"
+    },
+    "aspire": {
+      "syllable": "as·pire",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "渴望，立志（aspire to do / aspire to sth）"
+        }
+      ],
+      "rootAffix": "a-（向）+ spir（呼吸，同 spirit/inspire）→ 朝着某目标屏息以求 → 渴望",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She aspires to become a research scientist.",
+          "translation": "她立志成为一名研究科学家。",
+          "analysis": "简单句：主语 She + 谓语 aspires + 宾语 to become a research scientist（不定式作宾语）。aspire to do sth 与 aspire to sth（aspire to fame）均为固定搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "Universities that aspire to be judged by international rankings may unconsciously neglect the local problems they were founded to address, since the metrics reward work that travels well and count nothing else.",
+          "translation": "立志以国际排名接受评判的大学，可能会无意识地忽视它们创立之初所要解决的本地问题，因为这些指标奖励的是易于跨国流通的成果，其余一概不计。",
+          "analysis": "主从复合句。主语 Universities 后接 that 引导的定语从句（aspire to be judged... 为被动不定式），谓语 may neglect，宾语 the local problems 后接省略关系词的定语从句 they were founded to address（被动 + 目的状语）。since 引导原因状语从句，主语 the metrics，谓语 reward，宾语 work 后接 that travels well 定语从句，and count nothing else 并列第二谓语。aspire 取「立志」义。"
+        }
+      ],
+      "collocations": [
+        "aspire to 渴望；立志于",
+        "aspire to do 立志做",
+        "aspiring writer 有抱负的作家"
+      ],
+      "phrases": [
+        "aspire after fame 追求名声",
+        "aspirations for 对…的期望"
+      ],
+      "derived": [
+        {
+          "word": "aspiration",
+          "meaning": "n. 渴望，志向"
+        },
+        {
+          "word": "aspiring",
+          "meaning": "adj. 有抱负的"
+        }
+      ],
+      "synonyms": [
+        "aim",
+        "strive",
+        "long",
+        "yearn"
+      ],
+      "mnemonic": "spir 是「呼吸」词根（spirit 精神、inspire 激励、expire 到期）→ aspire 即「朝着目标屏住呼吸以求」→ 渴望；名词 aspiration 常用复数"
+    },
+    "assemble": {
+      "syllable": "as·sem·ble",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "集合，聚集（不及物）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "组装，装配（assemble a machine）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "收集，汇集（assemble evidence）"
+        }
+      ],
+      "rootAffix": "as-（向）+ sembl（相似、一起，同 similar）→ 聚到一起 → 集合；组装",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The students assembled in the hall.",
+          "translation": "学生们在礼堂集合。",
+          "analysis": "简单句：主语 The students + 谓语 assembled + 地点状语 in the hall。assemble 作不及物动词表「聚集」；作及物动词则表「组装/汇集」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The evidence was assembled from sources that were never designed to be compared, so the picture it yields is reliable in outline but unreliable in detail — a limitation the authors acknowledge only in a footnote.",
+          "translation": "这些证据汇集自原本并非为相互比较而设计的来源，因此它构成的图景在轮廓上可靠而细节上不可靠——这一局限作者只在脚注中承认。",
+          "analysis": "并列复合句。第一分句为被动结构 The evidence was assembled from sources，后接 that 引导的定语从句（were never designed to be compared 为被动不定式）；so 引导结果分句，主语 the picture 后接省略关系词的定语从句 it yields，系表结构 reliable in outline but unreliable in detail。a limitation 为同位语，后接省略关系词的定语从句 the authors acknowledge only in a footnote。assemble 取「汇集（证据）」义。"
+        }
+      ],
+      "collocations": [
+        "assemble a machine 组装机器",
+        "assemble evidence 汇集证据",
+        "assembled crowd 聚集的人群"
+      ],
+      "phrases": [
+        "assemble data 收集数据",
+        "an assembly line 装配线"
+      ],
+      "derived": [
+        {
+          "word": "assembly",
+          "meaning": "n. 集会；组装；议会"
+        },
+        {
+          "word": "assemblage",
+          "meaning": "n. 集合；聚集物"
+        }
+      ],
+      "synonyms": [
+        "gather",
+        "convene",
+        "put together",
+        "collect"
+      ],
+      "mnemonic": "sembl 是「相似、一起」词根（similar 相似的、resemble 像）→ as+semble = 聚到一处 → 集合；名词 assembly 兼具「集会」与「装配」两义"
     },
     "assess": {
       "syllable": "as·sess",
