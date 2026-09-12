@@ -1,7 +1,7 @@
 {
   "shard": "b",
   "from": "bachelor",
-  "to": "bitter",
+  "to": "boom",
   "entries": {
     "bachelor": {
       "syllable": "bach·e·lor",
@@ -5139,6 +5139,1590 @@
         "acrid"
       ],
       "mnemonic": "bit·ter 记「苦的/痛苦的」；to the bitter end 拼到底"
+    },
+    "black": {
+      "syllable": "black",
+      "pos": "adj./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "黑色的；黑暗的；愤怒的（black look）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "黑色；黑人（首字母大写 Black 表族裔）"
+        }
+      ],
+      "rootAffix": "源自古英语 blæc（黑）→ 原始日耳曼 *blakaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She wore a black coat on the cold day.",
+          "translation": "冷天里她穿了件黑色外套。",
+          "analysis": "简单句：主语 She + 谓语 wore + 宾语 a black coat + 时间状语 on the cold day。black 表「黑色的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The black box that records every flight survived the crash it was meant to explain, a device whose plain name hides the fact that its worth is proven only by the disaster it was built to prevent.",
+          "translation": "那记录每次飞行的黑匣子，在它本要解释的坠机中幸存下来——这台设备朴素的名字掩盖了一个事实：它的价值，只由它本要预防的灾难来证明。",
+          "analysis": "复合句。主句 The black box... survived the crash，其内 that records every flight 定语从句修饰 box，it was meant to explain 定语从句修饰 crash（meant to 表「旨在」）。a device whose plain name hides the fact... 为同位语，whose 定语从句修饰 device，the fact 后接 that 同位语从句（its worth is proven only by the disaster it was built to prevent，it was built to prevent 定语从句修饰 disaster）。"
+        }
+      ],
+      "collocations": [
+        "black and white",
+        "black box",
+        "black market"
+      ],
+      "phrases": [
+        "black out 断电；昏厥",
+        "in black and white 白纸黑字"
+      ],
+      "derived": [
+        {
+          "word": "blacken",
+          "meaning": "v. 使变黑；诋毁"
+        },
+        {
+          "word": "blackness",
+          "meaning": "n. 漆黑"
+        }
+      ],
+      "synonyms": [
+        "dark",
+        "ebony",
+        "sable"
+      ],
+      "mnemonic": "black 记「黑」；black box 黑匣子"
+    },
+    "blade": {
+      "syllable": "blade",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "刀刃，刀片；叶片（草叶/桨叶）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（扁而薄的）片（shoulder blade 肩胛骨）"
+        }
+      ],
+      "rootAffix": "源自古英语 blæd（叶/刃）→ 原始日耳曼 *bladą",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The knife has a sharp steel blade.",
+          "translation": "这把刀有锋利的钢刃。",
+          "analysis": "简单句：主语 The knife + 谓语 has + 宾语 a sharp steel blade。blade 表「刀刃」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The turbine blade that spins unseen in the wind turns a force no eye can see into power a city can use, a quiet translation of motion into light that most beneficiaries never think to trace back to the whirling edge.",
+          "translation": "那在风中不引人注目旋转的涡轮叶片，把无人能见的力转成城市可用的电——这是一场运动到光明的安静转译，多数受惠者从不想去溯源到那片旋转的边。",
+          "analysis": "复合句。主句 The turbine blade... turns a force... into power，其内 that spins unseen in the wind 定语从句修饰 blade，no eye can see 定语从句修饰 force，a city can use 定语从句修饰 power。a quiet translation... 为同位语，that most beneficiaries never think to trace back to the whirling edge 定语从句修饰 translation（trace back to 表「溯源」）。"
+        }
+      ],
+      "collocations": [
+        "a sharp blade",
+        "blade of grass",
+        "turbine blade"
+      ],
+      "phrases": [
+        "shoulder blade 肩胛骨",
+        "blade runner  blade 跑者（影名）"
+      ],
+      "derived": [
+        {
+          "word": "bladed",
+          "meaning": "adj. 有刃的"
+        }
+      ],
+      "synonyms": [
+        "edge",
+        "knife",
+        "leaf"
+      ],
+      "mnemonic": "blade 记「刀刃/叶片」；blade of grass 草叶"
+    },
+    "blame": {
+      "syllable": "blame",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "责备，归咎于（blame sb. for）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "责任，过错（take the blame）"
+        }
+      ],
+      "rootAffix": "源自古法语 blasmer（指责）→ 拉丁 blasphemare（亵渎）→ 引申责备",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Don't blame him for the mistake.",
+          "translation": "别为这个错误责怪他。",
+          "analysis": "简单句（祈使）：Don't blame + 宾语 him + 状语 for the mistake。blame sb. for sth. 表「因某事责怪某人」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The report blamed the failure on a single engineer, yet the record showed the fault lay in a process that let one person's slip become everyone's loss, so the blame that landed on an individual masked a gap no individual could have closed.",
+          "translation": "报告把失败归咎于一名工程师，然而记录显示错在「让一人失误变成众人损失」的流程——于是落在一个人身上的责备，掩盖了一个无人能独自填补的缺口。",
+          "analysis": "复合句。主句 The report blamed the failure on a single engineer，其内 yet 转折 the record showed the fault lay in a process，that let one person's slip become everyone's loss 定语从句修饰 process。so 引导结果状语从句，其主句 the blame... masked a gap，that landed on an individual 定语从句修饰 blame，no individual could have closed 定语从句修饰 gap。"
+        }
+      ],
+      "collocations": [
+        "blame sb. for",
+        "blame on",
+        "take the blame"
+      ],
+      "phrases": [
+        "be to blame 该受责",
+        "put the blame on 推卸给"
+      ],
+      "derived": [
+        {
+          "word": "blameless",
+          "meaning": "adj. 无可责的"
+        },
+        {
+          "word": "blamable",
+          "meaning": "adj. 该受责的"
+        }
+      ],
+      "synonyms": [
+        "accuse",
+        "fault",
+        "reproach"
+      ],
+      "mnemonic": "blame 记「责备/归咎」；be to blame 该负责"
+    },
+    "blank": {
+      "syllable": "blank",
+      "pos": "adj./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "空白的；茫然的（blank look）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "空白（处）；空格"
+        }
+      ],
+      "rootAffix": "源自古法语 blanc（白的）→ 空白",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Please fill in the blank on the form.",
+          "translation": "请填写表格上的空白处。",
+          "analysis": "简单句（祈使）：fill in + 宾语 the blank + 状语 on the form。blank 表「空白处」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A blank page at the start of a project feels like freedom but is often fear in disguise, because the absence of constraint is also the absence of a cue, and the mind that waits for direction from a void tends to fill it with doubt instead of a plan.",
+          "translation": "项目起始的空白页看似自由，却常是恐惧的伪装，因为约束的缺失也是线索的缺失，而等待虚空给出方向的心，倾向于用疑虑而非计划去填满它。",
+          "analysis": "复合句。主句 A blank page... feels like freedom but is often fear in disguise（but 转折）。because 引导原因状语从句，其主句 the absence of constraint is also the absence of a cue，and 并列 the mind... tends to fill it with doubt instead of a plan，that waits for direction from a void 定语从句修饰 mind（instead of 表「而非」）。"
+        }
+      ],
+      "collocations": [
+        "blank space",
+        "go blank",
+        "blank cheque"
+      ],
+      "phrases": [
+        "draw a blank 一无所得",
+        "blank out 愣住；抹去"
+      ],
+      "derived": [
+        {
+          "word": "blankly",
+          "meaning": "adv. 茫然地"
+        },
+        {
+          "word": "blanket",
+          "meaning": "n. 毯子（同源）"
+        }
+      ],
+      "synonyms": [
+        "empty",
+        "void",
+        "unmarked"
+      ],
+      "mnemonic": "blank 记「空白」；draw a blank 落空"
+    },
+    "blanket": {
+      "syllable": "blan·ket",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "毯子，毛毯"
+        },
+        {
+          "pos": "v.",
+          "meaning": "覆盖，笼罩（be blanketed in）"
+        }
+      ],
+      "rootAffix": "blank（白/空白）+ -et（小）→ 白色毛织物 → 毯子",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She pulled the blanket over the sleeping child.",
+          "translation": "她把毯子拉过来盖在睡着的孩子身上。",
+          "analysis": "简单句：主语 She + 谓语 pulled + 宾语 the blanket + 状语 over the sleeping child。blanket 表「毯子」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Snow blanketed the town overnight, a quiet covering that hid the scars of the week and gave everyone, for a few hours, the illusion that the messy world outside had been made clean and equal by the same white sheet.",
+          "translation": "雪一夜之间盖住了小镇，这安静的覆盖掩去了这一周的伤痕，并在几小时内给所有人一种错觉：外面混乱的世界被同一张白布变得洁净而平等。",
+          "analysis": "复合句。主句 Snow blanketed the town overnight，a quiet covering that hid the scars... 为同位语，that 定语从句修饰 covering，of the week 后置定语。and gave everyone... the illusion 并列谓语，that the messy world... had been made clean and equal by the same white sheet 为 illusion 的同位语从句（made clean and equal 被动，by 引出执行者）。"
+        }
+      ],
+      "collocations": [
+        "a warm blanket",
+        "blanket of",
+        "electric blanket"
+      ],
+      "phrases": [
+        "blanket coverage 全面覆盖",
+        "wet blanket 扫兴的人"
+      ],
+      "derived": [
+        {
+          "word": "blank",
+          "meaning": "adj. 空白的（同源）"
+        }
+      ],
+      "synonyms": [
+        "quilt",
+        "cover",
+        "duvet"
+      ],
+      "mnemonic": "blan·ket 记「毯子」；a blanket of snow 一层雪"
+    },
+    "blast": {
+      "syllable": "blast",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "爆炸；一阵（强风/号声）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "爆破；猛烈批评（blast sb.）"
+        }
+      ],
+      "rootAffix": "源自古英语 blǣst（吹风/爆炸）→ 原始日耳曼 *blēstaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A blast of cold air hit them at the door.",
+          "translation": "一阵冷空气在门口扑向他们。",
+          "analysis": "简单句：主语 A blast of cold air + 谓语 hit + 宾语 them + 状语 at the door。a blast of 表「一阵（风）」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The blast that destroyed the bridge was small in itself but huge in meaning, because it exposed how a single point of failure, ignored for years as unlikely, could undo a link that a whole region depended on without noticing.",
+          "translation": "炸毁桥梁的那次爆炸本身很小，意义却很大，因为它暴露了：一个被多年以「不太可能」为由忽视的单点故障，能毁掉整个地区赖以生存却未察觉的纽带。",
+          "analysis": "复合句。主句 The blast... was small... but huge in meaning（but 转折），其内 that destroyed the bridge 定语从句修饰 blast。because 引导原因状语从句，其主句 it exposed how a single point of failure... could undo a link，过去分词 ignored for years as unlikely 作后置定语修饰 failure，that a whole region depended on without noticing 定语从句修饰 link（without noticing 伴随）。"
+        }
+      ],
+      "collocations": [
+        "a blast of",
+        "blast off",
+        "at full blast"
+      ],
+      "phrases": [
+        "blast furnace 高炉",
+        "blast sb. for 痛斥"
+      ],
+      "derived": [
+        {
+          "word": "blasted",
+          "meaning": "adj. 被炸的；该死的（口语）"
+        }
+      ],
+      "synonyms": [
+        "explosion",
+        "gust",
+        "burst"
+      ],
+      "mnemonic": "blast 记「爆炸/一阵」；blast off（火箭）发射"
+    },
+    "bleed": {
+      "syllable": "bleed",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "流血；渗出；榨取（bleed sb. dry）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "出血；（印刷）出血版"
+        }
+      ],
+      "rootAffix": "源自古英语 blēdan（使流血）→ 原始日耳曼 *blōdjaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The cut on his hand began to bleed.",
+          "translation": "他手上的伤口开始流血。",
+          "analysis": "简单句：主语 The cut + 谓语 began to bleed（begin to do）。bleed 表「流血」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The fee structure was designed to bleed users slowly, so that no single charge felt large enough to provoke a switch, a tactic that works precisely because the pain is spread too thinly for any one bill to trigger the leaving.",
+          "translation": "这套收费结构旨在慢慢榨取用户，让任何单笔费用都不足以引发更换——这招奏效，正因痛苦摊得太薄，没有哪张账单能触发离开。",
+          "analysis": "复合句。主句 The fee structure was designed to bleed users slowly，so that 引导结果状语从句（no single charge felt large enough to provoke a switch，enough to 表「足以」）。a tactic that works... 为同位语，that 定语从句修饰 tactic，because 引导原因状语从句（the pain is spread too thinly for any one bill to trigger the leaving，too...to 结构）。"
+        }
+      ],
+      "collocations": [
+        "bleed heavily",
+        "bleed dry",
+        "bleed for"
+      ],
+      "phrases": [
+        "bleed money 大把花钱",
+        "bleed into 渗入/蔓延到"
+      ],
+      "derived": [
+        {
+          "word": "blood",
+          "meaning": "n. 血（同源）"
+        },
+        {
+          "word": "bleeding",
+          "meaning": "adj. 流血的"
+        }
+      ],
+      "synonyms": [
+        "flow",
+        "ooze",
+        "drain"
+      ],
+      "mnemonic": "bleed 记「流血」；bleed sb. dry 榨干某人"
+    },
+    "blend": {
+      "syllable": "blend",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "混合，调配；交融"
+        },
+        {
+          "pos": "n.",
+          "meaning": "混合物； blend（咖啡/茶调配）"
+        }
+      ],
+      "rootAffix": "源自古英语 blendan（使混）→ 原始日耳曼 *blandijaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Blend the flour with the eggs and milk.",
+          "translation": "把面粉与鸡蛋、牛奶混合。",
+          "analysis": "简单句（祈使）：Blend + 宾语 the flour + 状语 with the eggs and milk。blend A with B 表「把 A 与 B 混合」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The policy blended two ideas that each camp hated alone, yet together they neutralized the other's worst edge, a compromise that satisfied neither side fully because it borrowed from both and belonged to neither.",
+          "translation": "这项政策混合了两个阵营各自单独都厌恶的理念，然而合在一起却中和了对方的致命处——这妥协未让任一方完全满意，因为它借自两方、又不属于任一方。",
+          "analysis": "复合句。主句 The policy blended two ideas，其内 that each camp hated alone 定语从句修饰 ideas，yet 转折 together they neutralized the other's worst edge。a compromise that satisfied neither side fully 为同位语，that 定语从句修饰 compromise，because 引导原因状语从句（it borrowed from both and belonged to neither）。"
+        }
+      ],
+      "collocations": [
+        "blend with",
+        "blend in",
+        "a blend of"
+      ],
+      "phrases": [
+        "blend into 融入",
+        "well-blended 调配得当的"
+      ],
+      "derived": [
+        {
+          "word": "blender",
+          "meaning": "n. 搅拌机"
+        }
+      ],
+      "synonyms": [
+        "mix",
+        "merge",
+        "combine"
+      ],
+      "mnemonic": "blend 记「混合」；blend in 融入"
+    },
+    "bless": {
+      "syllable": "bless",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "祝福，保佑；使有幸（be blessed with）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（委婉）诅咒（bless me! 表惊讶）"
+        }
+      ],
+      "rootAffix": "源自古英语 blētsian（祝圣）→ 与 blood（以血祭献）同源",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The priest blessed the new building.",
+          "translation": "神父为那座新建筑祝圣。",
+          "analysis": "简单句：主语 The priest + 谓语 blessed + 宾语 the new building。bless 表「祝福、祝圣」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The town was blessed with a harbor that spared it the cost of building one, yet cursed with a channel that silted so fast that the gift demanded constant dredging, a fortune that flowed from the same geography that first made the place.",
+          "translation": "这座小镇有幸拥有港湾，省去了自建之费，却又受困于一条淤积极快的航道，以至于这份馈赠需要不停疏浚——福与祸，皆出自最初成就此地的同一片地理。",
+          "analysis": "复合句。主句 The town was blessed with a harbor，其内 that spared it the cost of building one 定语从句，yet 转折 cursed with a channel，that silted so fast that... 定语从句（so...that 结果状语从句 the gift demanded constant dredging）。a fortune that flowed from the same geography... 为同位语，that 定语从句修饰 fortune，that first made the place 定语从句修饰 geography。"
+        }
+      ],
+      "collocations": [
+        "bless sb./sth.",
+        "be blessed with",
+        "God bless"
+      ],
+      "phrases": [
+        "bless you 保佑你（打喷嚏时说）",
+        "count one's blessings 知足"
+      ],
+      "derived": [
+        {
+          "word": "blessing",
+          "meaning": "n. 祝福；幸事"
+        },
+        {
+          "word": "blessed",
+          "meaning": "adj. 受福的"
+        }
+      ],
+      "synonyms": [
+        "sanctify",
+        "favor",
+        "protect"
+      ],
+      "mnemonic": "bless 记「祝福」；be blessed with 有幸拥有"
+    },
+    "blind": {
+      "syllable": "blind",
+      "pos": "adj./v.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "盲的，瞎的；视而不见的"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使失明；蒙蔽（blind sb. to）"
+        }
+      ],
+      "rootAffix": "源自古英语 blind（盲）→ 原始日耳曼 *blindaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The blind man crossed the street with help.",
+          "translation": "那位盲人有人搀扶着过了街。",
+          "analysis": "简单句：主语 The blind man + 谓语 crossed + 宾语 the street + 状语 with help。blind 表「盲的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Success made the team blind to the risk, because the wins that proved the method also hid its limits, and a record of results too clean to question lulled everyone into skipping the check that would have caught the crack in time.",
+          "translation": "成功让团队对风险视而不见，因为证明方法的那些胜利也掩藏了它的局限，而一份干净得无可质疑的业绩，让所有人松懈到跳过了本可及时察觉裂缝的检查。",
+          "analysis": "复合句。主句 Success made the team blind to the risk，because 引导原因状语从句，其主句 the wins... also hid its limits，that proved the method 定语从句修饰 wins，and 并列 a record... lulled everyone into skipping the check，too clean to question 后置定语修饰 record，that would have caught the crack in time 定语从句修饰 check。"
+        }
+      ],
+      "collocations": [
+        "blind spot",
+        "turn a blind eye",
+        "blind to"
+      ],
+      "phrases": [
+        "blind date 相亲（盲约）",
+        "love is blind 爱是盲目的"
+      ],
+      "derived": [
+        {
+          "word": "blindness",
+          "meaning": "n. 失明；盲目"
+        },
+        {
+          "word": "blindly",
+          "meaning": "adv. 盲目地"
+        }
+      ],
+      "synonyms": [
+        "sightless",
+        "unseeing",
+        "ignorant"
+      ],
+      "mnemonic": "blind 记「盲的」；turn a blind eye 视而不见"
+    },
+    "blink": {
+      "syllable": "blink",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "眨（眼）；闪烁"
+        },
+        {
+          "pos": "n.",
+          "meaning": "眨眼；一瞬间（in a blink）"
+        }
+      ],
+      "rootAffix": "源自古英语 blincan（眨）→ 原始日耳曼 *blinkaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She didn't blink when she heard the price.",
+          "translation": "听到价格时她连眼都没眨一下。",
+          "analysis": "简单句：主语 She + 谓语 didn't blink + 时间 when she heard the price（when 引导时间状语从句）。not blink 表「不为所动」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The market can fall in the blink of an eye, yet recover in the time it takes to explain why it fell, a asymmetry that punishes the slow and rewards the calm because fear acts in seconds while reason arrives only after the damage is done.",
+          "translation": "市场能在一眨眼间下跌，却要花「解释为何下跌」的时间才回升——这不对称惩罚了迟钝者、奖赏了冷静者，因为恐惧以秒行动，而理性只在损失造成后才到。",
+          "analysis": "复合句。主句 The market can fall in the blink of an eye，yet 转折 recover in the time it takes to explain why it fell（it takes to explain 定语从句修饰 time，why 宾语从句）。a asymmetry that punishes... and rewards... 为同位语，that 定语从句修饰 asymmetry，because 引导原因状语从句（fear acts in seconds while reason arrives only after the damage is done，while 并列，after 时间状语从句）。"
+        }
+      ],
+      "collocations": [
+        "in the blink of an eye",
+        "blink at",
+        "not blink"
+      ],
+      "phrases": [
+        "on the blink 出故障（口语）",
+        "blink of an eye 瞬息"
+      ],
+      "derived": [
+        {
+          "word": "blinking",
+          "meaning": "adj. 闪烁的（英俚表强调）"
+        }
+      ],
+      "synonyms": [
+        "flutter",
+        "wink",
+        "flicker"
+      ],
+      "mnemonic": "blink 记「眨眼」；in a blink 一瞬间"
+    },
+    "block": {
+      "syllable": "block",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "块；街区；大楼（apartment block）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "阻挡，阻塞；阻塞（思维）"
+        }
+      ],
+      "rootAffix": "源自古法语 bloc（原木/块）→ 原始日耳曼 *blukka",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A fallen tree blocked the road.",
+          "translation": "一棵倒下的树挡住了路。",
+          "analysis": "简单句：主语 A fallen tree + 谓语 blocked + 宾语 the road。block 表「阻挡」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The proposal was blocked not by a rival but by a rule no one remembered writing, a lock that had outlived its purpose because the problem it guarded against had vanished while the clause that enforced it quietly remained.",
+          "translation": "那项提案并非被对手、而是被一条无人记得写过的规定挡下——这把锁已逾其用，因为它防范的问题已消失，而执行它的条款却悄悄留存。",
+          "analysis": "复合句。主句 The proposal was blocked not by A but by B（not...but 结构）。a lock that had outlived its purpose 为同位语，that 定语从句修饰 lock，because 引导原因状语从句（the problem it guarded against had vanished while the clause... remained，it guarded against 定语从句修饰 problem，while 并列，that enforced it 定语从句修饰 clause）。"
+        }
+      ],
+      "collocations": [
+        "block off",
+        "a block of",
+        "city block"
+      ],
+      "phrases": [
+        "block out 遮住；忽略",
+        "mental block 思维阻塞"
+      ],
+      "derived": [
+        {
+          "word": "blockage",
+          "meaning": "n. 阻塞"
+        },
+        {
+          "word": "blockade",
+          "meaning": "n./v. 封锁"
+        }
+      ],
+      "synonyms": [
+        "obstruct",
+        "hinder",
+        "chunk"
+      ],
+      "mnemonic": "block 记「块/阻挡」；mental block 思维卡壳"
+    },
+    "blood": {
+      "syllable": "blood",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "血，血液；血统，家族"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（血气/脾气）temper（bad blood 不和）"
+        }
+      ],
+      "rootAffix": "源自古英语 blōd（血）→ 原始日耳曼 *blōþą",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Blood circulates through the whole body.",
+          "translation": "血液流经全身循环。",
+          "analysis": "简单句：主语 Blood + 谓语 circulates + 状语 through the whole body。blood 表「血液」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The two families shared blood yet not trust, a divide that no kinship could bridge because the grievance passed down was thicker than the tie that biology had given, and memory outlasted the bond.",
+          "translation": "两家人血脉相连却无信任，这道裂痕任何亲缘都桥接不了，因为相传的怨怼比生物给予的纽带更厚，而记忆比羁绊更持久。",
+          "analysis": "复合句。主句 The two families shared blood yet not trust（yet 转折）。a divide that no kinship could bridge 为同位语，that 定语从句修饰 divide，because 引导原因状语从句（the grievance passed down was thicker than the tie，passed down 过去分词作后置定语，that biology had given 定语从句修饰 tie，and 并列 memory outlasted the bond）。"
+        }
+      ],
+      "collocations": [
+        "blood pressure",
+        "blood type",
+        "bad blood"
+      ],
+      "phrases": [
+        "in cold blood 冷血地",
+        "blood is thicker than water 血浓于水"
+      ],
+      "derived": [
+        {
+          "word": "bleed",
+          "meaning": "v. 流血（同源）"
+        },
+        {
+          "word": "bloody",
+          "meaning": "adj. 血腥的"
+        }
+      ],
+      "synonyms": [
+        "gore",
+        "kinship",
+        "lineage"
+      ],
+      "mnemonic": "blood 记「血/血统」；bad blood 不和"
+    },
+    "bloom": {
+      "syllable": "bloom",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "花（尤指观赏花）；盛开"
+        },
+        {
+          "pos": "v.",
+          "meaning": "开花；繁荣，焕发（bloom with）"
+        }
+      ],
+      "rootAffix": "源自古英语 blōma（花/金属块）→ 原始日耳曼 *blōmô",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The roses bloom in early summer.",
+          "translation": "玫瑰在初夏绽放。",
+          "analysis": "简单句：主语 The roses + 谓语 bloom + 时间 in early summer。bloom 表「开花」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A mind blooms only when fed, yet the feeding is slow and the bloom looks sudden, a mismatch that fools observers into crediting talent for what was in fact the quiet accumulation of ordinary days no one photographed.",
+          "translation": "心智只在被滋养时才绽放，然而滋养缓慢、绽放看似骤然——这错位让旁观者把实为平凡日子默默积累的东西归功于天赋，而那积累无人拍照留存。",
+          "analysis": "复合句。主句 A mind blooms only when fed（when fed 省略 when it is fed），yet 转折 the feeding is slow and the bloom looks sudden。a mismatch that fools observers into crediting talent... 为同位语，that 定语从句修饰 mismatch，into crediting talent for what was... 宾语（what 从句），for what was in fact the quiet accumulation of ordinary days 原因状语，no one photographed 定语从句修饰 days。"
+        }
+      ],
+      "collocations": [
+        "in bloom",
+        "bloom with",
+        "come into bloom"
+      ],
+      "phrases": [
+        "bloom of youth 青春焕发",
+        "in full bloom 盛开"
+      ],
+      "derived": [
+        {
+          "word": "blooming",
+          "meaning": "adj. 盛开的"
+        },
+        {
+          "word": "blossom",
+          "meaning": "n./v. 花；开花（近义）"
+        }
+      ],
+      "synonyms": [
+        "flower",
+        "blossom",
+        "flourish"
+      ],
+      "mnemonic": "bloom 记「开花/繁荣」；in full bloom 盛开"
+    },
+    "blossom": {
+      "syllable": "blos·som",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "（树）花，花簇；全盛"
+        },
+        {
+          "pos": "v.",
+          "meaning": "开花；发展，成长（blossom into）"
+        }
+      ],
+      "rootAffix": "源自古英语 blōstm（花）→ 原始日耳曼 *blōsmô",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The apple tree blossomed white in April.",
+          "translation": "苹果树四月开满白花。",
+          "analysis": "简单句：主语 The apple tree + 谓语 blossomed + 状语 white + 时间 in April。blossom 表「开花」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The quiet student blossomed into a confident speaker, a change no grade had predicted because the skill grew in the spaces between tests, where practice without scoring slowly rebuilt a self-image the classroom had quietly chipped away.",
+          "translation": "那个沉默的学生长成了自信的演讲者，这变化任何分数都未预测到，因为那项能力成长于考试之间的空隙，那里没有打分的练习慢慢重建了被课堂悄悄磨蚀的自我形象。",
+          "analysis": "复合句。主句 The quiet student blossomed into a confident speaker，a change no grade had predicted 为同位语（no grade had predicted 定语从句修饰 change）。because 引导原因状语从句，其主句 the skill grew in the spaces between tests，where practice without scoring slowly rebuilt a self-image 定语从句修饰 spaces（where 引导），the classroom had quietly chipped away 定语从句修饰 self-image（chip away 表「逐渐削弱」）。"
+        }
+      ],
+      "collocations": [
+        "in blossom",
+        "blossom into",
+        "apple blossom"
+      ],
+      "phrases": [
+        "blossom out 发展起来",
+        "full blossom 盛开"
+      ],
+      "derived": [
+        {
+          "word": "bloom",
+          "meaning": "n./v. 花；开花（近义）"
+        }
+      ],
+      "synonyms": [
+        "flower",
+        "flourish",
+        "develop"
+      ],
+      "mnemonic": "blos·som 记「开花/成长」；blossom into 长成"
+    },
+    "blouse": {
+      "syllable": "blouse",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "女式衬衫，宽松短上衣"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（工装）宽罩衫"
+        }
+      ],
+      "rootAffix": "源自古法语 blouse（工装罩衫）→ 可能源自希腊 blousa",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She bought a blue silk blouse for work.",
+          "translation": "她买了件蓝色丝绸衬衫上班穿。",
+          "analysis": "简单句：主语 She + 谓语 bought + 宾语 a blue silk blouse + 状语 for work。blouse 表「女式衬衫」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The uniform that flattened every worker into the same blouse also flattened their names into numbers, a leveling that improved the ledger yet cost the firm the faces it later needed when trust, not efficiency, became the scarce thing.",
+          "translation": "那套把每个工人削成同款罩衫的制服，也把他们的名字削成了数字——这整齐提升了账本，却让公司在后来稀缺的是信任而非效率时，失去了所需的那一张张脸。",
+          "analysis": "复合句。主句 The uniform... also flattened their names into numbers，其内 that flattened every worker into the same blouse 定语从句修饰 uniform。a leveling that improved the ledger yet cost the firm the faces... 为同位语，that 定语从句修饰 leveling，yet 转折 cost 并列，it later needed 定语从句修饰 faces，when 引导时间状语从句（trust, not efficiency, became the scarce thing）。"
+        }
+      ],
+      "collocations": [
+        "a silk blouse",
+        "blouse and skirt",
+        "wear a blouse"
+      ],
+      "phrases": [
+        "white blouse 白衬衫",
+        "loose blouse 宽松罩衫"
+      ],
+      "derived": [
+        {
+          "word": "bloused",
+          "meaning": "adj. 穿罩衫的"
+        }
+      ],
+      "synonyms": [
+        "shirt",
+        "top",
+        "tunic"
+      ],
+      "mnemonic": "blouse 记「女式衬衫/罩衫」；blouse and skirt 衬衫裙"
+    },
+    "blow": {
+      "syllable": "blow",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "吹；吹响（号）；爆炸（blow up）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "打击，打击（a blow to）"
+        }
+      ],
+      "rootAffix": "源自古英语 blāwan（吹）→ 原始日耳曼 *blēaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The wind blew the leaves across the yard.",
+          "translation": "风把叶子吹过院子。",
+          "analysis": "简单句：主语 The wind + 谓语 blew + 宾语 the leaves + 状语 across the yard。blow 表「吹」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The scandal was a blow to a reputation built over decades, because trust assembled slowly is lost at once, and the same public that raised the figure now rushed to topple it, a cycle that rewards height only to make the fall louder.",
+          "translation": "那桩丑闻是对数十年建起声誉的一记重击，因为慢慢攒起的信任会瞬间丧失，而把那人捧高的同一批公众此刻又急着推倒他——这循环只奖励高度，好让坠落更响。",
+          "analysis": "复合句。主句 The scandal was a blow to a reputation，其内 built over decades 过去分词作后置定语。because 引导原因状语从句，其主句 trust... is lost at once，and 并列 the same public... rushed to topple it，that raised the figure 定语从句修饰 public，a cycle that rewards height only to make the fall louder 为同位语（that 定语从句，only to 表「结果却」）。"
+        }
+      ],
+      "collocations": [
+        "blow up",
+        "blow away",
+        "a blow to"
+      ],
+      "phrases": [
+        "blow one's mind 令人震惊",
+        "come to blows 动手打起来"
+      ],
+      "derived": [
+        {
+          "word": "blown",
+          "meaning": "adj. 吹制的；被炸的"
+        },
+        {
+          "word": "blower",
+          "meaning": "n. 吹制者；鼓风机"
+        }
+      ],
+      "synonyms": [
+        "gust",
+        "strike",
+        "blast"
+      ],
+      "mnemonic": "blow 双义：吹/打击；blow up 爆炸"
+    },
+    "blue": {
+      "syllable": "blue",
+      "pos": "adj./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "蓝色的；忧郁的（feel blue）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "蓝色"
+        }
+      ],
+      "rootAffix": "源自古法语 bleu（蓝）→ 原始日耳曼 *blēwaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The sky turned deep blue after the rain.",
+          "translation": "雨后天空变成深蓝色。",
+          "analysis": "简单句：主语 The sky + 谓语 turned + 表语 deep blue + 时间 after the rain。turn 系动词表「变得」。"
+        },
+        {
+          "level": "long",
+          "sentence": "He felt blue not from a single loss but from the slow leak of small ones, a sadness that resists naming because each piece looks too minor to mention, yet together they drained the color from a week he had planned to enjoy.",
+          "translation": "他感到忧郁，并非因某一次失败，而是源于一次次小失落的缓慢渗漏——这悲伤难以名状，因为每一片都太小不值一提，合起来却抽干了本计划享受的一周的颜色。",
+          "analysis": "复合句。主句 He felt blue not from A but from B。a sadness that resists naming 为同位语，that 定语从句修饰 sadness，because 引导原因状语从句（each piece looks too minor to mention，too...to 结构），yet 转折 together they drained the color from a week，he had planned to enjoy 定语从句修饰 week。"
+        }
+      ],
+      "collocations": [
+        "feel blue",
+        "blue sky",
+        "out of the blue"
+      ],
+      "phrases": [
+        "blue-collar 蓝领",
+        "once in a blue moon 千载难逢"
+      ],
+      "derived": [
+        {
+          "word": "bluish",
+          "meaning": "adj. 带蓝色的"
+        },
+        {
+          "word": "blueprint",
+          "meaning": "n. 蓝图"
+        }
+      ],
+      "synonyms": [
+        "sad",
+        "azure",
+        "gloomy"
+      ],
+      "mnemonic": "blue 双义：蓝/忧郁；feel blue 心情低落"
+    },
+    "board": {
+      "syllable": "board",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "木板；董事会；膳食（on board 在船/机上）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "上（船/车/机）；用木板封"
+        }
+      ],
+      "rootAffix": "源自古英语 bōrd（木板/船舷）→ 原始日耳曼 *burdą",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The passengers boarded the plane on time.",
+          "translation": "乘客准时登机。",
+          "analysis": "简单句：主语 The passengers + 谓语 boarded + 宾语 the plane + 状语 on time。board 表「登上（交通工具）」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The board that approved the plan was not the board that would suffer it, a split that let decision-makers trade the comfort of yes for the cost paid by people whose names never reached the table where the choice was made.",
+          "translation": "批准计划的董事会，并非承受计划的董事会——这道裂隙让决策者用「同意」的坦然，换取了那些名字从未抵达决策桌的人的代价。",
+          "analysis": "复合句。主句 The board... was not the board...，其内 that approved the plan 定语从句修饰第一个 board，that would suffer it 定语从句修饰第二个 board。a split that let decision-makers trade A for B 为同位语，that 定语从句，people whose names never reached the table 定语从句修饰 people，where the choice was made 定语从句修饰 table。"
+        }
+      ],
+      "collocations": [
+        "on board",
+        "board of directors",
+        "board a train"
+      ],
+      "phrases": [
+        "boarding pass 登机牌",
+        "above board 光明正大"
+      ],
+      "derived": [
+        {
+          "word": "boarding",
+          "meaning": "n. 登乘；寄宿"
+        },
+        {
+          "word": "blackboard",
+          "meaning": "n. 黑板"
+        }
+      ],
+      "synonyms": [
+        "panel",
+        "plank",
+        "committee"
+      ],
+      "mnemonic": "board 记「木板/董事会」；on board 在船/机上"
+    },
+    "boast": {
+      "syllable": "boast",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "吹嘘，夸耀（boast of/about）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "自夸的话；值得骄傲之处"
+        }
+      ],
+      "rootAffix": "源自古英语 bōst（夸口）→ 原始日耳曼 *bōstaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He boasted about his high score to friends.",
+          "translation": "他向朋友夸耀自己的高分。",
+          "analysis": "简单句：主语 He + 谓语 boasted + 状语 about his high score + 对象 to friends。boast about 表「夸耀」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The company boasted of a speed no test could confirm, because the headline number described a lab condition no customer would ever meet, and the claim that impressed investors quietly misled the users who trusted it.",
+          "translation": "那家公司夸耀一个任何测试都无法确认的速度，因为那个头条数字描述的是客户永不会遇到的实验室条件，而打动投资者的说法，悄悄误导了信任它的用户。",
+          "analysis": "复合句。主句 The company boasted of a speed，其内 no test could confirm 定语从句修饰 speed。because 引导原因状语从句，其主句 the headline number described a lab condition，no customer would ever meet 定语从句修饰 condition，and 并列 the claim... quietly misled the users，that impressed investors 定语从句修饰 claim，who trusted it 定语从句修饰 users。"
+        }
+      ],
+      "collocations": [
+        "boast of/about",
+        "boast that",
+        "empty boast"
+      ],
+      "phrases": [
+        "boast of one's deeds 夸耀事迹",
+        "nothing to boast of 没什么可夸"
+      ],
+      "derived": [
+        {
+          "word": "boastful",
+          "meaning": "adj. 好自夸的"
+        },
+        {
+          "word": "boaster",
+          "meaning": "n. 自夸者"
+        }
+      ],
+      "synonyms": [
+        "brag",
+        "crow",
+        "pride"
+      ],
+      "mnemonic": "boast 记「吹嘘」；boastful 爱炫耀的"
+    },
+    "boat": {
+      "syllable": "boat",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "船，小船"
+        },
+        {
+          "pos": "v.",
+          "meaning": "划船；乘船游玩"
+        }
+      ],
+      "rootAffix": "源自古英语 bāt（船）→ 原始日耳曼 *bait-",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They crossed the lake by boat at dusk.",
+          "translation": "黄昏时他们乘船过了湖。",
+          "analysis": "简单句：主语 They + 谓语 crossed + 宾语 the lake + 状语 by boat + 时间 at dusk。by boat 表「乘船」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The boat that looked safe in the harbor met its test only at sea, a truth that applies to every plan praised on land: the calm that proves nothing is the very calm that hides what the storm would have revealed.",
+          "translation": "那艘在港湾里看似安全的船，只在海上才遇到真正的考验——这道理适用于每个在岸上被称赞的计划：证明不了什么的平静，恰恰是掩盖了风暴本会揭开的真相的那种平静。",
+          "analysis": "复合句。主句 The boat... met its test only at sea，其内 that looked safe in the harbor 定语从句修饰 boat。a truth that applies to every plan... 为同位语，that 定语从句修饰 truth，praised on land 过去分词作后置定语；冒号后 the calm that proves nothing is the very calm that hides what the storm would have revealed（that proves nothing 定语从句，that hides 定语从句，what 宾语从句）。"
+        }
+      ],
+      "collocations": [
+        "by boat",
+        "boat race",
+        "miss the boat"
+      ],
+      "phrases": [
+        "rock the boat 捣乱/破坏安稳",
+        "in the same boat 同病相怜"
+      ],
+      "derived": [
+        {
+          "word": "boater",
+          "meaning": "n. 船夫；平顶草帽"
+        },
+        {
+          "word": "boatswain",
+          "meaning": "n. 水手长"
+        }
+      ],
+      "synonyms": [
+        "vessel",
+        "ship",
+        "craft"
+      ],
+      "mnemonic": "boat 记「小船」；miss the boat 错失良机"
+    },
+    "body": {
+      "syllable": "bod·y",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "身体；主体；团体（a body of）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（文章）正文；天体"
+        }
+      ],
+      "rootAffix": "源自古英语 bodig（身体/躯干）→ 原始日耳曼 *budugą",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Exercise keeps the body strong and healthy.",
+          "translation": "锻炼使身体强壮健康。",
+          "analysis": "简单句：主语 Exercise + 谓语 keeps + 宾语 the body + 宾语补足 strong and healthy（keep + 宾语 + adj.）。"
+        },
+        {
+          "level": "long",
+          "sentence": "A body of evidence that points one way can still be wrong if the questions were framed to point there, because the pile that looks decisive is only as honest as the method that chose what to count and what to ignore.",
+          "translation": "指向一方的证据群仍可能出错，若问题本就被框定成指向那方——因为看似决定性的那堆证据，其诚实程度只等同于「选择计入什么、忽略什么」的方法。",
+          "analysis": "复合句。主句 A body of evidence... can still be wrong，其内 that points one way 定语从句修饰 evidence，if 引导条件状语从句（the questions were framed to point there）。because 引导原因状语从句，其主句 the pile... is only as honest as the method，that looks decisive 定语从句修饰 pile，that chose what to count and what to ignore 定语从句修饰 method（what 并列宾语从句）。"
+        }
+      ],
+      "collocations": [
+        "body of",
+        "body language",
+        "main body"
+      ],
+      "phrases": [
+        "a body of water 一片水域",
+        "body and soul 身心"
+      ],
+      "derived": [
+        {
+          "word": "bodily",
+          "meaning": "adj./adv. 身体的（地）"
+        },
+        {
+          "word": "embody",
+          "meaning": "v. 体现"
+        }
+      ],
+      "synonyms": [
+        "torso",
+        "group",
+        "mass"
+      ],
+      "mnemonic": "bod·y 记「身体/主体」；a body of evidence 大量证据"
+    },
+    "boil": {
+      "syllable": "boil",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "沸腾，煮；激昂（boil with anger）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "沸点；疖（皮肤）"
+        }
+      ],
+      "rootAffix": "源自古英语 bēlan（煮）→ 原始日耳曼 *bōljaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Boil the water before you drink it.",
+          "translation": "喝之前把水烧开。",
+          "analysis": "简单句（祈使）：Boil + 宾语 the water + 时间 before you drink it（before 引导时间状语从句）。boil 表「煮沸」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The dispute boiled over when a small slight was read as a large insult, because the surface calm had been hiding pressure that a single spark could release, and the line between a manageable anger and a broken tie is thinner than either side admits.",
+          "translation": "当一次小怠慢被解读为大侮辱时，争端便沸溢了——因为表面的平静一直在掩盖一处可被一点火星释放的压力，而「可控的怒气」与「破裂的关系」之间，界线比双方承认的都薄。",
+          "analysis": "复合句。主句 The dispute boiled over，when 引导时间状语从句（a small slight was read as a large insult）。because 引导原因状语从句，其主句 the surface calm had been hiding pressure，that a single spark could release 定语从句修饰 pressure，and 并列 the line... is thinner than either side admits（than 比较，either side admits 省略 that）。"
+        }
+      ],
+      "collocations": [
+        "boil down to",
+        "boil over",
+        "boil with"
+      ],
+      "phrases": [
+        "boil the kettle 烧水",
+        "make one's blood boil 令人发指"
+      ],
+      "derived": [
+        {
+          "word": "boiling",
+          "meaning": "adj. 沸腾的"
+        },
+        {
+          "word": "boiler",
+          "meaning": "n. 锅炉"
+        }
+      ],
+      "synonyms": [
+        "simmer",
+        "seethe",
+        "stew"
+      ],
+      "mnemonic": "boil 记「沸腾」；boil down to 归结于"
+    },
+    "bold": {
+      "syllable": "bold",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "大胆的，勇敢的；粗体的（bold type）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（线条/色彩）醒目的"
+        }
+      ],
+      "rootAffix": "源自古英语 beald（大胆的）→ 原始日耳曼 *balþaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She made a bold decision to change careers.",
+          "translation": "她大胆决定转行。",
+          "analysis": "简单句：主语 She + 谓语 made + 宾语 a bold decision + 状语 to change careers。bold 表「大胆的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The bold move that looked reckless to critics was in fact the only honest answer to a slow crisis, because half-measures had already failed for years, and the step others called premature was simply on time for a problem that would not wait for comfort.",
+          "translation": "那在批评者眼中鲁莽的大胆之举，实则是对一场缓慢危机唯一诚实的回答，因为折中办法已失败多年，而别人称为冒进的那一步，对一个不愿等「舒服」的问题而言，恰恰准时。",
+          "analysis": "复合句。主句 The bold move... was in fact the only honest answer，其内 that looked reckless to critics 定语从句修饰 move，to a slow crisis 状语。because 引导原因状语从句，其主句 half-measures had already failed，and 并列 the step... was simply on time，others called premature 定语从句修饰 step，for a problem that would not wait for comfort 状语（that would not wait 定语从句）。"
+        }
+      ],
+      "collocations": [
+        "bold move",
+        "be bold",
+        "bold type"
+      ],
+      "phrases": [
+        "as bold as brass 厚颜的",
+        "make bold to 冒昧"
+      ],
+      "derived": [
+        {
+          "word": "boldly",
+          "meaning": "adv. 大胆地"
+        },
+        {
+          "word": "boldness",
+          "meaning": "n. 大胆"
+        }
+      ],
+      "synonyms": [
+        "brave",
+        "daring",
+        "courageous"
+      ],
+      "mnemonic": "bold 记「大胆的」；bold type 粗体"
+    },
+    "bolt": {
+      "syllable": "bolt",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "螺栓；闪电；门闩"
+        },
+        {
+          "pos": "v.",
+          "meaning": "闩上；突然逃跑（bolt away）"
+        }
+      ],
+      "rootAffix": "源自古英语 bolt（箭/闩/雷电）→ 原始日耳曼 *bultaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He bolted the door before going to bed.",
+          "translation": "睡觉前他把门闩上。",
+          "analysis": "简单句：主语 He + 谓语 bolted + 宾语 the door + 时间 before going to bed。bolt 表「闩（门）」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The news hit like a bolt from the blue, because the figure praised all quarter had hidden a gap no slide revealed, and the same calm that had reassured investors was the calm of a system that had not yet met the fact now arriving at speed.",
+          "translation": "那消息如晴天霹雳般袭来，因为整季被称赞的数字掩着一个任何幻灯片都没露出的缺口，而曾安抚投资者的那份平静，是一个尚未遭遇此刻疾驰而来的事实的系统的平静。",
+          "analysis": "复合句。主句 The news hit like a bolt from the blue，because 引导原因状语从句，其主句 the figure... had hidden a gap，praised all quarter 过去分词作后置定语，no slide revealed 定语从句修饰 gap，and 并列 the same calm... was the calm of a system，that had reassured investors 定语从句修饰 calm，that had not yet met the fact now arriving at speed 定语从句修饰 system（arriving 现在分词作后置定语）。"
+        }
+      ],
+      "collocations": [
+        "a bolt of",
+        "bolt from the blue",
+        "nuts and bolts"
+      ],
+      "phrases": [
+        "bolt the door 闩门",
+        "shoot one's bolt 使出绝招"
+      ],
+      "derived": [
+        {
+          "word": "bolted",
+          "meaning": "adj. 闩住的；脱开的"
+        }
+      ],
+      "synonyms": [
+        "lightning",
+        "latch",
+        "dash"
+      ],
+      "mnemonic": "bolt 记「螺栓/闪电/闩」；bolt from the blue 晴天霹雳"
+    },
+    "bomb": {
+      "syllable": "bomb",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "炸弹；彻底失败（口语，the play bombed）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "轰炸；惨败"
+        }
+      ],
+      "rootAffix": "源自古法语 bombe → 拉丁 bombus（轰鸣）→ 希腊 bombos",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The police found a fake bomb in the building.",
+          "translation": "警方在大楼里发现一枚假炸弹。",
+          "analysis": "简单句：主语 The police + 谓语 found + 宾语 a fake bomb + 状语 in the building。fake 表「假的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The product that bombed in stores had tested well in focus groups, a gap that should have warned the team that a polite room is not a market, because people who nod in a session will not always pay in a store, and approval is cheaper than purchase.",
+          "translation": "那在店里惨败的产品，在焦点小组里测试良好——这道缺口本该警告团队：礼貌的房间不是市场，因为会上点头的人不总在店里掏钱，而认可比购买便宜。",
+          "analysis": "复合句。主句 The product... had tested well in focus groups，其内 that bombed in stores 定语从句修饰 product。a gap that should have warned the team 为同位语，that 定语从句修饰 gap，that a polite room is not a market 为 warned 的宾语从句。because 引导原因状语从句，其主句 people... will not always pay in a store，who nod in a session 定语从句修饰 people，and 并列 approval is cheaper than purchase。"
+        }
+      ],
+      "collocations": [
+        "a time bomb",
+        "bomb the city",
+        "the film bombed"
+      ],
+      "phrases": [
+        "bomb out 彻底失败",
+        "drop a bombshell 投下惊人消息"
+      ],
+      "derived": [
+        {
+          "word": "bombing",
+          "meaning": "n. 轰炸"
+        },
+        {
+          "word": "bomber",
+          "meaning": "n. 轰炸机；投弹者"
+        }
+      ],
+      "synonyms": [
+        "explosive",
+        "shell",
+        "flop"
+      ],
+      "mnemonic": "bomb 双义：炸弹/惨败；the film bombed 电影扑街"
+    },
+    "bond": {
+      "syllable": "bond",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "纽带，联结；债券；黏合"
+        },
+        {
+          "pos": "v.",
+          "meaning": "结合，黏合（bond with）"
+        }
+      ],
+      "rootAffix": "源自古英语 bonda（农奴/约束）→ 原始日耳曼 *bunda",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The shared trip strengthened the bond between them.",
+          "translation": "那次同行加深了他们之间的纽带。",
+          "analysis": "简单句：主语 The shared trip + 谓语 strengthened + 宾语 the bond + 状语 between them。bond 表「纽带、联结」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The bond that held the team was not the contract but the trust built in failures no one else saw, because a tie forged under pressure outlasts one signed on paper, and the loyalty that matters is the kind tested before it was needed.",
+          "translation": "维系团队的纽带不是合同，而是于无人目睹的失败中建起的信任——因为压力下锻成的联结比纸上签的更持久，而重要的忠诚，是「在被需要之前就已受过考验」的那一种。",
+          "analysis": "复合句。主句 The bond... was not A but B。that held the team 定语从句修饰 bond，but 后 the trust built in failures no one else saw（built 过去分词作后置定语，no one else saw 定语从句）。because 引导原因状语从句，其主句 a tie forged under pressure outlasts one signed on paper（forged/signed 过去分词作后置定语），and 并列 the loyalty... is the kind tested before it was needed（tested 过去分词，before 时间状语从句）。"
+        }
+      ],
+      "collocations": [
+        "bond with",
+        "strong bond",
+        "government bond"
+      ],
+      "phrases": [
+        "bond of friendship 友谊纽带",
+        "in bond 保税（货物）"
+      ],
+      "derived": [
+        {
+          "word": "bonding",
+          "meaning": "n. 联结；黏合"
+        },
+        {
+          "word": "bondage",
+          "meaning": "n. 束缚；奴役"
+        }
+      ],
+      "synonyms": [
+        "tie",
+        "link",
+        "security"
+      ],
+      "mnemonic": "bond 记「纽带/债券」；bond with 建立亲密关系"
+    },
+    "bone": {
+      "syllable": "bone",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "骨头；骨（fish bone 鱼刺）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "剔骨；钻研（bone up on）"
+        }
+      ],
+      "rootAffix": "源自古英语 bān（骨）→ 原始日耳曼 *bainą",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The dog buried a bone in the garden.",
+          "translation": "狗在花园里埋了根骨头。",
+          "analysis": "简单句：主语 The dog + 谓语 buried + 宾语 a bone + 状语 in the garden。bone 表「骨头」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The old bridge was bone tired yet still carried the load, a structure whose plain frame hid the care that had kept it standing, because the works that last are rarely the pretty ones but the plain ones someone refused to let fall.",
+          "translation": "那座老桥疲惫不堪却仍承载着负荷，这结构朴素的骨架下藏着使之屹立的养护——因为长久的工程很少是漂亮的那批，而是有人拒绝让其倒下的朴素那批。",
+          "analysis": "复合句。主句 The old bridge was bone tired yet still carried the load（yet 转折，bone tired 口语「极度疲惫」）。a structure whose plain frame hid the care... 为同位语，whose 定语从句，that had kept it standing 定语从句修饰 care。because 引导原因状语从句，其主句 the works that last are rarely the pretty ones but the plain ones，that last 定语从句修饰 works，someone refused to let fall 定语从句修饰 ones（let fall 表「让其倒下」）。"
+        }
+      ],
+      "collocations": [
+        "bone tired",
+        "bone of contention",
+        "fish bone"
+      ],
+      "phrases": [
+        "bone up on 恶补",
+        "make no bones about 直言不讳"
+      ],
+      "derived": [
+        {
+          "word": "bony",
+          "meaning": "adj. 多骨的"
+        },
+        {
+          "word": "backbone",
+          "meaning": "n. 脊梁；中坚"
+        }
+      ],
+      "synonyms": [
+        "skeleton",
+        "frame",
+        "ossein"
+      ],
+      "mnemonic": "bone 记「骨头」；bone up on 突击复习"
+    },
+    "book": {
+      "syllable": "book",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "书，书籍；账簿"
+        },
+        {
+          "pos": "v.",
+          "meaning": "预订（座位/票）；登记"
+        }
+      ],
+      "rootAffix": "源自古英语 bōc（书/山毛榉木牌）→ 原始日耳曼 *bōkō",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She booked a table for two at the restaurant.",
+          "translation": "她在餐厅订了一张两人桌。",
+          "analysis": "简单句：主语 She + 谓语 booked + 宾语 a table + 状语 for two + 地点 at the restaurant。book 表「预订」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The book that changed his mind was not the famous one but a plain volume a teacher lent and forgot, a reminder that the words that reshape a life often arrive unlabeled, carried by a hand that expected nothing back.",
+          "translation": "那本改变他想法的书，不是名著，而是一位老师借出便忘的平装册——这提醒我们：重塑生命的文字常是未贴标签地到来，由一只不图回报的手递送。",
+          "analysis": "复合句。主句 The book... was not A but B，其内 that changed his mind 定语从句修饰 book。a reminder that... 为同位语，that 从句（the words that reshape a life often arrive unlabeled，that reshape a life 定语从句修饰 words），carried by a hand that expected nothing back 过去分词作后置定语（that expected nothing back 定语从句修饰 hand）。"
+        }
+      ],
+      "collocations": [
+        "book a ticket",
+        "read a book",
+        "cookbook"
+      ],
+      "phrases": [
+        "by the book 按规矩",
+        "in someone's bad books 失宠"
+      ],
+      "derived": [
+        {
+          "word": "booklet",
+          "meaning": "n. 小册子"
+        },
+        {
+          "word": "booking",
+          "meaning": "n. 预订"
+        }
+      ],
+      "synonyms": [
+        "volume",
+        "reserve",
+        "text"
+      ],
+      "mnemonic": "book 双义：书/预订；book a ticket 订票"
+    },
+    "boom": {
+      "syllable": "boom",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "繁荣，激增；隆隆声"
+        },
+        {
+          "pos": "v.",
+          "meaning": "繁荣，迅猛发展；发出隆隆声"
+        }
+      ],
+      "rootAffix": "源自古英语 bōm（轰鸣）→ 拟声词",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The city boomed after the new port opened.",
+          "translation": "新港口开通后这座城市繁荣起来。",
+          "analysis": "简单句：主语 The city + 谓语 boomed + 时间 after the new port opened（after 引导时间状语从句）。boom 表「繁荣」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The boom that lifted the town also raised its rents beyond what the same workers could pay, a gain that punished the very people who built it, because prosperity measured only in totals hides the split between those who own and those who merely live there.",
+          "translation": "那让小镇繁荣的景气，也把房租抬到了同批工人付不起的高度——这收益惩罚了正是建造它的人，因为只以总量衡量的繁荣，掩盖了「拥有者」与「仅仅住在这里的人」之间的裂痕。",
+          "analysis": "复合句。主句 The boom... also raised its rents，其内 that lifted the town 定语从句修饰 boom，beyond what the same workers could pay 状语（what 从句）。a gain that punished the very people... 为同位语，that 定语从句，who built it 定语从句修饰 people。because 引导原因状语从句，其主句 prosperity measured only in totals hides the split，measured only in totals 过去分词作后置定语，between those who own and those who merely live there 状语（who 定语从句）。"
+        }
+      ],
+      "collocations": [
+        "economic boom",
+        "boom town",
+        "baby boom"
+      ],
+      "phrases": [
+        "boom and bust 盛衰循环",
+        "boom out 大声说出"
+      ],
+      "derived": [
+        {
+          "word": "booming",
+          "meaning": "adj. 繁荣的；轰响的"
+        }
+      ],
+      "synonyms": [
+        "prosper",
+        "surge",
+        "thrive"
+      ],
+      "mnemonic": "boom 记「繁荣/隆隆声」；boom and bust 兴衰"
     }
   }
 }
