@@ -85,8 +85,14 @@ test('与词表双向同步：孤儿释义被识别并可清理，待补清单�
   const s = await syncWithSyllabus();
   assert.ok(s.orphans.includes('not-a-syllabus-word-xyz'), '孤儿应被识别');
   assert.equal(s.total, listSyllabus().length, '分母应为词表总数');
-  assert.ok(s.coverage > 0 && s.coverage < 100, `覆盖率应在 0~100 之间，实际 ${s.coverage}`);
-  assert.ok(s.missing.length > 0, '应有待补词（种子仅覆盖部分）');
+  assert.ok(s.coverage > 0 && s.coverage <= 100, `覆盖率应在 0~100 之间，实际 ${s.coverage}`);
+  // 待补清单与覆盖率自洽（不依赖"种子只覆盖一部分"的旧假设）：
+  // 覆盖率未满 → 必有待补词；已满 100%（种子已完整覆盖大纲）→ 待补清单必须为空。
+  if (s.coverage < 100) {
+    assert.ok(s.missing.length > 0, `覆盖率 ${s.coverage}% 时应存在待补词`);
+  } else {
+    assert.equal(s.missing.length, 0, '覆盖率 100% 时待补清单应为空');
+  }
   assert.equal(s.covered + s.missing.length, s.total, '已覆盖 + 待补 = 总数');
 
   // prune 清理孤儿
