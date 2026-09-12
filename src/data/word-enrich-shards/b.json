@@ -60,6 +60,541 @@
       ],
       "mnemonic": "学位三阶对照：bachelor 学士 → master 硕士 → doctor 博士；注意「单身汉」义与学位义并存，靠语境区分（bachelor's degree 才是学位）"
     },
+    "back": {
+      "syllable": "back",
+      "pos": "n./adv./adj./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "背部；后面；背面"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "回原处；向后"
+        },
+        {
+          "pos": "v.",
+          "meaning": "支持，backing；倒退（车辆）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "后面的；过期的（back issues）"
+        }
+      ],
+      "rootAffix": "源自古英语 bæc（背）→ 背部 → 后面 → 回退；引申为「支持」（从背后支撑）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He came back after a year abroad.",
+          "translation": "在国外待了一年后他回来了。",
+          "analysis": "简单句：主语 He + 谓语 came + 状语 back + 时间状语 after a year abroad。back 作副词表「回原处」，与 come/go 等动词搭配表示返回。"
+        },
+        {
+          "level": "long",
+          "sentence": "Claims that cannot be backed by evidence may still persuade for a while, but they rarely survive the first serious attempt to check them, which is why the habit of asking for sources is itself a form of protection.",
+          "translation": "没有证据支持的断言或许仍能暂时说服人，但很少能经受住第一次认真核查；正因如此，索要出处的习惯本身就是一种自我保护。",
+          "analysis": "并列主从复合句。第一分句主语 Claims 后接 that 引导的定语从句（cannot be backed by evidence 为被动），谓语 may still persuade，时间状语 for a while；but 连接转折分句，主语 they，谓语 rarely survive，宾语 the first serious attempt，后接不定式 to check them 作后置定语。which 引出非限制性定语从句指代前文；why 引导表语从句（asking for sources 为动名词短语作主语，itself 强调）。back 取「支持（= support）」义。"
+        }
+      ],
+      "collocations": [
+        "back up 支持；备份",
+        "back down 放弃主张，退让",
+        "come back 回来",
+        "back and forth 来回地"
+      ],
+      "phrases": [
+        "at the back of 在…后面",
+        "back to back 连续地"
+      ],
+      "derived": [
+        {
+          "word": "backing",
+          "meaning": "n. 支持，后盾"
+        },
+        {
+          "word": "background",
+          "meaning": "n. 背景（back + ground）"
+        },
+        {
+          "word": "backward",
+          "meaning": "adj./adv. 向后的；落后的"
+        }
+      ],
+      "synonyms": [
+        "support",
+        "rear",
+        "reverse",
+        "endorse"
+      ],
+      "mnemonic": "一词四性：名词（背/后面）、副词（回来）、动词（支持/倒退）、形容词（后面的）；动词义 back（支持）在阅读中出现频率很高——从背后支撑即支持"
+    },
+    "background": {
+      "syllable": "back·ground",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "背景（事件、经历）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "出身，家庭背景"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（画面的）背景；（知识）基础"
+        }
+      ],
+      "rootAffix": "back（后面）+ ground（地面、场）→ 后面的场景 → 背景",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Students from poorer backgrounds are under-represented here.",
+          "translation": "出身较贫困的学生在这里占比偏低。",
+          "analysis": "简单句：主语 Students + 后置定语 from poorer backgrounds + 谓语 are under-represented（被动语态，表「代表性不足」）。background 常用复数表「出身背景」。"
+        },
+        {
+          "level": "long",
+          "sentence": "What a researcher notices is shaped by training and background far more than most would admit, which is why progress often comes from people who arrive with questions their field had stopped asking.",
+          "translation": "研究者会注意到什么，受训练与背景的影响远超多数人愿意承认的程度；正因如此，进展往往来自那些带着本领域已不再追问的问题而来的人。",
+          "analysis": "主从复合句。主语为 what 引导的主语从句（What a researcher notices），谓语 is shaped（被动），状语 by training and background far more than most would admit（比较结构）。which 引出非限制性定语从句指代主句；why 引导表语从句，其中 who arrive with questions 为定语从句，其后 their field had stopped asking 为省略关系词的定语从句修饰 questions。background 取「训练背景」义。"
+        }
+      ],
+      "collocations": [
+        "educational background 教育背景",
+        "family background 家庭背景",
+        "background information 背景信息",
+        "in the background 在背景中；不显眼"
+      ],
+      "phrases": [
+        "against a background of 在…背景下",
+        "background check 背景调查"
+      ],
+      "derived": [
+        {
+          "word": "back",
+          "meaning": "n./adv. 背部；回来"
+        },
+        {
+          "word": "foreground",
+          "meaning": "n. 前景，最引人注意的位置"
+        }
+      ],
+      "synonyms": [
+        "context",
+        "upbringing",
+        "setting",
+        "experience"
+      ],
+      "mnemonic": "搭配：against the background of（在…背景下）是写作高频；foreground（前景）与之相对"
+    },
+    "backward": {
+      "syllable": "back·ward",
+      "pos": "adj./adv.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "向后的，朝后的（a backward glance）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "落后的，滞后的（a backward region）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "向后地（= backwards）"
+        }
+      ],
+      "rootAffix": "back（后面）+ -ward（朝向…的）→ 朝后的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She took a backward glance before leaving.",
+          "translation": "离开前她回头看了一眼。",
+          "analysis": "简单句：主语 She + 谓语 took + 宾语 a backward glance + 时间状语 before leaving。backward 作定语表「向后的」；英式常用 backwards。"
+        },
+        {
+          "level": "long",
+          "sentence": "Calling a region backward usually says more about the observer than the region, since what counts as progress depends on whose standards are being applied and who benefits from their being applied.",
+          "translation": "把一个地区称为落后，通常更多说明的是观察者而非该地区；因为什么算进步，取决于用的是谁的标准，以及谁从这些标准被应用之中获益。",
+          "analysis": "主从复合句。主语为动名词短语 Calling a region backward，谓语 says，宾语 more about the observer than the region（比较结构）。since 引导原因状语从句，主语为 what 引导的主语从句（what counts as progress），谓语 depends on，宾语为 whose standards are being applied（被动）与 who benefits from their being applied（动名词复合结构）并列。backward 取「落后的」义，本句对其作出批判性反思。"
+        }
+      ],
+      "collocations": [
+        "backward glance 回头一瞥",
+        "backward step 倒退的一步",
+        "economically backward 经济落后的"
+      ],
+      "phrases": [
+        "bend over backward 竭尽全力",
+        "a backward look 回顾"
+      ],
+      "derived": [
+        {
+          "word": "backwards",
+          "meaning": "adv. 向后（英式）"
+        },
+        {
+          "word": "back",
+          "meaning": "adv. 向后"
+        },
+        {
+          "word": "forward",
+          "meaning": "adv. 向前（反义）"
+        }
+      ],
+      "synonyms": [
+        "rearward",
+        "retrograde",
+        "underdeveloped",
+        "behind"
+      ],
+      "mnemonic": "-ward 表方向（forward 向前 / backward 向后 / homeward 回家方向）；形容地区「落后」时含贬义，学术写作中常需加引号或改用 underdeveloped"
+    },
+    "bacon": {
+      "syllable": "ba·con",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "培根，咸肉（猪背或肋部腌制的肉）"
+        }
+      ],
+      "rootAffix": "源自法语 bacon（猪肉）→ 腌制的猪背肉 → 培根",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He cooked bacon and eggs for breakfast.",
+          "translation": "他做了培根鸡蛋当早餐。",
+          "analysis": "简单句：主语 He + 谓语 cooked + 宾语 bacon and eggs + 目的状语 for breakfast。bacon 为不可数名词，无需加 -s。"
+        },
+        {
+          "level": "long",
+          "sentence": "Whatever pleasure bacon gives, the fact that its production consumes far more grain than it yields in calories makes it a costly way of turning crops into protein.",
+          "translation": "无论培根带来多少愉悦，其生产消耗的谷物远多于它提供的热量这一点，使它成为一种以高昂代价把农作物转化为蛋白质的方式。",
+          "analysis": "主从复合句。Whatever 引导让步状语从句（Whatever pleasure bacon gives）；主句主语为 the fact 及其同位语从句 that its production consumes far more grain than it yields in calories（含 more...than 比较结构，it yields 中 it 指 production），谓语 makes，宾语 it，宾补 a costly way，后接 of turning crops into protein 作后置定语。bacon 取「培根」义。"
+        }
+      ],
+      "collocations": [
+        "bacon and eggs 培根煎蛋",
+        "bring home the bacon 挣钱养家",
+        "smoked bacon 熏培根"
+      ],
+      "phrases": [
+        "save one's bacon 使某人免于灾祸",
+        "streaky bacon 五花培根"
+      ],
+      "derived": [
+        {
+          "word": "bacony",
+          "meaning": "adj. 培根味的（口语）"
+        }
+      ],
+      "synonyms": [
+        "pork",
+        "ham",
+        "gammon"
+      ],
+      "mnemonic": "不可数名词（a slice of bacon 一片培根）；习语 bring home the bacon（挣钱养家）在文学阅读中可能出现"
+    },
+    "bacteria": {
+      "syllable": "bac·te·ri·a",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "细菌（bacterium 的复数形式）"
+        }
+      ],
+      "rootAffix": "源自希腊 bakterion（小棍）→ 显微镜下呈杆状者 → 细菌",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Some bacteria are beneficial to humans.",
+          "translation": "有些细菌对人类有益。",
+          "analysis": "简单句：主语 Some bacteria（复数）+ 系动词 are + 表语 beneficial + 状语 to humans。bacteria 是**复数**形式（单数 bacterium），谓语须用复数。"
+        },
+        {
+          "level": "long",
+          "sentence": "The problem with antibiotics is not that they kill bacteria but that they kill most of them, leaving the survivors to multiply in a world where no competitor remains.",
+          "translation": "抗生素的问题不在于它们杀死细菌，而在于它们杀死了其中大多数，使存活者在一个再无竞争对手的世界里大量繁殖。",
+          "analysis": "主从复合句。主语 The problem with antibiotics，系表结构 is not that...but that...（两个 that 引导表语从句）。第二个 that 从句中 they kill most of them 与 leaving the survivors to multiply（现在分词作结果状语）连用，后接 in a world where no competitor remains（where 引导定语从句修饰 world）。bacteria 取「细菌」义。"
+        }
+      ],
+      "collocations": [
+        "harmful bacteria 有害细菌",
+        "bacterial infection 细菌感染",
+        "antibiotic-resistant bacteria 耐药细菌"
+      ],
+      "phrases": [
+        "bacteria and viruses 细菌与病毒",
+        "kill bacteria 杀灭细菌"
+      ],
+      "derived": [
+        {
+          "word": "bacterium",
+          "meaning": "n. 细菌（单数形式）"
+        },
+        {
+          "word": "bacterial",
+          "meaning": "adj. 细菌的"
+        },
+        {
+          "word": "antibiotic",
+          "meaning": "n. 抗生素"
+        }
+      ],
+      "synonyms": [
+        "microbes",
+        "germs",
+        "pathogens"
+      ],
+      "mnemonic": "**复数陷阱**：bacteria 是复数（单数 bacterium）→ 谓语用 are；同类词还有 data（datum）、media（medium）、criteria（criterion）"
+    },
+    "badge": {
+      "syllable": "badge",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "徽章，证章（身份标志）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "标记，象征"
+        },
+        {
+          "pos": "v.",
+          "meaning": "给…佩徽章；标记"
+        }
+      ],
+      "rootAffix": "源自中古英语 bage（纹章、标记）→ 身份标记 → 徽章",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Visitors must wear a badge.",
+          "translation": "访客必须佩戴证章。",
+          "analysis": "简单句：主语 Visitors + 谓语 must wear + 宾语 a badge。badge 表「（身份）证章」，作可数名词。"
+        },
+        {
+          "level": "long",
+          "sentence": "A uniform is not merely clothing but a badge that tells strangers how to treat its wearer, which is why those who remove it often find they must explain themselves rather than be recognised.",
+          "translation": "制服不只是衣服，而是一种告诉陌生人该如何对待穿着者的标记；正因如此，脱下它的人往往发现自己必须自我说明，而不再被一眼认出。",
+          "analysis": "主从复合句。主语 A uniform，系表结构 is not merely clothing but a badge（not merely...but... 结构），后接 that 引导的定语从句（tells strangers how to treat its wearer 中 how 引导宾语从句）。which 引出非限制性定语从句指代主句；why 引导表语从句，其中 those 后接 who 引导的定语从句（remove it），must explain themselves rather than be recognised（rather than 连接两个并列的动词形式）。badge 取「身份标记」义。"
+        }
+      ],
+      "collocations": [
+        "name badge 名牌",
+        "police badge 警徽",
+        "wear a badge 佩戴证章",
+        "badge of honour 荣誉的象征"
+      ],
+      "phrases": [
+        "badge holder 证件持有者",
+        "earn a badge 获得徽章"
+      ],
+      "derived": [
+        {
+          "word": "badged",
+          "meaning": "adj. 佩有徽章的"
+        }
+      ],
+      "synonyms": [
+        "emblem",
+        "insignia",
+        "token",
+        "mark"
+      ],
+      "mnemonic": "引申义「象征/标志」（a badge of honour 荣誉的象征）在议论文中常见；注意与 barge（驳船）、budget（预算）拼写区分"
+    },
+    "badly": {
+      "syllable": "bad·ly",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "糟糕地，拙劣地（do badly）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "严重地，厉害地（badly damaged）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "非常，很（badly need）"
+        }
+      ],
+      "rootAffix": "bad（坏的）+ -ly（副词后缀）→ 以坏的方式",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The team performed badly in the first half.",
+          "translation": "该队上半场表现很差。",
+          "analysis": "简单句：主语 The team + 谓语 performed + 状语 badly + 时间状语 in the first half。badly 修饰动词表「拙劣地」，与 well 相对。"
+        },
+        {
+          "level": "long",
+          "sentence": "Policies that are badly explained are not necessarily bad policies, but they are usually defeated ones, because voters cannot support what they cannot picture.",
+          "translation": "解释得很糟糕的政策未必是坏政策，但通常是会被否决的政策，因为选民无法支持他们想象不出来的东西。",
+          "analysis": "并列主从复合句。第一分句主语 Policies 后接 that 引导的定语从句（are badly explained 为被动），系表结构 are not necessarily bad policies。but 连接转折分句，they 为主语，系表结构 are usually defeated ones（ones 指代 policies）。because 引导原因状语从句，其中 what they cannot picture 为宾语从句作 support 的宾语。badly 取「拙劣地」义。"
+        }
+      ],
+      "collocations": [
+        "badly damaged 严重受损",
+        "badly needed 急需的",
+        "do badly 表现差",
+        "badly off 贫困的"
+      ],
+      "phrases": [
+        "badly hurt 受了重伤",
+        "think badly of 对…评价差"
+      ],
+      "derived": [
+        {
+          "word": "bad",
+          "meaning": "adj. 坏的；严重的"
+        },
+        {
+          "word": "worse",
+          "meaning": "adj./adv. 更坏的（比较级）"
+        },
+        {
+          "word": "worst",
+          "meaning": "adj./adv. 最坏的（最高级）"
+        }
+      ],
+      "synonyms": [
+        "poorly",
+        "severely",
+        "seriously",
+        "gravely"
+      ],
+      "mnemonic": "badly 的「严重地/非常」义常被忽略：badly damaged（严重受损）、badly need（急需）——考研阅读中多为这两义"
+    },
+    "bag": {
+      "syllable": "bag",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "袋，包，提包"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（复数）行李；随身物"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把…装进袋子；占得（座位）"
+        }
+      ],
+      "rootAffix": "源自古诺斯语 baggi（包裹）→ 袋子",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She put the books in her bag.",
+          "translation": "她把书放进了包里。",
+          "analysis": "简单句：主语 She + 谓语 put + 宾语 the books + 地点状语 in her bag。put 的过去式与过去分词同形，此处为过去式。"
+        },
+        {
+          "level": "long",
+          "sentence": "Luggage that must be checked is no longer a bag but a risk, which is why travellers increasingly treat anything they cannot carry with them as something they do not need.",
+          "translation": "必须托运的行李不再是一个包，而是一种风险；正因如此，旅行者越来越把任何无法随身携带的东西视为自己并不需要的东西。",
+          "analysis": "主从复合句。主语 Luggage 后接 that 引导的定语从句（must be checked 为被动），系表结构 is no longer a bag but a risk（no longer...but... 结构）。which 引出非限制性定语从句；why 引导表语从句，其中 travellers increasingly treat anything（后接 they cannot carry with them 为省略关系词的定语从句）as something（后接 they do not need 为省略关系词的定语从句）——treat A as B 结构。bag 取「包」本义。"
+        }
+      ],
+      "collocations": [
+        "bag and baggage 连同全部行李",
+        "sleeping bag 睡袋",
+        "paper bag 纸袋",
+        "pack one's bags 收拾行李"
+      ],
+      "phrases": [
+        "in the bag 十拿九稳",
+        "a bag of tricks 一套办法"
+      ],
+      "derived": [
+        {
+          "word": "baggage",
+          "meaning": "n. 行李（不可数）"
+        },
+        {
+          "word": "baggy",
+          "meaning": "adj. 宽松的，袋状的"
+        }
+      ],
+      "synonyms": [
+        "sack",
+        "container",
+        "handbag",
+        "luggage"
+      ],
+      "mnemonic": "易混：bag 可数（a bag），baggage 不可数（a piece of baggage）——与 luggage 同类，都是不可数"
+    },
+    "bake": {
+      "syllable": "bake",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "烤，烘焙（面包、蛋糕）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（太阳）晒干，烘烤"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（口语）变得极热"
+        }
+      ],
+      "rootAffix": "源自古英语 bacan（烤）→ 用干热加热 → 烤",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She baked a cake for his birthday.",
+          "translation": "她为他生日烤了一个蛋糕。",
+          "analysis": "简单句：主语 She + 谓语 baked + 宾语 a cake + 目的状语 for his birthday。bake 表「在烤箱中烘焙」，与 roast（烤肉）、toast（烤面包片）分工不同。"
+        },
+        {
+          "level": "long",
+          "sentence": "Bread that is baked too quickly develops a crust before the inside has had time to rise, which is why patience, not heat, is the baker's most valuable ingredient.",
+          "translation": "烤得过快的面包会在内部还没来得及膨胀时就形成硬壳；正因如此，耐心而非火力，才是面包师最宝贵的配料。",
+          "analysis": "主从复合句。主语 Bread 后接 that 引导的定语从句（is baked too quickly 为被动），谓语 develops，宾语 a crust，before 引导时间状语从句（the inside has had time to rise 中 have time to do 结构）。which 引出非限制性定语从句指代主句；why 引导表语从句（is the baker's most valuable ingredient，含 patience, not heat 的插入对比）。bake 取「烘焙」义。"
+        }
+      ],
+      "collocations": [
+        "bake a cake 烤蛋糕",
+        "home-baked bread 自家烤的面包",
+        "baked potato 烤土豆",
+        "freshly baked 刚出炉的"
+      ],
+      "phrases": [
+        "bake in the sun 暴晒",
+        "half-baked 考虑不周的（习语）"
+      ],
+      "derived": [
+        {
+          "word": "baker",
+          "meaning": "n. 面包师"
+        },
+        {
+          "word": "bakery",
+          "meaning": "n. 面包店"
+        },
+        {
+          "word": "baking",
+          "meaning": "n. 烘焙 adj. 极热的"
+        }
+      ],
+      "synonyms": [
+        "roast",
+        "cook",
+        "toast",
+        "oven-cook"
+      ],
+      "mnemonic": "烘焙家族：bake 烤 → baker 面包师 → bakery 面包店；习语 half-baked（考虑不周的）在议论文中很生动"
+    },
     "balance": {
       "syllable": "bal·ance",
       "pos": "n./v.",
@@ -123,6 +658,1242 @@
       ],
       "易混辨析": "balance（平衡，名词为主）/ balcony（阳台）/ ballot（选票）——拼写开头相近；on balance 是阅读高频短语「总的来说」",
       "mnemonic": "ba(两)+lance(秤) → 两头称平 → 平衡、权衡"
+    },
+    "balcony": {
+      "syllable": "bal·co·ny",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "阳台"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（剧院的）楼座，包厢"
+        }
+      ],
+      "rootAffix": "源自意大利 balcone（脚手架、阳台，balco 台架）→ 挑出的平台 → 阳台",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We had breakfast on the balcony.",
+          "translation": "我们在阳台上吃了早餐。",
+          "analysis": "简单句：主语 We + 谓语 had + 宾语 breakfast + 地点状语 on the balcony。balcony 表「阳台」，介词用 on。"
+        },
+        {
+          "level": "long",
+          "sentence": "In crowded cities the balcony becomes the only private space that is also outdoors, which explains why it is treated less as an architectural extra than as an essential room.",
+          "translation": "在拥挤的城市里，阳台成了唯一既私密又露天的空间；这解释了为什么它与其被当作建筑上的附加物，不如被当作一个必需的房间。",
+          "analysis": "主从复合句。In crowded cities 为地点状语；主语 the balcony，谓语 becomes，表语 the only private space，后接 that 引导的定语从句（is also outdoors）。which 引出非限制性定语从句；why 引导表语从句，其中 it is treated（被动）less as an architectural extra than as an essential room 为 less A than B 的比较结构（treat A as B）。balcony 取「阳台」义。"
+        }
+      ],
+      "collocations": [
+        "on the balcony 在阳台上",
+        "balcony seat 楼座座位",
+        "sunny balcony 阳光充足的阳台"
+      ],
+      "phrases": [
+        "step onto the balcony 走到阳台上",
+        "balcony view 阳台景致"
+      ],
+      "derived": [
+        {
+          "word": "balconied",
+          "meaning": "adj. 带阳台的"
+        }
+      ],
+      "synonyms": [
+        "terrace",
+        "veranda",
+        "gallery",
+        "loggia"
+      ],
+      "mnemonic": "介词用 on（on the balcony）；剧院义「楼座」对应正厅前排 stalls，是剧院语境中的常见对照"
+    },
+    "ball": {
+      "syllable": "ball",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "球；球状物"
+        },
+        {
+          "pos": "n.",
+          "meaning": "舞会（a formal ball）"
+        }
+      ],
+      "rootAffix": "双词源合流：古英语 beall（球）与法语 bal（舞会）→ 球 / 舞会",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The children kicked the ball across the field.",
+          "translation": "孩子们把球踢过球场。",
+          "analysis": "简单句：主语 The children + 谓语 kicked + 宾语 the ball + 方向状语 across the field。ball 取「球」本义。"
+        },
+        {
+          "level": "long",
+          "sentence": "Once a game becomes professional, the ball stops being a toy and becomes an asset whose value depends on rules that the players themselves have no power to change.",
+          "translation": "一旦某项运动职业化，球就不再是玩具，而成为一项资产，其价值取决于球员自己无权改变的规则。",
+          "analysis": "主从复合句。Once 引导时间状语从句（becomes professional 为系表结构）；主句主语 the ball，并列谓语 stops being a toy and becomes an asset（stop doing / become + 名词）。whose 引导定语从句修饰 asset，其中 that the players themselves have no power to change 为定语从句修饰 rules（themselves 强调）。ball 取「球」义。"
+        }
+      ],
+      "collocations": [
+        "play ball 打球；合作（口语）",
+        "ball game 球赛",
+        "on the ball 机敏的",
+        "carry the ball 承担主要任务"
+      ],
+      "phrases": [
+        "a ball of 一团…",
+        "have a ball 玩得很开心"
+      ],
+      "derived": [
+        {
+          "word": "balloon",
+          "meaning": "n. 气球（ball + -oon 增大后缀）"
+        },
+        {
+          "word": "ballot",
+          "meaning": "n. 投票（原义「小球」）"
+        },
+        {
+          "word": "football",
+          "meaning": "n. 足球"
+        }
+      ],
+      "synonyms": [
+        "sphere",
+        "orb",
+        "dance",
+        "globe"
+      ],
+      "mnemonic": "两义同形而义远：ball 球 / ball 舞会（来自法语 bal）；习语 on the ball（机敏）在阅读中很常见"
+    },
+    "ballet": {
+      "syllable": "bal·let",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "芭蕾舞；芭蕾舞剧"
+        },
+        {
+          "pos": "n.",
+          "meaning": "芭蕾舞团"
+        }
+      ],
+      "rootAffix": "源自意大利 balletto（小舞蹈，ballo 舞蹈）→ 芭蕾",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She has studied ballet since childhood.",
+          "translation": "她从小就学芭蕾。",
+          "analysis": "简单句：主语 She + 谓语 has studied（现在完成时）+ 宾语 ballet + 时间状语 since childhood。ballet 为不可数名词表「芭蕾舞（艺术）」；指具体作品时可数。"
+        },
+        {
+          "level": "long",
+          "sentence": "Ballet demands that the body appear weightless precisely because it is doing something extremely difficult, and audiences who know this are moved by the effort they are trained not to see.",
+          "translation": "芭蕾要求身体显得毫无重量，恰恰是因为它正在做极其困难的动作；而懂得这一点的观众，会被那种训练有素地不让人看到的用力所打动。",
+          "analysis": "并列主从复合句。第一分句主语 Ballet，谓语 demands，宾语为 that 引导的宾语从句（the body appear weightless 为虚拟语气，省略 should），precisely because 引导原因状语从句（it is doing something extremely difficult）。第二分句主语 audiences 后接 who know this 定语从句，谓语 are moved（被动）+ by the effort，后接 they are trained not to see（省略关系词的定语从句，其中 be trained not to do 表「被训练成不去做」）。ballet 取「芭蕾」义。"
+        }
+      ],
+      "collocations": [
+        "ballet dancer 芭蕾舞演员",
+        "ballet company 芭蕾舞团",
+        "take ballet lessons 上芭蕾课"
+      ],
+      "phrases": [
+        "classical ballet 古典芭蕾",
+        "the ballet 芭蕾舞剧（集体名词）"
+      ],
+      "derived": [
+        {
+          "word": "ballerina",
+          "meaning": "n. 芭蕾女演员"
+        },
+        {
+          "word": "balletic",
+          "meaning": "adj. 芭蕾般的"
+        }
+      ],
+      "synonyms": [
+        "dance",
+        "choreography",
+        "dance drama"
+      ],
+      "mnemonic": "源自意大利语 → 词尾 t 不发音（读作 BAL-ay）；同类法语借词还有 bouquet（花束）、buffet（自助餐）"
+    },
+    "balloon": {
+      "syllable": "bal·loon",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "气球"
+        },
+        {
+          "pos": "v.",
+          "meaning": "激增，膨胀（costs ballooned）"
+        }
+      ],
+      "rootAffix": "ball（球）+ -oon（大）→ 大球 → 气球",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The child let go of the balloon.",
+          "translation": "孩子松开了气球。",
+          "analysis": "简单句：主语 The child + 谓语 let go of + 宾语 the balloon。let go of 为固定搭配，表「松开、放开」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Estimates that balloon as a project proceeds usually reflect not new information but the reluctance to admit how little was known at the start, which is why good managers publish bad numbers early.",
+          "translation": "随着项目推进而激增的估算，通常反映的并不是新信息，而是不愿承认最初掌握的情况有多么少；正因如此，优秀的项目经理会尽早公布难看的数字。",
+          "analysis": "主从复合句。主语 Estimates 后接 that 引导的定语从句（balloon as a project proceeds 中 as 引导时间状语从句），谓语 reflect，宾语 not new information but the reluctance（not...but... 结构），后接不定式 to admit 及其宾语从句 how little was known at the start。which 引出非限制性定语从句；why 引导表语从句。balloon 取动词义「激增」。"
+        }
+      ],
+      "collocations": [
+        "hot-air balloon 热气球",
+        "balloon payment 期末大额付款",
+        "costs balloon 成本激增"
+      ],
+      "phrases": [
+        "go down like a lead balloon 毫无反响（习语）",
+        "balloon into 膨胀为"
+      ],
+      "derived": [
+        {
+          "word": "ballooning",
+          "meaning": "n. 气球飞行 adj. 激增的"
+        },
+        {
+          "word": "balloonist",
+          "meaning": "n. 气球驾驶员"
+        }
+      ],
+      "synonyms": [
+        "inflate",
+        "swell",
+        "soar",
+        "escalate"
+      ],
+      "mnemonic": "动词义「激增」在经济类文章中极常见（costs balloon 成本激增、debt ballooned 债务膨胀）——比 increase 更形象"
+    },
+    "ban": {
+      "syllable": "ban",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "禁止，取缔（ban sth / ban sb from doing）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "禁令（impose a ban on）"
+        }
+      ],
+      "rootAffix": "源自古英语 bannan（宣告、命令）→ 公开宣告禁止 → 禁止",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The city banned smoking in restaurants.",
+          "translation": "该市禁止在餐厅吸烟。",
+          "analysis": "简单句：主语 The city + 谓语 banned + 宾语 smoking（动名词）+ 地点状语 in restaurants。ban 后接动名词或名词，也可用 ban sb from doing。"
+        },
+        {
+          "level": "long",
+          "sentence": "Bans are easy to announce and hard to enforce, which is why they often survive as symbols long after the behaviour they target has moved to places no inspector visits.",
+          "translation": "禁令易于宣布、难以执行；正因如此，它们常在其所针对的行为转移到检查员不会去的地方之后，仍作为象征而存续。",
+          "analysis": "并列复合句。第一分句主语 Bans，系表结构 are easy to announce and hard to enforce（并列形容词 + 不定式）。which 引出非限制性定语从句指代主句；why 引导表语从句，其中 they（指 bans）为主语，survive as symbols 为谓语部分，long after 引导时间状语从句（the behaviour they target 中 they target 为省略关系词的定语从句；has moved to places 后接 no inspector visits 为省略关系词的定语从句）。ban 取「禁令」义。"
+        }
+      ],
+      "collocations": [
+        "impose a ban on 对…实施禁令",
+        "lift a ban 解除禁令",
+        "a ban on smoking 禁烟令",
+        "ban sb from doing 禁止某人做"
+      ],
+      "phrases": [
+        "under a ban 被禁止",
+        "test ban treaty 禁试条约"
+      ],
+      "derived": [
+        {
+          "word": "banned",
+          "meaning": "adj. 被禁止的"
+        },
+        {
+          "word": "banning",
+          "meaning": "n. 禁止"
+        }
+      ],
+      "synonyms": [
+        "prohibit",
+        "forbid",
+        "outlaw",
+        "embargo"
+      ],
+      "mnemonic": "搭配：impose a ban on（实施禁令）/ lift a ban（解除禁令）/ ban sb from doing（禁止某人做）——三组都是阅读高频"
+    },
+    "band": {
+      "syllable": "band",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "乐队（尤指流行乐队）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "带，箍；条带（a rubber band）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（价值、频率）范围，段（income band）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "联合，结伙（band together）"
+        }
+      ],
+      "rootAffix": "源自古法语 bande（带子、群体）→ 束带；成群 → 乐队",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The band played for two hours.",
+          "translation": "乐队演奏了两个小时。",
+          "analysis": "简单句：主语 The band + 谓语 played + 时间状语 for two hours。band 作集合名词，看作整体时谓语用单数。"
+        },
+        {
+          "level": "long",
+          "sentence": "Tax systems that divide earners into bands may look progressive, yet they can penalise anyone whose income rises just enough to cross a threshold, since the higher rate applies to the whole amount.",
+          "translation": "把收入者划分为若干档的税制看似累进，却可能惩罚那些收入刚好足以跨过某一门槛的人，因为更高的税率适用于全部金额。",
+          "analysis": "并列主从复合句。第一分句主语 Tax systems 后接 that 引导的定语从句（divide earners into bands），系表结构 may look progressive。yet 连接转折分句，主语 they，谓语 can penalise，宾语 anyone 后接 whose 引导的定语从句（rises just enough to cross a threshold）。since 引导原因状语从句（the higher rate applies to the whole amount）。band 取「档次、区间」义。"
+        }
+      ],
+      "collocations": [
+        "rock band 摇滚乐队",
+        "rubber band 橡皮筋",
+        "income band 收入档次",
+        "band together 联合起来"
+      ],
+      "phrases": [
+        "a band of 一群…",
+        "frequency band 频段"
+      ],
+      "derived": [
+        {
+          "word": "bandage",
+          "meaning": "n. 绷带（band + -age）"
+        },
+        {
+          "word": "broadband",
+          "meaning": "n. 宽带"
+        }
+      ],
+      "synonyms": [
+        "group",
+        "orchestra",
+        "strip",
+        "range"
+      ],
+      "mnemonic": "「带」→「一队人」→「乐队」的语义链；引申义「区间/档次」在财税、频谱语境中常见（income band、frequency band）"
+    },
+    "bang": {
+      "syllable": "bang",
+      "pos": "n./v./adv.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "巨响，砰的一声"
+        },
+        {
+          "pos": "v.",
+          "meaning": "猛击，砰地撞（bang the door）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "正好，恰好（bang in the middle）"
+        }
+      ],
+      "rootAffix": "拟声词源（模仿撞击声）→ 砰；猛击",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She banged the door shut.",
+          "translation": "她砰地把门关上。",
+          "analysis": "简单句：主语 She + 谓语 banged + 宾语 the door + 宾补 shut（形容词作宾语补足语，表结果状态）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The bang that startles a room is not the explosion itself but the air rushing back to fill the space the explosion emptied, a detail that explains why a small charge can sound enormous.",
+          "translation": "让整个房间惊起的巨响并不是爆炸本身，而是空气回冲填满爆炸所造成的空缺——这一细节解释了为什么少量炸药听起来如此巨大。",
+          "analysis": "主从复合句。主语 The bang 后接 that 引导的定语从句（startles a room），系表结构 is not...but...（the explosion itself 与 the air rushing back 对比，后者含 to fill the space 及其后 the explosion emptied 省略关系词的定语从句）。a detail 为同位语，后接 that 引导的定语从句（explains why a small charge can sound enormous，why 引导宾语从句）。bang 取「巨响」义。"
+        }
+      ],
+      "collocations": [
+        "bang on the door 猛敲门",
+        "with a bang 砰然一声；轰然",
+        "big bang 宇宙大爆炸"
+      ],
+      "phrases": [
+        "bang into 撞上",
+        "bang goes sth 某事告吹了（口语）"
+      ],
+      "derived": [
+        {
+          "word": "banger",
+          "meaning": "n. 爆竹；香肠（英式口语）"
+        }
+      ],
+      "synonyms": [
+        "clash",
+        "crash",
+        "slam",
+        "explosion"
+      ],
+      "mnemonic": "拟声词（回声词），副词义「正好」很地道：bang in the middle（正中间）、bang on time（正好准时）"
+    },
+    "bank": {
+      "syllable": "bank",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "银行"
+        },
+        {
+          "pos": "n.",
+          "meaning": "河岸，堤岸"
+        },
+        {
+          "pos": "n.",
+          "meaning": "库存，储备（a blood bank 血库）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把…存入银行（bank on 指望）"
+        }
+      ],
+      "rootAffix": "源自意大利 banca（长凳、柜台，banca rotta「长凳被砸」→ bankrupt）→ 兑换商的柜台 → 银行",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She banks with a local branch.",
+          "translation": "她在本地一家分行办理银行业务。",
+          "analysis": "简单句：主语 She + 谓语 banks（不及物用法，表「办理银行业务」）+ 方式状语 with a local branch。bank 作不及物动词表「在某银行开户/办业务」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bank that lends only to those who do not need the money will report excellent results until the day it does not, which is precisely how a banking crisis begins.",
+          "translation": "一家只借钱给不需要钱的人的银行，会一直报告优异的业绩，直到某一天不再如此——而这恰恰是银行业危机开始的方式。",
+          "analysis": "主从复合句。主语 A bank 后接 that 引导的定语从句（lends only to those 后接 who do not need the money 定语从句），谓语 will report，宾语 excellent results，until 引导时间状语从句（the day it does not 中 it does not 为代动词结构，指 report excellent results）。which 引出非限制性定语从句指代前文；how 引导表语从句。bank 取「银行」义。"
+        }
+      ],
+      "collocations": [
+        "bank account 银行账户",
+        "central bank 中央银行",
+        "river bank 河岸",
+        "bank on 指望，依赖"
+      ],
+      "phrases": [
+        "bank balance 账户余额",
+        "blood bank 血库"
+      ],
+      "derived": [
+        {
+          "word": "bankrupt",
+          "meaning": "adj. 破产的（bank + rupt 破）"
+        },
+        {
+          "word": "banking",
+          "meaning": "n. 银行业"
+        },
+        {
+          "word": "banker",
+          "meaning": "n. 银行家"
+        }
+      ],
+      "synonyms": [
+        "financial institution",
+        "shore",
+        "reserve",
+        "rely on"
+      ],
+      "mnemonic": "词源故事记 bankrupt：意大利 banca rotta（长凳被砸）→ 兑换商破产；bank 的「河岸」义与「银行」义同形异源，靠语境区分"
+    },
+    "bankrupt": {
+      "syllable": "bank·rupt",
+      "pos": "adj./v./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "破产的（go bankrupt）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "完全缺乏…的（bankrupt of ideas）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使破产"
+        },
+        {
+          "pos": "n.",
+          "meaning": "破产者"
+        }
+      ],
+      "rootAffix": "bank（柜台）+ rupt（破裂，同 rupture/interrupt）→ 柜台被砸 → 破产",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The company went bankrupt last year.",
+          "translation": "该公司去年破产了。",
+          "analysis": "简单句：主语 The company + 谓语 went（系动词）+ 表语 bankrupt + 时间状语 last year。go bankrupt 为固定搭配，表「破产」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A government that is financially sound may still be morally bankrupt if it funds the present by consuming the resources on which future generations will depend.",
+          "translation": "一个财政稳健的政府，如果靠消耗后代所依赖的资源来支撑当下，也可能在道德上破产。",
+          "analysis": "主从复合句。主语 A government 后接 that 引导的定语从句（is financially sound 为系表结构），谓语 may still be，表语 morally bankrupt；if 引导条件状语从句，其中 it funds the present by consuming the resources 为方式结构，后接 on which future generations will depend（介词 + 关系代词引导的定语从句）。bankrupt 此处取抽象义「（道德上）破产的」，与 financially sound 形成对照。"
+        }
+      ],
+      "collocations": [
+        "go bankrupt 破产",
+        "declare oneself bankrupt 宣告破产",
+        "morally bankrupt 道德败坏的",
+        "bankrupt of 完全缺乏"
+      ],
+      "phrases": [
+        "bankruptcy proceedings 破产程序",
+        "be made bankrupt 被宣告破产"
+      ],
+      "derived": [
+        {
+          "word": "bankruptcy",
+          "meaning": "n. 破产（file for bankruptcy 申请破产）"
+        },
+        {
+          "word": "bank",
+          "meaning": "n. 银行"
+        }
+      ],
+      "synonyms": [
+        "insolvent",
+        "ruined",
+        "destitute",
+        "lacking"
+      ],
+      "mnemonic": "rupt 是「破裂」词根（interrupt 打断、erupt 喷发、corrupt 腐败）→ bank+rupt = 柜台破裂 → 破产；抽象义「完全缺乏」（bankrupt of ideas）值得记"
+    },
+    "banner": {
+      "syllable": "ban·ner",
+      "pos": "n./adj.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "横幅，标语（挂在街道或网页上的）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "旗帜（较正式）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（美）极好的，出色的（a banner year 丰收的一年）"
+        }
+      ],
+      "rootAffix": "ban（旗、公告）+ -er → 悬挂的旗幔 → 横幅",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A banner hung across the street.",
+          "translation": "一条横幅横挂在街上。",
+          "analysis": "简单句：主语 A banner + 谓语 hung（hang 的过去式，不及物表「悬挂」）+ 地点状语 across the street。"
+        },
+        {
+          "level": "long",
+          "sentence": "Protesters who march under a single banner often discover that their unity ends with the march, since the slogan that united them said nothing about what should be done next.",
+          "translation": "在同一面旗帜下游行的抗议者往往发现，他们的团结随着游行的结束而结束，因为把他们联合起来的那句口号，并未说明接下来该做什么。",
+          "analysis": "主从复合句。主语 Protesters 后接 who 引导的定语从句（march under a single banner），谓语 discover，后接 that 引导的宾语从句（their unity ends with the march）。since 引导原因状语从句，主语 the slogan 后接 that 引导的定语从句（united them），谓语 said，宾语 nothing about what should be done next（what 引导宾语从句作介词宾语，被动）。banner 取「旗帜」义。"
+        }
+      ],
+      "collocations": [
+        "under the banner of 在…的旗帜下",
+        "hang a banner 挂横幅",
+        "banner ad 横幅广告",
+        "a banner year 丰收的一年"
+      ],
+      "phrases": [
+        "carry the banner 高举旗帜",
+        "banner headline 通栏大标题"
+      ],
+      "derived": [
+        {
+          "word": "banneret",
+          "meaning": "n. 方旗骑士（历史）"
+        }
+      ],
+      "synonyms": [
+        "flag",
+        "streamer",
+        "sign",
+        "placard"
+      ],
+      "mnemonic": "under the banner of（以…为旗号/名义）是政论文章高频短语；banner ad（横幅广告）为网络语境常用"
+    },
+    "banquet": {
+      "syllable": "ban·quet",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "宴会，盛宴（正式的）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "宴请，参加宴会"
+        }
+      ],
+      "rootAffix": "源自法语 banquet（小长凳，banc 长凳）→ 摆长凳设宴 → 宴会",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The mayor held a banquet for the guests.",
+          "translation": "市长为客人举办了宴会。",
+          "analysis": "简单句：主语 The mayor + 谓语 held + 宾语 a banquet + 目的状语 for the guests。banquet 指正式的大型宴会，比 dinner party 更隆重。"
+        },
+        {
+          "level": "long",
+          "sentence": "A banquet is a performance as much as a meal, since what is being displayed is not the food but the host's ability to gather the right people in one room.",
+          "translation": "宴会既是宴席，也是一场表演，因为被展示的并不是食物，而是主人在一个房间里聚集起恰当人选的能力。",
+          "analysis": "主从复合句。主语 A banquet，系表结构 is a performance as much as a meal（as much as 表同等）。since 引导原因状语从句，主语为 what 引导的主语从句（what is being displayed，现在进行时被动），系表结构 is not the food but the host's ability（not...but... 结构），后接不定式 to gather the right people in one room 作后置定语。banquet 取「宴会」义。"
+        }
+      ],
+      "collocations": [
+        "hold a banquet 举行宴会",
+        "state banquet 国宴",
+        "banquet hall 宴会厅",
+        "wedding banquet 婚宴"
+      ],
+      "phrases": [
+        "at the banquet 在宴会上",
+        "banquet speech 宴会致辞"
+      ],
+      "derived": [
+        {
+          "word": "banqueting",
+          "meaning": "n./adj. 宴会的"
+        }
+      ],
+      "synonyms": [
+        "feast",
+        "dinner",
+        "formal meal",
+        "spread"
+      ],
+      "mnemonic": "词源画面：banc（长凳）→ 摆开长凳请客 → 宴会；与 buffet（自助餐）、feast（盛宴）比较记忆"
+    },
+    "bar": {
+      "syllable": "bar",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "酒吧；柜台"
+        },
+        {
+          "pos": "n.",
+          "meaning": "条，棒（a bar of chocolate）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "栅栏；（障碍）限制（a bar to success）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "阻挡，禁止（bar sb from doing）"
+        }
+      ],
+      "rootAffix": "源自法语 barre（横木、栅栏）→ 横木 → 栅栏；柜台前的横木 → 酒吧",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They met at a bar near the station.",
+          "translation": "他们在车站附近的一家酒吧见面。",
+          "analysis": "简单句：主语 They + 谓语 met + 地点状语 at a bar near the station。bar 取「酒吧」义，介词用 at。"
+        },
+        {
+          "level": "long",
+          "sentence": "Requirements that bar candidates for reasons unrelated to ability may raise average scores while lowering the quality of the profession, a trade-off that statistics alone will never reveal.",
+          "translation": "以与能力无关的理由排斥候选人的要求，可能提高平均分数，却降低整个职业的水准——这种权衡仅凭统计数字永远无法显现。",
+          "analysis": "主从复合句。主语 Requirements 后接 that 引导的定语从句（bar candidates for reasons 后接 unrelated to ability 作后置定语），谓语 may raise，宾语 average scores，while lowering the quality of the profession（while + 现在分词表对比伴随）。a trade-off 为同位语，后接 that 引导的定语从句（statistics alone will never reveal 中 alone 表「仅」）。bar 取动词义「排斥、阻挡」。"
+        }
+      ],
+      "collocations": [
+        "a bar of chocolate 一块巧克力",
+        "bar chart 柱状图",
+        "behind bars 在狱中",
+        "bar sb from doing 禁止某人做"
+      ],
+      "phrases": [
+        "at the bar 在酒吧",
+        "set the bar high 把标准定得高"
+      ],
+      "derived": [
+        {
+          "word": "barrier",
+          "meaning": "n. 障碍，屏障"
+        },
+        {
+          "word": "barrister",
+          "meaning": "n. （英）出庭律师"
+        },
+        {
+          "word": "debar",
+          "meaning": "v. 阻止，排除"
+        }
+      ],
+      "synonyms": [
+        "pub",
+        "rod",
+        "obstacle",
+        "block"
+      ],
+      "mnemonic": "词源：横木（栅栏）→ 阻挡；柜台横木 → 酒吧；引申 set the bar high（提高标准）——一条「横木」串起所有义项"
+    },
+    "bare": {
+      "syllable": "bare",
+      "pos": "adj./v.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "赤裸的，无遮盖的（bare feet）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "空的，仅有的（the bare minimum 最低限度）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "露出，暴露（bare one's teeth）"
+        }
+      ],
+      "rootAffix": "源自古英语 bær（裸露的）→ 裸露",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He walked on the beach with bare feet.",
+          "translation": "他光着脚在沙滩上走。",
+          "analysis": "简单句：主语 He + 谓语 walked + 地点状语 on the beach + 方式状语 with bare feet。bare 作定语表「赤裸的」，修饰身体部位。"
+        },
+        {
+          "level": "long",
+          "sentence": "What the report calls the bare facts are in fact selected facts, and the selection, however innocent, already tells readers which conclusions they are expected to draw.",
+          "translation": "报告所称的「赤裸的事实」，其实是经挑选的事实；而这种挑选无论多么无心，都已在告诉读者应当得出什么结论。",
+          "analysis": "并列复合句。第一分句主语为 what 引导的主语从句（What the report calls the bare facts），系表结构 are in fact selected facts。第二分句主语 the selection，however innocent 为让步插入语（= however innocent it is），谓语 tells，宾语 readers，后接 which 引导的宾语从句（they are expected to draw）。bare 取「未加修饰的、赤裸的」义。"
+        }
+      ],
+      "collocations": [
+        "bare feet 赤脚",
+        "the bare minimum 最低限度",
+        "bare facts 未加修饰的事实",
+        "bare hands 徒手"
+      ],
+      "phrases": [
+        "lay bare 揭示，暴露",
+        "bare essentials 最基本的东西"
+      ],
+      "derived": [
+        {
+          "word": "barely",
+          "meaning": "adv. 几乎不；仅仅"
+        },
+        {
+          "word": "bareness",
+          "meaning": "n. 赤裸；贫乏"
+        }
+      ],
+      "synonyms": [
+        "naked",
+        "uncovered",
+        "plain",
+        "mere"
+      ],
+      "mnemonic": "与 bear（熊；忍受）拼写相近但不同；习语 lay bare（揭示）与 the bare minimum（最低限度）都是高频"
+    },
+    "barely": {
+      "syllable": "bare·ly",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "几乎不，勉强（barely enough）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "仅仅，刚刚（barely ten minutes）"
+        }
+      ],
+      "rootAffix": "bare（赤裸、仅仅）+ -ly → 仅够地 → 几乎不",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He barely had time to eat.",
+          "translation": "他几乎没时间吃饭。",
+          "analysis": "简单句：主语 He + 状语 barely + 谓语 had + 宾语 time + 后置定语 to eat。barely 含**否定意味**，故不与否定词连用（不说 barely not）。"
+        },
+        {
+          "level": "long",
+          "sentence": "A theory that barely survives its first test is not strengthened by being repeated; it merely postpones the moment when someone finally checks it properly.",
+          "translation": "一个勉强通过首次检验的理论，不会因为被重复而得到加强；它只是把有人真正认真检验它的时刻向后推延了。",
+          "analysis": "主从复合句。主语 A theory 后接 that 引导的定语从句（barely survives its first test），谓语 is not strengthened（被动）+ by being repeated（动名词被动式作介词宾语）。分号后第二分句主语 it，谓语 merely postpones，宾语 the moment，后接 when 引导的定语从句（when someone finally checks it properly，其中 properly 表「恰当地、认真地」）。barely 取「勉强」义。"
+        }
+      ],
+      "collocations": [
+        "barely enough 勉强够",
+        "barely visible 几乎看不见",
+        "barely audible 几乎听不见",
+        "barely survive 勉强幸存"
+      ],
+      "phrases": [
+        "barely anyone 几乎没有人",
+        "barely ever 几乎从不"
+      ],
+      "derived": [
+        {
+          "word": "bare",
+          "meaning": "adj. 赤裸的；仅有的"
+        },
+        {
+          "word": "hardly",
+          "meaning": "adv. 几乎不（近义）"
+        },
+        {
+          "word": "scarcely",
+          "meaning": "adv. 几乎不；勉强"
+        }
+      ],
+      "synonyms": [
+        "hardly",
+        "scarcely",
+        "only just",
+        "merely"
+      ],
+      "mnemonic": "barely = hardly = scarcely（几乎不），三者都含否定意味、都不与 not 连用；注意 barely 置于助动词后、实义动词前"
+    },
+    "bargain": {
+      "syllable": "bar·gain",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "便宜货，廉价品（a real bargain）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "协议，交易（strike a bargain）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "讨价还价；谈判（bargain with sb over sth）"
+        }
+      ],
+      "rootAffix": "源自古法语 bargaignier（讨价还价）→ 议价 → 交易；引申为「便宜货」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "This coat was a real bargain.",
+          "translation": "这件外套真是买得便宜。",
+          "analysis": "简单句：主语 This coat + 系动词 was + 表语 a real bargain。bargain 作名词表「便宜货」，是口语与阅读中的常见用法。"
+        },
+        {
+          "level": "long",
+          "sentence": "Every purchase is a bargain of sorts: the buyer trades money for a promise, and the promise is only as good as the seller's incentive to keep it after the money has changed hands.",
+          "translation": "每一次购买在某种意义上都是一笔交易：买方用钱换取一个承诺，而这个承诺的价值，只等于卖方在钱货两清后仍有履约动力的程度。",
+          "analysis": "并列复合句。第一分句主语 Every purchase，系表结构 is a bargain of sorts（of sorts 表「勉强算是的」），冒号后为解释：the buyer trades money for a promise（trade A for B 结构）。and 连接第二分句，主语 the promise，系表结构 is only as good as the seller's incentive（as...as 比较结构），后接不定式 to keep it，after 引导时间状语从句（the money has changed hands 表「钱已易手」）。bargain 取「交易」义。"
+        }
+      ],
+      "collocations": [
+        "a real bargain 真便宜",
+        "strike a bargain 达成协议",
+        "bargain with sb 与某人讨价还价",
+        "bargain price 特价"
+      ],
+      "phrases": [
+        "into the bargain 此外，而且",
+        "bargain hunting 淘便宜货"
+      ],
+      "derived": [
+        {
+          "word": "bargaining",
+          "meaning": "n. 讨价还价；谈判（bargaining power 议价能力）"
+        },
+        {
+          "word": "bargainer",
+          "meaning": "n. 议价者"
+        }
+      ],
+      "synonyms": [
+        "deal",
+        "bargain price",
+        "negotiate",
+        "haggle"
+      ],
+      "mnemonic": "两义搭配不同：a bargain（便宜货，名词）/ strike a bargain（达成交易）；into the bargain（此外）是阅读中的高频习语"
+    },
+    "bark": {
+      "syllable": "bark",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "树皮"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（狗）吠叫"
+        },
+        {
+          "pos": "n.",
+          "meaning": "吠声"
+        }
+      ],
+      "rootAffix": "双词源：古诺斯语 börkr（树皮）与古英语 beorcan（吠）→ 树皮 / 吠",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The dog barked at the stranger.",
+          "translation": "狗对着陌生人吠叫。",
+          "analysis": "简单句：主语 The dog + 谓语 barked + 对象状语 at the stranger。bark at sb 表「对某人吠叫」，介词固定为 at。"
+        },
+        {
+          "level": "long",
+          "sentence": "A dog that barks at every passer-by is soon ignored, which is why warnings that are issued too often lose the effect that occasional ones retain.",
+          "translation": "对每个路人都吠的狗很快就会被忽视；正因如此，发布得过于频繁的警告，会丧失那些偶尔发布的警告仍保留的效果。",
+          "analysis": "主从复合句。主语 A dog 后接 that 引导的定语从句（barks at every passer-by），谓语 is soon ignored（被动）。which 引出非限制性定语从句指代主句；why 引导表语从句，其中主语 warnings 后接 that 引导的定语从句（are issued too often 为被动），谓语 lose，宾语 the effect，后接 that occasional ones retain 为定语从句（ones 指 warnings，retain 的宾语为关系代词 that）。bark 取「吠叫」义。"
+        }
+      ],
+      "collocations": [
+        "bark at 对…吠叫",
+        "tree bark 树皮",
+        "bark up the wrong tree 找错对象（习语）"
+      ],
+      "phrases": [
+        "one's bark is worse than one's bite 嘴硬心软",
+        "the bark of a dog 犬吠声"
+      ],
+      "derived": [
+        {
+          "word": "barking",
+          "meaning": "n. 吠叫 adj. 疯狂的（英式俚语）"
+        }
+      ],
+      "synonyms": [
+        "yap",
+        "howl",
+        "outer covering",
+        "rind"
+      ],
+      "mnemonic": "两个义项同形异源（树皮 / 吠叫）；习语 one's bark is worse than one's bite（嘴硬心软）与 bark up the wrong tree（弄错对象）都常见"
+    },
+    "barn": {
+      "syllable": "barn",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "谷仓，粮仓"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（美）大而简陋的建筑（如车库）"
+        }
+      ],
+      "rootAffix": "源自古英语 bere（大麦）+ ærn（房屋）→ 存大麦的房子 → 谷仓",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The farmers stored the grain in the barn.",
+          "translation": "农民们把谷物储存在谷仓里。",
+          "analysis": "简单句：主语 The farmers + 谓语 stored + 宾语 the grain + 地点状语 in the barn。barn 表「谷仓」，常用 in the barn。"
+        },
+        {
+          "level": "long",
+          "sentence": "Mechanisation made the barn's function obsolete long before the building disappeared, since a structure can outlive the economy that produced it by many decades.",
+          "translation": "机械化早在谷仓这一建筑消失之前很久，就使它的功能过时了；因为一栋建筑可以比造就它的经济形态多存活数十年。",
+          "analysis": "主从复合句。主语 Mechanisation，谓语 made，宾语 the barn's function，宾补 obsolete，时间状语 long before 引导的从句（the building disappeared）。since 引导原因状语从句，主语 a structure，谓语 can outlive，宾语 the economy，后接 that produced it 定语从句，状语 by many decades（by 表差距幅度）。barn 取「谷仓」义。"
+        }
+      ],
+      "collocations": [
+        "barn door 谷仓门",
+        "barn dance 谷仓舞会（乡村舞）",
+        "store in a barn 储存在谷仓"
+      ],
+      "phrases": [
+        "close the barn door after the horse has bolted 亡羊补牢（习语）",
+        "a barn of a house 大而无当的房子"
+      ],
+      "derived": [
+        {
+          "word": "barnyard",
+          "meaning": "n. 谷仓前的场院"
+        },
+        {
+          "word": "barnlike",
+          "meaning": "adj. 像谷仓那样大的"
+        }
+      ],
+      "synonyms": [
+        "granary",
+        "storehouse",
+        "shed"
+      ],
+      "mnemonic": "词源画面：bere（大麦）+ ærn（房屋）= 存大麦的房子；习语 close the barn door after the horse has bolted（马跑了才关谷仓门）即「亡羊补牢」"
+    },
+    "barrel": {
+      "syllable": "bar·rel",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "桶（尤指一桶之量）；一桶（石油计量单位，约 159 升）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "枪管，炮筒"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（美口）快速移动，飞奔"
+        }
+      ],
+      "rootAffix": "源自中古法语 baril（桶）→ 桶；枪管（管状物）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Oil is sold by the barrel.",
+          "translation": "石油按桶出售。",
+          "analysis": "简单句：主语 Oil + 谓语 is sold（被动）+ 方式状语 by the barrel。by the barrel 表「按桶（计）」，是计量单位的固定结构（by the dozen 按打、by the hour 按小时）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Because the price of a barrel is set thousands of miles away, a village whose entire economy depends on oil has almost no power over the income it will receive next year.",
+          "translation": "由于一桶石油的价格是在数千英里之外决定的，一个整个经济都依赖石油的村庄，几乎无法左右它明年将获得的收入。",
+          "analysis": "主从复合句。Because 引导原因状语从句（the price of a barrel is set thousands of miles away 为被动 + 地点状语）；主句主语 a village 后接 whose 引导的定语从句（depends on oil），谓语 has，宾语 almost no power，后接 over the income 及其后 it will receive next year（省略关系词的定语从句）。barrel 取「（石油）桶」义——国际油价的标准计量单位。"
+        }
+      ],
+      "collocations": [
+        "a barrel of oil 一桶石油",
+        "barrel price 桶价",
+        "gun barrel 枪管",
+        "pork barrel 政治分肥（美式政治术语）"
+      ],
+      "phrases": [
+        "over a barrel 处于被动境地（习语）",
+        "scrape the barrel 勉强凑合（习语）"
+      ],
+      "derived": [
+        {
+          "word": "barrelful",
+          "meaning": "n. 一桶之量"
+        }
+      ],
+      "synonyms": [
+        "cask",
+        "keg",
+        "drum",
+        "cylinder"
+      ],
+      "mnemonic": "经济类阅读高频：a barrel of oil（一桶石油）；习语 over a barrel（受制于人）与 scrape the barrel（将就）也常见"
+    },
+    "barrier": {
+      "syllable": "bar·ri·er",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "障碍，阻碍（a barrier to progress）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "屏障，关卡（a language barrier）"
+        }
+      ],
+      "rootAffix": "bar（栅栏、阻挡）+ -ier → 阻挡之物 → 障碍",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Language can be a barrier to communication.",
+          "translation": "语言可能成为交流的障碍。",
+          "analysis": "简单句：主语 Language + 谓语 can be + 表语 a barrier + 后置定语 to communication。barrier to sth 表「对…的障碍」，介词固定用 to。"
+        },
+        {
+          "level": "long",
+          "sentence": "The most stubborn barrier to reform is rarely opposition but the sheer number of people who lose a little from the change and will notice it immediately, while the far larger group that gains is dispersed and quiet.",
+          "translation": "改革最顽固的障碍很少是反对意见，而是这样一个事实：因变化而吃亏的人数虽不多却会立刻察觉，而获益的那一大群人却分散而沉默。",
+          "analysis": "主从复合句。主语 The most stubborn barrier，系表结构 is rarely opposition but the sheer number of people（not...but... 结构），people 后接 who 引导的定语从句（lose a little from the change and will notice it immediately 并列谓语）。while 引导对比状语从句，the far larger group 后接 that gains 定语从句，系表结构 is dispersed and quiet。barrier 取「障碍」义，本句揭示「集中受损 vs 分散获益」的经典政治经济学论点。"
+        }
+      ],
+      "collocations": [
+        "a barrier to 对…的障碍",
+        "trade barrier 贸易壁垒",
+        "language barrier 语言障碍",
+        "break down barriers 打破壁垒"
+      ],
+      "phrases": [
+        "barrier to entry 进入壁垒",
+        "sound barrier 声障"
+      ],
+      "derived": [
+        {
+          "word": "bar",
+          "meaning": "n. 栅栏 v. 阻挡"
+        },
+        {
+          "word": "barricade",
+          "meaning": "n. 路障 v. 设障碍"
+        }
+      ],
+      "synonyms": [
+        "obstacle",
+        "hindrance",
+        "blockade",
+        "impediment"
+      ],
+      "mnemonic": "搭配：a barrier **to** sth（对…的障碍）；术语 barrier to entry（进入壁垒）、trade barrier（贸易壁垒）在经济学文章中高频"
+    },
+    "base": {
+      "syllable": "base",
+      "pos": "n./v./adj.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "基础，根据（the base of）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "基地，根据地；总部"
+        },
+        {
+          "pos": "v.",
+          "meaning": "以…为基础（base sth on）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "低劣的，卑劣的（base motives）"
+        }
+      ],
+      "rootAffix": "源自希腊 basis（踏脚处、基础）→ 基底；引申为「根据地」与「低下的」（位置低）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The film is based on a true story.",
+          "translation": "这部电影取材于一个真实故事。",
+          "analysis": "简单句：主语 The film + 谓语 is based（被动）+ 状语 on a true story。be based on 表「以…为基础/取材于」，是高频搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "A judgement based on a single case is not knowledge but anecdote, however vivid it may be, because vividness measures how easily a story is recalled rather than how often it occurs.",
+          "translation": "基于单一案例作出的判断不是知识，而是轶事——无论它多么生动；因为生动性衡量的是故事有多容易被想起，而不是它发生的频率有多高。",
+          "analysis": "主从复合句。主语 A judgement，based on a single case 为过去分词短语作后置定语，系表结构 is not knowledge but anecdote（not...but... 结构），however vivid it may be 为让步状语从句（however + adj. 结构）。because 引导原因状语从句，主语 vividness，谓语 measures，宾语为 how easily a story is recalled 与 rather than how often it occurs 两个宾语从句的比较结构。base 取「以…为基础」义。"
+        }
+      ],
+      "collocations": [
+        "be based on 以…为基础",
+        "base rate 基础利率",
+        "military base 军事基地",
+        "client base 客户群"
+      ],
+      "phrases": [
+        "at the base of 在…的底部",
+        "base sth on 把…建立在…之上"
+      ],
+      "derived": [
+        {
+          "word": "basic",
+          "meaning": "adj. 基本的"
+        },
+        {
+          "word": "basis",
+          "meaning": "n. 基础，依据（on a...basis 以…方式）"
+        },
+        {
+          "word": "basement",
+          "meaning": "n. 地下室"
+        }
+      ],
+      "synonyms": [
+        "foundation",
+        "basis",
+        "centre",
+        "establish"
+      ],
+      "mnemonic": "易混辨析：base（具体基础/基地）vs basis（抽象依据，on a regular basis）vs foundation（地基/基金会）——考研常在同段设题"
+    },
+    "basic": {
+      "syllable": "ba·sic",
+      "pos": "adj./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "基本的，基础的（basic skills）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "最简单的，起码的（basic needs）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（复数）基础知识，基本要素"
+        }
+      ],
+      "rootAffix": "base（基础）+ -ic（…的）→ 基础的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Everyone should learn basic first aid.",
+          "translation": "每个人都应该学会基本的急救。",
+          "analysis": "简单句：主语 Everyone + 谓语 should learn + 宾语 basic first aid。basic 作定语表「基本的」，常与 skills/needs/rules/principles 搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "What is called a basic skill today may be considered advanced a generation from now, which is why curricula that fix the boundary too firmly end up training students for a world that has already moved on.",
+          "translation": "今天被称为基本技能的东西，一代人之后可能被视为高级技能；正因如此，把这条界线固定得过死的课程体系，最终是在按一个早已变化的世界来培养学生。",
+          "analysis": "主从复合句。主语为 what 引导的主语从句（What is called a basic skill today，被动），谓语 may be considered（被动）+ advanced a generation from now。which 引出非限制性定语从句；why 引导表语从句，其中 curricula 后接 that 引导的定语从句（fix the boundary too firmly），谓语 end up training（end up doing 结构），students for a world 后接 that has already moved on 定语从句。basic 取「基本的」义。"
+        }
+      ],
+      "collocations": [
+        "basic skills 基本技能",
+        "basic needs 基本需求",
+        "basic principles 基本原则",
+        "the basics 基础知识"
+      ],
+      "phrases": [
+        "basic training 基础训练",
+        "basic wage 基本工资"
+      ],
+      "derived": [
+        {
+          "word": "basically",
+          "meaning": "adv. 基本上，大体上"
+        },
+        {
+          "word": "base",
+          "meaning": "n. 基础 v. 以…为基础"
+        },
+        {
+          "word": "basics",
+          "meaning": "n. 基本知识（复数）"
+        }
+      ],
+      "synonyms": [
+        "fundamental",
+        "essential",
+        "elementary",
+        "primary"
+      ],
+      "mnemonic": "搭配：basic skills/needs/principles；副词 basically 在口语与写作中表「基本上」（= essentially）"
     },
     "benefit": {
       "syllable": "ben·e·fit",

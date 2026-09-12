@@ -1,14 +1,14 @@
 {
   "meta": {
     "title": "英语单词本地补全词库（人工编写，零 AI 调用）",
-    "version": "batch-7",
-    "batch": 7,
-    "note": "本词库内容为离线编写、随应用发布，补全时不调用任何付费 AI 接口，也不发起网络请求。每条含：多义项释义(defs)、分档例句(examples，含长难句解析 analysis)、词组搭配(collocations)、短语(phrases)、派生词(derived)、词根词缀(rootAffix)、近义词(synonyms)、助记(mnemonic)。未收录的词一律明确提示跳过，绝不臆造。batch-7 新增 30 词（asset ~ bachelor），累计 239 词。",
+    "version": "batch-8",
+    "batch": 8,
+    "note": "本词库内容为离线编写、随应用发布，补全时不调用任何付费 AI 接口，也不发起网络请求。每条含：多义项释义(defs)、分档例句(examples，含长难句解析 analysis)、词组搭配(collocations)、短语(phrases)、派生词(derived)、词根词缀(rootAffix)、近义词(synonyms)、助记(mnemonic)。未收录的词一律明确提示跳过，绝不臆造。batch-8 新增 30 词（back ~ basic），累计 269 词。",
     "schema": {
       "examples[].level": "simple(简易) | long(长难句)",
       "examples[].analysis": "长难句解析：句子结构、从句、特殊句式与词义在此语境下的取义"
     },
-    "nextBatchFrom": "back"
+    "nextBatchFrom": "basis"
   },
   "shards": [
     {
@@ -27,7 +27,7 @@
       "shard": "b",
       "from": "bachelor",
       "to": "benefit",
-      "count": 3
+      "count": 33
     },
     {
       "shard": "c",

@@ -15,9 +15,15 @@ import {
   recordWordStudyTime, wordStudyTimeToday, wordStudyTimeTotal,
 } from '../src/word-repo.js';
 import { generateWordMaterials } from '../src/services/word-llm.js';
-import { hasLocalEntry } from '../src/services/word-enrich.js';
+import { hasLocalEntry, loadAllShards, localWords } from '../src/services/word-enrich.js';
 import { WORD_EXT_FIELDS } from '../src/sync-manifest.js';
 import { EXT_FIELDS } from '../src/word-repo.js';
+import { readFileSync } from 'node:fs';
+
+// 考研英语大纲词表（4956 词），用于本测试「动态挑一个未收录的大纲词」走 AI 通道。
+const SYLLABUS = JSON.parse(
+  readFileSync(new URL('../src/data/kaoyan-vocab-2027.json', import.meta.url), 'utf8'),
+).words;
 
 after(async () => { try { await db.close(); } catch { /* ignore */ } });
 
@@ -95,8 +101,13 @@ test('derived / syllable：createWordCard 落库 + updateWordCard 往返', async
 test('generateWordMaterials：syllable / defs / derived / rootAffix 归一化', async () => {
   // 本用例验证的是「AI 通道的脏数据归一化」：必须走 AI 通道，因此所选词需满足
   // 「在大纲内（否则被门控拒绝）」且「本地词库未收录（否则本地优先命中，不走 AI）」。
-  // banner 当前满足两者；一旦它被收进本地词库，下面的前置断言会直接报出原因。
-  assert.ok(!hasLocalEntry('banner'), 'banner 已被本地词库收录 —— 本用例必须走 AI 通道，请改用其他未收录的大纲词');
+  // 自动词库扩充任务按字母顺序持续收录大纲词，任何硬编码词迟早会被收录；
+  // 故此处动态从大纲中取「首个本地词库尚未收录」的词，从根本上避免前置断言回归。
+  await loadAllShards();
+  const enriched = new Set(localWords());
+  const WORD = SYLLABUS.find((w) => !enriched.has(w));
+  assert.ok(WORD, '应能从大纲中找到未收录的词用于 AI 通道测试');
+  assert.ok(!hasLocalEntry(WORD), `动态选取的词 ${WORD} 不应已在本地词库收录（否则不走 AI）`);
   const agentCtx = {
     runAgent: async () => JSON.stringify({
       syllable: '  ban·ner  ',
@@ -120,7 +131,7 @@ test('generateWordMaterials：syllable / defs / derived / rootAffix 归一化', 
       mnemonic: 'ban 记「旗」',
     }),
   };
-  const out = await generateWordMaterials({ word: 'banner', settings: {}, agentCtx, allowAi: true });
+  const out = await generateWordMaterials({ word: WORD, settings: {}, agentCtx, allowAi: true });
   assert.equal(out.ok, true);
   assert.equal(out.data.syllable, 'ban·ner', '音节应 trim');
   assert.equal(out.data.defs.length, 2, 'defs 空行应被过滤');
