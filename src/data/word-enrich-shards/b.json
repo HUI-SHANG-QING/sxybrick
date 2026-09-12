@@ -1,7 +1,7 @@
 {
   "shard": "b",
   "from": "bachelor",
-  "to": "burger",
+  "to": "buzz",
   "entries": {
     "bachelor": {
       "syllable": "bach·e·lor",
@@ -10068,6 +10068,718 @@
         "patty"
       ],
       "mnemonic": "burger 是 hamburger 的截短——源自德国城市 Hamburg（汉堡）；记「汉堡(Hamburg)来的 burger（堡）」。构词如 cheese+burger。"
+    },
+    "burial": {
+      "syllable": "burial",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "埋葬，安葬"
+        },
+        {
+          "pos": "n.",
+          "meaning": "葬礼"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（喻）被埋没，被遗忘"
+        }
+      ],
+      "rootAffix": "由 bury（埋葬）加名词后缀 -al 构成；bury 源自古英语 byrgan（掩埋），原始日耳曼语 *burgjaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The burial took place at dawn.",
+          "translation": "葬礼在黎明时分举行。",
+          "analysis": "简单句：主语 The burial + 谓语 took place + 状语 at dawn。burial 此处表「葬礼」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A burial of an old idea is harder than a burial of a body, because the body stays where you put it while the idea returns in new clothes, and the belief you thought you left behind keeps showing up as a habit you no longer recognize as the thing you buried.",
+          "translation": "埋葬一个旧想法，比埋葬一具躯体更难，因为躯体待在你放它的地方，而想法却换上新装归来；你以为已抛在身后的那个信念，会一直以习惯的面目出现，而你已认不出它就是被你埋葬的那东西。",
+          "analysis": "复合句。主句 A burial... is harder than a burial of a body（than 比较）。because 引导原因状语从句，主句 the body stays where you put it while the idea returns in new clothes（where 地点状语从句，while 对比），and 并列 the belief... keeps showing up as a habit you no longer recognize as the thing you buried（you no longer recognize as the thing you buried 定语从句修饰 habit，as the thing you buried 为介词补足，you buried 定语从句修饰 thing）。"
+        }
+      ],
+      "collocations": [
+        "burial ground",
+        "burial site",
+        "burial ceremony",
+        "give a burial"
+      ],
+      "phrases": [
+        "burial at sea 海葬",
+        "burial mound 坟冢",
+        "burial urn 骨灰瓮"
+      ],
+      "derived": [
+        {
+          "word": "bury",
+          "meaning": "v. 埋葬；掩藏"
+        },
+        {
+          "word": "buried",
+          "meaning": "adj. 被埋的；隐藏的"
+        }
+      ],
+      "synonyms": [
+        "interment",
+        "funeral",
+        "entombment"
+      ],
+      "mnemonic": "burial = bury + al（名词化）；记「bury（埋）→ burial（埋葬/葬礼）」；对比 funeral（葬礼，同义）。"
+    },
+    "burn": {
+      "syllable": "burn",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "燃烧，着火"
+        },
+        {
+          "pos": "v.",
+          "meaning": "烧毁，灼伤"
+        },
+        {
+          "pos": "n.",
+          "meaning": "烧伤，灼伤"
+        }
+      ],
+      "rootAffix": "源自古英语 birnan/bernan（燃烧），原始日耳曼语 *brennaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The fire burned for hours.",
+          "translation": "火燃烧了几个小时。",
+          "analysis": "简单句：主语 The fire + 谓语 burned + 状语 for hours。burn 此处表「燃烧」。"
+        },
+        {
+          "level": "long",
+          "sentence": "To burn a bridge is to trade a future path for a moment of relief, because the anger that feels clean in the saying rarely stays contained, and the road you close today is the one you may need when the weather you counted on fails, leaving you stranded by a choice that felt like strength.",
+          "translation": "烧毁一座桥，是用未来的路去换片刻的释然，因为说出口时看似痛快的那股怒气，很少真的被关住；而你今天封上的路，正是你在指望的好天气失灵时可能需要的那条——把你困在一种曾感觉像力量的选择里。",
+          "analysis": "复合句。主句 To burn a bridge is to trade a future path for a moment of relief（不定式作主语；trade A for B 表「以 A 换 B」）。because 引导原因状语从句，主句 the anger... rarely stays contained（that feels clean in the saying 定语从句），and 并列 the road... is the one you may need when the weather... fails（you may need 定语从句，when 时间状语从句，you counted on 定语从句修饰 weather），leaving you stranded by a choice that felt like strength（that felt like strength 定语从句修饰 choice）。"
+        }
+      ],
+      "collocations": [
+        "burn down",
+        "burn out",
+        "burn the midnight oil",
+        "burn a hole"
+      ],
+      "phrases": [
+        "burn up 烧光；燃尽",
+        "burn with 充满（激情）",
+        "slow burn 渐起的怒火"
+      ],
+      "derived": [
+        {
+          "word": "burned",
+          "meaning": "adj./v. burn 的过去式/分词（美式）"
+        },
+        {
+          "word": "burning",
+          "meaning": "adj. 燃烧的；热烈的"
+        }
+      ],
+      "synonyms": [
+        "blaze",
+        "scorch",
+        "ignite"
+      ],
+      "mnemonic": "burn 联想「b（boil 沸腾）+ urn（火葬瓮）」——火葬瓮里燃烧；对比 born（出生）/barn（谷仓）。"
+    },
+    "burst": {
+      "syllable": "burst",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "爆裂，炸开"
+        },
+        {
+          "pos": "v.",
+          "meaning": "突然出现，突发"
+        },
+        {
+          "pos": "n.",
+          "meaning": "突发，一阵"
+        }
+      ],
+      "rootAffix": "源自古英语 berstan（爆裂），原始日耳曼语 *brestaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The balloon burst with a loud pop.",
+          "translation": "气球砰的一声爆了。",
+          "analysis": "简单句：主语 The balloon + 谓语 burst + 状语 with a loud pop。burst 此处表「爆裂」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A burst of effort at the end cannot repay a season of absence, because the work that matters is built in the ordinary days no one notices, and the sprint you save for the finish only proves you could have moved earlier, leaving the gap you now rush to close as evidence of a choice made long before the deadline.",
+          "translation": "结尾的一阵冲刺，无法偿还一整个缺席的季节，因为要紧的工作，是在无人注意的日常里建成的；而你留到终点的冲刺，只证明你本可以更早动身，让那道你此刻匆忙去填补的缺口，成为截止日前很久就做出的选择之证据。",
+          "analysis": "复合句。主句 A burst of effort... cannot repay a season of absence（repay A 表「偿还 A」）。because 引导原因状语从句，主句 the work... is built in the ordinary days no one notices（no one notices 定语从句修饰 days），and 并列 the sprint... only proves you could have moved earlier（you could have moved earlier 宾语从句），leaving the gap... as evidence of a choice made long before the deadline（made long before the deadline 过去分词作后置定语修饰 choice）。"
+        }
+      ],
+      "collocations": [
+        "burst into",
+        "burst out",
+        "burst open",
+        "a burst of"
+      ],
+      "phrases": [
+        "burst into tears 突然哭起来",
+        "burst with 充满",
+        "burst upon 突然浮现"
+      ],
+      "derived": [
+        {
+          "word": "bursting",
+          "meaning": "adj. 充满的；即将爆裂的"
+        },
+        {
+          "word": "outburst",
+          "meaning": "n. （情感）爆发"
+        }
+      ],
+      "synonyms": [
+        "explode",
+        "erupt",
+        "shatter"
+      ],
+      "mnemonic": "burst 与 first（第一）仅首字母不同——「第一次(first)爆发(burst)」；记「气球 burst 炸开」。"
+    },
+    "bury": {
+      "syllable": "bury",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "埋，掩埋"
+        },
+        {
+          "pos": "v.",
+          "meaning": "埋葬"
+        },
+        {
+          "pos": "v.",
+          "meaning": "掩藏，沉浸于（bury oneself in）"
+        }
+      ],
+      "rootAffix": "源自古英语 byrgan（掩埋），原始日耳曼语 *burgjaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The dog buried a bone in the yard.",
+          "translation": "狗在院子里埋了根骨头。",
+          "analysis": "简单句：主语 The dog + 谓语 buried + 宾语 a bone + 状语 in the yard。bury 此处表「埋」。"
+        },
+        {
+          "level": "long",
+          "sentence": "To bury a problem in paperwork is to hope the pile grows faster than the question, because a system that hides its failures under forms teaches everyone to file instead of fix, and the issue that should have been a quick conversation becomes a file no one owns and therefore no one ends.",
+          "translation": "把问题埋进文书工作里，是指望那堆纸长得比问题快，因为用表格把失败藏起来的系统，会教所有人去归档而非去解决；而本该是一次简短对话的问题，变成了一份无人认领、因而也无人了结的档案。",
+          "analysis": "复合句。主句 To bury a problem in paperwork is to hope the pile grows faster than the question（不定式作主语；hope 后接省略 that 的宾语从句，faster than 比较）。because 引导原因状语从句，主句 a system... teaches everyone to file instead of fix（that hides its failures under forms 定语从句），and 并列 the issue... becomes a file no one owns and therefore no one ends（no one owns 定语从句，therefore no one ends 并列谓语）。"
+        }
+      ],
+      "collocations": [
+        "bury oneself in",
+        "bury the hatchet",
+        "bury deep",
+        "bury under"
+      ],
+      "phrases": [
+        "bury one's head in the sand 逃避现实（鸵鸟心态）",
+        "buried treasure 埋藏的宝藏",
+        "buried alive 活埋"
+      ],
+      "derived": [
+        {
+          "word": "burial",
+          "meaning": "n. 埋葬；葬礼"
+        },
+        {
+          "word": "buried",
+          "meaning": "adj. 被埋的"
+        }
+      ],
+      "synonyms": [
+        "hide",
+        "entomb",
+        "conceal"
+      ],
+      "mnemonic": "bury 与 busy（忙碌）形近——「忙(busy)得把问题 bury（埋）起来」；对比 berry（浆果）。"
+    },
+    "business": {
+      "syllable": "business",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "商业，买卖"
+        },
+        {
+          "pos": "n.",
+          "meaning": "生意，业务；公司"
+        },
+        {
+          "pos": "n.",
+          "meaning": "事务，正事；（口语）职责"
+        }
+      ],
+      "rootAffix": "由 busy（忙碌的）+ 名词后缀 -ness 构成，原义「忙碌之事」，后专指「商业」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He runs a small business.",
+          "translation": "他经营一家小公司。",
+          "analysis": "简单句：主语 He + 谓语 runs + 宾语 a small business。business 此处表「公司/生意」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A business that treats its customers as numbers will, in time, find that numbers do not stay, because trust is what keeps a person returning when a cheaper option appears, and the company that wins on price alone loses the moment someone offers the same price with a warmer handshake.",
+          "translation": "把顾客当数字对待的公司，终将发现数字不会停留，因为信任才是当更便宜的选择出现时让人回头的那东西；而只靠价格取胜的公司，会在别人以同样价格加上更热情的握手出现的一刻输掉。",
+          "analysis": "复合句。主句 A business... will... find that numbers do not stay（find 后接 that 宾语从句）。because 引导原因状语从句，主句 trust is what keeps a person returning when a cheaper option appears（what keeps... 表语从句，when 时间状语从句），and 并列 the company... loses the moment someone offers the same price with a warmer handshake（the moment 时间状语从句，someone offers... 定语从句）。"
+        }
+      ],
+      "collocations": [
+        "do business",
+        "business world",
+        "small business",
+        "business trip"
+      ],
+      "phrases": [
+        "business as usual 一切如常",
+        "mind your own business 别管闲事",
+        "get down to business 言归正传"
+      ],
+      "derived": [
+        {
+          "word": "businessman",
+          "meaning": "n. 商人；企业家"
+        },
+        {
+          "word": "businesslike",
+          "meaning": "adj. 务实的；有条理的"
+        }
+      ],
+      "synonyms": [
+        "commerce",
+        "trade",
+        "company"
+      ],
+      "mnemonic": "business = busy + ness（忙碌之事→商业）；记「做生意(business)忙(busy)不休」。"
+    },
+    "busy": {
+      "syllable": "busy",
+      "pos": "adj./v.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "忙碌的，繁忙的"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使忙于，忙着做（busy oneself with）"
+        }
+      ],
+      "rootAffix": "源自古英语 bisig（焦虑的、忙碌的），可能与 bysig（占据）相关",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She is busy with her homework.",
+          "translation": "她正忙着写作业。",
+          "analysis": "简单句：主语 She + 系动词 is + 表语 busy + 状语 with her homework。busy 此处表「忙碌的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Being busy is not the same as being useful, because motion without direction exhausts the body while leaving the real task untouched, and the person who fills every hour with activity often does so to avoid the harder work of deciding what actually deserves the hour.",
+          "translation": "忙碌不等于有用，因为无方向的奔忙耗尽身体，却让真正的任务原封不动；而用活动填满每个小时的人，常常是为了躲避那件更难的事——决定什么才真正配得上这一个小时。",
+          "analysis": "复合句。主句 Being busy is not the same as being useful（Being busy 动名词作主语）。because 引导原因状语从句，主句 motion without direction exhausts the body while leaving the real task untouched（while 对比，leaving... 现在分词作结果状语），and 并列 the person... often does so to avoid the harder work of deciding what actually deserves the hour（what actually deserves the hour 宾语从句）。"
+        }
+      ],
+      "collocations": [
+        "busy with",
+        "busy in",
+        "get busy",
+        "a busy day"
+      ],
+      "phrases": [
+        "busy oneself with 忙于",
+        "as busy as a bee 忙得不可开交",
+        "busy signal 忙音"
+      ],
+      "derived": [
+        {
+          "word": "busily",
+          "meaning": "adv. 忙碌地"
+        },
+        {
+          "word": "business",
+          "meaning": "n. 商业"
+        }
+      ],
+      "synonyms": [
+        "occupied",
+        "engaged",
+        "hectic"
+      ],
+      "mnemonic": "busy 与 bury（埋）形近——「忙碌(busy)得想 bury 一切」；对比 lazy（懒）。"
+    },
+    "but": {
+      "syllable": "but",
+      "pos": "conj./prep./adv.",
+      "defs": [
+        {
+          "pos": "conj.",
+          "meaning": "但是，然而"
+        },
+        {
+          "pos": "prep.",
+          "meaning": "除了，除…以外"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "仅仅，只"
+        }
+      ],
+      "rootAffix": "源自古英语 beūtan（在…之外），原始日耳曼语 *beūtaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He is poor but happy.",
+          "translation": "他穷但快乐。",
+          "analysis": "简单句：主语 He + 系动词 is + 表语 poor but happy（but 连接两个形容词，表转折）。but 此处为连词。"
+        },
+        {
+          "level": "long",
+          "sentence": "A plan that is perfect on paper but brittle in practice fails the first time reality refuses to cooperate, because the word but hides the cost of the exception, and the design that ignores what lies after the word is the design that breaks exactly where the sentence turned.",
+          "translation": "一个在纸面上完美、在实践中却脆弱的计划，会在现实第一次拒绝配合时失败，因为 but 这个词藏起了例外的代价；而忽略了「但是」之后内容的那种设计，恰恰会在句子转折之处断裂。",
+          "analysis": "复合句。主句 A plan... fails the first time reality refuses to cooperate（that is perfect... but brittle in practice 定语从句，the first time 时间状语从句，reality refuses to cooperate 定语从句）。because 引导原因状语从句，主句 the word but hides the cost of the exception（but 此处名词化「但是」），and 并列 the design... is the design that breaks exactly where the sentence turned（that breaks... 定语从句，where the sentence turned 定语从句修饰 design）。"
+        }
+      ],
+      "collocations": [
+        "but for",
+        "nothing but",
+        "but then",
+        "all but"
+      ],
+      "phrases": [
+        "but that 要不是",
+        "last but not least 最后但并非最不重要的",
+        "anything but 绝不"
+      ],
+      "derived": [
+        {
+          "word": "buts",
+          "meaning": "n. 反对的理由（口语）"
+        },
+        {
+          "word": "rebut",
+          "meaning": "v. 反驳"
+        }
+      ],
+      "synonyms": [
+        "yet",
+        "however",
+        "except"
+      ],
+      "mnemonic": "but 是高频转折连词；记「but = 但是，引出例外/转折」；对比 and（并且）/or（或者）。"
+    },
+    "butcher": {
+      "syllable": "butcher",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "屠夫，肉贩"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（喻）滥杀者"
+        },
+        {
+          "pos": "v.",
+          "meaning": "屠宰；v.（口语）笨拙地弄糟"
+        }
+      ],
+      "rootAffix": "源自古法语 bouchier（杀羊者），与 bouc（公山羊）相关",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The butcher sells fresh meat.",
+          "translation": "肉贩卖新鲜的肉。",
+          "analysis": "简单句：主语 The butcher + 谓语 sells + 宾语 fresh meat。butcher 此处表「肉贩」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A butcher who learns the whole animal wastes nothing, because respect for the creature shows in how the parts no one wants are still turned into something someone needs, and the craft that looks careless from outside is often the one that honors the material by refusing to pretend any of it was beneath notice.",
+          "translation": "一个懂得整只动物（各部位）的屠夫毫不浪费，因为对这生灵的尊重，体现在那些无人想要的部位仍被做成某人需要的东西；而外人看来漫不经心的手艺，往往正是那种通过拒绝假装其中任何部分不值一提，来致敬原料的的手艺。",
+          "analysis": "复合句。主句 A butcher... wastes nothing（who learns the whole animal 定语从句）。because 引导原因状语从句，主句 respect... shows in how the parts... are still turned into something someone needs（how 宾语从句，no one wants 定语从句修饰 parts，someone needs 定语从句修饰 something），and 并列 the craft... is often the one that honors the material by refusing to pretend any of it was beneath notice（that honors... 定语从句，any of it was beneath notice 宾语从句，beneath notice 表「不值一提」）。"
+        }
+      ],
+      "collocations": [
+        "butcher shop",
+        "butcher meat",
+        "a butcher of",
+        "butcher a play"
+      ],
+      "phrases": [
+        "butcher knife 屠刀",
+        "butcher paper 牛皮纸",
+        "butcher block 砧板"
+      ],
+      "derived": [
+        {
+          "word": "butchery",
+          "meaning": "n. 屠宰；大屠杀"
+        },
+        {
+          "word": "butcherly",
+          "meaning": "adj. 屠夫般的；残忍的"
+        }
+      ],
+      "synonyms": [
+        "slaughterer",
+        "massacre",
+        "ruin"
+      ],
+      "mnemonic": "butcher 联想「but（但是）+ cher 似 chair」——「但是坐在椅上的屠夫」；记「肉贩(butcher)卖 meat」。"
+    },
+    "butter": {
+      "syllable": "butter",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "黄油，奶油"
+        },
+        {
+          "pos": "v.",
+          "meaning": "涂黄油于"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（喻）讨好（butter up）"
+        }
+      ],
+      "rootAffix": "源自古法语 burre，原始日耳曼语 *butterą，借自拉丁 butyrum，源自希腊 boutyron（牛酪）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She spread butter on the bread.",
+          "translation": "她把黄油涂在面包上。",
+          "analysis": "简单句：主语 She + 谓语 spread + 宾语 butter + 状语 on the bread。butter 此处表「黄油」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A slice of bread with butter is a small comfort that asks nothing of you, because the pleasure that costs little and arrives daily is the kind that steadies a person far more than the rare feast they wait for, and the life built on tiny reliable joys is harder to shake than the one suspended on a single grand event.",
+          "translation": "一片涂了黄油的面包，是一种不向你索取的小小慰藉，因为代价小、天天到的快乐，比他们所等待的稀罕盛宴更能稳住一个人；而建立在微小可靠之乐上的生活，比悬于单一盛事之上的生活更难被撼动。",
+          "analysis": "复合句。主句 A slice of bread with butter is a small comfort that asks nothing of you（that asks nothing of you 定语从句）。because 引导原因状语从句，主句 the pleasure... is the kind that steadies a person far more than the rare feast they wait for（that steadies... 定语从句，than 比较，they wait for 定语从句），and 并列 the life... is harder to shake than the one suspended on a single grand event（than 比较，suspended on... 过去分词作后置定语）。"
+        }
+      ],
+      "collocations": [
+        "bread and butter",
+        "peanut butter",
+        "butter up",
+        "melt butter"
+      ],
+      "phrases": [
+        "butter someone up 奉承某人",
+        "butter fingers 笨手笨脚的人",
+        "butter no parsnips 奉承无济于事"
+      ],
+      "derived": [
+        {
+          "word": "buttery",
+          "meaning": "adj. 黄油状的；温和的"
+        },
+        {
+          "word": "buttered",
+          "meaning": "adj. 涂了黄油的"
+        }
+      ],
+      "synonyms": [
+        "margarine",
+        "spread",
+        "grease"
+      ],
+      "mnemonic": "butter 与 better（更好的）形近——「黄油(butter)让面包 better（更好吃）」；对比 batter（面糊）。"
+    },
+    "button": {
+      "syllable": "button",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "纽扣；按钮"
+        },
+        {
+          "pos": "v.",
+          "meaning": "扣上（纽扣）；抑制（情绪）"
+        }
+      ],
+      "rootAffix": "源自古法语 bouton（芽，疙瘩，knob），原始日耳曼语 *buttōn",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Press the red button to start.",
+          "translation": "按红色按钮启动。",
+          "analysis": "简单句：谓语 Press（祈使）+ 宾语 the red button + 状语 to start。button 此处表「按钮」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A single button can end a machine built by a hundred hands, because control that looks small from the outside concentrates the power of all who made the thing, and the person who presses without understanding what sits behind the switch inherits a consequence far larger than the gesture that set it in motion.",
+          "translation": "一个按钮就能终结由一百双手建成的机器，因为外在看起来很小的控制权，集中了所有造出这东西之人的力量；而那个在不知开关背后是什么的情况下按下的人，继承的后果远大于启动它的那个动作。",
+          "analysis": "复合句。主句 A single button can end a machine built by a hundred hands（built by a hundred hands 过去分词作后置定语）。because 引导原因状语从句，主句 control... concentrates the power of all who made the thing（that looks small from the outside 定语从句，who made the thing 定语从句），and 并列 the person... inherits a consequence far larger than the gesture that set it in motion（that set it in motion 定语从句修饰 gesture，than 比较）。"
+        }
+      ],
+      "collocations": [
+        "push a button",
+        "button up",
+        "press the button",
+        "on the button"
+      ],
+      "phrases": [
+        "button down 扣紧",
+        "cute as a button 小巧可爱",
+        "button one's lip 闭嘴"
+      ],
+      "derived": [
+        {
+          "word": "buttoned",
+          "meaning": "adj. 扣上的"
+        },
+        {
+          "word": "unbutton",
+          "meaning": "v. 解开（纽扣）"
+        }
+      ],
+      "synonyms": [
+        "knob",
+        "switch",
+        "fastener"
+      ],
+      "mnemonic": "button 与 bottom（底部）形近——「底部的纽扣(button)在 bottom」；记「按 button（按钮）启动」。"
+    },
+    "buy": {
+      "syllable": "buy",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "买，购买"
+        },
+        {
+          "pos": "v.",
+          "meaning": "换取，收买；轻信（buy a story）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "购买；便宜货"
+        }
+      ],
+      "rootAffix": "源自古英语 bycgan（买），原始日耳曼语 *bugjaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I bought a book yesterday.",
+          "translation": "我昨天买了一本书。",
+          "analysis": "简单句：主语 I + 谓语 bought（buy 的过去式）+ 宾语 a book + 状语 yesterday。buy 此处表「买」。"
+        },
+        {
+          "level": "long",
+          "sentence": "To buy time is to spend a currency you cannot save, because the pause you purchase with a delay is real yet borrowed, and the person who keeps buying moments with promises eventually owes more than any future hour can repay, until the debt comes due in a single afternoon that no further delay can soften.",
+          "translation": "买时间，是花一种你无法储蓄的货币，因为你用拖延买来的停顿是真实却借来的；而那个不断用承诺买下片刻的人，最终欠下的比任何未来的小时都偿还不起，直到这笔债在一个再也无法用拖延来缓和的下文里到期。",
+          "analysis": "复合句。主句 To buy time is to spend a currency you cannot save（不定式作主语；you cannot save 定语从句修饰 currency）。because 引导原因状语从句，主句 the pause... is real yet borrowed（you purchase with a delay 定语从句修饰 pause），and 并列 the person... eventually owes more than any future hour can repay（who keeps buying moments with promises 定语从句，than 比较，any future hour can repay 定语从句），until 引导时间状语从句 the debt comes due in a single afternoon that no further delay can soften（that no further delay can soften 定语从句修饰 afternoon）。"
+        }
+      ],
+      "collocations": [
+        "buy a house",
+        "buy time",
+        "buy into",
+        "buy off"
+      ],
+      "phrases": [
+        "buy out 买下…的全部股份",
+        "buy up 全部买下",
+        "buy a pig in a poke 盲目购买"
+      ],
+      "derived": [
+        {
+          "word": "buyer",
+          "meaning": "n. 买主；采购员"
+        },
+        {
+          "word": "buying",
+          "meaning": "n. 购买（行为）"
+        }
+      ],
+      "synonyms": [
+        "purchase",
+        "acquire",
+        "procure"
+      ],
+      "mnemonic": "buy 与 by（通过）/bye（再见）同音——「by（经由）买 buy」；对比 sell（卖）。"
+    },
+    "buzz": {
+      "syllable": "buzz",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "嗡嗡声"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（口语）传闻，兴奋"
+        },
+        {
+          "pos": "v.",
+          "meaning": "发出嗡嗡声；匆忙走动"
+        }
+      ],
+      "rootAffix": "拟声词，源自中古英语 bussen（嗡嗡叫），模拟蜂鸣",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A bee buzzed past my ear.",
+          "translation": "一只蜜蜂嗡嗡地飞过我耳边。",
+          "analysis": "简单句：主语 A bee + 谓语 buzzed + 状语 past my ear。buzz 此处表「发出嗡嗡声」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The buzz of a room before a decision is made is not noise but information, because what people say before they are sure what they think reveals more than what they state once settled, and the leader who listens to the hum beneath the meeting hears the truth the formal vote will only later confirm.",
+          "translation": "在做决定之前，一个房间的嗡嗡声不是噪音而是信息，因为在人们确定自己想法之前所说的话，比他们一旦定下来后陈述的话透露得更多；而那个倾听会议之下低鸣的领导者，听到的是正式投票之后才会确认的事实。",
+          "analysis": "复合句。主句 The buzz... is not noise but information（not... but... 结构）。because 引导原因状语从句，主句 what people say before they are sure what they think reveals more than what they state once settled（what... 主语从句，before they are sure what they think 时间状语从句含 what 宾语从句，than 比较，what they state once settled 比较对象），and 并列 the leader... hears the truth the formal vote will only later confirm（who listens to the hum... 定语从句，the formal vote will only later confirm 定语从句修饰 truth）。"
+        }
+      ],
+      "collocations": [
+        "buzz about",
+        "buzz with",
+        "create a buzz",
+        "the buzz is"
+      ],
+      "phrases": [
+        "buzz off 走开；滚开",
+        "buzz word 流行词；热词",
+        "buzz around 萦绕；忙乱"
+      ],
+      "derived": [
+        {
+          "word": "buzzer",
+          "meaning": "n. 蜂鸣器；门铃"
+        },
+        {
+          "word": "buzzing",
+          "meaning": "adj. 嗡嗡响的；兴奋的"
+        }
+      ],
+      "synonyms": [
+        "hum",
+        "murmur",
+        "excitement"
+      ],
+      "mnemonic": "buzz 拟声「嗡嗡」；记「蜜蜂 buzz 飞过」；对比 fizz（嘶嘶声）。"
     }
   }
 }

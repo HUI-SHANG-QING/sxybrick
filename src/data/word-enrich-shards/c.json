@@ -1,8 +1,818 @@
 {
   "shard": "c",
-  "from": "campaign",
+  "from": "cabin",
   "to": "conduct",
   "entries": {
+    "cabin": {
+      "syllable": "cabin",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "小木屋"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（飞机）机舱；（船）舱室"
+        }
+      ],
+      "rootAffix": "源自古法语 cabane（小屋），源自拉丁 capanna（茅屋）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They spent the night in a wooden cabin.",
+          "translation": "他们在一间小木屋里过了一夜。",
+          "analysis": "简单句：主语 They + 谓语 spent + 宾语 the night + 状语 in a wooden cabin。cabin 此处表「小木屋」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A cabin far from the road teaches a person what they actually need, because when the store is an hour away the difference between want and necessity becomes sharp, and the things that once seemed essential shrink to a short list while the few that remain turn out to carry more weight than the many that were left behind.",
+          "translation": "一间远离大路的小屋，教会一个人什么是他真正需要的，因为当商店在一小时之外时，想要与必需之间的差别变得尖锐；而那些曾看似必不可少的东西，缩成短短一纸清单，而留下的少数几样，反倒比被抛在身后的许多东西承载着更重的分量。",
+          "analysis": "复合句。主句 A cabin... teaches a person what they actually need（what 宾语从句）。because 引导原因状语从句，主句 when the store is an hour away the difference... becomes sharp（when 时间状语从句），and 并列 the things... shrink to a short list while the few... turn out to carry more weight than the many...（while 对比，that once seemed essential 定语从句修饰 things，that remain 定语从句修饰 few，than 比较，that were left behind 定语从句修饰 many）。"
+        }
+      ],
+      "collocations": [
+        "log cabin",
+        "cabin crew",
+        "passenger cabin",
+        "cabin fever"
+      ],
+      "phrases": [
+        "cabin boy 船舱侍者",
+        "cabin class 二等舱；经济舱",
+        "cabin trunk 旅行箱"
+      ],
+      "derived": [
+        {
+          "word": "cabined",
+          "meaning": "adj. 被关在小屋的；受限的"
+        },
+        {
+          "word": "cabinmate",
+          "meaning": "n. 同舱者"
+        }
+      ],
+      "synonyms": [
+        "hut",
+        "cottage",
+        "compartment"
+      ],
+      "mnemonic": "cabin 联想「cab（出租汽车/小舱）+ in（在内）」——「在里面的小舱即 cabin」；对比 cabinet（橱柜）。"
+    },
+    "cable": {
+      "syllable": "cable",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "缆绳，钢索"
+        },
+        {
+          "pos": "n.",
+          "meaning": "电缆，线缆"
+        },
+        {
+          "pos": "v.",
+          "meaning": "发电报；用缆固定"
+        }
+      ],
+      "rootAffix": "源自古法语 cable，源自拉丁 capulum（套索），原义「捉拿之索」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The bridge hangs from steel cables.",
+          "translation": "这座桥悬挂在钢缆上。",
+          "analysis": "简单句：主语 The bridge + 谓语 hangs + 状语 from steel cables。cable 此处表「缆绳」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A cable laid under the sea carries words faster than any ship ever could, because distance that once meant weeks now means seconds, and the bond between two shores held by a thin line of glass is stronger than the old walls of water that used to keep them strangers to one another.",
+          "translation": "一条铺在海底的电缆，传递话语比任何船都快，因为曾经意味着数周的距禜，如今意味着数秒；而由一根细玻璃线维系的两岸之间的联系，比曾经让彼此陌生的那道旧水墙更牢固。",
+          "analysis": "复合句。主句 A cable... carries words faster than any ship ever could（than 比较）。because 引导原因状语从句，主句 distance... now means seconds（that once meant weeks 定语从句修饰 distance），and 并列 the bond... held by a thin line of glass is stronger than the old walls...（held by a thin line of glass 过去分词作后置定语，than 比较，that used to keep them strangers to one another 定语从句修饰 walls）。"
+        }
+      ],
+      "collocations": [
+        "cable car",
+        "cable TV",
+        "undersea cable",
+        "steel cable"
+      ],
+      "phrases": [
+        "cable railway 缆车铁道",
+        "cable transfer 电汇",
+        "cable network 有线电视网"
+      ],
+      "derived": [
+        {
+          "word": "cabling",
+          "meaning": "n. 电缆敷设"
+        },
+        {
+          "word": "cabler",
+          "meaning": "n. 电缆工；电报员"
+        }
+      ],
+      "synonyms": [
+        "wire",
+        "rope",
+        "cord"
+      ],
+      "mnemonic": "cable 与 able（能够）尾段相同——「能(able)拉起重物的缆绳(cable)」；对比 table（桌子）。"
+    },
+    "cafe": {
+      "syllable": "cafe",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "咖啡馆，小餐馆"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（口语）休闲饮食店"
+        }
+      ],
+      "rootAffix": "源自法语 café（咖啡），源自意大利 caffè，源自阿拉伯 qahwa（咖啡）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We met at a small cafe.",
+          "translation": "我们在一家小咖啡馆见面。",
+          "analysis": "简单句：主语 We + 谓语 met + 状语 at a small cafe。cafe 此处表「咖啡馆」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A cafe is a corner of the city where strangers become neighbors by simply staying, because the act of returning to the same chair day after day turns a transaction into a ritual, and the place that remembers your order knows you before you have said a word, which is a kind of belonging no grand hall can offer.",
+          "translation": "咖啡馆是城市的一角，陌生人在此仅仅因为停留就变成了邻里，因为日复一日回到同一把椅子的行为，把一次交易变成了一种仪式；而那个记得你点单的地方，在你开口之前就认识了你——这是一种任何大厅都无法提供的归属感。",
+          "analysis": "复合句。主句 A cafe is a corner... where strangers become neighbors by simply staying（where 定语从句）。because 引导原因状语从句，主句 the act... turns a transaction into a ritual（of returning... 动名词作后置定语），and 并列 the place... knows you before you have said a word, which is a kind of belonging no grand hall can offer（that remembers your order 定语从句修饰 place，before you have said a word 时间状语从句，which 定语从句，no grand hall can offer 定语从句修饰 belonging）。"
+        }
+      ],
+      "collocations": [
+        "internet cafe",
+        "cafe bar",
+        "corner cafe",
+        "cafe culture"
+      ],
+      "phrases": [
+        "cafe latte 拿铁咖啡",
+        "cafe au lait 牛奶咖啡",
+        "cafe society 咖啡馆社交圈"
+      ],
+      "derived": [
+        {
+          "word": "cafeteria",
+          "meaning": "n. 自助餐厅"
+        },
+        {
+          "word": "cafetiere",
+          "meaning": "n. 法压咖啡壶"
+        }
+      ],
+      "synonyms": [
+        "coffee shop",
+        "bistro",
+        "diner"
+      ],
+      "mnemonic": "cafe 源自阿拉伯 qahwa（咖啡）经法语传入；记「去 cafe 喝咖啡」；对比 coffee（咖啡）。"
+    },
+    "cafeteria": {
+      "syllable": "cafeteria",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "自助餐厅，食堂（自取餐食）"
+        }
+      ],
+      "rootAffix": "源自墨西哥西班牙语 cafetería（咖啡馆），由 café（咖啡）派生",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Students eat lunch in the cafeteria.",
+          "translation": "学生们在自助餐厅吃午饭。",
+          "analysis": "简单句：主语 Students + 谓语 eat + 宾语 lunch + 状语 in the cafeteria。cafeteria 此处表「自助餐厅」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A cafeteria works only when the line moves and the choice stays simple, because a system that offers everything but serves no one fast teaches people to abandon the queue for the snack they can grab, and the institution that forgets the point of feeding a crowd on time mistakes abundance for care.",
+          "translation": "自助餐厅只有在队伍流动、选择保持简单时才行得通，因为一个提供一切却不快速服务任何人的系统，会教人们放弃排队去抓手边能拿的零食；而忘了「准时喂饱一群人」这一点的机构，把丰盛误当成了关怀。",
+          "analysis": "复合句。主句 A cafeteria works only when the line moves and the choice stays simple（when 时间状语从句含 and 并列）。because 引导原因状语从句，主句 a system... teaches people to abandon the queue...（that offers everything but serves no one fast 定语从句，but 转折），and 并列 the institution... mistakes abundance for care（that forgets the point... 定语从句，mistake A for B 表「把 A 误当 B」）。"
+        }
+      ],
+      "collocations": [
+        "school cafeteria",
+        "workplace cafeteria",
+        "cafeteria food",
+        "run a cafeteria"
+      ],
+      "phrases": [
+        "cafeteria plan 自选福利计划",
+        "cafeteria style 自助式",
+        "cafeteria tray 餐盘"
+      ],
+      "derived": [
+        {
+          "word": "cafeterias",
+          "meaning": "n. 复数形式"
+        },
+        {
+          "word": "cafeteria-style",
+          "meaning": "adj. 自助式的"
+        }
+      ],
+      "synonyms": [
+        "canteen",
+        "buffet",
+        "dining hall"
+      ],
+      "mnemonic": "cafeteria 由 café（咖啡）派生，指「可自取餐食的咖啡馆式场所」；记「cafeteria = 自助食堂」；对比 canteen（食堂，同义）。"
+    },
+    "cage": {
+      "syllable": "cage",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "笼子，兽笼"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（喻）囚禁，束缚"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把…关进笼子"
+        }
+      ],
+      "rootAffix": "源自古法语 cage，源自拉丁 cavea（洞，兽笼），与 cave（洞穴）同源",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The bird sang in its cage.",
+          "translation": "鸟儿在笼子里歌唱。",
+          "analysis": "简单句：主语 The bird + 谓语 sang + 状语 in its cage。cage 此处表「笼子」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A cage built to protect can become a cage that confines, because the wall raised against danger also blocks the door a creature might one day choose to walk through, and the keeper who means only safety slowly teaches the kept that the world outside was never meant for them.",
+          "translation": "为保护而建的笼子，也会变成禁锢的笼子，因为那道为抵御危险而筑的墙，也挡住了生灵或许某天会选择走出的门；而本意只在安全的守护者，会慢慢让被守护者相信，外面的世界从来不是为他们准备的。",
+          "analysis": "复合句。主句 A cage... can become a cage that confines（that confines 定语从句）。because 引导原因状语从句，主句 the wall... also blocks the door...（raised against danger 过去分词作后置定语，a creature might one day choose to walk through 定语从句修饰 door），and 并列 the keeper... slowly teaches the kept that the world outside was never meant for them（who means only safety 定语从句，the kept 名词化「被守护者」，that 宾语从句）。"
+        }
+      ],
+      "collocations": [
+        "bird cage",
+        "cage in",
+        "rattle the cage",
+        "cage fighting"
+      ],
+      "phrases": [
+        "cage up 把…关进笼",
+        "golden cage 金笼（富贵牢笼）",
+        "rattle someone's cage 激怒某人"
+      ],
+      "derived": [
+        {
+          "word": "caged",
+          "meaning": "adj. 被关的；被困的"
+        },
+        {
+          "word": "caging",
+          "meaning": "n. 关笼；限制"
+        }
+      ],
+      "synonyms": [
+        "enclosure",
+        "prison",
+        "confine"
+      ],
+      "mnemonic": "cage 与 cave（洞穴）同源（cavea 兽笼）；记「笼子(cage)像小 cave」；对比 page（页）。"
+    },
+    "cake": {
+      "syllable": "cake",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "蛋糕，糕饼"
+        },
+        {
+          "pos": "n.",
+          "meaning": "饼状物，块"
+        },
+        {
+          "pos": "v.",
+          "meaning": "结块，厚厚覆盖（cake with）"
+        }
+      ],
+      "rootAffix": "源自古挪威语 kaka（蛋糕），原始日耳曼语 *kakǭn",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She baked a chocolate cake.",
+          "translation": "她烤了一个巧克力蛋糕。",
+          "analysis": "简单句：主语 She + 谓语 baked + 宾语 a chocolate cake。cake 此处表「蛋糕」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A cake divided among many tastes none of them, because the slice that pleases one palate offends another, and the host who tries to satisfy everyone ends up serving a flavor so mild it belongs to no one, while the cook who trusts a single clear vision feeds a room that remembers the meal long after the plates are cleared.",
+          "translation": "一块蛋糕分给许多口味，结果谁也没讨好，因为取悦一张嘴的那片会冒犯另一张；而想取悦所有人的主人，最终端出一种温和到不属于任何人的味道，反观那个信赖单一清晰想法的厨子，喂饱的是一屋在盘子收走后仍久久记得这顿饭的人。",
+          "analysis": "复合句。主句 A cake divided among many tastes none of them（省略谓语，意即「取悦不了任何人」）。because 引导原因状语从句，主句 the slice... offends another（that pleases one palate 定语从句），and 并列 the host... ends up serving a flavor... while the cook... feeds a room...（who tries to satisfy everyone 定语从句，so mild it belongs to no one 结果状语从句，while 对比，who trusts a single clear vision 定语从句，that remembers the meal 定语从句修饰 room，long after the plates are cleared 时间状语）。"
+        }
+      ],
+      "collocations": [
+        "a piece of cake",
+        "birthday cake",
+        "cake mix",
+        "sell like hot cakes"
+      ],
+      "phrases": [
+        "a piece of cake 小菜一碟",
+        "take the cake 最出色（或最过分）",
+        "cake walk 轻易获胜"
+      ],
+      "derived": [
+        {
+          "word": "caked",
+          "meaning": "adj. 结块的；厚覆的"
+        },
+        {
+          "word": "cakey",
+          "meaning": "adj. 似蛋糕的；结块的"
+        }
+      ],
+      "synonyms": [
+        "pastry",
+        "tart",
+        "block"
+      ],
+      "mnemonic": "cake 与 bake（烘焙）常搭配——「bake 出 cake」；口语 a piece of cake = 小菜一碟。"
+    },
+    "calculate": {
+      "syllable": "calculate",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "计算，核算"
+        },
+        {
+          "pos": "v.",
+          "meaning": "推算，估计"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（正式）打算，计划"
+        }
+      ],
+      "rootAffix": "源自拉丁 calculus（小石子，算筹），由 calx（石子）派生，因古罗马用石子计数",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He calculated the cost in his head.",
+          "translation": "他在脑子里算出了花费。",
+          "analysis": "简单句：主语 He + 谓语 calculated + 宾语 the cost + 状语 in his head。calculate 此处表「计算」。"
+        },
+        {
+          "level": "long",
+          "sentence": "To calculate a risk is not to remove it but to see it clearly, because a number on a page does not stop the storm, yet the mind that has weighed the odds moves with a steadiness the unprepared lack, and the choice made in full view of the danger is the one a person can stand behind when the outcome arrives.",
+          "translation": "评估风险，不是消除它，而是看清它，因为纸上的数字挡不住风暴，然而掂量过概率的头脑，自有一种未做准备者所缺乏的稳健；而在完全看清危险后做出的选择，是那个当结果到来时能为之撑腰的选择。",
+          "analysis": "复合句。主句 To calculate a risk is not to remove it but to see it clearly（不定式作主语；not... but... 结构）。because 引导原因状语从句，主句 a number on a page does not stop the storm, yet the mind... moves with a steadiness the unprepared lack（yet 并列，that has weighed the odds 定语从句，the unprepared lack 定语从句修饰 steadiness），and 并列 the choice... is the one a person can stand behind when the outcome arrives（made in full view of the danger 过去分词作后置定语，when 时间状语从句）。"
+        }
+      ],
+      "collocations": [
+        "calculate the cost",
+        "calculate on",
+        "calculate risk",
+        "carefully calculated"
+      ],
+      "phrases": [
+        "calculate on 指望；预料",
+        "be calculated to 旨在；故意",
+        "calculate upon 期待"
+      ],
+      "derived": [
+        {
+          "word": "calculation",
+          "meaning": "n. 计算；推算"
+        },
+        {
+          "word": "calculator",
+          "meaning": "n. 计算器"
+        }
+      ],
+      "synonyms": [
+        "compute",
+        "reckon",
+        "estimate"
+      ],
+      "mnemonic": "calculate 源自拉丁 calculus「小石子（算筹）」——古罗马用石子计数；记「用石子 calculate 计算」；对比 calculator（计算器）。"
+    },
+    "calendar": {
+      "syllable": "calendar",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "日历，月历"
+        },
+        {
+          "pos": "n.",
+          "meaning": "历法"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把…排入日程"
+        }
+      ],
+      "rootAffix": "源自拉丁 calendae（每月初一，罗马人于此日付月租），原指「召集之日」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The meeting is on the calendar.",
+          "translation": "会议已排在日程上。",
+          "analysis": "简单句：主语 The meeting + 系动词 is + 表语 on the calendar。calendar 此处表「日程表」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A calendar is a quiet argument about what matters, because the hours given to one thing are hours taken from another, and the person who fills every square with tasks they do not believe in wakes to find the year gone and the life they meant to live still waiting at the edge of a page they never turned.",
+          "translation": "日历是一场关于什么重要的无声争论，因为给了一件事的时间，就是从另一件事那里夺走的时间；而那个用自己并不相信的任务填满每一个方格的人，醒来时会发现一年已逝，而本想活的人生仍等在那一页的边缘——那一页他从未翻过。",
+          "analysis": "复合句。主句 A calendar is a quiet argument about what matters（what matters 宾语从句）。because 引导原因状语从句，主句 the hours... are hours taken from another（given to one thing 过去分词作后置定语），and 并列 the person... wakes to find the year gone and the life... still waiting...（who fills every square with tasks they do not believe in 定语从句，they do not believe in 定语从句修饰 tasks，gone 形容词补足，they meant to live 定语从句修饰 life，they never turned 定语从句修饰 page）。"
+        }
+      ],
+      "collocations": [
+        "on the calendar",
+        "calendar year",
+        "lunar calendar",
+        "calendar app"
+      ],
+      "phrases": [
+        "calendar month 历月",
+        "calendar of events 活动日程",
+        "academic calendar 校历"
+      ],
+      "derived": [
+        {
+          "word": "calendrical",
+          "meaning": "adj. 历法的；日历的"
+        },
+        {
+          "word": "calendarize",
+          "meaning": "v. 排入日程"
+        }
+      ],
+      "synonyms": [
+        "schedule",
+        "timetable",
+        "almanac"
+      ],
+      "mnemonic": "calendar 源自拉丁 calendae「每月初一（付租日）」——记「日历(calendar)标记日子」；对比 calculate（计算，同源 calx 石子）。"
+    },
+    "calf": {
+      "syllable": "calf",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "小牛，牛犊"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（鲸、象等的）幼兽"
+        },
+        {
+          "pos": "n.",
+          "meaning": "小腿肚（复数 calves）"
+        }
+      ],
+      "rootAffix": "源自古英语 cealf，原始日耳曼语 *kalbą",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The cow licked her newborn calf.",
+          "translation": "母牛舔着她刚出生的小牛。",
+          "analysis": "简单句：主语 The cow + 谓语 licked + 宾语 her newborn calf。calf 此处表「小牛」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A calf separated from the herd learns the world too early, because the protection it loses is not just warmth but the slow teaching that only a group can give, and the young that grow up alone carry a wariness no later kindness fully erases, as if the absence they met first became the shape of everything they expect.",
+          "translation": "一头与牛群分离的小牛过早地认识世界，因为它失去的保护不只是温暖，还有只有群体才能给予的那缓慢的教导；而独自长大的幼崽，带着一种后来的善意也无法完全抹去的戒备，仿佛它们最先遇见的空缺，成了它们对一切所期待之物的形状。",
+          "analysis": "复合句。主句 A calf... learns the world too early（separated from the herd 过去分词作后置定语）。because 引导原因状语从句，主句 the protection... is not just warmth but the slow teaching...（not... but... 结构，that only a group can give 定语从句修饰 teaching），and 并列 the young... carry a wariness no later kindness fully erases（that grow up alone 定语从句，no later kindness fully erases 定语从句修饰 wariness），as if 引导方式状语从句 the absence... became the shape of everything they expect（they expect 定语从句修饰 everything）。"
+        }
+      ],
+      "collocations": [
+        "calf muscle",
+        "calfskin",
+        "raise a calf",
+        "calf love"
+      ],
+      "phrases": [
+        "calf roping 套小牛（竞技）",
+        "golden calf 金牛犊（偶像）",
+        "calf birth 牛犊出生"
+      ],
+      "derived": [
+        {
+          "word": "calves",
+          "meaning": "n. calf 的复数（f 变 v）"
+        },
+        {
+          "word": "calfskin",
+          "meaning": "n. 小牛皮；犊皮"
+        }
+      ],
+      "synonyms": [
+        "veal",
+        "young cattle"
+      ],
+      "mnemonic": "calf 与 half（一半）尾段相同——「小牛(calf)才 half 大」；注意复数 calves（f→v 变音）。"
+    },
+    "call": {
+      "syllable": "call",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "叫，喊；打电话"
+        },
+        {
+          "pos": "v.",
+          "meaning": "称呼，取名（call sb sth）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "电话；呼唤；号召"
+        }
+      ],
+      "rootAffix": "源自古英语 ceallian（喊叫），借自古诺尔斯语 kalla",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She called me last night.",
+          "translation": "她昨晚给我打了电话。",
+          "analysis": "简单句：主语 She + 谓语 called + 宾语 me + 状语 last night。call 此处表「打电话」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A call to action that names no enemy and no step is only noise, because a crowd aroused without a direction spends its energy arguing about where to go, and the leader who asks people to move without saying where arrives at a square full of the willing and empty of the able, because no one knew what to do once they arrived.",
+          "translation": "一个不点明敌人和步骤的行动号召，只是噪音，因为被激起却没有方向的群众，会把精力耗在争论该往哪儿走；而那个只叫人动身却不说去哪里的领导者，会抵达一个满是愿意者、却空无能者的广场——因为没人知道到了之后该做什么。",
+          "analysis": "复合句。主句 A call to action... is only noise（that names no enemy and no step 定语从句）。because 引导原因状语从句，主句 a crowd... spends its energy arguing about where to go（aroused without a direction 过去分词作后置定语，where to go 宾语从句），and 并列 the leader... arrives at a square full of the willing and empty of the able（who asks people to move without saying where 定语从句，full of... / empty of... 后置定语），because 引导嵌套原因状语从句 no one knew what to do once they arrived（once 时间状语从句，what to do 宾语从句）。"
+        }
+      ],
+      "collocations": [
+        "call for",
+        "call off",
+        "call on",
+        "give a call"
+      ],
+      "phrases": [
+        "call up 征召；唤起",
+        "call it a day 收工",
+        "call the shots 发号施令"
+      ],
+      "derived": [
+        {
+          "word": "caller",
+          "meaning": "n. 访客；来电者"
+        },
+        {
+          "word": "calling",
+          "meaning": "n. 呼喊；天职"
+        }
+      ],
+      "synonyms": [
+        "shout",
+        "phone",
+        "summon"
+      ],
+      "mnemonic": "call 与 fall（落下）/ball（球）形近——「叫(call)声像球(ball)落下(fall)」；对比 cell（细胞/手机）。"
+    },
+    "calm": {
+      "syllable": "calm",
+      "pos": "adj./n./v.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "平静的，冷静的"
+        },
+        {
+          "pos": "n.",
+          "meaning": "平静，安宁"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使平静，平息"
+        }
+      ],
+      "rootAffix": "源自中古法语 calme，经意大利 calma，源自拉丁 cauma（正午暑热），后转义为「无风、平静」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The sea was calm after the storm.",
+          "translation": "风暴过后海面平静。",
+          "analysis": "简单句：主语 The sea + 系动词 was + 表语 calm + 状语 after the storm。calm 此处表「平静的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A calm surface often hides a current that has not stopped, because stillness above water is not the same as peace beneath it, and the person who mistakes the absence of noise for the absence of danger learns too late that the quiet was only the pause before the wave that had already decided to come.",
+          "translation": "平静的水面常隐藏着并未停止的暗流，因为水上的静止不同于水下的安宁；而那个把「没有声响」误当作「没有危险」的人，会太晚才明白，那寂静只是那道早已决定到来的浪头之前的停顿。",
+          "analysis": "复合句。主句 A calm surface... hides a current that has not stopped（that has not stopped 定语从句）。because 引导原因状语从句，主句 stillness above water is not the same as peace beneath it（above water / beneath it 介词短语），and 并列 the person... learns too late that the quiet was only the pause...（who mistakes the absence of noise for the absence of danger 定语从句，mistake A for B 表「把 A 误当 B」，that the quiet was... 宾语从句，before the wave that had already decided to come 时间状语从句，that had already decided to come 定语从句修饰 wave）。"
+        }
+      ],
+      "collocations": [
+        "keep calm",
+        "calm down",
+        "calm sea",
+        "stay calm"
+      ],
+      "phrases": [
+        "calm before the storm 暴风雨前的宁静",
+        "calm oneself 使自己冷静",
+        "calm the nerves 安定情绪"
+      ],
+      "derived": [
+        {
+          "word": "calmly",
+          "meaning": "adv. 平静地；镇定地"
+        },
+        {
+          "word": "calmness",
+          "meaning": "n. 平静；镇定"
+        }
+      ],
+      "synonyms": [
+        "peaceful",
+        "tranquil",
+        "quiet"
+      ],
+      "mnemonic": "calm 与 palm（手掌）尾段相同——「掌心(palm)向上，心 calm（平静）」；对比 came（come 的过去式）。"
+    },
+    "camel": {
+      "syllable": "camel",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "骆驼（单峰或双峰）"
+        }
+      ],
+      "rootAffix": "源自拉丁 camelus，源自希腊 kamēlos，借自闪族语（希伯来 gāmāl）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The camel can go days without water.",
+          "translation": "骆驼可以数日不喝水。",
+          "analysis": "简单句：主语 The camel + 谓语 can go + 状语 days without water。camel 此处表「骆驼」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A camel carries the weight of a journey others cannot attempt, because the creature built for the desert does not race the horse of the plain but outlasts it, and the traveler who chooses the slow sure beast over the fast fragile one understands that reaching the far side matters more than the style in which the miles were spent.",
+          "translation": "骆驼背负着别人无法尝试的旅程之重，因为那为沙漠而生的生灵不与平原上的马赛跑，而是比它更持久；而那个选择缓慢稳健之兽而非迅捷脆弱之马的行者，懂得抵达对岸比以何种姿态耗完里程更重要。",
+          "analysis": "复合句。主句 A camel carries the weight...（others cannot attempt 定语从句）。because 引导原因状语从句，主句 the creature... does not race the horse... but outlasts it（that built for the desert 定语从句，does not... but... 结构），and 并列 the traveler... understands that reaching the far side matters more than the style...（who chooses the slow sure beast over the fast fragile one 定语从句，that reaching... matters more than... 宾语从句，in which the miles were spent 定语从句修饰 style）。"
+        }
+      ],
+      "collocations": [
+        "camel hair",
+        "ride a camel",
+        "camel caravan",
+        "camel hump"
+      ],
+      "phrases": [
+        "straw that breaks the camel's back 压垮骆驼的最后一根稻草",
+        "camel in the eye 眼中的刺（喻）",
+        "camel driver 驼夫"
+      ],
+      "derived": [
+        {
+          "word": "camelid",
+          "meaning": "n. 骆驼科动物（羊驼等）"
+        },
+        {
+          "word": "cameline",
+          "meaning": "adj. 骆驼的"
+        }
+      ],
+      "synonyms": [
+        "dromedary",
+        "beast of burden"
+      ],
+      "mnemonic": "camel 与 canal（运河）形近——「运河(canal)边有 camel（骆驼）」；记「沙漠之舟 camel」。"
+    },
+    "camera": {
+      "syllable": "camera",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "照相机，摄影机"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（司法）法官私室（in camera，不公开）"
+        }
+      ],
+      "rootAffix": "源自拉丁 camera（拱顶房间），源自希腊 kamara（拱）；因早期摄影暗箱如小暗室而得名",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He took a photo with his camera.",
+          "translation": "他用相机拍了张照片。",
+          "analysis": "简单句：主语 He + 谓语 took + 宾语 a photo + 状语 with his camera。camera 此处表「照相机」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A camera records what the eye misses, because the lens holds a moment the memory would have dropped, and the image that survives the day becomes the proof a story needs when the teller's words begin to drift, turning a single second into something a whole room can return to and argue about long after the event has faded.",
+          "translation": "相机记录下眼睛错过的东西，因为镜头留住了记忆本会丢弃的瞬间；而熬过这一天留存下来的影像，成了当讲述者的话语开始漂移时，故事所需要的证据——把一秒钟变成一整屋人能在事件褪色后很久仍回头争论的东西。",
+          "analysis": "复合句。主句 A camera records what the eye misses（what 宾语从句）。because 引导原因状语从句，主句 the lens holds a moment the memory would have dropped（the memory would have dropped 定语从句修饰 moment），and 并列 the image... becomes the proof a story needs when the teller's words begin to drift（that survives the day 定语从句修饰 image，a story needs 定语从句修饰 proof，when 时间状语从句），turning a single second into something...（现在分词作结果状语，a whole room can return to and argue about 定语从句修饰 something，long after the event has faded 时间状语）。"
+        }
+      ],
+      "collocations": [
+        "digital camera",
+        "camera lens",
+        "on camera",
+        "hidden camera"
+      ],
+      "phrases": [
+        "in camera 秘密地；不公开地",
+        "camera shy 怕上镜的",
+        "camera ready 可供拍摄的"
+      ],
+      "derived": [
+        {
+          "word": "cameraman",
+          "meaning": "n. 摄影师；摄像师"
+        },
+        {
+          "word": "camcorder",
+          "meaning": "n. 便携式摄像机"
+        }
+      ],
+      "synonyms": [
+        "lens",
+        "recorder",
+        "photographer's tool"
+      ],
+      "mnemonic": "camera 源自拉丁「拱顶小室（暗箱）」——记「相机(camera)像暗室」；对比 camper（露营者）。"
+    },
+    "camp": {
+      "syllable": "camp",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "营地"
+        },
+        {
+          "pos": "n.",
+          "meaning": "阵营，派别"
+        },
+        {
+          "pos": "v.",
+          "meaning": "露营，扎营"
+        }
+      ],
+      "rootAffix": "源自中古法语 camp（田野，营地），源自拉丁 campus（平原，田野）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We camped by the lake for a week.",
+          "translation": "我们在湖边露营了一周。",
+          "analysis": "简单句：主语 We + 谓语 camped + 状语 by the lake + 状语 for a week。camp 此处表「露营」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A camp divided by a small dispute loses to a united enemy, because the energy spent proving a friend wrong is energy stolen from the fight that mattered, and the side that turns inward to win an argument arrives at the battle already smaller than the one it came to meet.",
+          "translation": "一个被小争端分裂的阵营，会输给团结的敌人，因为用于证明朋友错了的精力，是从那场要紧的战斗中被偷走的精力；而那个向内转去赢下一场争论的一方，抵达战场时已经比它来时要对付的那个对手更小了。",
+          "analysis": "复合句。主句 A camp... loses to a united enemy（divided by a small dispute 过去分词作后置定语）。because 引导原因状语从句，主句 the energy... is energy stolen from the fight...（spent proving a friend wrong 过去分词作后置定语），and 并列 the side... arrives at the battle already smaller than the one it came to meet（that turns inward to win an argument 定语从句，than 比较，it came to meet 定语从句修饰 the one）。"
+        }
+      ],
+      "collocations": [
+        "summer camp",
+        "refugee camp",
+        "base camp",
+        "camp out"
+      ],
+      "phrases": [
+        "camp follower 随营人员",
+        "campsite 营地；露营地",
+        "camp bed 行军床"
+      ],
+      "derived": [
+        {
+          "word": "camper",
+          "meaning": "n. 露营者；野营车"
+        },
+        {
+          "word": "camping",
+          "meaning": "n. 露营；野营"
+        }
+      ],
+      "synonyms": [
+        "encampment",
+        "faction",
+        "tent"
+      ],
+      "mnemonic": "camp 源自拉丁 campus「田野」——记「在田野(campus)上 camp（露营）」；对比 campus（校园）。"
+    },
     "campaign": {
       "syllable": "cam·paign",
       "pos": "n./v.",
@@ -57,6 +867,238 @@
       ],
       "易混辨析": "campaign（有组织的运动/战役）/ champion（冠军；拥护）/ champagne（香槟）——拼写相近；「运动」义是考研高频",
       "mnemonic": "camp(营)+aign → 从营地出发的行动 → 战役、运动"
+    },
+    "can": {
+      "syllable": "can",
+      "pos": "aux./n./v.",
+      "defs": [
+        {
+          "pos": "aux.",
+          "meaning": "能，会（能力/可能）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "罐头，金属罐"
+        },
+        {
+          "pos": "v.",
+          "meaning": "罐装，装罐"
+        }
+      ],
+      "rootAffix": "情态动词 can 源自古英语 cunnan（知道，能够），原始日耳曼语 *kunnaną；罐头义源自拉丁 canna（芦苇→管状容器）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She can speak three languages.",
+          "translation": "她能说三种语言。",
+          "analysis": "简单句：主语 She + 情态动词 can + 谓语 speak + 宾语 three languages。can 此处表「能」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A can that looks full from the side may be empty from the top, because the shape that promises content sometimes hides how little it holds, and the person who judges a vessel by its outline alone learns to open things before trusting them, finding again and again that the loudest container often carries the least.",
+          "translation": "一个从侧面看很满的罐子，从顶上看也许是空的，因为那许诺内容的外形，有时藏起了它实际装得有多么少；而那个只凭轮廓判断容器的人，学会在信任之前先打开它们，一次次发现最喧闹的容器往往装得最少。",
+          "analysis": "复合句。主句 A can... may be empty from the top（that looks full from the side 定语从句）。because 引导原因状语从句，主句 the shape... sometimes hides how little it holds（that promises content 定语从句，how little it holds 宾语从句），and 并列 the person... learns to open things before trusting them, finding... that the loudest container often carries the least（who judges a vessel by its outline alone 定语从句，before trusting them 时间状语，finding... 现在分词作结果状语，that 宾语从句）。"
+        }
+      ],
+      "collocations": [
+        "can do",
+        "a can of",
+        "canned food",
+        "trash can"
+      ],
+      "phrases": [
+        "can't help 忍不住",
+        "in the can 已完成（俚）",
+        "can opener 开罐器"
+      ],
+      "derived": [
+        {
+          "word": "canned",
+          "meaning": "adj. 罐装的；陈腐的（canned laughter）"
+        },
+        {
+          "word": "canner",
+          "meaning": "n. 罐头工人；装罐机"
+        }
+      ],
+      "synonyms": [
+        "able",
+        "tin",
+        "container"
+      ],
+      "mnemonic": "can 双义：①情态「能」（cunnan 知道→能）②「罐头」（canna 容器）；记「能(can)力像罐头一样被装起来」。"
+    },
+    "canal": {
+      "syllable": "canal",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "运河，沟渠"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（解剖）管，道"
+        }
+      ],
+      "rootAffix": "源自拉丁 canalis（管道），由 canna（芦苇，管）派生",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The canal carries water to the fields.",
+          "translation": "运河把水引到田里。",
+          "analysis": "简单句：主语 The canal + 谓语 carries + 宾语 water + 状语 to the fields。canal 此处表「运河」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A canal that connects two seas changes the map of who trades with whom, because a route cut by human hands shortens the distance that nature left long, and the city that sits where the water bends gains a wealth it did nothing to deserve but everything to defend.",
+          "translation": "一条连接两片海的运河，改变了谁与谁贸易的版图，因为由人手开凿的航路，缩短了自然留下的漫长途程；而坐落在水道转弯处的城市，获得了一份它不靠功劳赢得、却要全力守护的财富。",
+          "analysis": "复合句。主句 A canal... changes the map of who trades with whom（who trades with whom 宾语从句）。because 引导原因状语从句，主句 a route... shortens the distance...（cut by human hands 过去分词作后置定语，that nature left long 定语从句修饰 distance），and 并列 the city... gains a wealth it did nothing to deserve but everything to defend（that sits where the water bends 定语从句，where 地点状语从句，it did nothing to deserve but everything to defend 定语从句修饰 wealth）。"
+        }
+      ],
+      "collocations": [
+        "Panama Canal",
+        "irrigation canal",
+        "canal lock",
+        "dug a canal"
+      ],
+      "phrases": [
+        "canal boat 运河船",
+        "root canal 根管（牙）",
+        "canal system 运河系统"
+      ],
+      "derived": [
+        {
+          "word": "canalize",
+          "meaning": "v. 开凿运河；疏导"
+        },
+        {
+          "word": "canalization",
+          "meaning": "n. 运河化；疏导"
+        }
+      ],
+      "synonyms": [
+        "channel",
+        "waterway",
+        "ditch"
+      ],
+      "mnemonic": "canal 源自拉丁 canalis「管道」——记「运河(canal)是人工水道」；对比 channel（海峡/频道）。"
+    },
+    "cancel": {
+      "syllable": "cancel",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "取消，撤销"
+        },
+        {
+          "pos": "v.",
+          "meaning": "删去，划掉"
+        },
+        {
+          "pos": "v.",
+          "meaning": "抵消，相消"
+        }
+      ],
+      "rootAffix": "源自拉丁 cancellare（用格栅打叉划掉），由 cancelli（交叉栅栏）派生，原义「打叉注销」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They cancelled the meeting.",
+          "translation": "他们取消了会议。",
+          "analysis": "简单句：主语 They + 谓语 cancelled + 宾语 the meeting。cancel 此处表「取消」。"
+        },
+        {
+          "level": "long",
+          "sentence": "To cancel a plan is not to waste it but to protect what remains, because a meeting held only from habit drains the people who attend it, and the leader who dares to strike the empty ritual frees an hour that the work actually needing attention can finally claim.",
+          "translation": "取消一个计划，不是浪费它，而是保护所剩之物，因为只因习惯而开的会，会耗尽与会者的精力；而那个敢于划掉空壳仪式的领导者，解放出一个小时，让那件真正需要关注的工作终能认领。",
+          "analysis": "复合句。主句 To cancel a plan is not to waste it but to protect what remains（不定式作主语；not... but... 结构；what remains 宾语从句）。because 引导原因状语从句，主句 a meeting... drains the people who attend it（held only from habit 过去分词作后置定语，who attend it 定语从句），and 并列 the leader... frees an hour that the work... can finally claim（who dares to strike the empty ritual 定语从句，that the work actually needing attention can finally claim 定语从句修饰 hour，needing attention 现在分词作后置定语）。"
+        }
+      ],
+      "collocations": [
+        "cancel out",
+        "cancel a flight",
+        "cancel an order",
+        "cancel subscription"
+      ],
+      "phrases": [
+        "cancel culture 取消文化",
+        "cancel each other out 相互抵消",
+        "cancel a debt 注销债务"
+      ],
+      "derived": [
+        {
+          "word": "cancellation",
+          "meaning": "n. 取消；作废"
+        },
+        {
+          "word": "cancelable",
+          "meaning": "adj. 可取消的"
+        }
+      ],
+      "synonyms": [
+        "abolish",
+        "call off",
+        "annul"
+      ],
+      "mnemonic": "cancel 源自拉丁「用栅栏打叉注销」——记「取消(cancel)就是打叉划掉」；对比 cancer（癌症，形近）。"
+    },
+    "cancer": {
+      "syllable": "cancer",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "癌，癌症"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（喻）迅速蔓延的祸害，毒瘤"
+        }
+      ],
+      "rootAffix": "源自拉丁 cancer（螃蟹，恶性肿瘤以其蔓延如蟹足而得名），源自希腊 karkinos（螃蟹）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Smoking increases the risk of cancer.",
+          "translation": "吸烟增加患癌风险。",
+          "analysis": "简单句：主语 Smoking + 谓语 increases + 宾语 the risk + 状语 of cancer。cancer 此处表「癌症」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A cancer of trust spreads quietly because the body that should reject it mistakes the invasion for part of itself, and the group that ignores the first small betrayal teaches every member that dishonesty is tolerated here, until the whole is sick with a habit no single call to virtue can cure.",
+          "translation": "信任的毒瘤悄然蔓延，因为本应排斥它的机体，把入侵误认作自身的一部分；而那个忽视初次微小背叛的群体，教给每个成员：此处不诚实是被容忍的，直到整体病入膏肓，染上一种单靠一声呼吁美德便无法治愈的习惯。",
+          "analysis": "复合句。主句 A cancer of trust spreads quietly（because 引导原因状语从句）。because 引导从句，主句 the body... mistakes the invasion for part of itself（that should reject it 定语从句，mistake A for B 表「把 A 误当 B」），and 并列 the group... teaches every member that dishonesty is tolerated here（that ignores the first small betrayal 定语从句，that dishonesty is tolerated here 宾语从句），until 引导时间状语从句 the whole is sick with a habit no single call to virtue can cure（no single call to virtue can cure 定语从句修饰 habit）。"
+        }
+      ],
+      "collocations": [
+        "lung cancer",
+        "cancer cell",
+        "cancer research",
+        "terminal cancer"
+      ],
+      "phrases": [
+        "cancer stick 香烟（俚，贬义）",
+        "cancer of society 社会毒瘤",
+        "cancer survivor 癌症康复者"
+      ],
+      "derived": [
+        {
+          "word": "cancerous",
+          "meaning": "adj. 癌的；像毒瘤的"
+        },
+        {
+          "word": "carcinogen",
+          "meaning": "n. 致癌物"
+        }
+      ],
+      "synonyms": [
+        "malignancy",
+        "tumor",
+        "carcinoma"
+      ],
+      "mnemonic": "cancer 源自拉丁「螃蟹（蟹足般蔓延）」——记「癌症(cancer)如蟹足蔓延」；对比 cancel（取消，形近）。"
     },
     "capable": {
       "syllable": "ca·pa·ble",
