@@ -4451,6 +4451,57 @@
       ],
       "mnemonic": "aim 三用法：aim at sth（瞄准/针对）、aim to do（旨在做）、be aimed at doing（被用于/针对）—— 写作中说明目的最常用 with the aim of doing"
     },
+    "aircraft": {
+      "syllable": "air·craft",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "飞机，航空器（单复数同形）"
+        }
+      ],
+      "rootAffix": "air（空中）+ craft（船、技艺）→ 空中之船 → 航空器",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The aircraft was grounded because of engine trouble.",
+          "translation": "这架飞机因发动机故障而停飞。",
+          "analysis": "简单句：主语 The aircraft + 谓语 was grounded（被动语态）+ 原因状语 because of engine trouble。aircraft 单复数同形（不用 aircrafts），作主语时谓语单复数依语境而定。"
+        },
+        {
+          "level": "long",
+          "sentence": "Because modern aircraft are assembled from parts made in a dozen countries, a single tariff change can delay deliveries in ways that neither the manufacturer nor the airline can foresee.",
+          "translation": "由于现代飞机由十几个国家制造的部件组装而成，一项关税调整就可能以制造商与航空公司都无法预见的方式延误交付。",
+          "analysis": "主从复合句。Because 引导原因状语从句（made in a dozen countries 为过去分词短语作后置定语修饰 parts）；主句主语 a single tariff change，谓语 can delay，宾语 deliveries，后接 in ways that...（that 引导定语从句修饰 ways，从句中 neither...nor... 并列两个主语）。aircraft 取「飞机」义。"
+        }
+      ],
+      "collocations": [
+        "aircraft carrier 航空母舰",
+        "passenger aircraft 客机",
+        "aircraft industry 航空工业"
+      ],
+      "phrases": [
+        "military aircraft 军用飞机",
+        "a fleet of aircraft 一支机队"
+      ],
+      "derived": [
+        {
+          "word": "airline",
+          "meaning": "n. 航空公司"
+        },
+        {
+          "word": "airspace",
+          "meaning": "n. 领空，空域"
+        }
+      ],
+      "synonyms": [
+        "plane",
+        "aeroplane",
+        "airplane",
+        "jet"
+      ],
+      "mnemonic": "craft 本是「船/技艺」（spacecraft 宇宙飞船）→ air + craft = 空中之船 → 飞机；记住**单复数同形**：one aircraft / two aircraft"
+    },
     "alarm": {
       "syllable": "a·larm",
       "pos": "n./v.",
@@ -4691,6 +4742,125 @@
       ],
       "mnemonic": "记牢两条：① alike 只作表语（look alike ✓ / an alike pair ✗）；② 它既是形容词也是副词（treat them alike 作副词）"
     },
+    "alive": {
+      "syllable": "a·live",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "活着的，有生命的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "有活力的，活跃的（keep the tradition alive）"
+        }
+      ],
+      "rootAffix": "a-（处于）+ live（活）→ 处于活的状态 → 活着的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The fish was still alive when we put it back.",
+          "translation": "我们把它放回去时，那条鱼还活着。",
+          "analysis": "主从复合句：主句 The fish was still alive；when 引导时间状语从句。alive 只作**表语**（不能说 an alive fish，要用 a live fish）。"
+        },
+        {
+          "level": "long",
+          "sentence": "A language stays alive only as long as parents use it with their children at home, which is why efforts to protect it through official documents alone have rarely succeeded.",
+          "translation": "一种语言只有在家中被父母用来与孩子交谈时才能延续；正因如此，仅靠官方文件来保护语言的努力很少成功。",
+          "analysis": "主从复合句。主句 A language stays alive + only as long as 引导条件状语从句；which 引导非限制性定语从句指代主句内容；why 引导表语从句，其中 efforts 后接不定式 to protect it 作后置定语，through official documents alone 为方式状语。alive 取「（仍在使用而）存续、有生命力」义。"
+        }
+      ],
+      "collocations": [
+        "stay alive 活着；存续",
+        "keep sb alive 维持某人的生命",
+        "come alive 活跃起来；生动起来"
+      ],
+      "phrases": [
+        "alive and well 安然无恙",
+        "be alive to sth 意识到某事"
+      ],
+      "derived": [
+        {
+          "word": "live",
+          "meaning": "adj. 活的；现场的（a live show）"
+        },
+        {
+          "word": "living",
+          "meaning": "adj. 活着的；现存的"
+        },
+        {
+          "word": "lively",
+          "meaning": "adj. 活泼的，生动的"
+        }
+      ],
+      "synonyms": [
+        "living",
+        "animate",
+        "breathing",
+        "vital"
+      ],
+      "mnemonic": "易混三兄弟：alive 作表语 / live 作定语（a live snake）/ living 两者皆可（living things）——位置决定用哪个"
+    },
+    "all": {
+      "syllable": "all",
+      "pos": "adj./pron./adv.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "所有的，全部的（all students）"
+        },
+        {
+          "pos": "pron.",
+          "meaning": "全部，一切（All were present.）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "完全地（all alone）"
+        }
+      ],
+      "rootAffix": "源自古英语 eall（全部）→ 全体",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "All the students passed the exam.",
+          "translation": "所有学生都通过了考试。",
+          "analysis": "简单句：主语 All the students + 谓语 passed + 宾语 the exam。all + the + 复数名词时，谓语用复数；all 也可直接接不可数名词（all the water）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Not all evidence that supports a claim is of equal weight, and researchers who treat all findings alike — ignoring how they were obtained — end up with conclusions that no careful reader would accept.",
+          "translation": "并非所有支持某一主张的证据都具有同等分量；研究者若对所有发现一视同仁、忽略它们是如何得到的，最终会得出任何审慎读者都不会接受的结论。",
+          "analysis": "并列主从复合句。第一分句为 Not all...is...（部分否定，意为「并非全都」）；that supports a claim 为定语从句修饰 evidence。第二分句主语 researchers 后接 who 引导的定语从句（ignoring... 为现在分词短语作伴随状语，how they were obtained 为宾语从句作 ignoring 的宾语），谓语 end up with，宾语 conclusions 后接 that 引导的定语从句。注意 not all 与 all...not 都表部分否定（「并非所有」），而非「全都不」。"
+        }
+      ],
+      "collocations": [
+        "all of 全部；所有的",
+        "all kinds of 各种各样的",
+        "all the same 仍然；完全一样",
+        "above all 首先，尤其是"
+      ],
+      "phrases": [
+        "all in all 总的来说",
+        "in all 总计"
+      ],
+      "derived": [
+        {
+          "word": "almost",
+          "meaning": "adv. 几乎（与 all 同源）"
+        },
+        {
+          "word": "also",
+          "meaning": "adv. 也（与 all 同源）"
+        }
+      ],
+      "synonyms": [
+        "entire",
+        "whole",
+        "every",
+        "complete"
+      ],
+      "mnemonic": "考试重点：not all / all...not 表「部分否定」（= 并非所有），否定全部要用 none；above all（首要的是）是写作高频连接语"
+    },
     "allege": {
       "syllable": "al·lege",
       "pos": "v.",
@@ -4911,6 +5081,449 @@
       ],
       "mnemonic": "al+loc(地方)+ate → 安排到各处 → 分配"
     },
+    "allow": {
+      "syllable": "al·low",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "允许，准许（allow sb to do）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "给予（时间、金钱）；承认（较正式）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "考虑到，留出（allow for）"
+        }
+      ],
+      "rootAffix": "al-（向，＝ad-）+ low（＝laud 赞扬、许可）→ 予以许可 → 允许",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Smoking is not allowed here.",
+          "translation": "这里禁止吸烟。",
+          "analysis": "简单句：主语 Smoking（动名词作主语，视为单数）+ 谓语 is not allowed（被动语态）。allow 常用于被动 allow sb/sth to do 的变形中。"
+        },
+        {
+          "level": "long",
+          "sentence": "A budget that allows for no unexpected expenses is not prudent but fragile, since it leaves no room to absorb the very shocks that planning is supposed to guard against.",
+          "translation": "一笔不为意外支出留出余地的预算，并不是审慎，而是脆弱，因为它没有留下任何余地来吸收那些本来正是规划所要防范的冲击。",
+          "analysis": "主从复合句。主语 A budget 后接 that 引导的定语从句（allow for 表「考虑到、留出」）；主句为 not...but... 对比结构；since 引导原因状语从句，其中 leave no room to do（没有余地做）为固定搭配，that planning is supposed to guard against 为定语从句修饰 shocks（against 的宾语为关系代词 that）。allow 在本句取「留出余地」义，与 allow sb to do 的「允许」义并列记忆。"
+        }
+      ],
+      "collocations": [
+        "allow sb to do 允许某人做",
+        "allow for 考虑到；留出（余地）",
+        "be allowed to 被允许",
+        "allow of 容许（较正式，多用于否定）"
+      ],
+      "phrases": [
+        "time allowed 限定时间",
+        "no smoking allowed 禁止吸烟"
+      ],
+      "derived": [
+        {
+          "word": "allowance",
+          "meaning": "n. 津贴；限额（make allowance for 考虑到）"
+        },
+        {
+          "word": "allowable",
+          "meaning": "adj. 可允许的"
+        },
+        {
+          "word": "disallow",
+          "meaning": "v. 驳回，不允许"
+        }
+      ],
+      "synonyms": [
+        "permit",
+        "grant",
+        "let",
+        "authorize"
+      ],
+      "mnemonic": "三个高频搭配一次记牢：allow sb **to do**（允许）/ allow **for**（留出余地）/ make allowance **for**（体谅、考虑）——考研写作与阅读都常见"
+    },
+    "ally": {
+      "syllable": "al·ly",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "同盟者，盟国"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使结盟；与…结盟（ally oneself with）"
+        }
+      ],
+      "rootAffix": "al-（向）+ ly（绑，同 liable/alliance）→ 绑在一起 → 结盟",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Britain was a close ally of the United States.",
+          "translation": "英国曾是美国的亲密盟友。",
+          "analysis": "简单句：主语 Britain + 系动词 was + 表语 a close ally + 后置定语 of the United States。ally 作名词表「盟友」，常与 close/former/traditional 搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "A reformer who alienates potential allies at the outset may win the argument but lose the vote, since legislation requires not the strongest case but the widest coalition.",
+          "translation": "一开始就把潜在盟友推开的改革者，可能赢得辩论却输掉表决，因为立法需要的不是最有力的论据，而是最广泛的同盟。",
+          "analysis": "主从复合句。主语 A reformer 后接 who 引导的定语从句，谓语 may win...but lose...（并列谓语）；since 引导原因状语从句，为 not...but... 对比结构（the strongest case 与 the widest coalition 对照）。ally 取「盟友」义，与 coalition（同盟）构成上下位呼应。"
+        }
+      ],
+      "collocations": [
+        "a close ally 亲密盟友",
+        "natural ally 天然的盟友",
+        "ally oneself with 与…结盟"
+      ],
+      "phrases": [
+        "allied forces 盟军",
+        "the Allies 同盟国（历史）"
+      ],
+      "derived": [
+        {
+          "word": "alliance",
+          "meaning": "n. 联盟，同盟"
+        },
+        {
+          "word": "allied",
+          "meaning": "adj. 结盟的；相关的"
+        }
+      ],
+      "synonyms": [
+        "partner",
+        "confederate",
+        "supporter",
+        "associate"
+      ],
+      "mnemonic": "同源词串记：ally 盟友 → alliance 联盟 → allied 结盟的；动词搭配固定 ally oneself **with** sb"
+    },
+    "almost": {
+      "syllable": "al·most",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "几乎，差不多"
+        }
+      ],
+      "rootAffix": "all（全部）+ most（最）→ 几乎达到全部 → 差不多",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Almost everyone agreed with the proposal.",
+          "translation": "几乎所有人都同意这个提议。",
+          "analysis": "简单句：主语 Almost everyone + 谓语 agreed + 状语 with the proposal。almost 修饰 everyone/something 类词时不能换用 nearly 之外的副词，且不可直接修饰名词（不说 almost people）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Almost all of the gains from the new technology went to a small group of firms that happened to own the infrastructure, a pattern that economists say explains why productivity statistics can rise while wages stagnate.",
+          "translation": "新技术带来的收益几乎全部流向了恰好拥有基础设施的少数公司；经济学家称，这一模式解释了为什么生产率数据上升而工资却停滞。",
+          "analysis": "主从复合句。主语 Almost all of the gains，谓语 went to，宾语 a small group of firms 后接 that 引导的定语从句（happened to own 表「恰好拥有」）；a pattern 为同位语，后接 that 引导的定语从句（含 economists say 插入语与 why 引导的宾语从句，从句中 can rise while wages stagnate 为 while 表对比）。almost 修饰 all，表「几乎全部」。"
+        }
+      ],
+      "collocations": [
+        "almost all 几乎所有",
+        "almost never 几乎从不",
+        "almost certainly 几乎肯定"
+      ],
+      "phrases": [
+        "almost immediately 几乎立刻",
+        "almost nothing 几乎没有东西"
+      ],
+      "derived": [
+        {
+          "word": "most",
+          "meaning": "adj./adv. 大多数；最"
+        },
+        {
+          "word": "mostly",
+          "meaning": "adv. 主要地，大多"
+        }
+      ],
+      "synonyms": [
+        "nearly",
+        "virtually",
+        "practically",
+        "about"
+      ],
+      "mnemonic": "almost ≈ nearly（但 almost 可用于否定词前：almost never ✓，nearly never ✗）；不能直接修饰名词"
+    },
+    "alone": {
+      "syllable": "a·lone",
+      "pos": "adj./adv.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "独自的，单独的（作表语）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "独自地；仅仅（alone 表「仅仅」时后置）"
+        }
+      ],
+      "rootAffix": "all（全部）+ one（一个）→ 只剩一个人 → 独自",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She lives alone in a small flat.",
+          "translation": "她独自住在一间小公寓里。",
+          "analysis": "简单句：主语 She + 谓语 lives + 方式状语 alone + 地点状语 in a small flat。alone 作副词表「独自」，注意与 lonely（孤独的，情感上）区分：live alone 是状态，feel lonely 是感受。"
+        },
+        {
+          "level": "long",
+          "sentence": "Money alone will not improve schools, and reforms that focus on funding while ignoring how teachers are trained rarely produce the gains their sponsors promise.",
+          "translation": "仅靠金钱并不能改善学校；只关注资金而忽视教师如何培养的改革，很少能带来其倡导者所承诺的成效。",
+          "analysis": "并列主从复合句。第一分句 Money alone will not improve schools 中 alone 后置表「仅仅」；第二分句主语 reforms 后接 that 引导的定语从句（focus on funding while ignoring... 中 while 表对比，how teachers are trained 为宾语从句），谓语 rarely produce，宾语 the gains 后接 their sponsors promise（省略关系词的定语从句）。alone 在此取「仅仅」义，是阅读中的高频用法。"
+        }
+      ],
+      "collocations": [
+        "live alone 独居",
+        "leave sb alone 不打扰某人",
+        "let alone 更不用说（固定短语）"
+      ],
+      "phrases": [
+        "stand alone 孤立无援；独树一帜",
+        "go it alone 单干"
+      ],
+      "derived": [
+        {
+          "word": "lonely",
+          "meaning": "adj. 孤独的（情感色彩）"
+        },
+        {
+          "word": "lonesome",
+          "meaning": "adj. 寂寞的"
+        }
+      ],
+      "synonyms": [
+        "solo",
+        "unaccompanied",
+        "only",
+        "solely"
+      ],
+      "mnemonic": "两个关键区别：alone（独自，客观）/ lonely（孤独，主观）；let alone（更不用说）与 not to mention 同义，是阅读高频习语"
+    },
+    "along": {
+      "syllable": "a·long",
+      "pos": "prep./adv.",
+      "defs": [
+        {
+          "pos": "prep.",
+          "meaning": "沿着（along the river）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "向前；一起（come along）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "（与 get 连用）进展（get along）"
+        }
+      ],
+      "rootAffix": "a-（向）+ long（长）→ 沿着长的方向 → 沿着",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We walked along the river at sunset.",
+          "translation": "日落时我们沿着河边散步。",
+          "analysis": "简单句：主语 We + 谓语 walked + 状语 along the river + 时间状语 at sunset。along 作介词表「沿着」，后直接接名词。"
+        },
+        {
+          "level": "long",
+          "sentence": "Cities that grew along railway lines a century ago now find that the same routes determine which neighbourhoods attract investment and which are left to decline, long after the tracks themselves have lost their economic logic.",
+          "translation": "一个世纪前沿着铁路线发展起来的城市如今发现，正是这些相同的线路决定着哪些街区能吸引投资、哪些被弃置衰败——而此时铁轨本身早已失去其经济逻辑。",
+          "analysis": "主从复合句。主语 Cities 后接 that 引导的定语从句（grew along railway lines 中 along 为介词），谓语 find，后接 that 引导的宾语从句；从句中 the same routes 为主语，determine 为谓语，宾语为 which 与 and which 并列的两个宾语从句（are left to decline 为被动）；long after 引导时间状语从句（tracks themselves 中 themselves 起强调）。along 取「沿着」义。"
+        }
+      ],
+      "collocations": [
+        "along with 与…一起；除…之外",
+        "get along with 与…相处",
+        "come along 一起来；进展"
+      ],
+      "phrases": [
+        "all along 一直，始终",
+        "along the way 一路上；过程中"
+      ],
+      "derived": [
+        {
+          "word": "alongside",
+          "meaning": "prep. 在…旁边；与…并排"
+        }
+      ],
+      "synonyms": [
+        "beside",
+        "alongside",
+        "forward",
+        "together"
+      ],
+      "mnemonic": "固定搭配记牢：along with（连同，主谓一致看前者）、all along（一直）、get along with（相处）——高考与考研语法都爱考 along with 的主谓一致"
+    },
+    "aloud": {
+      "syllable": "a·loud",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "出声地，大声地"
+        }
+      ],
+      "rootAffix": "a-（处于）+ loud（大声）→ 以出声的方式",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She read the letter aloud to the family.",
+          "translation": "她把这封信大声读给家人听。",
+          "analysis": "简单句：主语 She + 谓语 read + 宾语 the letter + 方式状语 aloud + 对象状语 to the family。aloud 强调「出声」（区别于默读），与 loudly（音量大）不同：read aloud 未必大声。"
+        },
+        {
+          "level": "long",
+          "sentence": "Reading a draft aloud exposes awkward phrasing that the eye glides over, which is why experienced writers insist that the ear, not the eye, is the final judge of style.",
+          "translation": "把草稿朗读出来，会暴露那些眼睛一带而过的别扭措辞；正因如此，有经验的作家坚持认为，风格的最终裁判是耳朵而不是眼睛。",
+          "analysis": "主从复合句。主语为动名词短语 Reading a draft aloud；谓语 exposes，宾语 awkward phrasing 后接 that 引导的定语从句（the eye glides over 中 over 的宾语为关系代词 that）；which 引导非限制性定语从句指代主句；why 引导表语从句，其中 that 引导的宾语从句作 insist 的宾语。aloud 取「出声地」义。"
+        }
+      ],
+      "collocations": [
+        "read aloud 朗读",
+        "think aloud 自言自语地思考",
+        "say sth aloud 把某事说出声"
+      ],
+      "phrases": [
+        "wonder aloud 说出声地表达疑惑",
+        "laugh aloud 笑出声"
+      ],
+      "derived": [
+        {
+          "word": "loud",
+          "meaning": "adj./adv. 大声的；大声地"
+        },
+        {
+          "word": "loudly",
+          "meaning": "adv. 大声地（音量大）"
+        },
+        {
+          "word": "loudspeaker",
+          "meaning": "n. 扬声器"
+        }
+      ],
+      "synonyms": [
+        "out loud",
+        "audibly",
+        "vocally"
+      ],
+      "mnemonic": "三者辨析：aloud（出声，不一定响）/ loud（响，作 adv. 多与 speak 连用）/ loudly（响亮地，带喧闹感）"
+    },
+    "already": {
+      "syllable": "al·read·y",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "已经（强调早于预期）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "（用于疑问/否定句）竟然已经"
+        }
+      ],
+      "rootAffix": "all（全部）+ ready（准备好）→ 已全部就绪 → 已经",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The train has already left.",
+          "translation": "火车已经开走了。",
+          "analysis": "简单句：主语 The train + 谓语 has left（现在完成时）+ 状语 already。already 通常用于肯定句与疑问句，位置在助动词之后、实义动词之前。"
+        },
+        {
+          "level": "long",
+          "sentence": "By the time a drug reaches the market, it has already been tested on thousands of patients, yet the rare side effects that matter most often appear only after millions have taken it.",
+          "translation": "等到一种药物上市时，它已在数千名患者身上试验过；然而，最要紧的罕见副作用往往是在数百万人服用之后才显现。",
+          "analysis": "主从复合句。By the time 引导时间状语从句（reaches 用一般现在时表将来）→ 主句用现在完成时 has already been tested（被动 + already 强调时间之早）；yet 连接转折分句，主语 the rare side effects 后接 that 引导的定语从句，谓语 appear，only after 引导时间状语从句（millions have taken it 为现在完成时）。already 取「已经（比预期早）」义。"
+        }
+      ],
+      "collocations": [
+        "have already done 已经做过",
+        "already known 已知的",
+        "already established 既定的"
+      ],
+      "phrases": [
+        "already in place 已经就位",
+        "enough already 够了（口语）"
+      ],
+      "derived": [
+        {
+          "word": "ready",
+          "meaning": "adj. 准备好的"
+        },
+        {
+          "word": "yet",
+          "meaning": "adv. 还（用于否定/疑问）"
+        }
+      ],
+      "synonyms": [
+        "by now",
+        "previously",
+        "so far"
+      ],
+      "mnemonic": "already 多用于**肯定句**（否定/疑问用 yet）：I have already finished. / Have you finished yet? ——这是考研语法填空的经典考点"
+    },
+    "also": {
+      "syllable": "al·so",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "也，还，同样"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "（用于句首）此外，而且"
+        }
+      ],
+      "rootAffix": "all（全部）+ so（如此）→ 如此同样 → 也",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She speaks French and also a little German.",
+          "translation": "她会说法语，还会一点德语。",
+          "analysis": "简单句：主语 She + 谓语 speaks + 宾语 French + 并列宾语 a little German（also 连接并列成分）。also 位于实义动词之前、be 动词之后；口语中可换 too（句末）或 as well。"
+        },
+        {
+          "level": "long",
+          "sentence": "Policies that reduce traffic in city centres also tend to raise property values there, which means the residents they displace are often the very people the policy was meant to help.",
+          "translation": "减少市中心交通流量的政策，往往也会抬高那里的房产价值；这意味着被这些政策挤出的人，恰恰是政策本意想帮助的那些人。",
+          "analysis": "主从复合句。主语 Policies 后接 that 引导的定语从句，谓语 also tend to raise（also 修饰谓语，表「同时也」）；which 引导非限制性定语从句指代主句内容；means 后接 that 引导的宾语从句，其中 the residents 后接省略关系词的定语从句 they displace，the very people 后接省略关系词的定语从句 the policy was meant to help。also 在此承担论证递进功能。"
+        }
+      ],
+      "collocations": [
+        "not only...but also... 不但…而且…",
+        "also known as 又称",
+        "and also 而且还"
+      ],
+      "phrases": [
+        "also-ran 失败者，落选者（名词）",
+        "may also 也可能"
+      ],
+      "derived": [
+        {
+          "word": "all",
+          "meaning": "adj. 所有的"
+        },
+        {
+          "word": "too",
+          "meaning": "adv. 也（句末）"
+        }
+      ],
+      "synonyms": [
+        "too",
+        "as well",
+        "likewise",
+        "moreover"
+      ],
+      "mnemonic": "not only...but also... 中 also 可省略；also 不用于句末（句末用 too / as well）——这是写作中最常见的用词错误之一"
+    },
     "alter": {
       "syllable": "al·ter",
       "pos": "v.",
@@ -5035,6 +5648,220 @@
       ],
       "mnemonic": "易混三兄弟：alternative 替代选择（可选的另一条路）/ alternate 交替的（alternate days 隔天）/ alter 改变；名词搭配固定 an alternative **to**"
     },
+    "although": {
+      "syllable": "al·though",
+      "pos": "conj.",
+      "defs": [
+        {
+          "pos": "conj.",
+          "meaning": "虽然，尽管（引导让步状语从句）"
+        }
+      ],
+      "rootAffix": "all（全部）+ though（虽然）→ 尽管如此 → 虽然",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Although it was raining, they went out.",
+          "translation": "尽管下着雨，他们还是出去了。",
+          "analysis": "主从复合句：Although 引导让步状语从句，主句 they went out。although 与 but **不能同时使用**（Although..., but... ✗），但可与 yet/still 连用。"
+        },
+        {
+          "level": "long",
+          "sentence": "Although the evidence for the theory has grown steadily stronger, the theory itself has become harder to test, because its predictions now concern processes too slow for any single experiment to observe.",
+          "translation": "尽管支持该理论的证据不断增强，理论本身却变得更难检验了，因为它的预测如今涉及的过程太缓慢，任何单次实验都无法观察到。",
+          "analysis": "主从复合句。Although 引导让步状语从句（has grown 为现在完成时）；主句 the theory itself has become harder to test（itself 起强调）；because 引导原因状语从句，其中含 too...for...to... 结构（too slow for any single experiment to observe = 太慢以致任何单次实验都无法观察）。although 表让步与转折，是学术写作中最常用的逻辑衔接词之一。"
+        }
+      ],
+      "collocations": [
+        "although + 从句 虽然…",
+        "although...yet... 尽管…但…（书面）",
+        "although not 尽管并非"
+      ],
+      "phrases": [
+        "although admittedly 尽管无可否认",
+        "although in theory 尽管理论上"
+      ],
+      "derived": [
+        {
+          "word": "though",
+          "meaning": "conj./adv. 虽然；不过"
+        },
+        {
+          "word": "even though",
+          "meaning": "即使，尽管"
+        }
+      ],
+      "synonyms": [
+        "though",
+        "while",
+        "whereas",
+        "even if"
+      ],
+      "mnemonic": "三条铁律：① although 后接**从句**（不能只接短语）；② 不能与 but 同时出现；③ although 与 though 可互换，但 though 还能置于句末表「不过」"
+    },
+    "altogether": {
+      "syllable": "al·to·geth·er",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "完全地，全然（not altogether clear）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "总共，合计"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "总而言之"
+        }
+      ],
+      "rootAffix": "all（全）+ together（一起）→ 全部合在一起 → 完全；总共",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The trip cost two thousand yuan altogether.",
+          "translation": "这次旅行总共花了两千元。",
+          "analysis": "简单句：主语 The trip + 谓语 cost + 宾语 two thousand yuan + 状语 altogether。altogether 在此表「总共」，与 all together（所有人一起）拼写相近但含义不同。"
+        },
+        {
+          "level": "long",
+          "sentence": "The proposal is not altogether unreasonable, but it assumes a level of cooperation among agencies that has never existed, and assuming it away is what makes the plan look cheaper than it is.",
+          "translation": "这一提议并非全无道理，但它假定各机构之间存在一种从未有过的合作程度；而正是把这一假定略去不计，才使该计划看起来比实际更省钱。",
+          "analysis": "并列复合句。第一分句为 not altogether + adj.（表部分否定，「并非完全」）；but 连接转折分句，assumes 的宾语 a level of cooperation 后接 among agencies 与 that 引导的定语从句（never existed 为谓语）。第二分句主语为动名词短语 assuming it away，系表结构 is what makes...，其中 what 引导表语从句、make the plan look cheaper 为 make + 宾语 + 补足语结构。altogether 在此表「完全」，not altogether = 并非完全。"
+        }
+      ],
+      "collocations": [
+        "not altogether 并非完全",
+        "altogether different 完全不同",
+        "altogether too 实在太…"
+      ],
+      "phrases": [
+        "altogether now 大家一起（口语）",
+        "altogether a success 总体上是成功的"
+      ],
+      "derived": [
+        {
+          "word": "together",
+          "meaning": "adv. 一起"
+        },
+        {
+          "word": "all together",
+          "meaning": "所有人一起（与 altogether 不同）"
+        }
+      ],
+      "synonyms": [
+        "completely",
+        "entirely",
+        "in total",
+        "on the whole"
+      ],
+      "mnemonic": "altogether（完全/总共）vs all together（大家一起）—— 一个字之差、两义不同，考研改错常考"
+    },
+    "aluminum": {
+      "syllable": "a·lu·mi·num",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "铝（化学元素 Al；英式拼写 aluminium）"
+        }
+      ],
+      "rootAffix": "源自拉丁 alumen（明矾）→ 从明矾中提取的金属 → 铝",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The frame is made of aluminum.",
+          "translation": "这个框架是铝制的。",
+          "analysis": "简单句：主语 The frame + 谓语 is made（被动）+ 材料状语 of aluminum。be made of 表「由…制成（可见材质）」；aluminum 为不可数名词。"
+        },
+        {
+          "level": "long",
+          "sentence": "Because extracting aluminum from its ore requires enormous amounts of electricity, the metal's price tracks energy costs far more closely than the price of most other industrial materials.",
+          "translation": "由于从矿石中提炼铝需要耗用大量电力，这种金属的价格与能源成本的关联程度，远高于大多数其他工业材料。",
+          "analysis": "主从复合句。Because 引导原因状语从句（extracting aluminum from its ore 为动名词短语作主语，requires 为谓语）；主句主语 the metal's price，谓语 tracks（表「与…同步变化」），宾语 energy costs，后接 far more closely than 比较状语（the price of most other industrial materials 为比较对象）。aluminum 取「铝」义；拼写注意美式 aluminum / 英式 aluminium。"
+        }
+      ],
+      "collocations": [
+        "aluminum foil 铝箔",
+        "aluminum alloy 铝合金",
+        "aluminum industry 铝工业"
+      ],
+      "phrases": [
+        "aluminum can 铝罐",
+        "recycled aluminum 再生铝"
+      ],
+      "derived": [
+        {
+          "word": "aluminium",
+          "meaning": "n. 铝（英式拼写）"
+        },
+        {
+          "word": "aluminous",
+          "meaning": "adj. 含铝的"
+        }
+      ],
+      "synonyms": [
+        "aluminium",
+        "Al"
+      ],
+      "mnemonic": "拼写注意：美式 aluminum（考试常见）/ 英式 aluminium（多一个 i）；元素符号 Al"
+    },
+    "always": {
+      "syllable": "al·ways",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "总是，一直（注意与进行时连用表「老是」）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "永远，始终"
+        }
+      ],
+      "rootAffix": "all（全部）+ ways（方式、道路）→ 在所有情况下 → 总是",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He is always late for meetings.",
+          "translation": "他开会总是迟到。",
+          "analysis": "简单句：主语 He + 系动词 is + 表语 late + 状语 always。always 与 be 动词连用时置于 be 之后；与实义动词连用则置于其前（always comes）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The market is not always right, but it is always informative: prices that look wrong are usually telling us that some cost we have not counted is being paid by someone we have not considered.",
+          "translation": "市场并不总是对的，但它总是有信息含量的：看起来错误的价格，通常是在告诉我们，某种我们未曾计入的成本正由我们未曾考虑的人承担着。",
+          "analysis": "并列复合句。第一分句 not always right（部分否定：并不总是对）与第二分句 always informative 形成对比；冒号后为主体说明，主语 prices 后接 that 引导的定语从句，are telling 为谓语，宾语从句 we have not counted 修饰 cost、we have not considered 修饰 someone 均为省略关系词的定语从句；is being paid 为现在进行时的被动。always 与否定词连用构成部分否定，是阅读理解的常考点。"
+        }
+      ],
+      "collocations": [
+        "not always 并不总是",
+        "as always 一如既往",
+        "always and everywhere 随时随地"
+      ],
+      "phrases": [
+        "always on the safe side 总是保险起见",
+        "always the case 总是如此"
+      ],
+      "derived": [
+        {
+          "word": "way",
+          "meaning": "n. 方式，道路"
+        },
+        {
+          "word": "usual",
+          "meaning": "adj. 通常的"
+        }
+      ],
+      "synonyms": [
+        "invariably",
+        "consistently",
+        "forever",
+        "perpetually"
+      ],
+      "mnemonic": "部分否定考点：not always = 并不总是（≠ 从不）；与进行时连用（He is always complaining.）常带**不满**语气"
+    },
     "amateur": {
       "syllable": "am·a·teur",
       "pos": "n./adj.",
@@ -5090,6 +5917,116 @@
         "layman"
       ],
       "mnemonic": "法语 aimer（爱）→ amateur = 出于「爱」而非谋生 → 业余者；派生 amateurish 带贬义（不专业的），别与 amateur 混用"
+    },
+    "amaze": {
+      "syllable": "a·maze",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "使惊奇，使大为惊讶"
+        }
+      ],
+      "rootAffix": "a-（加强）+ maze（迷宫、困惑）→ 令人陷入困惑 → 使惊讶",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Her progress amazed the whole class.",
+          "translation": "她的进步让全班都很惊讶。",
+          "analysis": "简单句：主语 Her progress + 谓语 amazed + 宾语 the whole class。amaze 为及物动词，常用 be amazed at/by 表「对…感到惊讶」。"
+        },
+        {
+          "level": "long",
+          "sentence": "What amazes researchers is not that children learn language so quickly but that they do so while ignoring corrections, which suggests the rules are being extracted rather than taught.",
+          "translation": "让研究者惊讶的不是儿童学语言如此之快，而是他们在忽视纠正的情况下也能做到——这提示语言规则是被自行提取出来的，而不是被教会的。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not that...but that... 对比结构（两个 that 引导表语从句）；第二个 that 从句中 while ignoring corrections 为时间/让步状语；which 引导非限制性定语从句指代内容；suggests 后接省略 that 的宾语从句，其中 are being extracted 为现在进行时被动，与 taught 形成对比。amaze 取「使惊讶」义。"
+        }
+      ],
+      "collocations": [
+        "be amazed at/by 对…感到惊讶",
+        "amaze sb with sth 以某物使某人惊叹",
+        "it amazes sb that 令某人惊讶的是"
+      ],
+      "phrases": [
+        "amaze the audience 令观众惊叹",
+        "never ceases to amaze 总是令人惊叹"
+      ],
+      "derived": [
+        {
+          "word": "amazement",
+          "meaning": "n. 惊讶（in amazement）"
+        },
+        {
+          "word": "amazing",
+          "meaning": "adj. 令人惊叹的"
+        },
+        {
+          "word": "amazed",
+          "meaning": "adj. 感到惊讶的"
+        }
+      ],
+      "synonyms": [
+        "astonish",
+        "astound",
+        "surprise",
+        "stun"
+      ],
+      "mnemonic": "-ing 与 -ed 分工：amazing（令人惊讶的，修饰事物）/ amazed（感到惊讶的，修饰人）——与 interesting/interested 同规则"
+    },
+    "ambassador": {
+      "syllable": "am·bas·sa·dor",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "大使（一国的最高外交代表）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "代表，使者（引申用法）"
+        }
+      ],
+      "rootAffix": "源自拉丁 ambactus（侍从、使者）→ 被派遣的使者 → 大使",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She was appointed ambassador to France.",
+          "translation": "她被任命为驻法国大使。",
+          "analysis": "简单句：主语 She + 谓语 was appointed（被动语态）+ 主补 ambassador + 后置定语 to France。appoint sb (as) sth 表「任命某人为…」，介词固定用 to + 国家名。"
+        },
+        {
+          "level": "long",
+          "sentence": "An ambassador who reports only what the host government wants heard is of little use, yet one who reports only bad news is soon denied the access that makes the post valuable.",
+          "translation": "一位只汇报驻在国政府希望被听到的内容的大使没什么用处；但只汇报坏消息的大使，很快就会失去使这一职位有价值的接触渠道。",
+          "analysis": "并列主从复合句。第一分句主语 An ambassador 后接 who 引导的定语从句（what the host government wants heard 为宾语从句，heard 为过去分词作宾补），谓语 is of little use（be of + 抽象名词 = 具有…性质）；yet 连接转折分句，主语 one（指代 ambassador）后接 who 引导的定语从句，谓语 is denied（被动，表被拒），宾语 the access 后接 that 引导的定语从句。ambassador 取「大使」义。"
+        }
+      ],
+      "collocations": [
+        "ambassador to 驻…大使",
+        "appoint an ambassador 任命大使",
+        "goodwill ambassador 亲善大使"
+      ],
+      "phrases": [
+        "the Chinese ambassador 中国大使",
+        "ambassador-at-large 无任所大使"
+      ],
+      "derived": [
+        {
+          "word": "embassy",
+          "meaning": "n. 大使馆；大使职务"
+        },
+        {
+          "word": "ambassadorial",
+          "meaning": "adj. 大使的"
+        }
+      ],
+      "synonyms": [
+        "envoy",
+        "diplomat",
+        "minister",
+        "representative"
+      ],
+      "mnemonic": "后缀 -or 表人 → ambassador 大使；相关词 embassy（大使馆）——注意拼写：embassy 源自同一词根"
     },
     "ambiguous": {
       "syllable": "am·big·u·ous",
@@ -5150,6 +6087,60 @@
         "obscure"
       ],
       "mnemonic": "ambi-（两者/两边）→ ambiguous 两可、ambivalent 情感矛盾、ambition 原来指「四处奔走求功名」；看到 ambi- 就想「两边」"
+    },
+    "ambition": {
+      "syllable": "am·bi·tion",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "雄心，抱负；野心"
+        },
+        {
+          "pos": "n.",
+          "meaning": "追求的目标，志向"
+        }
+      ],
+      "rootAffix": "amb-（周围）+ it（走）→ 四处奔走谋求 → 野心、抱负",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Her ambition is to become a surgeon.",
+          "translation": "她的志向是成为一名外科医生。",
+          "analysis": "简单句：主语 Her ambition + 系动词 is + 表语 to become a surgeon（不定式作表语）。ambition 后接不定式表具体志向；作不可数名词时表「雄心」这一品质。"
+        },
+        {
+          "level": "long",
+          "sentence": "Ambition that is not matched by patience tends to produce projects begun in enthusiasm and abandoned in confusion, which is why the most durable careers belong to those who can tolerate long stretches with little visible progress.",
+          "translation": "没有耐心相匹配的雄心，往往带来的是一些热情开启、混乱放弃的项目；正因如此，最持久的职业生涯属于那些能忍受长时间看不到明显进展的人。",
+          "analysis": "主从复合句。主语 Ambition 后接 that 引导的定语从句（is not matched by patience 为被动），谓语 tends to produce，宾语 projects 后接两个并列的过去分词短语 begun in enthusiasm / abandoned in confusion 作后置定语；which 引导非限制性定语从句指代主句；why 引导表语从句，其中 who 引导的定语从句修饰 those。ambition 取「雄心」义。"
+        }
+      ],
+      "collocations": [
+        "achieve/fulfil one's ambition 实现抱负",
+        "political ambition 政治野心",
+        "lack ambition 缺乏上进心"
+      ],
+      "phrases": [
+        "boundless ambition 无限野心",
+        "the height of one's ambition 某人的最高目标"
+      ],
+      "derived": [
+        {
+          "word": "ambitious",
+          "meaning": "adj. 有雄心的；宏大的"
+        },
+        {
+          "word": "ambitiously",
+          "meaning": "adv. 雄心勃勃地"
+        }
+      ],
+      "synonyms": [
+        "aspiration",
+        "drive",
+        "goal"
+      ],
+      "mnemonic": "词根串记：ambi(周围)+it(走) → ambition 四处奔走求取 → 雄心；同族 ambitious 有雄心的 / ambivalent 情感矛盾的 / ambiguous 模棱两可"
     },
     "ambitious": {
       "syllable": "am·bi·tious",
@@ -5335,6 +6326,128 @@
       ],
       "mnemonic": "与 amplify（放大）、amplitude（幅度）同源（ampl = 大、宽）→ ample 即「宽裕的、管够的」"
     },
+    "amplify": {
+      "syllable": "am·pli·fy",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "放大，增强（声音、信号）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "详述，进一步阐发（amplify a point）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "扩大（影响、效果）"
+        }
+      ],
+      "rootAffix": "ampl（大、宽，同 ample）+ -ify（使…）→ 使变大 → 放大",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The microphone amplifies the speaker's voice.",
+          "translation": "麦克风放大说话者的声音。",
+          "analysis": "简单句：主语 The microphone + 谓语 amplifies + 宾语 the speaker's voice。amplify 取「放大（声音）」本义，主语多为设备。"
+        },
+        {
+          "level": "long",
+          "sentence": "Social platforms amplify whatever provokes a response, so content that is merely accurate tends to travel less far than content that is merely outrageous, a bias that no amount of fact-checking can fully correct.",
+          "translation": "社交平台会放大任何能引发反应的内容；因此，仅仅准确的内容，传播得往往不如仅仅耸动的内容远——这种偏向，再多的核查也无法完全纠正。",
+          "analysis": "并列复合句。第一分句主语 Social platforms，谓语 amplify，宾语为 whatever 引导的宾语从句；so 连接结果分句，比较结构 less far than content（后接 that is merely outrageous 定语从句）。a bias 为同位语，后接 that 引导的定语从句（no amount of fact-checking can fully correct 中 correct 的宾语为关系代词 that）。amplify 取「放大（影响）」引申义，是本句论证的关键动词。"
+        }
+      ],
+      "collocations": [
+        "amplify the signal 放大信号",
+        "amplify the effect 放大效果",
+        "amplify a point 进一步阐述观点"
+      ],
+      "phrases": [
+        "amplify one's voice 提高音量",
+        "amplified by 被…放大"
+      ],
+      "derived": [
+        {
+          "word": "amplification",
+          "meaning": "n. 放大；详述"
+        },
+        {
+          "word": "amplifier",
+          "meaning": "n. 放大器"
+        },
+        {
+          "word": "ample",
+          "meaning": "adj. 充足的；宽敞的"
+        }
+      ],
+      "synonyms": [
+        "magnify",
+        "intensify",
+        "expand",
+        "elaborate"
+      ],
+      "mnemonic": "ampl（大）家族：ample 充足的 / amplify 放大 / amplitude 幅度 —— 一条「变大」语义链；amplify a point（详述观点）是学术写作的引申用法"
+    },
+    "amuse": {
+      "syllable": "a·muse",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "使发笑，逗乐"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使消遣，为…提供娱乐（amuse oneself）"
+        }
+      ],
+      "rootAffix": "a-（使）+ muse（沉思、缪斯）→ 使人出神消遣 → 逗乐",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The children were amused by the clown.",
+          "translation": "孩子们被小丑逗乐了。",
+          "analysis": "简单句：主语 The children + 谓语 were amused（被动语态）+ 施动者状语 by the clown。be amused by/at 表「被…逗乐」；注意 amusing（有趣的）与 amused（感到好笑的）的区别。"
+        },
+        {
+          "level": "long",
+          "sentence": "What amuses foreigners most about the local habit is not the habit itself but the earnest way residents explain it, as though a stranger could not possibly grasp something so obvious.",
+          "translation": "让外国人觉得当地这一习惯最有意思的，并不是习惯本身，而是居民解释它时那股认真的劲头——仿佛一个外乡人绝不可能理解如此显而易见的事。",
+          "analysis": "主从复合句。What 引导主语从句（What amuses foreigners most about the local habit）；主句为 not...but... 对比结构；the earnest way 后接省略关系词的定语从句 residents explain it；as though 引导方式状语从句（用虚拟语气 could not possibly grasp，表与事实相反的假设）。amuse 取「使发笑、使觉得有趣」义。"
+        }
+      ],
+      "collocations": [
+        "be amused by/at 被…逗乐",
+        "amuse oneself 自娱自乐",
+        "amusing story 有趣的故事"
+      ],
+      "phrases": [
+        "keep sb amused 使某人开心",
+        "not amused 不觉得好笑（表不悦）"
+      ],
+      "derived": [
+        {
+          "word": "amusement",
+          "meaning": "n. 娱乐；消遣（amusement park 游乐场）"
+        },
+        {
+          "word": "amusing",
+          "meaning": "adj. 有趣的，逗人笑的"
+        },
+        {
+          "word": "amused",
+          "meaning": "adj. 被逗乐的"
+        }
+      ],
+      "synonyms": [
+        "entertain",
+        "delight",
+        "divert",
+        "cheer"
+      ],
+      "mnemonic": "-ing 修饰事物、-ed 修饰人（amusing / amused）；同族 amusement park（游乐场）——拼写与 muse（缪斯）相关，原义「使人出神」"
+    },
     "analogy": {
       "syllable": "a·nal·o·gy",
       "pos": "n.",
@@ -5395,6 +6508,65 @@
       ],
       "mnemonic": "log 是「言说/比例」词根（logic 逻辑、proportion 比例）→ analogy = 按同一比例关系来说 → 类比；形容词固定用 analogous **to**"
     },
+    "analyse": {
+      "syllable": "an·a·lyse",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "分析，剖析（英式拼写；美式 analyze）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "化验，解析（化学、数学）"
+        }
+      ],
+      "rootAffix": "ana-（up、彻底）+ lys（松开、分解，同 analysis/dissolve）→ 彻底分解 → 分析",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Scientists analysed the samples in the laboratory.",
+          "translation": "科学家在实验室里分析了这些样本。",
+          "analysis": "简单句：主语 Scientists + 谓语 analysed + 宾语 the samples + 地点状语 in the laboratory。analyse 强调「分解来看」，宾语多为数据、样本、文本等。"
+        },
+        {
+          "level": "long",
+          "sentence": "If we analyse the failure carefully, we find not a single decisive error but a chain of small ones, each of which seemed reasonable at the time and none of which anyone felt responsible for.",
+          "translation": "若仔细分析这次失败，我们发现的并不是某一个决定性的错误，而是一连串小错误：每一个在当时看来都合情合理，且没有哪一个让人觉得自己该负责。",
+          "analysis": "主从复合句。If 引导条件状语从句；主句 we find not...but... 为对比结构（a chain of small ones 中 ones 指代 errors）；each of which seemed reasonable at the time 与 none of which anyone felt responsible for 均为非限制性定语从句（后者中 anyone felt responsible for 为省略关系词的定语从句，for 的宾语是关系代词 which）。analyse 取「分析」义。"
+        }
+      ],
+      "collocations": [
+        "analyse data 分析数据",
+        "analyse the causes 分析原因",
+        "analyse a text 分析文本"
+      ],
+      "phrases": [
+        "analyse in depth 深入分析",
+        "critically analyse 批判性地分析"
+      ],
+      "derived": [
+        {
+          "word": "analysis",
+          "meaning": "n. 分析（复数 analyses）"
+        },
+        {
+          "word": "analyst",
+          "meaning": "n. 分析师"
+        },
+        {
+          "word": "analytical",
+          "meaning": "adj. 分析的，善于分析的"
+        }
+      ],
+      "synonyms": [
+        "examine",
+        "break down",
+        "dissect",
+        "evaluate"
+      ],
+      "mnemonic": "拼写：英式 analyse / 美式 analyze；名词 analysis，复数 **analyses**（考研拼写常考）；同族 analytical 分析式的"
+    },
     "analysis": {
       "syllable": "a·nal·y·sis",
       "pos": "n.",
@@ -5453,6 +6625,65 @@
         "breakdown"
       ],
       "mnemonic": "ana(彻底)+lysis(松开) → 拆解到最细 → 分析"
+    },
+    "ancestor": {
+      "syllable": "an·ces·tor",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "祖先，祖宗"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（事物、观念的）前身，原型"
+        }
+      ],
+      "rootAffix": "an-（前）+ cess（走，同 proceed）+ -or（人）→ 走在前面的人 → 祖先",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Their ancestors came from northern Europe.",
+          "translation": "他们的祖先来自北欧。",
+          "analysis": "简单句：主语 Their ancestors + 谓语 came + 状语 from northern Europe。ancestor 常用复数（ancestors），与 descendant（后代）构成反义。"
+        },
+        {
+          "level": "long",
+          "sentence": "The modern spreadsheet is a direct ancestor of the paper ledger, and many of its conventions — rows, columns, totals at the bottom — survive precisely because they matched the habits of clerks who never saw a computer.",
+          "translation": "现代电子表格是纸质账簿的直系后身；它的许多惯例——行、列、底部的合计——之所以保留下来，恰恰是因为它们契合了从未见过计算机的记账员的习惯。",
+          "analysis": "并列复合句。第一分句为系表结构（a direct ancestor of the paper ledger 表「…的前身」）。第二分句主语 many of its conventions，破折号内 rows, columns, totals at the bottom 为同位解释，谓语 survive，后半部分 because 引导原因状语从句，其中 who never saw a computer 为定语从句修饰 clerks。ancestor 取引申义「前身」。"
+        }
+      ],
+      "collocations": [
+        "common ancestor 共同祖先",
+        "ancestor worship 祖先崇拜",
+        "remote ancestor 远祖"
+      ],
+      "phrases": [
+        "trace one's ancestors 追溯祖先",
+        "the ancestor of …的前身"
+      ],
+      "derived": [
+        {
+          "word": "ancestry",
+          "meaning": "n. 祖先，血统"
+        },
+        {
+          "word": "ancestral",
+          "meaning": "adj. 祖先的，祖传的"
+        },
+        {
+          "word": "descendant",
+          "meaning": "n. 后代（反义）"
+        }
+      ],
+      "synonyms": [
+        "forefather",
+        "predecessor",
+        "forebear",
+        "forerunner"
+      ],
+      "mnemonic": "cess 是「走」词根（proceed 前进、recess 后退）：an(前)+cess(走) → 走在前面的 → 祖先；引申义「前身」常用于技术史文章"
     },
     "ancient": {
       "syllable": "an·cient",
@@ -5514,6 +6745,189 @@
       ],
       "mnemonic": "ante-（在前）家族：ancient 古代的、antique 古董、anticipate（提前拿到）预料——都含「在…之前」"
     },
+    "angle": {
+      "syllable": "an·gle",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "角，角度"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（看问题的）角度，视角"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使成角度；从某个角度报道（angling for 谋取）"
+        }
+      ],
+      "rootAffix": "源自拉丁 angulus（角）→ 角落、角度",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The two lines meet at a right angle.",
+          "translation": "这两条线以直角相交。",
+          "analysis": "简单句：主语 The two lines + 谓语 meet + 状语 at a right angle。at a right angle 表「成直角」；angle 取几何本义。"
+        },
+        {
+          "level": "long",
+          "sentence": "Whether a policy looks generous or reckless depends on the angle from which it is viewed: the same subsidy appears compassionate to a family receiving it and wasteful to a taxpayer footing the bill.",
+          "translation": "一项政策看起来是慷慨还是鲁莽，取决于从哪个角度看：同一笔补贴，在领取它的家庭看来是体恤，在买单的纳税人看来则是浪费。",
+          "analysis": "主从复合句。Whether 引导主语从句；主句谓语 depends on，宾语为 the angle 后接 from which 引导的定语从句。冒号后为解释性并列句，the same subsidy 为主语，appears compassionate...and wasteful...（appear + adj. 系表结构），receiving it 与 footing the bill 分别为现在分词短语作定语修饰 a family / a taxpayer。angle 取「视角」义。"
+        }
+      ],
+      "collocations": [
+        "at an angle 成一定角度",
+        "from a different angle 从不同角度",
+        "right angle 直角"
+      ],
+      "phrases": [
+        "a new angle on sth 对某事的新视角",
+        "angle for 谋取，博取"
+      ],
+      "derived": [
+        {
+          "word": "angular",
+          "meaning": "adj. 有角的；瘦削的"
+        },
+        {
+          "word": "triangle",
+          "meaning": "n. 三角形"
+        },
+        {
+          "word": "rectangle",
+          "meaning": "n. 长方形"
+        }
+      ],
+      "synonyms": [
+        "perspective",
+        "viewpoint",
+        "standpoint",
+        "slant"
+      ],
+      "mnemonic": "angle 的「视角」义比几何义更常在考研阅读中出现（from the angle of 从…角度）；派生 triangle/rectangle 都含 ang（角）"
+    },
+    "angry": {
+      "syllable": "an·gry",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "生气的，愤怒的（be angry with sb / at sth）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（天气）狂暴的；（伤口）发炎的"
+        }
+      ],
+      "rootAffix": "源自古诺斯语 angr（悲伤、痛苦）→ 因痛苦而愤怒",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She was angry with herself for missing the deadline.",
+          "translation": "她因错过截止日期而生自己的气。",
+          "analysis": "简单句：主语 She + 系动词 was + 表语 angry + 对象状语 with herself + 原因状语 for missing the deadline。angry with sb（生某人的气）/ angry about/at sth（对某事生气）——介词分工明确。"
+        },
+        {
+          "level": "long",
+          "sentence": "Voters who feel ignored do not always become angry; more often they simply stop paying attention, a reaction that is quieter than protest and considerably harder for a government to detect.",
+          "translation": "感到被忽视的选民并不总是变愤怒；更多时候他们只是不再关注——这种反应比抗议更安静，也更难被政府察觉。",
+          "analysis": "并列主从复合句。第一分句主语 Voters 后接 who 引导的定语从句，谓语 become angry；分号后第二分句主语 they，谓语 stop paying（stop doing 表停止做）。a reaction 为同位语，后接 that 引导的定语从句（quieter than protest 与 harder to detect 为并列的比较/形容词结构）。angry 取「愤怒的」义。"
+        }
+      ],
+      "collocations": [
+        "be angry with sb 生某人的气",
+        "be angry at/about sth 对某事生气",
+        "angry words 气话",
+        "an angry crowd 愤怒的人群"
+      ],
+      "phrases": [
+        "get angry 生气",
+        "make sb angry 使某人生气"
+      ],
+      "derived": [
+        {
+          "word": "anger",
+          "meaning": "n. 愤怒 v. 激怒"
+        },
+        {
+          "word": "angrily",
+          "meaning": "adv. 愤怒地"
+        }
+      ],
+      "synonyms": [
+        "furious",
+        "indignant",
+        "annoyed",
+        "resentful"
+      ],
+      "mnemonic": "介词搭配必考：angry **with** sb / angry **at**(about) sth；名词 anger 是不可数，动词义「激怒」"
+    },
+    "animal": {
+      "syllable": "an·i·mal",
+      "pos": "n./adj.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "动物（含人以外的所有动物）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（与理性相对的）动物性的人"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "动物的；肉体的（animal desires）"
+        }
+      ],
+      "rootAffix": "源自拉丁 animalis（有气息的，anima 气息、灵魂）→ 有生命气息者 → 动物",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Many animals rely on smell to find food.",
+          "translation": "许多动物依靠嗅觉寻找食物。",
+          "analysis": "简单句：主语 Many animals + 谓语 rely + 状语 on smell + 目的状语 to find food。rely on 表「依靠」，是固定搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "Studies of animal behaviour suggest that what looks like cruelty is often a mechanism that keeps a group's resources from being consumed by those least likely to survive the winter.",
+          "translation": "对动物行为的研究显示，看似残忍的行为往往是一种机制，用以避免群体资源被那些最不可能熬过冬季的成员消耗掉。",
+          "analysis": "主从复合句。主句 Studies of animal behaviour suggest 后接 that 引导的宾语从句；从句主语为 what 引导的主语从句（what looks like cruelty），系表结构 is often a mechanism，后接 that 引导的定语从句（keeps A from B 结构，B 为 being consumed 被动动名词，those 后接 least likely to survive the winter 作后置定语）。animal 取「动物」义。"
+        }
+      ],
+      "collocations": [
+        "animal behaviour 动物行为",
+        "wild animal 野生动物",
+        "animal welfare 动物福利",
+        "farm animals 家畜"
+      ],
+      "phrases": [
+        "animal kingdom 动物界",
+        "animal testing 动物实验"
+      ],
+      "derived": [
+        {
+          "word": "animate",
+          "meaning": "v. 使有生气 adj. 有生命的"
+        },
+        {
+          "word": "animation",
+          "meaning": "n. 动画；生气"
+        },
+        {
+          "word": "inanimate",
+          "meaning": "adj. 无生命的"
+        }
+      ],
+      "synonyms": [
+        "creature",
+        "beast",
+        "organism",
+        "being"
+      ],
+      "mnemonic": "anima＝气息/灵魂（同源 animate 使有生气、animation 动画）→ animal 即「有气息者」"
+    },
     "announce": {
       "syllable": "an·nounce",
       "pos": "v.",
@@ -5567,6 +6981,65 @@
         "publish"
       ],
       "mnemonic": "an(向)+nounce(报) → 向众人报信 → 宣布"
+    },
+    "annoy": {
+      "syllable": "an·noy",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "使恼怒，使烦恼"
+        },
+        {
+          "pos": "v.",
+          "meaning": "骚扰，打扰（较旧用法）"
+        }
+      ],
+      "rootAffix": "源自拉丁 in odio（处于憎恶之中）→ 使人厌烦 → 使恼怒",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The noise annoyed everyone in the room.",
+          "translation": "噪音让房间里的每个人都很烦躁。",
+          "analysis": "简单句：主语 The noise + 谓语 annoyed + 宾语 everyone + 地点状语 in the room。annoy 为及物动词，常用 be annoyed with sb（对某人恼火）/ be annoyed at/about sth（对某事恼火）。"
+        },
+        {
+          "level": "long",
+          "sentence": "What annoys experienced researchers is not disagreement but vagueness: a claim too loose to be tested cannot be refuted, and therefore cannot contribute to knowledge at all.",
+          "translation": "让有经验的研究者恼火的不是分歧，而是含糊：一个松泛到无法检验的主张没法被反驳，因而根本无法为知识做出贡献。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not...but... 对比结构；冒号后为解释性并列句，主语 a claim，too loose to be tested 为后置定语（too...to... 结构），谓语 cannot be refuted；and therefore 连接结果，cannot contribute to 表「对…无贡献」。annoy 取「使恼火」义。"
+        }
+      ],
+      "collocations": [
+        "be annoyed with sb 对某人生气",
+        "be annoyed at/about sth 对某事恼火",
+        "annoy the neighbours 打扰邻居"
+      ],
+      "phrases": [
+        "get annoyed 变得烦躁",
+        "annoyingly slow 慢得让人心烦"
+      ],
+      "derived": [
+        {
+          "word": "annoyance",
+          "meaning": "n. 恼怒；讨厌的事物"
+        },
+        {
+          "word": "annoying",
+          "meaning": "adj. 令人恼火的"
+        },
+        {
+          "word": "annoyed",
+          "meaning": "adj. 感到恼火的"
+        }
+      ],
+      "synonyms": [
+        "irritate",
+        "bother",
+        "vex",
+        "disturb"
+      ],
+      "mnemonic": "-ing 修饰事物（annoying 令人烦的）/ -ed 修饰人（annoyed 感到烦的）；介词：with sb / at(sth)"
     },
     "annual": {
       "syllable": "an·nu·al",
@@ -5684,6 +7157,121 @@
       ],
       "mnemonic": "onym 是「名字」词根（synonym 同义词、antonym 反义词）：an(无)+onym(名) → 无名的；名词形式是 anonymity，别写成 anonymousness"
     },
+    "another": {
+      "syllable": "an·oth·er",
+      "pos": "adj./pron.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "另一个，再一个（another + 单数名词）"
+        },
+        {
+          "pos": "pron.",
+          "meaning": "另一个（one another 互相）"
+        }
+      ],
+      "rootAffix": "an（一个）+ other（其他的）→ 另外的一个",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Would you like another cup of tea?",
+          "translation": "你想再来一杯茶吗？",
+          "analysis": "简单句：主语（省略的 you）+ 谓语 would like + 宾语 another cup of tea。another 后接**单数可数名词**（another cup ✓ / another cups ✗）。"
+        },
+        {
+          "level": "long",
+          "sentence": "One study is never enough: another researcher working with different data may reach an opposite conclusion, and the discrepancy itself is often more informative than either result.",
+          "translation": "一项研究永远不够：另一位使用不同数据的研究者可能得出相反结论，而这种不一致本身往往比任何一方结果都更有启发性。",
+          "analysis": "并列复合句。第一分句表判断（never enough）；冒号后为解释，主语 another researcher（working with different data 为现在分词短语作后置定语），谓语 may reach，宾语 an opposite conclusion。and 连接第三分句，主语 the discrepancy itself（itself 强调），系表结构 is often more informative than either result。another 取「另一个」义。"
+        }
+      ],
+      "collocations": [
+        "one another 互相",
+        "another way 另一种方式",
+        "one after another 一个接一个"
+      ],
+      "phrases": [
+        "for another thing 再者（列举）",
+        "in another sense 从另一层意义上"
+      ],
+      "derived": [
+        {
+          "word": "other",
+          "meaning": "adj./pron. 其他的"
+        },
+        {
+          "word": "otherwise",
+          "meaning": "adv. 否则；另外"
+        }
+      ],
+      "synonyms": [
+        "additional",
+        "further",
+        "a different",
+        "one more"
+      ],
+      "mnemonic": "another + **单数**名词（another book）；other + 复数（other books）；others = other + 复数名词（泛指）；the other = 两者中的另一个"
+    },
+    "answer": {
+      "syllable": "an·swer",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "回答，答复；答案"
+        },
+        {
+          "pos": "v.",
+          "meaning": "回答；答复（answer sth / answer to）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "符合，满足（answer the need）"
+        }
+      ],
+      "rootAffix": "源自古英语 andswaru（对着发誓、答辩）→ 回应 → 回答",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Nobody could answer the question.",
+          "translation": "没有人能回答这个问题。",
+          "analysis": "简单句：主语 Nobody + 谓语 could answer + 宾语 the question。answer 作及物动词直接接宾语（answer the question ✓ / answer to the question 在此义下 ✗）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The question that worries policymakers is not whether the technology will create jobs but whether the people who lose their old ones will be able to answer the call for skills no school has yet begun to teach.",
+          "translation": "让政策制定者担忧的问题，不是这项技术会不会创造就业，而是那些失去原有工作的人，能否回应那种对技能的召唤——而学校尚未开始教授这类技能。",
+          "analysis": "主从复合句。主语 The question 后接 that 引导的定语从句，系表结构为 not whether...but whether...（两个 whether 引导表语从句）；第二个 whether 从句中，主语 the people 后接 who 引导的定语从句，谓语 will be able to answer（be able to do 结构），宾语 the call for skills，其后 no school has yet begun to teach 为省略关系词的定语从句。answer 取「回应、满足（需求）」义。"
+        }
+      ],
+      "collocations": [
+        "answer a question 回答问题",
+        "answer for 对…负责",
+        "answer to 与…相符；对…解释",
+        "the answer to ……的答案"
+      ],
+      "phrases": [
+        "in answer to 作为对…的答复",
+        "answer the need 满足需要"
+      ],
+      "derived": [
+        {
+          "word": "answerable",
+          "meaning": "adj. 有责任的；可答复的"
+        },
+        {
+          "word": "unanswered",
+          "meaning": "adj. 未答复的"
+        }
+      ],
+      "synonyms": [
+        "reply",
+        "response",
+        "solution",
+        "respond"
+      ],
+      "mnemonic": "介词考点：the answer **to** the question（答案的 to，不是 of）；answer for（对…负责）与 account for（解释）同属高频短语"
+    },
     "anticipate": {
       "syllable": "an·tic·i·pate",
       "pos": "v.",
@@ -5741,6 +7329,62 @@
       ],
       "mnemonic": "anti(先)+cip(拿)+ate → 提前抓到结局 → 预料"
     },
+    "anxiety": {
+      "syllable": "anx·i·e·ty",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "焦虑，忧虑（anxiety about/over）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "渴望，热望（anxiety to do / for sth）"
+        }
+      ],
+      "rootAffix": "anx（紧、窒息，同 anguish）+ -iety → 心里发紧 → 焦虑",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Many students suffer from exam anxiety.",
+          "translation": "许多学生受考试焦虑困扰。",
+          "analysis": "简单句：主语 Many students + 谓语 suffer + 状语 from exam anxiety。suffer from 表「受…之苦」；anxiety 在此为不可数名词，指焦虑这一状态。"
+        },
+        {
+          "level": "long",
+          "sentence": "What distinguishes useful anxiety from crippling anxiety is not its intensity but whether it is attached to something the person can act upon, which is why vague warnings demoralise people while specific ones mobilise them.",
+          "translation": "把有益的焦虑与令人丧失行动力的焦虑区分开的，不是强度，而是它是否附着于此人能够着手行动的事情上；正因如此，含糊的警告使人沮丧，而具体的警告则促人行动。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not...but... 对比结构，whether 引导表语从句（其中 the person can act upon 为省略关系词的定语从句修饰 something）；which 引导非限制性定语从句指代整句；why 引导表语从句，含 while 表对比（vague warnings demoralise people / specific ones mobilise them）。anxiety 取「焦虑」义。"
+        }
+      ],
+      "collocations": [
+        "anxiety about/over 对…的焦虑",
+        "suffer from anxiety 受焦虑困扰",
+        "anxiety disorder 焦虑症",
+        "relieve anxiety 缓解焦虑"
+      ],
+      "phrases": [
+        "in one's anxiety to do 因急于做…",
+        "heightened anxiety 加剧的焦虑"
+      ],
+      "derived": [
+        {
+          "word": "anxious",
+          "meaning": "adj. 焦虑的；渴望的"
+        },
+        {
+          "word": "anxiously",
+          "meaning": "adv. 焦急地"
+        }
+      ],
+      "synonyms": [
+        "worry",
+        "apprehension",
+        "unease",
+        "concern"
+      ],
+      "mnemonic": "anxiety（焦虑，名词）↔ anxious（形容词）；两义辨：anxiety about（对…担忧）/ anxiety to do（渴望做）——搭配决定含义"
+    },
     "anxious": {
       "syllable": "anx·ious",
       "pos": "adj.",
@@ -5796,6 +7440,70 @@
         "uneasy"
       ],
       "mnemonic": "搭配定词义：anxious **about**（为…担心）/ anxious **to do**（急于做）；名词 anxiety 是考研阅读心理类文章的高频词"
+    },
+    "any": {
+      "syllable": "an·y",
+      "pos": "adj./pron./adv.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "任何的（用于否定/疑问/条件句）"
+        },
+        {
+          "pos": "pron.",
+          "meaning": "任何一个，一些"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "（与比较级连用）稍微（any better）"
+        }
+      ],
+      "rootAffix": "源自古英语 ænig（任一）→ 任一个",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "There isn't any milk left.",
+          "translation": "一点牛奶都没剩了。",
+          "analysis": "简单句：There be 句型（isn't any milk left，left 为过去分词作后置定语）。any 用于否定句修饰不可数名词；肯定句常用 some（There is some milk）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Any policy that claims to help the poor but imposes no cost on anyone else deserves suspicion, because benefits that are painless to provide are usually too small to change anything.",
+          "translation": "任何声称帮助穷人却不给其他任何人带来成本的政策都值得怀疑，因为不痛不痒就能给出的好处，通常小到无法改变任何事情。",
+          "analysis": "主从复合句。主语 Any policy 后接 that 引导的定语从句（claims to help...but imposes...并列谓语），谓语 deserves，宾语 suspicion（deserve 后接名词或 to do）；because 引导原因状语从句，主语 benefits 后接 that 引导的定语从句（painless to provide 表「提供起来无痛苦的」），系表结构 usually too small to change anything（too...to... 结构）。any 在此表「任何（一个）」，用于肯定句也可，强调无一例外。"
+        }
+      ],
+      "collocations": [
+        "any other 任何其他的",
+        "in any case 无论如何",
+        "at any rate 无论如何；至少",
+        "any longer 不再（与否定连用）"
+      ],
+      "phrases": [
+        "any day now 随时（就要发生）",
+        "without any doubt 毫无疑问"
+      ],
+      "derived": [
+        {
+          "word": "anyone",
+          "meaning": "pron. 任何人"
+        },
+        {
+          "word": "anything",
+          "meaning": "pron. 任何事物"
+        },
+        {
+          "word": "anywhere",
+          "meaning": "adv. 任何地方"
+        }
+      ],
+      "synonyms": [
+        "some",
+        "whichever",
+        "whatever",
+        "at all"
+      ],
+      "mnemonic": "any 三用法：否定/疑问句表「任何、一些」；肯定句表「任何一个（无一例外）」；与比较级连用表「稍微」（any better）"
     },
     "appeal": {
       "syllable": "ap·peal",
