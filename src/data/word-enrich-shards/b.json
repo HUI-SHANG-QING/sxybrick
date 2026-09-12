@@ -1,7 +1,7 @@
 {
   "shard": "b",
   "from": "bachelor",
-  "to": "breath",
+  "to": "burger",
   "entries": {
     "bachelor": {
       "syllable": "bach·e·lor",
@@ -8279,6 +8279,1795 @@
         "gasp"
       ],
       "mnemonic": "breath 记「呼吸/气息」；a breath of fresh air 一股清新之气"
+    },
+    "breathe": {
+      "syllable": "breathe",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "呼吸，吸入并呼出空气"
+        },
+        {
+          "pos": "v.",
+          "meaning": "呼出；低声说出"
+        },
+        {
+          "pos": "v.",
+          "meaning": "注入（新生命、活力）于…（breathe life into）"
+        }
+      ],
+      "rootAffix": "源自古英语 brēathan（呼吸），与名词 breath 同根，原始日耳曼语 *brēþōną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We breathe about twenty thousand times a day.",
+          "translation": "我们一天大约呼吸两万次。",
+          "analysis": "简单句：主语 We + 谓语 breathe + 状语 about twenty thousand times a day。breathe 此处表「呼吸」。"
+        },
+        {
+          "level": "long",
+          "sentence": "To breathe life into a stalled project is less about adding features and more about removing the friction that keeps people from starting, because a system that asks too much at the door will empty faster than one that asks little and rewards often.",
+          "translation": "给停滞的项目注入生机，重点不在于增加功能，而在于消除阻碍人们起步的摩擦，因为一个在门口要求过多的系统，会比一个少有要求且常常给予回报的系统更快地流失人。",
+          "analysis": "复合句。主语 To breathe life into a stalled project 为不定式短语，谓语 is less about... and more about... 是比较结构；removing the friction 为动名词作 about 宾语，that keeps people from starting 为定语从句修饰 friction。because 引导原因状语从句，其主句 a system... will empty faster than one...，that asks too much at the door 为定语从句，than one that asks little and rewards often 为比较对象（one 后接 that 定语从句）。"
+        }
+      ],
+      "collocations": [
+        "breathe deeply",
+        "breathe fresh air",
+        "breathe life into",
+        "breathe a sigh of relief"
+      ],
+      "phrases": [
+        "breathe out 呼出",
+        "breathe in 吸入",
+        "breathe easy 放宽心"
+      ],
+      "derived": [
+        {
+          "word": "breather",
+          "meaning": "n. 短暂休息；透气"
+        },
+        {
+          "word": "breathing",
+          "meaning": "n./adj. 呼吸（的）"
+        }
+      ],
+      "synonyms": [
+        "respire",
+        "exhale",
+        "inhale"
+      ],
+      "mnemonic": "breathe 与 breath（n. 气息）同根：名词去 th 加 e 即成动词「呼吸」；联想「没气息(breath)就无从呼吸(breathe)」。"
+    },
+    "breed": {
+      "syllable": "breed",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "饲养（动物），繁殖"
+        },
+        {
+          "pos": "v.",
+          "meaning": "酿成，导致（问题、怨恨）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "品种，种；类型"
+        }
+      ],
+      "rootAffix": "源自古英语 brēdan（孵化、养育），原始日耳曼语 *brōdijan",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Some farmers breed cattle for milk.",
+          "translation": "一些农民饲养奶牛以获取牛奶。",
+          "analysis": "简单句：主语 Some farmers + 谓语 breed + 宾语 cattle + 目的状语 for milk。breed 此处表「饲养」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A culture that breeds distrust will, in time, find that the very people it relied on have learned to rely on each other instead, because when institutions stop protecting those inside them, the protected quietly build the bonds the institution failed to provide, and loyalty drifts to the smaller group that actually shows up.",
+          "translation": "滋生不信任的文化，终将发现它所依赖的人已学会彼此依靠，因为当制度不再保护其内部之人，被保护者会悄然建立起制度未能提供的联结，而忠诚便流向那个真正出现的更小群体。",
+          "analysis": "复合句。主句 A culture... will... find that...（find 后接 that 宾语从句）。in time 为状语。that the very people it relied on have learned to rely on each other instead 为宾语从句，内嵌 it relied on 定语从句修饰 people。because 引导原因状语从句，主句 when institutions stop protecting... the protected quietly build the bonds（when 时间状语从句），that actually shows up 定语从句修饰 group，the institution failed to provide 定语从句修饰 bonds；and 并列 loyalty drifts to the smaller group。"
+        }
+      ],
+      "collocations": [
+        "breed cattle",
+        "breed contempt",
+        "a new breed of",
+        "breed trouble"
+      ],
+      "phrases": [
+        "breed out 淘汰（劣质）",
+        "well bred 有教养的",
+        "born and bred 土生土长的"
+      ],
+      "derived": [
+        {
+          "word": "breeder",
+          "meaning": "n. 饲养员；育种者"
+        },
+        {
+          "word": "breeding",
+          "meaning": "n. 繁殖；教养"
+        }
+      ],
+      "synonyms": [
+        "raise",
+        "reproduce",
+        "nurture"
+      ],
+      "mnemonic": "breed 联想 bread（面包）喂大→饲养/繁殖；b-r-e-e-d 双 e 像上下两代，正合「繁殖」之意。"
+    },
+    "breeze": {
+      "syllable": "breeze",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "微风，和风"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（口语）轻松容易的事"
+        },
+        {
+          "pos": "v.",
+          "meaning": "飘然而过，轻松移动（breeze through）"
+        }
+      ],
+      "rootAffix": "源自西班牙语/葡萄牙语 brisa（东北风），16世纪进入英语",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "A cool breeze came in from the sea.",
+          "translation": "一阵凉风从海上吹来。",
+          "analysis": "简单句：主语 A cool breeze + 谓语 came in + 状语 from the sea。breeze 此处表「微风」。"
+        },
+        {
+          "level": "long",
+          "sentence": "What looked like a breeze turned into a slog the moment the easy part ended, because a task sold as simple rarely stays simple once the hidden steps surface, and the confidence that carried you through the opening is exactly what abandons you when the real difficulty arrives without warning.",
+          "translation": "看似轻松的事，在简单部分结束的瞬间便成了苦差，因为被标榜为简单的工作，一旦隐藏步骤浮现便很少保持简单；而带你熬过开头的那点信心，恰恰是真正困难毫无预警地降临时弃你而去的东西。",
+          "analysis": "复合句。主句 What looked like a breeze turned into a slog the moment the easy part ended（the moment 引导时间状语从句）。because 引导原因状语从句，主句 a task... rarely stays simple once the hidden steps surface（once 时间状语从句），and 并列 the confidence... is exactly what abandons you when the real difficulty arrives without warning（when 时间状语从句，what abandons you 为表语从句）。"
+        }
+      ],
+      "collocations": [
+        "a gentle breeze",
+        "breeze through",
+        "a breeze of wind",
+        "sea breeze"
+      ],
+      "phrases": [
+        "breeze in 信步而入",
+        "shoot the breeze 闲聊",
+        "breeze past 轻松越过"
+      ],
+      "derived": [
+        {
+          "word": "breezy",
+          "meaning": "adj. 通风的；轻松的"
+        },
+        {
+          "word": "breezily",
+          "meaning": "adv. 轻松地"
+        }
+      ],
+      "synonyms": [
+        "wind",
+        "gust",
+        "zephyr"
+      ],
+      "mnemonic": "breeze 与 freeze（冻结）仅首字母不同——breeze 是温柔的「微风」，freeze 是冷酷的「冰冻」。"
+    },
+    "brick": {
+      "syllable": "brick",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "砖，砖块"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（喻）可靠、实在的人"
+        },
+        {
+          "pos": "v.",
+          "meaning": "用砖砌（墙等）"
+        }
+      ],
+      "rootAffix": "源自古法语 briche，原始日耳曼语 *brikka",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The wall is made of red brick.",
+          "translation": "这面墙由红砖砌成。",
+          "analysis": "简单句：主语 The wall + 系动词 is + 表语 made of red brick。brick 此处表「砖」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A single brick out of place will not collapse the wall, yet a row of them leaning the same way eventually pulls the whole structure into the direction it was never meant to go, because small consistent errors are not loud, and the building that fails rarely does so from one dramatic break but from a thousand quiet ones that no one corrected in time.",
+          "translation": "一块错位的砖不会让墙倒塌，可一排同向倾斜的砖最终会把整座结构拽向它本不该去的方向，因为微小而持续的错误并不喧哗，而建筑的崩塌很少源于一次剧烈的断裂，而是源于上千次无人及时纠正的静默失误。",
+          "analysis": "复合句。主句 A single brick... will not collapse the wall, yet a row of them... eventually pulls the whole structure into the direction it was never meant to go（it was never meant to go 为定语从句修饰 direction）。because 引导原因状语从句，主句 small consistent errors are not loud，and 并列 the building... rarely does so from one dramatic break but from a thousand quiet ones that no one corrected in time（that no one corrected in time 定语从句修饰 ones；does so 替代 collapses）。"
+        }
+      ],
+      "collocations": [
+        "red brick",
+        "a brick wall",
+        "make bricks",
+        "a brick of gold"
+      ],
+      "phrases": [
+        "brick by brick 一块砖一块砖地（逐步）",
+        "like a brick 猛地",
+        "drop a brick 失言"
+      ],
+      "derived": [
+        {
+          "word": "bricklayer",
+          "meaning": "n. 砌砖工"
+        },
+        {
+          "word": "brickwork",
+          "meaning": "n. 砖砌工程"
+        }
+      ],
+      "synonyms": [
+        "block",
+        "tile",
+        "stone"
+      ],
+      "mnemonic": "brick 联想 b（build 建造）+ rick（堆叠）——砖块一块块堆(rick)成墙；记「砖块(brick)垒墙」。"
+    },
+    "bride": {
+      "syllable": "bride",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "新娘（婚礼中的女方）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（喻）初嫁、新配之物"
+        }
+      ],
+      "rootAffix": "源自古英语 brȳd，原始日耳曼语 *brūþīz（新娘），与 groom（新郎）相对",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The bride wore a white dress.",
+          "translation": "新娘穿着白色礼服。",
+          "analysis": "简单句：主语 The bride + 谓语 wore + 宾语 a white dress。bride 此处表「新娘」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The bride who plans every detail herself learns more about her own tolerance for chaos than about weddings, because the act of controlling each small choice reveals which parts of order she truly needs and which she only thought she needed, and the day that finally arrives is less a test of the plan than a test of whether she can let the plan go.",
+          "translation": "亲自规划每一个细节的新娘，学到的更多是关于自己对混乱的容忍度，而非关于婚礼本身，因为掌控每个微小选择的行为，会暴露出她真正需要的秩序，与她自以为需要的秩序之间的区别；而最终到来的那一天，与其说是对计划的检验，不如说是对她能否放下计划的检验。",
+          "analysis": "复合句。主句 The bride... learns more about... than about...（more... than... 比较）。who plans every detail herself 为定语从句。because 引导原因状语从句，主句 the act... reveals which parts... and which she only thought she needed（which... and which... 并列宾语从句），and 并列 the day... is less a test of the plan than a test of whether she can let the plan go（whether 宾语从句）。"
+        }
+      ],
+      "collocations": [
+        "the bride and groom",
+        "child bride",
+        "bride price",
+        "bride tribe"
+      ],
+      "phrases": [
+        "bride-to-be 准新娘",
+        "take a bride 娶妻",
+        "bride of the sea 海的新娘（喻）"
+      ],
+      "derived": [
+        {
+          "word": "bridal",
+          "meaning": "adj. 新娘的；婚礼的"
+        },
+        {
+          "word": "bridegroom",
+          "meaning": "n. 新郎"
+        }
+      ],
+      "synonyms": [
+        "newlywed",
+        "wife"
+      ],
+      "mnemonic": "bride 与 ride（骑、乘坐）同形易混——新娘(bride)出嫁常「坐车/被迎娶(ride)」；或记 b（beautiful 美）+ ride（出嫁）。"
+    },
+    "bridge": {
+      "syllable": "bridge",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "桥，桥梁"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（喻）纽带，沟通媒介"
+        },
+        {
+          "pos": "v.",
+          "meaning": "架桥于；弥合（分歧、鸿沟）"
+        }
+      ],
+      "rootAffix": "源自古英语 brycg，原始日耳曼语 *brugjō",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They built a bridge over the river.",
+          "translation": "他们在河上建了一座桥。",
+          "analysis": "简单句：主语 They + 谓语 built + 宾语 a bridge + 状语 over the river。bridge 此处表「桥」。"
+        },
+        {
+          "level": "long",
+          "sentence": "To bridge the gap between what two sides believe and what they actually share is the hardest kind of engineering, because the distance is not in the facts but in the stories each tells about the other, and a bridge built only across the water leaves the steeper cliffs of suspicion untouched on both banks.",
+          "translation": "弥合双方所信与所共享之间的鸿沟，是最难的工程，因为距离不在事实，而在彼此讲述的关于对方的故事里；只在水面上架起的桥，会让两岸更陡的怀疑之崖原封不动。",
+          "analysis": "复合句。主句 To bridge the gap... is the hardest kind of engineering（不定式作主语）。between what two sides believe and what they actually share 为介宾，内含两个 what 宾语从句。because 引导原因状语从句，主句 the distance is not in the facts but in the stories，each tells about the other 定语从句修饰 stories；and 并列 a bridge... leaves the steeper cliffs... untouched，built only across the water 过去分词作后置定语，of suspicion 定语，on both banks 状语。"
+        }
+      ],
+      "collocations": [
+        "build a bridge",
+        "bridge the gap",
+        "burn one's bridges",
+        "a bridge of friendship"
+      ],
+      "phrases": [
+        "bridge over 渡过（难关）",
+        "a bridge too far 力所不及的事",
+        "water under the bridge 既往不咎"
+      ],
+      "derived": [
+        {
+          "word": "bridged",
+          "meaning": "adj. 有桥的；已架桥的"
+        },
+        {
+          "word": "bridging",
+          "meaning": "n. 架桥；桥接"
+        }
+      ],
+      "synonyms": [
+        "span",
+        "connect",
+        "link"
+      ],
+      "mnemonic": "bridge 联想 b（build 建造）+ ridge（山脊）——桥像架在两岸山脊间的通道；记「桥梁连接(bridge)两岸」。"
+    },
+    "brief": {
+      "syllable": "brief",
+      "pos": "adj./v./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "简短的，简洁的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "短暂的"
+        },
+        {
+          "pos": "v.",
+          "meaning": "向…简要介绍，布置任务"
+        },
+        {
+          "pos": "n.",
+          "meaning": "摘要，简报"
+        }
+      ],
+      "rootAffix": "源自拉丁语 brevis（短的），经古法语 bref 进入英语",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Please give me a brief answer.",
+          "translation": "请给我一个简短的回答。",
+          "analysis": "简单句：谓语 give（祈使）+ 间接宾语 me + 直接宾语 a brief answer。brief 此处表「简短的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A brief that is clear beats a manual that is complete, because the person who must act under pressure will trade completeness for speed every time, and the instruction that survives the moment of crisis is the one that fits in a single breath, not the one that covers every edge case the author feared.",
+          "translation": "一份清晰的摘要胜过一份完整的手册，因为在压力下必须行动的人，每次都会用完整性去换速度；能在危机时刻留存下来的指示，是那句能一口气说完的话，而非覆盖作者所担忧的每一个边缘情况的那种。",
+          "analysis": "复合句。主句 A brief... beats a manual...（brief 此处喻「简报」，manual 喻「手册」；beats 表「胜过」）。because 引导原因状语从句，主句 the person... will trade completeness for speed every time（who must act under pressure 定语从句），and 并列 the instruction... is the one that fits in a single breath, not the one that covers every edge case the author feared（that fits... / that covers... 定语从句，the author feared 定语从句修饰 edge case）。"
+        }
+      ],
+      "collocations": [
+        "in brief",
+        "a brief meeting",
+        "brief someone on",
+        "hold a brief for"
+      ],
+      "phrases": [
+        "in brief 简言之",
+        "brief and to the point 简明扼要",
+        "a brief life 短暂的一生"
+      ],
+      "derived": [
+        {
+          "word": "briefly",
+          "meaning": "adv. 简短地"
+        },
+        {
+          "word": "briefing",
+          "meaning": "n. 简报；情况介绍"
+        }
+      ],
+      "synonyms": [
+        "short",
+        "concise",
+        "succinct"
+      ],
+      "mnemonic": "brief 与 grief（悲伤）仅首字母不同；联想「悲伤(grief)无需多言，简短(brief)表达即可」。词族 brev（拉丁「短」）：brief/brevity。"
+    },
+    "bright": {
+      "syllable": "bright",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "明亮的，发光的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "聪明的，伶俐的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "光明的，有希望的"
+        }
+      ],
+      "rootAffix": "源自古英语 b(e)orht（明亮的），原始日耳曼语 *berhtaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The room is bright with sunlight.",
+          "translation": "房间因阳光而明亮。",
+          "analysis": "简单句：主语 The room + 系动词 is + 表语 bright + 状语 with sunlight。bright 此处表「明亮的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bright student is not merely one who answers fast but one who sits with a hard question long enough to let it change shape, because speed without patience only confirms what is already known, while the mind that grows is the one willing to be unsure in public until the answer earns its place.",
+          "translation": "聪明的学生不只是回答得快的人，而是肯就一个难题静坐足够久、任其改变形态的人，因为无耐心的速度只会确认已知，而成长的头脑，是愿意在公开场合保持不确定、直到答案赢得其位置的那一个。",
+          "analysis": "复合句。主句 A bright student is not merely one... but one...（not... but... 结构）。who answers fast 定语从句；who sits with a hard question long enough to let it change shape 定语从句。because 引导原因状语从句，主句 speed without patience only confirms what is already known（what 宾语从句），while 引导对比状语从句 the mind that grows is the one willing to be unsure in public until the answer earns its place（that grows 定语从句，until 时间状语从句）。"
+        }
+      ],
+      "collocations": [
+        "bright light",
+        "bright future",
+        "bright student",
+        "bright idea"
+      ],
+      "phrases": [
+        "bright and early 一大早",
+        "bright idea 好主意",
+        "look on the bright side 看光明面"
+      ],
+      "derived": [
+        {
+          "word": "brightly",
+          "meaning": "adv. 明亮地"
+        },
+        {
+          "word": "brightness",
+          "meaning": "n. 明亮；聪明"
+        }
+      ],
+      "synonyms": [
+        "light",
+        "clever",
+        "promising"
+      ],
+      "mnemonic": "bright 联想 b（bee 蜜蜂）+ right（正确的）——聪明的蜜蜂找对方向；记「明亮(bright)的灯光让人清醒聪明」。"
+    },
+    "brilliant": {
+      "syllable": "brilliant",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "光辉灿烂的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "卓越的，才华横溢的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（口语）极好的，绝妙的"
+        }
+      ],
+      "rootAffix": "源自拉丁语 beryllus（绿宝石），经法语 brillant（闪耀的）入英，原义「像宝石般闪光」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She gave a brilliant speech.",
+          "translation": "她发表了一场卓越的演讲。",
+          "analysis": "简单句：主语 She + 谓语 gave + 宾语 a brilliant speech。brilliant 此处表「卓越的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A brilliant idea is often just an old idea seen from a corner no one bothered to stand in, because originality is less about inventing the new than about rearranging the familiar until a pattern hidden in plain sight finally becomes visible, and the thinker praised as genius is usually the one who refused to stop looking when others decided the view was exhausted.",
+          "translation": "一个卓越的想法，往往只是一个从没人愿意站立的角落看到的旧想法，因为原创性与其说在于发明新东西，不如说在于重组熟悉之物，直到一个隐藏在众目睽睽之下的模式终于显现；而被誉为天才的思想者，通常是那个在别人断定景致已尽时仍不肯停止观看的人。",
+          "analysis": "复合句。主句 A brilliant idea is often just an old idea seen from a corner...（seen... 过去分词作后置定语）。because 引导原因状语从句，主句 originality is less about inventing the new than about rearranging the familiar until a pattern... becomes visible（until 时间状语从句，hidden in plain sight 过去分词作后置定语修饰 pattern），and 并列 the thinker... is usually the one who refused to stop looking when others decided the view was exhausted（who refused... 定语从句，when 时间状语从句）。"
+        }
+      ],
+      "collocations": [
+        "brilliant idea",
+        "brilliant performance",
+        "brilliant mind",
+        "brilliant at"
+      ],
+      "phrases": [
+        "absolutely brilliant 绝妙极了",
+        "brilliant at 擅长",
+        "brilliant career 辉煌的事业"
+      ],
+      "derived": [
+        {
+          "word": "brilliantly",
+          "meaning": "adv. 辉煌地；极好地"
+        },
+        {
+          "word": "brilliance",
+          "meaning": "n. 光辉；才华"
+        }
+      ],
+      "synonyms": [
+        "outstanding",
+        "excellent",
+        "genius"
+      ],
+      "mnemonic": "brilliant 来自「宝石闪光」——联想「才华横溢之人如宝石般 brilliantly 闪耀」；词根 brill（闪光）。"
+    },
+    "bring": {
+      "syllable": "bring",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "带来，拿来"
+        },
+        {
+          "pos": "v.",
+          "meaning": "引起，导致"
+        },
+        {
+          "pos": "v.",
+          "meaning": "促使，使处于（某种状态）"
+        }
+      ],
+      "rootAffix": "源自古英语 bringan，原始日耳曼语 *bringan",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Please bring me a glass of water.",
+          "translation": "请给我带一杯水。",
+          "analysis": "简单句：谓语 bring（祈使）+ 间接宾语 me + 直接宾语 a glass of water。bring 此处表「带来」。"
+        },
+        {
+          "level": "long",
+          "sentence": "To bring a system into balance is not to freeze it but to let its parts move against one another without tearing the whole, because stability that depends on stillness breaks at the first push, while the kind that survives is the one whose tensions are known, named, and held rather than hidden and hoped away.",
+          "translation": "让一个系统归于平衡，不是冻结它，而是让它的各部分彼此制衡而不撕裂整体，因为依赖静止的稳定会在第一次推搡下断裂，而能存续的那种稳定，是其张力被认知、被命名、被容纳，而非被隐藏、被指望自行消散的那一种。",
+          "analysis": "复合句。主句 To bring a system into balance is not to freeze it but to let its parts move...（不定式作主语；not... but... 结构；let 宾语 its parts + 宾补 move...）。because 引导原因状语从句，主句 stability... breaks at the first push（that depends on stillness 定语从句），while 引导对比状语从句 the kind... is the one whose tensions are known, named, and held rather than hidden and hoped away（whose tensions... 定语从句）。"
+        }
+      ],
+      "collocations": [
+        "bring about",
+        "bring up",
+        "bring forward",
+        "bring along"
+      ],
+      "phrases": [
+        "bring along 带上",
+        "bring to 使恢复知觉",
+        "bring home 使深切体会到"
+      ],
+      "derived": [
+        {
+          "word": "bringing",
+          "meaning": "n. 带来；带来之物"
+        },
+        {
+          "word": "brought",
+          "meaning": "v. bring 的过去式/过去分词"
+        }
+      ],
+      "synonyms": [
+        "fetch",
+        "cause",
+        "produce"
+      ],
+      "mnemonic": "bring 联想 b（搬）+ ring（环形→聚拢）——把东西搬来聚拢；对比 take（带走）/fetch（去取来）。"
+    },
+    "broad": {
+      "syllable": "broad",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "宽的，宽阔的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "广泛的，笼统的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（笑容）开朗的，爽朗的"
+        }
+      ],
+      "rootAffix": "源自古英语 brād，原始日耳曼语 *braidaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The river is broad and slow.",
+          "translation": "这条河宽阔而平缓。",
+          "analysis": "简单句：主语 The river + 系动词 is + 表语 broad and slow。broad 此处表「宽的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A broad education is not the same as a deep one, because knowing a little about many things leaves you ready to listen, while knowing much about one leaves you ready to speak, and the person who thrives is usually the one who has done both and knows which mode the moment demands.",
+          "translation": "广博的教育不同于精深的教育，因为对许多事情略知一二让你准备好倾听，而对一件事知之甚深让你准备好发言；而游刃有余者，通常是那个两者都做过、并懂得此刻需要哪种状态的人。",
+          "analysis": "复合句。主句 A broad education is not the same as a deep one（not the same as 表「不同于」）。because 引导原因状语从句，主句 knowing a little about many things leaves you ready to listen（动名词短语作主语），while 引导对比状语从句 knowing much about one leaves you ready to speak，and 并列 the person... is usually the one who has done both and knows which mode the moment demands（who has done both and knows... 定语从句，which mode... 宾语从句，the moment demands 定语从句修饰 mode）。"
+        }
+      ],
+      "collocations": [
+        "broad shoulders",
+        "broad support",
+        "in broad daylight",
+        "broad range"
+      ],
+      "phrases": [
+        "broad-minded 心胸开阔的",
+        "broadly speaking 广义上说",
+        "broad smile 爽朗的笑"
+      ],
+      "derived": [
+        {
+          "word": "broadly",
+          "meaning": "adv. 广泛地；大体上"
+        },
+        {
+          "word": "broaden",
+          "meaning": "v. 加宽；扩大"
+        }
+      ],
+      "synonyms": [
+        "wide",
+        "extensive",
+        "vast"
+      ],
+      "mnemonic": "broad 与 board（木板）仅差末字母——木板(board)是「宽(broad)」的；记「宽阔(broad)的大道」。"
+    },
+    "broken": {
+      "syllable": "broken",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "破碎的，损坏的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "不连贯的，中断的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（诺言、信任）被破坏的"
+        }
+      ],
+      "rootAffix": "break 的过去分词，源自古英语 brecan（打破），原始日耳曼语 *brekaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The broken vase lay on the floor.",
+          "translation": "碎掉的花瓶躺在地上。",
+          "analysis": "简单句：主语 The broken vase + 谓语 lay + 状语 on the floor。broken 此处为形容词「破碎的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A broken promise teaches more about the promiser than the promise itself, because the words spoken were never the bond, the bond was the person choosing again and again to keep showing up, and what breaks is not the sentence but the quiet agreement that someone would be there when it mattered.",
+          "translation": "一个被打破的承诺，比承诺本身更能说明许诺者，因为说出的话从来不是约束，约束是那个人一次次选择继续出现；而被打破的不是那句话，而是「关键时刻会有人在场」这份无声的约定。",
+          "analysis": "复合句。主句 A broken promise teaches more about the promiser than the promise itself（more... than... 比较）。because 引导原因状语从句，主句 the words spoken were never the bond（spoken 过去分词作后置定语），the bond was the person choosing again and again to keep showing up（choosing... 动名词作表语），and 并列 what breaks is not the sentence but the quiet agreement that someone would be there when it mattered（what breaks 主语从句，that someone would be there when it mattered 定语从句修饰 agreement，when 时间状语从句）。"
+        }
+      ],
+      "collocations": [
+        "broken heart",
+        "broken promise",
+        "broken English",
+        "broken down"
+      ],
+      "phrases": [
+        "broken off 中断",
+        "broken up 分手；破碎",
+        "broken in 驯服；闯入"
+      ],
+      "derived": [
+        {
+          "word": "break",
+          "meaning": "v. 打破；折断"
+        },
+        {
+          "word": "breaker",
+          "meaning": "n. 破坏者；碎浪"
+        }
+      ],
+      "synonyms": [
+        "smashed",
+        "shattered",
+        "fractured"
+      ],
+      "mnemonic": "broken 是 break 的过去分词——记「break（打破）→ broken（已破碎的）」；b-r-o-k-e-n 五个字母像裂开的碎片。"
+    },
+    "bronze": {
+      "syllable": "bronze",
+      "pos": "n./adj.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "青铜（铜锡合金）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "青铜色，古铜色"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "青铜制的"
+        }
+      ],
+      "rootAffix": "源自意大利语 bronzo，可能源自波斯语 birinj（黄铜）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The statue is made of bronze.",
+          "translation": "这尊雕像由青铜铸成。",
+          "analysis": "简单句：主语 The statue + 系动词 is + 表语 made of bronze。bronze 此处表「青铜」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bronze medal means third place to the crowd but first place to the athlete who once finished nowhere, because the value of a result is set not by the number on it but by the distance traveled to reach it, and the person who treasures the bronze is the one who remembers the day that same effort would have been unthinkable.",
+          "translation": "一枚铜牌对大众是第三名，对那个曾经名落孙山的运动员却是第一名，因为结果的价值不由其上的数字决定，而由抵达它所需走过的路程决定；珍视铜牌的人，是那个记得曾几何时同样的努力都难以想象的那种人。",
+          "analysis": "复合句。主句 A bronze medal means third place to the crowd but first place to the athlete...（means... to... but... to... 并列）。who once finished nowhere 为定语从句。because 引导原因状语从句，主句 the value... is set not by the number on it but by the distance traveled to reach it（not... but... 结构，traveled to reach it 过去分词作后置定语），and 并列 the person... is the one who remembers the day that same effort would have been unthinkable（who remembers... 定语从句，that same effort would have been unthinkable 定语从句修饰 day）。"
+        }
+      ],
+      "collocations": [
+        "bronze medal",
+        "bronze age",
+        "bronze statue",
+        "bronze skin"
+      ],
+      "phrases": [
+        "bronze ware 青铜器",
+        "bronze mixed 青铜合金",
+        "bronze door 铜门"
+      ],
+      "derived": [
+        {
+          "word": "bronzy",
+          "meaning": "adj. 青铜色的"
+        },
+        {
+          "word": "bronzing",
+          "meaning": "n. 镀青铜；晒成古铜色"
+        }
+      ],
+      "synonyms": [
+        "coppery",
+        "brass-colored"
+      ],
+      "mnemonic": "bronze 联想「b（金属）+ ronze 似法语」——青铜(bronze)是古老金属；对比 brass（黄铜）/copper（铜）。"
+    },
+    "brother": {
+      "syllable": "brother",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "兄弟（哥哥/弟弟）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "同胞，同仁"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（宗教/团体）弟兄"
+        }
+      ],
+      "rootAffix": "源自古英语 brōþor，原始日耳曼语 *brōþēr，与 father/mother 同源",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "My brother lives in Beijing.",
+          "translation": "我哥哥住在北京。",
+          "analysis": "简单句：主语 My brother + 谓语 lives + 状语 in Beijing。brother 此处表「兄弟」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A brother is not only the one born beside you but the one who stays when the story turns, because family chosen by birth is a starting point, not a guarantee, and the bond that lasts is built in the quiet hours no photograph captures, where two people simply keep choosing each other after the easy reasons have gone.",
+          "translation": "兄弟不只是在你身旁出生的人，更是当故事转向时仍留在你身边的人，因为由出生选定的家人只是起点而非保证；而能长久的纽带，是在任何照片都捕捉不到的静默时光里建成的——那时两人只是简单地在轻松的理由消失后，仍一次次选择彼此。",
+          "analysis": "复合句。主句 A brother is not only the one... but the one...（not only... but... 结构）。who stays when the story turns 为定语从句（when 时间状语从句）。because 引导原因状语从句，主句 family chosen by birth is a starting point, not a guarantee（chosen by birth 过去分词作后置定语），and 并列 the bond... is built in the quiet hours no photograph captures（no photograph captures 定语从句修饰 hours），where two people simply keep choosing each other after the easy reasons have gone（where 定语从句，after 时间状语从句）。"
+        }
+      ],
+      "collocations": [
+        "elder brother",
+        "younger brother",
+        "brotherhood",
+        "brother in arms"
+      ],
+      "phrases": [
+        "brotherly love 兄弟之爱",
+        "big brother 老大哥",
+        "blood brother 结拜兄弟"
+      ],
+      "derived": [
+        {
+          "word": "brotherly",
+          "meaning": "adj. 兄弟般的"
+        },
+        {
+          "word": "brotherhood",
+          "meaning": "n. 兄弟情谊"
+        }
+      ],
+      "synonyms": [
+        "sibling",
+        "kinsman",
+        "comrade"
+      ],
+      "mnemonic": "brother 与 mother/father 同属 -ther 家族（皆表亲缘）；记「b（born 出生）+ rother 兄弟」。"
+    },
+    "brown": {
+      "syllable": "brown",
+      "pos": "adj./n./v.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "棕色的，褐色的"
+        },
+        {
+          "pos": "n.",
+          "meaning": "棕色，褐色"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（使）变成褐色"
+        }
+      ],
+      "rootAffix": "源自古英语 brūn，原始日耳曼语 *brūnaz（发亮的暗色）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She has brown eyes.",
+          "translation": "她有一双棕色的眼睛。",
+          "analysis": "简单句：主语 She + 谓语 has + 宾语 brown eyes。brown 此处表「棕色的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The brown bread on the table was not a sign of poverty but of choice, because what we eat is rarely only fuel, and the person who picks the plainer loaf is often the one quietly refusing the noise of status that others mistake for taste, building a life measured by what it costs in attention rather than in coins.",
+          "translation": "桌上那块粗粮面包不是贫穷的标志，而是选择的结果，因为我们吃的东西很少仅仅是燃料；而选朴素面包的人，常常是那个安静地拒绝他人误当作品味的身份喧嚣之人，他构建的人生以所耗注意力而非金钱来衡量。",
+          "analysis": "复合句。主句 The brown bread... was not a sign of poverty but of choice（not... but... 结构）。because 引导原因状语从句，主句 what we eat is rarely only fuel（what 主语从句），and 并列 the person... is often the one quietly refusing the noise of status that others mistake for taste（that others mistake for taste 定语从句修饰 status，mistake A for B 表「把 A 误当 B」），building a life measured by what it costs in attention rather than in coins（measured... 过去分词作后置定语，what 宾语从句）。"
+        }
+      ],
+      "collocations": [
+        "brown eyes",
+        "brown sugar",
+        "brown rice",
+        "brown bread"
+      ],
+      "phrases": [
+        "brown out 局部断电",
+        "do up brown 把…做得彻底",
+        "brown coal 褐煤"
+      ],
+      "derived": [
+        {
+          "word": "brownish",
+          "meaning": "adj. 带棕色的"
+        },
+        {
+          "word": "brownness",
+          "meaning": "n. 褐色"
+        }
+      ],
+      "synonyms": [
+        "tan",
+        "chestnut",
+        "umber"
+      ],
+      "mnemonic": "brown 与 crown（王冠）仅首字母不同——戴棕色(brown)王冠(crown)的国王；记「褐色面包 brown bread 养生」。"
+    },
+    "brush": {
+      "syllable": "brush",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "刷子，画笔"
+        },
+        {
+          "pos": "n.",
+          "meaning": "轻触，擦过"
+        },
+        {
+          "pos": "v.",
+          "meaning": "刷，拂去；轻擦而过"
+        }
+      ],
+      "rootAffix": "源自古法语 brosse（灌木丛；刷子），原始日耳曼语 *bruskaz",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He brushed his teeth twice a day.",
+          "translation": "他一天刷两次牙。",
+          "analysis": "简单句：主语 He + 谓语 brushed + 宾语 his teeth + 状语 twice a day。brush 此处表「刷」。"
+        },
+        {
+          "level": "long",
+          "sentence": "To brush past a problem is not to solve it but to leave a mark that returns, because a difficulty you walk around instead of through stays in the room as a shape you can no longer name, and the day it blocks the only door you have is the day you wish you had met it when meeting it was still a choice.",
+          "translation": "与一个难题擦肩而过，不是解决它，而是留下一个会回来的印记，因为被你绕开而非穿越的困难，会作为一团你再也叫不出名字的形状留在房间里；而当它挡住你唯一的门的那天，你会希望当初遇见它时那还只是个选择。",
+          "analysis": "复合句。主句 To brush past a problem is not to solve it but to leave a mark that returns（不定式主语；not... but... 结构；that returns 定语从句）。because 引导原因状语从句，主句 a difficulty... stays in the room as a shape you can no longer name（you can no longer name 定语从句修饰 shape），and 并列 the day it blocks the only door you have is the day you wish you had met it when meeting it was still a choice（it blocks... 定语从句修饰 the day，you have 定语从句修饰 door，you wish... 宾语从句，when meeting it was still a choice 时间状语从句）。"
+        }
+      ],
+      "collocations": [
+        "brush teeth",
+        "brush aside",
+        "brush up on",
+        "brush past"
+      ],
+      "phrases": [
+        "brush off 拒绝；打发走",
+        "brush through 挤过",
+        "brush away 拂去"
+      ],
+      "derived": [
+        {
+          "word": "brushing",
+          "meaning": "n. 刷；轻拂"
+        },
+        {
+          "word": "brushy",
+          "meaning": "adj. 灌木丛生的"
+        }
+      ],
+      "synonyms": [
+        "sweep",
+        "wipe",
+        "graze"
+      ],
+      "mnemonic": "brush 联想「b（broom 扫帚）+ rush（快速）」——快速一扫即「刷」；对比 crush（压碎）/flush（冲洗）。"
+    },
+    "bubble": {
+      "syllable": "bubble",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "气泡，水泡"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（喻）泡沫（经济等）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "冒泡，沸腾；（喻）洋溢"
+        }
+      ],
+      "rootAffix": "拟声词，源自中古英语 bobel，与 boil 同源",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The soup began to bubble.",
+          "translation": "汤开始冒泡。",
+          "analysis": "简单句：主语 The soup + 谓语 began + 宾语 to bubble。bubble 此处表「冒泡」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bubble that looks like growth is the most dangerous kind, because the numbers rise without the substance beneath them, and the crowd that cheers the climb forgets that altitude bought on borrowed belief is altitude that vanishes the moment the borrowing stops, leaving everyone who arrived late to explain why the ground they trusted was never really there.",
+          "translation": "看似增长的泡沫是最危险的一种，因为数字在上涨，其下的实质却没有；而为上涨欢呼的人群忘了，靠借来的信心买到的高度，会在借贷停止的瞬间消失，留下每一个晚到的人去解释，为何他们信任的地面从未真正存在。",
+          "analysis": "复合句。主句 A bubble... is the most dangerous kind。because 引导原因状语从句，主句 the numbers rise without the substance beneath them（beneath them 介词短语作后置定语），and 并列 the crowd... forgets that altitude... is altitude that vanishes...（that altitude... is altitude 宾语从句，that vanishes the moment the borrowing stops 定语从句，the moment 时间状语从句），leaving everyone... to explain why the ground... was never really there（why 宾语从句，they trusted 定语从句修饰 ground）。"
+        }
+      ],
+      "collocations": [
+        "bubble up",
+        "burst a bubble",
+        "bubble economy",
+        "soap bubble"
+      ],
+      "phrases": [
+        "bubble over 洋溢；沸腾溢出",
+        "bubble gum 泡泡糖",
+        "bubble bath 泡泡浴"
+      ],
+      "derived": [
+        {
+          "word": "bubbly",
+          "meaning": "adj. 起泡的；活泼的"
+        },
+        {
+          "word": "bubbling",
+          "meaning": "adj. 冒泡的"
+        }
+      ],
+      "synonyms": [
+        "foam",
+        "froth",
+        "fizz"
+      ],
+      "mnemonic": "bubble 双 b 像两个气泡；拟声「噗噗」冒泡；记「bubble 泡泡糖 bubble gum」。"
+    },
+    "bucket": {
+      "syllable": "bucket",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "桶，提桶"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（喻）大量（a bucket of）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "用桶装；倾盆而下"
+        }
+      ],
+      "rootAffix": "源自古法语 buquet（小木桶），与 butt（大桶）同源",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He carried a bucket of water.",
+          "translation": "他提了一桶水。",
+          "analysis": "简单句：主语 He + 谓语 carried + 宾语 a bucket of water。bucket 此处表「桶」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bucket with a hole teaches a harder lesson than an empty one, because the person who fills it never learns that the loss is in the vessel, not the effort, and keeps pouring with more force, mistaking industry for progress until the day the same bucket, mended, finally holds what all that work was meant to carry.",
+          "translation": "一个有洞的桶比一个空桶教会更残酷的一课，因为往里灌水的人永远学不会：流失在容器而不在努力；他只会更用力地倒，把勤勉误当进步，直到有一天，同一个修好的桶终于盛住了那一切劳作本该承载的东西。",
+          "analysis": "复合句。主句 A bucket with a hole teaches a harder lesson than an empty one（than 比较）。because 引导原因状语从句，主句 the person... never learns that the loss is in the vessel, not the effort（that 宾语从句），and 并列 keeps pouring with more force, mistaking industry for progress until the day...（mistaking... 现在分词作伴随状语，until 时间状语从句），the same bucket, mended, finally holds what all that work was meant to carry（mended 过去分词作插入定语，what 宾语从句）。"
+        }
+      ],
+      "collocations": [
+        "a bucket of",
+        "bucket list",
+        "kick the bucket",
+        "drop in the bucket"
+      ],
+      "phrases": [
+        "bucket down 倾盆大雨",
+        "bring up a bucket 提桶上来",
+        "bucket seat 凹背座椅"
+      ],
+      "derived": [
+        {
+          "word": "bucketful",
+          "meaning": "n. 一桶之量"
+        },
+        {
+          "word": "bucketing",
+          "meaning": "adj. 倾盆的"
+        }
+      ],
+      "synonyms": [
+        "pail",
+        "can",
+        "container"
+      ],
+      "mnemonic": "bucket 联想「b（big 大）+ ucket 似 pouch」——大袋子般的「桶」；对比 pail（提桶，同义）。"
+    },
+    "budget": {
+      "syllable": "budget",
+      "pos": "n./v./adj.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "预算，经费"
+        },
+        {
+          "pos": "v.",
+          "meaning": "编预算，规划开支"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "低廉的，经济型的"
+        }
+      ],
+      "rootAffix": "源自古法语 bougette（小皮囊），与 bulge（鼓起）同源，原指「钱袋」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We need to budget for the trip.",
+          "translation": "我们需要为这次旅行做预算。",
+          "analysis": "简单句：主语 We + 谓语 need + 宾语 to budget for the trip。budget 此处为动词「做预算」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A budget is not a cage but a mirror, because the way a person chooses to spend the little they control reveals what they actually believe matters, and the numbers written in a plan are less a restriction than a confession of priorities that no speech about values ever manages to say as plainly.",
+          "translation": "预算不是牢笼而是镜子，因为一个人如何花掉自己所能掌控的少许，揭示了他们真正相信什么重要；而写在计划里的数字，与其说是一种限制，不如说是一份优先级的坦白——那是任何关于价值的演说都从未如此直白地说出的。",
+          "analysis": "复合句。主句 A budget is not a cage but a mirror（not... but... 结构）。because 引导原因状语从句，主句 the way a person chooses to spend the little they control reveals what they actually believe matters（the way 后接定语从句 a person chooses to spend...，they control 定语从句修饰 little，what 宾语从句），and 并列 the numbers... are less a restriction than a confession of priorities that no speech about values ever manages to say as plainly（that no speech... 定语从句修饰 priorities，less... than... 比较）。"
+        }
+      ],
+      "collocations": [
+        "on a budget",
+        "budget for",
+        "tight budget",
+        "budget deficit"
+      ],
+      "phrases": [
+        "budget airline 廉价航空",
+        "balance the budget 平衡预算",
+        "within budget 在预算内"
+      ],
+      "derived": [
+        {
+          "word": "budgeting",
+          "meaning": "n. 预算编制"
+        },
+        {
+          "word": "budgetary",
+          "meaning": "adj. 预算的"
+        }
+      ],
+      "synonyms": [
+        "allowance",
+        "estimate",
+        "funds"
+      ],
+      "mnemonic": "budget 来自「小钱袋 bougette」——记「钱袋(budget)里规划的开支即预算」；adj. 引申为「便宜的」。"
+    },
+    "buffet": {
+      "syllable": "buffet",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "自助餐"
+        },
+        {
+          "pos": "n.",
+          "meaning": "碗柜，餐柜"
+        },
+        {
+          "pos": "v.",
+          "meaning": "反复打击，搏斗"
+        }
+      ],
+      "rootAffix": "源自法语 buffet（凳子；一击），可能与古法语 bufe（打）同源",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We had dinner at a buffet.",
+          "translation": "我们在自助餐厅吃了晚饭。",
+          "analysis": "简单句：主语 We + 谓语 had + 宾语 dinner + 状语 at a buffet。buffet 此处表「自助餐」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Life will buffet those who plan only for calm weather, because the sea that seemed tame in the morning turns without apology, and the person who built no room for the storm is the one thrown hardest when it arrives, while the one who expected the blow meets it standing and learns to move with the force instead of against it.",
+          "translation": "生活会反复打击那些只为一风和日丽做计划的人，因为清晨看似温顺的海会毫无歉意地翻脸；而没给风暴留余地的人，正是风暴来时摔得最重的人，反观那个预料到打击的人，是站着迎接它、并学会顺着力道而非逆着它移动的人。",
+          "analysis": "复合句。主句 Life will buffet those who plan only for calm weather（who plan only for calm weather 定语从句）。because 引导原因状语从句，主句 the sea... turns without apology（that seemed tame in the morning 定语从句），and 并列 the person... is the one thrown hardest when it arrives（thrown hardest 过去分词作后置定语，when 时间状语从句），while 引导对比状语从句 the one who expected the blow meets it standing and learns to move with the force instead of against it（who expected the blow 定语从句，instead of against it 比较）。"
+        }
+      ],
+      "collocations": [
+        "a buffet car",
+        "buffet dinner",
+        "buffet restaurant",
+        "buffet attack"
+      ],
+      "phrases": [
+        "buffet lunch 自助午餐",
+        "cold buffet 冷餐",
+        "buffet style 自助式"
+      ],
+      "derived": [
+        {
+          "word": "buffeting",
+          "meaning": "n. 反复打击"
+        },
+        {
+          "word": "buffet-style",
+          "meaning": "adj. 自助式的"
+        }
+      ],
+      "synonyms": [
+        "smite",
+        "batter",
+        "beat"
+      ],
+      "mnemonic": "buffet 双义：①自助餐（轻松）②反复打击（猛烈）——记「自助餐上的菜肴任你取，生活却反复 buffet 你」；对比 batter（连续猛击）。"
+    },
+    "bug": {
+      "syllable": "bug",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "小虫，臭虫"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（计算机）故障，程序错误"
+        },
+        {
+          "pos": "v.",
+          "meaning": "烦扰；在…找错"
+        }
+      ],
+      "rootAffix": "源自古英语 budda（甲虫），19世纪起指「昆虫」，20世纪随计算机指「程序错误」（传说源于Mark II 机器中的飞蛾）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "There is a bug in the software.",
+          "translation": "这个软件里有个故障。",
+          "analysis": "简单句：There be 结构，主语 a bug + 状语 in the software。bug 此处指「程序错误」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bug that escapes into the wild is more expensive than ten caught in review, because the cost of a mistake is not in finding it but in where it lands, and the error that reaches a user carries not only its own weight but the trust it quietly removes from every feature that follows.",
+          "translation": "一个流入实地的故障，比十个在审查中被抓住的都更昂贵，因为错误的代价不在发现它，而在它落在何处；而一个抵达用户的错误，承载的不只是它自身的重量，还有它悄然从其后每一项功能中抽走的信任。",
+          "analysis": "复合句。主句 A bug... is more expensive than ten caught in review（than 比较，caught in review 过去分词作后置定语）。because 引导原因状语从句，主句 the cost... is not in finding it but in where it lands（not... but... 结构），and 并列 the error... carries not only its own weight but the trust it quietly removes from every feature that follows（it quietly removes... 定语从句修饰 trust，that follows 定语从句修饰 feature）。"
+        }
+      ],
+      "collocations": [
+        "a software bug",
+        "debug a program",
+        "catch a bug",
+        "bug report"
+      ],
+      "phrases": [
+        "bug out 逃避；撤离",
+        "big bug 大人物",
+        "bug off 走开"
+      ],
+      "derived": [
+        {
+          "word": "debug",
+          "meaning": "v. 排除故障；调试"
+        },
+        {
+          "word": "buggy",
+          "meaning": "adj. 多故障的；n. 婴儿车"
+        }
+      ],
+      "synonyms": [
+        "fault",
+        "glitch",
+        "defect"
+      ],
+      "mnemonic": "bug 原义「臭虫」，计算机史上真有飞蛾卡进继电器被称为首个 bug——记「程序里的 bug 像臭虫一样烦人」。"
+    },
+    "build": {
+      "syllable": "build",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "建造，修建"
+        },
+        {
+          "pos": "v.",
+          "meaning": "建立，发展（关系、事业）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "体格；构造；建造物"
+        }
+      ],
+      "rootAffix": "源自古英语 byldan（建造），与 bold（房屋）同源，原始日耳曼语 *bulthjaną",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They plan to build a new school.",
+          "translation": "他们计划建一所新学校。",
+          "analysis": "简单句：主语 They + 谓语 plan + 宾语 to build a new school（不定式）。build 表「建造」。"
+        },
+        {
+          "level": "long",
+          "sentence": "To build a thing that lasts is less about the first stone than about the thousand small decisions that keep it standing when no one is watching, because a structure praised on the day it opens can still fall from a joint no photograph showed, and the work that matters is the part done correctly precisely because it will never be seen.",
+          "translation": "建一件能长久留存的东西，重点不在第一块石头，而在无人注视时仍让它矗立的千百个微小决定，因为一座在落成之日备受称赞的建筑，仍可能从照片未曾拍到的接缝处倒塌；而真正要紧的，是那部分之所以被正确完成，恰恰是因为它永不会被看见。",
+          "analysis": "复合句。主句 To build a thing that lasts is less about the first stone than about the thousand small decisions...（不定式主语；less... than... 比较；that keeps it standing when no one is watching 定语从句，when 时间状语从句）。because 引导原因状语从句，主句 a structure... can still fall from a joint no photograph showed（no photograph showed 定语从句修饰 joint），and 并列 the work... is the part done correctly precisely because it will never be seen（done correctly 过去分词作后置定语，because 原因状语从句）。"
+        }
+      ],
+      "collocations": [
+        "build a house",
+        "build up",
+        "build on",
+        "build trust"
+      ],
+      "phrases": [
+        "build up 逐步建立；增强",
+        "build in 使成为组成部分",
+        "build into 使固定于"
+      ],
+      "derived": [
+        {
+          "word": "builder",
+          "meaning": "n. 建造者；建立者"
+        },
+        {
+          "word": "building",
+          "meaning": "n. 建筑物"
+        }
+      ],
+      "synonyms": [
+        "construct",
+        "erect",
+        "establish"
+      ],
+      "mnemonic": "build 联想「b（block 砖块）+ uild 似 yield 产出」——把砖块产出成建筑；对比 rebuild（重建）。"
+    },
+    "building": {
+      "syllable": "building",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "建筑物，大楼"
+        },
+        {
+          "pos": "n.",
+          "meaning": "建造，建筑（业）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "build 的现在分词（正在建造）"
+        }
+      ],
+      "rootAffix": "build（建造）的派生名词，加 -ing 名词化",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The building next door is very tall.",
+          "translation": "隔壁那栋楼很高。",
+          "analysis": "简单句：主语 The building next door + 系动词 is + 表语 very tall（next door 后置定语）。building 表「建筑物」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A building is not finished when the last worker leaves but when the people inside have made it theirs, because walls only become a place once the noise of real life fills the rooms the architect could only imagine, and the structure that earns the name home is the one that holds the ordinary hours no blueprint ever planned for.",
+          "translation": "一栋楼不是在最后一名工人离开时完工，而是在里面的人把它变成自己的时完工，因为只有当真实生活的喧闹填满建筑师只能想象的空间，墙壁才成为一个场所；而配得上「家」之名的建筑，是那座容纳了蓝图上从未规划的寻常时光的建筑。",
+          "analysis": "复合句。主句 A building is not finished when the last worker leaves but when the people inside have made it theirs（not... but... 结构，when... 时间状语从句两个）。because 引导原因状语从句，主句 walls only become a place once the noise... fills the rooms the architect could only imagine（once 时间状语从句，the architect could only imagine 定语从句修饰 rooms），and 并列 the structure... is the one that holds the ordinary hours no blueprint ever planned for（that holds... 定语从句，no blueprint ever planned for 定语从句修饰 hours）。"
+        }
+      ],
+      "collocations": [
+        "office building",
+        "building site",
+        "high building",
+        "building materials"
+      ],
+      "phrases": [
+        "building up 逐步增强",
+        "main building 主楼",
+        "building block 积木；基础"
+      ],
+      "derived": [
+        {
+          "word": "rebuild",
+          "meaning": "v. 重建"
+        },
+        {
+          "word": "builder",
+          "meaning": "n. 建筑工人"
+        }
+      ],
+      "synonyms": [
+        "structure",
+        "edifice",
+        "construction"
+      ],
+      "mnemonic": "building = build + ing（名词化）；记「正在 build 的成品即 building（建筑物）」。"
+    },
+    "bulk": {
+      "syllable": "bulk",
+      "pos": "n./adj./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "体积，大块；大部分"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "散装的，大批的"
+        },
+        {
+          "pos": "v.",
+          "meaning": "变得庞大；使成块状"
+        }
+      ],
+      "rootAffix": "源自古诺尔斯语 bulki（货堆），与 balk（梁）同源",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The bulk of the work is done.",
+          "translation": "大部分工作已完成。",
+          "analysis": "简单句：主语 The bulk of the work + 系动词 is + 表语 done。bulk 此处表「大部分」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The bulk of what we own ends up owning us, because the more a life is measured by what it accumulates, the less freedom remains to move, and the person surrounded by things often finds the door blocked not by the objects but by the reluctance to let any of them go.",
+          "translation": "我们拥有的大部分东西，到头来反过来拥有了我们，因为一种生活越以积累之物来衡量，能移动的自由就越少；而被物品包围的人，常发现挡住门的不是那些物件，而是不愿放走其中任何一件的迟疑。",
+          "analysis": "复合句。主句 The bulk of what we own ends up owning us（what we own 主语从句）。because 引导原因状语从句，主句 the more a life is measured by what it accumulates, the less freedom remains to move（the more... the less... 比较结构，what it accumulates 宾语从句），and 并列 the person... often finds the door blocked not by the objects but by the reluctance to let any of them go（not... but... 结构，to let any of them go 不定式作后置定语修饰 reluctance）。"
+        }
+      ],
+      "collocations": [
+        "the bulk of",
+        "in bulk",
+        "bulk buying",
+        "bulk goods"
+      ],
+      "phrases": [
+        "bulk large 显得庞大重要",
+        "bulk out 使膨胀；装满",
+        "by bulk 按体积"
+      ],
+      "derived": [
+        {
+          "word": "bulky",
+          "meaning": "adj. 笨重的；庞大的"
+        },
+        {
+          "word": "bulkiness",
+          "meaning": "n. 庞大"
+        }
+      ],
+      "synonyms": [
+        "mass",
+        "majority",
+        "volume"
+      ],
+      "mnemonic": "bulk 联想「b（big 大）+ ulk 似 hulk 巨物）」——大块头即 bulk；对比 hulk（废船；巨物）。"
+    },
+    "bullet": {
+      "syllable": "bullet",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "子弹，弹丸"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（列表的）圆点，项目符号"
+        }
+      ],
+      "rootAffix": "源自法语 boulet（小球）， diminutive of boule（球），原指「小圆球」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "List the points in bullet form.",
+          "translation": "用项目符号把要点列出来。",
+          "analysis": "简单句：谓语 List（祈使）+ 宾语 the points + 状语 in bullet form。bullet 此处指「项目符号」。如果指武器：a bullet 表「子弹」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bullet point is a small promise that a reader will not get lost, because the eye that meets a wall of text looks for any escape, while a list of short lines offers the brain a path it can finish, and the writer who respects attention is the one who turns a monologue into steps a stranger could follow alone.",
+          "translation": "一个项目符号，是「读者不会迷路」的小小承诺，因为面对一堵文字之墙的眼睛会寻找任何出口，而一列短行则给大脑一条它能走完的路；而尊重注意力的写作者，是把独白变成陌生人也能独自跟随的步骤的那个人。",
+          "analysis": "复合句。主句 A bullet point is a small promise that a reader will not get lost（that a reader will not get lost 定语从句）。because 引导原因状语从句，主句 the eye... looks for any escape（that meets a wall of text 定语从句），while 引导对比状语从句 a list of short lines offers the brain a path it can finish（it can finish 定语从句），and 并列 the writer... is the one who turns a monologue into steps a stranger could follow alone（who turns... 定语从句，a stranger could follow alone 定语从句修饰 steps）。"
+        }
+      ],
+      "collocations": [
+        "bullet point",
+        "bullet train",
+        "a bullet hole",
+        "bite the bullet"
+      ],
+      "phrases": [
+        "bullet proof 防弹的",
+        "silver bullet 良方；高招",
+        "bullet screen 弹幕"
+      ],
+      "derived": [
+        {
+          "word": "bulleted",
+          "meaning": "adj. 带项目符号的"
+        },
+        {
+          "word": "bulletin",
+          "meaning": "n. 公告；简报"
+        }
+      ],
+      "synonyms": [
+        "projectile",
+        "shot",
+        "point"
+      ],
+      "mnemonic": "bullet 来自「小圆球 boulet」——既指「子弹」(小球状)也指列表「圆点」；记「圆点像小子弹头」。对比 ballet（芭蕾，同形音近）。"
+    },
+    "bunch": {
+      "syllable": "bunch",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "束，串，捆（a bunch of）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（口语）一群，一帮"
+        },
+        {
+          "pos": "v.",
+          "meaning": "集中，挤在一起"
+        }
+      ],
+      "rootAffix": "源自古法语 bonche（木块），原义「隆起的一堆」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She bought a bunch of grapes.",
+          "translation": "她买了一串葡萄。",
+          "analysis": "简单句：主语 She + 谓语 bought + 宾语 a bunch of grapes。bunch 表「串，束」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bunch of small tasks looks harmless until they crowd the day, because each one alone asks for little, yet together they form a weight no single item would suggest, and the person who never clears the pile discovers that the cost was never the work but the constant low hum of things left undone.",
+          "translation": "一堆小任务看起来无害，直到它们挤满了这一天，因为每一件单独要的都不多，可合在一起就形成了任何单件都不会预示的重量；而从不清理这堆事的人会发现，代价从来不是工作本身，而是那些未竟之事持续发出的低沉嗡鸣。",
+          "analysis": "复合句。主句 A bunch of small tasks looks harmless until they crowd the day（until 时间状语从句）。because 引导原因状语从句，主句 each one alone asks for little, yet together they form a weight no single item would suggest（yet 并列，no single item would suggest 定语从句修饰 weight），and 并列 the person... discovers that the cost was never the work but the constant low hum of things left undone（that 宾语从句，left undone 过去分词作后置定语）。"
+        }
+      ],
+      "collocations": [
+        "a bunch of",
+        "a bunch of flowers",
+        "the whole bunch",
+        "bunch together"
+      ],
+      "phrases": [
+        "bunch up 挤在一起",
+        "bunch of guys 一帮家伙",
+        "top bunch 顶尖群体"
+      ],
+      "derived": [
+        {
+          "word": "bunched",
+          "meaning": "adj. 成束的；皱起的"
+        },
+        {
+          "word": "bunchy",
+          "meaning": "adj. 成束的"
+        }
+      ],
+      "synonyms": [
+        "cluster",
+        "group",
+        "bundle"
+      ],
+      "mnemonic": "bunch 联想「b（bind 绑）+ unch 似 hunch 隆起）」——绑成一隆起的一束；对比 bundle（捆）。"
+    },
+    "bundle": {
+      "syllable": "bundle",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "捆，包，束"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（软件）捆绑包"
+        },
+        {
+          "pos": "v.",
+          "meaning": "捆扎；匆忙打发"
+        }
+      ],
+      "rootAffix": "bunch 的指小形式，加 -le 名词化，原义「小捆」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He carried a bundle of sticks.",
+          "translation": "他扛了一捆柴。",
+          "analysis": "简单句：主语 He + 谓语 carried + 宾语 a bundle of sticks。bundle 表「捆，束」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bundle of features sold as one is easier to market than to use, because the buyer is drawn by the promise of completeness while the user is slowed by the parts they never wanted, and the product that wins is often the one that removed a bundle to become a tool a person could actually hold.",
+          "translation": "一套被当作整体售卖的功能组合，营销起来比用起来更容易，因为买主被「完整」的承诺吸引，而使用者却被他们从不想要的部分拖慢；而胜出的产品，常常是那个拆掉组合、变成一件人真正握得住的工具的产品。",
+          "analysis": "复合句。主句 A bundle of features sold as one is easier to market than to use（sold as one 过去分词作后置定语；than 比较）。because 引导原因状语从句，主句 the buyer is drawn by the promise of completeness while the user is slowed by the parts they never wanted（while 对比，they never wanted 定语从句修饰 parts），and 并列 the product... is often the one that removed a bundle to become a tool a person could actually hold（that removed... 定语从句，a person could actually hold 定语从句修饰 tool）。"
+        }
+      ],
+      "collocations": [
+        "a bundle of",
+        "bundle up",
+        "bundle software",
+        "nerve bundle"
+      ],
+      "phrases": [
+        "bundle off 把…打发走",
+        "bundle into 挤进",
+        "bundle of joy 宝贝（谑）"
+      ],
+      "derived": [
+        {
+          "word": "bundled",
+          "meaning": "adj. 捆绑的；打包的"
+        },
+        {
+          "word": "bundling",
+          "meaning": "n. 捆绑销售"
+        }
+      ],
+      "synonyms": [
+        "parcel",
+        "pack",
+        "sheaf"
+      ],
+      "mnemonic": "bundle 由 bunch 的指小形式而来——记「bunch（一束）的小版即 bundle（小捆）」；对比 unbundle（拆分）。"
+    },
+    "burden": {
+      "syllable": "burden",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "重担，负担"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（船的）载重，吨位"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使负重；烦扰"
+        }
+      ],
+      "rootAffix": "源自古英语 byrþen（负荷），与 bear（承受）同源",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The debt is a heavy burden.",
+          "translation": "这笔债务是个沉重的负担。",
+          "analysis": "简单句：主语 The debt + 系动词 is + 表语 a heavy burden。burden 表「负担」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A burden shared is not halved but it is made bearable, because the weight itself does not shrink when spoken of, yet the silence around it grows heavier than the load, and the person who asks for help discovers that the shame they feared was lighter than the isolation they had been carrying alone.",
+          "translation": "分担的重担并未减半，却变得可以承受，因为说出它时重量本身并未缩小，可围绕它的沉默却比负荷更重；而那个开口求助的人会发现，他们曾害怕的羞耻，比他们独自背负的孤立更轻。",
+          "analysis": "复合句。主句 A burden shared is not halved but it is made bearable（not... but... 结构）。because 引导原因状语从句，主句 the weight itself does not shrink when spoken of（when spoken of 时间状语从句，省略 it is），yet 并列 the silence around it grows heavier than the load（than 比较），and 并列 the person... discovers that the shame... was lighter than the isolation they had been carrying alone（that 宾语从句，than 比较，they had been carrying alone 定语从句修饰 isolation）。"
+        }
+      ],
+      "collocations": [
+        "bear a burden",
+        "lighten the burden",
+        "a burden on",
+        "burden of proof"
+      ],
+      "phrases": [
+        "burden with 使负重担",
+        "be a burden to 是…的负担",
+        "burden of disease 疾病负担"
+      ],
+      "derived": [
+        {
+          "word": "burdensome",
+          "meaning": "adj. 沉重的；累赘的"
+        },
+        {
+          "word": "burdened",
+          "meaning": "adj. 负重担的"
+        }
+      ],
+      "synonyms": [
+        "load",
+        "weight",
+        "responsibility"
+      ],
+      "mnemonic": "burden 与 bear（承受）同源——记「能 bear（承受）的负荷即 burden（担子）」；对比 burthen（古拼法）。"
+    },
+    "bureau": {
+      "syllable": "bureau",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "局，处，署（政府机构）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（带抽屉的）写字台"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（新闻）机构，办事处"
+        }
+      ],
+      "rootAffix": "源自法语 bureau（粗布；覆布的书桌），原指「铺布的书桌」，后指办公机构",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She works at the weather bureau.",
+          "translation": "她在气象局工作。",
+          "analysis": "简单句：主语 She + 谓语 works + 状语 at the weather bureau。bureau 此处表「局，处」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bureau that reports only what is safe to say becomes a mirror of power rather than a window on truth, because the institution that fears its own findings will edit the question until the answer cannot surprise, and the public that trusts such a source learns to expect not news but noise tuned to keep them calm.",
+          "translation": "一个只报告「安全可言」之事的机构，会成为权力的镜子而非真相的窗口，因为害怕自身发现的机构，会不断修改问题，直到答案无法令人意外；而信任这种来源的大众，学会期待的不是新闻，而是为让他们安稳而被调校好的噪音。",
+          "analysis": "复合句。主句 A bureau... becomes a mirror of power rather than a window on truth（rather than 比较）。because 引导原因状语从句，主句 the institution... will edit the question until the answer cannot surprise（that fears its own findings 定语从句，until 时间状语从句），and 并列 the public... learns to expect not news but noise tuned to keep them calm（not... but... 结构，tuned to keep them calm 过去分词作后置定语）。"
+        }
+      ],
+      "collocations": [
+        "government bureau",
+        "bureau of statistics",
+        "information bureau",
+        "travel bureau"
+      ],
+      "phrases": [
+        "bureau chief 局长；主管",
+        "bureau de change 兑换处",
+        "federal bureau 联邦局"
+      ],
+      "derived": [
+        {
+          "word": "bureaucracy",
+          "meaning": "n. 官僚体制"
+        },
+        {
+          "word": "bureaucrat",
+          "meaning": "n. 官僚"
+        }
+      ],
+      "synonyms": [
+        "agency",
+        "department",
+        "office"
+      ],
+      "mnemonic": "bureau 源自「覆布的写字台」→ 办公机构；记「坐在 bureau（书桌）前办公的局处」；衍生 bureaucracy（官僚）。"
+    },
+    "burger": {
+      "syllable": "burger",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "汉堡包（hamburger 的简称）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（构词）…饼/堡（如 cheeseburger）"
+        }
+      ],
+      "rootAffix": "hamburger（汉堡包）的截短形式，原指德国汉堡 Hamburg 的风味肉饼",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He ordered a cheese burger.",
+          "translation": "他点了一个芝士汉堡。",
+          "analysis": "简单句：主语 He + 谓语 ordered + 宾语 a cheese burger。burger 此处表「汉堡包」。"
+        },
+        {
+          "level": "long",
+          "sentence": "A burger sold as fast food is really sold as speed, because the buyer is not only paying for a meal but for the minutes saved and the decision avoided, and the brand that wins the lunch rush is the one that understood the product was never the food but the relief of not having to choose.",
+          "translation": "一个被当作快餐售卖的汉堡，真正被售卖的其实是速度，因为买主不只是在为一顿饭付钱，也是在为省下的分钟和避免的决定付钱；而赢得午餐高峰的品牌，是那个明白其产品从来不是食物、而是「不必选择」所带来的解脱的品牌。",
+          "analysis": "复合句。主句 A burger... is really sold as speed（sold as fast food 过去分词作后置定语）。because 引导原因状语从句，主句 the buyer is not only paying for a meal but for the minutes saved and the decision avoided（not only... but... 结构，saved / avoided 过去分词作后置定语），and 并列 the brand... is the one that understood the product was never the food but the relief of not having to choose（that understood... 定语从句，the product was never the food but the relief... 宾语从句，not... but... 结构）。"
+        }
+      ],
+      "collocations": [
+        "cheese burger",
+        "burger bar",
+        "veggie burger",
+        "burger chain"
+      ],
+      "phrases": [
+        "burger king 汉堡王",
+        "bacon burger 培根堡",
+        "burger joint 汉堡店"
+      ],
+      "derived": [
+        {
+          "word": "hamburger",
+          "meaning": "n. 汉堡包；碎牛肉饼"
+        },
+        {
+          "word": "burgerize",
+          "meaning": "v. （诙谐）把…做成汉堡"
+        }
+      ],
+      "synonyms": [
+        "sandwich",
+        "patty"
+      ],
+      "mnemonic": "burger 是 hamburger 的截短——源自德国城市 Hamburg（汉堡）；记「汉堡(Hamburg)来的 burger（堡）」。构词如 cheese+burger。"
     }
   }
 }
