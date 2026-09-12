@@ -1,0 +1,199 @@
+{
+  "shard": "a-2",
+  "from": "away",
+  "to": "awkward",
+  "entries": {
+    "away": {
+      "syllable": "a·way",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "离开，到别处（go away）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "（距离）有…远（five miles away）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "不在，外出（be away）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "持续不断地（work away）"
+        }
+      ],
+      "rootAffix": "a-（在）+ way（路）→ 在路上 → 离开",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The station is two kilometres away.",
+          "translation": "车站有两公里远。",
+          "analysis": "简单句：主语 The station + 系动词 is + 表语 two kilometres away。away 置于距离之后表「有…远」，注意语序：two kilometres away（不是 away two kilometres）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Facts do not disappear when they are inconvenient; they merely wait, often years away, until the cost of ignoring them becomes larger than the cost of admitting them.",
+          "translation": "事实不会因为不合时宜就消失；它们只是等待着——往往要等上好几年——直到忽视它们的代价超过承认它们的代价。",
+          "analysis": "并列主从复合句。第一分句主语 Facts，谓语 do not disappear，when they are inconvenient 为时间状语从句。分号后第二分句主语 they，谓语 wait，often years away 为插入的补充说明，until 引导时间状语从句（the cost of ignoring them becomes larger than the cost of admitting them 为比较结构）。away 取「（时间上）相隔」义。"
+        }
+      ],
+      "collocations": [
+        "far away 遥远",
+        "go away 走开",
+        "away from 远离",
+        "right away 立刻"
+      ],
+      "phrases": [
+        "run away 逃跑",
+        "give away 泄露；赠送"
+      ],
+      "derived": [
+        {
+          "word": "way",
+          "meaning": "n. 路；方式"
+        },
+        {
+          "word": "takeaway",
+          "meaning": "n. 外卖；（讨论的）要点"
+        },
+        {
+          "word": "runaway",
+          "meaning": "adj. 失控的 n. 逃跑者"
+        }
+      ],
+      "synonyms": [
+        "off",
+        "abroad",
+        "elsewhere",
+        "absent"
+      ],
+      "mnemonic": "away 的四个高频用法：距离（two km away）/ 离开（go away）/ 外出（be away）/ 持续（work away）；right away（立刻）是口语高频"
+    },
+    "awful": {
+      "syllable": "aw·ful",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "糟糕的，可怕的，极坏的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（口语）极其（an awful lot of 非常多）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "令人敬畏的（古义，现罕用）"
+        }
+      ],
+      "rootAffix": "awe（敬畏）+ -ful（充满…的）→ 充满敬畏的 → 令人敬畏的 → （引申）可怕的、糟糕的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The weather was awful yesterday.",
+          "translation": "昨天的天气糟透了。",
+          "analysis": "简单句：主语 The weather + 系动词 was + 表语 awful + 时间状语 yesterday。awful 现多取「糟糕的」义，常修饰天气、食物、表现等。"
+        },
+        {
+          "level": "long",
+          "sentence": "What is awful about a badly designed form is not the wasted minute it costs an individual but the fact that millions of such minutes, multiplied, amount to something no institution ever accounts for.",
+          "translation": "一张设计糟糕的表格真正糟糕之处，不是它让个人浪费的那一分钟，而是这样一个事实：数百万个这样的一分钟叠加起来，成了任何机构都从未计入的东西。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not...but... 对比结构（the wasted minute 与 the fact）；the minute 后接省略关系词的定语从句 it costs an individual。the fact 后接 that 引导的同位语从句，从句中 millions of such minutes（multiplied 为过去分词作插入语）为主语，amount to（总计达）为谓语，宾语 something 后接 no institution ever accounts for（省略关系词的定语从句）。awful 取「糟糕的」义。"
+        }
+      ],
+      "collocations": [
+        "an awful lot of 非常多",
+        "feel awful 感觉很难受",
+        "awful weather 糟糕的天气",
+        "awful truth 可怕的真相"
+      ],
+      "phrases": [
+        "something awful 极差的东西",
+        "awfully sorry 非常抱歉"
+      ],
+      "derived": [
+        {
+          "word": "awe",
+          "meaning": "n. 敬畏 v. 使敬畏"
+        },
+        {
+          "word": "awesome",
+          "meaning": "adj. 令人敬畏的；极好的"
+        },
+        {
+          "word": "awfully",
+          "meaning": "adv. 非常；糟糕地"
+        }
+      ],
+      "synonyms": [
+        "terrible",
+        "dreadful",
+        "horrible",
+        "atrocious"
+      ],
+      "mnemonic": "awe（敬畏）家族：awful 原义「令人敬畏的」→ 今多表「糟糕的」；awesome 则从「令人敬畏」引申为口语「极好的」——两词同源却语气相反"
+    },
+    "awkward": {
+      "syllable": "awk·ward",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "尴尬的，难堪的（an awkward silence）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "难对付的，棘手的（an awkward question）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "笨拙的，不灵巧的"
+        }
+      ],
+      "rootAffix": "awk（反向、错误，同 wrong 的古形）+ -ward（朝向）→ 朝向错误 → 笨拙的、别扭的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "There was an awkward silence after his remark.",
+          "translation": "他说完那句话后出现了尴尬的沉默。",
+          "analysis": "简单句：There be 句型（was an awkward silence）+ 时间状语 after his remark。awkward 修饰 silence/feeling，表「尴尬的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The most awkward questions are not the hostile ones but the simple ones, because they force a speaker to reveal whether the plan was ever thought through or merely approved.",
+          "translation": "最棘手的问题不是那些敌意的问题，而是那些简单的问题，因为它们迫使发言者暴露出：这个计划究竟曾被仔细推敲过，还是仅仅被批准了。",
+          "analysis": "主从复合句。主语 The most awkward questions，系表结构 are not...but...（对比 hostile 与 simple），because 引导原因状语从句，其中 they force a speaker to reveal（force sb to do 结构）后接 whether 引导的宾语从句；从句含 was ever thought through（被动 + through 表「彻底」）与 or merely approved 的对比。awkward 取「棘手的」义，本句说明「简单问题最难答」这一常见洞见。"
+        }
+      ],
+      "collocations": [
+        "awkward silence 尴尬的沉默",
+        "awkward question 棘手的问题",
+        "feel awkward 感到尴尬",
+        "an awkward situation 尴尬的处境"
+      ],
+      "phrases": [
+        "the awkward age 尴尬年龄（青春期）",
+        "awkward to use 用起来不顺手"
+      ],
+      "derived": [
+        {
+          "word": "awkwardly",
+          "meaning": "adv. 笨拙地；尴尬地"
+        },
+        {
+          "word": "awkwardness",
+          "meaning": "n. 尴尬；笨拙"
+        }
+      ],
+      "synonyms": [
+        "embarrassing",
+        "clumsy",
+        "tricky",
+        "ungainly"
+      ],
+      "mnemonic": "awkward 的三义由「别扭」这一核心展开：动作别扭 → 笨拙；场面别扭 → 尴尬；问题别扭 → 棘手"
+    }
+  }
+}

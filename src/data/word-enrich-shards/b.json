@@ -1,8 +1,65 @@
 {
   "shard": "b",
-  "from": "balance",
+  "from": "bachelor",
   "to": "benefit",
   "entries": {
+    "bachelor": {
+      "syllable": "bach·e·lor",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "学士（bachelor's degree 学士学位）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "单身男子，未婚男子"
+        }
+      ],
+      "rootAffix": "源自中古拉丁 baccalarius（年轻侍从、低级骑士）→ 未受封者 → 单身汉；后引申为学士",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She has a bachelor's degree in economics.",
+          "translation": "她拥有经济学学士学位。",
+          "analysis": "简单句：主语 She + 谓语 has + 宾语 a bachelor's degree + 后置定语 in economics。bachelor's degree 表「学士学位」，同理 master's（硕士）、doctor's/doctoral（博士）。"
+        },
+        {
+          "level": "long",
+          "sentence": "A bachelor's degree once signalled that its holder could be trusted with independent work, but as degrees became common the signal weakened, which is why employers now ask for evidence the degree itself never provided.",
+          "translation": "学士学位曾意味着持有者可以放心地独立工作；但随着学位变得普遍，这一信号弱化了，因此雇主如今开始索要学位本身从未提供的证据。",
+          "analysis": "并列主从复合句。第一分句主语 A bachelor's degree，谓语 signalled，宾语为 that 引导的宾语从句（its holder could be trusted with independent work 为被动）。but 连接转折分句，as degrees became common 为时间/原因状语从句，主句 the signal weakened。which 引出非限制性定语从句指代前文；why 引导表语从句（the degree itself never provided 为省略关系词的定语从句修饰 evidence）。bachelor 取「学士」义。"
+        }
+      ],
+      "collocations": [
+        "bachelor's degree 学士学位",
+        "bachelor of arts/science 文学/理学士",
+        "eligible bachelor 条件优越的单身汉"
+      ],
+      "phrases": [
+        "bachelor pad 单身公寓（口语）",
+        "a confirmed bachelor 坚定的单身者"
+      ],
+      "derived": [
+        {
+          "word": "bachelorship",
+          "meaning": "n. 学士身份（罕用）"
+        },
+        {
+          "word": "master's degree",
+          "meaning": "硕士学位"
+        },
+        {
+          "word": "doctorate",
+          "meaning": "博士学位"
+        }
+      ],
+      "synonyms": [
+        "undergraduate degree holder",
+        "single man"
+      ],
+      "mnemonic": "学位三阶对照：bachelor 学士 → master 硕士 → doctor 博士；注意「单身汉」义与学位义并存，靠语境区分（bachelor's degree 才是学位）"
+    },
     "balance": {
       "syllable": "bal·ance",
       "pos": "n./v.",

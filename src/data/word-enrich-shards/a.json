@@ -1,7 +1,7 @@
 {
   "shard": "a",
   "from": "abandon",
-  "to": "available",
+  "to": "aware",
   "entries": {
     "abandon": {
       "syllable": "ab·an·don",
@@ -9711,6 +9711,241 @@
       "易混辨析": "assess（估出价值/程度）/ access（通道、访问）/ excess（过量）——拼写相近，词义全不同，考研阅读高频陷阱",
       "mnemonic": "as+sess(坐) → 坐下来核定 → 评估"
     },
+    "asset": {
+      "syllable": "as·set",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "资产，财产（常复数 assets）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "有价值的人或事物，优势"
+        }
+      ],
+      "rootAffix": "源自拉丁 ad satis（足够，ad- 向 + satis 足够）→ 足以清偿之物 → 资产",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The company sold some of its assets.",
+          "translation": "该公司出售了部分资产。",
+          "analysis": "简单句：主语 The company + 谓语 sold + 宾语 some of its assets。asset 表财产时常用复数 assets，与 liabilities（负债）成对出现。"
+        },
+        {
+          "level": "long",
+          "sentence": "Patience is an asset that no balance sheet records, and firms that liquidate it in pursuit of quarterly results often discover that it cannot be repurchased later at any price.",
+          "translation": "耐心是一项资产负债表不会记录的资产；那些为追求季度业绩而把它兑现掉的公司，往往发现它日后再也无法以任何价格买回。",
+          "analysis": "并列复合句。第一分句主语 Patience，系表结构 is an asset，后接 that no balance sheet records 定语从句。第二分句主语 firms 后接 that 引导的定语从句（liquidate it in pursuit of quarterly results 中 in pursuit of 表「为追求」），谓语 discover，后接 that 引导的宾语从句（it cannot be repurchased later at any price 为被动 + 否定）。asset 取「（无形）资产、优势」义。"
+        }
+      ],
+      "collocations": [
+        "fixed assets 固定资产",
+        "asset management 资产管理",
+        "a valuable asset 宝贵的资产",
+        "asset value 资产价值"
+      ],
+      "phrases": [
+        "current assets 流动资产",
+        "be an asset to 对…是宝贵财富"
+      ],
+      "derived": [
+        {
+          "word": "assets",
+          "meaning": "n. 资产（复数形式常表总资产）"
+        },
+        {
+          "word": "liability",
+          "meaning": "n. 负债；不利条件"
+        }
+      ],
+      "synonyms": [
+        "property",
+        "resource",
+        "advantage",
+        "strength"
+      ],
+      "mnemonic": "词源记法：ad satis（足够）→ 足以还债的东西 → 资产；反义词 liability（负债），两者常成对出现在商业文本中"
+    },
+    "assign": {
+      "syllable": "as·sign",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "分配，布置（任务、作业）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "指派，委派（assign sb to sth）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "归因于，把…归于（assign importance to）"
+        }
+      ],
+      "rootAffix": "as-（向）+ sign（记号、标明）→ 标上记号分派 → 分配",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The teacher assigned us a difficult task.",
+          "translation": "老师给我们布置了一项艰难的任务。",
+          "analysis": "简单句：主语 The teacher + 谓语 assigned + 间接宾语 us + 直接宾语 a difficult task。assign 后可接双宾语（assign sb sth）。"
+        },
+        {
+          "level": "long",
+          "sentence": "When historians assign blame, they usually distribute it across structures and circumstances rather than individuals, which is intellectually defensible yet leaves no one accountable for anything.",
+          "translation": "历史学家追究责任时，通常把责任分摊到结构与环境上，而不是个人身上；这在智识上站得住脚，却使无人需要对任何事情负责。",
+          "analysis": "主从复合句。When 引导时间状语从句；主句主语 they，谓语 distribute，宾语 it（指代 blame），状语 across structures and circumstances rather than individuals（rather than 表对比）。which 引导非限制性定语从句指代主句，其中 is intellectually defensible 与 leaves no one accountable 为并列谓语（leave sb + adj. 结构）。assign 取「归因、归咎」义。"
+        }
+      ],
+      "collocations": [
+        "assign a task 分派任务",
+        "assign sb to 把某人派往",
+        "assign importance to 重视",
+        "assign responsibility 分派责任"
+      ],
+      "phrases": [
+        "assign homework 布置作业",
+        "be assigned to 被分配到"
+      ],
+      "derived": [
+        {
+          "word": "assignment",
+          "meaning": "n. 任务，作业；分配"
+        },
+        {
+          "word": "assignee",
+          "meaning": "n. 受让人；代理人"
+        },
+        {
+          "word": "sign",
+          "meaning": "n. 记号 v. 签名"
+        }
+      ],
+      "synonyms": [
+        "allocate",
+        "allot",
+        "appoint",
+        "attribute"
+      ],
+      "mnemonic": "sign（记号）→ as+sign = 标上记号分给谁 → 分配；抽象义 assign importance to（重视）在阅读中很常见"
+    },
+    "assist": {
+      "syllable": "as·sist",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "帮助，协助（assist sb in doing / with sth）"
+        }
+      ],
+      "rootAffix": "as-（向）+ sist（站立，同 insist/consist）→ 站到旁边（帮忙）→ 协助",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Two nurses assisted the surgeon.",
+          "translation": "两名护士协助那位外科医生。",
+          "analysis": "简单句：主语 Two nurses + 谓语 assisted + 宾语 the surgeon。assist 为及物动词，直接接「被帮助的人」，比 help 更正式。"
+        },
+        {
+          "level": "long",
+          "sentence": "Technology may assist a doctor in reaching a diagnosis, but it cannot decide which risks a patient considers acceptable, which is why consent remains a conversation rather than a checkbox.",
+          "translation": "技术或许能协助医生作出诊断，但它无法决定病人认为哪些风险是可以接受的；正因如此，知情同意始终是一场对话，而不是一个勾选框。",
+          "analysis": "并列主从复合句。第一分句 Technology may assist a doctor in reaching a diagnosis（assist sb in doing 固定搭配）；but 连接转折分句，谓语 cannot decide，宾语为 which 引导的宾语从句（a patient considers acceptable 为省略关系词的定语从句修饰 risks，consider sth + adj. 结构）。which 引导非限制性定语从句指代前文；why 引导表语从句（remains a conversation rather than a checkbox 为系表 + rather than 对比）。assist 取「协助」义。"
+        }
+      ],
+      "collocations": [
+        "assist sb in doing 协助某人做",
+        "assist sb with sth 在某事上帮助某人",
+        "assist the police 协助警方"
+      ],
+      "phrases": [
+        "be assisted by 得到…的协助",
+        "assist in the preparation 协助筹备"
+      ],
+      "derived": [
+        {
+          "word": "assistance",
+          "meaning": "n. 帮助，援助（with the assistance of）"
+        },
+        {
+          "word": "assistant",
+          "meaning": "n. 助手 adj. 助理的"
+        }
+      ],
+      "synonyms": [
+        "help",
+        "aid",
+        "support",
+        "facilitate"
+      ],
+      "mnemonic": "sist 是「站立」词根（insist 坚持、consist 组成、resist 抵抗）→ as+sist = 站到旁边帮你 → 协助；搭配 assist sb **in** doing"
+    },
+    "associate": {
+      "syllable": "as·so·ci·ate",
+      "pos": "v./n./adj.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "联想，把…联系起来（associate A with B）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "交往，来往（associate with sb）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "同事，合伙人；准会员"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "副的，准的（associate professor 副教授）"
+        }
+      ],
+      "rootAffix": "as-（向）+ soci（同伴，同 social）+ -ate → 结为同伴 → 联系、交往",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "People associate red with danger.",
+          "translation": "人们把红色与危险联系在一起。",
+          "analysis": "简单句：主语 People + 谓语 associate + 宾语 red + 状语 with danger。associate A with B 表「把 A 与 B 联系起来」，介词只能用 with。"
+        },
+        {
+          "level": "long",
+          "sentence": "We tend to associate confident speech with competence, yet studies of courtroom testimony show that the most persuasive witnesses are often those who speak hesitantly and correct themselves, because audiences read hesitation as honesty.",
+          "translation": "我们往往把自信的言谈与能力联系在一起；然而对法庭证词的研究显示，最有说服力的证人往往是那些说话犹豫、并会自我更正的人，因为听众把犹豫读作诚实。",
+          "analysis": "并列主从复合句。第一分句 We tend to associate confident speech with competence（associate A with B 结构）；yet 连接转折分句，主语 studies of courtroom testimony，谓语 show，后接 that 引导的宾语从句；从句为系表结构 the most persuasive witnesses are often those，后接 who 引导的定语从句，because 引导原因状语从句（read hesitation as honesty 为 read A as B 结构）。associate 取「联想」义。"
+        }
+      ],
+      "collocations": [
+        "associate A with B 把 A 与 B 联系起来",
+        "associate with sb 与某人交往",
+        "be associated with 与…有关联",
+        "business associate 商业伙伴"
+      ],
+      "phrases": [
+        "associated company 关联公司",
+        "associate degree 副学士学位"
+      ],
+      "derived": [
+        {
+          "word": "association",
+          "meaning": "n. 协会；联想；关联"
+        },
+        {
+          "word": "associated",
+          "meaning": "adj. 相关的，有联系的"
+        }
+      ],
+      "synonyms": [
+        "link",
+        "connect",
+        "relate",
+        "colleague"
+      ],
+      "mnemonic": "soci 是「同伴」词根（social 社会的、society 社会）→ as+soci+ate = 结为同伴 → 联系；搭配固定 associate A **with** B"
+    },
     "assume": {
       "syllable": "as·sume",
       "pos": "v.",
@@ -9770,6 +10005,393 @@
       "易混辨析": "assume（未证实地假定）/ presume（有依据地推定）/ consume（消耗）/ resume（恢复）——同根 sume 四兄弟",
       "mnemonic": "as+sume(拿) → 拿来当前提 → 假定；拿过来 → 承担"
     },
+    "assure": {
+      "syllable": "as·sure",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "向…保证，使确信（assure sb of sth / assure sb that…）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "确保，保障（assure success）"
+        }
+      ],
+      "rootAffix": "as-（向）+ sure（确定的，同 secure）→ 使对方确定 → 保证",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He assured me that the data were reliable.",
+          "translation": "他向我保证那些数据是可靠的。",
+          "analysis": "主从复合句：主语 He + 谓语 assured + 间接宾语 me + that 引导的宾语从句。assure sb that... 为固定句式，宾语从句用陈述语序。"
+        },
+        {
+          "level": "long",
+          "sentence": "Officials assured the public that the water was safe, but because no independent laboratory had been allowed to test it, the assurance itself became a reason for doubt rather than for confidence.",
+          "translation": "官员向公众保证水质是安全的；但由于没有任何独立实验室获准检测，这一保证本身反而成了怀疑而非信任的理由。",
+          "analysis": "并列主从复合句。第一分句 Officials assured the public that...（双宾语 + that 宾语从句）。but 连接转折分句，because 引导原因状语从句（no independent laboratory had been allowed to test it 为被动 + 不定式），主句 the assurance itself（itself 强调）系表结构 became a reason for doubt rather than for confidence（rather than 表对比）。assure 取「向…保证」义；注意与 ensure（确保某事发生）、insure（投保）的区别。"
+        }
+      ],
+      "collocations": [
+        "assure sb of sth 向某人保证某事",
+        "assure sb that 向某人保证",
+        "rest assured 请放心",
+        "assure quality 保证质量"
+      ],
+      "phrases": [
+        "be assured of 确信得到",
+        "assure sb's safety 保证某人的安全"
+      ],
+      "derived": [
+        {
+          "word": "assurance",
+          "meaning": "n. 保证；信心"
+        },
+        {
+          "word": "assured",
+          "meaning": "adj. 有把握的；确信的"
+        },
+        {
+          "word": "reassure",
+          "meaning": "v. 使安心"
+        }
+      ],
+      "synonyms": [
+        "guarantee",
+        "promise",
+        "convince",
+        "reassure"
+      ],
+      "mnemonic": "三词辨析：assure sb（向某人保证）/ ensure sth（确保某事发生）/ insure sth（为…投保）——拼写与宾语都不同，考研常考"
+    },
+    "astonish": {
+      "syllable": "as·ton·ish",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "使惊讶，使震惊"
+        }
+      ],
+      "rootAffix": "as-（加强）+ ton（雷，同 thunder）+ -ish → 如遭雷击 → 使震惊",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The result astonished everyone present.",
+          "translation": "结果使在场所有人都感到震惊。",
+          "analysis": "简单句：主语 The result + 谓语 astonished + 宾语 everyone present（present 为后置形容词，表「在场的」）。astonish 为及物动词，常用 be astonished at/by。"
+        },
+        {
+          "level": "long",
+          "sentence": "What astonishes economists is not that forecasts fail but that the failures are so rarely mentioned afterwards, as though accuracy were optional in a field that claims to be scientific.",
+          "translation": "让经济学家惊讶的不是预测会失败，而是失败之后极少被提及——仿佛在一个自称科学的领域里，准确性是可选项。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not that...but that... 对比结构（两个 that 引导表语从句）。第二个 that 从句中 the failures 为主语、are so rarely mentioned 为被动（afterwards 为时间状语）；as though 引导方式状语从句，使用虚拟语气（were），其中 that claims to be scientific 为定语从句修饰 a field。astonish 取「使惊讶」义。"
+        }
+      ],
+      "collocations": [
+        "be astonished at/by 对…感到惊讶",
+        "astonish the world 震惊世界",
+        "an astonishing result 惊人的结果"
+      ],
+      "phrases": [
+        "to one's astonishment 令某人惊讶的是",
+        "astonishingly high 高得惊人"
+      ],
+      "derived": [
+        {
+          "word": "astonishment",
+          "meaning": "n. 惊讶（in astonishment）"
+        },
+        {
+          "word": "astonishing",
+          "meaning": "adj. 令人惊讶的"
+        },
+        {
+          "word": "astonished",
+          "meaning": "adj. 感到惊讶的"
+        }
+      ],
+      "synonyms": [
+        "amaze",
+        "astound",
+        "stun",
+        "shock"
+      ],
+      "mnemonic": "词源记法：ton = 雷（thunder）→ as+ton+ish = 如遭雷击 → 使震惊；-ing 修饰事物、-ed 修饰人的规则同样适用"
+    },
+    "astrology": {
+      "syllable": "as·trol·o·gy",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "占星术，星占学（与 astronomy 天文学不同）"
+        }
+      ],
+      "rootAffix": "astro（星辰）+ -logy（学科、说法）→ 关于星辰的说法 → 占星术",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Astrology is not a science.",
+          "translation": "占星术不是科学。",
+          "analysis": "简单句：主语 Astrology + 系动词 is not + 表语 a science。astrology 为不可数名词，作主语时谓语用单数。"
+        },
+        {
+          "level": "long",
+          "sentence": "Astrology survives not because its predictions hold up but because it offers something science deliberately withholds: a narrative in which personal setbacks are not random but somehow meant.",
+          "translation": "占星术之所以存续，不是因为它 的预测经得起检验，而是因为它提供了科学有意不给的东西：一种叙事，在其中个人的挫折并非随机，而是仿佛自有深意。",
+          "analysis": "主从复合句。主句 Astrology survives + not because...but because... 原因对比结构；第一个 because 从句中 its predictions hold up（hold up 表「经得起检验」）；第二个 because 从句中 it offers something，后接 science deliberately withholds（省略关系词的定语从句）。冒号后 a narrative 为同位语，后接 in which 引导的定语从句（not random but somehow meant 为并列的表语结构）。astrology 取「占星术」义。"
+        }
+      ],
+      "collocations": [
+        "believe in astrology 相信占星术",
+        "astrological sign 星座",
+        "the study of astrology 占星研究"
+      ],
+      "phrases": [
+        "astrology column 星座专栏",
+        "dismiss astrology 否定占星术"
+      ],
+      "derived": [
+        {
+          "word": "astrologer",
+          "meaning": "n. 占星家"
+        },
+        {
+          "word": "astrological",
+          "meaning": "adj. 占星的"
+        },
+        {
+          "word": "astronomy",
+          "meaning": "n. 天文学（科学）"
+        }
+      ],
+      "synonyms": [
+        "horoscopy",
+        "star-reading"
+      ],
+      "mnemonic": "易混对比：astrology 占星术（非科学，astr 星 + logy 说法）/ astronomy 天文学（科学，astr 星 + nomy 法则）——考研阅读常以二者对照讨论「科学与伪科学」"
+    },
+    "astronomy": {
+      "syllable": "as·tron·o·my",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "天文学"
+        }
+      ],
+      "rootAffix": "astro（星辰）+ -nomy（法则，同 economy/autonomy）→ 星体运行的规律之学 → 天文学",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She studied astronomy at college.",
+          "translation": "她在大学学习天文学。",
+          "analysis": "简单句：主语 She + 谓语 studied + 宾语 astronomy + 地点状语 at college。astronomy 为不可数名词，表示学科时不加冠词。"
+        },
+        {
+          "level": "long",
+          "sentence": "Modern astronomy advances largely by collecting data that no theory predicted, which is why the most valuable instruments are often those designed to look at something nobody had thought worth examining.",
+          "translation": "现代天文学的进展主要靠收集没有任何理论预测到的数据；正因如此，最有价值的仪器往往是那些被设计来观测无人认为值得观测之物者。",
+          "analysis": "主从复合句。主句主语 Modern astronomy，谓语 advances，方式状语 largely by collecting data（其后 that no theory predicted 为定语从句）。which 引出非限制性定语从句指代主句；why 引导表语从句，系表结构为 those，后接 designed to look at something（过去分词短语作后置定语）与 nobody had thought worth examining（省略关系词的定语从句，think sth worth doing 结构）。astronomy 取「天文学」义。"
+        }
+      ],
+      "collocations": [
+        "radio astronomy 射电天文学",
+        "astronomy observations 天文观测",
+        "the field of astronomy 天文学领域"
+      ],
+      "phrases": [
+        "astronomy and physics 天文学与物理学",
+        "an astronomy enthusiast 天文爱好者"
+      ],
+      "derived": [
+        {
+          "word": "astronomer",
+          "meaning": "n. 天文学家"
+        },
+        {
+          "word": "astronomical",
+          "meaning": "adj. 天文的；天文数字的"
+        },
+        {
+          "word": "astronaut",
+          "meaning": "n. 宇航员"
+        }
+      ],
+      "synonyms": [
+        "astrophysics",
+        "space science"
+      ],
+      "mnemonic": "-nomy 表「法则、学科」（economy 经济、autonomy 自治）→ astronomy 研究星体法则的学问；派生 astronomical 还有「天文数字般的（巨大）」引申义"
+    },
+    "athlete": {
+      "syllable": "ath·lete",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "运动员，体育健将"
+        }
+      ],
+      "rootAffix": "源自希腊 athlein（竞争、角逐）→ 参赛者 → 运动员",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The athlete broke the national record.",
+          "translation": "这位运动员打破了全国纪录。",
+          "analysis": "简单句：主语 The athlete + 谓语 broke + 宾语 the national record。athlete 指竞技运动员；注意拼写（ath-lete，两音节间的 e 常被漏写）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Athletes who train alone often plateau, because improvement depends less on the volume of work than on feedback that arrives soon enough to correct the next attempt.",
+          "translation": "独自训练的运动员常常陷入停滞，因为进步更多取决于反馈——及时到能纠正下一次尝试的反馈，而不是训练量。",
+          "analysis": "主从复合句。主语 Athletes 后接 who 引导的定语从句（train alone），谓语 plateau（表「进入停滞期」）。because 引导原因状语从句，含 less...than... 比较结构：depends less on the volume of work than on feedback，feedback 后接 that 引导的定语从句（arrives soon enough to correct the next attempt，enough to 结构）。athlete 取「运动员」义。"
+        }
+      ],
+      "collocations": [
+        "professional athlete 职业运动员",
+        "athletic ability 运动能力",
+        "track and field athlete 田径运动员"
+      ],
+      "phrases": [
+        "athletic event 体育赛事",
+        "athlete's foot 脚气（俗名）"
+      ],
+      "derived": [
+        {
+          "word": "athletic",
+          "meaning": "adj. 运动的，健壮的"
+        },
+        {
+          "word": "athletics",
+          "meaning": "n. 田径运动；体育运动"
+        }
+      ],
+      "synonyms": [
+        "sportsman",
+        "player",
+        "competitor",
+        "sportsperson"
+      ],
+      "mnemonic": "拼写提醒：athlete 只有两个音节（ath·lete），不要写成 athelete；派生 athletics 表「田径运动」"
+    },
+    "atmosphere": {
+      "syllable": "at·mos·phere",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "大气，大气层"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（地方的）气氛，氛围"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（物理）大气压"
+        }
+      ],
+      "rootAffix": "atmo（蒸汽、气）+ sphere（球、层）→ 包裹地球的气层 → 大气；引申为气氛",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The atmosphere protects us from harmful radiation.",
+          "translation": "大气层保护我们免受有害辐射。",
+          "analysis": "简单句：主语 The atmosphere + 谓语 protects + 宾语 us + 状语 from harmful radiation。protect sb from sth 为固定搭配；atmosphere 取「大气层」本义。"
+        },
+        {
+          "level": "long",
+          "sentence": "What determines whether a meeting produces decisions or merely discussion is rarely the agenda; it is the atmosphere, which no one sets deliberately and everyone notices the moment it turns sour.",
+          "translation": "决定一次会议是产生决定还是仅仅讨论的，很少是议程，而是氛围——没人刻意设定，却人人都能在它变糟的那一刻察觉到。",
+          "analysis": "并列复合句。第一分句主语为 what 引导的主语从句（What determines whether a meeting produces decisions or merely discussion），系表结构 is rarely the agenda。第二分句 it is the atmosphere（强调结构），后接 which 引导的非限制性定语从句，从句中 no one sets deliberately 与 everyone notices 为并列谓语，the moment it turns sour 为时间状语从句。atmosphere 取「氛围」义。"
+        }
+      ],
+      "collocations": [
+        "the earth's atmosphere 地球大气层",
+        "a relaxed atmosphere 轻松的氛围",
+        "atmospheric pressure 大气压",
+        "create an atmosphere 营造气氛"
+      ],
+      "phrases": [
+        "in the atmosphere 在大气中",
+        "a tense atmosphere 紧张的气氛"
+      ],
+      "derived": [
+        {
+          "word": "atmospheric",
+          "meaning": "adj. 大气的；有氛围的"
+        },
+        {
+          "word": "sphere",
+          "meaning": "n. 球体；领域"
+        }
+      ],
+      "synonyms": [
+        "air",
+        "mood",
+        "ambience",
+        "environment"
+      ],
+      "mnemonic": "sphere（球、层）家族：atmosphere 大气 / hemisphere 半球 / biosphere 生物圈 —— 都与「球/层」有关"
+    },
+    "atom": {
+      "syllable": "at·om",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "原子"
+        },
+        {
+          "pos": "n.",
+          "meaning": "微量，一点点（an atom of truth）"
+        }
+      ],
+      "rootAffix": "a-（不）+ tom（切分，同 tome/tomography）→ 不可再分之物 → 原子",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "An atom consists of a nucleus and electrons.",
+          "translation": "原子由原子核与电子组成。",
+          "analysis": "简单句：主语 An atom + 谓语 consists + 状语 of a nucleus and electrons。consist of 表「由…组成」（无被动）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The assumption that matter is made of indivisible atoms survived for centuries not because evidence supported it but because it made calculation simple, a reminder that convenience can outlast proof.",
+          "translation": "物质由不可再分的原子构成这一假定延续了数百年，不是因为证据支持它，而是因为它使计算变得简单——这提醒我们，便利有时比证明活得更久。",
+          "analysis": "主从复合句。主语 The assumption 后接 that 引导的同位语从句（matter is made of indivisible atoms 为被动），谓语 survived；not because...but because... 为原因对比结构（第二个从句中 it made calculation simple 为 make + 宾语 + 补足语）。a reminder 为同位语，后接 that 引导的定语从句（convenience can outlast proof）。atom 取「原子」义，其词源义「不可再分」正是本句论点的基础。"
+        }
+      ],
+      "collocations": [
+        "atom bomb 原子弹",
+        "atomic energy 原子能",
+        "atomic structure 原子结构"
+      ],
+      "phrases": [
+        "not an atom of 没有一点",
+        "split the atom 分裂原子"
+      ],
+      "derived": [
+        {
+          "word": "atomic",
+          "meaning": "adj. 原子的"
+        },
+        {
+          "word": "atomize",
+          "meaning": "v. 使雾化；使分裂"
+        }
+      ],
+      "synonyms": [
+        "particle",
+        "speck",
+        "bit",
+        "molecule"
+      ],
+      "mnemonic": "词源记法：a-(不)+tom(切) = 不可切分之物 → 原子；引申义「微量」（not an atom of truth）在文学性文本中出现"
+    },
     "attach": {
       "syllable": "at·tach",
       "pos": "v.",
@@ -9828,6 +10450,70 @@
         "connect"
       ],
       "mnemonic": "at+tach(拴) → 拴在一起 → 附上、依恋"
+    },
+    "attack": {
+      "syllable": "at·tack",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "攻击，进攻"
+        },
+        {
+          "pos": "v.",
+          "meaning": "抨击，责难（attack a policy）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（疾病）侵袭；（情绪）发作"
+        },
+        {
+          "pos": "n.",
+          "meaning": "攻击；发作（a heart attack 心脏病发作）"
+        }
+      ],
+      "rootAffix": "at-（向）+ tack（钉、抓住，同 attach）→ 扑向并钉住 → 攻击",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The dog attacked a passer-by.",
+          "translation": "那条狗袭击了一名路人。",
+          "analysis": "简单句：主语 The dog + 谓语 attacked + 宾语 a passer-by。attack 为及物动词，取「（身体上）攻击」本义。"
+        },
+        {
+          "level": "long",
+          "sentence": "Critics who attack a theory by pointing to its weakest application often strengthen it in the long run, because the defenders are forced to specify exactly where it does and does not hold.",
+          "translation": "通过指出某项理论最薄弱的应用来攻击它的批评者，长远来看往往反而加强了它，因为辩护者被迫明确说明它究竟在何处成立、何处不成立。",
+          "analysis": "主从复合句。主语 Critics 后接 who 引导的定语从句（attack a theory by pointing to its weakest application 中 by + 动名词表方式），谓语 strengthen，宾语 it，状语 in the long run；because 引导原因状语从句，其中 the defenders are forced to specify（被动 + 不定式）后接 where 引导的宾语从句（does and does not hold 中 does 为代动词，避免重复 hold）。attack 取「抨击（理论）」义。"
+        }
+      ],
+      "collocations": [
+        "heart attack 心脏病发作",
+        "attack sb's reputation 攻击某人的名誉",
+        "launch an attack 发动攻击",
+        "under attack 受到攻击"
+      ],
+      "phrases": [
+        "attack on 对…的攻击",
+        "an anxiety attack 焦虑发作"
+      ],
+      "derived": [
+        {
+          "word": "attacker",
+          "meaning": "n. 攻击者"
+        },
+        {
+          "word": "attacking",
+          "meaning": "adj. 进攻的"
+        }
+      ],
+      "synonyms": [
+        "assault",
+        "assail",
+        "criticize",
+        "strike"
+      ],
+      "mnemonic": "词义从「身体攻击」扩展到「言语抨击」与「疾病发作」（heart attack）；新闻标题中的 attack 常为「抨击」义"
     },
     "attain": {
       "syllable": "at·tain",
@@ -9999,6 +10685,70 @@
       "易混辨析": "attend（出席，及物）/ attend to（照料）/ tend（趋向；照料）/ intend（打算）——同根 tend 四兄弟",
       "mnemonic": "at+tend(伸向) → 身心到位 → 出席、照料"
     },
+    "attention": {
+      "syllable": "at·ten·tion",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "注意，注意力（pay attention to）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "关注，照料（attention to details）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（军）立正"
+        }
+      ],
+      "rootAffix": "at-（向）+ tent（伸展，同 extend/tension）+ -ion → 把心神伸向某处 → 注意",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Please pay attention to the instructions.",
+          "translation": "请注意这些说明。",
+          "analysis": "简单句：主语（省略的 you）+ 谓语 pay + 宾语 attention + 状语 to the instructions。pay attention to 为固定搭配，attention 前通常不加冠词。"
+        },
+        {
+          "level": "long",
+          "sentence": "What earns a book lasting attention is rarely its conclusion but the precision of its middle chapters, where the author has to keep faith with readers who are not yet convinced and not yet willing to be told what to think.",
+          "translation": "让一本书赢得持久关注的，很少是它的结论，而是中间章节的精确——在那里，作者必须对尚未被说服、也还不愿被告知该怎样想的读者保持诚意。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not...but... 对比结构（its conclusion 与 the precision of its middle chapters）。where 引导非限制性定语从句修饰章节（抽象地点）；从句中 the author has to keep faith with readers，后接 who 引导的定语从句（are not yet convinced 与 not yet willing to be told what to think 并列，后者含 what 引导的宾语从句）。attention 取「关注」义。"
+        }
+      ],
+      "collocations": [
+        "pay attention to 注意",
+        "draw/attract attention 引起注意",
+        "attention to detail 对细节的关注",
+        "call attention to 提请关注"
+      ],
+      "phrases": [
+        "stand at attention 立正",
+        "undivided attention 全神贯注"
+      ],
+      "derived": [
+        {
+          "word": "attentive",
+          "meaning": "adj. 专心致志的；体贴的"
+        },
+        {
+          "word": "attentively",
+          "meaning": "adv. 专心地"
+        },
+        {
+          "word": "inattention",
+          "meaning": "n. 不注意，疏忽"
+        }
+      ],
+      "synonyms": [
+        "notice",
+        "focus",
+        "concentration",
+        "regard"
+      ],
+      "mnemonic": "搭配铁律：pay attention **to** sth（to 是介词，后接名词或动名词）；tent/tens 是「伸展」词根（extend 延伸、tension 张力）"
+    },
     "attitude": {
       "syllable": "at·ti·tude",
       "pos": "n.",
@@ -10049,6 +10799,305 @@
       ],
       "易混辨析": "attitude（内心态度）/ altitude（高度）/ gratitude（感激）/ longitude（经度）/ latitude（纬度）——itude 同缀五兄弟，考研拼写陷阱",
       "mnemonic": "att(倾向)+itude(状态) → 心之所向 → 态度"
+    },
+    "attorney": {
+      "syllable": "at·tor·ney",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "律师（美式，尤指出庭律师）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "代理人，受托人（attorney-in-fact）"
+        }
+      ],
+      "rootAffix": "at-（向）+ torn（转动、委派，同 turn）+ -ey → 被委派代办事宜者 → 代理人 → 律师",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She hired an attorney to review the contract.",
+          "translation": "她请了一位律师审查合同。",
+          "analysis": "简单句：主语 She + 谓语 hired + 宾语 an attorney + 目的状语 to review the contract。attorney 为美式用法，英式常用 solicitor/barrister。"
+        },
+        {
+          "level": "long",
+          "sentence": "A defence attorney's duty is not to establish the truth but to test whether the prosecution has done so, a division of labour that makes sense only if both sides are equally competent.",
+          "translation": "辩护律师的职责不是确立真相，而是检验控方是否做到了这一点——这种分工只有在双方能力相当时才说得通。",
+          "analysis": "并列复合句。第一分句主语 A defence attorney's duty，系表结构 is not to establish...but to test...（not...but... 表语对比，test 后接 whether 引导的宾语从句，done so 中 so 指代 establish the truth）。a division of labour 为同位语，后接 that 引导的定语从句，从句中含 only if 引导的条件状语从句。attorney 取「律师」义。"
+        }
+      ],
+      "collocations": [
+        "defence attorney 辩护律师",
+        "district attorney 地区检察官",
+        "power of attorney 授权书",
+        "attorney general 总检察长"
+      ],
+      "phrases": [
+        "hire an attorney 聘请律师",
+        "attorney-client privilege 律师与当事人保密特权"
+      ],
+      "derived": [
+        {
+          "word": "attorneyship",
+          "meaning": "n. 律师职务"
+        }
+      ],
+      "synonyms": [
+        "lawyer",
+        "counsel",
+        "solicitor",
+        "advocate"
+      ],
+      "mnemonic": "美式 attorney / 英式 solicitor（事务律师）、barrister（出庭律师）；power of attorney（授权书）是法律文本高频搭配"
+    },
+    "attract": {
+      "syllable": "at·tract",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "吸引（注意、兴趣、人）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "引起（反响、批评）"
+        }
+      ],
+      "rootAffix": "at-（向）+ tract（拉，同 tractor/traction）→ 向自己拉 → 吸引",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The exhibition attracted thousands of visitors.",
+          "translation": "这次展览吸引了数千名参观者。",
+          "analysis": "简单句：主语 The exhibition + 谓语 attracted + 宾语 thousands of visitors。attract 为及物动词，宾语可为人或抽象物。"
+        },
+        {
+          "level": "long",
+          "sentence": "Programmes that attract the most applicants are often the hardest to get into for reasons that have little to do with teaching quality, which is why rankings based on selectivity measure reputation more than education.",
+          "translation": "吸引最多申请者的项目往往最难进入，其原因与教学质量关系不大；正因如此，以录取难度为依据的排名所衡量的是声誉，而不是教育。",
+          "analysis": "主从复合句。主语 Programmes 后接 that 引导的定语从句（attract the most applicants），系表结构 are often the hardest to get into（hard to do 结构），for reasons 后接 that 引导的定语从句（have little to do with teaching quality）。which 引出非限制性定语从句指代主句；why 引导表语从句（rankings 后接 based on selectivity 为过去分词作后置定语，measure reputation more than education 为比较结构）。attract 取「吸引」义。"
+        }
+      ],
+      "collocations": [
+        "attract attention 引起注意",
+        "attract investment 吸引投资",
+        "attract criticism 招致批评",
+        "be attracted to 被…吸引"
+      ],
+      "phrases": [
+        "attract a crowd 吸引人群",
+        "opposites attract 异性相吸"
+      ],
+      "derived": [
+        {
+          "word": "attraction",
+          "meaning": "n. 吸引力；景点"
+        },
+        {
+          "word": "attractive",
+          "meaning": "adj. 有吸引力的"
+        },
+        {
+          "word": "unattractive",
+          "meaning": "adj. 无吸引力的"
+        }
+      ],
+      "synonyms": [
+        "draw",
+        "appeal to",
+        "lure",
+        "engage"
+      ],
+      "mnemonic": "tract 是「拉」词根（tractor 拖拉机、distract 分心、extract 提取）→ at+tract = 向自己拉 → 吸引"
+    },
+    "attribute": {
+      "syllable": "at·trib·ute",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "把…归因于（attribute A to B）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "属性，特质"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（语法）定语"
+        }
+      ],
+      "rootAffix": "at-（向）+ tribut（给予，同 tribute/contribute）→ 归于某人 → 归因；被赋予之物 → 属性",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She attributes her success to hard work.",
+          "translation": "她把自己的成功归因于努力。",
+          "analysis": "简单句：主语 She + 谓语 attributes + 宾语 her success + 状语 to hard work。attribute A to B 表「把 A 归因于 B」，介词固定为 to。"
+        },
+        {
+          "level": "long",
+          "sentence": "When a project succeeds, everyone attributes it to their own contribution; when it fails, the same people attribute the outcome to circumstances, a bias that makes honest post-mortems almost impossible to conduct.",
+          "translation": "项目成功时，人人都把功劳归于自己的贡献；失败时，同样这些人却把结果归因于环境——这种偏差使诚实的复盘几乎无法进行。",
+          "analysis": "并列主从复合句。第一分句 When 引导时间状语从句，主句 everyone attributes it to their own contribution（attribute A to B）。第二分句 the same people attribute the outcome to circumstances，a bias 为同位语，后接 that 引导的定语从句（makes honest post-mortems almost impossible to conduct 为 make + 宾语 + 补足语结构）。attribute 取「归因于」义。"
+        }
+      ],
+      "collocations": [
+        "attribute A to B 把 A 归因于 B",
+        "personal attributes 个人特质",
+        "a key attribute 关键属性"
+      ],
+      "phrases": [
+        "attribute importance to 重视",
+        "attribute sth to sb 认为某事出自某人"
+      ],
+      "derived": [
+        {
+          "word": "attribution",
+          "meaning": "n. 归因；归属"
+        },
+        {
+          "word": "attributable",
+          "meaning": "adj. 可归因于…的"
+        },
+        {
+          "word": "tribute",
+          "meaning": "n. 敬意；贡品"
+        }
+      ],
+      "synonyms": [
+        "ascribe",
+        "credit",
+        "assign",
+        "characteristic"
+      ],
+      "mnemonic": "tribut 是「给予」词根（contribute 贡献、distribute 分配、tribute 贡品）→ at+tribut = 把功劳/责任给某人 → 归因；搭配固定 attribute A **to** B"
+    },
+    "audience": {
+      "syllable": "au·di·ence",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "观众，听众，读者（集合名词）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "接见，觐见（较正式）"
+        }
+      ],
+      "rootAffix": "audi（听，同 audio/audible）+ -ence → 听的人 → 听众",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The audience applauded loudly.",
+          "translation": "观众热烈鼓掌。",
+          "analysis": "简单句：主语 The audience + 谓语 applauded + 方式状语 loudly。audience 为集合名词，作整体时谓语用单数，强调个体成员时可用复数。"
+        },
+        {
+          "level": "long",
+          "sentence": "Writers who imagine their audience too precisely end up flattering it, while those who ignore it altogether produce work that no one has a reason to read; the difficult art lies between.",
+          "translation": "把读者想象得过于具体的作者最终会去迎合他们，而完全无视读者的作者又写出无人有理由去读的东西；难就难在这两者之间。",
+          "analysis": "并列复合句。第一分句主语 Writers 后接 who 引导的定语从句（imagine their audience too precisely），谓语 end up flattering it（end up doing 结构）。while 连接对比分句，主语 those 后接 who 引导的定语从句（ignore it altogether），谓语 produce，宾语 work 后接 that 引导的定语从句（no one has a reason to read）。第三节 the difficult art lies between 中 between 为副词/介词省略宾语用法。audience 取「读者/受众」义。"
+        }
+      ],
+      "collocations": [
+        "target audience 目标受众",
+        "a wide audience 广泛的受众",
+        "audience research 受众研究",
+        "address an audience 向听众讲话"
+      ],
+      "phrases": [
+        "in front of an audience 在观众面前",
+        "captive audience 被迫的听众"
+      ],
+      "derived": [
+        {
+          "word": "audio",
+          "meaning": "adj. 音频的"
+        },
+        {
+          "word": "audible",
+          "meaning": "adj. 听得见的"
+        },
+        {
+          "word": "audition",
+          "meaning": "n./v. 试镜"
+        }
+      ],
+      "synonyms": [
+        "listeners",
+        "viewers",
+        "readership",
+        "public"
+      ],
+      "mnemonic": "audi 是「听」词根（audio 音频、audible 听得见的、auditorium 礼堂）→ audience 即「听的人」，现泛指受众"
+    },
+    "author": {
+      "syllable": "au·thor",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "作者，著者"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（某事的）发起者，创作者"
+        },
+        {
+          "pos": "v.",
+          "meaning": "撰写，创作（较正式）"
+        }
+      ],
+      "rootAffix": "源自拉丁 auctor（使增长者、创始者，augere 使增长）→ 创造者 → 作者",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The author signed copies of the book.",
+          "translation": "作者为这本书签名。",
+          "analysis": "简单句：主语 The author + 谓语 signed + 宾语 copies of the book。author 表「作者」，比 writer 更强调「作品的创立者」，也用于非文学文本。"
+        },
+        {
+          "level": "long",
+          "sentence": "An author is not the person who knows most about a subject but the one who has decided what can be left out, a judgement that readers rarely notice and never forgive when it is made badly.",
+          "translation": "作者并不是对某个主题了解最多的人，而是决定了哪些内容可以省略的人——这种判断读者很少察觉，而一旦判断失当，也从不原谅。",
+          "analysis": "并列复合句。第一分句主语 An author，系表结构 is not...but...（对比两类人，后者为 the one 后接 who 引导的定语从句）。a judgement 为同位语，后接 that 引导的定语从句（readers rarely notice and never forgive 为并列谓语，when it is made badly 为时间状语从句）。author 取「作者」义，本句强调删减判断这一被忽视的写作核心能力。"
+        }
+      ],
+      "collocations": [
+        "best-selling author 畅销书作者",
+        "the author of ……的作者",
+        "author's note 作者附记",
+        "co-author 合著者"
+      ],
+      "phrases": [
+        "anonymous author 匿名作者",
+        "the author argues that 作者主张"
+      ],
+      "derived": [
+        {
+          "word": "authority",
+          "meaning": "n. 权威；当局"
+        },
+        {
+          "word": "authorize",
+          "meaning": "v. 授权，批准"
+        },
+        {
+          "word": "authorship",
+          "meaning": "n. 作者身份；著述"
+        }
+      ],
+      "synonyms": [
+        "writer",
+        "creator",
+        "originator",
+        "composer"
+      ],
+      "mnemonic": "同源词串记：author 作者 → authority 权威（作者具有的）→ authorize 授权 → authorship 作者身份"
     },
     "authority": {
       "syllable": "au·thor·i·ty",
@@ -10114,6 +11163,124 @@
       "易混辨析": "author（作者）/ authority（权威）/ authentic（真的）/ autobiography（自传）——author 同根，注意 authoritative（权威的）与 author（作者）词义关联",
       "mnemonic": "author(创造者)+ity → 说了算的人 → 权威、当局"
     },
+    "autobiography": {
+      "syllable": "au·to·bi·og·ra·phy",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "自传"
+        }
+      ],
+      "rootAffix": "auto-（自己）+ bio（生命）+ graph（书写）+ -y → 书写自己一生 → 自传",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He published his autobiography last year.",
+          "translation": "他去年出版了自己的自传。",
+          "analysis": "简单句：主语 He + 谓语 published + 宾语 his autobiography + 时间状语 last year。autobiography 为可数名词，与 biography（他传）相对。"
+        },
+        {
+          "level": "long",
+          "sentence": "An autobiography is never a record of a life but a selection made late, when the author already knows how the story ends and cannot help arranging the beginning to fit it.",
+          "translation": "自传从来不是一生的记录，而是迟来的挑选——那时作者已经知道故事的结局，难免会安排开头去迎合它。",
+          "analysis": "并列复合句。第一分句主语 An autobiography，系表结构 is never a record of a life but a selection（not...but... 结构），made late 为过去分词短语作后置定语。when 引导非限制性时间状语从句，其中 the author already knows how the story ends（how 引导宾语从句）与 cannot help arranging the beginning to fit it（cannot help doing 表「忍不住」）为并列谓语。autobiography 取「自传」义。"
+        }
+      ],
+      "collocations": [
+        "write an autobiography 写自传",
+        "a political autobiography 政治自传",
+        "publish one's autobiography 出版自传"
+      ],
+      "phrases": [
+        "in his autobiography 在他的自传中",
+        "autobiographical novel 自传体小说"
+      ],
+      "derived": [
+        {
+          "word": "autobiographical",
+          "meaning": "adj. 自传的；自传体的"
+        },
+        {
+          "word": "biography",
+          "meaning": "n. 传记（他传）"
+        },
+        {
+          "word": "bibliography",
+          "meaning": "n. 参考文献（bibli 书）"
+        }
+      ],
+      "synonyms": [
+        "memoir",
+        "life story",
+        "personal history"
+      ],
+      "mnemonic": "三词对照：autobiography 自传（auto 自己）/ biography 传记 / bibliography 参考文献（biblio 书）——词根首段决定含义"
+    },
+    "automatic": {
+      "syllable": "au·to·mat·ic",
+      "pos": "adj./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "自动的（automatic door）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "无意识的，习惯性的（an automatic response）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "自动装置；自动手枪"
+        }
+      ],
+      "rootAffix": "auto-（自己）+ mat（思考、动作，同 mathematics）+ -ic → 自己会动作的 → 自动的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The doors are automatic.",
+          "translation": "这些门是自动的。",
+          "analysis": "简单句：主语 The doors + 系动词 are + 表语 automatic。automatic 表「自动运作」，常修饰门、机器、系统等。"
+        },
+        {
+          "level": "long",
+          "sentence": "Habits are useful precisely because they are automatic, yet the same quality makes them dangerous: a response that requires no thought cannot be revised by thought either.",
+          "translation": "习惯之所以有用，恰恰因为它们是无意识的；然而同样的性质也使它们危险：一个不需要思考的反应，也无法通过思考来修正。",
+          "analysis": "并列复合句。第一分句 Habits are useful + precisely because 引导原因状语从句（they are automatic）；precisely 起强调作用。yet 连接转折分句，主语 the same quality，谓语 makes，宾语 them，宾补 dangerous。冒号后为解释：主语 a response 后接 that requires no thought 定语从句，谓语 cannot be revised（被动）+ by thought either。automatic 取「无意识的」引申义。"
+        }
+      ],
+      "collocations": [
+        "automatic control 自动控制",
+        "automatic response 自动反应",
+        "fully automatic 全自动的",
+        "automatic transmission 自动变速器"
+      ],
+      "phrases": [
+        "automatic pilot 自动驾驶仪",
+        "on automatic 处于自动状态"
+      ],
+      "derived": [
+        {
+          "word": "automatically",
+          "meaning": "adv. 自动地；无意识地"
+        },
+        {
+          "word": "automation",
+          "meaning": "n. 自动化"
+        },
+        {
+          "word": "automate",
+          "meaning": "v. 使自动化"
+        }
+      ],
+      "synonyms": [
+        "mechanical",
+        "instinctive",
+        "involuntary",
+        "self-acting"
+      ],
+      "mnemonic": "auto（自己）+ mat（动作）→ 自己会动 → 自动的；引申义「无意识的」（automatic response）在心理学文章中常见"
+    },
     "available": {
       "syllable": "a·vail·a·ble",
       "pos": "adj.",
@@ -10177,6 +11344,356 @@
       ],
       "易混辨析": "available（可用的）/ valuable（贵重的）/ prevalent（流行的）——拼写相近；available 修饰「物=可获得、人=有空」",
       "mnemonic": "a+vail(价值)+able → 拿来就能用 → 可获得的"
+    },
+    "avenue": {
+      "syllable": "av·e·nue",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "大街，林荫道（两侧有树的道路）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "途径，手段（an avenue for/of）"
+        }
+      ],
+      "rootAffix": "a-（向）+ ven（来，同 advent/convene）+ -ue → 通往某处之道 → 大街；引申为途径",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The office is on Fifth Avenue.",
+          "translation": "办公室在第五大街。",
+          "analysis": "简单句：主语 The office + 系动词 is + 地点状语 on Fifth Avenue。avenue 表「大街」时首字母常大写，与 street（街）用法相近但更宽。"
+        },
+        {
+          "level": "long",
+          "sentence": "For researchers without access to expensive equipment, collaboration is not merely convenient but the only avenue through which certain questions can be asked at all.",
+          "translation": "对于无法获得昂贵设备的研究者而言，合作不仅方便，更是唯一能让某些问题被提出来的途径。",
+          "analysis": "简单句 + 定语从句。主语 For researchers 后接 without access to expensive equipment（介词短语作后置定语），系表结构 is not merely convenient but the only avenue（not merely...but... 递进结构）。avenue 后接 through which 引导的定语从句（介词 + 关系代词，还原为 can be asked at all through the avenue），表「借由这一途径」。avenue 取「途径」引申义。"
+        }
+      ],
+      "collocations": [
+        "an avenue of enquiry 探究途径",
+        "explore every avenue 探索所有途径",
+        "Fifth Avenue 第五大街"
+      ],
+      "phrases": [
+        "avenue for 为…提供途径",
+        "open up an avenue 开辟途径"
+      ],
+      "derived": [
+        {
+          "word": "convene",
+          "meaning": "v. 召集（同源 ven）"
+        },
+        {
+          "word": "revenue",
+          "meaning": "n. 收入（同源 ven）"
+        }
+      ],
+      "synonyms": [
+        "street",
+        "boulevard",
+        "route",
+        "channel"
+      ],
+      "mnemonic": "ven 是「来」词根（advent 到来、convene 召集、revenue 收入）→ avenue 即「可通达之路」；引申义「途径」是考研阅读中的主要考点"
+    },
+    "average": {
+      "syllable": "av·er·age",
+      "pos": "adj./n./v.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "平均的；普通的，一般的"
+        },
+        {
+          "pos": "n.",
+          "meaning": "平均数；平均水平（on average）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "平均为；算出平均数"
+        }
+      ],
+      "rootAffix": "源自阿拉伯语 awariya（货物受损，海损分摊）→ 分摊计算 → 平均",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The average temperature rose by two degrees.",
+          "translation": "平均气温上升了两度。",
+          "analysis": "简单句：主语 The average temperature + 谓语 rose + 程度状语 by two degrees（by 表增减幅度）。average 作定语表「平均的」。"
+        },
+        {
+          "level": "long",
+          "sentence": "An average tells us what happens typically but nothing about how widely the outcomes vary, which is why a policy that improves the mean can still leave most people worse off.",
+          "translation": "平均数告诉我们通常会发生什么，却完全不能说明结果差异有多大；正因如此，一项提高了平均值的政策仍可能让多数人处境更糟。",
+          "analysis": "并列主从复合句。第一分句主语 An average，谓语 tells，双宾语 us 与 what 引导的宾语从句，but nothing about how widely the outcomes vary（how 引导宾语从句作 about 的宾语）。which 引出非限制性定语从句指代主句；why 引导表语从句，其中 that improves the mean 为定语从句修饰 a policy，can still leave most people worse off（leave sb + adj. 比较级结构）。average 取「平均数」义，本句揭示均值掩盖分布的经典论证。"
+        }
+      ],
+      "collocations": [
+        "on average 平均而言",
+        "above/below average 高于/低于平均水平",
+        "average income 平均收入",
+        "the average person 普通人"
+      ],
+      "phrases": [
+        "average out 平均为",
+        "law of averages 平均律"
+      ],
+      "derived": [
+        {
+          "word": "averagely",
+          "meaning": "adv. 一般地"
+        }
+      ],
+      "synonyms": [
+        "mean",
+        "typical",
+        "ordinary",
+        "medium"
+      ],
+      "mnemonic": "on average（平均而言）是写作高频插入语；average 兼「平均」与「普通」两义，注意 the average person（普通人）的常见搭配"
+    },
+    "avoid": {
+      "syllable": "a·void",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "避免，防止（avoid doing）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "躲开，回避（avoid sb）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（法律）撤销，使无效"
+        }
+      ],
+      "rootAffix": "a-（出）+ void（空，同 void/vacant）→ 腾空、离开 → 避开",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We should avoid making the same mistake.",
+          "translation": "我们应该避免犯同样的错误。",
+          "analysis": "简单句：主语 We + 谓语 should avoid + 宾语 making the same mistake（动名词）。avoid 后**必须接动名词**（avoid doing ✓ / avoid to do ✗），这是考研写作高频错点。"
+        },
+        {
+          "level": "long",
+          "sentence": "Managers who avoid conflict in order to keep the peace usually succeed only temporarily, since the disagreement they refuse to address quietly hardens into a division no meeting can repair.",
+          "translation": "为了维持和气而回避冲突的管理者，通常只能暂时奏效；因为他们拒绝处理的分歧会悄然固化为任何会议都无法弥合的裂痕。",
+          "analysis": "主从复合句。主语 Managers 后接 who 引导的定语从句（avoid conflict in order to keep the peace 中 in order to 表目的），谓语 succeed，状语 only temporarily；since 引导原因状语从句，其中 the disagreement 后接 they refuse to address（省略关系词的定语从句），谓语 hardens into a division 后接 no meeting can repair（省略关系词的定语从句）。avoid 取「回避」义。"
+        }
+      ],
+      "collocations": [
+        "avoid doing 避免做",
+        "avoid the risk 规避风险",
+        "avoid sb's attention 避开某人的注意",
+        "hard to avoid 难以避免"
+      ],
+      "phrases": [
+        "avoid at all costs 不惜一切代价避免",
+        "avoid the issue 回避问题"
+      ],
+      "derived": [
+        {
+          "word": "avoidance",
+          "meaning": "n. 避免，回避"
+        },
+        {
+          "word": "avoidable",
+          "meaning": "adj. 可避免的"
+        },
+        {
+          "word": "unavoidable",
+          "meaning": "adj. 不可避免的"
+        }
+      ],
+      "synonyms": [
+        "evade",
+        "prevent",
+        "shun",
+        "dodge"
+      ],
+      "mnemonic": "两条硬规则：① 后接**动名词**（avoid doing）；② 拼写 avoid 只有一个 d，别与 evasion（逃避，名词）混用"
+    },
+    "await": {
+      "syllable": "a·wait",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "等待，等候（较正式）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "即将降临于（await sb 命运等）"
+        }
+      ],
+      "rootAffix": "a-（向）+ wait（等待）→ 朝向以等待 → 等候",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We await your reply.",
+          "translation": "我们等候您的答复。",
+          "analysis": "简单句：主语 We + 谓语 await + 宾语 your reply。await 为及物动词，直接接宾语（await sth），而 wait 需加 for（wait for sth）。"
+        },
+        {
+          "level": "long",
+          "sentence": "A decision that awaits the outcome of an election is not merely delayed; it is being made, gradually, by whoever benefits from the postponement.",
+          "translation": "一项等待选举结果的决定，不仅仅是被推迟了；它正由受益于这种延后的人逐渐地作出。",
+          "analysis": "并列复合句。第一分句主语 A decision 后接 that 引导的定语从句（awaits the outcome of an election），系表结构 is not merely delayed（被动）。第二分句 it is being made（现在进行时被动，表「正在被作出」），gradually 为插入状语，by whoever benefits from the postponement（whoever 引导的宾语从句作介词 by 的宾语，表「无论谁是受益者」）。await 取「等待（结果）」义。"
+        }
+      ],
+      "collocations": [
+        "await sb's reply 等待某人答复",
+        "await further instructions 等待进一步指示",
+        "long-awaited 期盼已久的"
+      ],
+      "phrases": [
+        "await trial 候审",
+        "await approval 等待批准"
+      ],
+      "derived": [
+        {
+          "word": "wait",
+          "meaning": "v. 等待（需加 for）"
+        },
+        {
+          "word": "awaiting",
+          "meaning": "adj. 等待中的"
+        }
+      ],
+      "synonyms": [
+        "wait for",
+        "expect",
+        "anticipate",
+        "look forward to"
+      ],
+      "mnemonic": "await 是**及物**动词（await sth），wait 需搭配 for（wait for sth）——await 更正式，多用于书信与公文"
+    },
+    "awake": {
+      "syllable": "a·wake",
+      "pos": "adj./v.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "醒着的（作表语）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "醒来；唤醒"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "意识到的（awake to sth）"
+        }
+      ],
+      "rootAffix": "a-（处于）+ wake（醒来）→ 处于醒着的状态",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She lay awake all night.",
+          "translation": "她整夜醒着躺着。",
+          "analysis": "简单句：主语 She + 谓语 lay（lie 的过去式）+ 表语 awake + 时间状语 all night。awake 作形容词只作**表语**（不说 an awake child，用 a waking child）。"
+        },
+        {
+          "level": "long",
+          "sentence": "A generation that stays awake to injustice only when cameras are present has not become more ethical; it has become more photographed.",
+          "translation": "只有在镜头在场时才意识到不公的一代人，并没有变得更讲道德，只是变得更常被拍摄。",
+          "analysis": "主从复合句。主语 A generation 后接 that 引导的定语从句（stays awake to injustice 中 awake to 表「意识到」，only when cameras are present 为时间状语从句），谓语 has not become more ethical。分号后为对照句 it has become more photographed（被动）。awake 取「意识到」引申义，本句以对比揭示「被看见」与「有道德」的差别。"
+        }
+      ],
+      "collocations": [
+        "stay awake 保持清醒",
+        "wide awake 完全清醒",
+        "awake to 意识到",
+        "lie awake 醒着躺着"
+      ],
+      "phrases": [
+        "awake from 从…中醒来",
+        "keep sb awake 使某人睡不着"
+      ],
+      "derived": [
+        {
+          "word": "awaken",
+          "meaning": "v. 唤醒；使意识到"
+        },
+        {
+          "word": "wake",
+          "meaning": "v. 醒来（更常用）"
+        },
+        {
+          "word": "waking",
+          "meaning": "adj. 醒着的（作定语）"
+        }
+      ],
+      "synonyms": [
+        "wakeful",
+        "conscious",
+        "alert",
+        "aroused"
+      ],
+      "mnemonic": "awake 只作表语（be awake）；作定语要用 waking（waking hours 清醒时段）；抽象义 awake to（意识到）是阅读高频"
+    },
+    "aware": {
+      "syllable": "a·ware",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "知道的，意识到的（be aware of / aware that…）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "有意识的，有认识的（environmentally aware）"
+        }
+      ],
+      "rootAffix": "a-（处于）+ ware（警觉，同 wary/ward）→ 处于警觉状态 → 意识到",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Are you aware of the risks?",
+          "translation": "你意识到这些风险了吗？",
+          "analysis": "简单句：主语 You + 系动词 are + 表语 aware + 状语 of the risks。be aware of sth 为固定搭配，也可用 be aware that + 从句。"
+        },
+        {
+          "level": "long",
+          "sentence": "Being aware of a bias does not remove it, as anyone who has tried to ignore a ringing phone while working knows; awareness only lets us build rules that keep the bias from deciding when it matters.",
+          "translation": "意识到某种偏见并不能消除它——凡是试过工作时对响着的电话置之不理的人都明白这点；意识只能让我们制定规则，使偏见在关键时刻不占上风。",
+          "analysis": "并列复合句。第一分句主语为动名词短语 Being aware of a bias，谓语 does not remove，宾语 it；as 引导方式状语从句，其中 anyone 后接 who 引导的定语从句（has tried to ignore a ringing phone while working，while + 现在分词表同时）。分号后第二分句主语 awareness，谓语 lets，宾语 us，宾补 build rules，其后 that 引导的定语从句（keep the bias from deciding 为 keep A from doing 结构）。aware 取「意识到」义。"
+        }
+      ],
+      "collocations": [
+        "be aware of 意识到",
+        "be aware that 知道…",
+        "well aware 十分清楚",
+        "become aware of 开始意识到"
+      ],
+      "phrases": [
+        "awareness of 对…的认识",
+        "make sb aware of 使某人意识到"
+      ],
+      "derived": [
+        {
+          "word": "awareness",
+          "meaning": "n. 意识，认识（raise awareness 提高认识）"
+        },
+        {
+          "word": "unaware",
+          "meaning": "adj. 未意识到的"
+        }
+      ],
+      "synonyms": [
+        "conscious",
+        "mindful",
+        "cognizant",
+        "alert"
+      ],
+      "mnemonic": "aware 只作表语（be aware of/that）；名词 awareness 是写作高频（raise public awareness 提高公众意识）"
     }
   }
 }
