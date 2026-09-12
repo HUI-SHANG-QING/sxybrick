@@ -911,6 +911,982 @@
       ],
       "synonyms": ["assign", "distribute", "apportion", "allot"],
       "mnemonic": "al+loc(地方)+ate → 安排到各处 → 分配"
+    },
+    "access": {
+      "syllable": "ac·cess",
+      "pos": "n./v.",
+      "defs": [
+        { "pos": "n.", "meaning": "通道，入口；接近（的权利/机会）" },
+        { "pos": "n.", "meaning": "（使用、查阅的）权限" },
+        { "pos": "v.", "meaning": "（正式）进入；读取、访问（数据）" }
+      ],
+      "rootAffix": "ac-(去，向)+cess(走，来自拉丁语 cedere) → 走过去的方式 → 通道；have access to 即「得以接近」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Students have free access to the library.",
+          "translation": "学生可以免费使用图书馆。",
+          "analysis": "简单句：主语 Students + 谓语 have + 宾语 free access；to the library 是 access 的后置定语（access to… 固定搭配），说明「通往/使用」的对象。"
+        },
+        {
+          "level": "long",
+          "sentence": "The internet has given ordinary people access to information that was once available only to a privileged few.",
+          "translation": "互联网让普通人得以获取过去只有少数特权阶层才能接触到的信息。",
+          "analysis": "主句 The internet has given ordinary people access（双宾语：people 间接宾语 + access 直接宾语）；to information 是 access 的搭配后置定语；that was once available only to a privileged few 是定语从句修饰 information，从句内 available to… 又是形容词短语后置定语，层层嵌套但主线清晰。"
+        }
+      ],
+      "collocations": ["have access to 有权使用；能接近", "gain/get access to 获得…的权限", "access to education 受教育的机会", "restricted access 受限访问"],
+      "phrases": ["open access 开放获取", "access card 门禁卡"],
+      "derived": [
+        { "word": "accessible", "meaning": "adj. 可接近的；易获取的；（人）好相处的" },
+        { "word": "accessibility", "meaning": "n. 可达性；无障碍性" },
+        { "word": "inaccessible", "meaning": "adj. 达不到的；无法获取的" }
+      ],
+      "synonyms": ["entry", "admission", "approach"],
+      "mnemonic": "ac(去)+cess(走) → 走得过去 → 通道、权限"
+    },
+    "account": {
+      "syllable": "ac·count",
+      "pos": "n./v.",
+      "defs": [
+        { "pos": "n.", "meaning": "账户；账目" },
+        { "pos": "n.", "meaning": "叙述，描述；报告" },
+        { "pos": "v.", "meaning": "（account for）解释，说明（原因）；占比" }
+      ],
+      "rootAffix": "ac-(去)+count(数，计算) → 逐笔计算 → 账目；引申为「把事情讲个明白 → 叙述、解释」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She opened a bank account last week.",
+          "translation": "她上周开了一个银行账户。",
+          "analysis": "简单句：主语 She + 谓语 opened + 宾语 a bank account，last week 是时间状语。account 取「账户」义。"
+        },
+        {
+          "level": "long",
+          "sentence": "Manufacturing accounts for a large share of the region's economy, which explains why job losses there attract so much attention.",
+          "translation": "制造业占该地区经济的很大比重，这解释了为什么当地的就业损失引起如此多的关注。",
+          "analysis": "主句主语 Manufacturing + 谓语短语 accounts for + 宾语 a large share；of the region's economy 是 share 的后置定语；which 引导非限制性定语从句，指代前面整个主句内容（制造业占比大这件事），从句内 why 引导宾语从句作 explains 的宾语。"
+        }
+      ],
+      "collocations": ["account for 解释；占比", "open/close an account 开户/销户", "bank account 银行账户", "take...into account 把…考虑在内"],
+      "phrases": ["on account of 由于", "by all accounts 据大家所说", "keep an account of 记录"],
+      "derived": [
+        { "word": "accountant", "meaning": "n. 会计师" },
+        { "word": "accountable", "meaning": "adj. 负有责任的（accountable for）" },
+        { "word": "accounting", "meaning": "n. 会计；会计学" }
+      ],
+      "synonyms": ["report", "narrative", "explanation"],
+      "mnemonic": "ac+count(数) → 算账的地方 → 账户；把账算清 → 解释"
+    },
+    "address": {
+      "syllable": "ad·dress",
+      "pos": "n./v.",
+      "defs": [
+        { "pos": "n.", "meaning": "地址；网址" },
+        { "pos": "n.", "meaning": "演说，致辞" },
+        { "pos": "v.", "meaning": "写收件人信息；向…讲话" },
+        { "pos": "v.", "meaning": "设法解决，处理（问题）（重点义）" }
+      ],
+      "rootAffix": "ad-(向，朝着)+dress(=direct，理正、指向) → 把话头对准 → 向…讲话；对准问题 → 着手处理",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Please write your address on the form.",
+          "translation": "请在表格上写下你的地址。",
+          "analysis": "简单句：祈使句，谓语 write + 宾语 your address + 地点状语 on the form。"
+        },
+        {
+          "level": "long",
+          "sentence": "The government has promised to address the housing shortage, though critics question whether the measures announced so far are sufficient.",
+          "translation": "政府已承诺解决住房短缺问题，尽管批评者质疑迄今公布的政策是否足够。",
+          "analysis": "主句 The government has promised to address...（不定式作宾语）；though 引导让步状语从句；从句内 whether the measures...are sufficient 是 question 的宾语从句，announced so far 是过去分词短语作 measures 的后置定语。address 在此取「设法解决」义，是阅读高频考点义。"
+        }
+      ],
+      "collocations": ["address the issue/problem 解决问题", "address a meeting 在会议上发言", "email/home address 电子邮件/家庭地址", "keynote address 主题演讲"],
+      "phrases": ["address oneself to 着手处理；致力于", "form of address 称呼"],
+      "derived": [
+        { "word": "addressee", "meaning": "n. 收件人" },
+        { "word": "addresser", "meaning": "n. 发件人；发言人" }
+      ],
+      "synonyms": ["deal with", "tackle", "handle"],
+      "mnemonic": "ad(向)+dress(理正) → 把话对准人 → 演讲；把矛头对准问题 → 解决"
+    },
+    "advance": {
+      "syllable": "ad·vance",
+      "pos": "v./n./adj.",
+      "defs": [
+        { "pos": "v.", "meaning": "前进；推进；促进" },
+        { "pos": "v.", "meaning": "提出（观点、理论）" },
+        { "pos": "n.", "meaning": "进步，进展（in advance 预先）" }
+      ],
+      "rootAffix": "ad-(向前)+vance(=vant，来自拉丁语 vangere 走在前头) → 向前走 → 推进、促进",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "You should book tickets in advance.",
+          "translation": "你应该提前订票。",
+          "analysis": "简单句：谓语 should book + 宾语 tickets；in advance 是固定介词短语作时间状语，意为「预先、事先」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Recent advances in artificial intelligence have raised questions that society has not yet begun to answer, let alone agree on.",
+          "translation": "人工智能的最新进展提出了社会尚未开始回答、更遑论达成共识的问题。",
+          "analysis": "主语 Recent advances（advance 取名词「进展」义，常用复数）+ 谓语 have raised + 宾语 questions；that 引导定语从句修饰 questions；let alone「更不用说」连接 has not begun to answer 和 agree on 两个并列动作，构成递进强调。"
+        }
+      ],
+      "collocations": ["in advance 预先", "advance in technology 技术进步", "advance a theory 提出理论", "major advances 重大进展"],
+      "phrases": ["in advance of 在…之前", "advance notice 预先通知"],
+      "derived": [
+        { "word": "advanced", "meaning": "adj. 先进的；高级的" },
+        { "word": "advancement", "meaning": "n. 促进；晋升" }
+      ],
+      "synonyms": ["progress", "development", "promote"],
+      "mnemonic": "ad(向前)+vance(先行) → 走在前头 → 前进、进展"
+    },
+    "advantage": {
+      "syllable": "ad·van·tage",
+      "pos": "n.",
+      "defs": [
+        { "pos": "n.", "meaning": "优势，有利条件" },
+        { "pos": "n.", "meaning": "好处，利益" }
+      ],
+      "rootAffix": "advant(=advance，在前)+age(名词后缀) → 处在前头的状态 → 优势",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Height is an advantage in basketball.",
+          "translation": "打篮球时身高是优势。",
+          "analysis": "简单句：主语 Height + 系动词 is + 表语 an advantage；in basketball 是方面状语。"
+        },
+        {
+          "level": "long",
+          "sentence": "One advantage of studying abroad is that students are forced to use the language every day, which speeds up learning in a way classroom practice rarely can.",
+          "translation": "留学的一个好处是学生被迫每天使用该语言，其加速学习的效果是课堂练习很难达到的。",
+          "analysis": "主句 One advantage...is that...（表语从句）；that 从句内 are forced to use 是被动结构；which 引导非限制性定语从句，指代前面整个从句内容；in a way...rarely can 中省略了 that 的定语从句修饰 way，can 后省略动词 speed up learning。"
+        }
+      ],
+      "collocations": ["take advantage of 利用", "have an advantage over 比…有优势", "competitive advantage 竞争优势", "mutual advantage 互利"],
+      "phrases": ["to one's advantage 对某人有利", "at an advantage 处于有利地位"],
+      "derived": [
+        { "word": "advantageous", "meaning": "adj. 有利的（advantageous to）" },
+        { "word": "disadvantage", "meaning": "n. 劣势；不利" }
+      ],
+      "synonyms": ["benefit", "edge", "merit"],
+      "mnemonic": "advant(在前)+age → 占在前头的便宜 → 优势"
+    },
+    "analysis": {
+      "syllable": "a·nal·y·sis",
+      "pos": "n.",
+      "defs": [
+        { "pos": "n.", "meaning": "分析（复数 analyses）" },
+        { "pos": "n.", "meaning": "（对事物的）解析，分解研究" }
+      ],
+      "rootAffix": "ana-(完全，彻底)+lysis(松开，分解) → 彻底拆开来看 → 分析",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "His analysis of the problem was very clear.",
+          "translation": "他对这个问题的分析非常清晰。",
+          "analysis": "简单句：主语 His analysis + 系动词 was + 表语 clear；of the problem 是 analysis 的后置定语（analysis of… 分析…）。"
+        },
+        {
+          "level": "long",
+          "sentence": "A careful analysis of the data reveals a trend that most previous studies, relying on smaller samples, had failed to detect.",
+          "translation": "对数据的仔细分析揭示出一种大多数以往研究——因依赖较小样本——未能发现的趋势。",
+          "analysis": "主语 A careful analysis + 谓语 reveals + 宾语 a trend；of the data 是后置定语；that 引导定语从句修饰 trend；relying on smaller samples 是现在分词短语作插入状语，修饰 previous studies；had failed to detect 用过去完成时表示「过去的失败」。"
+        }
+      ],
+      "collocations": ["in the final/last analysis 归根结底", "conduct/carry out an analysis 进行分析", "data analysis 数据分析", "detailed/thorough analysis 细致的分析"],
+      "phrases": ["analysis of… 对…的分析", "on analysis 经分析"],
+      "derived": [
+        { "word": "analyse/analyze", "meaning": "v. 分析" },
+        { "word": "analyst", "meaning": "n. 分析员" },
+        { "word": "analytical", "meaning": "adj. 分析的；善于分析的" }
+      ],
+      "synonyms": ["examination", "study", "breakdown"],
+      "mnemonic": "ana(彻底)+lysis(松开) → 拆解到最细 → 分析"
+    },
+    "announce": {
+      "syllable": "an·nounce",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "宣布，宣告（消息、决定）" },
+        { "pos": "v.", "meaning": "（广播/主持人）播报，通报" }
+      ],
+      "rootAffix": "an-(向，to)+nounce(说，报告，拉丁语 nuntius 信使) → 向大家说 → 宣布",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The company announced its new product yesterday.",
+          "translation": "公司昨天发布了新产品。",
+          "analysis": "简单句：主语 The company + 谓语 announced + 宾语 its new product + 时间状语 yesterday。"
+        },
+        {
+          "level": "long",
+          "sentence": "It was announced that the stadium, whose construction had been delayed for years, would finally open to the public next spring.",
+          "translation": "官方宣布：建设拖延了多年的体育场将于明年春天最终向公众开放。",
+          "analysis": "It 是形式主语，真正主语是 that 从句（It was announced that... 被动语态的「宣布」）；从句主干 the stadium would open；whose construction had been delayed 是定语从句修饰 stadium（whose 指物的所属关系）；would finally open to the public 中 to the public 是开放的对象。"
+        }
+      ],
+      "collocations": ["announce a decision 宣布决定", "announce plans to do 宣布打算做", "It is announced that... 据宣布", "officially announce 正式宣布"],
+      "phrases": ["announce to sb. 向某人宣布"],
+      "derived": [
+        { "word": "announcement", "meaning": "n. 通告；公告" },
+        { "word": "announcer", "meaning": "n. 播音员；广播员" }
+      ],
+      "synonyms": ["declare", "proclaim", "publish"],
+      "mnemonic": "an(向)+nounce(报) → 向众人报信 → 宣布"
+    },
+    "annual": {
+      "syllable": "an·nu·al",
+      "pos": "adj./n.",
+      "defs": [
+        { "pos": "adj.", "meaning": "每年的，一年一次的" },
+        { "pos": "n.", "meaning": "年刊，年鉴；一年生植物" }
+      ],
+      "rootAffix": "ann(年，拉丁语 annus)+ual(形容词后缀) → 按年的 → 每年的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The annual meeting is held in May.",
+          "translation": "年会在五月举行。",
+          "analysis": "简单句：主语 The annual meeting + 被动谓语 is held + 时间状语 in May。annual 作定语修饰 meeting。"
+        },
+        {
+          "level": "long",
+          "sentence": "The report, published at the group's annual conference, warns that unless spending on training rises, the industry will struggle to attract young talent.",
+          "translation": "该报告在集团年会上发布，警告说除非培训支出增加，否则这个行业将难以吸引年轻人才。",
+          "analysis": "published at...conference 是过去分词短语作主语 The report 的后置定语（补全为 which was published）；谓语 warns + that 宾语从句；从句内 unless 引导条件状语从句，主句是 the industry will struggle to attract...。"
+        }
+      ],
+      "collocations": ["annual meeting/conference 年会", "annual income/report 年收入/年报", "annual output 年产量"],
+      "phrases": ["on an annual basis 按年度"],
+      "derived": [
+        { "word": "annually", "meaning": "adv. 每年地" },
+        { "word": "biannual", "meaning": "adj. 一年两次的" },
+        { "word": "anniversary", "meaning": "n. 周年纪念（同根 ann）" }
+      ],
+      "synonyms": ["yearly", "year-by-year"],
+      "mnemonic": "ann(年)+ual → 一年一度的"
+    },
+    "anticipate": {
+      "syllable": "an·tic·i·pate",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "预期，预料（后接名词/doing，不接不定式）" },
+        { "pos": "v.", "meaning": "先于…行动；抢先一步做" }
+      ],
+      "rootAffix": "anti-(在前，先)+cip(拿，取)+ate(动词后缀) → 提前拿到（消息/局面）→ 预料",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We anticipate strong demand for the new product.",
+          "translation": "我们预计新产品需求会很大。",
+          "analysis": "简单句：主语 We + 谓语 anticipate + 宾语 strong demand；for the new product 是 demand 的后置定语。注意 anticipate 后接名词或 doing，不接 to do。"
+        },
+        {
+          "level": "long",
+          "sentence": "The reforms were anticipated to bring short-term pain, but few anticipated that the public, having endured years of hardship, would grow so impatient.",
+          "translation": "改革被预期会带来短期阵痛，但很少有人预料到，已经忍受了多年困苦的公众会变得如此不耐烦。",
+          "analysis": "前半句被动结构 were anticipated to bring（=人们预期它会带来）；but 后主句 few anticipated + that 宾语从句；having endured years of hardship 是完成式分词短语作定语修饰 the public（表先于谓语发生的动作），先「忍受」后「不耐烦」，时序由分词完成式体现。"
+        }
+      ],
+      "collocations": ["anticipate doing sth. 预计做某事", "anticipate problems/needs 预见问题/需求", "widely anticipated 普遍预期的"],
+      "phrases": ["as anticipated/as was anticipated 如预期那样"],
+      "derived": [
+        { "word": "anticipation", "meaning": "n. 预期（in anticipation of 预料到）" },
+        { "word": "anticipated", "meaning": "adj. 预期的（the anticipated result）" },
+        { "word": "unanticipated", "meaning": "adj. 未预料到的" }
+      ],
+      "synonyms": ["expect", "foresee", "predict"],
+      "mnemonic": "anti(先)+cip(拿)+ate → 提前抓到结局 → 预料"
+    },
+    "appeal": {
+      "syllable": "ap·peal",
+      "pos": "v./n.",
+      "defs": [
+        { "pos": "v.", "meaning": "呼吁，恳求（appeal to sb. for/to do）" },
+        { "pos": "v.", "meaning": "有吸引力，使感兴趣（sth. appeals to sb.）" },
+        { "pos": "v./n.", "meaning": "上诉" }
+      ],
+      "rootAffix": "ap-(向)+peal(推，驱动，拉丁语 pellere) → 把请求推到对方面前 → 呼吁；（感情）被推着走 → 被吸引",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The design appeals to young people.",
+          "translation": "这个设计对年轻人有吸引力。",
+          "analysis": "简单句：主语 The design + 谓语 appeals to + 宾语 young people。appeal to sb. = 吸引某人，主动形式表被动意味（被…吸引）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Charities increasingly appeal to younger donors through social media, where short videos can spread a message far more cheaply than television advertising ever could.",
+          "translation": "慈善机构越来越多地通过社交媒体向年轻捐赠者发出呼吁，因为在社交媒体上，短视频传播信息的成本远低于电视广告。",
+          "analysis": "主句 Charities appeal to younger donors through social media；where 引导非限制性定语从句修饰 social media（关系副词 = on which）；从句内 far more cheaply than...ever could 是比较级结构，could 后省略 spread a message。"
+        }
+      ],
+      "collocations": ["appeal to sb. for sth. 为…向某人呼吁", "appeal to do sth. 呼吁做某事", "appeal to young voters 吸引年轻选民", "lodge/file an appeal 提起上诉"],
+      "phrases": ["make an appeal 发出呼吁", "court of appeal 上诉法院"],
+      "derived": [
+        { "word": "appealing", "meaning": "adj. 有吸引力的；恳求的" },
+        { "word": "appealingly", "meaning": "adv. 有感染力地" }
+      ],
+      "synonyms": ["attract", "beg", "plead"],
+      "mnemonic": "ap(向)+peal(推) → 把请求推过去 → 呼吁；把心推过去 → 吸引"
+    },
+    "apply": {
+      "syllable": "ap·ply",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "申请（apply for）" },
+        { "pos": "v.", "meaning": "应用，运用（apply...to）" },
+        { "pos": "v.", "meaning": "适用（规则对某情况 apply）" },
+        { "pos": "v.", "meaning": "涂，敷（apply the cream）" }
+      ],
+      "rootAffix": "ap-(向)+ply(折，弯，拉丁语 plicare) → 把东西贴合到目标上 → 涂敷、应用；把自己贴到一个职位上 → 申请",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I want to apply for the scholarship.",
+          "translation": "我想申请奖学金。",
+          "analysis": "简单句：谓语 want to apply + for the scholarship（apply for 固定搭配，申请的对象用 for）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The rules apply to all students, including those who enrolled before the new policy was introduced.",
+          "translation": "这些规定适用于所有学生，包括在新政策出台前入学的那部分学生。",
+          "analysis": "主句 The rules apply to all students（apply 取「适用」义）；including 介词化分词引出补充范围；who 引导定语从句修饰 those（那些人）；从句内 before 引导时间状语从句，was introduced 用被动语态表「政策被出台」。"
+        }
+      ],
+      "collocations": ["apply for a job/visa 申请工作/签证", "apply...to... 把…应用于", "apply to 适用于", "apply the theory to practice 把理论用于实践"],
+      "phrases": ["apply oneself to 致力于", "apply pressure 施加压力"],
+      "derived": [
+        { "word": "application", "meaning": "n. 申请；应用；应用程序" },
+        { "word": "applicant", "meaning": "n. 申请人" },
+        { "word": "applied", "meaning": "adj. 应用的（applied mathematics 应用数学）" }
+      ],
+      "synonyms": ["use", "employ", "request"],
+      "mnemonic": "ap(向)+ply(贴) → 贴上去用 → 应用；把自己贴过去 → 申请"
+    },
+    "approach": {
+      "syllable": "ap·proach",
+      "pos": "v./n.",
+      "defs": [
+        { "pos": "v.", "meaning": "接近，靠近（时间/空间/数量）" },
+        { "pos": "v.", "meaning": "着手处理，接洽" },
+        { "pos": "n.", "meaning": "方法，途径（to）" },
+        { "pos": "n.", "meaning": "接近，来临" }
+      ],
+      "rootAffix": "ap-(向)+proach(近，拉丁语 prope 近) → 向近处走 → 接近；处理问题的「路径」引申为方法",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We need a new approach to the problem.",
+          "translation": "我们需要解决这个问题的新方法。",
+          "analysis": "简单句：谓语 need + 宾语 a new approach；to the problem 是 approach 的后置定语（approach to… 的固定搭配，注意用 to 不用 of）。"
+        },
+        {
+          "level": "long",
+          "sentence": "As winter approaches, the city is racing to complete repairs on roads that were damaged by last summer's floods.",
+          "translation": "随着冬季临近，这座城市正争分夺秒地修复去年夏天被洪水损毁的道路。",
+          "analysis": "As winter approaches 是 as 引导的时间状语从句（approach 取「临近」义）；主句 the city is racing to complete repairs（race to do 抢着做）；on roads 是 repairs 的后置定语；that were damaged... 是定语从句修饰 roads，被动语态。"
+        }
+      ],
+      "collocations": ["approach to... …的方法", "a new/approach 新方法", "approach sb. about sth. 就某事接洽某人", "the approach of winter 冬天的临近"],
+      "phrases": ["at the approach of 在…快来时"],
+      "derived": [
+        { "word": "approachable", "meaning": "adj. 易接近的；（人）亲切的" },
+        { "word": "unapproachable", "meaning": "adj. 难以接近的" }
+      ],
+      "synonyms": ["method", "way", "draw near"],
+      "mnemonic": "ap(向)+proach(近) → 走近 → 接近；走近的路子 → 方法"
+    },
+    "appropriate": {
+      "syllable": "ap·pro·pri·ate",
+      "pos": "adj./v.",
+      "defs": [
+        { "pos": "adj.", "meaning": "恰当的，适宜的（读 /əˈprəʊpriət/）" },
+        { "pos": "v.", "meaning": "挪用，盗用（资金）；拨出（款项）（读 /əˈprəʊprieɪt/）" }
+      ],
+      "rootAffix": "ap-(向)+propri(自己的，proprius)+ate → 变成自己的 → 拨归自己用；恰如其分地「归位」→ 恰当的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Jeans are not appropriate for a formal interview.",
+          "translation": "牛仔裤不适合正式面试。",
+          "analysis": "简单句：主语 Jeans + 系动词 are + 表语 appropriate；for a formal interview 是方面状语。appropriate for/to 均可表「适合于」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Critics argue that it is not appropriate to compare the two countries, whose economies differ in both size and structure.",
+          "translation": "批评者认为，拿这两个国家作比较并不恰当，因为它们的经济体量和结构都不同。",
+          "analysis": "主句 Critics argue + that 宾语从句；从句内 it 是形式主语，真正主语是不定式 to compare（it is appropriate to do 的否定式）；whose economies differ... 是非限制性定语从句修饰 the two countries，differ in 表「在…方面不同」。"
+        }
+      ],
+      "collocations": ["appropriate for/to 适合于", "an appropriate measure 恰当的措施", "if appropriate 如有必要时", "appropriate funds 拨款"],
+      "phrases": ["where appropriate 在适当的情况下"],
+      "derived": [
+        { "word": "appropriately", "meaning": "adv. 恰当地" },
+        { "word": "inappropriate", "meaning": "adj. 不恰当的" },
+        { "word": "appropriation", "meaning": "n. 拨款；挪用" }
+      ],
+      "synonyms": ["suitable", "fitting", "proper"],
+      "mnemonic": "ap+propri(自己)+ate → 归于其位 → 恰当的；归为己有 → 挪用"
+    },
+    "approve": {
+      "syllable": "ap·prove",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "批准，认可（决定、申请）" },
+        { "pos": "v.", "meaning": "赞成，满意（approve of sb./sth.）" }
+      ],
+      "rootAffix": "ap-(向)+prove(证明，拉丁语 probare 测试认可) → 验明可行 → 批准",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Her boss approved the plan.",
+          "translation": "她的老板批准了这个计划。",
+          "analysis": "简单句：主语 Her boss + 谓语 approved + 宾语 the plan。approve sth. = 批准（及物）；approve of sth. = 赞成（不及物+介词）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The committee approved the proposal on condition that all safety standards be met before construction begins.",
+          "translation": "委员会批准了该提案，条件是施工开始前所有安全标准都必须达标。",
+          "analysis": "主句 The committee approved the proposal；on condition that 引导条件状语从句（= 只要，须满足的条件）；从句内 be met 用虚拟语气原形（表条件性要求），before 引导时间从句。approve 取「批准」义。"
+        }
+      ],
+      "collocations": ["approve a plan/bill 批准计划/法案", "approve of 赞成", "approve the budget 批准预算", "unanimously approve 一致通过"],
+      "phrases": ["on approval （商品）供试用的，包退换的"],
+      "derived": [
+        { "word": "approval", "meaning": "n. 批准；赞成（on approval / give approval）" },
+        { "word": "disapprove", "meaning": "v. 不赞成（disapprove of）" },
+        { "word": "approved", "meaning": "adj. 经认可的（approved school）" }
+      ],
+      "synonyms": ["endorse", "sanction", "consent"],
+      "mnemonic": "ap+prove(验证) → 验明可行 → 批准、赞成"
+    },
+    "argue": {
+      "syllable": "ar·gue",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "主张，认为（argue that...，论述性观点）" },
+        { "pos": "v.", "meaning": "争论，辩论（argue with sb. about sth.）" },
+        { "pos": "v.", "meaning": "说服（argue sb. into/out of doing）" }
+      ],
+      "rootAffix": "argu(=arg，白，拉丁语 argentum 银色→闪亮→说得漂亮) → 把话说亮堂 → 辩论、论证",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They argued about the price for hours.",
+          "translation": "他们就价格争了好几个小时。",
+          "analysis": "简单句：谓语 argued + about the price（争论的内容用 about）+ for hours（持续的时间状语，注意 for 表时长）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Supporters argue that the tax will reduce pollution, but opponents counter that it will hurt low-income families, who spend a larger share of their income on fuel.",
+          "translation": "支持者主张这项税收会减少污染，但反对者反驳说它会伤害低收入家庭，因为这些家庭在燃料上的支出占收入的比重更大。",
+          "analysis": "并列结构：argue that... but counter that...（counter 反驳，也是「主张」类动词）；第一个 that 从句主谓宾 the tax will reduce pollution；第二个 that 从句内 who spend... 是定语从句修饰 low-income families；a larger share of their income on fuel 是 spend...on 结构。阅读议论文高频句式。"
+        }
+      ],
+      "collocations": ["argue that... 主张说", "argue for/against 为/反对…辩护", "argue with sb. about sth. 与某人争辩某事", "argue the case 论证观点"],
+      "phrases": ["argue sb. into doing 说服某人做", "argue sb. out of doing 说服某人不做"],
+      "derived": [
+        { "word": "argument", "meaning": "n. 争论；论点（have an argument）" },
+        { "word": "argumentative", "meaning": "adj. 好争辩的" }
+      ],
+      "synonyms": ["debate", "contend", "dispute"],
+      "mnemonic": "arg(亮)+ue → 把话说得漂亮 → 辩论、主张"
+    },
+    "arise": {
+      "syllable": "a·rise",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "（问题、机会等）出现，发生（不及物）" },
+        { "pos": "v.", "meaning": "（由…）产生，引起（arise from/out of）" },
+        { "pos": "v.", "meaning": "起床，起立（旧式/正式）" }
+      ],
+      "rootAffix": "a-(加强)+rise(升起) → 升起来 → 出现；注意过去式 arose、过去分词 arisen（不规则变化）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Problems arose during the project.",
+          "translation": "项目进行中出现了问题。",
+          "analysis": "简单句：主语 Problems + 不及物动词 arose（过去式）+ 时间状语 during the project。arise 不能用于被动语态。"
+        },
+        {
+          "level": "long",
+          "sentence": "Should any dispute arise from this contract, the two parties agree to settle it through arbitration rather than litigation.",
+          "translation": "如因本合同产生任何争议，双方同意通过仲裁而非诉讼解决。",
+          "analysis": "Should any dispute arise... 是把 if 省略后的倒装虚拟条件句（= If any dispute should arise...，正式书面语）；arise from 表「由…产生」；主句 the two parties agree to settle...；rather than 连接 arbitration 与 litigation 表取舍。"
+        }
+      ],
+      "collocations": ["problems/difficulties arise 出现问题", "arise from/out of 由…引起", "should the need arise 如有需要", "opportunities arise 机会出现"],
+      "phrases": ["arise naturally 自然而然地产生"],
+      "derived": [
+        { "word": "arising", "meaning": "adj. 产生的（issues arising 由此产生的问题）" }
+      ],
+      "synonyms": ["emerge", "occur", "come up"],
+      "易混辨析": "arise（问题出现，不及物）/ rise（升起）/ raise（举起，及物）/ arouse（唤起，及物）——考研经典四辨",
+      "mnemonic": "a+rise(升) → （无形之物）升起来 → 出现、产生"
+    },
+    "assess": {
+      "syllable": "as·sess",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "评估，评定（价值、质量、程度）" },
+        { "pos": "v.", "meaning": "估算，核定（金额、税额）" }
+      ],
+      "rootAffix": "as-(向)+sess(坐，拉丁语 sedere) →（法官）坐下来核定 → 评估、评定",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Teachers assess students' progress each term.",
+          "translation": "老师每学期评估学生的进步。",
+          "analysis": "简单句：主语 Teachers + 谓语 assess + 宾语 students' progress + 时间状语 each term。"
+        },
+        {
+          "level": "long",
+          "sentence": "It is too early to assess the full impact of the policy, whose effects will not be visible for several years.",
+          "translation": "现在评估这项政策的全部影响还为时过早，其效果要几年后才会显现。",
+          "analysis": "It 是形式主语，真正主语是不定式 to assess the full impact（assess 取「评估」义）；whose effects will not be visible 是非限制性定语从句修饰 the policy；for several years 表持续时间。"
+        }
+      ],
+      "collocations": ["assess the impact/situation 评估影响/形势", "assess...at... 把…估价为", "assess damage 估损"],
+      "phrases": ["assess sb.'s ability 评定某人的能力"],
+      "derived": [
+        { "word": "assessment", "meaning": "n. 评估（risk assessment 风险评估）" },
+        { "word": "assessor", "meaning": "n. 评估员；评审员" },
+        { "word": "reassess", "meaning": "v. 重新评估" }
+      ],
+      "synonyms": ["evaluate", "estimate", "appraise"],
+      "易混辨析": "assess（估出价值/程度）/ access（通道、访问）/ excess（过量）——拼写相近，词义全不同，考研阅读高频陷阱",
+      "mnemonic": "as+sess(坐) → 坐下来核定 → 评估"
+    },
+    "assume": {
+      "syllable": "as·sume",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "假定，假设（认为成立而未证实）" },
+        { "pos": "v.", "meaning": "承担（职务、责任）；呈现（样子）" },
+        { "pos": "v.", "meaning": "装出，摆出（assume an air of）" }
+      ],
+      "rootAffix": "as-(向)+sume(拿，取，拉丁语 sumere) → 拿来当真 → 假定；把责任拿到身上 → 承担",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I assumed he was sick because he didn't come.",
+          "translation": "他没来，我以为他病了。",
+          "analysis": "主句 I assumed + (that) 宾语从句 he was sick（从句引导词 that 省略）；because 引导原因状语从句。assume 取「想当然地认为」义。"
+        },
+        {
+          "level": "long",
+          "sentence": "The theory rests on the assumption that consumers behave rationally, an assumption that has been challenged by behavioral economists.",
+          "translation": "该理论建立在消费者理性行事的假设之上，而这一假设已受到行为经济学家的挑战。",
+          "analysis": "主句 The theory rests on the assumption（rest on 建立在）；that consumers behave rationally 是 assumption 的同位语从句（说明假设的内容）；an assumption that... 是同位语重复强调，that 引导定语从句修饰它（注意区分同位语从句 that 后接完整句 vs 定语从句 that 在从句中充当成分）。"
+        }
+      ],
+      "collocations": ["assume (that)... 假定", "assume responsibility/power 承担责任/掌权", "assumed name 化名", "let's assume 姑且假设"],
+      "phrases": ["assuming (that)... 假设…（引导条件）"],
+      "derived": [
+        { "word": "assumption", "meaning": "n. 假定；承担（on the assumption that 在…的假设下）" },
+        { "word": "assumed", "meaning": "adj. 假定的；假的" }
+      ],
+      "synonyms": ["presume", "suppose", "take on"],
+      "易混辨析": "assume（未证实地假定）/ presume（有依据地推定）/ consume（消耗）/ resume（恢复）——同根 sume 四兄弟",
+      "mnemonic": "as+sume(拿) → 拿来当前提 → 假定；拿过来 → 承担"
+    },
+    "attach": {
+      "syllable": "at·tach",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "附上，粘贴；系上（attach...to）" },
+        { "pos": "v.", "meaning": "attach importance to 重视（固定搭配，高频考点）" },
+        { "pos": "v.", "meaning": "使附属，使隶属于（be attached to）" }
+      ],
+      "rootAffix": "at-(向)+tach(拴，钉，法语 attachier) → 拴到…上 → 附上、系上",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Please attach a photo to the form.",
+          "translation": "请在表格上贴一张照片。",
+          "analysis": "简单句：祈使句，谓语 attach + 宾语 a photo + to the form（attach A to B 把 A 附到 B 上）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Parents who attach too much importance to academic results may overlook their children's emotional needs, which are equally vital to healthy development.",
+          "translation": "过分看重学业成绩的父母可能忽视孩子的情感需求，而情感需求对健康成长同样重要。",
+          "analysis": "主语 Parents + who 引导定语从句（attach importance to 重视——名词 importance 作宾语，to 引出重视的对象）；主句谓语 may overlook + 宾语 emotional needs；which 引导非限制性定语从句修饰 emotional needs（指物用 which 指代复数需求）。"
+        }
+      ],
+      "collocations": ["attach importance/significance to 重视", "attach...to... 把…附在…上", "be attached to 依恋；隶属于", "attached please find 随函附上（公文用语）"],
+      "phrases": ["attach a document 附上文件", "attach label 贴标签"],
+      "derived": [
+        { "word": "attachment", "meaning": "n. 附件；依恋（email attachment 邮件附件）" },
+        { "word": "unattached", "meaning": "adj. 未订婚的；独立的" }
+      ],
+      "synonyms": ["fasten", "affix", "connect"],
+      "mnemonic": "at+tach(拴) → 拴在一起 → 附上、依恋"
+    },
+    "attain": {
+      "syllable": "at·tain",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "达到，实现（目标、水平）；获得（正式）" }
+      ],
+      "rootAffix": "at-(向)+tain(触，握，拉丁语 tangere) → 触摸到目标 → 达到、获得",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She attained the highest score in the class.",
+          "translation": "她取得了全班最高分。",
+          "analysis": "简单句：主语 She + 谓语 attained + 宾语 the highest score + 范围状语 in the class。attain 是正式用词。"
+        },
+        {
+          "level": "long",
+          "sentence": "Only by setting realistic goals can students attain a sense of achievement that motivates further effort.",
+          "translation": "只有设定切合实际的目标，学生才能获得激励他们继续努力的成就感。",
+          "analysis": "Only by + 动名词置于句首引起部分倒装：can students attain（正常语序 students can attain）；a sense of achievement 是宾语；that motivates further effort 是定语从句修饰 a sense of achievement。only 状语前置倒装是写作高分句型。"
+        }
+      ],
+      "collocations": ["attain a goal/objective 达成目标", "attain success 取得成功", "attain the age of 到达…岁数", "attain maturity 成熟"],
+      "phrases": ["attain to（正式）达到（水平）"],
+      "derived": [
+        { "word": "attainment", "meaning": "n. 达到；成就（educational attainments 学业成就）" },
+        { "word": "attainable", "meaning": "adj. 可达到的（attainable goal）" }
+      ],
+      "synonyms": ["achieve", "accomplish", "reach"],
+      "易混辨析": "attain（经努力达到）/ obtain（得到）/ contain（包含）/ maintain（维持）/ sustain（支撑）——同根 tain 五兄弟",
+      "mnemonic": "at+tain(触) → 够得着 → 达到、获得"
+    },
+    "attempt": {
+      "syllable": "at·tempt",
+      "pos": "v./n.",
+      "defs": [
+        { "pos": "v.", "meaning": "尝试，试图（attempt to do / doing，正式用词）" },
+        { "pos": "n.", "meaning": "尝试，努力（an attempt at/to do）" },
+        { "pos": "n.", "meaning": "（考试中的）一次报考机会" }
+      ],
+      "rootAffix": "at-(向)+tempt(尝试、试探，拉丁语 temptare) → 去试一试 → 尝试",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He attempted to break the record.",
+          "translation": "他试图打破纪录。",
+          "analysis": "简单句：主语 He + 谓语 attempted + 不定式 to break 作宾语。attempt to do = 试图做，比 try 正式。"
+        },
+        {
+          "level": "long",
+          "sentence": "Despite several failed attempts to reach the summit, the team remained convinced that another expedition was worth the risk.",
+          "translation": "尽管登顶的几次尝试都失败了，队伍仍然确信再来一次探险值得冒险。",
+          "analysis": "Despite 介词后接名词短语 several failed attempts（attempt 作名词）；to reach the summit 是 attempts 的后置定语（an attempt to do 的名词用法）；that another expedition was worth the risk 是 convinced 的宾语从句；be worth + 名词/doing 表「值得」。"
+        }
+      ],
+      "collocations": ["attempt to do sth. 试图做某事", "make an attempt 尝试一下", "a failed/successful attempt 失败/成功的尝试", "attempt the impossible 试图做不可能的事"],
+      "phrases": ["in an attempt to do 试图…（目的状语）", "at the first attempt 第一次尝试就"],
+      "derived": [
+        { "word": "attempted", "meaning": "adj. 未遂的（attempted murder 杀人未遂）" }
+      ],
+      "synonyms": ["try", "endeavor", "strive"],
+      "易混辨析": "attempt（正式，常含失败可能）/ try（口语常用）/ manage（设法办成）——attempt 强调「付出了努力」，结果未必成功",
+      "mnemonic": "at+tempt(试) → 去试 → 尝试"
+    },
+    "attend": {
+      "syllable": "at·tend",
+      "pos": "v.",
+      "defs": [
+        { "pos": "v.", "meaning": "出席，参加（会议、课程）" },
+        { "pos": "v.", "meaning": "照料，护理（attend to sb.）" },
+        { "pos": "v.", "meaning": "专心于，处理（attend to business）" }
+      ],
+      "rootAffix": "at-(向)+tend(伸展，朝向，拉丁语 tendere) → 把心伸向 → 出席、照料；同根 tend（趋向）、trend（趋势）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Over 200 people attended the conference.",
+          "translation": "两百多人出席了这次会议。",
+          "analysis": "简单句：Over 200 people 是主语 + 谓语 attended + 宾语 the conference。attend 是及物动词，直接接宾语，不加 to。"
+        },
+        {
+          "level": "long",
+          "sentence": "Students who attend top universities are not necessarily those with the best grades, but often those who made the most of what their schools offered.",
+          "translation": "上顶尖大学的学生未必是成绩最好的那批，而往往是那些充分利用了学校资源的学生。",
+          "analysis": "主语 Students + who 定语从句 attend top universities；not necessarily...but often... 表「未必…而往往…」的让步对比；who made the most of... 是第二个定语从句修饰 those；make the most of 充分利用；what their schools offered 是 of 的宾语从句。"
+        }
+      ],
+      "collocations": ["attend a meeting/class 出席会议/上课", "attend to 照料；处理", "attend school 上学", "attend a lecture 听讲座"],
+      "phrases": ["attend to one's own business 管好自己的事"],
+      "derived": [
+        { "word": "attendance", "meaning": "n. 出席（人数）（attendance rate 出勤率）" },
+        { "word": "attendant", "meaning": "n. 服务员 adj. 随之而来的（attendant risks 伴随的风险）" },
+        { "word": "attention", "meaning": "n. 注意（pay attention to）" }
+      ],
+      "synonyms": ["be present at", "take part in", "serve"],
+      "易混辨析": "attend（出席，及物）/ attend to（照料）/ tend（趋向；照料）/ intend（打算）——同根 tend 四兄弟",
+      "mnemonic": "at+tend(伸向) → 身心到位 → 出席、照料"
+    },
+    "attitude": {
+      "syllable": "at·ti·tude",
+      "pos": "n.",
+      "defs": [
+        { "pos": "n.", "meaning": "态度，看法（toward/to）" },
+        { "pos": "n.", "meaning": "姿态，姿势" }
+      ],
+      "rootAffix": "apt(=att，适合、倾向，拉丁语 aptus)+itude(名词后缀，表状态) → 心理的倾向 → 态度",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "His attitude toward work has changed.",
+          "translation": "他对工作的态度变了。",
+          "analysis": "简单句：主语 His attitude + 系动词 has changed；toward work 是 attitude 的后置定语（attitude toward/to… 对…的态度）。"
+        },
+        {
+          "level": "long",
+          "sentence": "What matters most is not what happens to us but how we respond, for our attitude shapes our experience far more than circumstances do.",
+          "translation": "最重要的不是我们遭遇了什么，而是我们如何应对，因为态度对经历的影响远大于环境。",
+          "analysis": "What matters most 是主语从句；not...but... 并连两个表语（what happens to us / how we respond——都是名词性从句）；for 引导并列分句表原因（口语/书面常用，弱于 because）；far more than circumstances do 是比较级结构，do 代替 shape our experience。"
+        }
+      ],
+      "collocations": ["attitude toward/to 对…的态度", "a positive/negative attitude 积极/消极态度", "adopt/take an attitude 采取态度", "change one's attitude 改变态度"],
+      "phrases": ["with an attitude of 带着…的态度"],
+      "derived": [
+        { "word": "attitudinal", "meaning": "adj. 态度的" }
+      ],
+      "synonyms": ["outlook", "viewpoint", "stance"],
+      "易混辨析": "attitude（内心态度）/ altitude（高度）/ gratitude（感激）/ longitude（经度）/ latitude（纬度）——itude 同缀五兄弟，考研拼写陷阱",
+      "mnemonic": "att(倾向)+itude(状态) → 心之所向 → 态度"
+    },
+    "authority": {
+      "syllable": "au·thor·i·ty",
+      "pos": "n.",
+      "defs": [
+        { "pos": "n.", "meaning": "权力，权威（不可数）" },
+        { "pos": "n.", "meaning": "当局，官方（the authorities，常用复数）" },
+        { "pos": "n.", "meaning": "权威人士/机构；许可（an authority on…）" }
+      ],
+      "rootAffix": "author(创造者、创始人，拉丁语 auctor)+ity(名词后缀) → 创始者说的话算数 → 权威、权力",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She is an authority on ancient history.",
+          "translation": "她是古代史方面的权威。",
+          "analysis": "简单句：主语 She + 系动词 is + 表语 an authority；on ancient history（某领域的权威用介词 on）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The authorities, who had been criticized for their slow response, defended the measures taken, arguing that public safety had been the top priority throughout.",
+          "translation": "此前因反应迟缓而受到批评的当局为已采取的措施辩护，称公共安全始终是首要考量。",
+          "analysis": "主语 The authorities + 非限制性定语从句 who had been criticized for...（被动完成时， criticized for 表「因…受批评」）；主句谓语 defended + 宾语 the measures taken（taken 过去分词后置 = 被采取的）；arguing that... 是现在分词作伴随状语，that 从句用过去完成被动 had been the top priority。"
+        }
+      ],
+      "collocations": ["the authorities 当局", "an authority on 在…方面的权威", "in authority 掌权的", "under the authority of 在…的管辖下"],
+      "phrases": ["have the authority to do 有权做某事", "abuse authority 滥用职权"],
+      "derived": [
+        { "word": "authorize", "meaning": "v. 授权；批准" },
+        { "word": "authoritative", "meaning": "adj. 权威的（an authoritative source）" },
+        { "word": "authorization", "meaning": "n. 授权；批准书" }
+      ],
+      "synonyms": ["power", "government", "expert"],
+      "易混辨析": "author（作者）/ authority（权威）/ authentic（真的）/ autobiography（自传）——author 同根，注意 authoritative（权威的）与 author（作者）词义关联",
+      "mnemonic": "author(创造者)+ity → 说了算的人 → 权威、当局"
+    },
+    "available": {
+      "syllable": "a·vail·a·ble",
+      "pos": "adj.",
+      "defs": [
+        { "pos": "adj.", "meaning": "可获得的，可用的" },
+        { "pos": "adj.", "meaning": "有空的（人）" },
+        { "pos": "adj.", "meaning": "（票、房等）尚有余位的" }
+      ],
+      "rootAffix": "a-(向)+vail(价值，拉丁语 valere 值)+able(可…的) → 能发挥价值的 → 可用的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Tickets are available at the door.",
+          "translation": "票可在门口购买（现场有售）。",
+          "analysis": "简单句：主语 Tickets + 系动词 are + 表语 available；at the door 是地点状语。available 作表语是最高频用法。"
+        },
+        {
+          "level": "long",
+          "sentence": "With more information available online than ever before, the real challenge is no longer finding data but judging which of it can be trusted.",
+          "translation": "随着网上可获得的信息比以往任何时候都多，真正的挑战不再是找到数据，而是判断哪些数据可信。",
+          "analysis": "With + 名词 +形容词 的独立结构（With more information available）作背景状语；than ever before 是比较状语的省略形式；主句表语从句 no longer...but... 对比表语；which of it can be trusted 是 judging 的宾语从句（it 指 information）。"
+        }
+      ],
+      "collocations": ["be available to sb. 对某人可用", "available for 可用于…的", "readily available 随时可得的", "widely available 到处都能买到的"],
+      "phrases": ["available resources 可用资源", "make...available 使…可获得"],
+      "derived": [
+        { "word": "availability", "meaning": "n. 可得性；可用性" },
+        { "word": "unavailable", "meaning": "adj. 不可获得的；无空档的" },
+        { "word": "avail", "meaning": "v./n. 有用于（of no avail 毫无用处）" }
+      ],
+      "synonyms": ["obtainable", "accessible", "free"],
+      "易混辨析": "available（可用的）/ valuable（贵重的）/ prevalent（流行的）——拼写相近；available 修饰「物=可获得、人=有空」",
+      "mnemonic": "a+vail(价值)+able → 拿来就能用 → 可获得的"
+    },
+    "balance": {
+      "syllable": "bal·ance",
+      "pos": "n./v.",
+      "defs": [
+        { "pos": "n.", "meaning": "平衡，均衡（不可数）" },
+        { "pos": "n.", "meaning": "余额（银行账户）" },
+        { "pos": "v.", "meaning": "使平衡；权衡，斟酌" }
+      ],
+      "rootAffix": "ba(=bi，两，拉丁语 bis)+lance(秤盘) → 两头称量 → 平衡；两头相比较 → 权衡",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Try to keep a balance between work and rest.",
+          "translation": "尽量在工作和休息之间保持平衡。",
+          "analysis": "祈使句：谓语 Try to keep + 宾语 a balance；between...and... 说明平衡的两端（balance between A and B 固定搭配）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Governments must balance the need for economic growth against the imperative of protecting the environment, a task that becomes harder as populations expand.",
+          "translation": "政府必须在经济增长需求与保护环境的紧迫性之间取得平衡——随着人口增长，这项任务愈发艰巨。",
+          "analysis": "主句 balance A against B（把 A 与 B 权衡，固定搭配）；a task that... 是同位语，补充说明整个主句；that becomes harder 是定语从句修饰 a task；as populations expand 是 as 引导的时间/原因状语从句。"
+        }
+      ],
+      "collocations": ["balance A against/and B 权衡 A 与 B", "keep/lose one's balance 保持/失去平衡", "on balance 总的来说（权衡之后）", "bank balance 账户余额"],
+      "phrases": ["out of balance 失衡", "strike a balance 取得折中"],
+      "derived": [
+        { "word": "balanced", "meaning": "adj. 均衡的（a balanced diet 均衡饮食）" },
+        { "word": "imbalance", "meaning": "n. 不平衡（trade imbalance 贸易失衡）" },
+        { "word": "unbalanced", "meaning": "adj. 失衡的；精神失常的" }
+      ],
+      "synonyms": ["equilibrium", "symmetry", "weigh"],
+      "易混辨析": "balance（平衡，名词为主）/ balcony（阳台）/ ballot（选票）——拼写开头相近；on balance 是阅读高频短语「总的来说」",
+      "mnemonic": "ba(两)+lance(秤) → 两头称平 → 平衡、权衡"
+    },
+    "benefit": {
+      "syllable": "ben·e·fit",
+      "pos": "n./v.",
+      "defs": [
+        { "pos": "n.", "meaning": "好处，益处（可数）；福利（救济金，常用复数）" },
+        { "pos": "v.", "meaning": "使受益（及物）；受益（benefit from/by，不及物）" }
+      ],
+      "rootAffix": "bene-(好，善，拉丁语 bene)+fit(做，fili) → 做好事 → 益处；同根 benefit/benevolent（仁慈的）/benefactor（恩人）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Regular exercise benefits your health.",
+          "translation": "经常锻炼有益健康。",
+          "analysis": "简单句：主语 Regular exercise + 及物谓语 benefits + 宾语 your health。benefit 直接接宾语表「使受益」，不加 from。"
+        },
+        {
+          "level": "long",
+          "sentence": "The students who benefit most from online learning are those who can manage their own time, a skill that traditional classrooms rarely teach explicitly.",
+          "translation": "从在线学习中受益最多的学生，是那些能够自我管理时间的学生——传统课堂很少明确传授这种能力。",
+          "analysis": "主语 The students + who 定语从句（benefit most from... 受益最多，benefit from 固定搭配）；are those... 表语后接 who 定语从句；a skill that... 是同位语，that 引导定语从句修饰 a skill；rarely explicitly 副词修饰 teach。"
+        }
+      ],
+      "collocations": ["benefit from/by 从…中受益", "reap the benefits 收获好处", "mutual benefit 互利", "social benefits 社会保障金"],
+      "phrases": ["for the benefit of 为了…的利益", "at no extra benefit 无额外好处的"],
+      "derived": [
+        { "word": "beneficial", "meaning": "adj. 有益的（beneficial to）" },
+        { "word": "beneficiary", "meaning": "n. 受益人" },
+        { "word": "benefactor", "meaning": "n. 恩人，捐助者" }
+      ],
+      "synonyms": ["advantage", "profit", "gain"],
+      "易混辨析": "benefit（好处）/ beneficial（有益的，形容词）/ benevolent（仁慈的）/ beneficiary（受益人）——bene 同根「好」家族",
+      "mnemonic": "bene(好)+fit(做) → 做出好处 → 益处、受益"
+    },
+    "campaign": {
+      "syllable": "cam·paign",
+      "pos": "n./v.",
+      "defs": [
+        { "pos": "n.", "meaning": "运动（有组织的系列活动）；战役" },
+        { "pos": "n.", "meaning": "竞选活动" },
+        { "pos": "v.", "meaning": "参加运动；竞选（campaign for/against）" }
+      ],
+      "rootAffix": "camp(田野，军营，拉丁语 campus)+aign → 从军营出发的行动 → 战役；引申为有组织的「运动」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They launched a campaign against smoking.",
+          "translation": "他们发起了一场反对吸烟的运动。",
+          "analysis": "简单句：谓语 launched + 宾语 a campaign + against smoking（反对…的运动，against 表对象）。launch/campaign 搭配高频。"
+        },
+        {
+          "level": "long",
+          "sentence": "The campaign, which was funded largely by small individual donations, proved that grassroots movements could compete with well-financed opponents.",
+          "translation": "这场主要由个人小额捐款资助的运动证明，草根行动可以与资金雄厚的对手抗衡。",
+          "analysis": "主语 The campaign + 非限制性定语从句 which was funded by...（被动语态，largely 修饰 funded）；主句谓语 proved + that 宾语从句；从句是 A could compete with B 结构（compete with 与…抗衡）；well-financed 复合形容词修饰 opponents。"
+        }
+      ],
+      "collocations": ["launch/run a campaign 发起/开展运动", "a campaign against/for 反对/争取…的运动", "election campaign 竞选活动", "advertising campaign 广告攻势"],
+      "phrases": ["campaign for/against 为/反对…而奔走"],
+      "derived": [
+        { "word": "campaigner", "meaning": "n. 运动参与者；活动家" }
+      ],
+      "synonyms": ["movement", "drive", "crusade"],
+      "易混辨析": "campaign（有组织的运动/战役）/ champion（冠军；拥护）/ champagne（香槟）——拼写相近；「运动」义是考研高频",
+      "mnemonic": "camp(营)+aign → 从营地出发的行动 → 战役、运动"
+    },
+    "capable": {
+      "syllable": "ca·pa·ble",
+      "pos": "adj.",
+      "defs": [
+        { "pos": "adj.", "meaning": "有能力的，能干的（capable of doing）" },
+        { "pos": "adj.", "meaning": "（事物）可以…的；有可能做出（好的或坏的）" }
+      ],
+      "rootAffix": "cap(容纳、抓取，拉丁语 capere)+able(可…的) → 装得下、抓得住 → 有能力的；同根 capacity（容量、能力）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She is capable of running a marathon.",
+          "translation": "她有能力跑马拉松。",
+          "analysis": "简单句：主语 She + 系动词 is + 表语 capable；of running a marathon 是 capable 的搭配补足语——capable of + doing（动名词），不能接不定式。"
+        },
+        {
+          "level": "long",
+          "sentence": "The new chip is capable of processing images at speeds that were once thought impossible for machines of this size.",
+          "translation": "新芯片处理图像的速度，曾被认为是这种尺寸的机器不可能达到的。",
+          "analysis": "主语 The new chip + is capable of processing（capable of + doing）；at speeds 是速度状语；that were once thought impossible 是定语从句修饰 speeds（think sth. impossible 的被动式：speeds were thought impossible）；for machines of this size 是逻辑主语补足。"
+        }
+      ],
+      "collocations": ["be capable of doing 有能力做", "a capable manager 能干的经理", "fully capable 完全胜任的"],
+      "phrases": ["capable of anything 什么都做得出来（好/坏）"],
+      "derived": [
+        { "word": "capability", "meaning": "n. 能力（常复数 capabilities）" },
+        { "word": "incapable", "meaning": "adj. 无能力的（incapable of）" },
+        { "word": "capacity", "meaning": "n. 容量；能力（同根）" }
+      ],
+      "synonyms": ["able", "competent", "qualified"],
+      "易混辨析": "capable of doing（接 of+动名词）/ able to do（接不定式）——固定搭配差异是考点；capable 还可表「有可能（干坏事）」",
+      "mnemonic": "cap(容纳)+able → 装得下任务 → 有能力的"
+    },
+    "challenge": {
+      "syllable": "chal·lenge",
+      "pos": "n./v.",
+      "defs": [
+        { "pos": "n.", "meaning": "挑战；难题" },
+        { "pos": "v.", "meaning": "向…挑战；质疑，反对（观点、权威）" },
+        { "pos": "v.", "meaning": "考验，激励（挑战某人的能力）" }
+      ],
+      "rootAffix": "chal(=calumny，诬告、指控，古法语 chalonge) → 指名叫阵 → 挑战；对说法「叫板」→ 质疑",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Learning a language is a real challenge for adults.",
+          "translation": "学语言对成年人是个真正的挑战。",
+          "analysis": "简单句：主语 Learning a language（动名词短语作主语）+ 系动词 is + 表语 a real challenge；for adults 是对象状语。"
+        },
+        {
+          "level": "long",
+          "sentence": "What makes the problem particularly difficult is that the new evidence challenges long-held assumptions about how memory works, assumptions few researchers were willing to question.",
+          "translation": "这个问题之所以特别棘手，是因为新证据挑战了关于记忆如何运作的长期假设——而几乎没有研究者愿意质疑这些假设。",
+          "analysis": "What makes...difficult 是主语从句（what = the thing that）；is that... 表语从句；从句内 challenges long-held assumptions（challenge 取「质疑」义，long-held 复合形容词）；about how memory works 是 assumptions 的后置定语（内嵌 how 宾语从句）；assumptions few researchers... 是同位语+定语从句省略 that 的紧缩形式。"
+        }
+      ],
+      "collocations": ["face/pose a challenge 面临/构成挑战", "challenge the assumption/idea 质疑假设/观点", "take up the challenge 接受挑战", "meet the challenge 应对挑战"],
+      "phrases": ["rise to the challenge 迎战挑战", "challenge sb. to do 激某人比试做"],
+      "derived": [
+        { "word": "challenging", "meaning": "adj. 有挑战性的（a challenging task）" },
+        { "word": "challenger", "meaning": "n. 挑战者" },
+        { "word": "unchallenged", "meaning": "adj. 未受质疑的" }
+      ],
+      "synonyms": ["test", "question", "dispute"],
+      "易混辨析": "challenge（挑战；质疑）/ challenge 的「质疑」义是阅读常考——「challenge the authority」不是「挑战权威的身体」而是「质疑权威」",
+      "mnemonic": "chal(叫阵)+lenge → 叫板 → 挑战；叫板说法 → 质疑"
     }
   }
 }
