@@ -1,14 +1,14 @@
 {
   "meta": {
     "title": "英语单词本地补全词库（人工编写，零 AI 调用）",
-    "version": "batch-3",
-    "batch": 3,
-    "note": "本词库内容为离线编写、随应用发布，补全时不调用任何付费 AI 接口，也不发起网络请求。每条含：多义项释义(defs)、分档例句(examples，含长难句解析 analysis)、词组搭配(collocations)、短语(phrases)、派生词(derived)、词根词缀(rootAffix)、近义词(synonyms)、助记(mnemonic)。未收录的词一律明确提示跳过，绝不臆造。batch-3 新增 30 词（administer ~ anxious），累计 119 词。",
+    "version": "batch-4",
+    "batch": 4,
+    "note": "本词库内容为离线编写、随应用发布，补全时不调用任何付费 AI 接口，也不发起网络请求。每条含：多义项释义(defs)、分档例句(examples，含长难句解析 analysis)、词组搭配(collocations)、短语(phrases)、派生词(derived)、词根词缀(rootAffix)、近义词(synonyms)、助记(mnemonic)。未收录的词一律明确提示跳过，绝不臆造。batch-4 新增 30 词（abide ~ aim），累计 149 词。",
     "schema": {
       "examples[].level": "simple(简易) | long(长难句)",
       "examples[].analysis": "长难句解析：句子结构、从句、特殊句式与词义在此语境下的取义"
     },
-    "nextBatchFrom": "apparent"
+    "nextBatchFrom": "aircraft"
   },
   "entries": {
     "abandon": {
@@ -3917,6 +3917,1782 @@
       ],
       "synonyms": ["worried", "concerned", "eager", "uneasy"],
       "mnemonic": "搭配定词义：anxious **about**（为…担心）/ anxious **to do**（急于做）；名词 anxiety 是考研阅读心理类文章的高频词"
+    },
+    "abide": {
+      "syllable": "a·bide",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "遵守，坚持（abide by）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "忍受，容忍（多用于否定句）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "居住，逗留（较古旧用法）"
+        }
+      ],
+      "rootAffix": "a-（加强）+ bide（停留，同 abide/await）→ 停留不动 → 遵守、忍受",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "All members must abide by the rules.",
+          "translation": "所有成员都必须遵守规则。",
+          "analysis": "简单句：主语 All members + 谓语 must abide + 介词短语 by the rules。abide by 是固定搭配，表「遵守（法律、规则、决定）」，介词只能用 by。"
+        },
+        {
+          "level": "long",
+          "sentence": "Countries that sign the treaty but cannot abide by its reporting requirements often argue that the burden falls unfairly on poorer members, a complaint that richer signatories dismiss as an excuse for non-compliance.",
+          "translation": "签署条约却无力遵守其报告要求的国家常常声称，这一负担对较贫穷的成员不公平；而较富裕的签署国则把这种抱怨斥为不履约的借口。",
+          "analysis": "主从复合句。主语 Countries 后接 that 引导的定语从句（sign the treaty 与 cannot abide by its reporting requirements 并列）；主句谓语 argue，后接 that 引导的宾语从句；a complaint 为同位语，其后 that 引导的定语从句中又含 as an excuse 的比较/补充结构（dismiss A as B 表「把 A 斥为 B」）。abide by 取「遵守」义，non-compliance 与其构成同义呼应。"
+        }
+      ],
+      "collocations": [
+        "abide by 遵守（法律、规则、协议）",
+        "abide by a decision 服从决定",
+        "cannot abide 无法忍受"
+      ],
+      "phrases": [
+        "abide by the rules 守规矩",
+        "abide with sb 与某人同住（古旧）"
+      ],
+      "derived": [
+        {
+          "word": "abiding",
+          "meaning": "adj. 持久的，不变的（an abiding interest）"
+        }
+      ],
+      "synonyms": [
+        "obey",
+        "comply with",
+        "tolerate",
+        "endure"
+      ],
+      "mnemonic": "abide by 记作「守」——介词固定 by；注意与 obey（直接跟宾语，无介词）区分：obey the law ✓ / abide by the law ✓ / abide the law ✗"
+    },
+    "ability": {
+      "syllable": "a·bil·i·ty",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "能力，本领（the ability to do sth）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "才能，才干（可数，多指某方面的）"
+        }
+      ],
+      "rootAffix": "abil（能干，同 able）+ -ity（名词后缀）→ 能干的特性 → 能力",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She has the ability to solve difficult problems.",
+          "translation": "她有解决难题的能力。",
+          "analysis": "简单句：主语 She + 谓语 has + 宾语 the ability + 定语 to solve difficult problems。ability 后固定接不定式作定语（the ability to do），不能说 the ability of doing。"
+        },
+        {
+          "level": "long",
+          "sentence": "What separates experts from novices is not the ability to recall more facts but the ability to notice, almost instantly, which features of a situation matter, a skill that can be trained only through long exposure to real cases.",
+          "translation": "把专家与新手区分开的，不是记住更多事实的能力，而是几乎瞬间察觉情景中哪些特征重要的能力——这种本领只有长期接触真实案例才能练成。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not ... but ... 对比结构，两个 ability 后均接不定式作定语；which features of a situation matter 为宾语从句作 notice 的宾语；a skill 为同位语，后接 that 引导的定语从句（can be trained only through... 为被动 + only 限定）。ability 取「能力」义，本句体现该词在认知科学论述中的高频地位。"
+        }
+      ],
+      "collocations": [
+        "the ability to do sth 做某事的能力",
+        "natural ability 天赋",
+        "have the ability to 有能力做",
+        "to the best of one's ability 尽某人之所能"
+      ],
+      "phrases": [
+        "ability grouping 按能力分组（教学）",
+        "at the height of one's ability 处于能力巅峰"
+      ],
+      "derived": [
+        {
+          "word": "able",
+          "meaning": "adj. 能够的；有能力的"
+        },
+        {
+          "word": "inability",
+          "meaning": "n. 无能力，无法"
+        },
+        {
+          "word": "disabled",
+          "meaning": "adj. 残疾的；失能的"
+        }
+      ],
+      "synonyms": [
+        "capability",
+        "competence",
+        "capacity",
+        "talent"
+      ],
+      "mnemonic": "搭配铁律：ability **to do**（不是 of doing / for doing）；名词 family：ability 能力 / inability 无能 / disability 残疾"
+    },
+    "able": {
+      "syllable": "a·ble",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "能够的，有能力的（be able to do）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "能干的，有才干的（an able lawyer）"
+        }
+      ],
+      "rootAffix": "源自拉丁 habilis（易于操控的，habere 持有）→ 能把握住 → 有能力的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He was able to finish the task on time.",
+          "translation": "他能够按时完成任务。",
+          "analysis": "简单句：主语 He + 系动词 was + 表语 able + 不定式 to finish（作 able 的补足语）。be able to 强调「具备能力并做成」，可替代 can，且能用于 can 所不能用的时态（如 will be able to）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Being able to explain an idea in plain language is often a better test of understanding than being able to repeat its technical definition, because plain language forces the speaker to supply the connections that jargon quietly hides.",
+          "translation": "能用平实语言解释一个想法，往往比能复述其技术定义更能检验理解程度，因为平实语言迫使说话者补上术语悄悄掩盖的那些联系。",
+          "analysis": "主从复合句。主语为动名词短语 Being able to explain an idea in plain language；主句为比较结构 a better test of understanding than being able to repeat...；because 引导原因状语从句，其中 that jargon quietly hides 为定语从句修饰 connections。able 取「能够的」义，与 understanding（理解）构成论证关系。"
+        }
+      ],
+      "collocations": [
+        "be able to do 能够做",
+        "be willing and able 有意愿且有能力",
+        "an able student 有才干的学生"
+      ],
+      "phrases": [
+        "as far as one is able 尽己所能",
+        "better able to 更有能力做"
+      ],
+      "derived": [
+        {
+          "word": "ability",
+          "meaning": "n. 能力"
+        },
+        {
+          "word": "enable",
+          "meaning": "v. 使能够（enable sb to do）"
+        },
+        {
+          "word": "unable",
+          "meaning": "adj. 不能的"
+        }
+      ],
+      "synonyms": [
+        "capable",
+        "competent",
+        "skilled",
+        "qualified"
+      ],
+      "mnemonic": "able 家族：able 能够 → enable 使能够 → disable 使失能 → ability 能力；注意 be able to 可用于将来时（will be able to），而 can 不能"
+    },
+    "abortion": {
+      "syllable": "a·bor·tion",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "流产，人工流产"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（计划、行动的）失败，中途夭折"
+        }
+      ],
+      "rootAffix": "ab-（离开、偏离）+ ort（出生，同 origin）+ -ion → 偏离出生 → 流产；引申为中途失败",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The law restricts access to abortion in some regions.",
+          "translation": "该法律在某些地区限制了人工流产的可获得性。",
+          "analysis": "简单句：主语 The law + 谓语 restricts + 宾语 access + 后置定语 to abortion + 地点状语 in some regions。abortion 取「人工流产」义；access to 为固定搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "The mission's abortion, announced without explanation, left the engineers who had spent years on it wondering whether the decision reflected a technical failure or a change in priorities that no one was willing to describe in public.",
+          "translation": "该任务的中止未经解释便宣布了，这让在此投入数年的工程师们不禁自问：这一决定究竟是反映了技术失败，还是反映了无人愿意公开说明的优先次序变化。",
+          "analysis": "简单句 + 分词结构。主语 The mission's abortion，announced without explanation 为过去分词短语作后置定语，谓语 left，宾语 the engineers 后接 who 引导的定语从句作宾补（leave sb doing sth 结构，此处为 wondering）；whether...or... 引导宾语从句；that no one was willing to describe in public 为定语从句修饰 priorities。abortion 取「（计划）中途失败/夭折」义，这是该词在非医学语境中的常见引申。"
+        }
+      ],
+      "collocations": [
+        "abortion law 堕胎法",
+        "have an abortion 做人工流产",
+        "access to abortion 获得人工流产的途径"
+      ],
+      "phrases": [
+        "the abortion of a plan 计划的夭折",
+        "anti-abortion 反堕胎的"
+      ],
+      "derived": [
+        {
+          "word": "abort",
+          "meaning": "v. 中止（计划、任务）；流产"
+        },
+        {
+          "word": "abortive",
+          "meaning": "adj. 失败的，无结果的（an abortive attempt）"
+        }
+      ],
+      "synonyms": [
+        "termination",
+        "miscarriage",
+        "failure",
+        "collapse"
+      ],
+      "mnemonic": "词根 -ort 表「出生」（同 origin）：ab(偏离)+ortion → 偏离出生 → 流产；引申义「（计划）夭折」在阅读中很常见"
+    },
+    "absence": {
+      "syllable": "ab·sence",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "缺席，不在（absence from）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "缺乏，没有（the absence of sth）"
+        }
+      ],
+      "rootAffix": "ab-（离开）+ sence（存在，同 essence/present）→ 不在场 → 缺席；不存在 → 缺乏",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "His absence from the meeting was noticed.",
+          "translation": "他缺席会议被人注意到了。",
+          "analysis": "简单句：主语 His absence + 后置定语 from the meeting + 谓语 was noticed（被动语态）。absence from 表「缺席（某场合）」，介词固定为 from。"
+        },
+        {
+          "level": "long",
+          "sentence": "In the absence of reliable data, policymakers tend to fall back on anecdotes, which is precisely how a measure that failed in one country comes to be promoted as a model in another.",
+          "translation": "在缺乏可靠数据时，政策制定者往往退而依赖轶事见闻——而这恰恰是某项在一国失败的措施被当作典范向另一国推广的原因。",
+          "analysis": "主从复合句。In the absence of reliable data 为条件状语（表「在没有…的情况下」，是 absence 的第二义「缺乏」的典型用法）；主句谓语 tend to fall back on；which 引导非限制性定语从句指代主句内容；is precisely how... 中 how 引导表语从句，其中 that failed in one country 与 another 呼应，构成对比。"
+        }
+      ],
+      "collocations": [
+        "absence from 缺席",
+        "in the absence of 在缺乏…的情况下",
+        "absence of evidence 证据不足",
+        "leave of absence 休假"
+      ],
+      "phrases": [
+        "conspicuous by its absence 因缺席而引人注目",
+        "during one's absence 在某人不在期间"
+      ],
+      "derived": [
+        {
+          "word": "absent",
+          "meaning": "adj. 缺席的；心不在焉的"
+        },
+        {
+          "word": "absentee",
+          "meaning": "n. 缺席者"
+        },
+        {
+          "word": "present",
+          "meaning": "adj. 出席的（反义对照）"
+        }
+      ],
+      "synonyms": [
+        "lack",
+        "shortage",
+        "nonattendance",
+        "dearth"
+      ],
+      "mnemonic": "sence 与 essence（本质）、present（在场）同源 → absence 即「不在场/不存在」；in the absence of 表「没有…（作前提）」是阅读高频"
+    },
+    "absolute": {
+      "syllable": "ab·so·lute",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "绝对的，完全的（absolute power/truth）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "确实的，无疑的（absolute proof）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "独立的，不受制约的（absolute majority 绝对多数）"
+        }
+      ],
+      "rootAffix": "ab-（离开）+ solut（松开，同 solution/dissolve）→ 松开限制 → 不受制约的 → 绝对的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The general demanded absolute obedience from his troops.",
+          "translation": "这位将军要求部下绝对服从。",
+          "analysis": "简单句：主语 The general + 谓语 demanded + 宾语 absolute obedience + 定语 from his troops。absolute 取「绝对的、无条件的」义，常与 power/obedience/truth 等搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "Historians have largely abandoned the search for absolute causes of the war, arguing instead that decisions which look inevitable in hindsight were in fact contingent on the moods and miscalculations of a handful of men.",
+          "translation": "历史学家已在很大程度上放弃了为这场战争寻找绝对原因，转而主张那些事后看来不可避免的决定，实际上取决于少数几个人的情绪与误判。",
+          "analysis": "简单句 + 分词状语。主句 Historians have largely abandoned the search for absolute causes；arguing instead that... 为现在分词短语作伴随状语，that 引导宾语从句；从句中 which look inevitable in hindsight 为定语从句修饰 decisions，谓语 were contingent on（取决于）后接 the moods and miscalculations。absolute 取「绝对的、唯一的」义，与 contingent（依条件而定的）形成语义对立——这是史学与哲学文本的关键对照。"
+        }
+      ],
+      "collocations": [
+        "absolute power 绝对权力",
+        "absolute majority 绝对多数",
+        "absolute truth 绝对真理",
+        "in absolute terms 从绝对数量看"
+      ],
+      "phrases": [
+        "absolute zero 绝对零度",
+        "the absolute limit 极限"
+      ],
+      "derived": [
+        {
+          "word": "absolutely",
+          "meaning": "adv. 绝对地；完全地（表强调）"
+        },
+        {
+          "word": "absolutism",
+          "meaning": "n. 专制主义；绝对主义"
+        }
+      ],
+      "synonyms": [
+        "complete",
+        "total",
+        "unconditional",
+        "supreme"
+      ],
+      "mnemonic": "solut 是「松开」词根（solution 解决、dissolve 溶解）：ab(离开)+solut → 松开了所有限制 → 绝对的；in absolute terms（按绝对值/绝对量）是图表题常用语"
+    },
+    "accent": {
+      "syllable": "ac·cent",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "口音，腔调（speak with an accent）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "重音；强调（accent on）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "重读；强调，突出"
+        }
+      ],
+      "rootAffix": "ac-（加强，＝ad-）+ cent（唱，同 cant/chant）→ 加强着唱 → 重音 → 口音",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She speaks English with a slight accent.",
+          "translation": "她说英语带一点口音。",
+          "analysis": "简单句：主语 She + 谓语 speaks + 宾语 English + 方式状语 with a slight accent。accent 作名词表「口音」，with an accent 为固定搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "The accent that listeners notice first is not necessarily the one that interferes most with understanding; studies suggest that rhythm and stress patterns matter far more than the pronunciation of individual sounds.",
+          "translation": "听者最先注意到的口音特征，未必是最妨碍理解的那一个；研究表明，节奏与重音模式远比单个音素的发音更重要。",
+          "analysis": "并列复合句。第一分句含两个 that 引导的定语从句（listeners notice first 修饰 The accent；that interferes most with understanding 修饰 the one，the one 指代「某个口音特征」）；分号后第二个分句 studies suggest 后接 that 引导的宾语从句，其中含 far more than 比较结构。accent 取「口音」义，与后文 rhythm/stress（节奏与重音）形成上下位关系——注意 accent 也可表「重音」，本句两种含义相邻出现，须依搭配判断。"
+        }
+      ],
+      "collocations": [
+        "speak with an accent 带口音说话",
+        "a foreign accent 外国口音",
+        "put the accent on 强调；重读",
+        "accent mark 重音符号"
+      ],
+      "phrases": [
+        "in a ... accent 用…口音",
+        "the accent falls on 重音落在…上"
+      ],
+      "derived": [
+        {
+          "word": "accentuate",
+          "meaning": "v. 强调，突出"
+        },
+        {
+          "word": "accented",
+          "meaning": "adj. 带口音的；标重音的"
+        }
+      ],
+      "synonyms": [
+        "stress",
+        "emphasis",
+        "intonation",
+        "pronunciation"
+      ],
+      "mnemonic": "cant/chant 是「唱」词根 → accent 原意是「加强着唱」→ 重音，再引申为口音；动词义「强调」与 emphasize 同义"
+    },
+    "accept": {
+      "syllable": "ac·cept",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "接受，收受（礼物、邀请、建议）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "同意，认可（accept that…）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "承认，认命（accept the situation）"
+        }
+      ],
+      "rootAffix": "ac-（向，＝ad-）+ cept（拿、抓，同 capture/receive）→ 拿过来 → 接受",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She accepted the offer without hesitation.",
+          "translation": "她毫不犹豫地接受了这个提议。",
+          "analysis": "简单句：主语 She + 谓语 accepted + 宾语 the offer + 方式状语 without hesitation。accept 强调「（主动）接受」，与 receive（被动收到）不同：I received the gift 与 I accepted the gift 含义有别。"
+        },
+        {
+          "level": "long",
+          "sentence": "The theory was accepted not because its predictions had all been confirmed but because no rival explanation could account for the same range of evidence, a situation that philosophers of science describe as underdetermination.",
+          "translation": "该理论被接受，并不是因为它的预测已全部得到证实，而是因为没有别的解释能说明同等范围的证据——科学哲学家把这种情形称为「证据不足以决定理论」。",
+          "analysis": "主从复合句。主句为 not because ... but because ... 的原因对比结构；because 从句中 no rival explanation 为主语、could account for 为谓语（情态动词表可能性）；a situation 为同位语，后接 that 引导的定语从句（describe A as B 结构）。accept 取「（学界）接受、认可」义，被动 be accepted 在学术语体中是高频形式。"
+        }
+      ],
+      "collocations": [
+        "accept an offer 接受提议",
+        "accept responsibility 承担责任",
+        "be widely accepted 被广泛接受",
+        "accept sth as 把…当作"
+      ],
+      "phrases": [
+        "accept the fact that 接受…这一事实",
+        "generally accepted 公认的"
+      ],
+      "derived": [
+        {
+          "word": "acceptance",
+          "meaning": "n. 接受；认可"
+        },
+        {
+          "word": "acceptable",
+          "meaning": "adj. 可接受的"
+        },
+        {
+          "word": "unacceptable",
+          "meaning": "adj. 不可接受的"
+        }
+      ],
+      "synonyms": [
+        "receive",
+        "adopt",
+        "embrace",
+        "acknowledge"
+      ],
+      "mnemonic": "cept 是「拿」词根（accept 接受、except 除外、receive 收到）：ac(向)+cept(拿) → 拿过来 → 接受；accept 与 except 只差一个字母，含义相反"
+    },
+    "accident": {
+      "syllable": "ac·ci·dent",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "事故，意外事件（traffic accident）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "偶然，意外（by accident 偶然）"
+        }
+      ],
+      "rootAffix": "ac-（向）+ cid（落下，同 incident/decay）+ -ent → 落到头上的事 → 意外",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The accident was caused by heavy fog.",
+          "translation": "这起事故是由大雾造成的。",
+          "analysis": "简单句：主语 The accident + 谓语 was caused（被动语态）+ 施动者状语 by heavy fog。accident 取「事故」义，cause an accident 与 be caused by 为高频主被动搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "Most industrial accidents are not accidents at all in the strict sense, since investigators usually find that a series of small decisions, each unremarkable on its own, had made the outcome all but certain.",
+          "translation": "多数工业事故严格说来根本不是「意外」，因为调查人员通常会发现，一连串各自都不起眼的小决定，早已使那样的结局几乎成为必然。",
+          "analysis": "主从复合句。主句 Most industrial accidents are not accidents at all in the strict sense（第二个 accidents 与第一个构成同词复说的强调，加 all but 弱化）；since 引导原因状语从句，其中 that 引导宾语从句；each unremarkable on its own 为独立主格式的插入说明，修饰 a series of small decisions；all but certain 表「几乎确定」。accident 的两义（事故 / 意外）在此被刻意并置，是论证的关键。"
+        }
+      ],
+      "collocations": [
+        "traffic accident 交通事故",
+        "by accident 偶然地",
+        "cause an accident 引发事故",
+        "survive an accident 在事故中生还"
+      ],
+      "phrases": [
+        "accident insurance 意外险",
+        "without accident 平安无事地"
+      ],
+      "derived": [
+        {
+          "word": "accidental",
+          "meaning": "adj. 偶然的，意外的"
+        },
+        {
+          "word": "accidentally",
+          "meaning": "adv. 偶然地"
+        },
+        {
+          "word": "incident",
+          "meaning": "n. 事件（常指不愉快的）"
+        }
+      ],
+      "synonyms": [
+        "mishap",
+        "crash",
+        "incident",
+        "coincidence"
+      ],
+      "mnemonic": "cid 是「落下」词根（incident 事件、coincide 巧合）：ac(向)+cid(落) → 落到头上的事 → 意外；by accident（偶然）与 on purpose（故意）成对记"
+    },
+    "acclaim": {
+      "syllable": "ac·claim",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "称赞，欢呼（be acclaimed as）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "赞扬，喝彩（win critical acclaim）"
+        }
+      ],
+      "rootAffix": "ac-（向）+ claim（喊，同 exclaim/proclaim）→ 向某人喊话 → 喝彩、称赞",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The film won critical acclaim.",
+          "translation": "这部影片赢得了评论界的赞誉。",
+          "analysis": "简单句：主语 The film + 谓语 won + 宾语 critical acclaim。acclaim 作不可数名词，critical acclaim 表「评论界好评」，是影评/乐评中的固定说法。"
+        },
+        {
+          "level": "long",
+          "sentence": "The novel, acclaimed on publication as the finest of its generation, is now read mainly by specialists, a fate that suggests how quickly a reputation built on novelty can fade once the novelty itself becomes ordinary.",
+          "translation": "这部小说在出版时被誉为那一代最优秀的作品，如今却主要只有专家在读——这一命运说明，靠新颖性建立的声誉，一旦新颖本身变得平淡，消退得有多快。",
+          "analysis": "主从复合句。主语 The novel，acclaimed on publication as the finest of its generation 为过去分词短语作后置定语（acclaim sb/sth as... 结构）；主句谓语 is now read（被动）+ 施动者 by specialists；a fate 为同位语，后接 that 引导的定语从句，其中 how quickly... 为宾语从句作 suggest 的宾语，once 引导时间状语从句。acclaim 取「赞誉」义。"
+        }
+      ],
+      "collocations": [
+        "critical acclaim 评论界好评",
+        "win acclaim 赢得赞誉",
+        "be acclaimed as 被誉为",
+        "international acclaim 国际赞誉"
+      ],
+      "phrases": [
+        "to great acclaim 大受赞誉地",
+        "acclaim sb for sth 因某事称赞某人"
+      ],
+      "derived": [
+        {
+          "word": "acclamation",
+          "meaning": "n. 欢呼，喝彩"
+        },
+        {
+          "word": "clamo(u)r",
+          "meaning": "n./v. 喧嚷，呼吁"
+        }
+      ],
+      "synonyms": [
+        "praise",
+        "applaud",
+        "hail",
+        "celebrate"
+      ],
+      "mnemonic": "claim/clam 是「喊」词根（exclaim 惊呼、proclaim 宣布）：ac(向)+claim(喊) → 朝某人喊好 → 称赞；broad ac-CLAIM = 广受赞誉"
+    },
+    "accord": {
+      "syllable": "ac·cord",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "一致，符合（in accord with）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "协议，协定（a peace accord）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "给予，授予（accord sb sth）"
+        }
+      ],
+      "rootAffix": "ac-（向）+ cord（心，同 cordial/record）→ 心往一处靠 → 一致、和解",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "His actions are in accord with his words.",
+          "translation": "他的行动与言论一致。",
+          "analysis": "简单句：主语 His actions + 系动词 are + 表语 in accord + 状语 with his words。in accord with 表「与…一致」，是固定短语（另常用 of one's own accord 自愿地）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The peace accord was signed only after both governments had concluded that continuing the war would cost more than the terms they were being asked to accept, a calculation that shifted, month by month, as casualties mounted on both sides.",
+          "translation": "和平协议是在两国政府都断定继续战争付出的代价将超过它们被要求接受的条件之后才签署的；随着双方伤亡增加，这一盘算逐月发生着变化。",
+          "analysis": "主从复合句。主句 The peace accord was signed + only after 引导的时间状语从句；从句中含 that 引导的宾语从句（continuing the war 为动名词作主语，more than the terms 为比较结构）；a calculation 为同位语，后接 that 引导的定语从句（shifted 为谓语，as casualties mounted on both sides 为时间状语从句）。accord 取「协议」义。"
+        }
+      ],
+      "collocations": [
+        "in accord with 与…一致",
+        "of one's own accord 自愿地",
+        "reach an accord 达成协议",
+        "accord sb sth 给予某人某物"
+      ],
+      "phrases": [
+        "with one accord 一致地",
+        "a peace accord 和平协议"
+      ],
+      "derived": [
+        {
+          "word": "accordance",
+          "meaning": "n. 一致（in accordance with 依照）"
+        },
+        {
+          "word": "accordingly",
+          "meaning": "adv. 相应地；因此"
+        },
+        {
+          "word": "cordial",
+          "meaning": "adj. 热诚的"
+        }
+      ],
+      "synonyms": [
+        "agreement",
+        "harmony",
+        "treaty",
+        "grant"
+      ],
+      "mnemonic": "cord 是「心」词根（record 记录，原义「放在心上」）→ ac + cord = 一条心 → 一致；三个高频短语：in accord with / of one's own accord / in accordance with"
+    },
+    "acid": {
+      "syllable": "ac·id",
+      "pos": "n./adj.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "酸，酸性物质"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "酸的；酸性的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "尖刻的，刻薄的（an acid remark）"
+        }
+      ],
+      "rootAffix": "源自拉丁 acidus（酸的，acere 变酸）→ 酸",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Acid rain has damaged many forests in the region.",
+          "translation": "酸雨损害了该地区的许多森林。",
+          "analysis": "简单句：主语 Acid rain + 谓语 has damaged（现在完成时）+ 宾语 many forests + 地点状语。acid 作名词修饰 rain，构成固定的环境类术语 acid rain（酸雨）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Ocean acidification, caused by the absorption of carbon dioxide, threatens organisms whose shells dissolve in slightly more acidic water, a process that scientists say is now advancing faster than at any time in the past fifty million years.",
+          "translation": "由二氧化碳吸收引起的海洋酸化，正威胁着那些外壳会在酸性略强的水中溶解的生物；科学家称，这一过程目前的推进速度超过了过去五千万年中的任何时期。",
+          "analysis": "主从复合句。主语 Ocean acidification，caused by the absorption of carbon dioxide 为过去分词短语作后置定语，谓语 threatens，宾语 organisms 后接 whose 引导的定语从句；a process 为同位语，后接 that 引导的定语从句，从句含 scientists say 插入语与 faster than at any time... 比较结构。acid 的派生形式 acidic（酸性的）在科技语体中比 acid 更常用。"
+        }
+      ],
+      "collocations": [
+        "acid rain 酸雨",
+        "acid test 严峻的考验",
+        "acidic soil 酸性土壤",
+        "amino acid 氨基酸"
+      ],
+      "phrases": [
+        "the acid test of 对…的严酷检验",
+        "acid reflux 胃酸反流"
+      ],
+      "derived": [
+        {
+          "word": "acidic",
+          "meaning": "adj. 酸性的（科技语体常用）"
+        },
+        {
+          "word": "acidity",
+          "meaning": "n. 酸度，酸性"
+        },
+        {
+          "word": "acidification",
+          "meaning": "n. 酸化"
+        }
+      ],
+      "synonyms": [
+        "sour",
+        "tart",
+        "caustic",
+        "biting"
+      ],
+      "mnemonic": "acid 由「酸」引申出「尖刻」（an acid tone 尖酸语气）；acid test（决定性考验）源自古法 gold 用酸检验的典故，是阅读常见习语"
+    },
+    "action": {
+      "syllable": "ac·tion",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "行动，行为（take action）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "作用，影响（the action of sth on sth）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（法律）诉讼（bring an action against）"
+        }
+      ],
+      "rootAffix": "act（做）+ -ion（名词后缀）→ 做的过程 → 行动",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The government must take action to reduce emissions.",
+          "translation": "政府必须采取行动减少排放。",
+          "analysis": "简单句：主语 The government + 谓语 must take + 宾语 action + 目的状语 to reduce emissions。take action 是固定搭配（action 不可数、不加冠词），表「采取行动」。"
+        },
+        {
+          "level": "long",
+          "sentence": "What distinguishes a profession from a trade is not the complexity of its tasks but the fact that its members accept responsibility for the consequences of their actions, even when those consequences were impossible to foresee.",
+          "translation": "把专业与手艺区分开的，不是任务的复杂程度，而是这样一个事实：其成员为自己的行为后果承担责任，即便那些后果当时无法预见。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not ... but ... 对比结构；the fact 后接 that 引导的同位语从句（accept responsibility for 为固定搭配，for 的宾语是 the consequences，其后 of their actions 为后置定语）；even when 引导让步状语从句。action 取「行为」义（常用复数表一系列行为）。"
+        }
+      ],
+      "collocations": [
+        "take action 采取行动",
+        "course of action 行动方案",
+        "call for action 呼吁行动",
+        "in action 在行动中；在运转"
+      ],
+      "phrases": [
+        "put sth into action 把…付诸实施",
+        "action plan 行动计划"
+      ],
+      "derived": [
+        {
+          "word": "act",
+          "meaning": "v. 行动 n. 行为；法案"
+        },
+        {
+          "word": "active",
+          "meaning": "adj. 积极的，活跃的"
+        },
+        {
+          "word": "activate",
+          "meaning": "v. 激活，启动"
+        }
+      ],
+      "synonyms": [
+        "deed",
+        "measure",
+        "move",
+        "operation"
+      ],
+      "mnemonic": "take action（采取行动）中 action 不加冠词 —— 这是考研写作的高频失分点；action/act 名词辨析：act 指单个举动，action 指行动过程或举措"
+    },
+    "active": {
+      "syllable": "ac·tive",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "积极的，主动的（take an active part in）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "活跃的，繁忙的（an active market）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（语法）主动的；有效的（active ingredient）"
+        }
+      ],
+      "rootAffix": "act（做）+ -ive（有…性质的）→ 有行动力的 → 积极的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She plays an active role in the community.",
+          "translation": "她在社区中发挥着积极作用。",
+          "analysis": "简单句：主语 She + 谓语 plays + 宾语 an active role + 地点状语 in the community。play an active role in 是固定搭配，表「在…中发挥积极作用」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Learning a language is far more effective when the learner takes an active part in shaping what is studied than when a syllabus decides in advance every item that must be mastered.",
+          "translation": "当学习者积极参与决定要学什么时，语言学习的效果远好于由大纲事先决定每一必须掌握的项目。",
+          "analysis": "主从复合句。主句为比较结构 is far more effective when ... than when ...（两个 when 引导的时间/条件状语从句对比）；第一个从句中 what is studied 为宾语从句作 shaping 的宾语（take an active part in doing 结构）；第二个从句中 every item 后接 that 引导的定语从句。active 取「主动的、积极的」义，与后文 syllabus decides in advance 形成对照。"
+        }
+      ],
+      "collocations": [
+        "take an active part in 积极参与",
+        "play an active role 发挥积极作用",
+        "active ingredient 有效成分",
+        "active participation 主动参与"
+      ],
+      "phrases": [
+        "be active in 活跃于；积极参与",
+        "active voice 主动语态（语法）"
+      ],
+      "derived": [
+        {
+          "word": "actively",
+          "meaning": "adv. 积极地"
+        },
+        {
+          "word": "activity",
+          "meaning": "n. 活动；活跃"
+        },
+        {
+          "word": "inactive",
+          "meaning": "adj. 不活跃的"
+        }
+      ],
+      "synonyms": [
+        "energetic",
+        "dynamic",
+        "engaged",
+        "vigorous"
+      ],
+      "mnemonic": "act 家族：act 行动 / action 行动 / active 积极的 / activity 活动 / activate 激活 —— 一条「做」的语义链"
+    },
+    "actual": {
+      "syllable": "ac·tu·al",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "实际的，事实上的（the actual cost）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "真实的，确实的（actual evidence）"
+        }
+      ],
+      "rootAffix": "act（做）+ -ual（…的）→ 做出来的 → 实际的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The actual cost was much higher than the estimate.",
+          "translation": "实际成本远高于估算。",
+          "analysis": "简单句：主语 The actual cost + 系动词 was + 表语 much higher + 比较状语 than the estimate。actual 取「实际的」义，与 estimate（估算）、plan（计划）等构成常见的「实际 vs 预期」对照。"
+        },
+        {
+          "level": "long",
+          "sentence": "Policies often fail not because their designers misunderstood the problem but because they ignored how differently people behave in practice from how they say they will behave, a gap that separates stated intentions from actual conduct.",
+          "translation": "政策常常失败，不是因为设计者误解了问题，而是因为他们忽视了人们在实践中的行为与口头表示会怎么做之间的差距——这一差距把声称的意愿与实际行为区分开来。",
+          "analysis": "主从复合句。主句为 not because ... but because ... 原因对比；第二个 because 从句中 how differently people behave in practice 与 from how they say they will behave 构成 how...from how... 的比较结构；a gap 为同位语，后接 that 引导的定语从句（separates A from B 结构）。actual 取「实际的」义，与 stated（声称的）形成对照。"
+        }
+      ],
+      "collocations": [
+        "actual cost 实际成本",
+        "in actual fact 实际上",
+        "actual situation 实际情况",
+        "actual performance 实际表现"
+      ],
+      "phrases": [
+        "the actual number 实际数量",
+        "actual results 实际结果"
+      ],
+      "derived": [
+        {
+          "word": "actually",
+          "meaning": "adv. 实际上；其实"
+        },
+        {
+          "word": "actuality",
+          "meaning": "n. 现实，实际情况"
+        }
+      ],
+      "synonyms": [
+        "real",
+        "genuine",
+        "factual",
+        "true"
+      ],
+      "mnemonic": "actual 强调「事实上的」而非「当前的」（current）：the actual cost 实际花费 vs the current cost 当前花费；副词 actually 常表「其实」（纠正预期）"
+    },
+    "add": {
+      "syllable": "add",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "添加，增加（add sth to sth）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "补充说（add that…）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把…相加（add up）"
+        }
+      ],
+      "rootAffix": "源自拉丁 addere（加上，ad- 向 + dare 给）→ 再给上 → 添加",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Please add some salt to the soup.",
+          "translation": "请往汤里加些盐。",
+          "analysis": "简单句：主语（省略的 you）+ 谓语 add + 宾语 some salt + 状语 to the soup。add A to B 表「把 A 加到 B 中」，介词固定为 to。"
+        },
+        {
+          "level": "long",
+          "sentence": "Every regulation adds a cost that its sponsors rarely acknowledge, and because those costs are spread thinly across millions of decisions while the benefit is concentrated on a visible few, the arithmetic of reform is almost always distorted in public debate.",
+          "translation": "每一项监管都会增加一项其倡导者很少承认的成本；由于这些成本被薄薄地摊到数百万个决定之中，而收益却集中在少数看得见的人身上，改革的账目在公共辩论中几乎总是被扭曲的。",
+          "analysis": "并列主从复合句。第一分句谓语 adds，宾语 a cost 后接 that 引导的定语从句；第二分句由 because 引导原因状语从句（含 while 引导的对比状语从句，the benefit is concentrated on a visible few 中 a visible few 表「少数显眼的人」），主句为 the arithmetic of reform is almost always distorted。add 取「增加」义，与 spread/concentrated 形成经济学味十足的对照。"
+        }
+      ],
+      "collocations": [
+        "add sth to sth 把…加到…",
+        "add up to 总计达；意味着",
+        "add value 增值",
+        "add to the problem 使问题加重"
+      ],
+      "phrases": [
+        "add fuel to the fire 火上浇油",
+        "to add to sth 更糟的是"
+      ],
+      "derived": [
+        {
+          "word": "addition",
+          "meaning": "n. 增加；in addition 此外"
+        },
+        {
+          "word": "additional",
+          "meaning": "adj. 额外的，附加的"
+        },
+        {
+          "word": "additive",
+          "meaning": "n. 添加剂"
+        }
+      ],
+      "synonyms": [
+        "attach",
+        "append",
+        "supplement",
+        "increase"
+      ],
+      "mnemonic": "add up to（总计/意味着）是阅读高频短语；写作连接词 in addition / additional 同族，注意 in addition to 后接名词或动名词"
+    },
+    "adjacent": {
+      "syllable": "ad·ja·cent",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "邻近的，毗连的（adjacent to）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（抽象）紧接的，紧接着的"
+        }
+      ],
+      "rootAffix": "ad-（向）+ jac（躺，同 jacent/jet）+ -ent → 躺在旁边 → 邻近的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The hotel is adjacent to the railway station.",
+          "translation": "这家旅馆紧邻火车站。",
+          "analysis": "简单句：主语 The hotel + 系动词 is + 表语 adjacent + 状语 to the railway station。adjacent to 是固定搭配（介词只能是 to），表「与…毗连」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Because pollution does not respect borders, factories in one province can impose costs on residents of adjacent provinces, an externality that no local government has an incentive to address on its own.",
+          "translation": "由于污染不分边界，一个省份的工厂可以把它造成的成本强加给相邻省份的居民——这是一种没有哪个地方政府有动力独自解决的外部性。",
+          "analysis": "主从复合句。Because 引导原因状语从句（does not respect borders 用拟人化表达）；主句 impose costs on（把成本强加给）后接宾语 residents of adjacent provinces；an externality 为同位语，后接 that 引导的定语从句（no local government has an incentive to address 中 incentive to do 为固定搭配，on its own 表「独自」）。adjacent 取「相邻的」义。"
+        }
+      ],
+      "collocations": [
+        "adjacent to 与…毗邻",
+        "adjacent areas 邻近地区",
+        "immediately adjacent 紧邻的"
+      ],
+      "phrases": [
+        "adjacent rooms 相邻的房间",
+        "in adjacent fields 在相邻领域"
+      ],
+      "derived": [
+        {
+          "word": "adjacency",
+          "meaning": "n. 邻近，毗连"
+        },
+        {
+          "word": "adjoin",
+          "meaning": "v. 毗连（adjoining rooms 相连的房间）"
+        }
+      ],
+      "synonyms": [
+        "neighbouring",
+        "bordering",
+        "contiguous",
+        "next to"
+      ],
+      "mnemonic": "jac 是「躺」词根（jet 喷射，原义「被抛出」）→ ad(向)+jacent(躺) → 躺在旁边 → 邻近；介词固定 to（不是 with）"
+    },
+    "admire": {
+      "syllable": "ad·mire",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "钦佩，赞赏（admire sb for sth）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "欣赏，观赏（admire the view）"
+        }
+      ],
+      "rootAffix": "ad-（向）+ mir（惊奇，同 miracle/mirror）→ 望着某物感到惊奇 → 钦佩",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I admire her for her honesty.",
+          "translation": "我钦佩她的诚实。",
+          "analysis": "简单句：主语 I + 谓语 admire + 宾语 her + 原因状语 for her honesty。admire sb for sth 是固定搭配，表「因某事而钦佩某人」。"
+        },
+        {
+          "level": "long",
+          "sentence": "We tend to admire people who succeed against the odds, yet the very obstacles that make their achievements admirable also mean that thousands with equal talent never got the chance to be noticed.",
+          "translation": "我们往往钦佩那些逆境中成功的人，然而正是那些让他们的成就值得钦佩的障碍，也意味着成千上万同样有才华的人从未获得被注意的机会。",
+          "analysis": "并列复合句。第一分句 We tend to admire people 后接 who 引导的定语从句（against the odds 表「克服不利条件」）；yet 连接转折分句，主语 the very obstacles（very 起强调作用）后接 that 引导的定语从句，谓语 mean，后接 that 引导的宾语从句。admire 取「钦佩」义，与形容词 admirable（值得钦佩的）同族呼应。"
+        }
+      ],
+      "collocations": [
+        "admire sb for sth 因某事钦佩某人",
+        "admire the view 欣赏景色",
+        "be widely admired 广受钦佩",
+        "admire sb's courage 钦佩某人的勇气"
+      ],
+      "phrases": [
+        "admire sb from afar 远远仰慕",
+        "much admired 备受赞赏的"
+      ],
+      "derived": [
+        {
+          "word": "admiration",
+          "meaning": "n. 钦佩，赞赏"
+        },
+        {
+          "word": "admirable",
+          "meaning": "adj. 值得钦佩的，令人赞赏的"
+        },
+        {
+          "word": "admirer",
+          "meaning": "n. 钦佩者；仰慕者"
+        }
+      ],
+      "synonyms": [
+        "respect",
+        "esteem",
+        "appreciate",
+        "revere"
+      ],
+      "mnemonic": "mir 是「惊奇」词根（miracle 奇迹、mirror 镜子）→ ad + mir = 朝某物投去惊奇目光 → 钦佩；搭配常考 admire sb **for** sth"
+    },
+    "adore": {
+      "syllable": "a·dore",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "热爱，爱慕（程度强于 like/love）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "崇拜，敬慕"
+        }
+      ],
+      "rootAffix": "ad-（向）+ or（说、祈祷，同 oracle/oral）→ 向…祈祷 → 崇拜 → 热爱",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The children adore their grandmother.",
+          "translation": "孩子们非常爱他们的祖母。",
+          "analysis": "简单句：主语 The children + 谓语 adore + 宾语 their grandmother。adore 表示强烈的喜爱（程度高于 like，接近「极爱」），日常口语中也可表「非常喜欢某物」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Readers who adore a writer's early work often resent the later books that made her famous, as though popularity itself were evidence that the writing had been diluted to suit a wider audience.",
+          "translation": "钟爱某位作家早期作品的读者，往往对后来让她成名的那些书心怀不满，仿佛受欢迎本身就成了写作已被稀释以迎合更广大读者的证据。",
+          "analysis": "主从复合句。主语 Readers 后接 who 引导的定语从句；主句谓语 resent，宾语 the later books 后接 that 引导的定语从句；as though 引导方式状语从句，使用虚拟语气（were），其中 that 引导同位语从句说明 evidence 的内容。adore 取「钟爱」义，与 resent（不满）形成鲜明对比，是文学评论中的常见张力。"
+        }
+      ],
+      "collocations": [
+        "adore sb 深爱某人",
+        "absolutely adore 极其喜爱",
+        "be adored by 受…爱戴"
+      ],
+      "phrases": [
+        "adore doing sth 非常喜欢做某事",
+        "an adored figure 受人爱戴的人物"
+      ],
+      "derived": [
+        {
+          "word": "adorable",
+          "meaning": "adj. 可爱的，讨人喜欢的"
+        },
+        {
+          "word": "adoration",
+          "meaning": "n. 爱慕，崇拜"
+        }
+      ],
+      "synonyms": [
+        "love",
+        "worship",
+        "cherish",
+        "dote on"
+      ],
+      "mnemonic": "or 是「说、祈祷」词根（oral 口头的、oracle 神谕）→ 向…祈祷即有崇拜之意 → adore；形容词 adorable（可爱的）来自同一词根"
+    },
+    "adult": {
+      "syllable": "a·dult",
+      "pos": "n./adj.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "成年人"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "成年的，成熟的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（内容）仅供成人的"
+        }
+      ],
+      "rootAffix": "源自拉丁 adultus（已长成的，adolescere 生长 的过去分词）→ 长成的人",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The course is designed for adult learners.",
+          "translation": "这门课程是为成人学习者设计的。",
+          "analysis": "简单句：主语 The course + 谓语 is designed（被动语态）+ 目的状语 for adult learners。adult 作定语取「成年的」义，adult learners 表「成人学习者」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Adults who return to study after years of work often discover that their main advantage is not greater discipline but a clearer sense of which questions are worth asking, a judgement that younger students can rarely supply in advance.",
+          "translation": "工作多年后重返学习的成年人往往发现，他们的主要优势不是更强的自律，而是更清楚哪些问题值得追问——这种判断力年轻学生很少能事先具备。",
+          "analysis": "主从复合句。主语 Adults 后接 who 引导的定语从句（after years of work 为时间状语）；主句谓语 discover，后接 that 引导的宾语从句，从句为 not ... but ... 对比结构，其中 which questions are worth asking 为宾语从句作 of 的宾语；a judgement 为同位语，后接 that 引导的定语从句。adult 取「成年人」义。"
+        }
+      ],
+      "collocations": [
+        "adult education 成人教育",
+        "adult learners 成人学习者",
+        "young adult 青年（18~25 岁）",
+        "adult life 成年生活"
+      ],
+      "phrases": [
+        "in adult years 成年后",
+        "adult supervision 成人监护"
+      ],
+      "derived": [
+        {
+          "word": "adulthood",
+          "meaning": "n. 成年（期）"
+        },
+        {
+          "word": "adolescent",
+          "meaning": "n. 青少年"
+        },
+        {
+          "word": "adolescence",
+          "meaning": "n. 青春期"
+        }
+      ],
+      "synonyms": [
+        "grown-up",
+        "mature",
+        "full-grown"
+      ],
+      "mnemonic": "同源三词按成长阶段记：adolescent 青少年（正在长成）→ adult 成年人（已长成）→ adulthood 成年期；形容词义「仅供成人的」常出现在影视分级"
+    },
+    "adventure": {
+      "syllable": "ad·ven·ture",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "冒险，冒险经历"
+        },
+        {
+          "pos": "n.",
+          "meaning": "奇遇；大胆的尝试"
+        }
+      ],
+      "rootAffix": "ad-（向）+ vent（来，同 advent/invent）+ -ure → 即将到来之事 → 冒险",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They set off on an adventure across the desert.",
+          "translation": "他们出发去穿越沙漠冒险。",
+          "analysis": "简单句：主语 They + 谓语 set off + 状语 on an adventure + 后置定语 across the desert。set off on an adventure 表「出发去冒险」，是固定搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "What makes an expedition an adventure is not the distance covered but the fact that its outcome cannot be known in advance, a condition that modern technology has made surprisingly hard to preserve.",
+          "translation": "让一次远征成为冒险的，不是走过的距离，而是其结果无法事先知晓这一事实——而现代技术已使这种状态变得出人意料地难以保持。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not ... but ... 对比结构；the fact 后接 that 引导的同位语从句（its outcome cannot be known in advance 为被动语态）；a condition 为同位语，后接 that 引导的定语从句，从句含 make + 宾语 + 形容词补足语（hard to preserve）结构。adventure 取「冒险」义。"
+        }
+      ],
+      "collocations": [
+        "set off on an adventure 出发去冒险",
+        "a sense of adventure 冒险精神",
+        "an adventure story 冒险故事"
+      ],
+      "phrases": [
+        "adventure tourism 探险旅游",
+        "seek adventure 寻求冒险"
+      ],
+      "derived": [
+        {
+          "word": "adventurous",
+          "meaning": "adj. 爱冒险的；惊险的"
+        },
+        {
+          "word": "adventurer",
+          "meaning": "n. 冒险家"
+        }
+      ],
+      "synonyms": [
+        "venture",
+        "expedition",
+        "exploit",
+        "quest"
+      ],
+      "mnemonic": "vent 是「来」词根（advent 到来、invent 发明）：ad(向)+vent(来)+ure → 将要到来的未知之事 → 冒险"
+    },
+    "advice": {
+      "syllable": "ad·vice",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "建议，忠告（不可数）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（专业）意见，咨询"
+        }
+      ],
+      "rootAffix": "ad-（向）+ vis（看，同 vision/visit）→ 帮你看清 → 建议",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He gave me some useful advice.",
+          "translation": "他给了我一些有用的建议。",
+          "analysis": "简单句：主语 He + 谓语 gave + 间接宾语 me + 直接宾语 some useful advice。advice 为**不可数名词**，故用 some 而非 a/an，也不能加 -s。"
+        },
+        {
+          "level": "long",
+          "sentence": "Advice that costs the adviser nothing is often the most freely given, which is why recommendations from people who will not live with the consequences deserve to be weighed far more carefully than their confidence suggests.",
+          "translation": "对提建议者毫无代价的建议，往往最容易被随口给出——正因如此，那些不会承受后果之人的建议，值得比他们的自信所暗示的更审慎地衡量。",
+          "analysis": "主从复合句。主语 Advice 后接 that 引导的定语从句（costs the adviser nothing 为双宾语结构）；主句谓语 is often the most freely given（最高级 + 被动）；which 引导非限制性定语从句指代主句；why 引导表语从句，其中 from people 后接 who 引导的定语从句，比较结构 far more carefully than their confidence suggests。advice 取「建议」义。"
+        }
+      ],
+      "collocations": [
+        "give sb advice 给某人建议",
+        "a piece of advice 一条建议（可数化）",
+        "seek advice 征求意见",
+        "follow one's advice 听从某人的建议"
+      ],
+      "phrases": [
+        "take legal advice 咨询法律意见",
+        "against sb's advice 违背某人的劝告"
+      ],
+      "derived": [
+        {
+          "word": "advise",
+          "meaning": "v. 建议，劝告"
+        },
+        {
+          "word": "adviser",
+          "meaning": "n. 顾问，建议者"
+        },
+        {
+          "word": "advisable",
+          "meaning": "adj. 明智的，可取的"
+        }
+      ],
+      "synonyms": [
+        "recommendation",
+        "counsel",
+        "guidance",
+        "tip"
+      ],
+      "mnemonic": "拼写铁律：advice **不可数**（名词）、advise **动词** —— 与 practice/practise 同类；「一条建议」说 a piece of advice"
+    },
+    "advise": {
+      "syllable": "ad·vise",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "建议，劝告（advise sb to do）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（专业）为…提供意见，咨询"
+        },
+        {
+          "pos": "v.",
+          "meaning": "通知（正式用法，advise sb of sth）"
+        }
+      ],
+      "rootAffix": "ad-（向）+ vis（看）→ 帮人看清 → 建议（名词形式 advice）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The doctor advised him to rest for a week.",
+          "translation": "医生建议他休息一周。",
+          "analysis": "简单句：主语 The doctor + 谓语 advised + 宾语 him + 宾补 to rest（advise sb to do sth 结构）。注意 advise 后接不定式作宾补，不能说 advise sb doing。"
+        },
+        {
+          "level": "long",
+          "sentence": "Economists who advised governments to cut spending in a recession were later criticised for the suffering their advice caused, though many insisted that the alternative — doing nothing — would have been worse still.",
+          "translation": "曾建议政府在衰退期削减开支的经济学家，后来因其建议造成的痛苦受到批评；不过许多人坚称，另一种选择——什么都不做——后果只会更糟。",
+          "analysis": "主从复合句。主语 Economists 后接 who 引导的定语从句（advise sb to do 结构）；主句谓语 were later criticised（被动）+ for the suffering（其后 their advice caused 为省略关系词的定语从句）；though 引导让步状语从句，其中破折号内 doing nothing 为同位解释，would have been worse still 为虚拟语气（对过去相反情况的推断）。advise 取「建议」义。"
+        }
+      ],
+      "collocations": [
+        "advise sb to do 建议某人做",
+        "advise against 建议不要（做）",
+        "advise on 就…提供建议",
+        "be well advised to 最好还是"
+      ],
+      "phrases": [
+        "advise sb of sth 通知某人某事",
+        "strongly advise 强烈建议"
+      ],
+      "derived": [
+        {
+          "word": "advice",
+          "meaning": "n. 建议（不可数）"
+        },
+        {
+          "word": "adviser",
+          "meaning": "n. 顾问"
+        },
+        {
+          "word": "advisory",
+          "meaning": "adj. 咨询的；劝告的 n. 公告"
+        }
+      ],
+      "synonyms": [
+        "recommend",
+        "counsel",
+        "urge",
+        "suggest"
+      ],
+      "mnemonic": "动词 advise / 名词 advice：拼写只差一个字母，词性却完全不同（suggest 后也不能接 to do：suggest doing ✓）"
+    },
+    "affair": {
+      "syllable": "af·fair",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "事情，事件（an affair）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（复数）事务，业务（foreign affairs 外交事务）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "私情，风流韵事"
+        }
+      ],
+      "rootAffix": "源自法语 affaire（a- 向 + faire 做）→ 要做的事 → 事务",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "That is my own affair.",
+          "translation": "那是我自己的事。",
+          "analysis": "简单句：主语 That + 系动词 is + 表语 my own affair。affair 取「（私人的）事情」义，my own affair 含「与你无关」的语用色彩。"
+        },
+        {
+          "level": "long",
+          "sentence": "The scandal was, in the end, less an affair of money than of trust: donors could forgive the sums that had been lost, but not the suspicion that every future report would be written to conceal something.",
+          "translation": "这桩丑闻归根结底与其说是钱的问题，不如说是信任的问题：捐赠者可以原谅那些亏掉的钱，却无法容忍这种怀疑——今后每一份报告都是为了掩盖什么而写的。",
+          "analysis": "主从复合句。主句为 less ... than ... 对比结构（an affair of money 与 of trust 对比，affair of 表「…的问题/性质」）；冒号后为解释，含 could forgive...but not... 并列谓语；the suspicion 后接 that 引导的同位语从句，其中 every future report would be written to conceal something 为被动 + 目的状语。affair 取「（性质上属）事情」义。"
+        }
+      ],
+      "collocations": [
+        "foreign affairs 外交事务",
+        "current affairs 时事",
+        "a private affair 私事",
+        "public affairs 公共事务"
+      ],
+      "phrases": [
+        "a matter of ... affairs 事务问题",
+        "have an affair with 与…有私情"
+      ],
+      "derived": [
+        {
+          "word": "affairs",
+          "meaning": "n. 事务，业务（常用复数）"
+        }
+      ],
+      "synonyms": [
+        "matter",
+        "business",
+        "concern",
+        "event"
+      ],
+      "mnemonic": "复数 affairs 表「（公共/业务）事务」（foreign affairs 外交），单数多指「（私）事」或「私情」——看单复数判断含义"
+    },
+    "afraid": {
+      "syllable": "a·fraid",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "害怕的，恐惧的（be afraid of）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "担心的，恐怕（be afraid that…）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（委婉）很抱歉要说（I'm afraid…）"
+        }
+      ],
+      "rootAffix": "源自中古英语 affraien（使惊骇）→ 被惊吓的 → 害怕的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Many people are afraid of making mistakes.",
+          "translation": "许多人害怕犯错。",
+          "analysis": "简单句：主语 Many people + 系动词 are + 表语 afraid + 状语 of making mistakes。be afraid of doing 表「害怕做（此事）」，与 be afraid to do（不敢做）语义侧重不同。"
+        },
+        {
+          "level": "long",
+          "sentence": "Organisations that punish every mistake soon find that employees become afraid of taking any initiative, and the very risk-aversion that makes individual errors rare makes collective failure far more likely in a crisis.",
+          "translation": "惩罚一切错误的组织很快会发现，员工变得害怕主动做事；而这种让个人失误变少的风险规避，反而使集体在危机中失败的可能性大大增加。",
+          "analysis": "并列主从复合句。第一分句主语 Organisations 后接 that 引导的定语从句，谓语 find，后接 that 引导的宾语从句（be afraid of taking any initiative 为固定搭配）；第二分句主语为 the very risk-aversion（that 引导的定语从句修饰它），谓语 makes collective failure far more likely（make + 宾语 + 补足语比较结构）。afraid 取「害怕的」义。"
+        }
+      ],
+      "collocations": [
+        "be afraid of 害怕",
+        "be afraid to do 不敢做",
+        "be afraid that 担心；恐怕",
+        "I'm afraid so/not 恐怕如此/不是"
+      ],
+      "phrases": [
+        "afraid of one's own shadow 极度胆小",
+        "nothing to be afraid of 没什么可怕的"
+      ],
+      "derived": [
+        {
+          "word": "fear",
+          "meaning": "n./v. 恐惧，害怕"
+        }
+      ],
+      "synonyms": [
+        "frightened",
+        "scared",
+        "fearful",
+        "apprehensive"
+      ],
+      "mnemonic": "afraid 只作表语（不能说 an afraid boy，要用 a frightened boy）；区分 be afraid of doing（怕这件事）与 be afraid to do（不敢去做）"
+    },
+    "ago": {
+      "syllable": "a·go",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "（多久）以前（与段时间连用）"
+        }
+      ],
+      "rootAffix": "源自古英语 agan（过去，与 ago 同源）→ 过去时 → 以前",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She left the company three years ago.",
+          "translation": "她三年前离开了这家公司。",
+          "analysis": "简单句：主语 She + 谓语 left（一般过去时）+ 宾语 the company + 时间状语 three years ago。ago 与一般过去时连用（不能用现在完成时），且置于时间量之后。"
+        },
+        {
+          "level": "long",
+          "sentence": "The prediction made decades ago that machines would soon take over routine work has proved accurate in many factories, yet the job losses that were expected to follow have materialised far more slowly than the forecasters assumed.",
+          "translation": "几十年前关于机器将很快接管常规工作的预测，在许多工厂已证明是准确的；然而，当年预期会随之而来的失业，其出现却远比预测者设想的缓慢。",
+          "analysis": "并列复合句。第一分句主语 The prediction，made decades ago 为过去分词短语作后置定语，后接 that 引导的同位语从句；谓语 has proved accurate。第二分句由 yet 引导转折，主语 the job losses 后接 that 引导的定语从句（were expected to follow 为被动），谓语 have materialised。ago 只与段时间连用（decades ago），构成时间状语。"
+        }
+      ],
+      "collocations": [
+        "long ago 很久以前",
+        "years ago 多年前",
+        "a moment ago 刚才",
+        "not long ago 不久前"
+      ],
+      "phrases": [
+        "ago 与一般过去时连用（语法要点）",
+        "since ... ago 自…以前以来（罕见，注意语病）"
+      ],
+      "derived": [
+        {
+          "word": "agoing",
+          "meaning": "（罕用）"
+        }
+      ],
+      "synonyms": [
+        "before",
+        "earlier",
+        "previously",
+        "back"
+      ],
+      "mnemonic": "两条语法铁律：① ago 只与**一般过去时**连用（three years ago, left ✓；has left ✗）；② 位置固定：时间段 + ago（three years ago，不是 ago three years）"
+    },
+    "agree": {
+      "syllable": "a·gree",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "同意，赞同（agree with/to/on）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（与…）一致，相符（agree with）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "商定，达成一致（agree to do）"
+        }
+      ],
+      "rootAffix": "a-（向）+ gree（喜悦、满意，同 gratitude）→ 使双方满意 → 同意",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We all agree on this point.",
+          "translation": "我们在这一点上意见一致。",
+          "analysis": "简单句：主语 We all + 谓语 agree + 状语 on this point。agree on 表「就某事达成一致」，用于双方共同决定的事项。"
+        },
+        {
+          "level": "long",
+          "sentence": "Experts who agree on the diagnosis often disagree sharply about the remedy, which is why public debates that claim to be about facts are so frequently, at bottom, disputes about values.",
+          "translation": "在诊断上一致的专家，对药方（对策）之外的补救办法往往分歧极大；正因如此，那些自称围绕事实的公共辩论，归根结底往往是价值观之争。",
+          "analysis": "主从复合句。主语 Experts 后接 who 引导的定语从句；主句谓语 disagree sharply about the remedy；which 引导非限制性定语从句指代主句；why 引导表语从句，其中 that claim to be about facts 为定语从句修饰 debates，at bottom 为插入语。agree 与 disagree 在同句中形成对照，注意各自介词搭配：agree on（就…一致）/ disagree about（在…上分歧）。"
+        }
+      ],
+      "collocations": [
+        "agree with sb/sth 同意某人；与…相符",
+        "agree on sth 就某事达成一致",
+        "agree to a plan 同意某项计划",
+        "agree to do 同意做"
+      ],
+      "phrases": [
+        "agree to differ 各自保留意见",
+        "I couldn't agree more 完全同意"
+      ],
+      "derived": [
+        {
+          "word": "agreement",
+          "meaning": "n. 同意；协议"
+        },
+        {
+          "word": "agreeable",
+          "meaning": "adj. 令人愉快的；可接受的"
+        },
+        {
+          "word": "disagree",
+          "meaning": "v. 不同意"
+        }
+      ],
+      "synonyms": [
+        "consent",
+        "concur",
+        "assent",
+        "correspond"
+      ],
+      "mnemonic": "介词三分：agree **with** sb（同意某人）/ agree **on** sth（就某事一致）/ agree **to** a plan（同意接受某方案）——考研语法填空高频"
+    },
+    "agriculture": {
+      "syllable": "ag·ri·cul·ture",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "农业，农学"
+        }
+      ],
+      "rootAffix": "agri（田地，同 acre）+ cult（耕作，同 culture/cultivate）+ -ure → 耕田之事 → 农业",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Agriculture remains the main source of employment here.",
+          "translation": "农业仍是这里的主要就业来源。",
+          "analysis": "简单句：主语 Agriculture + 系动词 remains + 表语 the main source of employment + 地点状语 here。agriculture 为不可数名词，作主语时谓语用单数。"
+        },
+        {
+          "level": "long",
+          "sentence": "Because agriculture consumes the greater part of the world's fresh water, any serious effort to slow climate change must eventually confront the question of what people eat, not merely where their electricity comes from.",
+          "translation": "由于农业消耗了世界淡水的绝大部分，任何认真减缓气候变化的努力最终都必须面对人们吃什么这一问题，而不仅仅是他们的电从哪里来。",
+          "analysis": "主从复合句。Because 引导原因状语从句（the greater part of 表「…的绝大部分」）；主句主语 any serious effort，后接不定式 to slow climate change 作后置定语，谓语 must confront；宾语 the question 后接 of 引导的介词短语，其中 what people eat 为宾语从句；not merely where their electricity comes from 与前者构成 not merely 对比（此处为补充说明，非 the question 的并列成分）。agriculture 取「农业」义。"
+        }
+      ],
+      "collocations": [
+        "agricultural land 农业用地",
+        "agriculture sector 农业部门",
+        "sustainable agriculture 可持续农业",
+        "the Ministry of Agriculture 农业部"
+      ],
+      "phrases": [
+        "intensive agriculture 集约农业",
+        "subsistence agriculture 自给农业"
+      ],
+      "derived": [
+        {
+          "word": "agricultural",
+          "meaning": "adj. 农业的"
+        },
+        {
+          "word": "agrarian",
+          "meaning": "adj. 土地的；农业的"
+        },
+        {
+          "word": "cultivate",
+          "meaning": "v. 耕作；培养"
+        }
+      ],
+      "synonyms": [
+        "farming",
+        "husbandry",
+        "cultivation"
+      ],
+      "mnemonic": "agri（田）+ cult（耕）= 耕田 → 农业；同族 agriculture 农业 / agricultural 农业的 / cultivate 耕作·培养 / culture（原义「耕作」）文化"
+    },
+    "ahead": {
+      "syllable": "a·head",
+      "pos": "adv.",
+      "defs": [
+        {
+          "pos": "adv.",
+          "meaning": "在前面，向前（go ahead）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "提前，预先（plan ahead）"
+        },
+        {
+          "pos": "adv.",
+          "meaning": "领先，领先于（ahead of）"
+        }
+      ],
+      "rootAffix": "a-（在…上/处于）+ head（头、前端）→ 处于前端 → 在前面",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "We should plan ahead for the winter.",
+          "translation": "我们应该为过冬提前作好打算。",
+          "analysis": "简单句：主语 We + 谓语 should plan + 状语 ahead + 目的状语 for the winter。plan ahead 表「提前计划」，ahead 作副词修饰 plan。"
+        },
+        {
+          "level": "long",
+          "sentence": "Companies that invest in research often find themselves ahead of rivals in ways that are invisible for years, which is why markets tend to reward patience only after it has long ceased to look like patience.",
+          "translation": "投资研究的公司往往会在多年间看不出明显成效的方面领先于对手；正因如此，市场往往要等到那份耐心早就不再像耐心之后，才去回报它。",
+          "analysis": "主从复合句。主语 Companies 后接 that 引导的定语从句；主句谓语 find + 宾语 themselves + 宾补 ahead of rivals（find oneself + 介词短语结构），其后 in ways 后接 that 引导的定语从句（invisible for years 为形容词短语作表语）；which 引导非限制性定语从句；why 引导表语从句，其中 only after 引导时间状语从句（含 it has long ceased to look like patience）。ahead 取「领先」义。"
+        }
+      ],
+      "collocations": [
+        "go ahead 继续；请便",
+        "ahead of 在…之前；领先于",
+        "plan ahead 提前计划",
+        "look ahead 向前看，展望"
+      ],
+      "phrases": [
+        "ahead of time 提前",
+        "ahead of schedule 提前（于计划）"
+      ],
+      "derived": [
+        {
+          "word": "headway",
+          "meaning": "n. 进展（make headway）"
+        },
+        {
+          "word": "behind",
+          "meaning": "adv. 在后面（反义对照）"
+        }
+      ],
+      "synonyms": [
+        "forward",
+        "in front",
+        "beforehand",
+        "onward"
+      ],
+      "mnemonic": "搭配记牢：ahead **of**（在…之前/领先于）；三个常用短语 go ahead / plan ahead / ahead of schedule —— 都是考研阅读与写作高频"
+    },
+    "aim": {
+      "syllable": "aim",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "目标，目的（the aim of）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "瞄准；旨在（aim at/to do）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使针对（be aimed at）"
+        }
+      ],
+      "rootAffix": "源自法语 aesmer（估计、瞄准）→ 定好方向 → 瞄准、目标",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The aim of the study was to test a single hypothesis.",
+          "translation": "这项研究的目的在于检验一个单一假说。",
+          "analysis": "简单句：主语 The aim of the study + 系动词 was + 表语 to test a single hypothesis（不定式作表语）。the aim of ... is to do 是学术写作中说明研究目的的固定句式。"
+        },
+        {
+          "level": "long",
+          "sentence": "A policy aimed at reducing inequality may in fact widen it if the benefits it creates are captured by those who need them least, which is why economists insist on measuring outcomes rather than intentions.",
+          "translation": "旨在减少不平等的政策，如果它带来的好处被最不需要的人获取，实际上可能反而扩大不平等——正因如此，经济学家坚持衡量结果而不是意图。",
+          "analysis": "主从复合句。主语 A policy，aimed at reducing inequality 为过去分词短语作后置定语（be aimed at doing 结构），谓语 may widen，宾语 it。if 引导条件状语从句，其中 it creates 为省略关系词的定语从句修饰 benefits，those 后接 who 引导的定语从句（need them least 中 them 指 benefits）。which 引导非限制性定语从句；why 引导表语从句，含 rather than 对比。aim 取「旨在」义。"
+        }
+      ],
+      "collocations": [
+        "aim at 瞄准；旨在",
+        "be aimed at 针对；旨在",
+        "the aim of …的目的",
+        "achieve one's aim 达到目的"
+      ],
+      "phrases": [
+        "with the aim of 为了…目的",
+        "take aim at 把目标对准"
+      ],
+      "derived": [
+        {
+          "word": "aimless",
+          "meaning": "adj. 无目的的"
+        },
+        {
+          "word": "aimlessly",
+          "meaning": "adv. 漫无目的地"
+        }
+      ],
+      "synonyms": [
+        "goal",
+        "objective",
+        "purpose",
+        "target"
+      ],
+      "mnemonic": "aim 三用法：aim at sth（瞄准/针对）、aim to do（旨在做）、be aimed at doing（被用于/针对）—— 写作中说明目的最常用 with the aim of doing"
     }
   }
 }
