@@ -13,7 +13,7 @@ import {
 } from '../word-repo.js';
 import { linkCardWord, unlinkCardWord, allCardWordLinks } from '../repo.js';
 import { generateWordMaterials } from '../services/word-llm.js';
-import { enrichWordMaterials } from '../services/word-enrich.js';
+import { enrichWordMaterials, ensureWord } from '../services/word-enrich.js';
 import { isInSyllabus, getSyllabusMeta, listSyllabus, builtinMeaning } from '../services/word-syllabus.js';
 import { getMeanings, meaningCoverage, syncWithSyllabus } from '../services/word-meaning.js';
 import { ocrImageText } from '../docs-lib.js';
@@ -466,7 +466,22 @@ function fillFromLocalBank(card) {
   return out;
 }
 
-function openDetail(c) { detail.value = fillFromLocalBank(c); detailTab.value = 'collocations'; exOpen.value = new Set(); showDetail.value = true; refreshLinked(); }
+// 打开详情：先用「已加载数据 + 种子释义兜底」即时渲染，再按需加载该词所在词库分片，
+// 加载完成后自动补全刷新（词库已按字母分片，避免首屏加载整个词库）。
+async function openDetail(c) {
+  detail.value = fillFromLocalBank(c);
+  detailTab.value = 'collocations'; exOpen.value = new Set(); showDetail.value = true; refreshLinked();
+  const word = String(c?.word || '').trim();
+  const src = detail.value?._localSource;
+  if (!word || src === 'full') return;
+  try {
+    const ready = await ensureWord(word);
+    // 弹窗可能已被关闭或已切到别的词：只在仍展示同一词时刷新
+    if (ready && showDetail.value && String(detail.value?.word || '').trim() === word) {
+      detail.value = fillFromLocalBank(c);
+    }
+  } catch { /* 分片加载失败：保持兜底展示（种子释义/待补提示） */ }
+}
 
 // ---- 详情卡（对标成熟单词 App：音节大字 / 多词性释义 / 例句高亮 / 四 Tab） ----
 const detailTab = ref('collocations'); // collocations | derived | root | synonyms | linked

@@ -1,0 +1,2021 @@
+{
+  "shard": "c",
+  "from": "campaign",
+  "to": "conduct",
+  "entries": {
+    "campaign": {
+      "syllable": "cam·paign",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "运动（有组织的系列活动）；战役"
+        },
+        {
+          "pos": "n.",
+          "meaning": "竞选活动"
+        },
+        {
+          "pos": "v.",
+          "meaning": "参加运动；竞选（campaign for/against）"
+        }
+      ],
+      "rootAffix": "camp(田野，军营，拉丁语 campus)+aign → 从军营出发的行动 → 战役；引申为有组织的「运动」",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "They launched a campaign against smoking.",
+          "translation": "他们发起了一场反对吸烟的运动。",
+          "analysis": "简单句：谓语 launched + 宾语 a campaign + against smoking（反对…的运动，against 表对象）。launch/campaign 搭配高频。"
+        },
+        {
+          "level": "long",
+          "sentence": "The campaign, which was funded largely by small individual donations, proved that grassroots movements could compete with well-financed opponents.",
+          "translation": "这场主要由个人小额捐款资助的运动证明，草根行动可以与资金雄厚的对手抗衡。",
+          "analysis": "主语 The campaign + 非限制性定语从句 which was funded by...（被动语态，largely 修饰 funded）；主句谓语 proved + that 宾语从句；从句是 A could compete with B 结构（compete with 与…抗衡）；well-financed 复合形容词修饰 opponents。"
+        }
+      ],
+      "collocations": [
+        "launch/run a campaign 发起/开展运动",
+        "a campaign against/for 反对/争取…的运动",
+        "election campaign 竞选活动",
+        "advertising campaign 广告攻势"
+      ],
+      "phrases": [
+        "campaign for/against 为/反对…而奔走"
+      ],
+      "derived": [
+        {
+          "word": "campaigner",
+          "meaning": "n. 运动参与者；活动家"
+        }
+      ],
+      "synonyms": [
+        "movement",
+        "drive",
+        "crusade"
+      ],
+      "易混辨析": "campaign（有组织的运动/战役）/ champion（冠军；拥护）/ champagne（香槟）——拼写相近；「运动」义是考研高频",
+      "mnemonic": "camp(营)+aign → 从营地出发的行动 → 战役、运动"
+    },
+    "capable": {
+      "syllable": "ca·pa·ble",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "有能力的，能干的（capable of doing）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（事物）可以…的；有可能做出（好的或坏的）"
+        }
+      ],
+      "rootAffix": "cap(容纳、抓取，拉丁语 capere)+able(可…的) → 装得下、抓得住 → 有能力的；同根 capacity（容量、能力）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She is capable of running a marathon.",
+          "translation": "她有能力跑马拉松。",
+          "analysis": "简单句：主语 She + 系动词 is + 表语 capable；of running a marathon 是 capable 的搭配补足语——capable of + doing（动名词），不能接不定式。"
+        },
+        {
+          "level": "long",
+          "sentence": "The new chip is capable of processing images at speeds that were once thought impossible for machines of this size.",
+          "translation": "新芯片处理图像的速度，曾被认为是这种尺寸的机器不可能达到的。",
+          "analysis": "主语 The new chip + is capable of processing（capable of + doing）；at speeds 是速度状语；that were once thought impossible 是定语从句修饰 speeds（think sth. impossible 的被动式：speeds were thought impossible）；for machines of this size 是逻辑主语补足。"
+        }
+      ],
+      "collocations": [
+        "be capable of doing 有能力做",
+        "a capable manager 能干的经理",
+        "fully capable 完全胜任的"
+      ],
+      "phrases": [
+        "capable of anything 什么都做得出来（好/坏）"
+      ],
+      "derived": [
+        {
+          "word": "capability",
+          "meaning": "n. 能力（常复数 capabilities）"
+        },
+        {
+          "word": "incapable",
+          "meaning": "adj. 无能力的（incapable of）"
+        },
+        {
+          "word": "capacity",
+          "meaning": "n. 容量；能力（同根）"
+        }
+      ],
+      "synonyms": [
+        "able",
+        "competent",
+        "qualified"
+      ],
+      "易混辨析": "capable of doing（接 of+动名词）/ able to do（接不定式）——固定搭配差异是考点；capable 还可表「有可能（干坏事）」",
+      "mnemonic": "cap(容纳)+able → 装得下任务 → 有能力的"
+    },
+    "challenge": {
+      "syllable": "chal·lenge",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "挑战；难题"
+        },
+        {
+          "pos": "v.",
+          "meaning": "向…挑战；质疑，反对（观点、权威）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "考验，激励（挑战某人的能力）"
+        }
+      ],
+      "rootAffix": "chal(=calumny，诬告、指控，古法语 chalonge) → 指名叫阵 → 挑战；对说法「叫板」→ 质疑",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Learning a language is a real challenge for adults.",
+          "translation": "学语言对成年人是个真正的挑战。",
+          "analysis": "简单句：主语 Learning a language（动名词短语作主语）+ 系动词 is + 表语 a real challenge；for adults 是对象状语。"
+        },
+        {
+          "level": "long",
+          "sentence": "What makes the problem particularly difficult is that the new evidence challenges long-held assumptions about how memory works, assumptions few researchers were willing to question.",
+          "translation": "这个问题之所以特别棘手，是因为新证据挑战了关于记忆如何运作的长期假设——而几乎没有研究者愿意质疑这些假设。",
+          "analysis": "What makes...difficult 是主语从句（what = the thing that）；is that... 表语从句；从句内 challenges long-held assumptions（challenge 取「质疑」义，long-held 复合形容词）；about how memory works 是 assumptions 的后置定语（内嵌 how 宾语从句）；assumptions few researchers... 是同位语+定语从句省略 that 的紧缩形式。"
+        }
+      ],
+      "collocations": [
+        "face/pose a challenge 面临/构成挑战",
+        "challenge the assumption/idea 质疑假设/观点",
+        "take up the challenge 接受挑战",
+        "meet the challenge 应对挑战"
+      ],
+      "phrases": [
+        "rise to the challenge 迎战挑战",
+        "challenge sb. to do 激某人比试做"
+      ],
+      "derived": [
+        {
+          "word": "challenging",
+          "meaning": "adj. 有挑战性的（a challenging task）"
+        },
+        {
+          "word": "challenger",
+          "meaning": "n. 挑战者"
+        },
+        {
+          "word": "unchallenged",
+          "meaning": "adj. 未受质疑的"
+        }
+      ],
+      "synonyms": [
+        "test",
+        "question",
+        "dispute"
+      ],
+      "易混辨析": "challenge（挑战；质疑）/ challenge 的「质疑」义是阅读常考——「challenge the authority」不是「挑战权威的身体」而是「质疑权威」",
+      "mnemonic": "chal(叫阵)+lenge → 叫板 → 挑战；叫板说法 → 质疑"
+    },
+    "character": {
+      "syllable": "char·ac·ter",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "性格，品质"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（书、电影中的）角色，人物"
+        },
+        {
+          "pos": "n.",
+          "meaning": "特点，特征"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（汉）字，字符"
+        }
+      ],
+      "rootAffix": "源自希腊 kharaktēr（刻痕、印记）+ -er → 刻在事物上的印记 → 特征 → 性格",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Her character was shaped by years of hardship.",
+          "translation": "她的性格是多年艰苦生活塑造的。",
+          "analysis": "简单句：主语 Her character + 系动词 was shaped（被动语态）+ by 引导的方式状语。character 取「性格」义，是本词最常用的义项。"
+        },
+        {
+          "level": "long",
+          "sentence": "The novel's central character, a young doctor whose idealism survives years of provincial practice, gradually realizes that his own character, not the hospital, is the real obstacle to reform.",
+          "translation": "这部小说的主人公是一位年轻医生，他的理想主义在多年乡镇行医中始终未熄灭；他逐渐意识到，改革的真正障碍是他自己的性格，而不是医院。",
+          "analysis": "主从复合句。主句为 The novel's central character ... gradually realizes that...；a young doctor 是主语同位语，其后 whose 引导定语从句修饰 doctor；that 引导宾语从句作 realizes 的宾语；not the hospital 与 his own character 构成插入式对比。本句 character 出现两次：第一次取「（作品中的）人物」，第二次取「性格」——须依语境判断。"
+        }
+      ],
+      "collocations": [
+        "in character 符合性格地；合乎角色",
+        "out of character 不符合性格地",
+        "character trait 性格特征",
+        "moral character 道德品质"
+      ],
+      "phrases": [
+        "character building 品格塑造",
+        "of good character 品行良好的"
+      ],
+      "derived": [
+        {
+          "word": "characterize",
+          "meaning": "v. 描述…的特征；以…为特征"
+        },
+        {
+          "word": "characteristic",
+          "meaning": "adj. 典型的 n. 特征"
+        },
+        {
+          "word": "characterization",
+          "meaning": "n. 人物刻画；特征描述"
+        }
+      ],
+      "synonyms": [
+        "personality",
+        "nature",
+        "disposition",
+        "trait"
+      ],
+      "mnemonic": "char(刻)+acter → 刻在骨子里的东西 → 性格；刻在某物上的印记 → 特征"
+    },
+    "characteristic": {
+      "syllable": "char·ac·ter·is·tic",
+      "pos": "adj./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "典型的，特有的"
+        },
+        {
+          "pos": "n.",
+          "meaning": "特征，特性"
+        }
+      ],
+      "rootAffix": "character（特征）+ -istic（…的）→ 具有某类特征的 → 典型的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Each species has its own characteristic song.",
+          "translation": "每个物种都有其特有的鸣声。",
+          "analysis": "简单句：Each species + has + 宾语 its own characteristic song。characteristic 此处作定语，取「特有的」义，与 own 连用加强「专属」含义。"
+        },
+        {
+          "level": "long",
+          "sentence": "It is characteristic of scientific thinking that a hypothesis, however elegant, must be abandoned once the evidence accumulated by independent researchers consistently contradicts its central predictions.",
+          "translation": "科学思维的一个特征就是：一旦独立研究者积累的证据持续与假说的核心预测相矛盾，那么无论该假说多么精巧，都必须被放弃。",
+          "analysis": "主从复合句。主句为 It is characteristic of ... that ... 句式：It 是形式主语，that 引导的从句才是真正主语。however elegant 为「however + 形容词」引导的让步状语（= no matter how elegant）；once 引导时间状语从句；accumulated by independent researchers 为过去分词短语作后置定语修饰 evidence。characteristic 取「…的特征/典型表现」义。"
+        }
+      ],
+      "collocations": [
+        "be characteristic of 是…特有的",
+        "physical characteristics 身体特征",
+        "distinguishing characteristic 显著特征",
+        "the characteristics of a species 物种特征"
+      ],
+      "phrases": [
+        "characteristic feature 特征标志",
+        "a family characteristic 家族共通特征"
+      ],
+      "derived": [
+        {
+          "word": "characteristically",
+          "meaning": "adv. 典型地；具有特色地"
+        },
+        {
+          "word": "characterize",
+          "meaning": "v. 具有…特征；刻画"
+        },
+        {
+          "word": "uncharacteristic",
+          "meaning": "adj. 不典型的；异常的"
+        }
+      ],
+      "synonyms": [
+        "typical",
+        "distinctive",
+        "peculiar",
+        "representative"
+      ],
+      "mnemonic": "character(特征)+istic(…的) → 带特征的 → 典型的；形容词末位 -ic 常与名词同形（如 characteristic 既是 adj. 也是 n.）"
+    },
+    "charge": {
+      "syllable": "charge",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "收费，索价"
+        },
+        {
+          "pos": "v.",
+          "meaning": "指控，控告"
+        },
+        {
+          "pos": "v.",
+          "meaning": "充电；使承担（任务、责任）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "费用；指控；主管，负责"
+        }
+      ],
+      "rootAffix": "源自古法文 chargier（装载、使负担）→ 让人或物承载（费用 / 罪责 / 任务）→ 一词多义的总钥匙",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The hotel charges 300 yuan a night.",
+          "translation": "这家旅馆每晚收费 300 元。",
+          "analysis": "简单句：主语 The hotel + 谓语 charges + 宾语 300 yuan + 时间状语 a night。charge 作及物动词取「收费」义；注意不能说 charge for 300 yuan，介词 for 用于 charge sb for sth 结构。"
+        },
+        {
+          "level": "long",
+          "sentence": "Those in charge of the laboratory were charged with ensuring that every chemical was stored according to the safety code, a responsibility they could not delegate even though they were also burdened with teaching and research.",
+          "translation": "实验室的负责人肩负着确保每种化学品都按安全规范存放的责任；即便他们还承担着教学与科研任务，这一责任也不能委派他人。",
+          "analysis": "主从复合句。主句 Those in charge of the laboratory were charged with ensuring...：Those 后接 in charge of 介词短语作后置定语（in charge of = 负责）；were charged with 表「被赋予…责任」（亦可表「被指控」，需靠后文语义区分）；that 引导 ensuring 的宾语从句。a responsibility 为同位语，后接省略关系词的定语从句 they could not delegate；even though 引导让步状语从句。本句集中体现 charge 的两组高频搭配：in charge of 与 be charged with。"
+        }
+      ],
+      "collocations": [
+        "in charge of 负责，主管",
+        "take charge of 接管，掌管",
+        "free of charge 免费",
+        "charge sb with sth 指控某人（做）某事；使某人承担",
+        "charge a fee 收取费用"
+      ],
+      "phrases": [
+        "at no charge 免费地",
+        "bring a charge against sb 对某人提出指控"
+      ],
+      "derived": [
+        {
+          "word": "charger",
+          "meaning": "n. 充电器"
+        },
+        {
+          "word": "chargeable",
+          "meaning": "adj. 可收费的；可被指控的"
+        },
+        {
+          "word": "discharge",
+          "meaning": "v. 释放；排放；卸货；解除（职务）"
+        }
+      ],
+      "synonyms": [
+        "accuse",
+        "bill",
+        "fee",
+        "cost"
+      ],
+      "mnemonic": "一词多义串成一条线：装上（责任/费用/罪责）→ 负责、收费、指控、充电；in charge of 记作「身上装着责任」"
+    },
+    "chemical": {
+      "syllable": "chem·i·cal",
+      "pos": "adj./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "化学的；用化学方法制造的"
+        },
+        {
+          "pos": "n.",
+          "meaning": "化学品，化学制品"
+        }
+      ],
+      "rootAffix": "chem（化学）+ -ical（…的）→ 化学的；名词化后指化学物质",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The factory stores chemical waste in sealed containers.",
+          "translation": "工厂把化学废料储存在密闭容器里。",
+          "analysis": "简单句：主语 The factory + 谓语 stores + 宾语 chemical waste + 方式状语 in sealed containers。chemical 作定语修饰 waste，取「化学的」义。"
+        },
+        {
+          "level": "long",
+          "sentence": "Although the chemical industry has greatly reduced the volume of toxic discharge per unit of output, the sheer growth of production means that the total quantity of chemicals released into rivers has scarcely fallen.",
+          "translation": "尽管化工行业已大幅降低单位产出的有毒排放量，但产量的绝对增长意味着排入河流的化学品总量几乎没有下降。",
+          "analysis": "主从复合句。Although 引导让步状语从句（per unit of output 为后置定语修饰 discharge）；主句主语 the sheer growth of production，谓语 means，其后 that 引导宾语从句；该从句中 released into rivers 为过去分词短语作后置定语修饰 chemicals，谓语 has scarcely fallen 用现在完成时强调结果延续至今。chemical 先作定语（chemical industry 化学工业），后作可数名词复数（chemicals 化学品）。"
+        }
+      ],
+      "collocations": [
+        "chemical reaction 化学反应",
+        "chemical engineering 化学工程",
+        "toxic chemicals 有毒化学品",
+        "chemical fertilizer 化肥"
+      ],
+      "phrases": [
+        "chemical balance 化学平衡",
+        "industrial chemicals 工业化学品"
+      ],
+      "derived": [
+        {
+          "word": "chemist",
+          "meaning": "n. 化学家；药剂师"
+        },
+        {
+          "word": "chemistry",
+          "meaning": "n. 化学"
+        },
+        {
+          "word": "chemically",
+          "meaning": "adv. 化学上；用化学方法"
+        }
+      ],
+      "synonyms": [
+        "substance",
+        "compound",
+        "synthetic"
+      ],
+      "mnemonic": "chem（化学）是词根族的核心：chemist 化学家、chemistry 化学、chemical 化学的 → 一串同族词一次记住"
+    },
+    "circumstance": {
+      "syllable": "cir·cum·stance",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "情况，情形，条件"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（复数）境况，环境，经济状况"
+        }
+      ],
+      "rootAffix": "circum-（周围）+ sta（站，同 stand）+ -nce → 站在你周围的一切 → 处境、环境",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Under no circumstances should you lend him the key.",
+          "translation": "你无论如何都不该把钥匙借给他。",
+          "analysis": "含倒装结构的简单句：否定状语 Under no circumstances 置于句首，引起部分倒装（should you lend，而非 you should lend）。circumstance 恒用复数形式 in/under the circumstances、under no circumstances，取「情况」义。"
+        },
+        {
+          "level": "long",
+          "sentence": "The committee argued that the decline in applications was a temporary circumstance caused by the pandemic, whereas the researchers insisted that the underlying circumstances — rising tuition and stagnant wages — had changed permanently.",
+          "translation": "委员会认为申请人数下降是疫情造成的暂时情况，而研究者坚持认为，更深层的境况——学费上涨与工资停滞——已经永久改变。",
+          "analysis": "并列主从复合句，由 whereas 连接两个分句，两边都含 that 引导的宾语从句。caused by the pandemic 为过去分词短语作后置定语；破折号内 rising tuition and stagnant wages 是解释 underlying circumstances 的插入成分；第二分句用过去完成时 had changed，表变化先于「坚持认为」这一时点。circumstance 第一次用单数指「某个具体情况」，第二次用复数指「整体境况」。"
+        }
+      ],
+      "collocations": [
+        "in/under the circumstances 在这种情况下",
+        "under no circumstances 无论如何都不（引起倒装）",
+        "economic circumstances 经济状况",
+        "extenuating circumstances 可减轻责任的情节"
+      ],
+      "phrases": [
+        "circumstances beyond one's control 无法控制的情况",
+        "in reduced circumstances 生活拮据"
+      ],
+      "derived": [
+        {
+          "word": "circumstantial",
+          "meaning": "adj. 依情况而定的；间接的（circumstantial evidence 间接证据）"
+        },
+        {
+          "word": "circumstances",
+          "meaning": "n. 环境，境况（常用复数）"
+        }
+      ],
+      "synonyms": [
+        "situation",
+        "condition",
+        "context",
+        "environment"
+      ],
+      "mnemonic": "circum(周围)+stance(站) → 站你周围的东西 → 处境；牢记 under no circumstances 必须倒装，是考研改错与写作的常考点"
+    },
+    "cite": {
+      "syllable": "cite",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "引用，引证（话语、著作）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "举出（例子、理由）说明"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（法律）传唤，传讯"
+        }
+      ],
+      "rootAffix": "cit（召唤、唤起，同 cite/recite）+ -e → 把（别人的话）唤出来 → 引用",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She cited three studies to support her argument.",
+          "translation": "她引用了三项研究来支持自己的论点。",
+          "analysis": "简单句：主语 She + 谓语 cited + 宾语 three studies + 目的状语 to support her argument。cite 取「引用（文献）」义，学术写作中的高频用法。"
+        },
+        {
+          "level": "long",
+          "sentence": "The report, often cited as evidence that remote work harms productivity, actually concludes that the effect depends on the nature of the task, a nuance that later commentaries rarely cite.",
+          "translation": "这份报告常被引作「远程办公损害生产率」的证据，但它实际上得出的结论是：影响取决于任务的性质——而后来的评论文章很少引用这一细微区别。",
+          "analysis": "主从复合句。主语 The report 后接 often cited as evidence... 过去分词短语作后置定语（其中 that 引导同位语从句，说明 evidence 的内容）；主句谓语 concludes，后接 that 引导的宾语从句。a nuance 是同位语，其后 that 引导定语从句（that 作 cite 的宾语）。cite 两处均取「引用」义，但第一处是「被引作论据」，第二处是「引用某一细节」，注意 as evidence 与 cite sth as 的搭配。"
+        }
+      ],
+      "collocations": [
+        "cite an example 举例",
+        "cite evidence 引用证据",
+        "be widely cited 被广泛引用",
+        "cite sb as an authority 引某人作为权威"
+      ],
+      "phrases": [
+        "as cited above 如上所引",
+        "cite reasons for 为…列举理由"
+      ],
+      "derived": [
+        {
+          "word": "citation",
+          "meaning": "n. 引用；引文；传票"
+        },
+        {
+          "word": "citable",
+          "meaning": "adj. 可引用的"
+        }
+      ],
+      "synonyms": [
+        "quote",
+        "refer to",
+        "mention",
+        "adduce"
+      ],
+      "mnemonic": "cit 是「召唤」词根：cite 唤出别人的话 → 引用；recite（再唤出）→ 背诵；excite（唤出情绪）→ 使兴奋"
+    },
+    "civil": {
+      "syllable": "civ·il",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "公民的；民用的，非军事的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "民事的（与 criminal 相对）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "有礼的，文明的"
+        }
+      ],
+      "rootAffix": "civ（公民，同 city/civilization）+ -il → 与公民有关的 → 公民的、民事的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The two neighbours settled their dispute through civil proceedings.",
+          "translation": "这两家邻居通过民事诉讼解决了纠纷。",
+          "analysis": "简单句：主语 The two neighbours + 谓语 settled + 宾语 their dispute + 方式状语 through civil proceedings。civil 取「民事的」义，与 criminal proceedings（刑事诉讼）相对。"
+        },
+        {
+          "level": "long",
+          "sentence": "What began as a civil disagreement over a shared wall ended in a civil lawsuit, illustrating how quickly private grievances can be transformed into matters that demand the intervention of a civil court.",
+          "translation": "起初只是关于共用墙的礼貌分歧，最终却演变成一场民事诉讼——这说明私人纠纷多么容易转化为需要民事法庭介入的事项。",
+          "analysis": "主从复合句。What 引导主语从句（What began as...）；主句谓语 ended in；illustrating... 为现在分词短语作结果状语，其中 how 引导宾语从句，that 引导定语从句修饰 matters。civil 在本句三见、三义：civil disagreement 取「有礼的」、civil lawsuit 取「民事的」、civil court 取「民事的」——一词多义必须按搭配判断，这是考研阅读的常见设题点。"
+        }
+      ],
+      "collocations": [
+        "civil rights 公民权利",
+        "civil law 民法",
+        "civil war 内战",
+        "civil engineering 土木工程",
+        "civil servant 公务员"
+      ],
+      "phrases": [
+        "civil society 公民社会",
+        "civil liability 民事责任"
+      ],
+      "derived": [
+        {
+          "word": "civilian",
+          "meaning": "n. 平民 adj. 平民的；民用的"
+        },
+        {
+          "word": "civility",
+          "meaning": "n. 礼貌，客气"
+        },
+        {
+          "word": "civilization",
+          "meaning": "n. 文明"
+        }
+      ],
+      "synonyms": [
+        "civic",
+        "public",
+        "polite",
+        "courteous"
+      ],
+      "mnemonic": "civ(公民) 串联 civility 礼貌 → civilization 文明 → civilian 平民；三个同族词一次记牢"
+    },
+    "claim": {
+      "syllable": "claim",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "声称，断言（未必有据）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "索取，要求；认领"
+        },
+        {
+          "pos": "v.",
+          "meaning": "夺去（生命），使丧生"
+        },
+        {
+          "pos": "n.",
+          "meaning": "主张，断言；索赔；权利，所有权"
+        }
+      ],
+      "rootAffix": "源自拉丁 clamare（呼喊）→ 大声说出 → 声称；大声索要 → 索取",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "He claims to have finished the report.",
+          "translation": "他声称已经完成了报告。",
+          "analysis": "简单句：主语 He + 谓语 claims + 不定式 to have finished 作宾语。用完成体不定式表示动作先于谓语发生。claim 取「声称」义，隐含「未必属实、有待证实」的语气，这一点与 state（陈述）不同。"
+        },
+        {
+          "level": "long",
+          "sentence": "Insurance companies claim that a large share of the claims they receive each year are fraudulent, yet independent audits suggest that the figure is far lower, which implies that policyholders are being denied payments they are entitled to claim.",
+          "translation": "保险公司声称，它们每年收到的索赔中有很大比例是欺诈性的；但独立审计显示这一比例要低得多——这意味着被保险人正被拒绝支付他们有权索赔的款项。",
+          "analysis": "并列复合句。前一并列分句含 that 引导的宾语从句，其中 they receive each year 是省略关系词的定语从句修饰 claims；yet 引导转折分句，suggest 后接 that 宾语从句；which 引导非限制性定语从句，指代整个前面的内容；they are entitled to claim 为省略关系词的定语从句修饰 payments。claim 在本句四见、三义：声称（动词）、索赔（名词 claims）、索赔（动词 claim）与被拒绝支付（denied payments）。"
+        }
+      ],
+      "collocations": [
+        "claim responsibility for 声称对…负责",
+        "claim compensation 索赔",
+        "lay claim to 对…提出所有权主张",
+        "claim a life 夺走一条生命"
+      ],
+      "phrases": [
+        "make a claim 提出索赔；提出主张",
+        "no claim to 对…无权利要求"
+      ],
+      "derived": [
+        {
+          "word": "claimant",
+          "meaning": "n. 索赔人；申请人"
+        },
+        {
+          "word": "claimable",
+          "meaning": "adj. 可索取的"
+        }
+      ],
+      "synonyms": [
+        "assert",
+        "allege",
+        "maintain",
+        "demand"
+      ],
+      "mnemonic": "clam(呼喊) 家族：claim 声称、exclaim 惊呼、proclaim 宣布、reclaim 回收——都含「喊出来/要回来」的意味"
+    },
+    "clarify": {
+      "syllable": "clar·i·fy",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "澄清，阐明，使清楚明白"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使（液体等）变清澈"
+        }
+      ],
+      "rootAffix": "clar（清楚、明亮，同 clear/declare）+ -ify（使…）→ 使清楚 → 澄清",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Could you clarify what you mean by cost?",
+          "translation": "你能说明一下你说的「成本」指什么吗？",
+          "analysis": "主从复合句：主句 Could you clarify ...（委婉请求）；what 引导宾语从句作 clarify 的宾语。clarify 取「说明清楚」义，比 explain 更强调「消除歧义」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Before the policy takes effect, the ministry must clarify whether households whose income falls below the poverty line will receive subsidies automatically or must apply in writing, a distinction that determines how hundreds of thousands of families will be treated.",
+          "translation": "在政策生效之前，该部门必须明确：收入低于贫困线的家庭是自动获得补贴，还是必须书面申请——这一区别决定了数十万家庭将受到怎样的对待。",
+          "analysis": "主从复合句。Before 引导时间状语从句；主句 the ministry must clarify 后接 whether ... or ... 引导的宾语从句，该从句内含 whose 引导的定语从句修饰 households；a distinction 为同位语，其后 that 引导定语从句，其中又含 how 引导的宾语从句。clarify 取「明确、澄清」义，与法律/政策文本的语体相配。"
+        }
+      ],
+      "collocations": [
+        "clarify a point 澄清某一点",
+        "clarify the situation 澄清情况",
+        "seek to clarify 试图澄清",
+        "further clarify 进一步说明"
+      ],
+      "phrases": [
+        "clarify matters 澄清事实",
+        "clarify one's position 表明立场"
+      ],
+      "derived": [
+        {
+          "word": "clarification",
+          "meaning": "n. 澄清，说明"
+        },
+        {
+          "word": "clarity",
+          "meaning": "n. 清晰，清楚"
+        },
+        {
+          "word": "clarified",
+          "meaning": "adj. 澄清的，净化的"
+        }
+      ],
+      "synonyms": [
+        "explain",
+        "elucidate",
+        "illuminate",
+        "spell out"
+      ],
+      "mnemonic": "clar(清楚) 家族：clear 清楚的、clarity 清晰、declare 宣布、clarify 澄清——都由「明亮、清楚」这一核心义展开"
+    },
+    "classify": {
+      "syllable": "clas·si·fy",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "把…分类，把…归类"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把…列为机密（classified）"
+        }
+      ],
+      "rootAffix": "class（类别）+ -ify（使…）→ 使成类别 → 分类",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Librarians classify books by subject.",
+          "translation": "图书管理员按学科给书分类。",
+          "analysis": "简单句：主语 Librarians + 谓语 classify + 宾语 books + 方式状语 by subject。classify 取「分类」义，常用 classify sth by / into / as 三种搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "Because the algorithms that classify job applicants are trained on historical hiring data, they tend to reproduce the very biases that the companies using them hope to eliminate.",
+          "translation": "由于给求职者分类的算法是用历史招聘数据训练出来的，它们往往会复制那些使用它们的公司本希望消除的偏见。",
+          "analysis": "主从复合句。Because 引导原因状语从句，其中 that classify job applicants 为定语从句修饰 algorithms；主句 they tend to reproduce the very biases，其后 that 引导定语从句，从句主语 the companies using them（using them 为现在分词短语作后置定语），谓语 hope to eliminate。the very biases 中的 very 为形容词，表「正是那个」，起强调作用。classify 取「把（人）分类评判」义。"
+        }
+      ],
+      "collocations": [
+        "classify sth into 把…分成（几类）",
+        "be classified as 被归类为",
+        "classify by 按…分类",
+        "classified information 机密信息"
+      ],
+      "phrases": [
+        "classify documents 给文件定密",
+        "roughly classify 大致划分"
+      ],
+      "derived": [
+        {
+          "word": "classification",
+          "meaning": "n. 分类；类别；定密"
+        },
+        {
+          "word": "classified",
+          "meaning": "adj. 机密的；分类的"
+        },
+        {
+          "word": "classifier",
+          "meaning": "n. 分类器；分类者"
+        }
+      ],
+      "synonyms": [
+        "categorize",
+        "group",
+        "sort",
+        "rank"
+      ],
+      "mnemonic": "class(类别)+ify(使…) → 使成类别 → 分类；注意 classified 作「机密的」讲是考研阅读的熟词僻义"
+    },
+    "client": {
+      "syllable": "cli·ent",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "客户，委托人（购买服务或接受专业服务的人）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（计算机）客户端，客户机"
+        }
+      ],
+      "rootAffix": "源自拉丁 cliens（依附者、受庇护者）→ 求得庇护的人 → 委托人 → 客户",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The lawyer refused to disclose her client's name.",
+          "translation": "这位律师拒绝透露她委托人的姓名。",
+          "analysis": "简单句：主语 The lawyer + 谓语 refused + 宾语 to disclose her client's name（不定式作宾语）。client 指购买专业服务（律师、会计、设计）的人，与 customer（购买商品的顾客）用法有分工。"
+        },
+        {
+          "level": "long",
+          "sentence": "A firm that measures its success only by the number of clients it signs, rather than by whether those clients stay, is likely to spend far more on attracting new business than it gains from the ones it keeps.",
+          "translation": "一家只以签约客户数量、而非以客户是否留存来衡量成功的公司，其获取新业务的支出很可能远超从留存客户身上获得的收益。",
+          "analysis": "主从复合句。主语 A firm 后接 that 引导的定语从句（其中 it signs 为省略关系词的定语从句修饰 clients）；rather than by whether... 为并列的介词短语，whether 引导宾语从句；主句表语 likely to spend far more ... than it gains（more...than 比较结构），the ones it keeps 中 it keeps 为省略关系词的定语从句。client 两处均指「客户」，clients stay / clients it keeps 对应「客户留存」这一商业概念。"
+        }
+      ],
+      "collocations": [
+        "client base 客户群",
+        "major client 大客户",
+        "serve a client 为客户服务",
+        "client confidentiality 委托人保密义务"
+      ],
+      "phrases": [
+        "a client of the firm 公司的一名客户",
+        "attract new clients 吸引新客户"
+      ],
+      "derived": [
+        {
+          "word": "clientele",
+          "meaning": "n. 顾客群，客户总称"
+        },
+        {
+          "word": "client-side",
+          "meaning": "adj. （计算机）客户端的"
+        }
+      ],
+      "synonyms": [
+        "customer",
+        "patron",
+        "consumer",
+        "principal"
+      ],
+      "mnemonic": "与 customer 分工记忆：client 买「服务与专业」（律师、医生、设计师），customer 买「商品」"
+    },
+    "climate": {
+      "syllable": "cli·mate",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "气候（某地区长期的天气状况）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（局势、社会）风气，氛围，倾向"
+        }
+      ],
+      "rootAffix": "源自希腊 klima（倾斜，指地球纬度倾斜带）→ 不同纬度带 → 气候",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The island has a mild climate all year round.",
+          "translation": "这个岛屿全年气候温和。",
+          "analysis": "简单句：主语 The island + 谓语 has + 宾语 a mild climate + 时间状语 all year round。climate 取「气候」本义，强调「长期状况」，与 weather（某日天气）形成对照。"
+        },
+        {
+          "level": "long",
+          "sentence": "Even if the global climate stabilizes within the next few decades, the political climate in which environmental treaties are negotiated may remain hostile for far longer, because the costs of compliance fall on one generation while the benefits accrue to the next.",
+          "translation": "即使全球气候在未来几十年内趋于稳定，谈判环境条约时所处的政治氛围仍可能长期不利，因为遵守条约的成本由这一代人承担，而收益却归下一代人。",
+          "analysis": "主从复合句。Even if 引导让步状语从句；主句主语 the political climate，后接 in which 引导的定语从句（in which = in the political climate，修饰 climate）修饰 climate；because 引导原因状语从句，其中 while 表对比（成本 vs 收益）。climate 两见两义：global climate 取「气候」本义，political climate 取「（局势）氛围」引申义——这正是考研阅读常考的「熟词引申」。"
+        }
+      ],
+      "collocations": [
+        "climate change 气候变化",
+        "economic climate 经济形势",
+        "political climate 政治氛围",
+        "mild climate 温和的气候"
+      ],
+      "phrases": [
+        "climate of fear 恐惧的气氛",
+        "in the current climate 在当前形势下"
+      ],
+      "derived": [
+        {
+          "word": "climatic",
+          "meaning": "adj. 气候的（climatic conditions 气候条件）"
+        },
+        {
+          "word": "climatology",
+          "meaning": "n. 气候学"
+        }
+      ],
+      "synonyms": [
+        "weather",
+        "atmosphere",
+        "environment",
+        "mood"
+      ],
+      "mnemonic": "仿 climate 记 climatic：名词 climate 变形容词要去 e 加 -ic（climatic），但注意别与 climactic（高潮的）混淆"
+    },
+    "collapse": {
+      "syllable": "col·lapse",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "倒塌，崩塌"
+        },
+        {
+          "pos": "v.",
+          "meaning": "崩溃，瓦解；（价格、数量）暴跌，骤降"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（人）倒下，晕倒"
+        },
+        {
+          "pos": "n.",
+          "meaning": "倒塌；崩溃，垮台"
+        }
+      ],
+      "rootAffix": "col-（一起）+ laps（滑落，同 lapse）→ 一起滑落 → 倒塌、崩溃",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The bridge collapsed under the weight of the truck.",
+          "translation": "那座桥在卡车的重压下坍塌了。",
+          "analysis": "简单句：主语 The bridge + 谓语 collapsed + 状语 under the weight of the truck。collapse 作不及物动词，取「倒塌」本义，主语通常是建筑物等实体。"
+        },
+        {
+          "level": "long",
+          "sentence": "When the housing market collapsed in 2008, banks that had assumed prices could only rise found their capital wiped out within weeks, and governments were forced to intervene on a scale that would have seemed unthinkable a year earlier.",
+          "translation": "2008 年房地产市场崩盘时，那些曾认定房价只会上涨的银行在几周内资本尽失，各国政府被迫以一年前看来不可想象的大规模出手干预。",
+          "analysis": "主从复合句。When 引导时间状语从句；主句主语 banks 后接 that 引导的定语从句（其中 prices could only rise 为省略 that 的宾语从句）；found their capital wiped out 为「find + 宾语 + 过去分词」复合结构，表被动结果；and 并列第二个谓语 were forced to intervene；on a scale that... 中 that 引导定语从句修饰 scale。collapse 取「（市场）崩盘」义，属由「物理倒塌」引申出的经济义。"
+        }
+      ],
+      "collocations": [
+        "economic collapse 经济崩溃",
+        "collapse under pressure 在压力下垮掉",
+        "price collapse 价格暴跌",
+        "collapse into chaos 陷入混乱"
+      ],
+      "phrases": [
+        "on the verge of collapse 处于崩溃边缘",
+        "the collapse of a system 体系的瓦解"
+      ],
+      "derived": [
+        {
+          "word": "collapsible",
+          "meaning": "adj. 可折叠的"
+        },
+        {
+          "word": "collapsed",
+          "meaning": "adj. 倒塌的；崩溃的"
+        }
+      ],
+      "synonyms": [
+        "fall",
+        "crumble",
+        "break down",
+        "disintegrate"
+      ],
+      "mnemonic": "col(一起)+lapse(滑落) → 一起滑下去 → 倒塌；lapse 本身就有「流逝、失误」义，可串联记忆"
+    },
+    "combine": {
+      "syllable": "com·bine",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "结合，联合，混合"
+        },
+        {
+          "pos": "v.",
+          "meaning": "兼具，兼有（两种特征）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（为共同目的）联合起来"
+        }
+      ],
+      "rootAffix": "com-（共同）+ bin（二，同 binary）+ -e → 把二者合到一起 → 结合",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The course combines theory with practice.",
+          "translation": "这门课程把理论与实践结合起来。",
+          "analysis": "简单句：主语 The course + 谓语 combines + 宾语 theory + 介词短语 with practice 作状语。combine A with B 是固定搭配，注意介词用 with 而非 and。"
+        },
+        {
+          "level": "long",
+          "sentence": "What makes the new material attractive to engineers is not any single property but the way it combines the lightness of aluminium with the strength of steel, a combination that had previously been thought impossible to achieve at reasonable cost.",
+          "translation": "这种新材料对工程师的吸引力并不在于某一项单一性能，而在于它以铝的轻与钢的强相结合的那种方式——而此前人们认为这种结合不可能以合理成本实现。",
+          "analysis": "主从复合句。What 引导主语从句（What makes the new material attractive...）；主句为 not ... but ... 的对比结构，表语是 the way 后接省略关系词的定语从句 it combines...；a combination 为同位语，其后 that 引导定语从句（had previously been thought impossible 为被动 + 复合结构的过去完成时，表先于主句）。combine 取「兼具两种特性」义，搭配仍为 combine A with B。"
+        }
+      ],
+      "collocations": [
+        "combine A with B 把 A 与 B 结合起来",
+        "combined efforts 共同的努力",
+        "a combined total of 总计",
+        "combine forces 联合力量"
+      ],
+      "phrases": [
+        "combine to do sth 联合起来做某事",
+        "be combined with 与…结合"
+      ],
+      "derived": [
+        {
+          "word": "combination",
+          "meaning": "n. 结合，组合；combination lock 密码锁"
+        },
+        {
+          "word": "combined",
+          "meaning": "adj. 联合的，合计的"
+        }
+      ],
+      "synonyms": [
+        "merge",
+        "unite",
+        "integrate",
+        "blend"
+      ],
+      "mnemonic": "bin 是「二」（binary 二进制的）：com(共同)+bine(二) → 二者合一 → 结合；搭配口诀「combine A with B，不用 and」"
+    },
+    "comment": {
+      "syllable": "com·ment",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "评论，意见；批评"
+        },
+        {
+          "pos": "v.",
+          "meaning": "评论，发表意见"
+        }
+      ],
+      "rootAffix": "com-（加强）+ ment（心智，同 mind/mental）→ 用心思表达 → 评论",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The minister declined to comment on the report.",
+          "translation": "这位部长拒绝就这份报告发表评论。",
+          "analysis": "简单句：主语 The minister + 谓语 declined + 宾语 to comment on the report（不定式作宾语）。comment 作不及物动词时用 comment on sth，不能直接跟宾语。"
+        },
+        {
+          "level": "long",
+          "sentence": "Judges who comment publicly on cases they are still hearing risk undermining the very impartiality that their office requires, which is why most legal systems restrict such comments far more strictly than they restrict comments made after a verdict.",
+          "translation": "法官若对他们仍在审理的案件公开发表评论，就有损害其职位所要求的公正性的风险；正因如此，多数法律体系对此类评论的限制，远比判决之后所作评论的限制严格得多。",
+          "analysis": "主从复合句。主语 Judges 后接 who 引导的定语从句，其中 cases they are still hearing 含省略关系词的定语从句；主句谓语 risk undermining；that their office requires 为定语从句修饰 impartiality；which 引导非限制性定语从句指代前面整个内容；why 引导表语从句（is why...），其中含 far more strictly than 比较结构。comment 三次出现：动词「发表评论」（comment publicly）与名词「评论」（such comments / comments made after a verdict），后者用过去分词短语作后置定语。"
+        }
+      ],
+      "collocations": [
+        "comment on 对…发表评论",
+        "no comment 无可奉告",
+        "fair comment 公正的评论",
+        "public comment 公众意见"
+      ],
+      "phrases": [
+        "without comment 未作评论",
+        "invite comments 征求意见"
+      ],
+      "derived": [
+        {
+          "word": "commentary",
+          "meaning": "n. 评论文章；实况解说"
+        },
+        {
+          "word": "commentator",
+          "meaning": "n. 评论员；解说员；注释者"
+        },
+        {
+          "word": "commenter",
+          "meaning": "n. 评论者（多指网络评论）"
+        }
+      ],
+      "synonyms": [
+        "remark",
+        "observation",
+        "criticism",
+        "note"
+      ],
+      "mnemonic": "ment 是「心智」词根（mental 心理的）：com(用)+ment(心) → 用心说出的话 → 评论；note/remark/comment 三词都表「评论」，comment 最偏「公开表态」"
+    },
+    "commercial": {
+      "syllable": "com·mer·cial",
+      "pos": "adj./n.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "商业的，商务的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "以营利为目的的，商业化的"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（电视、广播中的）商业广告"
+        }
+      ],
+      "rootAffix": "com-（共同）+ merc（交易，同 market/merchant）+ -ial（…的）→ 与交易有关的 → 商业的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The film was a commercial success but an artistic failure.",
+          "translation": "这部影片商业上成功，艺术上却失败了。",
+          "analysis": "简单句：主语 The film + 系动词 was + 表语 a commercial success，but 并列第二个表语 an artistic failure（均省略冠词 a 以外的重复成分）。commercial 取「商业（上）的」义，与 artistic 形成对照，是评价作品的常见句型。"
+        },
+        {
+          "level": "long",
+          "sentence": "Although the research was funded by a commercial laboratory, the results were published in full, a decision that the company later regretted when competitors used the findings to develop products that captured much of its market.",
+          "translation": "尽管这项研究由一家商业实验室资助，但结果被完整发表——这一决定后来让该公司后悔不已，因为竞争对手利用这些发现开发出产品，夺走了它的大部分市场。",
+          "analysis": "主从复合句。Although 引导让步状语从句；主句 the results were published in full；a decision 为同位语，后接 that 引导定语从句，其中 when 引导时间状语从句，其内又含 that 引导的定语从句修饰 products。commercial 作定语修饰 laboratory，取「以营利为目的的」义，强调与 academic/public 的对照。"
+        }
+      ],
+      "collocations": [
+        "commercial value 商业价值",
+        "commercial bank 商业银行",
+        "commercial success 商业上的成功",
+        "commercial advertising 商业广告"
+      ],
+      "phrases": [
+        "on a commercial basis 以商业方式",
+        "commercial interests 商业利益"
+      ],
+      "derived": [
+        {
+          "word": "commerce",
+          "meaning": "n. 商业，贸易"
+        },
+        {
+          "word": "commercialize",
+          "meaning": "v. 使商业化"
+        },
+        {
+          "word": "commercially",
+          "meaning": "adv. 商业上"
+        }
+      ],
+      "synonyms": [
+        "business",
+        "trade",
+        "mercantile",
+        "profit-making"
+      ],
+      "mnemonic": "merc 是「交易」词根（merchant 商人、market 市场）：commercial 商业的、commerce 商业、merchandise 商品——一族人一起记"
+    },
+    "commit": {
+      "syllable": "com·mit",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "犯（罪、错），做（坏事）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "承诺，投入（时间、资源）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把…投入（commit resources to）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把…交托（commit sth to）"
+        }
+      ],
+      "rootAffix": "com-（共同、完全）+ mit（送，同 mission/missile）→ 把事情送出去 → 交付、承诺；送出错误 → 犯罪",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The company has committed itself to reducing carbon emissions by half.",
+          "translation": "该公司已承诺将碳排放减少一半。",
+          "analysis": "简单句：主语 The company + 谓语 has committed（现在完成时）+ 宾语 itself + 介词 to reducing...。commit oneself to doing sth 是固定搭配，to 为介词，后接动名词，这是考研高频易错点。"
+        },
+        {
+          "level": "long",
+          "sentence": "Governments that commit substantial resources to early education often find that the returns, though slow to appear, eventually exceed those of any other investment they could have made, which is why economists describe such spending as a commitment rather than a cost.",
+          "translation": "把大量资源投入早期教育的政府往往会发现，其回报虽显现缓慢，最终却超过它们本可作出的任何其他投资——正因如此，经济学家把这类支出称为「承诺」而不是「成本」。",
+          "analysis": "主从复合句。主语 Governments 后接 that 引导的定语从句；主句谓语 find，其后 that 引导的宾语从句；though slow to appear 为让步状语（= though the returns are slow to appear）；those of any other investment 中 those 指代 returns，they could have made 为省略关系词的定语从句；which 引导非限制性定语从句指代前句；why 引导表语从句。commit 取「投入（资源）」义，与名词 commitment（承诺、投入）形成同族呼应。"
+        }
+      ],
+      "collocations": [
+        "commit a crime 犯罪",
+        "commit oneself to 承诺；致力于",
+        "commit resources to 把资源投入",
+        "commit suicide 自杀"
+      ],
+      "phrases": [
+        "be committed to 致力于；忠诚于",
+        "commit sth to memory 把…记牢"
+      ],
+      "derived": [
+        {
+          "word": "commitment",
+          "meaning": "n. 承诺；投入；献身"
+        },
+        {
+          "word": "committed",
+          "meaning": "adj. 尽责的；投入的"
+        },
+        {
+          "word": "committee",
+          "meaning": "n. 委员会"
+        }
+      ],
+      "synonyms": [
+        "dedicate",
+        "devote",
+        "pledge",
+        "perpetrate"
+      ],
+      "mnemonic": "mit 是「送」词根（mission 使命、permit 允许）：com(完全)+mit(送) → 把自己完全送出去 → 承诺、投入"
+    },
+    "commodity": {
+      "syllable": "com·mod·i·ty",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "商品，货物（尤指大宗可交易物品）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "有用的东西，有价值的事物（引申义）"
+        }
+      ],
+      "rootAffix": "com-（共同）+ mod（尺度、便利，同 mode/modest）+ -ity（名词后缀）→ 便于共同交换之物 → 商品",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Oil is the most heavily traded commodity in the world.",
+          "translation": "石油是世界上交易量最大的商品。",
+          "analysis": "简单句：主语 Oil + 系动词 is + 表语 the most heavily traded commodity + 地点状语 in the world。commodity 指可大宗交易的商品（原油、粮食、金属），与 goods（一般货物）用法有别。"
+        },
+        {
+          "level": "long",
+          "sentence": "Once information became a commodity that could be copied at almost no cost, the industries built on selling it had to choose between protecting their old business models and adapting to a world in which scarcity, not abundance, was the exception.",
+          "translation": "一旦信息成为一种几乎可以零成本复制的商品，那些靠出售信息建立起来的行业就不得不做出选择：是保护旧的商业模式，还是适应这样一个世界——在那里，稀缺而非充裕才是例外。",
+          "analysis": "主从复合句。Once 引导时间状语从句，其中 that could be copied... 为定语从句修饰 commodity；主句主语 the industries，built on selling it 为过去分词短语作后置定语，谓语 had to choose between A and B；in which scarcity, not abundance, was the exception 为定语从句修饰 world，not abundance 为插入对比。commodity 取「（可交易）商品」义，此处用于信息商品化的论述，是考研经济类文章的常见用法。"
+        }
+      ],
+      "collocations": [
+        "basic commodities 基本商品",
+        "commodity prices 商品价格",
+        "a commodity market 商品市场",
+        "agricultural commodities 农产品"
+      ],
+      "phrases": [
+        "treat sth as a commodity 把…当作商品看待",
+        "the commodity of time 时间这一资源（引申用法）"
+      ],
+      "derived": [
+        {
+          "word": "commodification",
+          "meaning": "n. 商品化"
+        },
+        {
+          "word": "commoditize",
+          "meaning": "v. 使商品化"
+        }
+      ],
+      "synonyms": [
+        "goods",
+        "merchandise",
+        "product",
+        "ware"
+      ],
+      "mnemonic": "com(共同)+mod(便利) → 大家方便交换的东西 → 商品；注意与 goods 区别：commodity 强调「可交易的大宗物资」"
+    },
+    "communicate": {
+      "syllable": "com·mu·ni·cate",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "交流，沟通；传达（信息、思想）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（地方之间）相通，相连"
+        },
+        {
+          "pos": "v.",
+          "meaning": "传染，传播（疾病）"
+        }
+      ],
+      "rootAffix": "com-（共同）+ mun（公共的，同 common/municipal）+ -icate → 使成为共有 → 交流、传达",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Scientists must learn to communicate their findings to the public.",
+          "translation": "科学家必须学会向公众传达他们的研究发现。",
+          "analysis": "简单句：主语 Scientists + 谓语 must learn + 宾语 to communicate their findings to the public（不定式作宾语）。communicate sth to sb 表「把某信息传达给某人」，注意介词 to。"
+        },
+        {
+          "level": "long",
+          "sentence": "Because the two departments had never agreed on a common vocabulary, the data they exchanged monthly communicated less than either side believed, and the resulting misunderstandings were attributed to carelessness rather than to the design of the system itself.",
+          "translation": "由于这两个部门从未就一套共同术语达成一致，它们每月交换的数据所传达的信息远少于双方的预期，由此产生的误解被归咎于粗心，而不是系统本身的设计。",
+          "analysis": "并列主从复合句。Because 引导原因状语从句；第一个分句中 the data 后接省略关系词的定语从句 they exchanged monthly，谓语 communicated（此处表「传达（信息）」，主语为物）；and 并列第二个分句，谓语 were attributed to（归因于），rather than 引出对比。communicate 作不及物/及物动词表「传达出（多少信息）」，这是该词的抽象用法，注意与 exchange（交换）区分。"
+        }
+      ],
+      "collocations": [
+        "communicate with sb 与某人交流",
+        "communicate sth to sb 把某信息传达给某人",
+        "communicate effectively 有效沟通",
+        "communication skills 沟通能力"
+      ],
+      "phrases": [
+        "communicate in English 用英语交流",
+        "fail to communicate 未能传达"
+      ],
+      "derived": [
+        {
+          "word": "communication",
+          "meaning": "n. 交流，沟通；通信"
+        },
+        {
+          "word": "communicative",
+          "meaning": "adj. 善于交流的；交际的"
+        },
+        {
+          "word": "communicator",
+          "meaning": "n. 沟通者；传播者"
+        }
+      ],
+      "synonyms": [
+        "convey",
+        "transmit",
+        "exchange",
+        "impart"
+      ],
+      "mnemonic": "mun 是「公共」词根（common 共同的、municipal 市政的）：com(共同)+mun(公共) → 让信息成为共有 → 交流"
+    },
+    "community": {
+      "syllable": "com·mu·ni·ty",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "社区，社群（居住在同地或有共同特征的人群）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（学术、职业）界，群体"
+        },
+        {
+          "pos": "n.",
+          "meaning": "共有，共同性（较古旧义）"
+        }
+      ],
+      "rootAffix": "com-（共同）+ mun（公共）+ -ity（名词后缀）→ 共同享有某种联系的人群 → 社区、社群",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The local community opposed the plan to build a new factory.",
+          "translation": "当地社区反对建造新工厂的计划。",
+          "analysis": "简单句：主语 The local community + 谓语 opposed + 宾语 the plan to build a new factory（不定式作后置定语修饰 plan）。community 取「社区」义，作主语时可用单数形式表示整体，谓语用单数。"
+        },
+        {
+          "level": "long",
+          "sentence": "The scientific community's insistence on replicating results, however tedious it may appear to outsiders, is what allows findings to be trusted by people who will never read the original papers and who have no way of judging the methods for themselves.",
+          "translation": "科学界对结果可重复性的坚持——在外人看来或许枯燥乏味——正是使那些永远不会阅读原始论文、也无从自行判断研究方法的人得以信任这些发现的原因。",
+          "analysis": "主从复合句。主语为 The scientific community's insistence on replicating results；however tedious it may appear to outsiders 为「however + 形容词」引导的让步状语从句（插入语）；主句为 is what allows...（what 引导表语从句）；其中含 who will never read... and who have no way of judging... 两个并列的定语从句修饰 people。community 取「（学术）界」义，the scientific community 是考研阅读中的固定表述。"
+        }
+      ],
+      "collocations": [
+        "local community 当地社区",
+        "the scientific community 科学界",
+        "community service 社区服务",
+        "community college 社区大学"
+      ],
+      "phrases": [
+        "sense of community 社区归属感",
+        "in the community 在社区中"
+      ],
+      "derived": [
+        {
+          "word": "communal",
+          "meaning": "adj. 公共的，共用的"
+        },
+        {
+          "word": "communism",
+          "meaning": "n. 共产主义"
+        },
+        {
+          "word": "communicable",
+          "meaning": "adj. 可传染的；可传达的"
+        }
+      ],
+      "synonyms": [
+        "society",
+        "neighbourhood",
+        "public",
+        "group"
+      ],
+      "mnemonic": "mun(公共) 家族：community 社区、communal 公用的、communicate 交流、communism 共产主义——共同享有是它们的统一内核"
+    },
+    "comparable": {
+      "syllable": "com·pa·ra·ble",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "可比的，类似的（comparable to/with）"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（数量、程度）相当的，不相上下的"
+        }
+      ],
+      "rootAffix": "com-（共同）+ par（相等，同 par/parity）+ -able（可…的）→ 可以放在一起比（且相当）的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The two cities are comparable in size.",
+          "translation": "这两座城市规模相当。",
+          "analysis": "简单句：主语 The two cities + 系动词 are + 表语 comparable + 状语 in size。comparable to/with sth 表「与…相当」，注意与 comparative（比较的、相对的）区分。"
+        },
+        {
+          "level": "long",
+          "sentence": "Although no two economies are strictly comparable, the trajectories of the two countries since 1990 are similar enough that economists feel justified in drawing lessons from one for the other, a practice some historians consider methodologically risky.",
+          "translation": "尽管没有哪两个经济体是严格可比的，但两国自 1990 年以来的发展轨迹相似到足以让经济学家觉得可以从一方汲取经验教训用于另一方——而一些历史学家认为这种做法在方法上有风险。",
+          "analysis": "主从复合句。Although 引导让步状语从句；主句主语 the trajectories，谓语 are similar enough that...（enough...that 结果结构，that 引导结果状语从句）；a practice 为同位语，后接 some historians consider methodologically risky（省略关系词的定语从句，consider sth + adj. 的复合结构）。comparable 取「可比的」义，strictly comparable 中的 strictly 是学术语体中常见的限定副词。"
+        }
+      ],
+      "collocations": [
+        "be comparable to/with 与…相当",
+        "broadly comparable 大体相当的",
+        "comparable data 可比数据",
+        "at a comparable price 以相当的价格"
+      ],
+      "phrases": [
+        "comparable in quality 质量上不相上下",
+        "no comparable case 无同类可比案例"
+      ],
+      "derived": [
+        {
+          "word": "comparative",
+          "meaning": "adj. 比较的；相对的（comparative advantage 比较优势）"
+        },
+        {
+          "word": "comparison",
+          "meaning": "n. 比较；in comparison with 与…相比"
+        },
+        {
+          "word": "comparably",
+          "meaning": "adv. 同等地"
+        }
+      ],
+      "synonyms": [
+        "similar",
+        "equivalent",
+        "akin",
+        "analogous"
+      ],
+      "mnemonic": "牢记易混三兄弟：comparable 可比的、comparative 比较的（相对的）、comparison 比较（名词）——考试常把前两个混在一处设题"
+    },
+    "compensate": {
+      "syllable": "com·pen·sate",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "补偿，赔偿（compensate sb for sth）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "弥补，抵消（compensate for sth）"
+        }
+      ],
+      "rootAffix": "com-（一起）+ pens（称量、支付，同 pension/expensive）+ -ate → 一起称量后补足 → 补偿",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The airline agreed to compensate passengers for the delay.",
+          "translation": "该航空公司同意就延误向乘客作出赔偿。",
+          "analysis": "简单句：主语 The airline + 谓语 agreed + 宾语 to compensate passengers for the delay（不定式作宾语）。compensate sb for sth 表示「因某事赔偿某人」，介词组合固定。"
+        },
+        {
+          "level": "long",
+          "sentence": "The fact that farmers are paid to plant trees does nothing to compensate for the loss of the skills their children would otherwise have acquired, so the policy may in time prove self-defeating.",
+          "translation": "农民种树可获得补贴这一事实，并不能弥补他们子女本可获得的那些技能的丧失，因此这项政策也许终将证明是自我挫败的。",
+          "analysis": "主从复合句。主语为 The fact 及其后的 that 引导同位语从句（说明 fact 的内容）；does nothing to compensate for... 是主句谓语部分；their children would otherwise have acquired 为省略关系词的定语从句修饰 skills（otherwise 与虚拟语气配合，表「若非如此本会」）；so 引导结果分句。compensate 取「弥补」义，compensate for 为不及物用法，正与本句「无法弥补」的语义相合。"
+        }
+      ],
+      "collocations": [
+        "compensate sb for sth 因某事赔偿某人",
+        "compensate for 弥补，抵消",
+        "compensation package 薪酬福利方案",
+        "fully compensated 全额赔偿的"
+      ],
+      "phrases": [
+        "as compensation for 作为对…的补偿",
+        "claim compensation 索赔"
+      ],
+      "derived": [
+        {
+          "word": "compensation",
+          "meaning": "n. 补偿；赔偿金；薪酬"
+        },
+        {
+          "word": "compensatory",
+          "meaning": "adj. 补偿性的"
+        }
+      ],
+      "synonyms": [
+        "offset",
+        "make up for",
+        "recompense",
+        "redress"
+      ],
+      "mnemonic": "pens 是「称量、支付」词根（pension 养老金、expensive 昂贵的）：com(一起)+pens(称量) → 称量后补足 → 补偿"
+    },
+    "compete": {
+      "syllable": "com·pete",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "竞争，角逐（compete with/against sb）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "参加比赛；争胜"
+        }
+      ],
+      "rootAffix": "com-（共同）+ pet（追求、要求，同 petition/appetite）+ -e → 共同追求同一目标 → 竞争",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Small shops find it hard to compete with supermarkets on price.",
+          "translation": "小商店发现很难在价格上与超市竞争。",
+          "analysis": "简单句：主语 Small shops + 谓语 find + 宾语 it + 宾补 hard to compete...（it 为形式宾语，不定式为真正宾语）。compete with sb on sth 表「在某方面与某人竞争」，介词组合为 with...on。"
+        },
+        {
+          "level": "long",
+          "sentence": "Firms that compete mainly on price rarely survive a race in which every rival can copy their methods, whereas those that compete on the difficulty of imitating what they do often thrive for decades.",
+          "translation": "主要靠价格竞争的公司，很少能在人人可复制其做法的竞赛中存活；而那些靠「难以被模仿」来竞争的公司，往往能兴旺数十年。",
+          "analysis": "并列主从复合句，由 whereas 连接对比的两个分句。第一分句主语 Firms 后接 that 定语从句，宾语 a race 后接 in which 引导的定语从句；第二分句主语 those（指代 firms）后接 that 定语从句，其中 what they do 为宾语从句作 imitating 的宾语。compete 出现两次，搭配不同：compete on price（在价格上竞争）/ compete on the difficulty of imitating（在不被模仿的难度上竞争）。"
+        }
+      ],
+      "collocations": [
+        "compete with/against sb 与某人竞争",
+        "compete for sth 为争取某物而竞争",
+        "compete on price 在价格上竞争",
+        "compete in a market 在市场中竞争"
+      ],
+      "phrases": [
+        "compete head to head 正面竞争",
+        "be unable to compete 无力竞争"
+      ],
+      "derived": [
+        {
+          "word": "competition",
+          "meaning": "n. 竞争；比赛"
+        },
+        {
+          "word": "competitor",
+          "meaning": "n. 竞争者；参赛者"
+        },
+        {
+          "word": "competitive",
+          "meaning": "adj. 有竞争力的；竞争激烈的"
+        }
+      ],
+      "synonyms": [
+        "contend",
+        "vie",
+        "rival",
+        "strive"
+      ],
+      "mnemonic": "pet 是「追求」词根（appetite 食欲、petition 请愿）：com(共同)+pete(追求) → 共同追求同一目标 → 竞争"
+    },
+    "comprehensive": {
+      "syllable": "com·pre·hen·sive",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "全面的，综合的，广泛的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "（教育）综合性的（comprehensive school 综合中学）"
+        }
+      ],
+      "rootAffix": "com-（完全）+ prehend（抓住，同 apprehend）+ -sive（…的）→ 全部抓住 → 全面的",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The report offers a comprehensive survey of the industry.",
+          "translation": "这份报告对该行业作了全面综述。",
+          "analysis": "简单句：主语 The report + 谓语 offers + 宾语 a comprehensive survey + 后置定语 of the industry。comprehensive 取「全面的」义，常与 survey / review / plan / study 搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "What the committee produced was not a comprehensive plan but a list of recommendations so general that no department could be held responsible for carrying any of them out.",
+          "translation": "委员会拿出的不是一份全面的计划，而是一份笼统到没有任何部门需要为落实其中任何一条负责的建议清单。",
+          "analysis": "主从复合句。What 引导主语从句；主句为 not ... but ... 对比结构；so general that... 为结果状语从句（so + adj. + that）。no department could be held responsible for carrying any of them out 中 be held responsible for 表「被追究责任」，carrying...out 为动名词作介词宾语。本句用「不是全面计划」反衬 comprehensive 的含义：条条到位、能落到责任主体。"
+        }
+      ],
+      "collocations": [
+        "comprehensive plan 全面计划",
+        "comprehensive review 综合评述",
+        "comprehensive coverage 全面覆盖",
+        "comprehensive insurance 综合险"
+      ],
+      "phrases": [
+        "a comprehensive range of 覆盖面很广的",
+        "comprehensive understanding 全面理解"
+      ],
+      "derived": [
+        {
+          "word": "comprehend",
+          "meaning": "v. 理解，领会；包含"
+        },
+        {
+          "word": "comprehension",
+          "meaning": "n. 理解（力）；阅读测试"
+        },
+        {
+          "word": "comprehensively",
+          "meaning": "adv. 全面地"
+        }
+      ],
+      "synonyms": [
+        "thorough",
+        "all-round",
+        "extensive",
+        "inclusive"
+      ],
+      "mnemonic": "prehend 是「抓住」词根：com(完全)+prehend(抓) → 全都抓住 → 全面的；同族 comprehend 理解（抓住含义）、comprehensible 可理解的"
+    },
+    "compromise": {
+      "syllable": "com·pro·mise",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "妥协，折中（方案）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "妥协，让步；折中解决"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使（原则、名誉、安全）受损，危及"
+        }
+      ],
+      "rootAffix": "com-（共同）+ promise（答应、承诺）→ 双方共同作出承诺 → 各让一步 → 妥协",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Both sides made concessions to reach a compromise.",
+          "translation": "双方都作出让步以达成妥协。",
+          "analysis": "简单句：主语 Both sides + 谓语 made + 宾语 concessions + 目的状语 to reach a compromise。compromise 作名词表「折中方案」，reach a compromise 是固定搭配。"
+        },
+        {
+          "level": "long",
+          "sentence": "Although the engineers accepted a compromise on the height of the dam in order to protect the wetland, they refused to compromise on the safety margin, arguing that no political benefit could justify endangering the towns downstream.",
+          "translation": "尽管工程师们为了保住湿地，在大坝高度上接受了折中方案，但他们拒绝在安全裕度上妥协，理由是任何政治利益都无法为危及下游城镇辩护。",
+          "analysis": "主从复合句。Although 引导让步状语从句（in order to protect the wetland 为目的状语）；主句 they refused to compromise on the safety margin；arguing that... 为现在分词短语作伴随状语，其中 that 引导宾语从句。compromise 三义并用：名词「折中方案」（a compromise on the height）、不及物动词「妥协」（compromise on the safety margin）、以及隐含的「危及/损害」义（endangering 与之呼应）。注意 compromise on sth 表「在某事上让步」。"
+        }
+      ],
+      "collocations": [
+        "reach a compromise 达成妥协",
+        "compromise on 在…上让步",
+        "a compromise between A and B A 与 B 的折中",
+        "compromise one's principles 违背原则"
+      ],
+      "phrases": [
+        "make a compromise 作妥协",
+        "an acceptable compromise 可接受的折中方案"
+      ],
+      "derived": [
+        {
+          "word": "compromising",
+          "meaning": "adj. 有损名誉的（compromising photos）"
+        },
+        {
+          "word": "uncompromising",
+          "meaning": "adj. 不妥协的，坚决的"
+        }
+      ],
+      "synonyms": [
+        "concession",
+        "trade-off",
+        "settlement",
+        "endanger"
+      ],
+      "mnemonic": "拆词记忆：com(共同)+promise(承诺) → 彼此都承诺退一点 → 妥协；注意第三义「危及」常出现在安全/名誉语境（compromise safety）"
+    },
+    "conceal": {
+      "syllable": "con·ceal",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "隐藏，掩盖（conceal sth from sb）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "隐瞒（事实、情绪）"
+        }
+      ],
+      "rootAffix": "con-（加强）+ ceal（隐藏，同 cell/celare）→ 严实藏起来 → 隐藏",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She concealed her disappointment behind a smile.",
+          "translation": "她用微笑掩饰自己的失望。",
+          "analysis": "简单句：主语 She + 谓语 concealed + 宾语 her disappointment + 状语 behind a smile。conceal 取「掩饰（情绪）」义，介词用 behind 表「藏在…之后」。"
+        },
+        {
+          "level": "long",
+          "sentence": "Companies that conceal the risks of their products from regulators often discover, once those risks become public, that the cost of restoring trust far exceeds anything they saved by concealing the truth.",
+          "translation": "向监管机构隐瞒产品风险的公司往往会发现，一旦这些风险公开，重建信任的代价远超它们隐瞒真相所省下的一切。",
+          "analysis": "主从复合句。主语 Companies 后接 that 引导的定语从句；主句谓语 discover，其后为 once 引导的时间状语从句插入 + that 引导的宾语从句（discover... that...）；宾语从句中 far exceeds anything they saved 为比较结构，anything 后接省略关系词的定语从句。conceal 两见，固定搭配 conceal sth from sb（向某人隐瞒某事）在句中体现为 conceal the risks ... from regulators。"
+        }
+      ],
+      "collocations": [
+        "conceal sth from sb 向某人隐瞒某事",
+        "conceal the truth 隐瞒真相",
+        "conceal evidence 隐匿证据",
+        "barely concealed 几乎掩饰不住的"
+      ],
+      "phrases": [
+        "conceal one's feelings 掩饰情绪",
+        "concealed weapon 藏匿的武器"
+      ],
+      "derived": [
+        {
+          "word": "concealment",
+          "meaning": "n. 隐藏，隐匿"
+        },
+        {
+          "word": "concealed",
+          "meaning": "adj. 隐藏的，暗藏的"
+        }
+      ],
+      "synonyms": [
+        "hide",
+        "disguise",
+        "mask",
+        "withhold"
+      ],
+      "mnemonic": "与 reveal 互为反义成对记：conceal 藏起来 / reveal 揭示出来；介词固定搭配 conceal sth from sb，不容替换"
+    },
+    "concentrate": {
+      "syllable": "con·cen·trate",
+      "pos": "v./n.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "集中（注意力、精力）；专心（concentrate on）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使集中（于某处、某领域）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "浓缩物（较专业用法）"
+        }
+      ],
+      "rootAffix": "con-（共同）+ centr（中心，同 center）+ -ate → 全部聚到中心 → 集中",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "It is hard to concentrate on reading with so much noise outside.",
+          "translation": "外面这么吵，很难专心读书。",
+          "analysis": "简单句：主语 it 为形式主语（真正主语是 to concentrate on reading）；系动词 is + 表语 hard + 状语 with so much noise outside。concentrate on sth 表「专注于某事」，on 不可换成 in。"
+        },
+        {
+          "level": "long",
+          "sentence": "Rather than spreading its resources thinly across a dozen fields, the institute decided to concentrate them on two problems whose solution would benefit patients within a decade, a choice that disappointed researchers in other areas but produced results far sooner.",
+          "translation": "该研究所没有把资源稀薄地分散在十几个领域，而是决定把它们集中在两个问题上——这两个问题的解决将在十年内惠及患者；这一选择让其他领域的研究者感到失望，但成果来得快得多。",
+          "analysis": "简单句主干 + 定语从句。Rather than doing... 为句首对比状语（Rather than spreading...）；主句主语 the institute，谓语 decided，宾语 to concentrate them on two problems；whose 引导定语从句修饰 problems；a choice 为同位语，后接 that 引导的定语从句（含 but 并列谓语）。concentrate 取「把（资源）集中于」义，与 spread（分散）构成语义对立，是本句的关键对照。"
+        }
+      ],
+      "collocations": [
+        "concentrate on 专注于，集中于",
+        "concentrate one's efforts on 把精力集中在",
+        "concentrated effort 集中的努力",
+        "concentrated solution 浓缩溶液（化学）"
+      ],
+      "phrases": [
+        "concentrate the mind 使注意力集中",
+        "be concentrated in 集中在（某地）"
+      ],
+      "derived": [
+        {
+          "word": "concentration",
+          "meaning": "n. 专注；集中；浓度"
+        },
+        {
+          "word": "concentrated",
+          "meaning": "adj. 集中的；浓缩的"
+        }
+      ],
+      "synonyms": [
+        "focus",
+        "centre",
+        "gather",
+        "consolidate"
+      ],
+      "mnemonic": "centr 是「中心」词根（center 中心、central 中央的）：con(共同)+centr(中心) → 全聚到中心 → 集中"
+    },
+    "concept": {
+      "syllable": "con·cept",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "概念，观念（抽象的一般想法）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "（新）构想，理念"
+        }
+      ],
+      "rootAffix": "con-（共同、完全）+ cept（抓住，同 capture/accept）→（在心里）抓住的东西 → 概念",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The concept of fairness differs across cultures.",
+          "translation": "「公平」这一概念在不同文化中含义有别。",
+          "analysis": "简单句：主语 The concept of fairness + 谓语 differs + 状语 across cultures。concept 取「概念」义，of 短语作后置定语说明具体内容；主语中心词为 concept，故谓语用第三人称单数 differs。"
+        },
+        {
+          "level": "long",
+          "sentence": "The concept of privacy that emerged in the nineteenth century, when a person could retreat behind a locked door, has proved hard to translate into an age in which the most intimate details are stored on servers controlled by others.",
+          "translation": "十九世纪形成的隐私概念——那时一个人可以躲在一扇锁着的门后面——已证明很难转译到这个时代：最私密的细节都存放在别人控制的服务器上。",
+          "analysis": "主从复合句。主语为 The concept of privacy，后接 that emerged in the nineteenth century 定语从句；when 引导非限制性定语从句补充说明 nineteenth century；主句谓语 has proved hard to translate into an age；in which 引导定语从句修饰 age（其中 controlled by others 为过去分词短语作后置定语修饰 servers）。concept 取「概念」义；本句体现学术写作常用手法：用定语从句为抽象概念补充历史语境。"
+        }
+      ],
+      "collocations": [
+        "the concept of …的概念",
+        "a clear concept 清晰的概念",
+        "basic concepts 基本概念",
+        "introduce a concept 引入一个概念"
+      ],
+      "phrases": [
+        "in concept 在概念上",
+        "the concept behind sth 某事物背后的理念"
+      ],
+      "derived": [
+        {
+          "word": "conception",
+          "meaning": "n. 观念，构想；受孕"
+        },
+        {
+          "word": "conceptual",
+          "meaning": "adj. 概念上的（conceptual framework 概念框架）"
+        },
+        {
+          "word": "conceive",
+          "meaning": "v. 构想，想象；怀孕"
+        }
+      ],
+      "synonyms": [
+        "notion",
+        "idea",
+        "conception",
+        "principle"
+      ],
+      "mnemonic": "cept 是「抓住」词根（accept 接受、capture 捕获）：con(完全)+cept(抓) → 心里抓住的抽象物 → 概念"
+    },
+    "conclude": {
+      "syllable": "con·clude",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "得出结论，断定（conclude that）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "结束，终止（conclude with/by）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "缔结，达成（协议、条约）"
+        }
+      ],
+      "rootAffix": "con-（完全）+ clud（关闭，同 close/clude）→ 完全关闭 → 结束；推出结论",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The study concluded that sleep loss impairs judgement.",
+          "translation": "该研究得出结论：睡眠不足会损害判断力。",
+          "analysis": "主从复合句：主语 The study + 谓语 concluded + that 引导宾语从句。conclude that... 是学术写作中引出结论的标准句式；impairs 的主语为 sleep loss（不可数，谓语用单数）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Having reviewed more than four hundred studies, the panel concluded that the evidence, although consistent in direction, was too weak to justify a change in policy, and it therefore recommended further trials rather than immediate action.",
+          "translation": "在审阅了四百多项研究之后，该专家组得出结论：证据方向虽一致，但强度不足以为政策调整提供依据，因此建议进一步试验，而不是立即行动。",
+          "analysis": "主从复合句。Having reviewed... 为完成体分词短语作时间状语，表先于主句发生；主句主语 the panel，谓语 concluded，后接 that 引导的宾语从句；从句中 although consistent in direction 为省略式的让步状语（= although it was consistent...）；and it therefore recommended... 为并列分句。conclude 取「得出结论」义，rather than 引出建议的对比项。"
+        }
+      ],
+      "collocations": [
+        "conclude that 得出结论认为",
+        "conclude with/by 以…结束",
+        "conclude an agreement 缔结协议",
+        "it is reasonable to conclude 有理由断定"
+      ],
+      "phrases": [
+        "to conclude 最后，总之",
+        "concluding remarks 结束语"
+      ],
+      "derived": [
+        {
+          "word": "conclusion",
+          "meaning": "n. 结论；结尾；in conclusion 总之"
+        },
+        {
+          "word": "conclusive",
+          "meaning": "adj. 决定性的，确凿的（conclusive evidence）"
+        },
+        {
+          "word": "inconclusive",
+          "meaning": "adj. 无定论的"
+        }
+      ],
+      "synonyms": [
+        "infer",
+        "deduce",
+        "determine",
+        "finish"
+      ],
+      "mnemonic": "clud 是「关闭」词根（include 关进去、exclude 关在外）：con(完全)+clude(关) → 关上讨论的口子 → 得出结论、结束"
+    },
+    "conduct": {
+      "syllable": "con·duct",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "进行，实施（研究、实验、调查）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "引导，带领；指挥（乐队）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "传导（热、电）；表现（conduct oneself）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "行为，举止；实施方式"
+        }
+      ],
+      "rootAffix": "con-（共同、一起）+ duct（引导，同 duct/duke）→ 一起引导 → 进行、指挥、传导",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The team conducted the experiment under strict conditions.",
+          "translation": "该团队在严格条件下进行了这项实验。",
+          "analysis": "简单句：主语 The team + 谓语 conducted + 宾语 the experiment + 状语 under strict conditions。conduct 取「进行（实验）」义，作及物动词；重音在第二音节（con·DUCT），名词形式重音则在第一音节（CON·duct），词性靠重音区分。"
+        },
+        {
+          "level": "long",
+          "sentence": "The way a scientist conducts himself when the data contradict his hypothesis tells colleagues more about his integrity than any number of citations, and it is this conduct, rather than published results, that makes a reputation durable.",
+          "translation": "当数据与自己的假说相矛盾时，一位科学家如何为人行事，比再多的引用次数都更能让同行看清他的诚信；而正是这种行为——而非发表的结果——使声誉得以持久。",
+          "analysis": "并列复合句。第一分句主语为 The way，后接省略关系词的定语从句 a scientist conducts himself（conduct oneself 表「为人行事」），从句中含 when 引导的时间状语从句；谓语 tells colleagues more about... than any number of citations（more...than 比较结构）。第二分句为 it is ... that ... 强调句，被强调成分是 this conduct，rather than published results 为插入对比。conduct 先作动词（为人行事），后作名词（行为），一字两性两重音，务必分清。"
+        }
+      ],
+      "collocations": [
+        "conduct research 进行研究",
+        "conduct an experiment 做实验",
+        "conduct a survey 开展调查",
+        "conduct oneself well 举止得体"
+      ],
+      "phrases": [
+        "professional conduct 职业行为",
+        "code of conduct 行为准则"
+      ],
+      "derived": [
+        {
+          "word": "conductor",
+          "meaning": "n. 指挥；导体；售票员"
+        },
+        {
+          "word": "conduction",
+          "meaning": "n. 传导"
+        },
+        {
+          "word": "misconduct",
+          "meaning": "n. 不当行为，渎职"
+        }
+      ],
+      "synonyms": [
+        "carry out",
+        "perform",
+        "lead",
+        "behaviour"
+      ],
+      "mnemonic": "duct 是「引导」词根（introduce 引入、produce 生产、educate 教育）：con(一起)+duct(引导) → 带领着做 → 进行、指挥；名词重音在前（CONduct 行为），动词重音在后（conDUCT 进行）"
+    }
+  }
+}

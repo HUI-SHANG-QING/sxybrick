@@ -16,7 +16,7 @@
 //       受限内容应自行跳过，由调用方 fallback 到本地预设模板。
 
 import { isInSyllabus, getSyllabusMeta } from './word-syllabus.js';
-import { enrichWordMaterials } from './word-enrich.js';
+import { enrichWordMaterials, ensureWord } from './word-enrich.js';
 import { recordUsage, estimateTokens } from '../utils/ai-usage.js';
 
 // ---------- Provider 配置 ----------
@@ -136,6 +136,9 @@ export async function generateWordMaterials(req) {
   // ① 本地词库优先（默认路径）：零 AI 调用、零网络、零费用。
   //    命中即返回，返回结构与 normalize() 同构，并保留 examples[].analysis（长难句解析）。
   //    刻意不做大纲过滤——OCR 识别出的词、自建词条同样需要补全。
+  //    词库已按字母分片（每片 ≤200 词，避免首屏加载 11MB），故先按需加载目标词所在分片；
+  //    加载后仍未有此词即为「确未收录」。
+  await ensureWord(word);
   const local = enrichWordMaterials({ word, levels: req?.levels });
   if (local.ok) return local;
 

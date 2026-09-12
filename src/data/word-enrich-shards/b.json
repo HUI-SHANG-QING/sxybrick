@@ -1,0 +1,131 @@
+{
+  "shard": "b",
+  "from": "balance",
+  "to": "benefit",
+  "entries": {
+    "balance": {
+      "syllable": "bal·ance",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "平衡，均衡（不可数）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "余额（银行账户）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使平衡；权衡，斟酌"
+        }
+      ],
+      "rootAffix": "ba(=bi，两，拉丁语 bis)+lance(秤盘) → 两头称量 → 平衡；两头相比较 → 权衡",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Try to keep a balance between work and rest.",
+          "translation": "尽量在工作和休息之间保持平衡。",
+          "analysis": "祈使句：谓语 Try to keep + 宾语 a balance；between...and... 说明平衡的两端（balance between A and B 固定搭配）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Governments must balance the need for economic growth against the imperative of protecting the environment, a task that becomes harder as populations expand.",
+          "translation": "政府必须在经济增长需求与保护环境的紧迫性之间取得平衡——随着人口增长，这项任务愈发艰巨。",
+          "analysis": "主句 balance A against B（把 A 与 B 权衡，固定搭配）；a task that... 是同位语，补充说明整个主句；that becomes harder 是定语从句修饰 a task；as populations expand 是 as 引导的时间/原因状语从句。"
+        }
+      ],
+      "collocations": [
+        "balance A against/and B 权衡 A 与 B",
+        "keep/lose one's balance 保持/失去平衡",
+        "on balance 总的来说（权衡之后）",
+        "bank balance 账户余额"
+      ],
+      "phrases": [
+        "out of balance 失衡",
+        "strike a balance 取得折中"
+      ],
+      "derived": [
+        {
+          "word": "balanced",
+          "meaning": "adj. 均衡的（a balanced diet 均衡饮食）"
+        },
+        {
+          "word": "imbalance",
+          "meaning": "n. 不平衡（trade imbalance 贸易失衡）"
+        },
+        {
+          "word": "unbalanced",
+          "meaning": "adj. 失衡的；精神失常的"
+        }
+      ],
+      "synonyms": [
+        "equilibrium",
+        "symmetry",
+        "weigh"
+      ],
+      "易混辨析": "balance（平衡，名词为主）/ balcony（阳台）/ ballot（选票）——拼写开头相近；on balance 是阅读高频短语「总的来说」",
+      "mnemonic": "ba(两)+lance(秤) → 两头称平 → 平衡、权衡"
+    },
+    "benefit": {
+      "syllable": "ben·e·fit",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "好处，益处（可数）；福利（救济金，常用复数）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使受益（及物）；受益（benefit from/by，不及物）"
+        }
+      ],
+      "rootAffix": "bene-(好，善，拉丁语 bene)+fit(做，fili) → 做好事 → 益处；同根 benefit/benevolent（仁慈的）/benefactor（恩人）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Regular exercise benefits your health.",
+          "translation": "经常锻炼有益健康。",
+          "analysis": "简单句：主语 Regular exercise + 及物谓语 benefits + 宾语 your health。benefit 直接接宾语表「使受益」，不加 from。"
+        },
+        {
+          "level": "long",
+          "sentence": "The students who benefit most from online learning are those who can manage their own time, a skill that traditional classrooms rarely teach explicitly.",
+          "translation": "从在线学习中受益最多的学生，是那些能够自我管理时间的学生——传统课堂很少明确传授这种能力。",
+          "analysis": "主语 The students + who 定语从句（benefit most from... 受益最多，benefit from 固定搭配）；are those... 表语后接 who 定语从句；a skill that... 是同位语，that 引导定语从句修饰 a skill；rarely explicitly 副词修饰 teach。"
+        }
+      ],
+      "collocations": [
+        "benefit from/by 从…中受益",
+        "reap the benefits 收获好处",
+        "mutual benefit 互利",
+        "social benefits 社会保障金"
+      ],
+      "phrases": [
+        "for the benefit of 为了…的利益",
+        "at no extra benefit 无额外好处的"
+      ],
+      "derived": [
+        {
+          "word": "beneficial",
+          "meaning": "adj. 有益的（beneficial to）"
+        },
+        {
+          "word": "beneficiary",
+          "meaning": "n. 受益人"
+        },
+        {
+          "word": "benefactor",
+          "meaning": "n. 恩人，捐助者"
+        }
+      ],
+      "synonyms": [
+        "advantage",
+        "profit",
+        "gain"
+      ],
+      "易混辨析": "benefit（好处）/ beneficial（有益的，形容词）/ benevolent（仁慈的）/ beneficiary（受益人）——bene 同根「好」家族",
+      "mnemonic": "bene(好)+fit(做) → 做出好处 → 益处、受益"
+    }
+  }
+}
