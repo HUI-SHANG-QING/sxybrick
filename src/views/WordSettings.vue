@@ -6,6 +6,7 @@ import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { getWordSettings, saveWordSettings } from '../word-repo.js';
 import { LLM_PROVIDERS, testLlmConnection } from '../services/word-llm.js';
+import { recommendForCurrentData } from '../services/image-analysis.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
 
 const router = useRouter();
@@ -34,7 +35,47 @@ const levelLabels = {
   long: t('views.wordSettings.levelLong'),
 };
 
-onMounted(async () => { form.value = await getWordSettings(); });
+onMounted(async () => {
+  form.value = await getWordSettings();
+  loadRecommendation();
+});
+
+// ---- 图片分析策略（OCR 先行 / 视觉兜底，见 services/image-analysis.js）----
+const IMG_MODE_LABELS = { auto: 'recModeAuto', ocrFirst: 'recModeOcr', visionFirst: 'recModeVision' };
+const rec = ref(null);          // { mode, reason, stats } 来自 recommendForCurrentData
+const recLoading = ref(false);
+const recError = ref(false);
+
+async function loadRecommendation() {
+  recLoading.value = true;
+  recError.value = false;
+  try {
+    rec.value = await recommendForCurrentData();
+  } catch (e) {
+    recError.value = true;
+    // eslint-disable-next-line no-console
+    console.warn('[WordSettings] image strategy recommendation failed:', e?.message || e);
+  } finally {
+    recLoading.value = false;
+  }
+}
+
+function currentImgMode() {
+  const m = form.value?.imageAnalysis?.mode;
+  return ['auto', 'ocrFirst', 'visionFirst'].includes(m) ? m : 'auto';
+}
+
+function setImgMode(mode) {
+  form.value.imageAnalysis = { ...form.value.imageAnalysis, mode };
+}
+
+function applyRecommended() {
+  if (rec.value?.mode) setImgMode(rec.value.mode);
+}
+
+function recModeLabel() {
+  return rec.value?.mode ? t(`views.wordSettings.${IMG_MODE_LABELS[rec.value.mode]}`) : '';
+}
 
 async function save() {
   if (!form.value) return;
@@ -56,6 +97,7 @@ async function save() {
       confusion: !!form.value.confusion,
       aiFallback: form.value.aiFallback,
       dailyGoal: Number(form.value.dailyGoal) || 20,
+      imageAnalysis: { ...form.value.imageAnalysis, mode: currentImgMode() },
     });
     toast(t('views.wordSettings.savedToast'), 'success');
   } catch (e) {
@@ -172,6 +214,39 @@ async function testConn() {
         </button>
       </section>
 
+      <!-- 图片分析策略 -->
+      <section class="fblock">
+        <h3>
+          {{ t('views.wordSettings.imageTitle') }}
+          <em class="hint-inline" style="display:inline;margin-left:8px">{{ t('views.wordSettings.imageHint') }}</em>
+        </h3>
+        <div class="imgmode-list">
+          <label v-for="m in [
+            { id: 'auto', label: t('views.wordSettings.imgModeAuto'), desc: t('views.wordSettings.modeAutoDesc') },
+            { id: 'ocrFirst', label: t('views.wordSettings.imgModeOcr'), desc: t('views.wordSettings.modeOcrDesc') },
+            { id: 'visionFirst', label: t('views.wordSettings.imgModeVision'), desc: t('views.wordSettings.modeVisionDesc') },
+          ]" :key="m.id" class="imgmode" :class="{ on: currentImgMode() === m.id }">
+            <input type="radio" name="imgMode" :value="m.id" :checked="currentImgMode() === m.id" @change="setImgMode(m.id)" />
+            <span class="imgmode-label">{{ m.label }}</span>
+            <span class="imgmode-desc">{{ m.desc }}</span>
+          </label>
+        </div>
+        <p class="imgmode-tip">{{ t('views.wordSettings.visionNeedsKey') }}</p>
+        <div class="imgmode-rec">
+          <span class="imgmode-rec-title">{{ t('views.wordSettings.recTitle') }}</span>
+          <span v-if="recLoading">{{ t('views.wordSettings.recComputing') }}</span>
+          <span v-else-if="recError">—</span>
+          <span v-else-if="!rec?.stats?.imgRefs">{{ t('views.wordSettings.recNone') }}</span>
+          <template v-else>
+            <span>{{ t('views.wordSettings.recLine', undefined, { imgs: rec.stats.imgRefs, docs: rec.stats.imgDocs, mode: recModeLabel() }) }}</span>
+            <button class="imgmode-apply" :disabled="currentImgMode() === rec.mode" @click="applyRecommended">
+              {{ t('views.wordSettings.recApply') }}
+            </button>
+          </template>
+        </div>
+        <p v-if="rec && !recLoading && !recError && rec.reason" class="imgmode-reason">{{ rec.reason }}</p>
+      </section>
+
       <!-- 助记顺序 / 拆分助记 / 混淆辨析 -->
       <section class="fblock">
         <label class="flabel">{{ t('views.wordSettings.mnemonicOrderLabel') }}</label>
@@ -230,6 +305,19 @@ async function testConn() {
 .test-btn { margin-top: 10px; border: 1px solid var(--line); background: transparent; border-radius: 9px; padding: 7px 14px; cursor: pointer; color: var(--ink); font-size: 13px; }
 .goal-row { display: flex; align-items: center; gap: 8px; }
 .goal-row input { width: 90px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; background: var(--bg, #fff); color: var(--ink); font-size: 14px; }
+/* 图片分析策略：选项卡 + 推荐条 */
+.imgmode-list { display: flex; flex-direction: column; gap: 8px; }
+.imgmode { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; cursor: pointer; }
+.imgmode.on { border-color: var(--accent); background: var(--code-inline); }
+.imgmode input { margin-top: 2px; }
+.imgmode-label { font-size: 13px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.imgmode-desc { font-size: 12px; color: var(--ink-2); line-height: 1.5; }
+.imgmode-tip { margin: 8px 0 0; font-size: 11px; color: var(--ink-2); }
+.imgmode-rec { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 10px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 10px; font-size: 12px; color: var(--ink); }
+.imgmode-rec-title { font-weight: 600; }
+.imgmode-apply { border: 1px solid var(--accent); background: transparent; color: var(--accent); border-radius: 8px; padding: 4px 10px; font-size: 12px; cursor: pointer; margin-left: auto; }
+.imgmode-apply:disabled { opacity: .5; cursor: default; }
+.imgmode-reason { margin: 6px 0 0; font-size: 11px; color: var(--ink-2); }
 .save-btn { border: none; background: var(--accent); color: #fff; border-radius: 12px; padding: 12px; font-size: 15px; cursor: pointer; }
 .save-btn:disabled { opacity: .6; }
 @media (max-width: 520px) { .fblock.two, .form-grid { grid-template-columns: 1fr; } }
