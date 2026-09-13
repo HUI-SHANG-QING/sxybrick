@@ -8,6 +8,9 @@
 
 import { recordUsage, estimateTokens } from '../utils/ai-usage.js';
 import { tryParseLLMJson } from '../utils/llm-json.js';
+// 图片富集：把消息里的 sxy-img:// 占位符转成 AI 可分析内容（OCR 先行 / 视觉兜底）。
+// 本 chat() 是所有 AI 链路（对话/Agent/卡片联动/子任务）的唯一出口，在此覆盖全部。
+import { enrichForLlm } from '../services/image-analysis.js';
 
 /**
  * 发起一次聊天补全。
@@ -35,9 +38,21 @@ export async function chat(messages, cfg, opts = {}) {
     }).catch(() => {});
   };
 
+  // 图片富集：正文里的 sxy-img:// 占位符按策略转成 AI 可分析内容（OCR 文字 / 多模态图片）。
+  // 所有 AI 链路（对话/Agent/卡片联动/子任务）都经此 chat() 发送，一处覆盖全部；
+  // 富集失败不阻塞——降级纯文字照常发送（详见 services/image-analysis.js）。
+  let finalMessages = messages;
+  try {
+    const en = await enrichForLlm(messages);
+    finalMessages = en.messages;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[llm] 图片富集失败，按纯文字发送：', e?.message || e);
+  }
+
   const body = {
     model,
-    messages,
+    messages: finalMessages,
     temperature: opts.temperature ?? 0.7,
     max_tokens: opts.maxTokens ?? 2000,
     stream: !!opts.stream,

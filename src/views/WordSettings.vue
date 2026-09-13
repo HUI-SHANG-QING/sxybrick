@@ -53,7 +53,6 @@ async function loadRecommendation() {
     rec.value = await recommendForCurrentData();
   } catch (e) {
     recError.value = true;
-    // eslint-disable-next-line no-console
     console.warn('[WordSettings] image strategy recommendation failed:', e?.message || e);
   } finally {
     recLoading.value = false;

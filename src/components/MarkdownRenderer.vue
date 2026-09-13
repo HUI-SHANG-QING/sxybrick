@@ -311,5 +311,86 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.md-img { max-width: 100%; border-radius: 8px; }
+.md-img { max-width: 100%; border-radius: 8px; cursor: zoom-in; }
+
+/* 图片全屏灯箱：非原生全屏时 fixed 铺满兜底；is-native 时由浏览器全屏接管尺寸 */
+.img-lb {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  background: rgba(8, 10, 14, 0.92);
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  touch-action: none;
+}
+.img-lb.is-native {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+}
+.img-lb-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+}
+.img-lb-stage:active { cursor: grabbing; }
+.img-lb-img {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  max-width: 92%;
+  max-height: 92%;
+  transform-origin: center center;
+  will-change: transform;
+  /* 先以 (x,y) 平移再缩放：translate 用绝对像素，视觉锚点正确 */
+  translate: -50% -50%;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+  background: #1c1f26;
+}
+.img-lb-err {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9aa3b2;
+  font-size: 15px;
+}
+.img-lb-btn {
+  position: absolute;
+  z-index: 2;
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  background: rgba(20, 24, 32, 0.66);
+  color: #e8ecf3;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+  transition: background 0.15s ease;
+}
+.img-lb-btn:hover { background: rgba(56, 66, 86, 0.85); }
+.img-lb-close { top: 14px; right: 14px; }
+.img-lb-prev { left: 14px; top: 50%; transform: translateY(-50%); font-size: 26px; }
+.img-lb-next { right: 14px; top: 50%; transform: translateY(-50%); font-size: 26px; }
+.img-lb-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  color: #aab3c2;
+  font-size: 12px;
+  background: rgba(8, 10, 14, 0.7);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.img-lb-count { font-variant-numeric: tabular-nums; }
+.img-lb-zoom { font-variant-numeric: tabular-nums; }
+.img-lb-tip { margin-left: auto; opacity: 0.65; }
 </style>
