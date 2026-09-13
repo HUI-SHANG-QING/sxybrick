@@ -74,6 +74,9 @@ export const zh = {
   qaThinking: '思考中…',
   qaCites: '📎 引用片段：',
   qaCite: '片段{n} · 相似 {score}%',
+  // 视觉问答（扫描件/图表型资料：无可提取文字层 → 直接把页面图/原图送多模态）
+  qaLibVision: '👁 视觉分析：已把 {n} 页图片送入多模态模型（该资料无文字层，未走文本检索）',
+  qaLibVisionBlocked: '⚠ 该资料需要视觉分析，但当前无法送图 —— 按提示调整后重试',
 
   // ——— 生成卡片弹窗（用户选择制） ———
   draftTitle: '🃏 生成卡片预览 — {name}',
@@ -193,6 +196,9 @@ export const en = {
   qaThinking: 'Thinking…',
   qaCites: '📎 Citations:',
   qaCite: 'Snippet {n} · similarity {score}%',
+  // Vision QA (scanned/chart-only docs with no extractable text layer)
+  qaLibVision: '👁 Vision analysis: sent {n} page image(s) to the multimodal model (no text layer in this file)',
+  qaLibVisionBlocked: '⚠ This file needs vision analysis but images cannot be sent — follow the hint and retry',
 
   // ——— Card draft modal (user-confirmed) ———
   draftTitle: '🃏 Card draft preview — {name}',

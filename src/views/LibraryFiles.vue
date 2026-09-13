@@ -40,7 +40,7 @@ const imgUrl = ref('');
 const textPreview = ref('');
 
 // 问答
-const qa = ref({ docId: null, question: '', answer: '', citations: [], busy: false });
+const qa = ref({ docId: null, question: '', answer: '', citations: [], busy: false, via: '', note: '', visionPages: 0 });
 
 // 建卡弹窗（用户选择制）
 const draftModal = ref(null);
@@ -298,7 +298,7 @@ watch([preview, pdfPage], async ([pv, pg]) => {
 // ---------- 问答 ----------
 
 async function openQA(f) {
-  qa.value = { docId: f.id, question: '', answer: '', citations: [], busy: false };
+  qa.value = { docId: f.id, question: '', answer: '', citations: [], busy: false, via: '', note: '', visionPages: 0 };
   preview.value = null;
 }
 
@@ -309,7 +309,12 @@ async function ask() {
   try {
     const r = await askDoc(qa.value.docId, qa.value.question);
     qa.value.answer = r.answer;
-    qa.value.citations = r.citations;
+    qa.value.citations = r.citations || [];
+    // 视觉路径（扫描件/图表型资料）要明确告知用户「这次是看图回答的」，
+    // 否则用户无法判断回答是否真的读到了图片内容
+    qa.value.via = r.via || 'text';
+    qa.value.note = r.note || '';
+    qa.value.visionPages = r.visionPages || 0;
   } catch (e) {
     qa.value.answer = t('views.libraryFiles.qaFailed') + (e?.message || e);
   } finally {
@@ -503,6 +508,13 @@ onMounted(async () => {
         <button class="btn accent" :disabled="qa.busy || !qa.question.trim()" @click="ask">{{ qa.busy ? t('views.libraryFiles.qaThinking') : t('views.libraryFiles.qaAsk') }}</button>
       </div>
       <div v-if="qa.answer" class="qa-answer">
+        <div v-if="qa.via === 'vision'" class="qa-badge vision">
+          {{ t('views.libraryFiles.qaLibVision', undefined, { n: qa.visionPages }) }}
+        </div>
+        <div v-else-if="qa.via === 'blocked'" class="qa-badge warn">
+          {{ t('views.libraryFiles.qaLibVisionBlocked') }}
+        </div>
+        <div v-if="qa.note" class="hint" style="margin-bottom:6px">{{ qa.note }}</div>
         <div class="qa-text">{{ qa.answer }}</div>
         <div v-if="qa.citations.length" class="qa-cites">
           <div class="hint" style="margin-bottom:6px">{{ t('views.libraryFiles.qaCites') }}</div>
@@ -602,6 +614,10 @@ onMounted(async () => {
 .qa-row { display: flex; gap: 8px; margin-bottom: 10px; }
 .qa-input { flex: 1; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); }
 .qa-answer { background: var(--code-bg); border-radius: 10px; padding: 14px; }
+/* 视觉/受阻提示条：让用户一眼看出这次回答是「看图」得到的还是被挡住了 */
+.qa-badge { display: inline-block; font-size: 12px; border-radius: 6px; padding: 3px 10px; margin-bottom: 8px; }
+.qa-badge.vision { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border: 1px solid var(--accent); }
+.qa-badge.warn { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #b45309; border: 1px solid #f59e0b; }
 .qa-text { white-space: pre-wrap; line-height: 1.8; font-size: 14px; }
 .qa-cites { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
 .qa-cite { margin-bottom: 8px; }

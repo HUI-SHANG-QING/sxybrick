@@ -3,6 +3,7 @@
 // 整理成一段结构化文本，注入到 Agent 的系统提示里，让 Agent “基于事实”而非泛泛而谈。
 // 这是“数据感知型 Agent”的核心：所有分析/建议类 Agent 都依赖它。
 
+import { db } from '../db.js';
 import { getStats, weakCards, getReviewSuggestion, getTags } from '../repo.js';
 import { getModuleSummary } from './analytics.js';
 import { retrieveContext, ensureIndex } from './retrieval.js';
@@ -54,6 +55,27 @@ export async function buildStudyContext() {
     L.push(`- 薄弱/错题卡片（按遗忘次数排序）：${top}`);
   }
   if (moduleSummary) L.push(moduleSummary);
+
+  // 视觉型资料（扫描 PDF / 图片文件）没有可检索的文字层，RAG 永远搜不到它们。
+  // 不明说的话，AI 面对「我上传的资料讲了什么」只能答「资料中未找到相关内容」——
+  // 用户会以为资料没上传成功。这里显式告知存在性与正确入口（资料库页对该文件提问即走视觉）。
+  try {
+    const files = await db.docFiles.toArray();
+    const { docKindOf } = await import('../services/doc-vision.js');
+    const visual = files.filter((f) => {
+      const k = docKindOf(f);
+      return k === 'pdf' || k === 'image';
+    });
+    if (visual.length) {
+      L.push(
+        `- 资料库：共 ${files.length} 份资料，其中 ${visual.length} 份为 PDF/图片型文件`
+        + `（内容以图像形式存在，文字检索取不到）。若用户询问这些文件的内容，`
+        + `请引导他到「资料库」页打开该文件提问——那里会把页面图/原图直接送给多模态模型分析；`
+        + `不要凭文件名或标题猜测文件内容。`,
+      );
+    }
+  } catch { /* 统计失败不影响上下文主流程 */ }
+
   return L.join('\n');
 }
 

@@ -21,6 +21,7 @@ import { extractImageIds } from '../images.js';
 // ocrImageText：真正导出的单图识别入口（云端优先→本地 Tesseract，docs-lib 内部分级），
 // 接收 File/Blob，返回清洗后的纯文本字符串；识别不到/失败时抛异常。
 import { ocrImageText } from '../docs-lib.js';
+import { compressImageBlob } from '../utils/img-compress.js';
 
 export const IMG_MODES = ['auto', 'ocrFirst', 'visionFirst'];
 // 费用护栏：单次分析最多发给视觉模型的图片数
@@ -107,8 +108,8 @@ export async function textifyContent(content, opts = {}) {
         const s = signal && t && AbortSignal.any ? AbortSignal.any([signal, t]) : (t || signal);
         text = await ocrImageText(row.blob, { signal: s });
       }
-    } catch (e) {
-      text = '';
+    } catch {
+      text = ''; // 识别失败：留空，由下方 visionRefs 兜底或标注「未能识别」
     }
     if (text && text.trim()) {
       ocrDone += 1;
@@ -165,6 +166,20 @@ export async function statImageAssets() {
   scan('memos', await db.memos.toArray());
   if (db.docFiles) scan('docFiles', await db.docFiles.toArray());
 
+  // 资料库的「视觉型文件」单独统计：pdf/图片文件不走 sxy-img:// 占位符，
+  // 上面那轮 scan 一定漏掉它们——而扫描件/图表资料恰恰是最需要视觉分析的部分。
+  // 动态 import doc-vision 避免与它形成静态环（doc-vision → utils/img-compress 单向）。
+  let docVisual = 0;
+  let docVisionPages = 0;
+  try {
+    const { docKindOf } = await import('./doc-vision.js');
+    for (const f of db.docFiles ? await db.docFiles.toArray() : []) {
+      const kind = docKindOf(f);
+      if (kind === 'image') { docVisual += 1; docVisionPages += 1; }
+      else if (kind === 'pdf') { docVisual += 1; docVisionPages += Math.max(1, Number(f.pageCount) || 1); }
+    }
+  } catch { /* 统计失败不影响主流程 */ }
+
   // 孤儿校验：占位符指向但 db.images 里没有的（不计入 imgUnique）
   let live = 0;
   for (const id of all) {
@@ -177,18 +192,26 @@ export async function statImageAssets() {
     + (await db.memos.toArray()).length
     + (db.docFiles ? (await db.docFiles.toArray()).length : 0);
 
-  return { imgRefs, imgUnique: live, imgDocs, docs, bySource };
+  return { imgRefs, imgUnique: live, imgDocs, docs, bySource, docVisual, docVisionPages };
 }
 
 /**
  * 基于数据统计的策略推荐（保守、可解释；规则见设计文档第 2 节）。
- * @param {{ imgRefs, imgUnique, imgDocs, docs }} stats
+ * @param {{ imgRefs, imgUnique, imgDocs, docs, docVisual?, docVisionPages? }} stats
  * @returns {{ mode: string, reason: string }}
  */
 export function recommendMode(stats) {
-  const { imgRefs = 0, imgDocs = 0, docs = 0 } = stats || {};
-  if (!imgRefs) {
-    return { mode: 'auto', reason: '当前数据里没有图片，任意策略效果相同（auto 已含兜底）' };
+  const { imgRefs = 0, imgDocs = 0, docs = 0, docVisual = 0, docVisionPages = 0 } = stats || {};
+  if (!imgRefs && !docVisual) {
+    return { mode: 'auto', reason: '当前数据里没有图片、也没有 PDF/图片型资料，任意策略效果相同（auto 已含兜底）' };
+  }
+  // 资料库里有 PDF/图片文件 → 这是「无文字层」的重灾区，视觉几乎是唯一解
+  if (docVisual > 0) {
+    return {
+      mode: 'visionFirst',
+      reason: `资料库有 ${docVisual} 份 PDF/图片型文件（约 ${docVisionPages} 页）——这类文件没有可提取的文字层（扫描件/图表），`
+        + '只做 OCR 往往只能拿到零散标题，建议「先多模态」直接看图；代价是按张计费、需 AI 接口支持视觉模型（单次最多送 3 页）',
+    };
   }
   const imgRatio = docs > 0 ? imgDocs / docs : 0;
   if (imgRatio > 0.5) {
@@ -237,57 +260,10 @@ export async function imageIdsToVisionContent(ids) {
   return out;
 }
 
-// canvas 压缩（浏览器环境）；Node 测试环境无 document → 直接读 blob 转 dataURL
-async function compressImageBlob(blob) {
-  try {
-    if (typeof document === 'undefined') return blobToDataUrlRaw(blob);
-    const url = URL.createObjectURL(blob);
-    try {
-      const img = await new Promise((resolve, reject) => {
-        const el = new Image();
-        el.onload = () => resolve(el);
-        el.onerror = reject;
-        el.src = url;
-      });
-      const MAX = 1568;
-      const scale = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
-      const w = Math.max(1, Math.round(img.naturalWidth * scale));
-      const h = Math.max(1, Math.round(img.naturalHeight * scale));
-      const canvas = document.createElement('canvas');
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-      return canvas.toDataURL('image/jpeg', 0.8);
-    } finally {
-      URL.revokeObjectURL(url);
-    }
-  } catch {
-    return blobToDataUrlRaw(blob);
-  }
-}
-
-function blobToDataUrlRaw(blob) {
-  const mime = blob?.type || 'application/octet-stream';
-  // 浏览器：FileReader 最稳
-  if (typeof FileReader !== 'undefined') {
-    return new Promise((resolve, reject) => {
-      const fr = new FileReader();
-      fr.onload = () => resolve(fr.result);
-      fr.onerror = reject;
-      fr.readAsDataURL(blob);
-    });
-  }
-  // Node / 无 FileReader 环境（测试、SSR）：读字节 → base64
-  return blob.arrayBuffer().then((buf) => {
-    const bytes = new Uint8Array(buf);
-    let bin = '';
-    const CHUNK = 0x8000;
-    for (let i = 0; i < bytes.length; i += CHUNK) {
-      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
-    }
-    const b64 = (typeof btoa !== 'undefined') ? btoa(bin) : Buffer.from(bytes).toString('base64');
-    return `data:${mime};base64,${b64}`;
-  });
-}
+// canvas 压缩 / dataURL 转换已下沉到 utils/img-compress.js——
+// doc-vision.js（资料库文件 → 多模态）同样需要，若两边各自 import 对方就成静态环（dep:check 拦）。
+// 这里 re-export 保持既有引用面（image-analysis.compressImageBlob）不变。
+export { compressImageBlob, blobToDataUrlRaw } from '../utils/img-compress.js';
 
 // ---- LLM 消息富集（AI 链路的唯一接线点） ----------------------------------
 
@@ -329,9 +305,27 @@ export async function enrichForLlm(messages, opts = {}) {
 
   // ① visionFirst：直接发图（护栏截断 3 张），不 OCR
   if (policy.mode === 'visionFirst') {
-    const vision = await imageIdsToVisionContent(ids.slice(0, VISION_LIMIT_FIRST));
+    const picked = ids.slice(0, VISION_LIMIT_FIRST);
+    const vision = await imageIdsToVisionContent(picked);
     if (!vision.length) return { messages, vision: 0 };
-    return { messages: attachVisionToLastUser(messages, vision), vision: vision.length };
+    // 关键：送图的图要在正文里留「已作为附图发送」的标注，超出单次上限的图要显式说明未发送。
+    // 否则模型只看到一串 sxy-img://xxx 占位符，会误以为「只有标题、看不到内容」——
+    // 这正是用户反馈的「白搞」场景（护栏截断后尤其明显）。
+    const sent = new Set(picked.slice(0, vision.length)); // 转换失败的按未发送处理
+    const marked = messages.map((m) => {
+      if (typeof m.content !== 'string') return m;
+      let text = m.content;
+      let n = 0;
+      for (const id of ids) {
+        n += 1;
+        const block = sent.has(id)
+          ? `【图片${n}：已作为附图发送，请直接看图分析】`
+          : `【图片${n}：未随本次发送（单次最多 ${VISION_LIMIT_FIRST} 张），如需分析请单独提问】`;
+        text = text.split(`sxy-img://${id}`).join(block);
+      }
+      return { ...m, content: text };
+    });
+    return { messages: attachVisionToLastUser(marked, vision), vision: vision.length };
   }
 
   // ② ocrFirst / auto：OCR 文字化（带缓存）。ocrFn 为识别注入点（默认 ocrImageText）。

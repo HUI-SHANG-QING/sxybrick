@@ -86,7 +86,12 @@ test('enrichForLlm visionFirst：直接发图（≤3 张），不 OCR', async ()
   const last = r.messages[r.messages.length - 1];
   assert.ok(Array.isArray(last.content));
   assert.equal(last.content.filter((p) => p.type === 'image_url').length, 3);
-  assert.ok(last.content.some((p) => p.type === 'text' && p.text.includes('sxy-img://')), '原文占位符保留在 text 段');
+  // 行为变更（2026-09-13 round42）：正文里的占位符不再原样保留，而是替换为「已作为附图发送」标注。
+  // 原因：模型看不懂 sxy-img://xxx，只看到一串占位符会答「只能识别到图片标题、看不到内容」，
+  // 正是用户反馈「白搞」的场景（护栏截断后尤其明显）。
+  const textSeg = last.content.filter((p) => p.type === 'text').map((p) => p.text).join('');
+  assert.ok(!textSeg.includes('sxy-img://'), '占位符必须被替换为可读标注');
+  assert.match(textSeg, /已作为附图发送/, '送出的图要有明确标注');
 });
 
 test('enrichForLlm 降级：图片行不存在 → 纯文字标注，不阻塞', async () => {

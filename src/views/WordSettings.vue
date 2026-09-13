@@ -235,9 +235,10 @@ async function testConn() {
           <span class="imgmode-rec-title">{{ t('views.wordSettings.recTitle') }}</span>
           <span v-if="recLoading">{{ t('views.wordSettings.recComputing') }}</span>
           <span v-else-if="recError">—</span>
-          <span v-else-if="!rec?.stats?.imgRefs">{{ t('views.wordSettings.recNone') }}</span>
+          <span v-else-if="!rec?.stats?.imgRefs && !rec?.stats?.docVisual">{{ t('views.wordSettings.recNone') }}</span>
           <template v-else>
-            <span>{{ t('views.wordSettings.recLine', undefined, { imgs: rec.stats.imgRefs, docs: rec.stats.imgDocs, mode: recModeLabel() }) }}</span>
+            <span v-if="rec.stats.docVisual">{{ t('views.wordSettings.recLineMixed', undefined, { imgs: rec.stats.imgRefs, docVisual: rec.stats.docVisual, pages: rec.stats.docVisionPages, mode: recModeLabel() }) }}</span>
+            <span v-else>{{ t('views.wordSettings.recLine', undefined, { imgs: rec.stats.imgRefs, docs: rec.stats.imgDocs, mode: recModeLabel() }) }}</span>
             <button class="imgmode-apply" :disabled="currentImgMode() === rec.mode" @click="applyRecommended">
               {{ t('views.wordSettings.recApply') }}
             </button>
