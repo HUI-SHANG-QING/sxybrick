@@ -1,0 +1,607 @@
+{
+  "shard": "f-2",
+  "from": "chocolate",
+  "to": "coal",
+  "entries": {
+    "chocolate": {
+      "syllable": "choc·o·late", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"巧克力"},{"pos":"n.","meaning":"巧克力糖"}],
+      "rootAffix": "纳瓦特尔语 xocolatl(苦水)",
+      "examples": [
+        {"level":"simple","sentence":"She loves dark chocolate.","translation":"她爱吃黑巧克力。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"Premium chocolate makers source cacao beans from specific Venezuelan plantations, then age them for weeks to develop the complex flavors that distinguish single-origin bars from mass-produced chocolate.","translation":"优质巧克力商从委内瑞拉特定种植园采购可可豆，然后陈化数周以形成使单一产地巧克力区别于量产巧克力的复杂风味。","analysis":"简单句；that 引导定语从句修饰 flavors。"}
+      ],
+      "collocations": ["dark chocolate 黑巧克力","hot chocolate 热巧克力","chocolate bar 巧克力棒"],
+      "phrases": [],
+      "derived": []
+    },
+    "choice": {
+      "syllable": "choice", "pos": "n./adj.",
+      "defs": [{"pos":"n.","meaning":"选择"},{"pos":"n.","meaning":"选择权"},{"pos":"adj.","meaning":"精选的，优等的"}],
+      "rootAffix": "choose(选择)的名词形式",
+      "examples": [
+        {"level":"simple","sentence":"She made a careful choice.","translation":"她做了慎重的选择。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"When every option seems equally unattractive, the rational choice is often to delay rather than commit, though delay itself can become its own kind of decision with hidden costs.","translation":"当每个选项同样缺乏吸引力时，理性的选择往往是拖延而非承诺，尽管拖延本身也会成为一种有隐性成本的决定。","analysis":"主从复合句；when 引导时间状语从句；though 引导让步状语从句。"}
+      ],
+      "collocations": ["have no choice 别无选择","take your choice 选择","choice of 选择"],
+      "phrases": [" Hobson's choice 无选择余地"],
+      "derived": [{"word":"choose","meaning":"选择"}]
+    },
+    "choke": {
+      "syllable": "choke", "pos": "v.",
+      "defs": [{"pos":"v.","meaning":"窒息，哽住"},{"pos":"v.","meaning":"堵塞，阻塞"}],
+      "rootAffix": "古英语 aceocian(窒息)",
+      "examples": [
+        {"level":"simple","sentence":"He choked on a fish bone.","translation":"他被鱼刺卡住了。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"The pipeline became choked with debris carried by the flood, shutting down the oil supply to three refineries until crews could clear the blockage with high-pressure water jets.","translation":"管道被洪水带来的杂物堵塞，切断了对三家炼油厂的石油供应，直到工作人员用高压水枪清除堵塞物。","analysis":"简单句；until 引导时间状语从句。"}
+      ],
+      "collocations": ["choke back 忍住","choke off 阻止","choke up 紧张说不出话"],
+      "phrases": ["choke back tears 忍住眼泪"],
+      "derived": [{"word":"choking","meaning":"令人窒息的"}]
+    },
+    "choose": {
+      "syllable": "choose", "pos": "v.",
+      "defs": [{"pos":"v.","meaning":"选择，挑选"},{"pos":"v.","meaning":"决定，愿意"}],
+      "rootAffix": "古英语 ceosan(选择)",
+      "examples": [
+        {"level":"simple","sentence":"Choose a card.","translation":"选一张牌。","analysis":"祈使句。"},
+        {"level":"long","sentence":"Many graduates choose between a stable corporate career and the uncertainty of a startup, a decision that depends less on rational calculation than on personality and tolerance for risk.","translation":"许多毕业生在稳定的企业职业和初创公司的不确定性之间做选择，这个决定与其说取决于理性计算，不如说取决于性格和风险承受力。","analysis":"简单句；that 引导定语从句修饰 decision。"}
+      ],
+      "collocations": ["choose between 在…间选择","choose to do 选择做","cannot choose but 不得不"],
+      "phrases": ["pick and choose 挑三拣四"],
+      "derived": [{"word":"choice","meaning":"选择"},{"word":"choosy","meaning":"挑剔的"}]
+    },
+    "chop": {
+      "syllable": "chop", "pos": "v./n.",
+      "defs": [{"pos":"v.","meaning":"砍，劈"},{"pos":"v.","meaning":"削减"},{"pos":"n.","meaning":"排骨"},{"pos":"n.","meaning":"砍，劈"}],
+      "rootAffix": "古英语 choppen(砍)",
+      "examples": [
+        {"level":"simple","sentence":"He chopped wood.","translation":"他劈柴。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The CEO announced that thousands of jobs would be chopped in the new fiscal year, a move designed to cut costs by ten percent but which also eliminated entire departments that had been profitable.","translation":"CEO宣布新财年将裁掉数千个岗位，此举旨在削减10%成本，但也裁掉了一些盈利部门。","analysis":"简单句；which 引导定语从句修饰 move。"}
+      ],
+      "collocations": ["chop down 砍倒","chop up 剁碎","chop and change 反复无常"],
+      "phrases": ["chop and change 变来变去"],
+      "derived": [{"word":"chopper","meaning":"直升机"}]
+    },
+    "chord": {
+      "syllable": "chord", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"和弦"},{"pos":"n.","meaning":"弦，情绪"}],
+      "rootAffix": "希腊语 chorde(弦)",
+      "examples": [
+        {"level":"simple","sentence":"She played a C major chord.","translation":"她弹了一个C大调和弦。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The speaker's story about her late father struck a chord with the audience, many of whom had lost parents and recognized the quiet grief she described.","translation":"演讲者讲述已故父亲的故事引起了观众共鸣，其中许多人也失去了父母，对她描述的平静悲痛感同身受。","analysis":"主从复合句；whom 引导定语从句。"}
+      ],
+      "collocations": ["strike a chord 引起共鸣","vocal chord 声带","chord progression 和弦进行"],
+      "phrases": ["touch the right chord 触动心弦"],
+      "derived": []
+    },
+    "chorus": {
+      "syllable": "cho·rus", "pos": "n./v.",
+      "defs": [{"pos":"n.","meaning":"合唱队"},{"pos":"n.","meaning":"副歌"},{"pos":"n.","meaning":"异口同声"}],
+      "rootAffix": "希腊语 khoros(合唱队)",
+      "examples": [
+        {"level":"simple","sentence":"The chorus sang beautifully.","translation":"合唱队唱得很美。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"When the minister was asked about the scandal, a chorus of voices from across the political spectrum called for an independent investigation, making it impossible for the government to dismiss the matter.","translation":"当部长被问及丑闻时，来自各政治阵营的声音异口同声要求独立调查，使政府无法回避此事。","analysis":"主从复合句；when 引导时间状语从句；making... 现在分词作结果状语。"}
+      ],
+      "collocations": ["chorus line 歌舞团","in chorus 齐声"],
+      "phrases": ["a chorus of disapproval 一片反对声"],
+      "derived": []
+    },
+    "chronic": {
+      "syllable": "chron·ic", "pos": "adj.",
+      "defs": [{"pos":"adj.","meaning":"慢性的，长期的"},{"pos":"adj.","meaning":"积习难改的"}],
+      "rootAffix": "chronos(时间)+-ic → 长时间的 → 慢性的",
+      "examples": [
+        {"level":"simple","sentence":"He has chronic back pain.","translation":"他有慢性背痛。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"Chronic sleep deprivation affects cognitive performance as severely as being over the legal alcohol limit, yet many professionals proudly brag about sleeping only four hours a night.","translation":"长期睡眠不足对认知能力的影响与超过法定酒精限量一样严重，但许多专业人士仍自豪地吹嘘每晚只睡四小时。","analysis":"并列复合句；as...as 比较结构；yet 连接转折分句。"}
+      ],
+      "collocations": ["chronic disease 慢性病","chronic problem 长期问题","chronic failure 屡次失败"],
+      "phrases": [],
+      "derived": [{"word":"chronically","meaning":"长期地"}]
+    },
+    "chunk": {
+      "syllable": "chunk", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"大块，厚块"},{"pos":"n.","meaning":"相当大的数量"}],
+      "rootAffix": "chuck(块)的变体",
+      "examples": [
+        {"level":"simple","sentence":"He bit off a large chunk.","translation":"他咬了一大块。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The project consumed a sizable chunk of the department's annual budget, leaving little room for the smaller initiatives that junior researchers had been counting on.","translation":"该项目消耗了部门年度预算的相当大一块，给年轻研究者寄望的小型项目留下的空间所剩无几。","analysis":"简单句；that 引导定语从句修饰 initiatives。"}
+      ],
+      "collocations": ["a chunk of 一大块","chunk of time 一大段时间"],
+      "phrases": ["chunk data 分块数据"],
+      "derived": [{"word":"chunky","meaning":"厚实的"}]
+    },
+    "church": {
+      "syllable": "church", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"教堂"},{"pos":"n.","meaning":"教会，教派"}],
+      "rootAffix": "希腊语 kyriakon(主的房子)",
+      "examples": [
+        {"level":"simple","sentence":"They go to church on Sundays.","translation":"他们星期天去教堂。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"The medieval church was the largest landowner in the country, and its clergy wielded political power that rivaled the crown, often intervening in royal succession disputes.","translation":"中世纪教会是全国最大的地主，其神职人员掌握着与王室匹敌的政治权力，经常干预王位继承纠纷。","analysis":"并列复合句；that 引导定语从句修饰 power。"}
+      ],
+      "collocations": ["church service 礼拜","church bell 教堂钟","churchgoer 常去教堂的人"],
+      "phrases": ["after church 礼拜后"],
+      "derived": []
+    },
+    "cigar": {
+      "syllable": "ci·gar", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"雪茄"}],
+      "rootAffix": "西班牙语 cigarro(雪茄)",
+      "examples": [
+        {"level":"simple","sentence":"He smoked a cigar.","translation":"他抽了一支雪茄。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"Cuban cigars are still prized by aficionados for their rich flavor, though trade restrictions have made them harder to obtain and increased the market for Nicaraguan and Dominican alternatives.","translation":"古巴雪茄仍因其浓郁风味而受爱好者追捧，但贸易限制使其更难获得，也推动了尼加拉瓜和多米尼加替代品的市场。","analysis":"主从复合句；though 引导让步状语从句。"}
+      ],
+      "collocations": ["cigar box 雪茄盒","cigar smoke 雪茄烟"],
+      "phrases": [],
+      "derived": [{"word":"cigarette","meaning":"香烟"}]
+    },
+    "cigarette": {
+      "syllable": "cig·a·rette", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"香烟，纸烟"}],
+      "rootAffix": "cigar(雪茄)+-ette(小) → 小雪茄 → 香烟",
+      "examples": [
+        {"level":"simple","sentence":"He lit a cigarette.","translation":"他点了一支烟。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"Packets sold in most developed countries now carry graphic photos of diseased lungs and tumors, a measure that has reduced youth smoking rates significantly over the past two decades.","translation":"大多数发达国家出售的烟盒现在都印有患病肺部和肿瘤的图片，这一措施在过去二十年显著降低了青少年吸烟率。","analysis":"简单句；that 引导定语从句修饰 measure。"}
+      ],
+      "collocations": ["cigarette butt 烟头","cigarette holder 烟嘴","cigarette smoke 香烟烟雾"],
+      "phrases": [],
+      "derived": []
+    },
+    "cinema": {
+      "syllable": "cin·e·ma", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"电影院"},{"pos":"n.","meaning":"电影艺术，电影业"}],
+      "rootAffix": "希腊语 kinema(运动)，kinein(移动)",
+      "examples": [
+        {"level":"simple","sentence":"Let's go to the cinema.","translation":"我们去看电影吧。","analysis":"祈使句。"},
+        {"level":"long","sentence":"The advent of streaming platforms has transformed cinema attendance, with box office revenues shifting from a handful of summer blockbusters to year-round releases that compete directly with home viewing.","translation":"流媒体平台的出现改变了影院上座率，票房从少数暑期大片转向全年发行、直接与家庭观影竞争的影片。","analysis":"简单句；with 引导伴随状语；that 引导定语从句修饰 releases。"}
+      ],
+      "collocations": ["go to the cinema 看电影","cinema ticket 电影票","art cinema 艺术影院"],
+      "phrases": [],
+      "derived": [{"word":"cinematic","meaning":"电影的"}]
+    },
+    "circle": {
+      "syllable": "cir·cle", "pos": "n./v.",
+      "defs": [{"pos":"n.","meaning":"圆，圆圈"},{"pos":"n.","meaning":"圈子，界"},{"pos":"v.","meaning":"环绕"},{"pos":"v.","meaning":"盘旋"}],
+      "rootAffix": "拉丁语 circulus(小环)，circus(环)的指小词",
+      "examples": [
+        {"level":"simple","sentence":"They sat in a circle.","translation":"他们坐成一圈。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"The plane circled the airport for twenty minutes while officials cleared the runway, and passengers grew increasingly anxious as fuel gauges dropped.","translation":"飞机在机场上空盘旋了二十分钟等待清理跑道，随着油表下降，乘客越来越焦虑。","analysis":"并列复合句；while 引导时间状语从句；as 引导时间状语从句。"}
+      ],
+      "collocations": ["circle of friends 朋友圈","circle back 绕回来","go round in circles 原地打转"],
+      "phrases": ["vicious circle 恶性循环"],
+      "derived": [{"word":"circuit","meaning":"电路"},{"word":"circular","meaning":"圆形的"}]
+    },
+    "circuit": {
+      "syllable": "cir·cuit", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"电路，线路"},{"pos":"n.","meaning":"巡回，环行"}],
+      "rootAffix": "circuitus(环绕)，circum-(围绕)+ire(走)",
+      "examples": [
+        {"level":"simple","sentence":"The circuit is broken.","translation":"电路断了。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"The integrated circuit revolutionized electronics by packing millions of transistors onto a silicon chip smaller than a fingernail, a breakthrough that made portable computers and smartphones possible.","translation":"集成电路通过将数百万晶体管集成到比指甲还小的硅片上，彻底改变了电子学，这一突破使便携电脑和智能手机成为可能。","analysis":"简单句；that 引导定语从句修饰 breakthrough。"}
+      ],
+      "collocations": ["short circuit 短路","integrated circuit 集成电路","circuit board 电路板"],
+      "phrases": ["circuit breaker 断路器"],
+      "derived": [{"word":"circular","meaning":"圆形的"}]
+    },
+    "circular": {
+      "syllable": "cir·cu·lar", "pos": "adj.",
+      "defs": [{"pos":"adj.","meaning":"圆形的"},{"pos":"adj.","meaning":"循环论证的"},{"pos":"adj.","meaning":"传阅的"}],
+      "rootAffix": "circulus(环)+-ar → 圆形的",
+      "examples": [
+        {"level":"simple","sentence":"The building has a circular shape.","translation":"建筑呈圆形。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The argument that morality is whatever the Bible says is circular, because it assumes the Bible's authority in the very act of using it to determine what is moral.","translation":"道德就是圣经所说的一切这种论证是循环的，因为它在用圣经决定道德时已经预设了圣经的权威。","analysis":"主从复合句；that 引导同位语从句；because 引导原因状语从句。"}
+      ],
+      "collocations": ["circular argument 循环论证","circular letter 通知","circular motion 圆周运动"],
+      "phrases": ["circular saw 圆锯"],
+      "derived": [{"word":"circulate","meaning":"循环"}]
+    },
+    "circulate": {
+      "syllable": "cir·cu·late", "pos": "v.",
+      "defs": [{"pos":"v.","meaning":"循环，流通"},{"pos":"v.","meaning":"传播，散布"},{"pos":"v.","meaning":"传阅"}],
+      "rootAffix": "circulus(环)+-ate → 绕圈 → 循环",
+      "examples": [
+        {"level":"simple","sentence":"Blood circulates through the body.","translation":"血液在体内循环。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"The memo was circulated to every department head, warning that the budget freeze would continue into the next quarter and that no new positions would be approved until further notice.","translation":"备忘录传阅给各部门主管，警告预算冻结将持续到下季度，在另行通知前不批准新职位。","analysis":"简单句；两个 that 引导并列宾语从句。"}
+      ],
+      "collocations": ["circulate around 环绕","circulate air 循环空气","circulate money 货币流通"],
+      "phrases": [],
+      "derived": [{"word":"circulation","meaning":"循环；发行量"}]
+    },
+    "circus": {
+      "syllable": "cir·cus", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"马戏团"},{"pos":"n.","meaning":"热闹场面"},{"pos":"n.","meaning":"环形广场"}],
+      "rootAffix": "拉丁语 circus(环、圆圈)",
+      "examples": [
+        {"level":"simple","sentence":"The circus came to town.","translation":"马戏团来到镇上。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"Modern circuses have largely abandoned animal acts, drawing audiences instead with acrobatics, theatrical lighting, and original music, a transformation that reflects changing public attitudes toward animal welfare.","translation":"现代马戏团已基本放弃动物表演，转而以杂技、戏剧灯光和原创音乐吸引观众，这一转变反映了公众对动物福利态度的变化。","analysis":"简单句；that 引导定语从句修饰 transformation。"}
+      ],
+      "collocations": ["circus performer 马戏演员","circus tent 马戏帐篷"],
+      "phrases": ["three-ring circus 热闹场面"],
+      "derived": []
+    },
+    "citizen": {
+      "syllable": "cit·i·zen", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"公民，市民"},{"pos":"n.","meaning":"居民"}],
+      "rootAffix": "拉丁语 civis(公民)",
+      "examples": [
+        {"level":"simple","sentence":"She is a French citizen.","translation":"她是法国公民。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"The rights and duties of citizenship have been debated since ancient Athens, where philosophers argued whether participation in public life was a privilege of the few or an obligation of all.","translation":"公民的权利与义务自古雅典以来就被争论，当时哲学家们争论参与公共生活是少数人的特权还是所有人的义务。","analysis":"主从复合句；where 引导定语从句；whether 引导宾语从句。"}
+      ],
+      "collocations": ["senior citizen 老年人","citizen of the world 世界公民","citizen rights 公民权"],
+      "phrases": ["senior citizen 长者"],
+      "derived": [{"word":"citizenship","meaning":"公民身份"},{"word":"city","meaning":"城市"}]
+    },
+    "civilian": {
+      "syllable": "ci·vil·ian", "pos": "n./adj.",
+      "defs": [{"pos":"n.","meaning":"平民"},{"pos":"adj.","meaning":"平民的，民用的"}],
+      "rootAffix": "civil(公民的)+-ian(人) → 平民",
+      "examples": [
+        {"level":"simple","sentence":"Many civilians were injured.","translation":"许多平民受伤。","analysis":"简单句：主谓结构。"},
+        {"level":"long","sentence":"The war was fought increasingly in urban areas, and civilian casualties outnumbered military ones by a ratio of ten to one, a statistic that shocked international observers.","translation":"战争越来越多地在城市进行，平民伤亡与军人伤亡之比为十比一，这一统计令国际观察人士震惊。","analysis":"并列复合句；that 引导定语从句修饰 statistic。"}
+      ],
+      "collocations": ["civilian population 平民人口","civilian clothes 便服"],
+      "phrases": [],
+      "derived": [{"word":"civil","meaning":"公民的"}]
+    },
+    "civilisation": {
+      "syllable": "civ·il·i·sa·tion", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"文明，文明社会（英式拼写）"}],
+      "rootAffix": "civil(公民的)+-isation → 文明",
+      "examples": [
+        {"level":"simple","sentence":"Ancient Egypt had a great civilisation.","translation":"古埃及有伟大的文明。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The decline of the Maya civilisation remains one of archaeology's great mysteries, with drought, deforestation, and political collapse all proposed as contributing factors, but no single explanation universally accepted.","translation":"玛雅文明的衰落仍是考古学最大谜团之一，干旱、森林砍伐和政治崩溃都被提出为促成因素，但没有单一解释被普遍接受。","analysis":"并列复合句；with 引导伴随状语。"}
+      ],
+      "collocations": ["Western civilisation 西方文明","ancient civilisation 古代文明"],
+      "phrases": [],
+      "derived": [{"word":"civilize","meaning":"开化"}]
+    },
+    "civilization": {
+      "syllable": "civ·il·i·za·tion", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"文明，文明社会（美式拼写）"}],
+      "rootAffix": "civil(公民的)+-ization → 文明",
+      "examples": [
+        {"level":"simple","sentence":"Greek civilization influenced the West.","translation":"希腊文明影响了西方。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"Historians now recognize that many so-called barbarian civilizations had cities, writing systems, and trade networks that were more sophisticated than medieval European societies when they first encountered them.","translation":"历史学家现在认识到，许多所谓蛮族文明在城市、文字系统和贸易网络方面比首次接触它们的中世纪欧洲社会更复杂。","analysis":"主从复合句；that 引导定语从句修饰 networks；when 引导时间状语从句。"}
+      ],
+      "collocations": ["modern civilization 现代文明","civilization process 文明进程"],
+      "phrases": [],
+      "derived": [{"word":"civilize","meaning":"开化"}]
+    },
+    "clash": {
+      "syllable": "clash", "pos": "v./n.",
+      "defs": [{"pos":"v.","meaning":"冲突，交锋"},{"pos":"v.","meaning":"不协调，撞色"},{"pos":"n.","meaning":"冲突"},{"pos":"n.","meaning":"不和谐"}],
+      "rootAffix": "拟声词，模拟撞击声",
+      "examples": [
+        {"level":"simple","sentence":"The demonstrators clashed with police.","translation":"示威者与警察发生冲突。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"The two schedules clashed, forcing the manager to choose between attending the product launch and the quarterly review, a decision that disappointed whichever client was excluded.","translation":"两个日程冲突了，迫使经理在产品发布会和季度评审之间做选择，这个决定让被排除的客户失望。","analysis":"简单句；that 引导定语从句修饰 decision。"}
+      ],
+      "collocations": ["clash with 与…冲突","clash of opinions 意见冲突","color clash 撞色"],
+      "phrases": ["clash of cultures 文化冲突"],
+      "derived": []
+    },
+    "class": {
+      "syllable": "class", "pos": "n./v.",
+      "defs": [{"pos":"n.","meaning":"班级，阶级"},{"pos":"n.","meaning":"等级，类别"},{"pos":"v.","meaning":"分类"}],
+      "rootAffix": "拉丁语 classis(等级、舰队)",
+      "examples": [
+        {"level":"simple","sentence":"She is in my class.","translation":"她和我同班。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"Sociologists argue that social class is determined not just by income but by cultural capital—the way one speaks, dresses, and interacts—which opens doors that money alone cannot.","translation":"社会学家认为社会阶层不仅由收入决定，还由文化资本——一个人说话、穿着和互动的方式——决定，后者能打开金钱本身打不开的门。","analysis":"主从复合句；which 引导定语从句。"}
+      ],
+      "collocations": ["middle class 中产阶级","first class 头等舱","class of 2027 2027届"],
+      "phrases": ["class act 优秀的人; class struggle 阶级斗争"],
+      "derived": [{"word":"classic","meaning":"经典的"},{"word":"classify","meaning":"分类"}]
+    },
+    "classic": {
+      "syllable": "clas·sic", "pos": "adj./n.",
+      "defs": [{"pos":"adj.","meaning":"经典的"},{"pos":"adj.","meaning":"典型的"},{"pos":"n.","meaning":"经典作品"}],
+      "rootAffix": "classis(等级)+-ic → 最高等级的 → 经典的",
+      "examples": [
+        {"level":"simple","sentence":"This is a classic novel.","translation":"这是一部经典小说。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"The symptoms presented as a classic case of food poisoning—nausea, cramping, and diarrhea starting within two hours of the meal—but testing later revealed a norovirus infection instead.","translation":"症状表现为典型的食物中毒——餐后两小时内恶心、痉挛和腹泻——但检测后发现是诺如病毒感染。","analysis":"并列句；but 连接转折分句。"}
+      ],
+      "collocations": ["classic example 典型例子","classic work 经典著作","classic style 经典风格"],
+      "phrases": ["classic of its kind 同类典范"],
+      "derived": [{"word":"classical","meaning":"古典的"},{"word":"classics","meaning":"古典学"}]
+    },
+    "classroom": {
+      "syllable": "class·room", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"教室，课堂"}],
+      "rootAffix": "class(班级)+room(房间) → 教室",
+      "examples": [
+        {"level":"simple","sentence":"The classroom is large.","translation":"教室很大。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"Modern classrooms are increasingly equipped with interactive whiteboards, wireless microphones, and cloud-based student response systems that let teachers assess understanding in real time.","translation":"现代教室越来越多地配备互动白板、无线麦克风和云端学生反馈系统，使教师能实时评估理解程度。","analysis":"主从复合句；that 引导定语从句修饰 systems。"}
+      ],
+      "collocations": ["classroom management 课堂管理","classroom discussion 课堂讨论"],
+      "phrases": [],
+      "derived": []
+    },
+    "clause": {
+      "syllable": "clause", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"从句"},{"pos":"n.","meaning":"条款"}],
+      "rootAffix": "拉丁语 claudere(关闭) → 段落关闭 → 条款",
+      "examples": [
+        {"level":"simple","sentence":"This sentence has two clauses.","translation":"这个句子有两个从句。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The contract included a clause allowing either party to terminate without notice if a material breach occurred, a provision that proved decisive when the supplier delivered defective goods.","translation":"合同包含一条款，允许任何一方在发生重大违约时无需通知即可终止，这一条款在供应商交付有缺陷货物时被证明是决定性的。","analysis":"简单句；that 引导定语从句修饰 provision。"}
+      ],
+      "collocations": ["relative clause 关系从句","main clause 主句","insurance clause 保险条款"],
+      "phrases": ["gag clause 禁言条款"],
+      "derived": []
+    },
+    "claw": {
+      "syllable": "claw", "pos": "n./v.",
+      "defs": [{"pos":"n.","meaning":"爪"},{"pos":"v.","meaning":"抓，撕"}],
+      "rootAffix": "古英语 clawu(爪)",
+      "examples": [
+        {"level":"simple","sentence":"The cat sharpened its claws.","translation":"猫磨爪子。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The eagle's claws locked around the rabbit, and even though the prey struggled violently, the grip was so tight that escape was impossible.","translation":"鹰爪紧紧抓住兔子，尽管猎物剧烈挣扎，握爪紧到不可能逃脱。","analysis":"并列复合句；even though 引导让步状语从句；that 引导结果状语从句。"}
+      ],
+      "collocations": ["claw back 收回","sharp claws 利爪"],
+      "phrases": ["claw one's way 奋力前行"],
+      "derived": []
+    },
+    "clay": {
+      "syllable": "clay", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"粘土，泥土"}],
+      "rootAffix": "古英语 claeg(粘土)",
+      "examples": [
+        {"level":"simple","sentence":"The potter shaped the clay.","translation":"陶工捏塑粘土。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The tablets, made from clay baked in the sun, preserved cuneiform records of trade, law, and literature that archaeologists still decipher four thousand years later.","translation":"这些泥板用日晒粘土制成，保存了楔形文字记录的贸易、法律和文学，考古学家在四千年后仍在破译。","analysis":"简单句；that 引导定语从句修饰 records。"}
+      ],
+      "collocations": ["clay pot 陶罐","clay soil 粘土","feet of clay 致命弱点"],
+      "phrases": ["clay pigeon 飞靶"],
+      "derived": []
+    },
+    "clean": {
+      "syllable": "clean", "pos": "adj./v.",
+      "defs": [{"pos":"adj.","meaning":"干净的"},{"pos":"adj.","meaning":"清白的"},{"pos":"v.","meaning":"打扫，清洁"}],
+      "rootAffix": "古英语 claene(干净)",
+      "examples": [
+        {"level":"simple","sentence":"The room is clean.","translation":"房间很干净。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"The investigation found no evidence of wrongdoing, allowing the official to keep a clean record and return to public service after a year of suspension.","analysis":"简单句；allowing... 现在分词作结果状语。","translation":"调查未发现不当行为证据，使该官员在停职一年后保留清白记录并重返公职。"}
+      ],
+      "collocations": ["clean up 清理","clean energy 清洁能源","make a clean breast 坦白"],
+      "phrases": ["clean sweep 大换血; clean slate 重新开始"],
+      "derived": [{"word":"cleaner","meaning":"清洁工"},{"word":"cleanliness","meaning":"清洁"}]
+    },
+    "clear": {
+      "syllable": "clear", "pos": "adj./v.",
+      "defs": [{"pos":"adj.","meaning":"清楚的"},{"pos":"adj.","meaning":"晴朗的"},{"pos":"v.","meaning":"清除，澄清"},{"pos":"v.","meaning":"通过，批准"}],
+      "rootAffix": "拉丁语 clarus(清楚)",
+      "examples": [
+        {"level":"simple","sentence":"The water is clear.","translation":"水很清澈。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"The proposal was cleared by the planning committee after a lengthy review, clearing the way for construction to begin next spring despite continued neighborhood opposition.","translation":"经过漫长审查，该提案获得规划委员会批准，为明年春天开工扫清了道路，尽管社区仍在反对。","analysis":"简单句；现在分词短语 clearing... 作结果状语。"}
+      ],
+      "collocations": ["clear up 放晴；整理","clear out 清空","clear evidence 明确证据"],
+      "phrases": ["clear the air 消除误会; clear conscience 问心无愧"],
+      "derived": [{"word":"clearly","meaning":"清楚地"},{"word":"clarity","meaning":"清晰"}]
+    },
+    "clerk": {
+      "syllable": "clerk", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"职员，店员"},{"pos":"n.","meaning":"书记员"}],
+      "rootAffix": "拉丁语 clericus(教士、职员)",
+      "examples": [
+        {"level":"simple","sentence":"The clerk answered the phone.","translation":"职员接了电话。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The law clerk spent the summer researching precedents, drafting memos, and sitting in on oral arguments, a grueling but rewarding introduction to legal practice.","translation":"法律助理整个夏天都在研究判例、起草备忘录和旁听口头辩论，这是对法律实践一段辛苦但有益的入门经历。","analysis":"简单句；现在分词短语作伴随状语。"}
+      ],
+      "collocations": ["bank clerk 银行职员","office clerk 办事员","court clerk 法院书记员"],
+      "phrases": ["clerk work 文书工作"],
+      "derived": []
+    },
+    "clever": {
+      "syllable": "clev·er", "pos": "adj.",
+      "defs": [{"pos":"adj.","meaning":"聪明的"},{"pos":"adj.","meaning":"灵巧的，巧妙的"}],
+      "rootAffix": "古英语 clefer(聪明)",
+      "examples": [
+        {"level":"simple","sentence":"She is a clever girl.","translation":"她是个聪明的女孩。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"The cleverest solutions are often the simplest: the engineer removed a faulty sensor rather than replacing the entire control unit, saving the company thousands in warranty costs.","translation":"最聪明的方案往往最简单：工程师拆下一个故障传感器而非更换整个控制单元，为公司节省了数千保修成本。","analysis":"并列句；冒号后解释说明。"}
+      ],
+      "collocations": ["clever at 擅长","clever idea 好主意","too clever by half 聪明过头"],
+      "phrases": [],
+      "derived": [{"word":"cleverly","meaning":"聪明地"}]
+    },
+    "cliff": {
+      "syllable": "cliff", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"悬崖，峭壁"}],
+      "rootAffix": "古英语 clif(悬崖)",
+      "examples": [
+        {"level":"simple","sentence":"The cliff drops to the sea.","translation":"悬崖直落大海。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"The hikers approached the cliff edge cautiously, knowing that a slip could send them a hundred meters down to the rocky shore below.","translation":"徒步者小心翼翼地靠近悬崖边，知道一滑就可能坠落到百米下的礁石海岸。","analysis":"简单句；现在分词短语 knowing... 作伴随状语。"}
+      ],
+      "collocations": ["cliff edge 崖边","off a cliff 跳崖","cliff hanger 悬念"],
+      "phrases": ["cliff-hanger 扣人心弦的结局"],
+      "derived": []
+    },
+    "climb": {
+      "syllable": "climb", "pos": "v./n.",
+      "defs": [{"pos":"v.","meaning":"攀登，爬"},{"pos":"v.","meaning":"上升，增长"},{"pos":"n.","meaning":"攀登"}],
+      "rootAffix": "古英语 climban(爬)",
+      "examples": [
+        {"level":"simple","sentence":"They climbed the mountain.","translation":"他们爬了山。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The stock climbed steadily through the morning, then surged when the company announced record profits, closing twenty percent above the opening price.","translation":"股价上午稳步攀升，公司宣布创纪录利润后急升，收盘比开盘价高20%。","analysis":"并列句；现在分词短语 closing... 作结果状语。"}
+      ],
+      "collocations": ["climb up 爬上","climb the ladder 爬梯子","climb down 妥协"],
+      "phrases": ["climb the career ladder 职场晋升"],
+      "derived": [{"word":"climber","meaning":"登山者"},{"word":"climbing","meaning":"攀登"}]
+    },
+    "clinic": {
+      "syllable": "clin·ic", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"诊所"},{"pos":"n.","meaning":"临床教学"}],
+      "rootAffix": "希腊语 klinike(临床术)，kline(床)",
+      "examples": [
+        {"level":"simple","sentence":"She works at a dental clinic.","translation":"她在牙科诊所工作。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"The free clinic treats thousands of uninsured patients each year, many of whom would otherwise delay care until their conditions become emergencies.","translation":"这家免费诊所每年治疗数千名无保险患者，其中许多人如果不在这里就诊会拖到病情变成急诊才就医。","analysis":"主从复合句；many of whom 引导定语从句。"}
+      ],
+      "collocations": ["dental clinic 牙科诊所","walk-in clinic 免约诊所","clinic trial 临床试验"],
+      "phrases": [],
+      "derived": [{"word":"clinical","meaning":"临床的"}]
+    },
+    "clip": {
+      "syllable": "clip", "pos": "v./n.",
+      "defs": [{"pos":"v.","meaning":"剪，修剪"},{"pos":"v.","meaning":"夹住"},{"pos":"n.","meaning":"夹子"},{"pos":"n.","meaning":"剪辑片段"}],
+      "rootAffix": "古英语 lyppan(剪切)",
+      "examples": [
+        {"level":"simple","sentence":"She clipped the hedge.","translation":"她修剪了树篱。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The editor selected a thirty-second clip from the two-hour interview, cutting away everything except the moment the scientist described the breakthrough.","translation":"编辑从两小时访谈中选了一段30秒的片段，剪掉了科学家描述突破那一刻之外的所有内容。","analysis":"简单句；现在分词短语 cutting... 作伴随状语。"}
+      ],
+      "collocations": ["clip on 夹上","paper clip 回形针","video clip 视频片段"],
+      "phrases": ["clip one's wings 限制自由"],
+      "derived": [{"word":"clipper","meaning":"剪刀"}]
+    },
+    "cloak": {
+      "syllable": "cloak", "pos": "n./v.",
+      "defs": [{"pos":"n.","meaning":"斗篷"},{"pos":"n.","meaning":"遮盖物"},{"pos":"v.","meaning":"掩盖，掩饰"}],
+      "rootAffix": "古英语 clake(斗篷)",
+      "examples": [
+        {"level":"simple","sentence":"The magician wore a black cloak.","translation":"魔术师穿黑斗篷。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The company's charitable donations were merely a cloak for price-fixing, according to prosecutors, who revealed that the gifts were timed to coincide with regulatory reviews.","translation":"据检察官称，公司的慈善捐赠只是价格垄断的遮羞布，他们披露这些捐赠的时间正好与监管审查重合。","analysis":"主从复合句；who 引导定语从句。"}
+      ],
+      "collocations": ["cloak and dagger 阴谋诡计","cloak room 衣帽间","under the cloak of 在…掩护下"],
+      "phrases": ["cloak of secrecy 保密的外衣"],
+      "derived": []
+    },
+    "clock": {
+      "syllable": "clock", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"时钟"},{"pos":"n.","meaning":"里程表"}],
+      "rootAffix": "拉丁语 clocca(钟)",
+      "examples": [
+        {"level":"simple","sentence":"The clock says three.","translation":"时钟显示三点。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The biological clock regulates sleep cycles through melatonin production, a process that is disrupted by late-night screen use because blue light suppresses the hormone.","translation":"生物钟通过褪黑素分泌调节睡眠周期，深夜看屏幕会扰乱这一过程，因为蓝光会抑制该激素。","analysis":"主从复合句；because 引导原因状语从句。"}
+      ],
+      "collocations": ["around the clock 昼夜不停","clock in 打卡上班","beat the clock 抢时间"],
+      "phrases": ["clock watcher 看钟等下班的人"],
+      "derived": [{"word":"clockwise","meaning":"顺时针"}]
+    },
+    "close": {
+      "syllable": "close", "pos": "v./adj./adv.",
+      "defs": [{"pos":"v.","meaning":"关闭"},{"pos":"v.","meaning":"结束"},{"pos":"adj.","meaning":"近的"},{"pos":"adj.","meaning":"亲密的"},{"pos":"adv.","meaning":"接近地"}],
+      "rootAffix": "拉丁语 clausus(关闭)",
+      "examples": [
+        {"level":"simple","sentence":"Close the door.","translation":"关门。","analysis":"祈使句。"},
+        {"level":"long","sentence":"The negotiations came to a close after eleven hours, with neither side willing to compromise on the one issue that mattered most to them.","translation":"谈判在11小时后结束，双方都不愿在最关键的问题上妥协。","analysis":"简单句；with 引导伴随状语；that 引导定语从句。"}
+      ],
+      "collocations": ["close down 关闭","close call 侥幸脱险","close friend 密友"],
+      "phrases": ["close at hand 近在咫尺; close to 接近"],
+      "derived": [{"word":"closet","meaning":"壁橱"},{"word":"close-up","meaning":"特写"}]
+    },
+    "cloth": {
+      "syllable": "cloth", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"布，布料"},{"pos":"n.","meaning":"桌布"}],
+      "rootAffix": "古英语 clath(布)",
+      "examples": [
+        {"level":"simple","sentence":"She wiped the table with a cloth.","translation":"她用布擦桌子。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"The medieval tapestry, woven from wool and linen over five years, depicted scenes from the Trojan War and now hangs in a climate-controlled gallery to prevent fading.","translation":"这幅中世纪挂毯用羊毛和亚麻织了五年，描绘特洛伊战争场景，现在挂在温控展厅防止褪色。","analysis":"简单句；现在分词短语 woven... 作后置定语。"}
+      ],
+      "collocations": ["table cloth 桌布","cloth bag 布袋","american cloth 桌布"],
+      "phrases": ["clothe 给…穿衣"],
+      "derived": [{"word":"clothes","meaning":"衣服"},{"word":"clothing","meaning":"服装（总称）"}]
+    },
+    "clothes": {
+      "syllable": "clothes", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"衣服，服装"}],
+      "rootAffix": "cloth(布)+-es → 衣服",
+      "examples": [
+        {"level":"simple","sentence":"She bought new clothes.","translation":"她买了新衣服。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"Fast fashion brands produce clothing lines every two weeks, encouraging consumers to buy cheap garments that are worn only a few times before being discarded.","translation":"快时尚品牌每两周出一个系列，鼓励消费者购买廉价服装，穿几次就扔。","analysis":"简单句；that 引导定语从句修饰 garments。"}
+      ],
+      "collocations": ["clothes shop 服装店","clothes line 晾衣绳","clothes hanger 衣架"],
+      "phrases": ["clothes make the man 人靠衣装"],
+      "derived": [{"word":"clothing","meaning":"服装（总称）"}]
+    },
+    "cloud": {
+      "syllable": "cloud", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"云"},{"pos":"n.","meaning":"云团（烟/尘）"},{"pos":"n.","meaning":"阴影，疑云"}],
+      "rootAffix": "古英语 clud(岩石、山丘) → 云像山丘",
+      "examples": [
+        {"level":"simple","sentence":"The clouds are grey.","translation":"云是灰色的。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"A cloud of suspicion hung over the company after the audit revealed undisclosed loans, and the stock price dropped fifteen percent in a single day.","translation":"审计披露未公开贷款后，疑云笼罩公司，股价单日下跌15%。","analysis":"并列复合句；after 引导时间状语从句。"}
+      ],
+      "collocations": ["cloud computing 云计算","dark cloud 乌云","on cloud nine 乐不可支"],
+      "phrases": ["cloud over 阴下来; every cloud has a silver lining 黑暗中总有一线光明"],
+      "derived": [{"word":"cloudy","meaning":"多云的"}]
+    },
+    "clown": {
+      "syllable": "clown", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"小丑"},{"pos":"n.","meaning":"滑稽的人"}],
+      "rootAffix": "古英语 clowne(农民、粗人)",
+      "examples": [
+        {"level":"simple","sentence":"The children laughed at the clown.","translation":"孩子们被小丑逗笑了。","analysis":"简单句：主谓宾状结构。"},
+        {"level":"long","sentence":"The circus clown, whose makeup and oversized shoes disguised a trained gymnast, performed the dangerous balancing act that had become the show's signature act.","translation":"马戏团小丑——妆容和大鞋掩盖了他体操运动员的身份——表演了成为招牌节目的危险平衡动作。","analysis":"主从复合句；whose 引导定语从句。"}
+      ],
+      "collocations": ["clown around 胡闹","clown makeup 小丑妆"],
+      "phrases": [],
+      "derived": []
+    },
+    "club": {
+      "syllable": "club", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"俱乐部"},{"pos":"n.","meaning":"棍棒"},{"pos":"n.","meaning":"会所"}],
+      "rootAffix": "古挪威语 klubba(棍棒)",
+      "examples": [
+        {"level":"simple","sentence":"She joined a book club.","translation":"她加入了读书俱乐部。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The health club added a rooftop pool and a meditation studio, amenities that were designed to retain members who had been considering canceling their subscriptions.","translation":"健身俱乐部增设了屋顶泳池和冥想室，这些设施旨在留住那些考虑退会的会员。","analysis":"简单句；that 引导定语从句修饰 amenities。"}
+      ],
+      "collocations": ["football club 足球俱乐部","fan club 粉丝俱乐部","club house 俱乐部会所"],
+      "phrases": ["in the club 在俱乐部; club together 凑钱"],
+      "derived": []
+    },
+    "clue": {
+      "syllable": "clue", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"线索，提示"}],
+      "rootAffix": "clew(线团)，源自忒修斯用线团走出迷宫",
+      "examples": [
+        {"level":"simple","sentence":"The police found a clue.","translation":"警方找到了一条线索。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The detective noticed a smudge on the window frame that did not match the fingerprints on file, a clue that eventually led to the identification of the real intruder.","translation":"侦探注意到窗框上有一处与存档指纹不符的污迹，这条线索最终帮助识别出真正的入侵者。","analysis":"主从复合句；that 引导两个定语从句。"}
+      ],
+      "collocations": ["not have a clue 毫无线索","clue in 告知","give a clue 给线索"],
+      "phrases": ["clueless 一无所知的"],
+      "derived": [{"word":"clueless","meaning":"一无所知的"}]
+    },
+    "cluster": {
+      "syllable": "clus·ter", "pos": "n./v.",
+      "defs": [{"pos":"n.","meaning":"串，群，簇"},{"pos":"v.","meaning":"群集，丛生"}],
+      "rootAffix": "古英语 clyster(簇)",
+      "examples": [
+        {"level":"simple","sentence":"A cluster of stars shines above.","translation":"一簇星在上方闪耀。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"Medical offices cluster around the new hospital, and patients often walk between clinics for tests, creating a campus-like district that did not exist a decade ago.","translation":"诊所在新医院周围聚集，患者常在诊所间步行做检查，形成了一个十年前还不存在的校园式区域。","analysis":"并列句；that 引导定语从句修饰 district。"}
+      ],
+      "collocations": ["a cluster of 一簇","star cluster 星团","cluster analysis 聚类分析"],
+      "phrases": ["cluster together 聚在一起"],
+      "derived": []
+    },
+    "clutch": {
+      "syllable": "clutch", "pos": "v./n.",
+      "defs": [{"pos":"v.","meaning":"紧握，抓紧"},{"pos":"n.","meaning":"离合器"},{"pos":"n.","meaning":"一群，一伙"}],
+      "rootAffix": "古英语 clyccan(紧握)",
+      "examples": [
+        {"level":"simple","sentence":"She clutched her purse tightly.","translation":"她紧紧攥着手提包。","analysis":"简单句：主谓宾状结构。"},
+        {"level":"long","sentence":"The tennis player double-faulted on match point, unable to control her nerves during the clutch moment, a mistake that cost her the tournament.","translation":"网球运动员在赛点双发失误，在关键时刻无法控制紧张，这个错误让她输掉了比赛。","analysis":"简单句；that 引导定语从句修饰 mistake。"}
+      ],
+      "collocations": ["clutch at 试图抓住","in the clutch 在关键时刻","clutch bag 手拿包"],
+      "phrases": ["clutch at straws 捞救命稻草"],
+      "derived": []
+    },
+    "coach": {
+      "syllable": "coach", "pos": "n./v.",
+      "defs": [{"pos":"n.","meaning":"教练"},{"pos":"n.","meaning":"长途汽车"},{"pos":"n.","meaning":"车厢"},{"pos":"v.","meaning":"训练，指导"}],
+      "rootAffix": "匈牙利语 kocsi(科茨镇的马车)",
+      "examples": [
+        {"level":"simple","sentence":"The coach trained the team.","translation":"教练训练队伍。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The executive was coached on how to answer hostile questions during media interviews, a preparation that proved essential when the scandal broke.","translation":"这位高管接受了如何在媒体采访中回答尖锐问题的培训，这一准备在丑闻爆发时证明至关重要。","analysis":"简单句；that 引导定语从句修饰 preparation。"}
+      ],
+      "collocations": ["head coach 主教练","coach station 长途车站","life coach 人生教练"],
+      "phrases": ["coach potato 电视迷"],
+      "derived": []
+    },
+    "coal": {
+      "syllable": "coal", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"煤"},{"pos":"n.","meaning":"木炭"}],
+      "rootAffix": "古英语 col(煤)",
+      "examples": [
+        {"level":"simple","sentence":"They burn coal for heat.","translation":"他们烧煤取暖。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"Coal is the most carbon-intensive fossil fuel, and phasing it out is essential to meeting international climate targets, though it remains the primary source of electricity in several major economies.","translation":"煤是碳排放最密集的化石燃料，逐步淘汰煤对实现国际气候目标至关重要，尽管它仍是几个主要经济体的主要电力来源。","analysis":"并列复合句；though 引导让步状语从句。"}
+      ],
+      "collocations": ["coal mine 煤矿","coal industry 煤炭工业","coal dust 煤尘"],
+      "phrases": ["carry coals to Newcastle 多此一举"],
+      "derived": [{"word":"coalition","meaning":"联盟"}]
+    }
+  }
+}
