@@ -339,6 +339,9 @@ export async function restoreFromTrash(t) {
   // 注意：删通用卡（deleteCard）与删词卡（deleteWordCard）都会级联删链接并写墓碑，
   // 所以两种 kind 的快照都要带/还原该字段（deleteCard 的快照见下方同函数调用处）。
   const cwLinks = data._cardWordLinks || null;
+  // v34：卡↔卡关联快照（deleteCard 双向快照）——不还原的话「删→恢复」后关联永久丢失，
+  // 且残留墓碑会把重连尝试再删一遍（与 cwLinks 完全同机制）。
+  const ccLinks = data._cardLinks || null;
   const linkedNoteIds = Array.isArray(data._linkedNoteIds) ? data._linkedNoteIds : null;
   // 审计 P0：deleteNote 快照含 linkedCardIds（笔记关联的卡片 id 列表），
   // deleteNote 事务清洗了卡片侧的 linkedNoteIds，恢复时必须加回。
@@ -353,6 +356,7 @@ export async function restoreFromTrash(t) {
   const dailyTasks = t.kind === 'dailyPlan' ? (data._tasks || null) : null;
   delete data._reviews; delete data._groupLinks; delete data._text; delete data._textLen; delete data._edges;
   delete data._cardWordLinks; delete data._embeddings; delete data._linkedNoteIds; delete data._tasks;
+  delete data._cardLinks;
   const transform = RESTORE_TRANSFORMS[t.kind];
   const row = { ...(transform ? transform(data) : data), id: t.id, updatedAt: Date.now() };
   const tables = [db[table], db.tombstones, db.trash];
@@ -364,6 +368,7 @@ export async function restoreFromTrash(t) {
   if (reviews && reviews.length) tables.push(reviewsTable);
   if (links && links.length) tables.push(linksTable);
   if (cwLinks && cwLinks.length) tables.push(db.cardWordLinks);
+  if (ccLinks && ccLinks.length) tables.push(db.cardLinks);
   if (text) tables.push(db.docTexts);
   if (edges && edges.length) tables.push(db.graphEdges);
   if (linkedNoteIds && linkedNoteIds.length) tables.push(db.notes);
@@ -402,6 +407,11 @@ export async function restoreFromTrash(t) {
       // deletedAt，下轮同步墓碑回灌会把恢复的行再删一遍（快照已消费 → 永久丢失）。
       await db.cardWordLinks.bulkPut(cwLinks.map(l => ({ ...l, updatedAt: Date.now() })));
       await db.tombstones.bulkDelete(cwLinks.map(l => l.id));
+    }
+    if (ccLinks && ccLinks.length) {
+      // v34：还原卡↔卡关联 + 清墓碑（同 cwLinks 机制；idOnly 表靠墓碑判生死）
+      await db.cardLinks.bulkPut(ccLinks.map(l => ({ ...l, updatedAt: Date.now() })));
+      await db.tombstones.bulkDelete(ccLinks.map(l => l.id));
     }
     if (text) {
       await db.docTexts.put({
@@ -494,11 +504,16 @@ export async function deleteCard(id) {
   // 事务内一次性完成 回收站快照 + 墓碑 + 删卡 + 删复习 + 删卡组关联 + 切断图谱边，保证原子、无悬空引用
   // 注：cardGroupLinks 此前漏删 —— 删卡后关联行原样留在库里（还进同步包跨设备传播），
   //     卡组详情页会统计到已被删除的「幽灵卡」，且永不清理。
-  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.cardWordLinks, db.embeddings, db.notes, async () => {
+  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.cardWordLinks, db.cardLinks, db.embeddings, db.notes, async () => {
     // 1) 回收站快照（含复习记录 + 卡组关联 + 卡↔词关联，便于恢复时一并还原）
     const reviews = await db.reviews.where('cardId').equals(id).toArray();
     const links = await db.cardGroupLinks.where('cardId').equals(id).toArray();
     const cwLinks = await db.cardWordLinks.where('cardId').equals(id).toArray();
+    // v34：卡↔卡关联是双向存储，两个方向都要查（Map 按 id 去重，自环已被 linkCards 拒绝）
+    const ccMap = new Map();
+    for (const l of await db.cardLinks.where('fromCardId').equals(id).toArray()) ccMap.set(l.id, l);
+    for (const l of await db.cardLinks.where('toCardId').equals(id).toArray()) ccMap.set(l.id, l);
+    const ccLinks = [...ccMap.values()];
     // 审计 A2：与 deleteWordCard 对称——删通用卡也会级联删链接+写墓碑，
     // 快照不带 _cardWordLinks 的话恢复后关联同样永久丢失
     // 审计 #10：记录被清洗引用的 noteId，恢复时补回 linkedCardIds
@@ -518,7 +533,7 @@ export async function deleteCard(id) {
     const allNotes = await db.notes.toArray();
     const linkedNotes = allNotes.filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.includes(id));
     const linkedNoteIds = linkedNotes.map(n => n.id);
-    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks, _linkedNoteIds: linkedNoteIds });
+    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks, _cardLinks: ccLinks, _linkedNoteIds: linkedNoteIds });
     // 2) 墓碑（跨设备删除同步）：卡片本体 + 它的每一条卡组关联
     //    关联行不写墓碑的话，对端会在下次同步把「已删卡 → 卡组」的关联原样推回来，
     //    形成永远删不掉、且指向幽灵卡的悬空行
@@ -556,6 +571,13 @@ export async function deleteCard(id) {
       await db.tombstones.bulkPut(cwLinks.map(l => ({ id: l.id, kind: 'cardWordLink', deletedAt: now() })));
     }
     await db.cardWordLinks.where('cardId').equals(id).delete();
+    // 5.6) v34：删通用卡↔通用卡关联（双向）。同 cardWordLinks：不写墓碑 →
+    //      对端悬空关联在下次同步被推回，形成指向幽灵卡的永久垃圾行。
+    if (ccLinks.length) {
+      await db.tombstones.bulkPut(ccLinks.map(l => ({ id: l.id, kind: 'cardLink', deletedAt: now() })));
+    }
+    await db.cardLinks.where('fromCardId').equals(id).delete();
+    await db.cardLinks.where('toCardId').equals(id).delete();
     // 6) 切断关联图谱边（round26 H-2：复用上面已查出的 edges，bulkDelete 一次删净）
     if (edges.length) await db.graphEdges.bulkDelete(edges.map(e => e.id));
     // 7) 删向量索引（round15 P1：此前漏删，本端 RAG 检索到已删卡的幽灵向量）
@@ -1538,7 +1560,7 @@ export async function updateNote(id, payload) {
     for (const k of ['content', 'title', 'tags', 'category', 'subject', 'linkedCardIds']) {
       if (norm[k] !== cur[k]) fts[k] = t;
     }
-    const out2 = { ...norm, fieldTs: fts };
+    const out2 = { id, ...norm, fieldTs: fts };
     await db.notes.put(out2);
     fireHook('onNoteSaved', out2);
     return out2;
@@ -2575,4 +2597,57 @@ export async function cardOfWord(wordCardId) {
 
 export async function allCardWordLinks() {
   return db.cardWordLinks.toArray();
+}
+
+// ---------- v34：通用卡 ↔ 通用卡链接（cardLinks，多对多「同一知识点」） ----------
+// 与 cardWordLinks 同构，但两端都是 cards 行——纯记忆卡（线代/计网/政治…）之间
+// 可以直接互相关联，不再只能挂英语词卡。
+// 存储有向（from→to），展示层按「双向关联」处理（查询两侧取并集）；
+// id = `${fromCardId}:${toCardId}` 确定性拼接 → 同一对重复 link 幂等、unlink 精确命中。
+
+function cardLinkId(a, b) { return `${a}:${b}`; }
+
+/** 建立关联（自动去重：同一对任意方向只保留一行，反向已存在时直接返回既有行） */
+export async function linkCards(fromCardId, toCardId) {
+  if (!fromCardId || !toCardId || fromCardId === toCardId) return null; // 禁止自环
+  const reverse = cardLinkId(toCardId, fromCardId);
+  const exists = (await db.cardLinks.get(reverse)) || (await db.cardLinks.get(cardLinkId(fromCardId, toCardId)));
+  if (exists) return exists;
+  const row = { id: cardLinkId(fromCardId, toCardId), fromCardId, toCardId, addedAt: Date.now() };
+  await db.cardLinks.put(row);
+  return row;
+}
+
+/** 解除关联（两个方向都尝试，前端不必关心当初是从哪端建立的） */
+export async function unlinkCards(a, b) {
+  const ids = [cardLinkId(a, b), cardLinkId(b, a)];
+  const rows = (await db.cardLinks.bulkGet(ids)).filter(Boolean);
+  if (!rows.length) return false;
+  await db.transaction('rw', db.cardLinks, db.tombstones, async () => {
+    await db.cardLinks.bulkDelete(rows.map(r => r.id));
+    await db.tombstones.bulkPut(rows.map(r => ({ id: r.id, kind: 'cardLink', deletedAt: Date.now() })));
+  });
+  return true;
+}
+
+/** 取某张卡片关联的其它卡片（两个方向取并集，返回卡片实体；过滤已不存在的幽灵引用） */
+export async function cardsOfCard(cardId) {
+  if (!cardId) return [];
+  const [out, inc] = await Promise.all([
+    db.cardLinks.where('fromCardId').equals(cardId).sortBy('addedAt'),
+    db.cardLinks.where('toCardId').equals(cardId).sortBy('addedAt'),
+  ]);
+  const seen = new Set();
+  const ids = [];
+  for (const l of [...out, ...inc]) {
+    const other = l.fromCardId === cardId ? l.toCardId : l.fromCardId;
+    if (other && other !== cardId && !seen.has(other)) { seen.add(other); ids.push(other); }
+  }
+  if (!ids.length) return [];
+  const rows = await db.cards.bulkGet(ids);
+  return ids.map((id, i) => rows[i]).filter(Boolean);
+}
+
+export async function allCardLinks() {
+  return db.cardLinks.toArray();
 }

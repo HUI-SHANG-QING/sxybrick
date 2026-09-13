@@ -48,8 +48,9 @@ export function useFullscreen(targetRef, onChange) {
     const el = targetRef.value;
     if (!el) return;
     // 全屏元素自带的透明背景会被浏览器渲染成近黑色底（图表全屏后黑屏）。
-    // 进入全屏前先落一个不透明白底，退出/取消全屏时再还原。
-    el.style.background = '#fff';
+    // 进入全屏前先落一层不透明主题底色，退出/取消全屏时再还原。
+    // 用 var(--bg) 而非写死 #fff：深色/护眼/游戏风主题下写死白底会让浅色文字不可读。
+    el.style.background = 'var(--bg, #fff)';
     if (el.requestFullscreen) {
       try {
         await el.requestFullscreen();

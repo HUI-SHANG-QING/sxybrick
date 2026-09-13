@@ -9,8 +9,10 @@ import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';
 import FullscreenButton from '../components/FullscreenButton.vue';
 import TextZoomBar from '../components/TextZoomBar.vue';
+import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { useFullscreen } from '../composables/useFullscreen.js';
 import { useTextZoom } from '../composables/useTextZoom.js';
+import { mdRender, toggleMdRender } from '../utils/md-pref.js';
 import { speak } from '../utils/tts.js';
 import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
@@ -306,6 +308,10 @@ onMounted(async () => {
       <div class="chat-fs-row">
         <button class="btn mini" @click="showSidebar = !showSidebar" style="margin-right:6px;font-size:12px">📋 {{ t('views.aiAssistant.historyTitle') }}</button>
         <button class="btn mini" @click="showTimeline = !showTimeline" style="margin-right:6px;font-size:12px">📌 {{ t('views.aiAssistant.nodesTitle') }}</button>
+        <button class="btn mini" style="margin-right:6px;font-size:12px"
+                :title="t('views.aiAssistant.mdToggleHint')" @click="toggleMdRender">
+          M↓ {{ t('views.aiAssistant.mdToggle', undefined, { state: mdRender ? t('views.aiAssistant.mdOn') : t('views.aiAssistant.mdOff') }) }}
+        </button>
         <TextZoomBar :scale="scale" @zoom-in="zoomIn" @zoom-out="zoomOut" @reset="reset" />
         <FullscreenButton :active="aiFs" @toggle="toggleAiFs" />
       </div>
@@ -314,7 +320,10 @@ onMounted(async () => {
           {{ t('views.aiAssistant.chatEmpty') }}
         </div>
         <div v-for="(m, i) in currentChat.messages" :key="i" :id="'msg-' + i" class="msg" :class="m.role">
-          <div class="bubble">{{ m.content }}</div>
+          <div class="bubble" :class="{ 'md-bubble': m.role === 'assistant' && mdRender }">
+            <MarkdownRenderer v-if="m.role === 'assistant' && mdRender" :content="m.content" />
+            <template v-else>{{ m.content }}</template>
+          </div>
         </div>
         <div v-if="loading" class="msg assistant"><div class="bubble">{{ t('views.aiAssistant.aiThinking') }}</div></div>
       </div>
@@ -552,6 +561,8 @@ onMounted(async () => {
 .msg.user { justify-content: center; }
 .msg.assistant { justify-content: center; }
 .bubble { max-width: 82%; width: 100%; padding: 12px 18px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; line-height: 1.75; font-size: 1em; transition: font-size .15s ease; }
+/* Markdown 已把换行表达成块级结构：此时关闭 pre-wrap，否则标签间的源码换行会变成额外空行 */
+.bubble.md-bubble { white-space: normal; }
 .msg.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
 .msg.assistant .bubble { background: var(--code-bg); color: var(--ink); border-bottom-left-radius: 4px; }
 .tl-node { display: flex; align-items: center; gap: 6px; padding: 7px 4px; cursor: pointer; border-bottom: 1px dashed var(--line); }

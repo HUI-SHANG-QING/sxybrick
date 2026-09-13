@@ -903,6 +903,9 @@ export async function importBackup(backup, opts = {}) {
     // 补按 cardId 索引级联删除，与 repo.js:394-400 + 407-411 同口径。
     await db.cardGroupLinks.where('cardId').anyOf(removed).delete();
     await db.cardWordLinks.where('cardId').anyOf(removed).delete();
+    // v34：卡↔卡关联双向级联（fromCardId / toCardId 两侧都要清，否则留下指向幽灵卡的悬空关联）
+    await db.cardLinks.where('fromCardId').anyOf(removed).delete();
+    await db.cardLinks.where('toCardId').anyOf(removed).delete();
     const linkedNotes = (await db.notes.toArray())
       .filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.some(id => removedSet.has(id)));
     if (linkedNotes.length) {

@@ -15,7 +15,8 @@ import {
   recordWordStudyTime, wordStudyTimeToday, wordStudyTimeTotal,
 } from '../src/word-repo.js';
 import { generateWordMaterials } from '../src/services/word-llm.js';
-import { hasLocalEntry, loadAllShards, localWords } from '../src/services/word-enrich.js';
+import { hasLocalEntry, loadAllShards } from '../src/services/word-enrich.js';
+import { isInSyllabus } from '../src/services/word-syllabus.js';
 import { WORD_EXT_FIELDS } from '../src/sync-manifest.js';
 import { EXT_FIELDS } from '../src/word-repo.js';
 import { readFileSync } from 'node:fs';
@@ -104,10 +105,13 @@ test('generateWordMaterials：syllable / defs / derived / rootAffix 归一化', 
   // 自动词库扩充任务按字母顺序持续收录大纲词，任何硬编码词迟早会被收录；
   // 故此处动态从大纲中取「首个本地词库尚未收录」的词，从根本上避免前置断言回归。
   await loadAllShards();
-  const enriched = new Set(localWords());
-  const WORD = SYLLABUS.find((w) => !enriched.has(w));
+  // 判定必须走 hasLocalEntry（内部 normKey 归一化），不能拿 localWords() 的
+  // 归一化键集合去比原始词形——大纲里 'Russia' 这类首字母大写的词，键是 'russia'，
+  // `new Set(localWords()).has('Russia')` 恒为 false，会挑到已收录词 → 本地优先命中、
+  // 根本不走 AI，前置断言随机变红（2026-09-13 实测踩到）。
+  const WORD = SYLLABUS.find((w) => !hasLocalEntry(w));
   assert.ok(WORD, '应能从大纲中找到未收录的词用于 AI 通道测试');
-  assert.ok(!hasLocalEntry(WORD), `动态选取的词 ${WORD} 不应已在本地词库收录（否则不走 AI）`);
+  assert.ok(isInSyllabus(WORD), `动态选取的词 ${WORD} 应在大纲内（否则会被门控拒绝，测不到归一化）`);
   const agentCtx = {
     runAgent: async () => JSON.stringify({
       syllable: '  ban·ner  ',

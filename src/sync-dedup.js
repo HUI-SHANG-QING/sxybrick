@@ -163,6 +163,12 @@ export function remapCardRefs(backup, idRemap) {
       if (key === 'cardWordLinks' && typeof r.id === 'string' && r.id.includes(':')) {
         row = { ...row, id: `${row.cardId}:${row.wordCardId}` };
       }
+      // v34：cardLinks.id 同为确定性复合键 `${fromCardId}:${toCardId}`（repo.linkCards），
+      // 上面按字段重映射 fromCardId/toCardId 后必须同步重算 id，否则去重重定向后
+      // 链接行 id 仍指向被跳过的旧卡 → 重复 link 插重复行、unlink 按复合 id 删落空。
+      if (key === 'cardLinks' && typeof r.id === 'string' && r.id.includes(':')) {
+        row = { ...row, id: `${row.fromCardId}:${row.toCardId}` };
+      }
       // round34 H2：正文自由文本里的 [[c-card-id]] 双向链接——去重保留旧卡时重定向到保留卡，
       // 否则指向被跳过卡的链接变悬空死链（笔记/导图正文、备忘正文都可能含）。
       if (typeof row.content === 'string') row = { ...row, content: remapWikilinks(row.content, idRemap) };

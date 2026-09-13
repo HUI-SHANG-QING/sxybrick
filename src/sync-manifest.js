@@ -6,7 +6,8 @@
 // round34 M10 → round38：新增 5 张同步表（notifications/errors/aiUsage/wordExportHistory/wordStudyLog）
 // 属同步集合演进，必须 +1。导入侧 sync.js 用 `backup.version > BACKUP_VERSION` 拒绝过高版本
 // （清晰「请升级」而非崩溃），更低版本旧包仍可导入。
-export const BACKUP_VERSION = 9;
+// round39：新增 cardLinks（通用卡↔通用卡关联）→ 9 → 10。
+export const BACKUP_VERSION = 10;
 
 // merge 策略：
 //   card      卡片专属：内容字段按 updatedAt、SRS 字段按 reviewedAt、错因按 wrongReasonAt 字段级合并
@@ -120,6 +121,10 @@ export const SYNC_TABLES = [
   //   「移除」= 本端删行 + kind='cardWordLink' 墓碑（对端同 id 行被 applyTombstones 清除，悬空链接不复活）。
   //   两张本体表（cards/wordCards）各自按原策略同步，本表只同步「谁对应谁」，内容不互串。
   { table: 'cardWordLinks', kind: 'cardWordLink', merge: 'idOnly' },
+  // v34（通用卡 ↔ 通用卡链接）：cardLinks 多对多映射，id=`${fromCardId}:${toCardId}` 确定性幂等；
+  //   与 cardWordLinks 同语义——「移除」= 本端删行 + kind='cardLink' 墓碑（对端同 id 行被
+  //   applyTombstones 清除），两侧 cards 行各自按原策略同步，内容不互串。
+  { table: 'cardLinks', kind: 'cardLink', merge: 'idOnly' },
   // v23（M2）新增：联动分析会话 + 消息（对话历史跨设备回看）
   //   会话按 updatedAt 合并（标题/卡片集更新）；消息不可变（append-only）→ idOnly 幂等
   { table: 'analysisSessions', kind: 'analysisSession', merge: 'updatedAt' },

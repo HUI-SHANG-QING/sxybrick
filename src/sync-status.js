@@ -36,6 +36,8 @@ export const MODULE_LABELS = {
   cardGroups: '卡组', cardGroupLinks: '卡片-卡组关联',
   // v31 通用卡↔英语词卡链接
   cardWordLinks: '卡-词链接',
+  // v34 通用卡↔通用卡关联
+  cardLinks: '卡-卡关联',
   analysisSessions: '联动分析会话', analysisMessages: '联动分析消息',
   // v25 英语单词模块
   wordCards: '单词卡', wordReviews: '单词复习记录',
@@ -53,7 +55,7 @@ export const MODULE_LABELS = {
 /** 面板展示顺序（核心数据在前；未列出的表按字母序追加在末尾，不再被漏掉） */
 const MODULE_ORDER_HINT = [
   'cards', 'reviews', 'images', 'memos', 'plans', 'notes',
-  'cardGroups', 'cardGroupLinks', 'cardWordLinks', 'analysisSessions', 'analysisMessages',
+  'cardGroups', 'cardGroupLinks', 'cardWordLinks', 'cardLinks', 'analysisSessions', 'analysisMessages',
   'docs', 'mindmaps', 'graphEdges', 'aiChats', 'aiMemories', 'exams',
   'pomoSessions', 'weeklyReports', 'achievements', 'embeddings', 'docFiles',
   'dailyPlans', 'dailyTasks', 'wordCards', 'wordReviews',

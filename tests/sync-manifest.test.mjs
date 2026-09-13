@@ -12,16 +12,17 @@ import {
   mergeByFieldTs, tombKindTable,
 } from '../src/sync-manifest.js';
 
-test('清单：38 张表全部登记且策略合法', () => {
+test('清单：39 张表全部登记且策略合法', () => {
   // v19 → 20；v22（M1）cardGroups + cardGroupLinks → 22；v23（M2）analysisSessions + analysisMessages → 24；
   // v25（英语单词模块）wordCards + wordReviews + wordGroups + wordGroupLinks → 28；
   // v26（英语模块升级）wordSettings + wordCheckins + wordSyllabusMeta → 31
   // v30（大纲中文释义）syllabusMeanings → 32
   // v31（通用卡↔英语词卡链接）cardWordLinks → 33
   // v33（round38，用户要求）notifications/errors/aiUsage/wordExportHistory/wordStudyLog → 38
+  // v34（通用卡↔通用卡关联）cardLinks → 39
   // 审查：userOps 保留在同步清单（分析用），由 repo.pruneUserOps() 做 365 天保留期清理（写墓碑）
-  assert.equal(SYNC_TABLES.length, 38);
-  assert.equal(BACKUP_VERSION, 9);
+  assert.equal(SYNC_TABLES.length, 39);
+  assert.equal(BACKUP_VERSION, 10);
   const names = SYNC_TABLES.map(t => t.table);
   // privacyRecords 不在默认同步清单
   assert.ok(!names.includes('privacyRecords'), 'privacyRecords 不应默认入同步');

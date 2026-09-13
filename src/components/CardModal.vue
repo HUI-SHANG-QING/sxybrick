@@ -5,8 +5,9 @@ import { ref, computed, watch } from 'vue';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import { getSubjects, getTags, createCard, updateCard, WRONG_REASONS, wrongReasonToCode,
-  listCardGroups, cardGroupsOfCard, setCardGroups,
-  linkCardWord, unlinkCardWord, wordCardsOfCard } from '../repo.js';
+  listCardGroups, cardGroupsOfCard, setCardGroups, listCards,
+  linkCardWord, unlinkCardWord, wordCardsOfCard,
+  linkCards, unlinkCards, cardsOfCard } from '../repo.js';
 import { listWordCards } from '../word-repo.js';
 import { T } from '../utils/telemetry.js';
 import { putImage } from '../images.js';
@@ -40,21 +41,53 @@ const groupFilter = ref('');
 const cardGroupIds = ref([]);
 const originalGroupIds = ref([]);
 
-// v31：通用卡 ↔ 英语词卡链接（同一知识点，多对多；只存映射不互串内容）
+// v31：通用卡 ↔ 英语词卡链接；v34：扩展到「通用卡 ↔ 通用卡」——
+// 此前关联对象只有英语词卡，纯记忆卡（线代/计网/政治…）之间无法互相关联，
+// UI 上只看到一句「尚未关联任何英语词」。现改为双模式选择器（本库卡片 / 英语词卡）。
 const cwLinks = ref([]);
+const ccLinks = ref([]);
+const relMode = ref('card'); // 'card' = 本库卡片（默认，覆盖大多数场景）| 'word' = 英语词卡
 const cwPickOpen = ref(false);
 const cwPickQ = ref('');
 let cwWordCache = [];
-const cwPickList = computed(() => {
-  const linked = new Set(cwLinks.value.map(c => c.id));
+let ccCardCache = [];
+/** 卡片显示标题：取正文首个标题行（与卡片列表口径一致） */
+function cardHead(c) {
+  const lines = String(c?.front || '').split('\n').map(s => s.trim()).filter(Boolean);
+  for (const l of lines) { const m = l.match(/^#{1,6}\s*(.+)$/); if (m) return m[1].slice(0, 48); }
+  return (lines.find(l => !/^([-*+>|]|\d+\.)/.test(l)) || '').slice(0, 48);
+}
+const relPickList = computed(() => {
   const q = String(cwPickQ.value || '').trim().toLowerCase();
-  return cwWordCache
-    .filter(c => !linked.has(c.id) && (!q || (c.word || '').toLowerCase().includes(q) || (c.meaning || '').toLowerCase().includes(q)))
+  if (relMode.value === 'word') {
+    const linked = new Set(cwLinks.value.map(c => c.id));
+    return cwWordCache
+      .filter(c => !linked.has(c.id) && (!q || (c.word || '').toLowerCase().includes(q) || (c.meaning || '').toLowerCase().includes(q)))
+      .slice(0, 8);
+  }
+  const linked = new Set(ccLinks.value.map(c => c.id));
+  return ccCardCache
+    .filter(c => c.id !== props.card?.id && !linked.has(c.id)
+      && (!q || cardHead(c).toLowerCase().includes(q) || String(c.subject || '').toLowerCase().includes(q)))
     .slice(0, 8);
 });
+const relHasCache = computed(() => !!(cwWordCache.length || ccCardCache.length));
 async function refreshCwLinks() {
-  cwWordCache = (await listWordCards()).slice(0, 500);
-  cwLinks.value = props.card?.id ? await wordCardsOfCard(props.card.id) : [];
+  const [w, c] = await Promise.all([
+    listWordCards().then(rows => rows.slice(0, 500)).catch(() => []),
+    // listCards 返回的是 { items, total, dueCount }（不是数组）——必须取 .items，
+    // 否则 slice 抛错被 catch 吞掉，卡片候选恒为空（静默失败）。
+    listCards({ mode: 'all' }).then(r => (r?.items || []).slice(0, 500)).catch(() => []),
+  ]);
+  cwWordCache = w;
+  ccCardCache = c;
+  if (!props.card?.id) { cwLinks.value = []; ccLinks.value = []; return; }
+  const [wl, cl] = await Promise.all([
+    wordCardsOfCard(props.card.id).catch(() => []),
+    cardsOfCard(props.card.id).catch(() => []),
+  ]);
+  cwLinks.value = wl;
+  ccLinks.value = cl;
 }
 async function doCwLink(wordCard) {
   if (!props.card?.id) return;
@@ -66,6 +99,18 @@ async function doCwLink(wordCard) {
 async function doCwUnlink(wordCardId) {
   if (!props.card?.id) return;
   await unlinkCardWord(props.card.id, wordCardId);
+  await refreshCwLinks();
+}
+async function doCcLink(card) {
+  if (!props.card?.id || !card?.id) return;
+  await linkCards(props.card.id, card.id);
+  await refreshCwLinks();
+  cwPickOpen.value = false;
+  cwPickQ.value = '';
+}
+async function doCcUnlink(cardId) {
+  if (!props.card?.id) return;
+  await unlinkCards(props.card.id, cardId);
   await refreshCwLinks();
 }
 const filteredGroups = computed(() => {
@@ -96,6 +141,7 @@ watch(() => props.modelValue, async (open) => {
   cardGroupIds.value = [];
   originalGroupIds.value = [];
   cwLinks.value = [];
+  ccLinks.value = [];
   cwPickOpen.value = false;
   cwPickQ.value = '';
   if (props.card) {
@@ -338,36 +384,74 @@ function close() { emit('update:modelValue', false); }
         <div class="field-label">助记 / 词根（可选，语言学习用）</div>
         <input v-model="mnemonic" class="input" placeholder="如：quad- = 四（quadrant 四象限）" maxlength="200" />
 
-        <!-- v31：关联英语词卡（同一知识点，多对多；仅编辑已有卡时可用） -->
+        <!-- v31 + v34：关联（同一知识点，多对多；仅编辑已有卡时可用）
+             对象支持两类：本库卡片（v34 新增）/ 英语词卡（v31） -->
         <div v-if="props.card" class="cw-sec">
           <div class="field-label" style="display:flex;justify-content:space-between;align-items:center">
-            <span>关联英语词卡（同一知识点，可多组）</span>
-            <button class="btn small" :disabled="!cwPickList.length && !cwWordCache.length" @click="cwPickOpen = !cwPickOpen">
+            <span>关联（同一知识点，可多组）</span>
+            <button class="btn small" :disabled="!relHasCache" @click="cwPickOpen = !cwPickOpen">
               {{ cwPickOpen ? '收起' : '＋ 关联' }}
             </button>
           </div>
           <div class="hint" style="margin:2px 0 0">只存「谁对应谁」，两侧内容与复习进度各自独立、互不干扰</div>
-          <div v-if="cwLinks.length" class="cw-list">
-            <span v-for="c in cwLinks" :key="c.id" class="cw-chip">
-              {{ c.word }}<small v-if="c.meaning"> · {{ c.meaning }}</small>
-              <button class="cw-x" @click="doCwUnlink(c.id)" title="解除关联">×</button>
-            </span>
+
+          <div class="rel-tabs">
+            <button class="rel-tab" :class="{ on: relMode === 'card' }" @click="relMode = 'card'; cwPickQ = ''">
+              本库卡片（{{ ccLinks.length }}）
+            </button>
+            <button class="rel-tab" :class="{ on: relMode === 'word' }" @click="relMode = 'word'; cwPickQ = ''">
+              英语词卡（{{ cwLinks.length }}）
+            </button>
           </div>
-          <div v-else class="hint" style="margin:2px 0 0">尚未关联任何英语词</div>
+
+          <!-- 本库卡片：显示所属科目，便于同名卡区分 -->
+          <template v-if="relMode === 'card'">
+            <div v-if="ccLinks.length" class="cw-list">
+              <span v-for="c in ccLinks" :key="c.id" class="cw-chip">
+                {{ cardHead(c) || '（无标题）' }}<small v-if="c.subject"> · {{ c.subject }}</small>
+                <button class="cw-x" @click="doCcUnlink(c.id)" title="解除关联">×</button>
+              </span>
+            </div>
+            <div v-else class="hint" style="margin:2px 0 0">尚未关联任何卡片</div>
+          </template>
+
+          <!-- 英语词卡 -->
+          <template v-else>
+            <div v-if="cwLinks.length" class="cw-list">
+              <span v-for="c in cwLinks" :key="c.id" class="cw-chip">
+                {{ c.word }}<small v-if="c.meaning"> · {{ c.meaning }}</small>
+                <button class="cw-x" @click="doCwUnlink(c.id)" title="解除关联">×</button>
+              </span>
+            </div>
+            <div v-else class="hint" style="margin:2px 0 0">尚未关联任何英语词</div>
+          </template>
+
           <div v-if="cwPickOpen" class="cw-pick">
-            <input v-model="cwPickQ" class="input" placeholder="搜索英语词 / 释义…" style="margin-bottom:6px" />
-            <div v-if="cwPickList.length">
-              <div v-for="c in cwPickList" :key="c.id" class="cw-pick-item" @click="doCwLink(c)">
-                {{ c.word }}<small v-if="c.meaning"> · {{ c.meaning }}</small><span class="hint"> {{ c.kind === 'word' ? '单词' : c.kind === 'phrase' ? '词组' : c.kind === 'sentence' ? '短句' : '范文' }}</span>
+            <input v-model="cwPickQ" class="input"
+                   :placeholder="relMode === 'card' ? '搜索标题 / 科目…' : '搜索英语词 / 释义…'" style="margin-bottom:6px" />
+            <div v-if="relPickList.length">
+              <div v-for="c in relPickList" :key="c.id" class="cw-pick-item"
+                   @click="relMode === 'card' ? doCcLink(c) : doCwLink(c)">
+                <template v-if="relMode === 'card'">
+                  {{ cardHead(c) || '（无标题）' }}<span class="hint"> {{ c.subject || '' }}</span>
+                </template>
+                <template v-else>
+                  {{ c.word }}<small v-if="c.meaning"> · {{ c.meaning }}</small><span class="hint"> {{ c.kind === 'word' ? '单词' : c.kind === 'phrase' ? '词组' : c.kind === 'sentence' ? '短句' : '范文' }}</span>
+                </template>
               </div>
             </div>
-            <div v-else class="hint">无候选（英语模块暂无词卡或无匹配）</div>
+            <div v-else class="hint">
+              {{ relMode === 'card' ? '无候选（本库暂无其它卡片或无匹配）' : '无候选（英语模块暂无词卡或无匹配）' }}
+            </div>
           </div>
         </div>
 
         <div class="field-label" style="display:flex;align-items:center;gap:8px">
           <input type="checkbox" v-model="preview" id="pv" />
           <label for="pv" style="margin:0">实时预览</label>
+        </div>
+        <div class="hint" style="margin:-4px 0 6px">
+          强调语法：<code>**加粗**</code> · <code>==黄色高亮==</code> · <code>!!红色重点!!</code>
         </div>
         <div v-if="preview" class="preview-grid">
           <div class="preview-pane"><div class="hint">正面预览</div><MarkdownRenderer :content="front" /></div>
@@ -397,6 +481,13 @@ function close() { emit('update:modelValue', false); }
 .preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .preview-pane { border: 1px dashed var(--line); border-radius: 8px; padding: 10px; max-height: 260px; overflow-y: auto; }
 .cw-sec { margin-top: 12px; }
+/* 关联对象切换（本库卡片 / 英语词卡） */
+.rel-tabs { display: flex; gap: 6px; margin-top: 8px; }
+.rel-tab {
+  font-size: 12px; padding: 3px 12px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink-2);
+}
+.rel-tab.on { border-color: var(--accent); color: var(--accent); background: var(--code-inline); font-weight: 600; }
 .cw-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .cw-chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 12px; background: var(--code-inline); }
 .cw-chip small { color: var(--ink-2); }

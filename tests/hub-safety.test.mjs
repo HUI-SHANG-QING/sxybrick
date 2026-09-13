@@ -12,6 +12,9 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
+// 包版本从唯一源取值（别再写死字面量：每次同步集合演进 +1，写死会让本文件
+// 的「正确版本应通过」用例无端变红，2026-09-13 v34 新增 cardLinks 时踩过一次）
+import { BACKUP_VERSION } from '../src/sync-manifest.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HUB_JS = join(__dirname, '..', 'sync-hub', 'hub.js');
@@ -49,7 +52,7 @@ const H = { 'Content-Type': 'application/json' };
 
 function makePacket(extra = {}) {
   return {
-    version: 9, app: 'sxybrick', scope: 'real', exportedAt: Date.now(),
+    version: BACKUP_VERSION, app: 'sxybrick', scope: 'real', exportedAt: Date.now(),
     tombstones: [], streakMeta: null,
     cards: [], reviews: [], images: [], notes: [],
     privacyRecords: [],

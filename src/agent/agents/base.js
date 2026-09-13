@@ -7,6 +7,8 @@
 
 import { toolRegistry } from '../registry.js';
 import { TraceKind } from '../types.js';
+import { buildLocalAnswer } from '../local-answer.js';
+import { isOfflineReply } from '../../utils/offlineAI.js';
 
 const PROTOCOL = `
 你可以使用下方列出的工具来辅助回答。调用与收尾严格遵循以下格式：
@@ -103,12 +105,28 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
   const systemPrompt = buildSystemPrompt(agent, ctx);
   const convo = [{ role: 'system', content: systemPrompt }, ...userMessages];
 
+  // 本轮已成功返回数据的工具观察（{name, ok, data}）。用途：LLM 合成那一步掉线时，
+  // 用它本地直出一份回答，而不是把【离线模式】占位丢给用户、白扔掉已到手的真实数据。
+  const observations = [];
+
   // P1-9：step 上限同时取「agent 声明值」与「硬上限 12」的最小值，
   // 防止插件在 manifest 里自报 9999 导致单轮近万次 LLM 调用（费用爆炸 / 长时间无响应）。
   const MAX_STEPS = 12;
   const maxSteps = Math.min(Number.isFinite(agent.maxSteps) ? agent.maxSteps : 8, MAX_STEPS);
   for (let step = 0; step < maxSteps; step++) {
-    const raw = await ctx.chat(convo);
+    let raw;
+    try {
+      raw = await ctx.chat(convo);
+    } catch (e) {
+      // 链路彻底断了（非网络错误也会走到这里）。已有工具数据 → 本地直出，保底给用户真内容。
+      const local = buildLocalAnswer({ observations });
+      if (local) {
+        onTrace?.({ kind: TraceKind.ERROR, text: `模型调用失败：${e?.message || e}` });
+        onTrace?.({ kind: TraceKind.FINAL, text: local });
+        return local;
+      }
+      throw e;
+    }
     const toolCall = parseToolCall(raw);
 
     if (toolCall) {
@@ -130,15 +148,37 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
       convo.push({ role: 'assistant', content: raw });
       const payload = res?.ok === false ? `错误：${res.error}` : JSON.stringify(res?.data ?? res);
       convo.push({ role: 'tool', content: `工具 ${toolCall.name} 返回：\n${payload}` });
+      observations.push({
+        name: toolCall.name,
+        ok: res?.ok !== false,
+        data: res?.ok === false ? null : (res?.data ?? res),
+        error: res?.ok === false ? res.error : '',
+      });
       continue;
     }
 
     const final = parseFinal(raw);
     if (final != null) {
+      // 关键修复：raw 是离线兜底占位（模型没答出来，chatWithFallback 顶了段提示），
+      // 而本轮已经拿到工具数据 → 用本地直出替换，绝不让占位覆盖真实结果。
+      if (isOfflineReply(final) && observations.length) {
+        const local = buildLocalAnswer({ observations });
+        if (local) {
+          onTrace?.({ kind: TraceKind.FINAL, text: local });
+          return local;
+        }
+      }
       onTrace?.({ kind: TraceKind.FINAL, text: final });
       return final;
     }
     // 兜底：既无 tool 也无 final，视为异常，直接返回原文
+    if (isOfflineReply(raw) && observations.length) {
+      const local = buildLocalAnswer({ observations });
+      if (local) {
+        onTrace?.({ kind: TraceKind.FINAL, text: local });
+        return local;
+      }
+    }
     onTrace?.({ kind: TraceKind.FINAL, text: raw });
     return raw;
   }

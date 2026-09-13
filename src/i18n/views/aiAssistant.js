@@ -16,6 +16,12 @@ export const zh = {
   genDeckBtn: '智能组卡',
   coldDeckBtn: '冷启动卡组',
 
+  // ——— Markdown 渲染开关（对话气泡排版 / 看源码 二选一，全局偏好） ———
+  mdToggle: 'Markdown 渲染：{state}',
+  mdOn: '开',
+  mdOff: '关',
+  mdToggleHint: '开关对话气泡的 Markdown 排版（关掉后显示原始 Markdown 源码，便于复制）',
+
   // ——— 左栏：历史对话 ———
   historyTitle: '历史对话',
   emptyHistoryTitle: '暂无历史对话',
@@ -128,6 +134,12 @@ export const en = {
   quickRelate: 'Knowledge Links',
   genDeckBtn: 'Smart Deck',
   coldDeckBtn: 'Cold-start Deck',
+
+  // ——— Markdown rendering toggle (formatted bubbles vs raw source, global pref) ———
+  mdToggle: 'Markdown: {state}',
+  mdOn: 'On',
+  mdOff: 'Off',
+  mdToggleHint: 'Toggle Markdown formatting in chat bubbles (turn off to see the raw Markdown source for copying)',
 
   // ——— Left column: chat history ———
   historyTitle: 'History',

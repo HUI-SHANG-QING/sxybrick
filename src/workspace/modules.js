@@ -12,6 +12,7 @@ export const MODULE_GROUPS = [
     i18nKey: 'workspace.group.study',
     modules: [
       { key: 'cards', path: '/cards', icon: '🗂️', label: '卡片', desc: '创建与编辑卡片' },
+      { key: 'groups', path: '/groups', icon: '🎴', label: '卡组', desc: '自定义分组管理' },
       { key: 'review', path: '/review', icon: '📖', label: '背诵', desc: '到期卡复习' },
       { key: 'wrong', path: '/wrong', icon: '❌', label: '错题', desc: '错题本重做' },
       { key: 'stats', path: '/stats', icon: '📊', label: '数据', desc: '统计与趋势' },
@@ -48,6 +49,25 @@ export const MODULE_GROUPS = [
     ],
   },
   {
+    // 英语模块（v1 起就是独立一套表与页面，但一直漏登记 → 工作台看不到入口）。
+    // 路由前缀 /english/*，与 App.vue 的 nav 项保持一致。
+    id: 'english',
+    label: '英语',
+    i18nKey: 'workspace.group.english',
+    modules: [
+      { key: 'english', path: '/english', icon: '🎓', label: '英语中心', desc: '单词·短语总览' },
+      { key: 'english-book', path: '/english/book', icon: '📕', label: '单词本', desc: '词库管理·释义' },
+      { key: 'english-study', path: '/english/study', icon: '🔤', label: '英语背诵', desc: '13 种复习模式' },
+      { key: 'english-ai', path: '/english/ai-modes', icon: '🧠', label: 'AI 智能模式', desc: '释义例句补全' },
+      { key: 'english-phrases', path: '/english/phrases', icon: '🧩', label: '词组分组', desc: '自定义词单' },
+      { key: 'english-learned', path: '/english/learned', icon: '✅', label: '已掌握', desc: '熟悉词归档' },
+      { key: 'english-groups', path: '/english/groups', icon: '🗂️', label: '词单分组', desc: '分组管理' },
+      { key: 'english-stats', path: '/english/stats', icon: '📈', label: '英语统计', desc: '学习曲线' },
+      { key: 'english-export', path: '/english/export', icon: '📦', label: '词单导出', desc: '打包导出' },
+      { key: 'english-settings', path: '/english/settings', icon: '⚙️', label: '英语设置', desc: '词库与背诵偏好' },
+    ],
+  },
+  {
     id: 'smart',
     label: '智能',
     i18nKey: 'workspace.group.smart',
@@ -56,6 +76,7 @@ export const MODULE_GROUPS = [
       { key: 'agent', path: '/agent', icon: '🧠', label: 'Agent', desc: 'Agent 工作台' },
       { key: 'feynman', path: '/feynman', icon: '👨‍🏫', label: '费曼', desc: '费曼练习' },
       { key: 'insight', path: '/insight', icon: '💡', label: '卡片洞察', desc: '遗忘曲线' },
+      { key: 'card-link', path: '/analysis/card-link', icon: '🔗', label: '联动分析', desc: '卡片智能关联' },
       { key: 'health', path: '/health', icon: '🩺', label: '体检', desc: '资产健康检查' },
     ],
   },
@@ -66,6 +87,8 @@ export const MODULE_GROUPS = [
     modules: [
       { key: 'sync', path: '/sync', icon: '🔄', label: '同步', desc: '局域网/备份' },
       { key: 'export', path: '/export', icon: '📤', label: '导出', desc: '备份与导出' },
+      { key: 'trash', path: '/trash', icon: '🗑️', label: '回收站', desc: '删除恢复（30 天）' },
+      { key: 'uikit', path: '/uikit', icon: '🎨', label: 'UI 规范', desc: '组件主题活样本' },
       { key: 'user-dashboard', path: '/user-dashboard', icon: '🛰️', label: '仪表盘', desc: '行为监控' },
       { key: 'privacy', path: '/monitor', icon: '🧾', label: '超级监控', desc: '人生数据监控' },
       { key: 'plugins', path: '/plugins', icon: '🔌', label: '插件', desc: '扩展管理' },

@@ -20,6 +20,13 @@ import {
 import { buildWordSheet, rowOf, shuffleCards, PAGE_SIZE } from '../src/services/word-print.js';
 import { isInSyllabus, syllabusSize, listSyllabus, exportSyllabus, getSyllabusMeta } from '../src/services/word-syllabus.js';
 import { generateWordMaterials, testLlmConnection } from '../src/services/word-llm.js';
+import { hasLocalEntry } from '../src/services/word-enrich.js';
+
+// AI 回落路径的哨兵词：必须是「大纲内、但本地词库未收录」。
+// 绝不写死单词——本地词库在持续扩充，2026-09-13 `evaluate` 被收录后，本地优先
+// 直接返回 ok，7 个断言「走 AI 通道报错」的用例同时变红。改为运行时动态挑选。
+const AI_WORD = listSyllabus().find((w) => isInSyllabus(w) && !hasLocalEntry(w)) || null;
+const AI_SKIP = AI_WORD ? false : '本地词库已收录大纲全部词汇（AI 回落路径无可用输入）';
 
 after(async () => { try { await db.close(); } catch { /* ignore */ } });
 
@@ -254,21 +261,21 @@ test('generateWordMaterials：空词与未收录词都不调用 LLM', async () =
   assert.equal(out.reason, 'not-in-local-wordbank');
 });
 
-test('generateWordMaterials：未配置 provider/key → 明确报错不静默', async () => {
+test('generateWordMaterials：未配置 provider/key → 明确报错不静默', { skip: AI_SKIP }, async () => {
   // evaluate：在考研词表内但不在本地词库 → 显式 allowAi 后进入 AI 通道，未配置时应明确报错
-  const out = await generateWordMaterials({ word: 'evaluate', settings: {}, allowAi: true });
+  const out = await generateWordMaterials({ word: AI_WORD, settings: {}, allowAi: true });
   assert.equal(out.ok, false);
   assert.match(out.reason, /未配置 LLM/);
 });
 
-test('generateWordMaterials：agent 通道解析 ```json 包裹并补齐缺失难度档', async () => {
+test('generateWordMaterials：agent 通道解析 ```json 包裹并补齐缺失难度档', { skip: AI_SKIP }, async () => {
   const agentCtx = {
     runAgent: async () => '```json\n{"synonyms":["desert","forsake","quit","drop","relinquish","give up","extra"],'
       + '"collocations":["abandon hope"],"phrases":["abandon oneself to"],"pos":"v.","mnemonic":"a+band+on",'
       + '"examples":[{"level":"simple","sentence":"They abandoned the car.","translation":"他们弃车了。"},'
       + '{"level":"unknown","sentence":"x","translation":"y"}]}\n```',
   };
-  const out = await generateWordMaterials({ word: 'evaluate', settings: {}, agentCtx, allowAi: true });
+  const out = await generateWordMaterials({ word: AI_WORD, settings: {}, agentCtx, allowAi: true });
   assert.equal(out.ok, true);
   assert.equal(out.data.pos, 'v.');
   assert.equal(out.data.synonyms.length, 6, '同义词应截断到 6 个');
@@ -278,9 +285,9 @@ test('generateWordMaterials：agent 通道解析 ```json 包裹并补齐缺失�
   assert.ok(out.data.examples.every((e) => e.sentence && e.translation));
 });
 
-test('generateWordMaterials：agent 抛错且无 Key → 回落为未配置错误', async () => {
+test('generateWordMaterials：agent 抛错且无 Key → 回落为未配置错误', { skip: AI_SKIP }, async () => {
   const agentCtx = { runAgent: async () => { throw new Error('agent down'); } };
-  const out = await generateWordMaterials({ word: 'evaluate', settings: {}, agentCtx, allowAi: true });
+  const out = await generateWordMaterials({ word: AI_WORD, settings: {}, agentCtx, allowAi: true });
   assert.equal(out.ok, false);
   assert.match(out.reason, /未配置 LLM/);
 });
@@ -307,11 +314,11 @@ const WORD_JSON = JSON.stringify({
   examples: [{ level: 'simple', sentence: 'They abandoned it.', translation: '他们放弃了。' }],
 });
 
-test('直连成功：落一条 english-word 用量（token 取响应 usage，est=0）', async () => {
+test('直连成功：落一条 english-word 用量（token 取响应 usage，est=0）', { skip: AI_SKIP }, async () => {
   const restore = stubFetch(async () => okResp(WORD_JSON, { prompt_tokens: 123, completion_tokens: 45, total_tokens: 168 }));
   try {
     await db.aiUsage.clear();
-    const out = await generateWordMaterials({ word: 'evaluate', settings: KEY_SETTINGS, allowAi: true });
+    const out = await generateWordMaterials({ word: AI_WORD, settings: KEY_SETTINGS, allowAi: true });
     assert.equal(out.ok, true, '应生成成功');
     const row = (await db.aiUsage.toArray()).find((r) => r.source === 'english-word');
     assert.ok(row, '应落一条 source=english-word 的用量记录');
@@ -328,11 +335,11 @@ test('直连成功：落一条 english-word 用量（token 取响应 usage，est
   }
 });
 
-test('直连失败：落一条 ok=0 的用量（失败调用也应可见）', async () => {
+test('直连失败：落一条 ok=0 的用量（失败调用也应可见）', { skip: AI_SKIP }, async () => {
   const restore = stubFetch(async () => ({ ok: false, text: async () => 'quota exceeded' }));
   try {
     await db.aiUsage.clear();
-    const out = await generateWordMaterials({ word: 'evaluate', settings: KEY_SETTINGS, allowAi: true });
+    const out = await generateWordMaterials({ word: AI_WORD, settings: KEY_SETTINGS, allowAi: true });
     assert.equal(out.ok, false);
     assert.match(out.reason, /LLM 调用失败/);
     const row = (await db.aiUsage.toArray()).find((r) => r.source === 'english-word');
@@ -345,11 +352,11 @@ test('直连失败：落一条 ok=0 的用量（失败调用也应可见）', as
   }
 });
 
-test('响应无 usage 字段：按字符估算 token，est=1', async () => {
+test('响应无 usage 字段：按字符估算 token，est=1', { skip: AI_SKIP }, async () => {
   const restore = stubFetch(async () => okResp(WORD_JSON, null));
   try {
     await db.aiUsage.clear();
-    const out = await generateWordMaterials({ word: 'evaluate', settings: KEY_SETTINGS, allowAi: true });
+    const out = await generateWordMaterials({ word: AI_WORD, settings: KEY_SETTINGS, allowAi: true });
     assert.equal(out.ok, true);
     const row = (await db.aiUsage.toArray()).find((r) => r.source === 'english-word');
     assert.ok(row);

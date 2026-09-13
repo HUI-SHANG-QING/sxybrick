@@ -173,6 +173,20 @@ export function offlineGenVariants(card, count = 3) {
   return out;
 }
 
+// 兜底文案的固定前缀。Agent 层据此区分「这是兜底占位，不是模型回答」：
+// 若 Agent 已经跑完工具（拿到真实数据）才掉线，必须用本地数据回答，绝不能拿这段占位
+// 覆盖掉工具结果（2026-09-13 用户实测：search_cards 明明返回 4 张卡，回答却是「网络连接失败」）。
+export const OFFLINE_PREFIX = '【离线模式】';
+
+/**
+ * 判断一段回复是否是离线兜底占位（而非模型真实回答）。
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isOfflineReply(text) {
+  return typeof text === 'string' && text.trimStart().startsWith(OFFLINE_PREFIX);
+}
+
 /**
  * 对话兜底：返回一段引导文字，告知用户当前离线/未配置，并给出下一步建议。
  * @param {Array} messages

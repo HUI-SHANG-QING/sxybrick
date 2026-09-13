@@ -21,12 +21,14 @@ const input = ref('');
 const loading = ref(false);
 const messages = ref([]); // 当前会话消息 {role, content}
 const streamBox = ref(null); // 消息流容器 ref——必须先声明再给 useFullscreen 用（旧序 TDZ：useFullscreen(streamBox) 在声明前取用 → Cannot access before initialization）
+const paneBox = ref(null); // 全屏容器 ref：整个「消息流 + 输入行」对话面板（全屏后仍能继续输入）
 const traceNodes = ref([]); // 编排轨迹
 const showTools = ref(false);
 const showUsage = ref(false);
 
 // 全屏/非全屏：Agent 长回答（含 Markdown/表格）沉浸式专心阅读
-const { isFullscreen: wbFs, toggle: toggleWbFs } = useFullscreen(streamBox);
+// 目标必须是 paneBox（含输入行），不能只全屏 streamBox——否则全屏后无处输入，等于只能读不能问。
+const { isFullscreen: wbFs, toggle: toggleWbFs } = useFullscreen(paneBox);
 const sessions = ref([]); // Agent 会话历史（持久化到 aiChats，随数据包同步）
 const currentId = ref('');
 
@@ -230,8 +232,8 @@ onMounted(async () => {
         </div>
       </aside>
 
-      <!-- 中：对话 -->
-      <section class="wb-chat">
+      <!-- 中：对话（paneBox = 全屏容器，必须把输入行一起包进来） -->
+      <section ref="paneBox" class="wb-chat">
         <div class="chat-fs-row">
           <FullscreenButton :active="wbFs" @toggle="toggleWbFs" />
         </div>
@@ -296,6 +298,10 @@ onMounted(async () => {
 .badge.w { background: #fee2e2; color: #dc2626; }
 .badge.r { background: #dbeafe; color: #2563eb; }
 .wb-chat { display: flex; flex-direction: column; min-height: 0; }
+/* 全屏（真实 Fullscreen API 与 CSS 降级两条路径）：整个对话面板铺满屏幕，
+   含输入行 → 全屏后仍可继续提问；留出内边距，消息流保持自身滚动。 */
+.wb-chat.fake-fullscreen { padding: 16px; }
+.wb-chat:fullscreen { padding: 16px; }
 .chat-fs-row { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 .chat-box { flex: 1; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 16px; }
 .msg { display: flex; margin-bottom: 12px; }

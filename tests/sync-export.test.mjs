@@ -11,8 +11,8 @@ import {
   mergeCardPair, mergeRows, mergeTombstones, applyTombstones, livenessTs,
 } from '../src/sync-manifest.js';
 
-test('BACKUP_VERSION = 9（导出包版本固定；round38 新增 5 张同步表，每次变更必须 +1）', () => {
-  assert.equal(BACKUP_VERSION, 9);
+test('BACKUP_VERSION = 10（导出包版本固定；v34 新增 cardLinks，每次变更必须 +1）', () => {
+  assert.equal(BACKUP_VERSION, 10);
 });
 
 test('R2+R1 幂等性：mergeCardPair 来回合并不丢字段', () => {

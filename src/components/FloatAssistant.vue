@@ -4,6 +4,8 @@ import { ref, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
 import { chatAI, buildContext, hasAIKey } from '../ai.js';
 import { useFabDrag } from '../composables/useFabDrag.js';
+import MarkdownRenderer from './MarkdownRenderer.vue';
+import { mdRender } from '../utils/md-pref.js';
 
 const open = ref(false);
 const messages = ref([]);
@@ -67,7 +69,7 @@ const { dragging, onDown } = useFabDrag({
           <button class="btn small" @click="toggle">收起</button>
         </div>
         <div ref="box" class="fa-box">
-          <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role"><div class="bubble">{{ m.content }}</div></div>
+          <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role"><div class="bubble" :class="{ 'md-bubble': m.role === 'assistant' && mdRender }"><MarkdownRenderer v-if="m.role === 'assistant' && mdRender" :content="m.content" /><template v-else>{{ m.content }}</template></div></div>
           <div v-if="loading" class="msg assistant"><div class="bubble">思考中…</div></div>
         </div>
         <div class="fa-input">
@@ -119,6 +121,8 @@ const { dragging, onDown } = useFabDrag({
 .msg { display: flex; margin-bottom: 8px; }
 .msg.user { justify-content: flex-end; }
 .bubble { max-width: 82%; padding: 8px 12px; border-radius: 10px; white-space: pre-wrap; word-break: break-word; font-size: 13px; line-height: 1.5; }
+/* Markdown 已表达换行语义：关闭 pre-wrap，避免源码换行变成额外空行 */
+.bubble.md-bubble { white-space: normal; }
 .msg.user .bubble { background: var(--accent); color: #fff; }
 .msg.assistant .bubble { background: var(--code-bg); color: var(--ink); }
 .fa-enter-active, .fa-leave-active { transition: all .18s ease; }

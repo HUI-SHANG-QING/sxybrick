@@ -138,6 +138,17 @@ input, select, textarea { font: inherit; color: inherit; }
 .md-body th, .md-body td { border: 1px solid var(--line); padding: 6px 10px; }
 .md-body img { max-width: 100%; border-radius: 8px; }
 .md-body blockquote { border-left: 3px solid var(--line); margin: 8px 0; padding: 4px 12px; color: var(--ink-2); }
+/* 强调体系（用户诉求：重点要更突出、有颜色）：
+   **加粗**  -> 更重的字重（中文无 800 时浏览器回退 bold）
+   ==高亮==  -> 黄色底纹（半透明，深色主题下同样可读）
+   !!标红!!  -> 红色加粗（最强调，用于必须记住/易错点） */
+.md-body strong, .md-body b { font-weight: 800; }
+.md-body .md-hl {
+  background: color-mix(in srgb, #f5b301 32%, transparent);
+  color: var(--ink); border-radius: 3px; padding: 0 4px;
+  box-decoration-break: clone; -webkit-box-decoration-break: clone;
+}
+.md-body .md-red { color: var(--red, #dc2626); font-weight: 800; }
 
 /* 页面切换过渡 */
 .page-enter-active, .page-leave-active { transition: opacity .18s ease, transform .18s ease; }
@@ -1564,7 +1575,8 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
   width: 100vw !important;
   height: 100vh !important;
   z-index: 95 !important;
-  background: #fff !important;
+  /* 主题底色而非写死白：深色/护眼主题下白底会让浅色文字不可读 */
+  background: var(--bg, #fff) !important;
   overflow: auto;
 }
 

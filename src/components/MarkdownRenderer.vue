@@ -2,7 +2,7 @@
 // Markdown 渲染：marked(GFM) + highlight.js 高亮 + KaTeX 公式 + 本地图片解析
 // 性能：katex / highlight.js 改为按需动态 import（仅当源文本含对应语法时加载）
 // 首屏 chunk 不再携带这两个重型库（合计约 +400KB），仅在内容需要时才拉取。
-import { ref, watch } from 'vue';
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import { marked } from 'marked';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
 import { sanitizeHtml } from '../utils/sanitize.js';
@@ -39,6 +39,12 @@ function escapeAttr(v) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/** 文本节点转义（用于自建模板的文本内容，防把用户原文当标签解析） */
+function escapeText(v) {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function render(src) {
   const stash = [];
   const put = (html) => { stash.push(html); return `@@MDS${stash.length - 1}@@`; };
@@ -65,6 +71,13 @@ function render(src) {
   // 2) 行内代码保护
   text = text.replace(/`([^`\n]+)`/g, (m, code) =>
     put(`<code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code>`));
+
+  // 2.5) 强调扩展：==高亮==（黄底）/ !!标红!!（红字加粗）。
+  //   放在行内代码之后 → 代码里的 == 已被占位符替换，不会被误处理；
+  //   放在 marked 之前 → 由 marked 决定所在块级上下文，只是把标记换成行内 HTML。
+  //   用 put() 走占位符管线，可同时绕过 marked 的转义与后续净化前的一致性处理。
+  text = text.replace(/==([^=\n]+?)==/g, (m, s) => put(`<mark class="md-hl">${escapeText(s)}</mark>`));
+  text = text.replace(/!!([^!\n]+?)!!/g, (m, s) => put(`<span class="md-red">${escapeText(s)}</span>`));
 
   // 3) 本地图片：![alt](sxy-img://id) → <img src="blobURL">
   // alt 来自用户输入，必须转义后再拼进属性，否则 `x" onerror="alert(1)` 可闭合标签注入
@@ -100,9 +113,13 @@ function render(src) {
 }
 
 const html = ref('');
+// 当前内容的本地图片 id（灯箱顺序导航用；与渲染出的 <img> 顺序一致）
+const imgIds = ref([]);
 
 async function update() {
-  await ensureImages(extractImageIds(props.content));
+  const ids = extractImageIds(props.content);
+  await ensureImages(ids);
+  imgIds.value = ids;
   const src = props.content || '';
   // 按需加载：仅当源文本包含对应语法标记时才加载重型库
   // 这两个 await 是串行的（一般内容里两种语法都很少），可保证 render 时模块就位
@@ -111,11 +128,186 @@ async function update() {
   html.value = render(src);
 }
 
-watch(() => props.content, update, { immediate: true });
+// ---- 图片全屏灯箱：点击放大 / 滚轮缩放 / 拖拽平移 / 双击复位 / ←→ 切换 / ESC 退出 ----
+const lb = ref({
+  open: false,
+  idx: 0,
+  total: 0,
+  zoom: 1,
+  x: 0,
+  y: 0,
+  native: false,
+  error: false,
+});
+const stage = ref(null);   // 缩放/平移舞台（transform 目标）
+const lbRoot = ref(null);  // 灯箱根节点（原生全屏时以它为 fullscreen 元素，
+                           // 因为灯箱 Teleport 到 body，必须在自身上申请全屏才看得到）
+let drag = null;
+
+function openLightbox(e) {
+  const img = e.target;
+  if (!img || img.tagName !== 'IMG' || !img.classList.contains('md-img')) return;
+  // 打开前刷新 objectURL（LRU 缓存可能已淘汰旧 URL）
+  ensureImages(imgIds.value);
+  // 精确定位：按容器内 .md-img 的出现顺序找点击的是第几张（同图多张也正确）
+  const host = e.currentTarget;
+  const imgs = host ? [...host.querySelectorAll('img.md-img')] : [];
+  const pos = imgs.indexOf(img);
+  const idx = pos >= 0 ? pos : imgIds.value.length - 1;
+  lb.value.open = true;
+  lb.value.idx = idx;
+  lb.value.total = imgs.length || imgIds.value.length;
+  lb.value.native = false;
+  lb.value.error = false;
+  resetView();
+  document.addEventListener('keydown', onKey, true);
+  document.addEventListener('fullscreenchange', onFsChange, true);
+  // 原生全屏优先（与 AI 助手全屏同一心智）：对灯箱自身申请全屏；
+  // CSP/iframe/无权限失败时由 CSS fixed 铺满兜底，行为一致。
+  nextTick(() => {
+    const el = lbRoot.value;
+    if (lb.value.open && el && el.requestFullscreen) {
+      el.requestFullscreen().then(() => {
+        if (lb.value.open) lb.value.native = true;
+      }).catch(() => { /* 兜底 CSS 全屏已生效 */ });
+    }
+  });
+}
+
+function resetView() {
+  lb.value.zoom = 1;
+  lb.value.x = 0;
+  lb.value.y = 0;
+}
+
+function closeLightbox() {
+  if (!lb.value.open) return;
+  lb.value.open = false;
+  document.removeEventListener('keydown', onKey, true);
+  document.removeEventListener('fullscreenchange', onFsChange, true);
+  if (lb.value.native && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+
+// 用户经浏览器菜单/快捷键退出了原生全屏 → 灯箱一并关闭（保持一致心智）
+function onFsChange() {
+  if (lb.value.open && lb.value.native && document.fullscreenElement !== lbRoot.value) {
+    closeLightbox();
+  }
+}
+
+function nav(d) {
+  if (!lb.value.open || lb.value.total < 2) return;
+  lb.value.idx = (lb.value.idx + d + lb.value.total) % lb.value.total;
+  lb.value.error = false;
+  resetView();
+}
+
+function onKey(e) {
+  if (e.key === 'Escape') { e.preventDefault(); closeLightbox(); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); nav(1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); nav(-1); }
+  else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setZoom(1.8); }
+}
+
+function setZoom(z, cx, cy) {
+  const nz = Math.min(4, Math.max(0.5, z));
+  if (cx == null || cy == null) {
+    // 无锚点（快捷键）：围绕当前中心缩放
+    const el = stage.value;
+    if (el) { cx = el.clientWidth / 2; cy = el.clientHeight / 2; }
+  }
+  // 以 (cx,cy) 为不动点缩放：新平移 = 锚点 - 锚点/zoom * nz
+  if (cx != null) {
+    const k = nz / lb.value.zoom;
+    lb.value.x = cx - (cx - lb.value.x) * k;
+    lb.value.y = cy - (cy - lb.value.y) * k;
+  }
+  lb.value.zoom = nz;
+}
+
+function onWheel(e) {
+  if (!lb.value.open) return;
+  e.preventDefault();
+  const r = stage.value ? stage.value.getBoundingClientRect() : null;
+  const cx = r ? e.clientX - r.left : null;
+  const cy = r ? e.clientY - r.top : null;
+  setZoom(lb.value.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), cx, cy);
+}
+
+function onDbl(e) {
+  if (!lb.value.open) return;
+  if (lb.value.zoom > 1.01) resetView();
+  else {
+    const r = stage.value ? stage.value.getBoundingClientRect() : null;
+    setZoom(2, r ? e.clientX - r.left : null, r ? e.clientY - r.top : null);
+  }
+}
+
+function onDown(e) {
+  if (!lb.value.open || lb.value.zoom <= 1) return;
+  drag = { sx: e.clientX, sy: e.clientY, ox: lb.value.x, oy: lb.value.y, moved: false };
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+}
+
+function onMove(e) {
+  if (!drag) return;
+  const dx = e.clientX - drag.sx;
+  const dy = e.clientY - drag.sy;
+  if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
+  lb.value.x = drag.ox + dx;
+  lb.value.y = drag.oy + dy;
+}
+
+function onUp() { drag = null; }
+
+function onImgError() { lb.value.error = true; }
+
+watch(() => props.content, () => {
+  // 内容切换：重算图片序列；灯箱开着则关闭（其全屏 DOM 可能已随内容重渲染）
+  if (lb.value.open) closeLightbox();
+  lb.value.idx = 0;
+});
+
+onBeforeUnmount(() => {
+  if (lb.value.open) closeLightbox();
+  document.removeEventListener('keydown', onKey, true);
+});
 </script>
 
 <template>
-  <div class="md-body" v-html="html"></div>
+  <div class="md-body" v-html="html" @click="openLightbox"></div>
+  <Teleport to="body">
+    <div v-if="lb.open" ref="lbRoot" class="img-lb" :class="{ 'is-native': lb.native }" @click.self="closeLightbox" @wheel.prevent="onWheel">
+      <div
+        v-show="!lb.error"
+        class="img-lb-stage"
+        ref="stage"
+        @pointerdown="onDown"
+        @pointermove="onMove"
+        @pointerup="onUp"
+        @pointercancel="onUp"
+        @dblclick="onDbl"
+      >
+        <img
+          class="img-lb-img"
+          :src="imgUrl(imgIds[lb.idx])"
+          alt="图片预览"
+          draggable="false"
+          :style="{ transform: `translate(${lb.x}px, ${lb.y}px) scale(${lb.zoom})` }"
+          @error="onImgError"
+        />
+      </div>
+      <div v-if="lb.error" class="img-lb-err">图片已不存在</div>
+      <button class="img-lb-btn img-lb-close" title="关闭 (Esc)" @click="closeLightbox">×</button>
+      <button v-if="lb.total > 1" class="img-lb-btn img-lb-prev" title="上一张 (←)" @click.stop="nav(-1)">‹</button>
+      <button v-if="lb.total > 1" class="img-lb-btn img-lb-next" title="下一张 (→)" @click.stop="nav(1)">›</button>
+      <div class="img-lb-bar">
+        <span v-if="lb.total > 1" class="img-lb-count">{{ lb.idx + 1 }} / {{ lb.total }}</span>
+        <span class="img-lb-zoom">{{ Math.round(lb.zoom * 100) }}%</span>
+        <span class="img-lb-tip">滚轮缩放 · 拖拽移动 · 双击复位 · Esc 退出</span>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>

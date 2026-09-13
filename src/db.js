@@ -336,6 +336,18 @@ d.version(33).stores({
   imageRefs: null,
 });
 
+// v34：cardLinks——通用卡 ↔ 通用卡的知识关联（多对多，「同一知识点」）。
+//   用户诉求（2026-09-13）：卡片编辑里的「关联」只有英语词卡一种对象，纯记忆卡
+//   （线代 / 计网 / 政治…）之间无法互相关联，只能干看着「尚未关联任何英语词」。
+//   本表把关联对象从「词卡」扩展到「本库任意卡片」。
+//   · 与 v31 cardWordLinks 同构：只存「谁对应谁」，两侧内容与 SRS 状态各自独立、不互串；
+//   · id = `${fromCardId}:${toCardId}` 确定性拼接（两端同 id 幂等），addedAt 记录链接时间；
+//   · 有向存储 + 查询两侧取并集：展示为「双向关联」，保留方向便于后续扩展
+//     「前置 → 后继」语义；同一对只有一行（由 id 唯一性保证，不产生重复边）。
+d.version(34).stores({
+  cardLinks: 'id, fromCardId, toCardId, addedAt',
+});
+
 } // end defineSchema
 
 // 两个实例各自应用全量 schema（惰性 open：首次访问才真正连接 IndexedDB）
