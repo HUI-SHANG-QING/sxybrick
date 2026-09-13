@@ -1,0 +1,247 @@
+{
+  "shard": "e",
+  "from": "candidate",
+  "to": "chip",
+  "entries": {
+    "candidate": {
+      "syllable": "can·di·date", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"候选人，应试者"},{"pos":"n.","meaning":"申请人，报考者"}],
+      "rootAffix": "candid(白色；古罗马候选人穿白袍)+-ate(人) → 穿白袍求官者 → 候选人",
+      "examples": [
+        {"level":"simple","sentence":"She is the best candidate for the job.","translation":"她是这份工作的最佳人选。","analysis":"简单句：主系表结构，for the job 介词短语作后置定语。"},
+        {"level":"long","sentence":"The committee interviewed twelve candidates over two days, but none possessed the combination of technical expertise and management experience that the position demanded.","translation":"委员会在两天内面试了十二名候选人，但没有一人同时具备该职位所要求的技术专长与管理经验。","analysis":"并列复合句。but 连接两个分句；that 引导定语从句修饰 combination；possessed 后接双宾语结构。"}
+      ],
+      "collocations": ["presidential candidate 总统候选人","leading candidate 领先候选人","suitable candidate 合适人选"],
+      "phrases": ["candidate for …的候选人"],
+      "derived": [{"word":"candidacy","meaning":"候选人资格"},{"word":"candidature","meaning":"候选人身份"}]
+    },
+    "candle": {
+      "syllable": "can·dle", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"蜡烛"},{"pos":"n.","meaning":"烛形物"}],
+      "rootAffix": "拉丁语 candere(发光) → 蜡烛",
+      "examples": [
+        {"level":"simple","sentence":"He lit a candle in the dark room.","translation":"他在黑暗的房间里点了一支蜡烛。","analysis":"简单句：主宾状结构，in the dark room 地点状语。"},
+        {"level":"long","sentence":"When the power failed during the storm, the family sat around the kitchen table by candlelight, sharing stories until the electricity was restored.","translation":"暴风雨中停电时，一家人围坐在餐桌旁，就着烛光讲故事，直到电力恢复。","analysis":"主从复合句。When 引导时间状语从句；by candlelight 介词短语作方式状语；until 引导时间状语从句。"}
+      ],
+      "collocations": ["light a candle 点蜡烛","burn a candle 燃烧蜡烛","candle holder 烛台"],
+      "phrases": ["burn the candle at both ends 过度劳累"],
+      "derived": [{"word":"candles","meaning":"蜡烛（复数）"}]
+    },
+    "candy": {
+      "syllable": "can·dy", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"糖果"},{"pos":"v.","meaning":"用糖煮，蜜饯"}],
+      "rootAffix": "candy(糖)，来自阿拉伯语 qandi(糖渍的)",
+      "examples": [
+        {"level":"simple","sentence":"The children bought candy at the store.","translation":"孩子们在商店买了糖果。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"Nutritionists warn that excessive candy consumption, particularly among young children, can lead to tooth decay and energy fluctuations that interfere with concentration in school.","translation":"营养学家警告，过量摄入糖果——尤其是幼儿——会导致蛀牙和情绪波动，影响课堂注意力。","analysis":"主从复合句。that 引导结果状语从句；interfere with 为固定搭配。"}
+      ],
+      "collocations": ["candy bar 巧克力棒","candy store 糖果店","like taking candy from a baby 轻而易举"],
+      "phrases": ["candy apple 焦糖苹果"],
+      "derived": [{"word":"candied","meaning":"糖渍的"}]
+    },
+    "cannon": {
+      "syllable": "can·non", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"大炮，火炮"},{"pos":"n.","meaning":"机关炮"}],
+      "rootAffix": "意大利语 cannone(大管子)，canna(茎管)的指大词",
+      "examples": [
+        {"level":"simple","sentence":"The cannon fired across the battlefield.","translation":"大炮向战场对岸开火。","analysis":"简单句：主谓结构。"},
+        {"level":"long","sentence":"The fortress had been equipped with thirty cannons, but by the time the enemy approached, most of the gunpowder had been spoiled by months of rain and neglect.","translation":"堡垒原配有三十门大炮，但等敌人逼近时，大部分火药已因数月雨水和疏于维护而受潮失效。","analysis":"并列复合句。but 连接并列分句；by the time 引导时间状语从句；过去完成时表先于过去发生。"}
+      ],
+      "collocations": ["cannon fire 炮火","cannon ball 炮弹","firing cannon 开火"],
+      "phrases": ["loose cannon 不靠谱的人"],
+      "derived": [{"word":"cannoneer","meaning":"炮兵"}]
+    },
+    "canoe": {
+      "syllable": "ca·noe", "pos": "n./v.",
+      "defs": [{"pos":"n.","meaning":"独木舟"},{"pos":"v.","meaning":"乘独木舟"}],
+      "rootAffix": "加勒比语 canoa(独木舟)，哥伦布从美洲土著语言借入",
+      "examples": [
+        {"level":"simple","sentence":"They paddled the canoe across the lake.","translation":"他们划独木舟渡过湖面。","analysis":"简单句：主谓宾状结构。"},
+        {"level":"long","sentence":"We rented a canoe for the afternoon and paddled slowly along the riverbank, watching herons fish in the shallows and turtles sun themselves on half-submerged logs.","translation":"我们租了一艘独木舟，沿着河岸缓缓划行，看苍鹭在浅滩捕鱼、乌龟在半沉的木头上晒太阳。","analysis":"并列句。watching... 现在分词短语作伴随状语；and 连接两个并列分词短语。"}
+      ],
+      "collocations": ["canoe paddle 独木舟桨","canoe trip 独木舟之旅","paddle a canoe 划独木舟"],
+      "phrases": ["paddle one's own canoe 自力更生"],
+      "derived": [{"word":"canoeist","meaning":"划独木舟的人"}]
+    },
+    "canteen": {
+      "syllable": "can·teen", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"食堂，小卖部"},{"pos":"n.","meaning":"水壶，军用水壶"}],
+      "rootAffix": "意大利语 cantina(地窖、小酒馆)",
+      "examples": [
+        {"level":"simple","sentence":"The soldiers filled their canteens at the stream.","translation":"士兵们在小溪边灌满水壶。","analysis":"简单句：主谓宾状结构。"},
+        {"level":"long","sentence":"The factory canteen serves over a thousand workers at lunchtime, offering a rotating menu of regional dishes at prices that are deliberately kept low to support the employees' modest budgets.","translation":"工厂食堂在午餐时间供应一千多名工人，提供轮换的地方菜，价格刻意压低以照顾员工的有限预算。","analysis":"主从复合句。that 引导定语从句修饰 prices；to support... 不定式作目的状语。"}
+      ],
+      "collocations": ["army canteen 部队食堂","water canteen 水壶","school canteen 学校食堂"],
+      "phrases": [],
+      "derived": []
+    },
+    "canvas": {
+      "syllable": "can·vas", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"帆布"},{"pos":"n.","meaning":"油画布，油画"}],
+      "rootAffix": "拉丁语 cannabis(大麻)，最早用大麻纤维织帆布",
+      "examples": [
+        {"level":"simple","sentence":"The artist painted on a large canvas.","translation":"画家用大画布作画。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"The expedition members slept under canvas for six weeks, carrying only tents, sleeping bags, and the bare minimum of cooking equipment across the high mountain plateau.","translation":"探险队员在帆布帐篷下睡了六周，只携带帐篷、睡袋和最基本的炊具穿越高山台地。","analysis":"简单句但带分词短语作伴随状语；under canvas 为固定搭配。"}
+      ],
+      "collocations": ["canvas bag 帆布包","canvas tent 帆布帐篷","under canvas 在帐篷里"],
+      "phrases": ["canvas shoes 帆布鞋"],
+      "derived": []
+    },
+    "canyon": {
+      "syllable": "can·yon", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"峡谷，溪谷"}],
+      "rootAffix": "西班牙语 cañón(管道、峡谷)，caña(管子)的指大词",
+      "examples": [
+        {"level":"simple","sentence":"The river carved a canyon through the rock.","translation":"河流在岩石中冲出一条峡谷。","analysis":"简单句：主谓宾状结构。"},
+        {"level":"long","sentence":"The Grand Canyon, which was formed by the Colorado River over millions of years, reveals layer upon layer of geological history in its exposed red sandstone walls.","translation":"大峡谷由科罗拉多河历经数百万年冲刷而成，裸露的红色砂岩壁上层层叠叠地展现着地质史。","analysis":"主从复合句。which 引导非限制性定语从句；over millions of years 时间状语；in its exposed... 地点状语。"}
+      ],
+      "collocations": ["Grand Canyon 大峡谷","deep canyon 深谷","canyon floor 谷底"],
+      "phrases": [],
+      "derived": []
+    },
+    "cap": {
+      "syllable": "cap", "pos": "n./v.",
+      "defs": [{"pos":"n.","meaning":"帽子，便帽"},{"pos":"n.","meaning":"盖子，罩"},{"pos":"v.","meaning":"覆盖，限额"}],
+      "rootAffix": "拉丁语 cappa(斗篷、头罩)",
+      "examples": [
+        {"level":"simple","sentence":"He put on his cap and went out.","translation":"他戴上帽子出门了。","analysis":"简单句：并列谓语。"},
+        {"level":"long","sentence":"The government decided to cap public spending at two percent above inflation, a measure intended to reduce the budget deficit without raising taxes on middle-income households.","translation":"政府决定将公共支出上限设为通胀率加两个百分点，此举旨在不增加中等收入家庭税负的情况下减少预算赤字。","analysis":"简单句但带同位语和分词短语；intended to... 为过去分词作后置定语；without raising... 介词短语作条件状语。"}
+      ],
+      "collocations": ["bottle cap 瓶盖","swimming cap 泳帽","cap spending 限制支出"],
+      "phrases": ["cap in hand 恭顺地"],
+      "derived": [{"word":"capital","meaning":"首都；资本"},{"word":"capable","meaning":"有能力的"}]
+    },
+    "capacity": {
+      "syllable": "ca·pac·i·ty", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"容量，容积"},{"pos":"n.","meaning":"能力，才能"},{"pos":"n.","meaning":"身份，职位"}],
+      "rootAffix": "capax(能容纳的)+-ity(名词后缀) → 容量",
+      "examples": [
+        {"level":"simple","sentence":"The stadium has a seating capacity of 50,000.","translation":"这座体育场可容纳五万名观众。","analysis":"简单句：主谓宾结构。"},
+        {"level":"long","sentence":"The report concluded that the hospital's emergency department was operating at 120 percent of its designed capacity, a situation that posed serious risks to both patients and staff during peak hours.","translation":"报告结论：医院急诊科正以设计容量的120%运行，高峰时段这一状况对医患双方都构成严重风险。","analysis":"主从复合句。that 引导定语从句修饰 situation；operating at... 为现在分词作伴随状语。"}
+      ],
+      "collocations": ["capacity for …的能力","capacity to do 做…的能力","at full capacity 满负荷"],
+      "phrases": ["in the capacity of 以…身份"],
+      "derived": [{"word":"capable","meaning":"有能力的"},{"word":"capacitance","meaning":"电容"}]
+    },
+    "cape": {
+      "syllable": "cape", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"披肩，斗篷"},{"pos":"n.","meaning":"海角，岬"}],
+      "rootAffix": "拉丁语 cappa(斗篷)",
+      "examples": [
+        {"level":"simple","sentence":"She wore a silk cape over her dress.","translation":"她在裙子外面披了一件丝质斗篷。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"The lighthouse stood on a rocky cape that jutted out into the Atlantic, guiding fishing boats through the dangerous reefs that lay hidden beneath the waves.","translation":"灯塔矗立在伸入大西洋的岩石岬角上，引导渔船穿过隐没在浪下的暗礁。","analysis":"主从复合句。两个 that 分别引导定语从句修饰 cape 和 reefs。"}
+      ],
+      "collocations": ["Cape of Good Hope 好望角","cape coat 斗篷式外套"],
+      "phrases": [],
+      "derived": []
+    },
+    "capital": {
+      "syllable": "cap·i·tal", "pos": "n./adj.",
+      "defs": [{"pos":"n.","meaning":"首都，首府"},{"pos":"n.","meaning":"资本，资金"},{"pos":"adj.","meaning":"大写的；极好的"},{"pos":"adj.","meaning":"可处死刑的"}],
+      "rootAffix": "caput(头)+-al → 头部 → 首要的 → 首都/资本",
+      "examples": [
+        {"level":"simple","sentence":"Paris is the capital of France.","translation":"巴黎是法国的首都。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"Startup founders often underestimate how much working capital they need to survive the first two years, when revenue is uncertain but rent, salaries, and server costs arrive like clockwork every month.","translation":"初创公司创始人往往低估头两年所需的运营资金——那时收入不确定，但房租、工资和服务器费用每月准时到来。","analysis":"主从复合句。when 引导非限制性定语从句修饰 two years；like clockwork 比喻状语。"}
+      ],
+      "collocations": ["working capital 营运资本","capital city 首都","capital letter 大写字母"],
+      "phrases": ["make capital out of 利用…牟利"],
+      "derived": [{"word":"capitalism","meaning":"资本主义"},{"word":"capitalist","meaning":"资本家"},{"word":"capitol","meaning":"国会大厦"}]
+    },
+    "captain": {
+      "syllable": "cap·tain", "pos": "n./v.",
+      "defs": [{"pos":"n.","meaning":"船长，机长"},{"pos":"n.","meaning":"队长，首领"},{"pos":"v.","meaning":"担任队长/船长"}],
+      "rootAffix": "capitalis(首席的)，caput(头)的指小词",
+      "examples": [
+        {"level":"simple","sentence":"The captain ordered the crew to abandon ship.","translation":"船长命令船员弃船。","analysis":"简单句：主谓宾补结构。"},
+        {"level":"long","sentence":"As captain of the research vessel, she was responsible not only for navigation and safety but also for resolving disputes among the twenty scientists working in cramped quarters.","translation":"作为考察船船长，她不仅负责航行和安全，还要在狭小舱室里调解二十名科学家之间的争执。","analysis":"并列句。responsible for... 后接两个并列宾语；working in... 现在分词作后置定语。"}
+      ],
+      "collocations": ["team captain 队长","ship captain 船长","aircraft captain 机长"],
+      "phrases": ["captain of industry 实业界巨头"],
+      "derived": [{"word":"captaincy","meaning":"队长职位"}]
+    },
+    "capture": {
+      "syllable": "cap·ture", "pos": "v./n.",
+      "defs": [{"pos":"v.","meaning":"捕获，俘虏"},{"pos":"v.","meaning":"捕捉，记录（影像/情感）"},{"pos":"n.","meaning":"捕获，俘获"}],
+      "rootAffix": "capere(抓住)+-ure(名词后缀) → 抓住",
+      "examples": [
+        {"level":"simple","sentence":"The photographer captured the lion's leap in mid-air.","translation":"摄影师拍到了狮子腾空跃起的瞬间。","analysis":"简单句：主谓宾状结构。"},
+        {"level":"long","sentence":"The rebels captured the strategic bridge after three days of fighting, but their hold on the town proved temporary as government reinforcements arrived by helicopter at dawn.","translation":"经过三天战斗，叛军攻占了这座战略桥梁，但随着政府军增援拂晓乘直升机赶到，他们对该镇的占领并未持久。","analysis":"并列复合句。as 引导原因状语从句；proved temporary 为系表结构。"}
+      ],
+      "collocations": ["capture data 采集数据","capture attention 吸引注意力","capture a city 攻占城市"],
+      "phrases": ["capture screen 截屏"],
+      "derived": [{"word":"captive","meaning":"被俘虏的"},{"word":"captivity","meaning":"囚禁"}]
+    },
+    "car": {
+      "syllable": "car", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"汽车，轿车"},{"pos":"n.","meaning":"（火车）车厢"}],
+      "rootAffix": "拉丁语 carrum(两轮战车)",
+      "examples": [
+        {"level":"simple","sentence":"She drives her car to work every day.","translation":"她每天开车上班。","analysis":"简单句：主谓宾状结构。"},
+        {"level":"long","sentence":"Electric car sales surpassed diesel sales for the first time in Europe last year, a shift driven by environmental regulations, falling battery costs, and expanding charging infrastructure.","translation":"去年欧洲电动汽车销量首次超过柴油车，这一转变由环保法规、电池成本下降和充电基础设施扩张共同推动。","analysis":"简单句但带同位语和过去分词短语作后置定语。"}
+      ],
+      "collocations": ["car park 停车场","car accident 车祸","used car 二手车"],
+      "phrases": ["car pool 拼车"],
+      "derived": [{"word":"carriage","meaning":"马车；车厢"},{"word":"carry","meaning":"携带"}]
+    },
+    "carbohydrate": {
+      "syllable": "car·bo·hy·drate", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"碳水化合物"},{"pos":"n.","meaning":"含糖食物"}],
+      "rootAffix": "carbo-(碳)+hydrate(水合物) → 碳水化合物",
+      "examples": [
+        {"level":"simple","sentence":"Athletes eat carbohydrates before a race.","translation":"运动员在赛前补充碳水化合物。","analysis":"简单句：主谓宾状结构。"},
+        {"level":"long","sentence":"Low-carbohydrate diets have grown in popularity, though nutritionists caution that cutting out carbohydrates entirely can impair physical endurance and cognitive performance, since the brain relies almost exclusively on glucose for energy.","translation":"低碳水饮食越来越流行，但营养学家警告，完全戒断碳水会损害体能和认知表现，因为大脑几乎完全依赖葡萄糖供能。","analysis":"主从复合句。though 引导让步状语从句；since 引导原因状语从句。"}
+      ],
+      "collocations": ["complex carbohydrate 复合碳水","carbohydrate intake 碳水摄入","low-carb diet 低碳水饮食"],
+      "phrases": [],
+      "derived": []
+    },
+    "carbon": {
+      "syllable": "car·bon", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"碳（元素）"},{"pos":"n.","meaning":"碳纤维"},{"pos":"n.","meaning":"碳复写纸"}],
+      "rootAffix": "拉丁语 carbo(炭)",
+      "examples": [
+        {"level":"simple","sentence":"Carbon is essential for all living things.","translation":"碳对所有生物都是必需的。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"Many countries have pledged to reach net-zero carbon emissions by 2050, but scientists warn that current policies are nowhere near sufficient to keep global warming below the critical threshold of 1.5 degrees.","translation":"多国已承诺到2050年实现碳中和，但科学家警告，现有政策远不足以将全球变暖控制在1.5度的临界值以内。","analysis":"并列复合句。but 连接并列分句；that 引导宾语从句。"}
+      ],
+      "collocations": ["carbon dioxide 二氧化碳","carbon footprint 碳足迹","carbon emissions 碳排放"],
+      "phrases": ["carbon neutral 碳中和"],
+      "derived": [{"word":"carbonate","meaning":"碳酸盐"},{"word":"carbonic","meaning":"碳的"}]
+    },
+    "card": {
+      "syllable": "card", "pos": "n.",
+      "defs": [{"pos":"n.","meaning":"卡片"},{"pos":"n.","meaning":"纸牌，名片"},{"pos":"n.","meaning":"信用卡"}],
+      "rootAffix": "拉丁语 charta(纸、书页)",
+      "examples": [
+        {"level":"simple","sentence":"She sent me a birthday card.","translation":"她寄给我一张生日贺卡。","analysis":"简单句：主谓双宾结构。"},
+        {"level":"long","sentence":"Contactless payment cards have become ubiquitous in cities, but security experts warn that thieves can skim data from a card at close range without ever touching the wallet.","translation":"非接触式支付卡在城市里已无处不在，但安全专家警告，小偷可在不触碰钱包的情况下近距离窃取卡内数据。","analysis":"并列复合句。that 引导宾语从句；without touching... 介词短语作方式状语。"}
+      ],
+      "collocations": ["credit card 信用卡","birthday card 生日贺卡","greeting card 贺卡"],
+      "phrases": ["play one's cards right 办事高明"],
+      "derived": [{"word":"cardboard","meaning":"硬纸板"},{"word":"cardigan","meaning":"开衫"}]
+    },
+    "cardinal": {
+      "syllable": "car·di·nal", "pos": "adj./n.",
+      "defs": [{"pos":"adj.","meaning":"主要的，基本的"},{"pos":"n.","meaning":"红衣主教"},{"pos":"n.","meaning":"基数"}],
+      "rootAffix": "cardo(铰链、枢纽)+-al → 枢纽的 → 主要的",
+      "examples": [
+        {"level":"simple","sentence":"Respecting deadlines is a cardinal rule.","translation":"遵守截止日期是基本准则。","analysis":"简单句：主系表结构。"},
+        {"level":"long","sentence":"The cardinal principle of scientific method is that a theory must be falsifiable: no matter how elegant an explanation may be, if it cannot in principle be disproved by observation, it does not qualify as science.","translation":"科学方法的首要原则是理论必须可证伪：无论一种解释多么精巧，如果它原则上不能被观察所推翻，就不能算作科学。","analysis":"主从复合句。冒号后为解释性并列句；no matter how 引导让步状语从句；if 引导条件状语从句。"}
+      ],
+      "collocations": ["cardinal rule 基本准则","cardinal number 基数","cardinal sin 大罪"],
+      "phrases": ["cardinal point 方位基点"],
+      "derived": [{"word":"cardinality","meaning":"基数（数学）"}]
+    },
+    "care": {
+      "syllable": "care", "pos": "v./n.",
+      "defs": [{"pos":"v.","meaning":"关心，在乎"},{"pos":"v.","meaning":"照顾，照料"},{"pos":"n.","meaning":"小心，谨慎"},{"pos":"n.","meaning":"照管，护理"}],
+      "rootAffix": "拉丁语 cura(关心、照料)",
+      "examples": [
+        {"level":"simple","sentence":"She cares deeply about her students.","translation":"她非常关心学生。","analysis":"简单句：主谓状结构。"},
+        {"level":"long","sentence":"Elderly people who live alone often rely on neighbors to check in on them, a informal support network that keeps them connected to the community and alerts relatives if a fall or medical emergency occurs.","translation":"独居老人常靠邻居探望，这种非正式支持网络让他们与社区保持联系，并在摔倒或突发疾病时通知亲属。","analysis":"主从复合句。who 引导定语从句；that 引导定语从句修饰 network；if 引导条件状语从句。"}
+      ],
+      "collocations": ["health care 医疗保健","take care of 照顾","care about 在意"],
+      "phrases": ["care for 照料；喜欢"],
+      "derived": [{"word":"careful","meaning":"小心的"},{"word":"careless","meaning":"粗心的"},{"word":"caretaker","meaning":"管理员"}]
+    }
+  }
+}

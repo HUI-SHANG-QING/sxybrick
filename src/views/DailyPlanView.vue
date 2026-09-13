@@ -542,8 +542,8 @@ function handleResize() {
         <button class="btn" @click="cancelPreview">{{ t('views.dailyPlan.cancel') }}</button>
       </div>
       <div v-for="(t, i) in preview.tasks" :key="i" class="dp-task-row">
-        <span class="dp-type">{{ TYPE_ICON[tsk.type] }} {{ TYPE_LABEL[t.type] }}</span>
-        <span class="dp-title">{{ tsk.title }}</span>
+        <span class="dp-type">{{ TYPE_ICON[t.type] }} {{ TYPE_LABEL[t.type] }}</span>
+        <span class="dp-title">{{ t.title }}</span>
         <span v-if="t.scheduledHour != null" class="dp-meta-item">⏰ {{ t.scheduledHour }}:00</span>
         <span :class="'dp-tag q-' + t.quadrant">{{ t.quadrant }}</span>
       </div>
@@ -664,14 +664,14 @@ function handleResize() {
               <div class="dp-board-sub-title">{{ t('views.dailyPlan.unscheduledTitle', '⏳ 未排程（{n}）', { n: board.unscheduled.length }) }}</div>
               <div class="dp-unsched-chips">
                 <span
-                  v-for="tsk in board.unscheduled" :key="tsk.id"
+                  v-for="t in board.unscheduled" :key="t.id"
                   class="dp-unsched-chip"
-                  :class="['st-' + tsk.status, { editable: canEdit, hovering: hoverTask?.id === tsk.id }]"
-                  :title="tsk.title + (canEdit ? t('views.dailyPlan.boardTitleEdit') : t('views.dailyPlan.boardTitleHistory'))"
-                  @click="openConfirm(tsk, 'done')"
-                  @mouseenter="hoverTask = tsk"
+                  :class="['st-' + t.status, { editable: canEdit, hovering: hoverTask?.id === t.id }]"
+                  :title="t.title + (canEdit ? t('views.dailyPlan.boardTitleEdit') : t('views.dailyPlan.boardTitleHistory'))"
+                  @click="openConfirm(t, 'done')"
+                  @mouseenter="hoverTask = t"
                   @mouseleave="hoverTask = null"
-                ><span v-if="tsk.status==='done'" class="dp-check">✓ </span>{{ TYPE_ICON[tsk.type] }} {{ tsk.title }}</span>
+                ><span v-if="t.status==='done'" class="dp-check">✓ </span>{{ TYPE_ICON[t.type] }} {{ t.title }}</span>
               </div>
             </div>
           </div>

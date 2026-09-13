@@ -1,0 +1,825 @@
+{
+  "shard": "d",
+  "from": "dental",
+  "to": "deserve",
+  "entries": {
+    "dental": {
+      "syllable": "den·tal",
+      "pos": "adj.",
+      "defs": [
+        {
+          "pos": "adj.",
+          "meaning": "牙齿的，牙科的"
+        },
+        {
+          "pos": "adj.",
+          "meaning": "牙科（的），看牙医的（the dental 牙医诊所）"
+        }
+      ],
+      "rootAffix": "dent(牙齿，拉丁语 dens/dent 牙)+al(形容词后缀) → 与牙有关的；同根 dentist（牙医）、denture（义齿）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I have a dental appointment on Monday.",
+          "translation": "我周一约了看牙医。",
+          "analysis": "简单句：主语 I + 谓语 have + 宾语 a dental appointment + 时间状语 on Monday。dental 作定语修饰 appointment。"
+        },
+        {
+          "level": "long",
+          "sentence": "The study, which followed more than ten thousand patients over a decade, found that regular dental checkups were associated with a significantly lower risk of developing heart disease later in life.",
+          "translation": "这项追踪了超过一万名患者十年的研究发现，定期看牙与日后患心脏病的风险显著降低有关。",
+          "analysis": "主句主语 The study + which 非限制性定语从句（followed...over a decade）+ 谓语 found + that 宾语从句；从句内 regular dental checkups 作主语 + 谓语 were associated with（be associated with 与…有关）+ 宾语 a lower risk；of developing heart disease 是 risk 的后置定语。"
+        }
+      ],
+      "collocations": [
+        "dental care 牙齿护理",
+        "dental clinic 牙科诊所",
+        "a dental checkup 牙齿检查",
+        "dental treatment 牙科治疗"
+      ],
+      "phrases": [
+        "in need of dental care 需要护牙"
+      ],
+      "derived": [
+        {
+          "word": "dentist",
+          "meaning": "n. 牙医"
+        },
+        {
+          "word": "dentistry",
+          "meaning": "n. 牙科"
+        }
+      ],
+      "synonyms": [
+        "oral",
+        "tooth",
+        "dental"
+      ],
+      "易混辨析": "dental（与牙有关的）/ dent(凹痕，及物/名词) / denture(义齿)——同根 dent 但词义不同",
+      "mnemonic": "dent(牙)+al → 牙齿的"
+    },
+    "dentist": {
+      "syllable": "den·tist",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "牙医"
+        },
+        {
+          "pos": "n.",
+          "meaning": "牙科医生（从业者）"
+        }
+      ],
+      "rootAffix": "dent(牙)+ist(…的人，表职业后缀) → 看牙的人 → 牙医；同根 dental（牙齿的）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I visited my dentist last week.",
+          "translation": "我上周去看牙医了。",
+          "analysis": "简单句：主语 I + 谓语 visited + 宾语 my dentist + 时间状语 last week。"
+        },
+        {
+          "level": "long",
+          "sentence": "Those who can afford a private dentist tend to have healthier teeth, largely because they see a professional regularly rather than only when the pain becomes unbearable.",
+          "translation": "请得起私人牙医的人往往牙齿更健康，很大程度上是因为他们定期看牙，而不是等到疼得受不了才去。",
+          "analysis": "主句主语 Those + who 定语从句（can afford a private dentist）+ 谓语 tend to have + 宾语 healthier teeth；largely because... 是原因状语从句；从句内 rather than 连接两个时间状语（regularly / only when...），when 引导时间从句。"
+        }
+      ],
+      "collocations": [
+        "see a dentist 看牙医",
+        "the family dentist 家附近的牙医",
+        "a dentist's chair 牙医椅"
+      ],
+      "phrases": [
+        "the dentist's chair 牙椅（看病情境）"
+      ],
+      "derived": [
+        {
+          "word": "dental",
+          "meaning": "adj. 牙齿的"
+        },
+        {
+          "word": "dentistry",
+          "meaning": "n. 牙科"
+        }
+      ],
+      "synonyms": [
+        "tooth specialist",
+        "practitioner"
+      ],
+      "易混辨析": "dentist（牙医）/ dental（牙齿的，形容词）/ dentist 与 dentist 职业后缀 -ist（如 artist 艺术家）",
+      "mnemonic": "dent(牙)+ist(人) → 牙医"
+    },
+    "depart": {
+      "syllable": "de·part",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "出发，启程（from 离开；for 动身前往）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "偏离，违背（depart from 常规/规则/真理）"
+        }
+      ],
+      "rootAffix": "de-(离开)+part(分离，拉丁语 partes 部分) → 分道而行 → 出发；引申为偏离、违背",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The train departs at nine.",
+          "translation": "火车九点发车。",
+          "analysis": "简单句：主语 The train + 不及物谓语 departs + 时间状语 at nine。depart for 的 for 表「前往」。"
+        },
+        {
+          "level": "long",
+          "sentence": "The proposal departs so far from convention that it has drawn fierce criticism from both the academy and the industry, each of which accuses it of being either too radical or too slow.",
+          "translation": "该提议离经叛道到这种程度，招致了学界和业界两方面的激烈批评，两者都指责它要么太激进、要么太慢。",
+          "analysis": "主句主语 The proposal + 谓语 departs from（convention）+ so...that... 结果状语从句；从句主语 it + 谓语 has drawn + 宾语 criticism + from A and B（A 和 B 并列）；each of which 引导非限制性定语从句，accuses it of being either...or... 中 of 后接动名词短语。"
+        }
+      ],
+      "collocations": [
+        "depart for 动身前往",
+        "depart from 违背、偏离",
+        "depart from a rule 违反规则"
+      ],
+      "phrases": [
+        "on the eve of departure 启程前夕"
+      ],
+      "derived": [
+        {
+          "word": "departure",
+          "meaning": "n. 出发；违背"
+        },
+        {
+          "word": "departed",
+          "meaning": "adj. 已故的（the departed 逝者）"
+        }
+      ],
+      "synonyms": [
+        "leave",
+        "set out",
+        "take off"
+      ],
+      "易混辨析": "depart from（离开/违背，接规则/惯例）/ separate from（与…分开）/ leave for（前往）",
+      "mnemonic": "de(离开)+part(分开) → 分道扬镳 → 出发、离开"
+    },
+    "depend": {
+      "syllable": "de·pend",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "依赖，依靠（depend on sb./sth.）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "取决于，要看（it depends on...）"
+        }
+      ],
+      "rootAffix": "de-(向下)+pend(悬挂，拉丁语 pendere) → 悬于其下、受制于 → 依赖；同根 pendant、pending（悬而未决）、independent",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "Success depends on hard work.",
+          "translation": "成功取决于努力工作。",
+          "analysis": "简单句：主语 Success + 不及物谓语 depends + on hard work（depend on 后接依赖的对象）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Whether the plan will ultimately succeed depends not so much on how much money is spent as on whether the people in charge can adapt quickly enough to the unexpected problems that are bound to arise.",
+          "translation": "这项计划最终能否成功，与其说取决于花了多少钱，不如说取决于负责人能否足够快地适应那些必然会出现的意外问题。",
+          "analysis": "Whether 引导的主语从句（will ultimately succeed）+ 谓语 depends + not so much on A as on B（与其说 A 不如说 B 的比较结构）；两个 on 后接宾语从句，第二个从句内 that are bound to arise 是定语从句修饰 problems。"
+        }
+      ],
+      "collocations": [
+        "depend on 依赖",
+        "depend on the weather 看天气",
+        "can't be helped 看情况"
+      ],
+      "phrases": [
+        "it depends 看情况",
+        "depend on oneself 自立"
+      ],
+      "derived": [
+        {
+          "word": "dependence",
+          "meaning": "n. 依赖（dependence on）"
+        },
+        {
+          "word": "dependent",
+          "meaning": "adj./n. 依赖的；受抚养者"
+        }
+      ],
+      "synonyms": [
+        "rely on",
+        "rest on",
+        "hinge on"
+      ],
+      "易混辨析": "depend on（依赖/取决于）/ rely on（信赖，语气更强调信任）/ depend 与 spend（拼写相近）",
+      "mnemonic": "de(下)+pend(悬) → 悬于其下受制 → 依赖、取决于"
+    },
+    "depict": {
+      "syllable": "de·pict",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "描绘，描写（景象、人物）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把…描绘成（depict sb./sth. as）"
+        }
+      ],
+      "rootAffix": "de-(向下，加强)+pict(画，拉丁语 pingere 绘制) → 画出 → 描绘；同根 picture、paint",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The novel depicts life in a small town.",
+          "translation": "这部小说描绘了小城镇的生活。",
+          "analysis": "简单句：主语 The novel + 及物谓语 depicts + 宾语 life + in a small town（life 的后置定语）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The painting depicts a scene so vivid that viewers often believe they can almost hear the voices of the figures portrayed, each of which appears to be caught in a moment of intense emotion.",
+          "translation": "这幅画描绘的场景生动得令观者常常觉得几乎能听到画中人说话的声音，每一个人物都像是定格在一幕强烈的情感瞬间。",
+          "analysis": "主句主语 The painting + 谓语 depicts + 宾语 a scene + so...that... 结果状语从句；that 从句内 believe 后接省略 that 的宾语从句；the figures portrayed（被描绘的人物，过去分词后置）+ each of which 非限制性定语从句 + be caught in 被动「被困于」。"
+        }
+      ],
+      "collocations": [
+        "depict as 描绘成",
+        "depict a scene 描绘场景",
+        "depict sb. accurately 准确描绘某人"
+      ],
+      "phrases": [
+        "be depicted as 被描绘为"
+      ],
+      "derived": [
+        {
+          "word": "depiction",
+          "meaning": "n. 描绘，描写"
+        }
+      ],
+      "synonyms": [
+        "portray",
+        "describe",
+        "draw"
+      ],
+      "易混辨析": "depict（描绘，画面感强）/ describe（描述，文字为主）/ portray（刻画，多指人物）",
+      "mnemonic": "de+pict(画) → 画出来 → 描绘"
+    },
+    "deploy": {
+      "syllable": "de·ploy",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "部署，派遣（兵力/资源）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "展开，铺开（力量/技术）"
+        }
+      ],
+      "rootAffix": "de-(向下，展开)+ploy(折叠，拉丁语 plicare 折叠) → 把折叠的展开 → 部署；同根 imply、explicit、complicate",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The army deployed along the border.",
+          "translation": "军队沿边境部署。",
+          "analysis": "简单句：主语 The army + 不及物谓语 deployed + 地点状语 along the border。"
+        },
+        {
+          "level": "long",
+          "sentence": "The company is now deploying its new software across all fifty branches, a process that has been delayed twice because the technicians have not yet learned how to handle the complex configuration.",
+          "translation": "公司正在向全部五十家分支机构部署其新软件，这一过程已被推迟两次，因为技术人员尚未学会如何处理复杂的配置。",
+          "analysis": "主句主语 The company + 进行时谓语 is deploying + 宾语 its new software + across all fifty branches；a process 同位语 + that 定语从句（has been delayed twice 被动完成）+ because 原因从句，从句内 have not yet learned + how to handle（疑问词+不定式）+ 宾语 the complex configuration。"
+        }
+      ],
+      "collocations": [
+        "deploy troops 部署部队",
+        "deploy resources 部署资源",
+        "deploy new technology 应用新技术"
+      ],
+      "phrases": [
+        "be deployed in 部署于"
+      ],
+      "derived": [
+        {
+          "word": "deployment",
+          "meaning": "n. 部署，调配"
+        }
+      ],
+      "synonyms": [
+        "position",
+        "post",
+        "set out"
+      ],
+      "易混辨析": "deploy（部署/展开，强调铺开运用）/ deploy 与 describe（拼写相近）/ ploy(策略，同根)",
+      "mnemonic": "de(展开)+ploy(折叠) → 把力量铺开 → 部署"
+    },
+    "deposit": {
+      "syllable": "de·pos·it",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "存款；押金，定金"
+        },
+        {
+          "pos": "v.",
+          "meaning": "存放，存入（款项）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "沉积物"
+        }
+      ],
+      "rootAffix": "de-(向下)+posit(放置，拉丁语 ponere)+it(名词后缀) → 放到下面 → 存放、存入；同根 compose、propose、opponent",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "I deposited money into my account.",
+          "translation": "我往账户里存了钱。",
+          "analysis": "简单句：主语 I + 及物谓语 deposited + 宾语 money + into my account（存放的目的地）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The bank allows you to make a deposit online, but large transfers, which must be verified twice, can still only be completed at a branch during working hours.",
+          "translation": "银行允许你在线存款，但大额转账——须核验两次——目前仍只能在营业时间的网点办理。",
+          "analysis": "主句主语 The bank + 谓语 allows + 双宾语 you / to make a deposit（allow sb. to do）+ 状语 online；but 转折后主语 large transfers + which 非限制性定语从句（must be verified twice）+ 被动谓语 can only be completed + at a branch + during working hours。"
+        }
+      ],
+      "collocations": [
+        "make a deposit 存款",
+        "a deposit of 一笔…存款",
+        "pay a deposit 付定金",
+        "a deposit of silt 淤泥沉积"
+      ],
+      "phrases": [
+        "on deposit 已存入的",
+        "a security deposit 押金"
+      ],
+      "derived": [
+        {
+          "word": "depositary",
+          "meaning": "n. 保管人；保管处"
+        }
+      ],
+      "synonyms": [
+        "sum of money",
+        "sum",
+        "payment"
+      ],
+      "易混辨析": "deposit（存款/押金 v.存放/沉积）/ deposit 名词多义（存款、押金、沉积物）靠语境区分",
+      "mnemonic": "de(下)+posit(放)+it → 放到下面 → 存放、存入"
+    },
+    "depress": {
+      "syllable": "de·press",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "使沮丧，使忧郁"
+        },
+        {
+          "pos": "v.",
+          "meaning": "压低，压下（价格、经济）"
+        }
+      ],
+      "rootAffix": "de-(向下)+press(压，拉丁语 pressere) → 压下去 → 使沮丧（情绪被压）；同根 pressure、oppress、impress",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The bad news depressed him deeply.",
+          "translation": "坏消息让他非常沮丧。",
+          "analysis": "简单句：主语 The bad news + 及物谓语 depressed + 宾语 him + 副词 deeply。"
+        },
+        {
+          "level": "long",
+          "sentence": "The recession, which lasted longer than most economists had predicted, depressed consumer confidence to a level not seen in over a decade, as households, worried about their jobs, cut back sharply on spending.",
+          "translation": "这场持续了比多数经济学家预测更久的衰退，把消费者信心压到了十余年未见的地步，因为担心失业的家庭大幅削减了开支。",
+          "analysis": "主句主语 The recession + which 非限制性定语从句（lasted longer than...）+ 谓语 depressed + 宾语 consumer confidence + to a level + not seen in...（过去分词后置）；as 引导原因状语从句，从句主语 households + worried about their jobs（形容词短语作状语）+ 谓语 cut back on。"
+        }
+      ],
+      "collocations": [
+        "depress the economy 拖累经济",
+        "depress sb. 使某人沮丧",
+        "feel depressed 感到沮丧"
+      ],
+      "phrases": [
+        "depress the price 压低价格"
+      ],
+      "derived": [
+        {
+          "word": "depression",
+          "meaning": "n. 沮丧；萧条"
+        },
+        {
+          "word": "depressed",
+          "meaning": "adj. 沮丧的；不景气的"
+        }
+      ],
+      "synonyms": [
+        "discourage",
+        "discouragement",
+        "weigh down"
+      ],
+      "易混辨析": "depress（使沮丧/压低，及物）/ depression（名词）/ oppress（压迫，op- 向上压）",
+      "mnemonic": "de(下)+press(压) → 压下去 → 使沮丧、压低"
+    },
+    "deprive": {
+      "syllable": "de·prive",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "剥夺，使丧失（deprive sb./sth. of sth.）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "使匮乏（deprive of 必需品）"
+        }
+      ],
+      "rootAffix": "de-(离开)+prive(私有，拉丁语 privus) → 使失去所有 → 剥夺；同根 private、privacy、privilege",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The storm deprived the village of electricity.",
+          "translation": "暴风雨使村庄断了电。",
+          "analysis": "简单句：主语 The storm + 谓语 deprived + 双宾语 the village / of electricity（deprive sb. of sth. 剥夺某人某物）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Children who are deprived of proper education in their early years often find, as adults, that they cannot escape the cycle of poverty from which their parents never managed to free themselves.",
+          "translation": "在早年被剥夺了良好教育的孩子，长大后常常发现自己无法摆脱贫困的循环，而他们的父母从未能从中挣脱。",
+          "analysis": "主句主语 Children + who 定语从句（are deprived of...）+ 谓语 often find + that 宾语从句；as adults 插入状语；that 从句内 the cycle of poverty + from which 介词+关系代词引导定语从句 + never managed to free themselves。"
+        }
+      ],
+      "collocations": [
+        "deprive sb. of sth. 剥夺某人某物",
+        "deprive oneself of 使自己缺",
+        "be deprived of rights 权利被剥夺"
+      ],
+      "phrases": [
+        "be deprived of childhood 失去童年"
+      ],
+      "derived": [
+        {
+          "word": "deprivation",
+          "meaning": "n. 剥夺，匮乏"
+        },
+        {
+          "word": "deprived",
+          "meaning": "adj. 被剥夺的；贫困的"
+        }
+      ],
+      "synonyms": [
+        "rob",
+        "divest",
+        "strip"
+      ],
+      "易混辨析": "deprive...of / rob...of（搭配介词相同，rob 强调抢走，deprive 强调剥夺）/ deprive 与 deprive",
+      "mnemonic": "de(离)+prive(私有) → 使失去所有 → 剥夺"
+    },
+    "depth": {
+      "syllable": "depth",
+      "pos": "n.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "深度（水面到水底的距离）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "深处；纵深"
+        },
+        {
+          "pos": "n.",
+          "meaning": "程度，深度（in depth 深入地）"
+        }
+      ],
+      "rootAffix": "deep(深)+th(名词后缀) → 深的状态 → 深度；同根 deepen",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The lake is fifty meters in depth.",
+          "translation": "这个湖深五十米。",
+          "analysis": "简单句：主语 The lake + 系动词 is + 表语 fifty meters + in depth（in depth 表「在深度上」）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The depth of his grief was such that no one who had known him for years could recognize the quiet, cheerful man who had once sat at the head of every table.",
+          "translation": "他的悲痛之深，以至于那些认识他多年的人都不认得出那个曾经在每顿饭桌主位上安静而快活的人。",
+          "analysis": "主句主语 The depth of his grief + 系动词 was + such...that... 结果状语从句；that 从句内主语 no one + who 定语从句（had known him for years）+ 谓语 could recognize + 宾语 the quiet, cheerful man + who 定语从句（had once sat at the head）。"
+        }
+      ],
+      "collocations": [
+        "at a depth of 在…深度",
+        "in depth 深入地",
+        "to a depth 达到某深度"
+      ],
+      "phrases": [
+        "at the depth of winter 隆冬时节"
+      ],
+      "derived": [
+        {
+          "word": "deep",
+          "meaning": "adj. 深的"
+        },
+        {
+          "word": "deepen",
+          "meaning": "v. 加深"
+        }
+      ],
+      "synonyms": [
+        "depth",
+        "depths",
+        "extent"
+      ],
+      "易混辨析": "in depth（深入地）/ depth 与 length(长)/width(宽) 对应（深/长/宽）",
+      "mnemonic": "deep(深)+th → 深度"
+    },
+    "derive": {
+      "syllable": "de·rive",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "取得，获得（derive sth. from sth.）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "源于，来自（词源）"
+        }
+      ],
+      "rootAffix": "de-(向下)+rive(行驶，拉丁语 rivus 溪流) → 从…流出 → 源于、取得；同根 river、irrigate",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She derives great pleasure from reading.",
+          "translation": "她从阅读中获得极大的乐趣。",
+          "analysis": "简单句：主语 She + 谓语 derives + 双宾语 great pleasure / from reading（derive sth. from sth. 从…获得…）。"
+        },
+        {
+          "level": "long",
+          "sentence": "Much of the vocabulary we use today is derived from Latin, a fact that explains why words that look alike in different languages often carry meanings so close that a reader can almost guess them from context alone.",
+          "translation": "我们今天使用的大量词汇都源自拉丁语，这一事实解释了为什么不同语言中长得相似的词往往含义非常接近，以至于读者几乎仅凭上下文就能猜出来。",
+          "analysis": "主句主语 Much of the vocabulary + we use today（定语从句省略 that）+ 被动谓语 is derived from + 宾语 Latin；a fact 同位语 + that 定语从句（explains why...）；why 后接宾语从句，从句内 so close that... 结果状语从句层层嵌套。"
+        }
+      ],
+      "collocations": [
+        "derive from 源于",
+        "derive sth. from sth. 从…获得",
+        "derive pleasure from 从…获得乐趣"
+      ],
+      "phrases": [
+        "be derived from 由…衍生"
+      ],
+      "derived": [
+        {
+          "word": "derivation",
+          "meaning": "n. 起源，衍生"
+        },
+        {
+          "word": "derivative",
+          "meaning": "adj./n. 衍生的；衍生品"
+        }
+      ],
+      "synonyms": [
+        "come from",
+        "arise from",
+        "stem from"
+      ],
+      "易混辨析": "derive from（源于，强调来源）/ arise from（产生于）/ stem from（源于，口语）",
+      "mnemonic": "de(下)+rive(溪流) → 从溪流流出 → 源于、取得"
+    },
+    "descend": {
+      "syllable": "de·scend",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "下降，下来（从高处到低处）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "源于，遗传自（descend from 祖先）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "（质量、行为）堕落，恶化"
+        }
+      ],
+      "rootAffix": "de-(向下)+scend(爬，拉丁语 scandere) → 爬下去 → 下降；同根 ascend（上升）、transcend（超越）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The sun descended below the mountains.",
+          "translation": "太阳落到山下面去了。",
+          "analysis": "简单句：主语 The sun + 不及物谓语 descended + 方向状语 below the mountains。"
+        },
+        {
+          "level": "long",
+          "sentence": "As the path descended into the valley, the air grew cooler, and the travellers, who had been talking loudly, gradually fell silent, each absorbed in the view that opened up before them.",
+          "translation": "随着小路下降到谷底，空气变得更凉，那些一直在大声说话的旅人渐渐安静下来，每个人都沉浸在他们面前展开的景色中。",
+          "analysis": "As 引导时间状语从句（path descended into）；主句两个并列谓语 grew cooler 与 fell silent，由 and 连接；the travellers + who 定语从句（had been talking loudly 过去完成进行时）；each absorbed in the view 独立结构 + that 定语从句修饰 view。"
+        }
+      ],
+      "collocations": [
+        "descend on 袭击、蜂拥",
+        "descend the stairs 下楼梯",
+        "descend from 源于"
+      ],
+      "phrases": [
+        "descend upon 突然袭击"
+      ],
+      "derived": [
+        {
+          "word": "descent",
+          "meaning": "n. 下降；血统"
+        },
+        {
+          "word": "descendant",
+          "meaning": "n. 后代"
+        }
+      ],
+      "synonyms": [
+        "go down",
+        "drop",
+        "sink"
+      ],
+      "易混辨析": "descend（下降/源于）/ ascend（上升，ascend 向上）/ descend from（源于/遗传）/ describe（描述，拼写相近）",
+      "mnemonic": "de(下)+scend(爬) → 爬下去 → 下降、源于"
+    },
+    "describe": {
+      "syllable": "de·scribe",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "描述，形容"
+        },
+        {
+          "pos": "v.",
+          "meaning": "把…称为，把…形容为（describe sb./sth. as）"
+        }
+      ],
+      "rootAffix": "de-(向下，加强)+scribe(写，拉丁语 scribere) → 写下来 → 描述；同根 script、manuscript、prescribe（处方）",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "She described the accident in detail.",
+          "translation": "她详细描述了那起事故。",
+          "analysis": "简单句：主语 She + 谓语 described + 宾语 the accident + in detail（in detail 详细地，状语）。"
+        },
+        {
+          "level": "long",
+          "sentence": "The witness, who was visibly nervous, tried to describe the attacker, but his account changed so many times that the detectives concluded they could rely on his statement only for the most general features.",
+          "translation": "这名明显紧张的证人试图描述袭击者，但他的陈述变了太多次，以至于侦探们认为他们只能就最笼统的特征采信他的证词。",
+          "analysis": "主语 The witness + who 非限制性定语从句 + 谓语 tried to describe + 宾语 the attacker；but 转折后主语 his account + 谓语 changed + so many times that... 结果状语从句；that 从句内 concluded 后接省略 that 的宾语从句（could rely on...only for...）。"
+        }
+      ],
+      "collocations": [
+        "describe as 描述为",
+        "describe in detail 详细描述",
+        "describe a scene 描述场景"
+      ],
+      "phrases": [
+        "be described as 被描述为"
+      ],
+      "derived": [
+        {
+          "word": "description",
+          "meaning": "n. 描述"
+        },
+        {
+          "word": "descriptive",
+          "meaning": "adj. 描述性的"
+        }
+      ],
+      "synonyms": [
+        "portray",
+        "depict",
+        "outline"
+      ],
+      "易混辨析": "describe（描述，写）/ depict（描绘，画面感）/ descend（下降，拼写相近）/ prescribe（开处方）",
+      "mnemonic": "de+scribe(写) → 写出来 → 描述"
+    },
+    "desert": {
+      "syllable": "des·ert",
+      "pos": "n./v.",
+      "defs": [
+        {
+          "pos": "n.",
+          "meaning": "沙漠（重音在前 /ˈdezət/）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "遗弃，抛弃；擅离职守（重音在后 /dɪˈzɜːt/）"
+        },
+        {
+          "pos": "n.",
+          "meaning": "应得的（reward）；奖赏"
+        }
+      ],
+      "rootAffix": "de-(向下)+sert(插入，拉丁语 serere 排列) → 被丢下 → 遗弃；沙漠义来自 desir(干燥) 的另一来源",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "The expedition crossed the desert in three days.",
+          "translation": "这次探险队用了三天穿越沙漠。",
+          "analysis": "简单句：主语 The expedition + 谓语 crossed + 宾语 the desert + 时间状语 in three days。desert 取「沙漠」义（名词重音在前）。"
+        },
+        {
+          "level": "long",
+          "sentence": "He was later found to have deserted his post during the night, an act for which he was not only dismissed but also banned, by a court ruling that has since been appealed, from holding any public office for ten years.",
+          "translation": "他后来被发现夜里擅离职守，因此不仅被解职，还被一项此后被上诉的法院裁决禁止十年内担任任何公职。",
+          "analysis": "主句主语 He + 被动谓语 was found + to have deserted（find sb. to have done 发现某人已做）+ 宾语 his post + during the night；an act 同位语 + for which 介词+关系代词定语从句 + not only...but also... 并列 + by a court ruling 状语 + that 定语从句修饰 ruling + from holding any public office for ten years。"
+        }
+      ],
+      "collocations": [
+        "cross the desert 穿越沙漠",
+        "desert one's post 擅离职守",
+        "a desert island 荒岛"
+      ],
+      "phrases": [
+        "in the desert of 在…沙漠中"
+      ],
+      "derived": [
+        {
+          "word": "desertion",
+          "meaning": "n. 遗弃；擅离"
+        },
+        {
+          "word": "deserter",
+          "meaning": "n. 逃兵"
+        }
+      ],
+      "synonyms": [
+        "wilderness",
+        "abandon",
+        "leave"
+      ],
+      "易混辨析": "desert（沙漠 n.重音前 / 遗弃 v.重音后）一词两读两义是经典考点；desert 与 desert（同形，重音定义）",
+      "mnemonic": "de+sert(排) → 被丢下 → 遗弃；desert 沙漠（de+sert 干燥荒）",
+      "重音区分": "名词「沙漠」重音在前 DESERT；动词「遗弃」重音在后 deSERT"
+    },
+    "deserve": {
+      "syllable": "de·serve",
+      "pos": "v.",
+      "defs": [
+        {
+          "pos": "v.",
+          "meaning": "应得，值得（deserve sth./to do）"
+        },
+        {
+          "pos": "v.",
+          "meaning": "值得被做（deserve doing，主动形式表被动）"
+        }
+      ],
+      "rootAffix": "de-(加强)+serve(服务，价值，拉丁语 servire) → 配得上 → 应得、值得",
+      "examples": [
+        {
+          "level": "simple",
+          "sentence": "You deserve a rest.",
+          "translation": "你该休息一下了。",
+          "analysis": "简单句：主语 You + 及物谓语 deserve + 宾语 a rest。deserve sth. 应得某物。"
+        },
+        {
+          "level": "long",
+          "sentence": "They believe that people should be judged not by their mistakes, of which every honest person has plenty, but by whether they deserve a second chance, a question on which reasonable people can disagree for a lifetime.",
+          "translation": "他们认为人不应由错误来评判——诚实的人谁都有很多错误——而应看他们是否值得第二次机会，这是个理性的人可能争执一辈子的问题。",
+          "analysis": "主句主语 They + 谓语 believe + that 宾语从句；从句内 should be judged + not by A but by B（与其说 A 不如说 B）；of which 介词+关系代词定语从句修饰 mistakes；a question 同位语 + on which 介词+关系代词定语从句。"
+        }
+      ],
+      "collocations": [
+        "deserve to do 值得做",
+        "deserve a reward 应得奖励",
+        "well deserved 当之无愧"
+      ],
+      "phrases": [
+        "deserve well of 对…有大功"
+      ],
+      "derived": [
+        {
+          "word": "deserving",
+          "meaning": "adj. 值得的（the deserving 应得之人）"
+        },
+        {
+          "word": "undeserved",
+          "meaning": "adj. 不配的，不应的"
+        }
+      ],
+      "synonyms": [
+        "be worthy of",
+        "merit",
+        "qualify"
+      ],
+      "易混辨析": "deserve to do / deserve doing（主动表被动：The work deserves doing = 这工作值得被做）/ deserve 与 worth(值得，be worth doing)",
+      "mnemonic": "de+serve(服务/价值) → 配得上 → 应得、值得"
+    }
+  }
+}

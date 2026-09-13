@@ -1538,7 +1538,7 @@ export async function updateNote(id, payload) {
     for (const k of ['content', 'title', 'tags', 'category', 'subject', 'linkedCardIds']) {
       if (norm[k] !== cur[k]) fts[k] = t;
     }
-    const out2 = { id, ...norm, fieldTs: fts };
+    const out2 = { ...norm, fieldTs: fts };
     await db.notes.put(out2);
     fireHook('onNoteSaved', out2);
     return out2;
