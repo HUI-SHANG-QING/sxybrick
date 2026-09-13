@@ -14,17 +14,9 @@ import {
   createWordCard, updateWordCard,
   recordWordStudyTime, wordStudyTimeToday, wordStudyTimeTotal,
 } from '../src/word-repo.js';
-import { generateWordMaterials } from '../src/services/word-llm.js';
-import { hasLocalEntry, loadAllShards } from '../src/services/word-enrich.js';
-import { isInSyllabus } from '../src/services/word-syllabus.js';
+import { callLlmJson, normalizeWordMaterials } from '../src/services/word-llm.js';
 import { WORD_EXT_FIELDS } from '../src/sync-manifest.js';
 import { EXT_FIELDS } from '../src/word-repo.js';
-import { readFileSync } from 'node:fs';
-
-// 考研英语大纲词表（4956 词），用于本测试「动态挑一个未收录的大纲词」走 AI 通道。
-const SYLLABUS = JSON.parse(
-  readFileSync(new URL('../src/data/kaoyan-vocab-2027.json', import.meta.url), 'utf8'),
-).words;
 
 after(async () => { try { await db.close(); } catch { /* ignore */ } });
 
@@ -99,23 +91,11 @@ test('derived / syllable：createWordCard 落库 + updateWordCard 往返', async
 
 // ---------------- C. word-llm：新字段归一化 ----------------
 
-test('generateWordMaterials：syllable / defs / derived / rootAffix 归一化', async (t) => {
-  // 本用例验证的是「AI 通道的脏数据归一化」：必须走 AI 通道，因此所选词需满足
-  // 「在大纲内（否则被门控拒绝）」且「本地词库未收录（否则本地优先命中，不走 AI）」。
-  // 自动词库扩充任务按字母顺序持续收录大纲词，任何硬编码词迟早会被收录；
-  // 故此处动态从大纲中取「首个本地词库尚未收录」的词，从根本上避免前置断言回归。
-  await loadAllShards();
-  // 判定必须走 hasLocalEntry（内部 normKey 归一化），不能拿 localWords() 的
-  // 归一化键集合去比原始词形——大纲里 'Russia' 这类首字母大写的词，键是 'russia'，
-  // `new Set(localWords()).has('Russia')` 恒为 false，会挑到已收录词 → 本地优先命中、
-  // 根本不走 AI，前置断言随机变红（2026-09-13 实测踩到）。
-  const WORD = SYLLABUS.find((w) => !hasLocalEntry(w));
-  if (!WORD) {
-    // 全部大纲词均已本地收录时，AI 通道归一化子路径无法被触发；跳过而非失败。
-    t.skip('大纲词库已 100% 覆盖，无未收录词可走 AI 通道（归一化逻辑由其他用例覆盖）');
-    return;
-  }
-  assert.ok(isInSyllabus(WORD), `动态选取的词 ${WORD} 应在大纲内（否则会被门控拒绝，测不到归一化）`);
+test('normalizeWordMaterials：syllable / defs / derived / rootAffix 归一化', async () => {
+  // 直测归一化纯函数，不再从 generateWordMaterials 入口绕行：
+  // 本地词库已 100% 覆盖考研大纲（4972 词 / 大纲 4956 词），入口的 AI 分支
+  // （未收录 + 大纲内）在真实数据下已无输入可用；此前为绕开它写的前置挑选
+  // 与 skip 会让本用例永久停跑（等于覆盖率静默下降）。
   const agentCtx = {
     runAgent: async () => JSON.stringify({
       syllable: '  ban·ner  ',
@@ -139,15 +119,16 @@ test('generateWordMaterials：syllable / defs / derived / rootAffix 归一化', 
       mnemonic: 'ban 记「旗」',
     }),
   };
-  const out = await generateWordMaterials({ word: WORD, settings: {}, agentCtx, allowAi: true });
-  assert.equal(out.ok, true);
-  assert.equal(out.data.syllable, 'ban·ner', '音节应 trim');
-  assert.equal(out.data.defs.length, 2, 'defs 空行应被过滤');
-  assert.deepEqual(out.data.defs[0], { pos: 'n.', meaning: '横幅，标语' });
-  assert.equal(out.data.derived.length, 1, '空 word 的派生项应被过滤');
-  assert.equal(out.data.rootAffix, 'ban(旗) + -er(名词后缀)', '词根应 trim');
+  const res = await callLlmJson({ prompt: '给 banner 生成素材', settings: {}, agentCtx });
+  assert.equal(res.ok, true);
+  const d = normalizeWordMaterials(res.data, ['simple', 'long']);
+  assert.equal(d.syllable, 'ban·ner', '音节应 trim');
+  assert.equal(d.defs.length, 2, 'defs 空行应被过滤');
+  assert.deepEqual(d.defs[0], { pos: 'n.', meaning: '横幅，标语' });
+  assert.equal(d.derived.length, 1, '空 word 的派生项应被过滤');
+  assert.equal(d.rootAffix, 'ban(旗) + -er(名词后缀)', '词根应 trim');
   // 补档：缺 long 例句应本地补一条
-  assert.deepEqual(out.data.examples.map((e) => e.level).sort(), ['long', 'simple']);
+  assert.deepEqual(d.examples.map((e) => e.level).sort(), ['long', 'simple']);
 });
 
 // ---------------- D. round18 闸门回归（derived 并集保护） ----------------

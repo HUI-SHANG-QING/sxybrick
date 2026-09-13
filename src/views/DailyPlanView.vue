@@ -541,11 +541,14 @@ function handleResize() {
         <button class="btn primary" :disabled="busy" @click="confirmPlan">{{ t('views.dailyPlan.confirmStore') }}</button>
         <button class="btn" @click="cancelPreview">{{ t('views.dailyPlan.cancel') }}</button>
       </div>
-      <div v-for="(t, i) in preview.tasks" :key="i" class="dp-task-row">
-        <span class="dp-type">{{ TYPE_ICON[t.type] }} {{ TYPE_LABEL[t.type] }}</span>
-        <span class="dp-title">{{ t.title }}</span>
-        <span v-if="t.scheduledHour != null" class="dp-meta-item">⏰ {{ t.scheduledHour }}:00</span>
-        <span :class="'dp-tag q-' + t.quadrant">{{ t.quadrant }}</span>
+      <!-- 注意：循环变量绝不能叫 t —— 它在子树内会遮蔽 i18n 的 t 函数，
+           同元素里再调用它翻译就变成「调用一个对象」，生产压缩后报 e is not a function
+           （2026-09-13 用户实测，整页崩）。统一用 tsk。 -->
+      <div v-for="(tsk, i) in preview.tasks" :key="i" class="dp-task-row">
+        <span class="dp-type">{{ TYPE_ICON[tsk.type] }} {{ TYPE_LABEL[tsk.type] }}</span>
+        <span class="dp-title">{{ tsk.title }}</span>
+        <span v-if="tsk.scheduledHour != null" class="dp-meta-item">⏰ {{ tsk.scheduledHour }}:00</span>
+        <span :class="'dp-tag q-' + tsk.quadrant">{{ tsk.quadrant }}</span>
       </div>
       <div ref="previewQuadEl" class="dp-quad" style="height:300px"></div>
     </div>
@@ -664,14 +667,14 @@ function handleResize() {
               <div class="dp-board-sub-title">{{ t('views.dailyPlan.unscheduledTitle', '⏳ 未排程（{n}）', { n: board.unscheduled.length }) }}</div>
               <div class="dp-unsched-chips">
                 <span
-                  v-for="t in board.unscheduled" :key="t.id"
+                  v-for="tsk in board.unscheduled" :key="tsk.id"
                   class="dp-unsched-chip"
-                  :class="['st-' + t.status, { editable: canEdit, hovering: hoverTask?.id === t.id }]"
-                  :title="t.title + (canEdit ? t('views.dailyPlan.boardTitleEdit') : t('views.dailyPlan.boardTitleHistory'))"
-                  @click="openConfirm(t, 'done')"
-                  @mouseenter="hoverTask = t"
+                  :class="['st-' + tsk.status, { editable: canEdit, hovering: hoverTask?.id === tsk.id }]"
+                  :title="tsk.title + (canEdit ? t('views.dailyPlan.boardTitleEdit') : t('views.dailyPlan.boardTitleHistory'))"
+                  @click="openConfirm(tsk, 'done')"
+                  @mouseenter="hoverTask = tsk"
                   @mouseleave="hoverTask = null"
-                ><span v-if="t.status==='done'" class="dp-check">✓ </span>{{ TYPE_ICON[t.type] }} {{ t.title }}</span>
+                ><span v-if="tsk.status==='done'" class="dp-check">✓ </span>{{ TYPE_ICON[tsk.type] }} {{ tsk.title }}</span>
               </div>
             </div>
           </div>

@@ -65,3 +65,86 @@ test('扫描覆盖面自检：确实扫到了视图目录', () => {
   assert.ok(files.length > 40, `只扫到 ${files.length} 个 .vue，路径可能不对`);
   assert.ok(files.some(f => f.endsWith('Search.vue')));
 });
+
+// ---------- 坑 3：v-for 变量遮蔽模板中被调用的函数名（典型：i18n 的 t） ----------
+//
+// 现象（2026-09-13 用户实测「每日规划」整页崩）：
+//   <span v-for="t in board.unscheduled"
+//         :title="t.title + t('views.dailyPlan.boardTitleEdit')">
+// 循环变量 t 在子树内遮蔽了 import 进来的 i18n 函数 t → t('...') 变成「调用一个对象」，
+// 开发环境报 `t is not a function`，生产压缩后变量被重命名，用户看到的是
+// `e is not a function`（极难从字面定位）。
+// 这个坑已经复发过一次（824dbb5 只修了一处、漏了另一处），所以固化成闸门。
+//
+// 判定：对每个带 v-for 的元素，取其 loc 范围源码，检查 v-for 声明的名字是否以 `name(`
+// 形式出现在该范围内（属性表达式与插值都在范围内）。
+// 注意 compiler-sfc 的 template ast 节点 loc.offset 是**相对整个 SFC 文件**的，
+// 必须用 src.slice（用 tpl.content.slice 会切片错位 → 假阴性）。
+export function findShadowedCalls(src, filename = 'x.vue') {
+  const { descriptor } = parse(src, { filename });
+  const tpl = descriptor.template;
+  if (!tpl || !tpl.ast) return [];
+  const hits = [];
+  const visit = (node) => {
+    if (node.type === 1) {
+      const vfor = (node.props || []).find((p) => p.type === 7 && p.name === 'for');
+      if (vfor) {
+        const expr = vfor.exp?.content || '';
+        const names = new Set();
+        const m1 = expr.match(/^\s*\(\s*([A-Za-z_$][\w$]*)\s*,\s*([A-Za-z_$][\w$]*)\s*\)\s+in\s/);
+        if (m1) { names.add(m1[1]); names.add(m1[2]); } else {
+          const m2 = expr.match(/^\s*([A-Za-z_$][\w$]*)\s+in\s/);
+          if (m2) names.add(m2[1]);
+        }
+        const seg = src.slice(node.loc.start.offset, node.loc.end.offset);
+        for (const nm of names) {
+          const re = new RegExp('(^|[^\\w$.])' + nm.replace(/\$/g, '\\$') + '\\s*\\(');
+          if (re.test(seg)) {
+            hits.push({
+              name: nm,
+              expr: expr.trim(),
+              line: src.slice(0, node.loc.start.offset).split('\n').length,
+            });
+          }
+        }
+      }
+    }
+    for (const ch of node.children || []) visit(ch);
+  };
+  visit(tpl.ast);
+  return hits;
+}
+
+test('v-for 遮蔽检测器自检：必须能抓出 i18n t 被遮蔽的负例', () => {
+  // 防「检测器失效导致闸门空转」：先喂一个明确违规的片段，必须命中；
+  // 再喂一个把变量改名（正确写法）的版本，必须不命中。
+  const BAD = `<script setup>
+import { t } from '../i18n/index.js';
+</script>
+<template>
+  <div>
+    <span v-for="t in list" :key="t.id" :title="t('a.b')">{{ t.name }}</span>
+  </div>
+</template>
+`;
+  const GOOD = BAD.replace('v-for="t in list"', 'v-for="tsk in list"')
+    .replace(/:key="t\.id"/, ':key="tsk.id"')
+    .replace(/:title="t\('a\.b'\)"/, ':title="t(\'a.b\')"')
+    .replace('{{ t.name }}', '{{ tsk.name }}');
+  const badHits = findShadowedCalls(BAD, 'Bad.vue');
+  assert.equal(badHits.length, 1, `负例必须被检出，实际 ${badHits.length} 处`);
+  assert.equal(badHits[0].name, 't');
+  assert.deepEqual(findShadowedCalls(GOOD, 'Good.vue'), [], '正例不得误报');
+});
+
+test('全部 .vue 模板：v-for 变量不得遮蔽模板内被调用的函数名', () => {
+  const bad = [];
+  for (const f of files) {
+    let hits;
+    try { hits = findShadowedCalls(readFileSync(f, 'utf8'), f); } catch { continue; }
+    for (const h of hits) {
+      bad.push(`${relative(SRC, f)}:${h.line} v-for "${h.expr}" 的变量 "${h.name}" 在子树内被当函数调用（生产环境报 e is not a function）`);
+    }
+  }
+  assert.deepEqual(bad, [], `以下位置 v-for 变量遮蔽了函数名，改个名字（如 tsk/item/row）：\n${bad.join('\n')}`);
+});

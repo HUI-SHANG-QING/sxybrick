@@ -134,7 +134,7 @@ export async function generateWordMaterials(req) {
   if (!word) return { ok: false, reason: 'empty-word' };
 
   // ① 本地词库优先（默认路径）：零 AI 调用、零网络、零费用。
-  //    命中即返回，返回结构与 normalize() 同构，并保留 examples[].analysis（长难句解析）。
+  //    命中即返回，返回结构与 normalizeWordMaterials() 同构，并保留 examples[].analysis（长难句解析）。
   //    刻意不做大纲过滤——OCR 识别出的词、自建词条同样需要补全。
   //    词库已按字母分片（每片 ≤200 词，避免首屏加载 11MB），故先按需加载目标词所在分片；
   //    加载后仍未有此词即为「确未收录」。
@@ -168,7 +168,7 @@ export async function generateWordMaterials(req) {
     task: 'word-material-gen',
   });
   if (!res.ok) return { ok: false, reason: res.reason };
-  return { ok: true, data: normalize(res.data, levels), via: res.via };
+  return { ok: true, data: normalizeWordMaterials(res.data, levels), via: res.via };
 }
 
 // ---------- HTTP 调用（用户 Key 路径） ----------
@@ -269,7 +269,15 @@ function parseJsonSafe(raw) {
   return tryParseLLMJson(raw);
 }
 
-function normalize(data, levels) {
+/**
+ * 归一化 AI 返回的素材（纯函数，无 IO）。
+ * 导出目的：词库已 100% 覆盖大纲，`generateWordMaterials` 的 AI 分支
+ * （未收录 + 大纲内）在真实数据下已无输入可用，测试无法再从入口触达；
+ * 归一化/截断/难度档过滤这些逻辑改为直测本函数，避免用例被 skip 永久停跑。
+ * @param {object} data AI 原始 JSON
+ * @param {string[]} levels 需要的难度档
+ */
+export function normalizeWordMaterials(data, levels) {
   const out = {
     syllable: typeof data.syllable === 'string' ? data.syllable.trim() : '',
     defs: Array.isArray(data.defs)

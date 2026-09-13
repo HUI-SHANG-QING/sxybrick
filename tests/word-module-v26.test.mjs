@@ -19,14 +19,15 @@ import {
 } from '../src/word-repo.js';
 import { buildWordSheet, rowOf, shuffleCards, PAGE_SIZE } from '../src/services/word-print.js';
 import { isInSyllabus, syllabusSize, listSyllabus, exportSyllabus, getSyllabusMeta } from '../src/services/word-syllabus.js';
-import { generateWordMaterials, testLlmConnection } from '../src/services/word-llm.js';
-import { hasLocalEntry } from '../src/services/word-enrich.js';
+import {
+  generateWordMaterials, testLlmConnection, callLlmJson, normalizeWordMaterials,
+} from '../src/services/word-llm.js';
 
-// AI 回落路径的哨兵词：必须是「大纲内、但本地词库未收录」。
-// 绝不写死单词——本地词库在持续扩充，2026-09-13 `evaluate` 被收录后，本地优先
-// 直接返回 ok，7 个断言「走 AI 通道报错」的用例同时变红。改为运行时动态挑选。
-const AI_WORD = listSyllabus().find((w) => isInSyllabus(w) && !hasLocalEntry(w)) || null;
-const AI_SKIP = AI_WORD ? false : '本地词库已收录大纲全部词汇（AI 回落路径无可用输入）';
+// 说明：本地词库已 100% 覆盖考研大纲（4972 词 / 大纲 4956 词），
+// `generateWordMaterials` 的 AI 分支需要「本地未收录 + 大纲内」，真实数据下已无输入可用。
+// 因此 AI 通道相关用例不再从入口绕行（不要用 skip 掩盖），一律直测底层：
+//   callLlmJson（agent/Key 双通道 + 归一化前数据）与 normalizeWordMaterials（纯归一化）。
+// 入口门控本身由上方「未收录 → 明确跳过」用例覆盖。
 
 after(async () => { try { await db.close(); } catch { /* ignore */ } });
 
@@ -261,33 +262,34 @@ test('generateWordMaterials：空词与未收录词都不调用 LLM', async () =
   assert.equal(out.reason, 'not-in-local-wordbank');
 });
 
-test('generateWordMaterials：未配置 provider/key → 明确报错不静默', { skip: AI_SKIP }, async () => {
-  // evaluate：在考研词表内但不在本地词库 → 显式 allowAi 后进入 AI 通道，未配置时应明确报错
-  const out = await generateWordMaterials({ word: AI_WORD, settings: {}, allowAi: true });
+test('callLlmJson：agent 不可用且未配置 provider/key → 明确报错不静默', async () => {
+  const out = await callLlmJson({ prompt: '给 abandon 生成素材', settings: {} });
   assert.equal(out.ok, false);
   assert.match(out.reason, /未配置 LLM/);
 });
 
-test('generateWordMaterials：agent 通道解析 ```json 包裹并补齐缺失难度档', { skip: AI_SKIP }, async () => {
+test('callLlmJson(agent)：解析 ```json 包裹 + normalizeWordMaterials 补齐缺失难度档', async () => {
   const agentCtx = {
     runAgent: async () => '```json\n{"synonyms":["desert","forsake","quit","drop","relinquish","give up","extra"],'
       + '"collocations":["abandon hope"],"phrases":["abandon oneself to"],"pos":"v.","mnemonic":"a+band+on",'
       + '"examples":[{"level":"simple","sentence":"They abandoned the car.","translation":"他们弃车了。"},'
       + '{"level":"unknown","sentence":"x","translation":"y"}]}\n```',
   };
-  const out = await generateWordMaterials({ word: AI_WORD, settings: {}, agentCtx, allowAi: true });
-  assert.equal(out.ok, true);
-  assert.equal(out.data.pos, 'v.');
-  assert.equal(out.data.synonyms.length, 6, '同义词应截断到 6 个');
+  const res = await callLlmJson({ prompt: '给 abandon 生成素材', settings: {}, agentCtx });
+  assert.equal(res.ok, true);
+  assert.equal(res.via, 'agent', '应走 agent 通道（不消耗用户 Key）');
+  const d = normalizeWordMaterials(res.data, ['simple', 'long']);
+  assert.equal(d.pos, 'v.');
+  assert.equal(d.synonyms.length, 6, '同义词应截断到 6 个');
   // 非法难度档被丢弃，两档（simple/long）全部补齐
-  assert.deepEqual(out.data.examples.map((e) => e.level).sort(), ['long', 'simple']);
-  assert.equal(out.data.examples.find((e) => e.level === 'simple').sentence, 'They abandoned the car.');
-  assert.ok(out.data.examples.every((e) => e.sentence && e.translation));
+  assert.deepEqual(d.examples.map((e) => e.level).sort(), ['long', 'simple']);
+  assert.equal(d.examples.find((e) => e.level === 'simple').sentence, 'They abandoned the car.');
+  assert.ok(d.examples.every((e) => e.sentence && e.translation));
 });
 
-test('generateWordMaterials：agent 抛错且无 Key → 回落为未配置错误', { skip: AI_SKIP }, async () => {
+test('callLlmJson：agent 抛错且无 Key → 回落为未配置错误', async () => {
   const agentCtx = { runAgent: async () => { throw new Error('agent down'); } };
-  const out = await generateWordMaterials({ word: AI_WORD, settings: {}, agentCtx, allowAi: true });
+  const out = await callLlmJson({ prompt: '给 abandon 生成素材', settings: {}, agentCtx });
   assert.equal(out.ok, false);
   assert.match(out.reason, /未配置 LLM/);
 });
@@ -314,11 +316,11 @@ const WORD_JSON = JSON.stringify({
   examples: [{ level: 'simple', sentence: 'They abandoned it.', translation: '他们放弃了。' }],
 });
 
-test('直连成功：落一条 english-word 用量（token 取响应 usage，est=0）', { skip: AI_SKIP }, async () => {
+test('直连成功：落一条 english-word 用量（token 取响应 usage，est=0）', async () => {
   const restore = stubFetch(async () => okResp(WORD_JSON, { prompt_tokens: 123, completion_tokens: 45, total_tokens: 168 }));
   try {
     await db.aiUsage.clear();
-    const out = await generateWordMaterials({ word: AI_WORD, settings: KEY_SETTINGS, allowAi: true });
+    const out = await callLlmJson({ prompt: '给 abandon 生成素材', settings: KEY_SETTINGS });
     assert.equal(out.ok, true, '应生成成功');
     const row = (await db.aiUsage.toArray()).find((r) => r.source === 'english-word');
     assert.ok(row, '应落一条 source=english-word 的用量记录');
@@ -335,11 +337,11 @@ test('直连成功：落一条 english-word 用量（token 取响应 usage，est
   }
 });
 
-test('直连失败：落一条 ok=0 的用量（失败调用也应可见）', { skip: AI_SKIP }, async () => {
+test('直连失败：落一条 ok=0 的用量（失败调用也应可见）', async () => {
   const restore = stubFetch(async () => ({ ok: false, text: async () => 'quota exceeded' }));
   try {
     await db.aiUsage.clear();
-    const out = await generateWordMaterials({ word: AI_WORD, settings: KEY_SETTINGS, allowAi: true });
+    const out = await callLlmJson({ prompt: '给 abandon 生成素材', settings: KEY_SETTINGS });
     assert.equal(out.ok, false);
     assert.match(out.reason, /LLM 调用失败/);
     const row = (await db.aiUsage.toArray()).find((r) => r.source === 'english-word');
@@ -352,11 +354,11 @@ test('直连失败：落一条 ok=0 的用量（失败调用也应可见）', { 
   }
 });
 
-test('响应无 usage 字段：按字符估算 token，est=1', { skip: AI_SKIP }, async () => {
+test('响应无 usage 字段：按字符估算 token，est=1', async () => {
   const restore = stubFetch(async () => okResp(WORD_JSON, null));
   try {
     await db.aiUsage.clear();
-    const out = await generateWordMaterials({ word: AI_WORD, settings: KEY_SETTINGS, allowAi: true });
+    const out = await callLlmJson({ prompt: '给 abandon 生成素材', settings: KEY_SETTINGS });
     assert.equal(out.ok, true);
     const row = (await db.aiUsage.toArray()).find((r) => r.source === 'english-word');
     assert.ok(row);
