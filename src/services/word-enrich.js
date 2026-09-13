@@ -38,6 +38,8 @@ if (mainBank && mainBank.entries && typeof mainBank.entries === 'object') {
 
 /** 分片索引（来自主文件，很小）：[{ shard, from, to, count }] */
 const SHARDS = Array.isArray(mainBank?.shards) ? mainBank.shards : [];
+/** 词→分片精确映射（全量 4956 词，避免 from/to 范围重叠导致选错分片） */
+const WORD_SHARD = mainBank?.wordShard && typeof mainBank.wordShard === 'object' ? mainBank.wordShard : {};
 export const SHARD_COUNT = SHARDS.length;
 
 /**
@@ -57,9 +59,10 @@ export function localWordKey(word) {
   return normKey(word);
 }
 
-/** 词条所属分片号（依据主文件索引，同步返回，无需加载分片） */
+/** 词条所属分片号（优先用词→分片精确映射；未命中时回退 from/to 范围扫描） */
 export function shardOf(word) {
   const k = normKey(word);
+  if (WORD_SHARD[k]) return WORD_SHARD[k];
   for (const s of SHARDS) if (k >= s.from && k <= s.to) return s.shard;
   return null;
 }
