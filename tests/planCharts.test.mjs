@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildScheduleBoard } from '../src/utils/planCharts.js';
+import { buildScheduleBoard, riskOption, checkinTimelineOption } from '../src/utils/planCharts.js';
 
 const task = (over = {}) => ({
   id: 't' + Math.random().toString(36).slice(2),

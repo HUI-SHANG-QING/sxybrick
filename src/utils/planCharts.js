@@ -169,7 +169,7 @@ export function riskOption(risks = []) {
   if (!risks?.length) return emptyOption();
   const data = risks.slice().reverse().map(r => ({
     value: r.task.estimatedMinutes || 30,
-    name: r.task.title.slice(0, 16),
+    name: String(r.task.title ?? '').slice(0, 16),
     itemStyle: { color: SEVERITY_COLOR[r.severity] },
   }));
   return {
@@ -204,7 +204,7 @@ export function scheduleOption(tasks = []) {
       formatter: p => {
         const b = buckets[p.dataIndex];
         if (!b.tasks.length) return `${b.hour}:00<br/>无任务`;
-        return `${b.hour}:00<br/>${b.tasks.map(t => `·${t.title.slice(0, 20)}`).join('<br/>')}`;
+        return `${b.hour}:00<br/>${b.tasks.map(t => `·${String(t.title ?? '').slice(0, 20)}`).join('<br/>')}`;
       },
     },
     grid: { left: 36, right: 16, top: 16, bottom: 28 },
@@ -280,7 +280,7 @@ export function compareBarOption(completion = []) {
 export function checkinTimelineOption(tasks = []) {
   const rows = tasks.filter(t => t.scheduledHour != null || t.completedAt);
   if (!rows.length) return emptyOption('暂无排程/打卡数据');
-  const cats = rows.map(t => t.title.slice(0, 14));
+  const cats = rows.map(t => String(t.title ?? '').slice(0, 14));
   const planned = [];
   const actual = [];
   rows.forEach((t, i) => {

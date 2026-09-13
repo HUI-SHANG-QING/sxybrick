@@ -98,14 +98,15 @@ const canEdit = computed(() => isToday.value);
 
 // ──────────────── 计算属性 ────────────────
 const summary = computed(() => {
-  if (!plan.value?.tasks?.length) return null;
+  // 0 任务计划也必须返回完整对象（而非 null），否则模板 summary.total 会渲染期崩溃
+  const tasks = plan.value?.tasks || [];
   const byQuadrant = { Q1: 0, Q2: 0, Q3: 0, Q4: 0 };
   const byStatus = { pending: 0, done: 0, partial: 0, skipped: 0 };
-  for (const t of plan.value.tasks) {
+  for (const t of tasks) {
     byQuadrant[t.quadrant] = (byQuadrant[t.quadrant] || 0) + 1;
     byStatus[t.status] = (byStatus[t.status] || 0) + 1;
   }
-  const total = plan.value.tasks.length;
+  const total = tasks.length;
   const doneRate = total ? Math.round((byStatus.done / total) * 100) : 0;
   return { total, byQuadrant, byStatus, doneRate };
 });
@@ -308,7 +309,7 @@ async function confirmAction() {
     await refreshAll();
     await refreshSynergy();
     await loadHistoryList();
-    toast(t('views.dailyPlan.checkedIn', '已{status}：{title}', { status: STATUS_LABEL[status], title: task.title.slice(0, 20) }), 'success');
+    toast(t('views.dailyPlan.checkedIn', '已{status}：{title}', { status: STATUS_LABEL[status], title: String(task.title ?? '').slice(0, 20) }), 'success');
   } catch (e) {
     toast(t('views.dailyPlan.checkinFailed', '打卡失败：{msg}', { msg: e?.message || e }), 'error');
   } finally {
