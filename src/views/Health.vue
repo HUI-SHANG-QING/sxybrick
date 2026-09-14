@@ -6,6 +6,7 @@ import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAssetHealth, getNetWorth, getSourceOverview } from '../agent/analytics.js';
+import { getReplyStats } from '../agent/reply.js';
 import { deleteCard } from '../repo.js';
 import { db } from '../db.js';
 import { toast } from '../utils/toast.js';
@@ -14,11 +15,23 @@ import EmptyState from '../components/EmptyState.vue';
 
 const router = useRouter();
 const health = ref(null);
+const aiHealth = ref(null);
 const networth = ref(null);
 const sources = ref(null); // { bySource, variantCount, untraced, totalSources }
 const busy = ref(false);
 
 // P2-24 一键修复：统计可安全自动清理的项数（重复/僵尸/孤儿图片），用于按钮可用性
+// AI 回复健康：兜底率 <=10% 绿，>10% 红；无数据灰
+const aiHealthColor = computed(() => {
+  const a = aiHealth.value;
+  if (!a || !a.total) return 'var(--ink-2)';
+  return a.fallbackRate > 10 ? 'var(--red)' : 'var(--green)';
+});
+const aiHealthTitle = computed(() => {
+  const a = aiHealth.value;
+  if (!a || !a.total) return t('views.health.aiHealthEmpty');
+  return a.fallbackRate > 10 ? t('views.health.aiHealthWarn') : t('views.health.aiHealthGood');
+});
 const fixableCount = computed(() => {
   const h = health.value; if (!h) return 0;
   return h.duplicates.reduce((s, g) => s + g.n - 1, 0) + (h.zombieCount || 0) + (h.orphanImageCount || 0);
@@ -39,6 +52,7 @@ async function load() {
   try {
     const [h, nw, src] = await Promise.all([getAssetHealth(), getNetWorth(), getSourceOverview()]);
     health.value = h; networth.value = nw; sources.value = src;
+    aiHealth.value = getReplyStats();
     try { T.healthScan(); } catch {}
   }
   catch (e) { toast(e.message, 'error'); }
@@ -125,6 +139,7 @@ onMounted(load);
       <div class="stat clickable" :title="t('views.health.statZombieTitle')" @click="openZombies"><div class="num" :style="{ color: health.zombieCount ? 'var(--amber)' : 'var(--green)' }">{{ health.zombieCount }}</div><div class="hint">{{ t('views.health.statZombies') }}</div></div>
       <div class="stat clickable" :title="t('views.health.statOrphanTitle')" @click="openOrphans"><div class="num" :style="{ color: health.orphanImageCount ? 'var(--amber)' : 'var(--green)' }">{{ health.orphanImageCount }}</div><div class="hint">{{ t('views.health.statOrphanImages') }}</div></div>
       <div class="stat clickable" :title="t('views.health.statUntaggedTitle')" @click="openUntagged"><div class="num">{{ health.untaggedCount }}</div><div class="hint">{{ t('views.health.statUntagged') }}</div></div>
+      <div class="stat" :title="aiHealthTitle"><div class="num" :style="{ color: aiHealthColor }">{{ aiHealth && aiHealth.total ? t('views.health.aiHealthNum', undefined, { rate: aiHealth.fallbackRate }) : '—' }}</div><div class="hint">{{ t('views.health.aiHealthTitle') }}</div></div>
     </div>
 
     <!-- 知识净值（资产负债表） -->

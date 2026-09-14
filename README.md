@@ -4,6 +4,8 @@
 
 🔗 在线使用：https://hui-shang-qing.github.io/sxybrick/
 
+📚 全套文档（技术/使用/交付/软著/毕设）见 [`docs-suite/`](docs-suite/00-总索引.md)。
+
 ---
 
 ## 它是什么
@@ -20,7 +22,7 @@ SxyBrick 是一套面向考研（计组 / 线代 / 系统概论 / 编译原理�
 ```bash
 npm install        # 安装依赖
 npm run dev        # 本地开发（Vite）
-npm test           # 运行全部单元测试（190+ 项）
+npm test           # 质量门：i18n + 依赖检查 + 全部测试（1079 项）
 npm run build      # 生产构建（产出 dist/）
 npm run preview    # 本地预览生产构建
 npm run hub        # 启动局域网同步中枢
@@ -38,7 +40,7 @@ npm run hub        # 启动局域网同步中枢
 | 可视化 | ECharts · 词云 · 热力图 · 雷达图 |
 | 公式/排版 | KaTeX · marked · highlight.js |
 | AI 智能体 | 运行时工具/Agent 注册（`registerTool` / `registerAgent`） |
-| 测试 | node:test + fake-indexeddb（190+ 项，含三条黄金路径集成测试） |
+| 测试 | node:test + fake-indexeddb（1079 项，含黄金路径集成测试） |
 
 ## 目录结构
 
@@ -157,7 +159,7 @@ export const agents = [{
 npm test
 ```
 
-覆盖 FSRS 调度、同步合并语义、校准、预测、净值、apkg 解析、自我解释同步、插件系统（manifest 校验 / Agent 桥接 / 钩子映射 / 插件包 / 官方示例）、资料中心（OPFS 路由 / 解析器 / 建卡草稿 / 文件问答 / OCR 纯函数与黄金路径 / 知识图谱联动）等 270+ 项断言，含 fake-indexeddb 的六条黄金路径集成测试（建卡→复习→到期闭环 / 备份冲突合并 / 删除→墓碑跨设备级联 / 资料上传→解析→索引→检索→确认建卡→删除 / 图片上传→OCR→全文入库→检索 / 资料解析→自动关联图谱边→溯源→删除清理）。CI 中 `npm test` 作为发布门禁，失败则不构建不发布。
+覆盖 FSRS 调度、同步合并语义、校准、预测、净值、插件系统、资料中心等 **1079 项断言**，含 fake-indexeddb 的多条黄金路径集成测试。CI 中 `npm test` 作为发布门禁，失败则不构建不发布。
 
 ## 部署
 

@@ -20,6 +20,12 @@ export const zh = {
   statOrphanTitle: '查看孤儿图片',
   statUntaggedTitle: '查看无标签卡',
 
+  aiHealthTitle: 'AI 回复健康',
+  aiHealthEmpty: '本轮暂无 AI 回复',
+  aiHealthGood: 'AI 回复稳定',
+  aiHealthWarn: '兜底率偏高：模型可能在抽风或 Key 将用尽',
+  aiHealthNum: '{rate}% 兜底',
+
   networthTitle: '知识净值',
   networthHint: '卡片库「资产负债表」：资产原值 − 遗忘折旧 = 净值（按记忆保持度 R 折算）',
   nwNetValue: '知识净值',
@@ -112,6 +118,12 @@ export const en = {
   statZombieTitle: 'View zombie cards',
   statOrphanTitle: 'View orphan images',
   statUntaggedTitle: 'View untagged cards',
+
+  aiHealthTitle: 'AI reply health',
+  aiHealthEmpty: 'No AI replies this session',
+  aiHealthGood: 'AI replies stable',
+  aiHealthWarn: 'High fallback rate: model may be misbehaving or Key running low',
+  aiHealthNum: '{rate}% fallback',
 
   networthTitle: 'Knowledge net worth',
   networthHint: 'Card library "balance sheet": original asset value − forgetting depreciation = net worth (discounted by memory retention R)',
