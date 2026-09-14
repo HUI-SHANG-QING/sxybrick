@@ -1,6 +1,12 @@
 // 图片存取与 URL 解析：图片以 Blob 存 IndexedDB，正文里用 sxy-img://<id> 占位
 import { db } from './db.js';
 
+// round43 N2：图片引用扫描表——唯一口径，三处共用（勿在别处另写表清单）：
+//   · repo.cleanupOrphanImages / findOrphanImages（本地孤儿 GC：不在此清单里的正文引用会被误判孤儿删图）
+//   · sync.collectPackImageIds（备份打包：引用判定不同源会漏导图片）
+// docFiles（资料解析文本）可能内嵌占位符（statImageAssets 已扫它），必须纳入。
+export const IMAGE_REF_TABLES = ['cards', 'wordCards', 'notes', 'docs', 'memos', 'mindmaps', 'docFiles', 'aiChats'];
+
 // LRU-cap 缓存：长会话 + 大量图片会持续累积 Blob 引用导致内存泄漏，
 // 超过上限时按插入顺序淘汰最旧条目并回收其 objectURL（避免浏览器内存压力 / 不可逆占用）。
 const cache = new Map(); // id -> objectURL

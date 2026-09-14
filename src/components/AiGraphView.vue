@@ -22,6 +22,9 @@ const el = ref(null);
 const failed = ref(false);
 const truncated = ref(false); // 节点数超护栏被截断时提示（2026-09-14 审计 P2）
 let resizeObserver = null;
+// 审计 P2-2（2026-09-14）：首帧与后续更新采用不同 setOption 策略 + resize 节流。
+let _optionApplied = false; // 是否已应用过 option（首帧 notMerge 清场，后续增量）
+let _resizeRaf = 0;         // rAF 句柄（ResizeObserver 高频回调合并到一帧）
 
 // 力导向布局节点数护栏：模型按协议返回超大图时，上千节点会让 force layout 卡死主线程
 // （repulsion O(n²)）。只渲染前 MAX_NODES 个节点及其内部边，并在图上明确告知被截断。
@@ -87,28 +90,64 @@ function buildOption(g) {
 async function draw() {
   let g = normalizeGraphData(props.data);
   if (!g) { failed.value = true; return; }
-  // 节点数护栏：只保留前 MAX_NODES 个节点及其两端都在保留集内的边。
+  // 节点数护栏：只保留重要度最高的 MAX_NODES 个节点及其两端都在保留集内的边。
   // 截断只影响展示（超大图本来也看不清），数据完整性与其余协议内容不受影响。
+  // 审计 P2-1（2026-09-14）：截断必须按重要度排序，不能按数组序硬砍——
+  // 模型构建节点时通常是语义遍历序，中心节点未必排在数组前面，按序 slice
+  // 可能留下边缘节点、丢掉枢纽节点（图上只见一堆孤立点）。
+  // 重要度 = 图中度（作为边端点出现的次数，中心性代理）优先，其次节点自身
+  // value，再回落输入稳定序——确定性输出，超大图优先保留「高连接枢纽」。
   if (g.nodes.length > MAX_NODES) {
-    const keep = new Set(g.nodes.slice(0, MAX_NODES).map((n) => n.id));
+    const deg = new Map();
+    for (const l of g.links) {
+      if (!l || !l.source || !l.target) continue;
+      deg.set(l.source, (deg.get(l.source) || 0) + 1);
+      deg.set(l.target, (deg.get(l.target) || 0) + 1);
+    }
+    const ranked = g.nodes
+      .map((n, i) => ({ n, i, d: deg.get(n.id) || 0, v: Number(n.value) || 0 }))
+      .sort((a, b) => b.d - a.d || b.v - a.v || a.i - b.i);
+    const keep = new Set(ranked.slice(0, MAX_NODES).map((x) => x.n.id));
     g = { ...g, nodes: g.nodes.filter((n) => keep.has(n.id)), links: g.links.filter((l) => keep.has(l.source) && keep.has(l.target)) };
     truncated.value = true;
   }
   await nextTick();
+  const firstInit = !(el.value?._chart); // ensureChart 前是否已有实例（决定首帧/增量策略）
   const chart = await ensureChart()
     // 容器刚渲染出来可能还没尺寸：重试一次
     || (await new Promise((r) => setTimeout(r, 60)), await ensureChart());
   if (!chart) return;
-  chart.setOption(buildOption(g), true);
-  // init 时容器若为 0 宽，这里补一次 resize 让图真正可见
-  chart.resize();
+  if (!_optionApplied) {
+    // 首帧：清场全量（刚 init，无旧状态可保留，notMerge 保证与当前数据严格一致）
+    chart.setOption(buildOption(g), true);
+    _optionApplied = true;
+  } else {
+    // 数据更新：增量替换系列。graph 的 data/links 是系列内数组，默认 merge 会按
+    // index 对齐（新旧节点数不同时错位残留），必须 replaceMerge:['series'] 整体
+    // 替换图数据，同时复用 tooltip/legend 等组件配置（审计 P2-2）。
+    chart.setOption(buildOption(g), { replaceMerge: ['series'] });
+  }
+  // init 时容器若为 0 宽，这里补一次 resize 让图真正可见。
+  // 仅首次 init 后需要——旧代码无条件 resize，数据更新路径多一次无谓的布局计算。
+  if (firstInit) chart.resize();
 }
 
 onMounted(() => {
   draw();
-  // 容器尺寸变化（侧栏折叠 / 窗口缩放 / 气泡变宽）时跟随重绘
+  // 容器尺寸变化（侧栏折叠 / 窗口缩放 / 气泡变宽）时跟随重绘。
+  // 审计 P2-2：高频回调合并到 rAF 一帧——折叠动画/连续缩放会在一帧内触发多次
+  // ResizeObserver 回调，每次都同步 resize 会在主线程堆积（force 布局 + canvas 重排）。
   if (typeof ResizeObserver !== 'undefined' && el.value) {
-    resizeObserver = new ResizeObserver(() => { el.value?._chart?.resize(); });
+    resizeObserver = new ResizeObserver(() => {
+      if (_resizeRaf) return;
+      const run = () => {
+        _resizeRaf = 0;
+        const dom = el.value;
+        if (dom?._chart) { try { dom._chart.resize(); } catch { /* ignore */ } }
+      };
+      if (typeof requestAnimationFrame !== 'undefined') _resizeRaf = requestAnimationFrame(run);
+      else run();
+    });
     resizeObserver.observe(el.value);
   }
 });
@@ -117,6 +156,7 @@ watch(() => props.data, () => { draw(); });
 
 onBeforeUnmount(() => {
   if (resizeObserver) { try { resizeObserver.disconnect(); } catch { /* ignore */ } resizeObserver = null; }
+  if (_resizeRaf) { try { cancelAnimationFrame(_resizeRaf); } catch { /* ignore */ } _resizeRaf = 0; }
   const dom = el.value;
   if (dom?._chart) {
     try { dom._chart.dispose(); } catch { /* ignore */ }

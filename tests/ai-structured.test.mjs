@@ -106,6 +106,17 @@ test('normalizeStructuredFinal：带引子的结构化 JSON 剥离成纯 JSON（
   // 整段 JSON / 代码块本来就能被 parseStructuredReply 识别 → 原样
   assert.equal(normalizeStructuredFinal(json), json);
   assert.equal(normalizeStructuredFinal('```json\n' + json + '\n```'), '```json\n' + json + '\n```');
+  // round44 N2：引子 + 围栏 + 正文里还有第二个 {...} 示例 → 首尾扫描会截进示例的 }，
+  // 必须优先剥围栏（最强信号）而不是走兜底扫描
+  assert.equal(
+    normalizeStructuredFinal(`结果如下：\n\n\`\`\`json\n${json}\n\`\`\`\n\n例如其他格式 {"a":1} 仅供参考`),
+    json,
+  );
+  // 围栏内容不是合法结构化 JSON（无 type+data）→ 走原兜底，不误剥
+  assert.equal(
+    normalizeStructuredFinal('结果：```json\n{"foo":1}\n```'),
+    '结果：```json\n{"foo":1}\n```',
+  );
   // 绝不误伤正文
   assert.equal(normalizeStructuredFinal('普通回答'), '普通回答');
   assert.equal(normalizeStructuredFinal(''), '');

@@ -70,7 +70,11 @@ export function armDbNotify(dbInstance) {
   if (!dbInstance || typeof dbInstance.on !== 'function') return;
   let timer = null;
   const fire = () => { timer = null; notifyDbChanged('local'); };
-  const schedule = () => { if (!timer) timer = setTimeout(fire, 150); };
+  // 审计 P2-3（2026-09-14）：trailing 节流——每次写都重置计时器，
+  // 广播发生在「最后一次写后安静 150ms」，而非「第一次写后 150ms」。
+  // 旧实现单发不重置：批量导入/同步持续写库时，广播可能落在写完成之前，
+  // 其他 tab 收到通知去刷新却读到中间态（数据还没落完）。
+  const schedule = () => { if (timer) clearTimeout(timer); timer = setTimeout(fire, 150); };
   for (const ev of ['creating', 'updating', 'deleting']) {
     try {
       dbInstance.on(ev, () => { schedule(); });

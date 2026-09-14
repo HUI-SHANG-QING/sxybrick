@@ -40,7 +40,7 @@ async function allCardsCached() {
 if (typeof window !== 'undefined') {
   try { subscribeDbChanged(() => invalidateCardsCache()); } catch { /* 忽略 */ }
 }
-import { dayWindowOf, realReviews } from './repo-core.js';
+import { dayWindowOf, realReviews, dueOf } from './repo-core.js';
 
 const now = () => Date.now();
 
@@ -408,7 +408,7 @@ export async function recommendTodaySequence(opt = {}) {
   // 评分每张卡（仅候选：到期+薄弱+巩固中）
   const candidates = [];
   for (const c of cards) {
-    const due = c.dueAt <= nowTs;
+    const due = dueOf(c) <= nowTs;
     const fail = failCount.get(c.id) || 0;
     const weak = c.marked || fail >= 2;
     const consolidation = c.consolidation === 1 || c.consolidation === 2;

@@ -205,15 +205,18 @@ export function selectZombieIds(cards, reviewedIds, nowTs = Date.now(), staleDay
 }
 
 // ---------- 复习提醒建议（getReviewSuggestion 核心） ----------
+
+// round44 N1：幽灵卡到期判定口径（全库唯一实现，勿在调用点另写裸比较）——
+// NaN/null dueAt 视为 0（到期一次，复习后自愈）、undefined 视为不到期。
+// 旧实现直接 `c.dueAt <= nowTs`：NaN 恒假（卡片在队列里排最前、建议里却不计数）、
+// null 被当成 1970 年（恒到期），导致建议队列与统计计数对不上。
+export function dueOf(c) {
+  const d = c?.dueAt;
+  if (d === undefined) return Infinity;
+  return (d === null || Number.isNaN(d)) ? 0 : d;
+}
+
 export function buildReviewSuggestion(cards, reviews, nowTs = Date.now()) {
-  // 与 filterReviewCandidates 同一幽灵卡口径：NaN/null dueAt 视为 0（到期一次，复习后自愈），
-  // undefined 视为不到期。旧实现直接 `c.dueAt <= nowTs` —— NaN 恒假（卡片在队列里排最前、
-  // 建议里却不计数）、null 会被当成 1970 年，两个入口数字对不上。
-  const dueOf = (c) => {
-    const d = c.dueAt;
-    if (d === undefined) return Infinity;
-    return (d === null || Number.isNaN(d)) ? 0 : d;
-  };
   const due = cards.filter(c => dueOf(c) <= nowTs);
 
   // 今天待背按科目分组
@@ -288,7 +291,7 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
 
   // 今日复习 = 去重卡片数（同一张卡今天复习多次只算 1 张）—— 口径见 countReviewsInWindow
   const todayReviews = countReviewsInWindow(real, dayWindowOf(nowTs)).cards;
-  const dueToday = cards.filter(c => c.dueAt <= nowTs).length;
+  const dueToday = cards.filter(c => dueOf(c) <= nowTs).length;
 
   // 热力图：近 365 天
   const since = nowTs - 365 * DAY;

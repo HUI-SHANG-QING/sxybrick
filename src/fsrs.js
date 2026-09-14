@@ -270,6 +270,14 @@ export function trainWeights(reviews, cardsById, opts = {}) {
         .map(r => ({ grade: toFsrsGrade(r.rating), y: r.rating > 0 ? 1 : 0, reviewedAt: r.reviewedAt })),
     });
   }
+  // round43 N1：过滤后可能产生「空轨迹卡」——某张无 fsrs 历史的新卡（init=null），
+  // 其复习行全部是 quick/脏 reviewedAt，被上方过滤器滤空。空轨迹进入 lossOf 会在
+  // init 分支读 revs[0].grade 抛 TypeError（round43 审计已用可运行测试坐实），
+  // 且生产两条调用链（worker/inline 兜底）都会命中 → 个性化训练偶发失败。
+  // 此处直接丢弃空轨迹：它们本来就不贡献任何样本（lossOf 的 revs 循环一次都不进）。
+  for (let i = cardTrajectories.length - 1; i >= 0; i -= 1) {
+    if (!cardTrajectories[i].reviews.length) cardTrajectories.splice(i, 1);
+  }
 
   function lossOf(weights) {
     let total = 0, n = 0;

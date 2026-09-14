@@ -7,7 +7,7 @@
 //   · 冲突可视化：importBackup 返回 stats.conflicts，列出哪些卡片字段被覆盖
 //   · 增量同步：buildIncrementalBackup(lastSyncAt) 只导出 updatedAt > lastSyncAt 的行
 import { db, uid, currentDbMode } from './db.js';
-import { base64ToBlob, blobToBase64, extractImageIds } from './images.js';
+import { base64ToBlob, blobToBase64, extractImageIds, IMAGE_REF_TABLES } from './images.js';
 import { triggerHook } from './plugins/registry.js';
 import { sheetCellGuard } from './utils/exporters.js';
 import { encryptBackup, decryptBackup } from './utils/crypto.js';
@@ -114,7 +114,12 @@ function collectPackImageIds(cards, parts) {
   for (const c of cards || []) {
     for (const id of extractImageIds((c?.front || '') + '\n' + (c?.back || ''))) ids.add(id);
   }
-  for (const tbl of ['notes', 'docs', 'memos', 'mindmaps']) {
+  // round43 N2：表清单统一走 images.js 的 IMAGE_REF_TABLES（含 wordCards/docFiles/aiChats），
+  // 与本地 GC（cleanupOrphanImages/findOrphanImages）、导入侧存活集扫描三处同源——
+  // 消除「图仅被 docFiles/aiChats 正文引用 → GC 认为在用、打包却漏带」的漏导边角。
+  // cards 已按 front/back 单独处理（避免整行重复扫）；parts 缺表时 || [] 兜底。
+  for (const tbl of IMAGE_REF_TABLES) {
+    if (tbl === 'cards') continue;
     for (const r of (parts?.[tbl] || [])) {
       for (const id of extractImageIds(JSON.stringify(r))) ids.add(id);
     }
@@ -941,14 +946,10 @@ export async function importBackup(backup, opts = {}) {
       // 审计：存活集必须扫全表全字段，与 cleanupOrphanImages（repo.js）同口径。
       // 此前只扫 cards 的 front/back——仅被词卡/笔记/文档引用的共享图被判定孤儿并误删，
       // 且增量包只为"本次变更卡"带图，该图永远不会被重传，形成永久损坏。
-      const restCards = await db.cards.toArray();
-      const restWordCards = await db.wordCards.toArray();
-      const restNotes = await db.notes.toArray();
-      const restDocs = await db.docs.toArray();
-      const restMemos = await db.memos.toArray();
-      const restMindmaps = await db.mindmaps.toArray();
+      // round43 N2：表清单统一走 images.js 的 IMAGE_REF_TABLES（含 docFiles/aiChats）。
+      const refRows = await Promise.all(IMAGE_REF_TABLES.map((t) => db[t].toArray()));
       const used = new Set();
-      for (const c of [...restCards, ...restWordCards, ...restNotes, ...restDocs, ...restMemos, ...restMindmaps]) {
+      for (const c of refRows.flat()) {
         for (const i of extractImageIds(JSON.stringify(c))) used.add(i);
       }
       const orphan = [...goneImgIds].filter(id => !used.has(id));

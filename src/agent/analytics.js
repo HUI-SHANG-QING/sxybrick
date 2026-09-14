@@ -7,6 +7,7 @@ import { db } from '../db.js';
 import { getStats, weakCards, isPomoCountable, getSchedConfig } from '../repo.js';
 import { getReplyStats } from './reply.js';
 import { trainWeights } from '../fsrs.js';
+import { dueOf } from '../repo-core.js';
 
 const DAY = 86400000;
 const now = () => Date.now();
@@ -385,7 +386,7 @@ async function _getSubjectDiagnosis() {
   const diag = [];
   for (const subject of subjects) {
     const subjCards = cards.filter(c => (c.subject || '未分类') === subject);
-    const due = subjCards.filter(c => c.dueAt <= nowTs).length;
+    const due = subjCards.filter(c => dueOf(c) <= nowTs).length;
     const marked = subjCards.filter(c => c.marked).length;
     const pairN = pairs.filter(p => p.a.subject === subject || p.b.subject === subject).length;
     const mItem = (stats.mastery || []).find(x => x.subject === subject);
@@ -465,7 +466,7 @@ async function _getGraphDrivenReviewPlan(opts = {}) {
   if (!edges.length) {
     const nowTs = now();
     let pool = cards;
-    if (includeDueOnly) pool = pool.filter(c => c.dueAt <= nowTs);
+    if (includeDueOnly) pool = pool.filter(c => dueOf(c) <= nowTs);
     pool.sort((a, b) => (a.dueAt - b.dueAt) || (a.id < b.id ? -1 : 1));
     return { path: pool.slice(0, limit), prereqsAdded: [], contrastPairs: [], unmapped: [], edgesUsed: 0, fallback: true };
   }
@@ -486,7 +487,7 @@ async function _getGraphDrivenReviewPlan(opts = {}) {
   const failCount = new Map();
   for (const r of reviews) if (r.rating === 0) failCount.set(r.cardId, (failCount.get(r.cardId) || 0) + 1);
 
-  let seeds = cards.filter(c => c.dueAt <= nowTs);
+  let seeds = cards.filter(c => dueOf(c) <= nowTs);
   // round29：failCount 是 reviews 的聚合派生值，db.cards 原始行没有该字段。
   // 本函数内它只用于上面的筛选判定，但这些 weak 会作为 seeds 流进返回的复习路径、
   // 被上游直接当「带 failCount 的卡」消费（本项目多处按 c.failCount 判薄弱，

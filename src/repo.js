@@ -7,7 +7,7 @@ import { triggerHook } from './plugins/registry.js';
 // P1-3 检索强度分级选项：供 Review.vue 等 UI 直接渲染选择器
 export { RETRIEVAL_STRENGTH_OPTIONS };
 import { mergeUserWeights, retrievability } from './fsrs.js';
-import { extractImageIds } from './images.js';
+import { extractImageIds, IMAGE_REF_TABLES } from './images.js';
 import { initialStabilityForCard } from './algorithms/pretest.js';
 import { buildReviewSession, retrievalGrading } from './algorithms/session.js';
 // D3.1 笔记解析纯函数（双向链接 + 标签抽取 + 归一化）
@@ -30,6 +30,7 @@ import {
   wrongReasonToCode as _wrongReasonToCode,
   formatDue as _formatDue,
   filterReviewCandidates,
+  dueOf,
   rankWeakCards,
   selectZombieIds,
   buildReviewSuggestion,
@@ -176,7 +177,7 @@ export async function listCards({ q = '', subject = '', tags = [], logic = 'AND'
   // 又全表 filter 一遍；排序本身是 O(n log n)，这里顺带一次遍历算完即可。
   const nowTs = now();
   let dueCount = 0;
-  for (const c of all) if (c.dueAt <= nowTs) dueCount++;
+  for (const c of all) if (dueOf(c) <= nowTs) dueCount++;
   return { items: cards, total: cards.length, dueCount };
 }
 
@@ -621,14 +622,13 @@ export async function cleanupOrphanImages(ids) {
   // round26 D4：**移除 imageRefs 索引快速路径**——该索引由 rebuildImageRefs 全量重建，
   // 但全仓除其自身外无任何调用方（写路径不维护引用集）→ 一旦有人触发 rebuild（indexedCount>0），
   // 快速路径会用**过期引用**判定孤儿，误删仍被其他卡引用的图片。
-  // 统一走全表扫描兜底（正确性优先；图引用量级小，扫描成本可接受）。
-  // 全表扫描（扫 cards+wordCards+notes+docs+memos+mindmaps）
-  const [cards, wordCards, notes, docs, memos, mindmaps] = await Promise.all([
-    allCards(), db.wordCards.toArray(), db.notes.toArray(),
-    db.docs.toArray(), db.memos.toArray(), db.mindmaps.toArray(),
-  ]);
+  // round43 N2：扫描口径统一为 images.js 的 IMAGE_REF_TABLES 常量清单（含 docFiles/aiChats，
+  // 资料解析文本也可能含 sxy-img:// 占位符，statImageAssets 已扫它——GC 漏扫会误删仍被
+  // 资料引用的图）。备份侧 collectPackImageIds 与导入侧存活集扫描同源引用此清单，
+  // 不再是历史上的「写死六表全表扫描」，新增引用表时只改常量一处。
+  const rows = await Promise.all(IMAGE_REF_TABLES.map((t) => db[t].toArray()));
   const used = new Set();
-  for (const c of [...cards, ...wordCards, ...notes, ...docs, ...memos, ...mindmaps]) {
+  for (const c of rows.flat()) {
     for (const i of extractImageIds(JSON.stringify(c))) used.add(i);
   }
   const removed = [];
@@ -644,12 +644,10 @@ export async function cleanupOrphanImages(ids) {
 export async function findOrphanImages(ids) {
   const idSet = new Set((ids || []).filter(Boolean));
   if (!idSet.size) return [];
-  const [cards, wordCards, notes, docs, memos, mindmaps] = await Promise.all([
-    allCards(), db.wordCards.toArray(), db.notes.toArray(),
-    db.docs.toArray(), db.memos.toArray(), db.mindmaps.toArray(),
-  ]);
+  // round43 N2：与 cleanupOrphanImages 同源——表清单统一走 images.js 的 IMAGE_REF_TABLES
+  const rows = await Promise.all(IMAGE_REF_TABLES.map((t) => db[t].toArray()));
   const used = new Set();
-  for (const c of [...cards, ...wordCards, ...notes, ...docs, ...memos, ...mindmaps]) {
+  for (const c of rows.flat()) {
     for (const i of extractImageIds(JSON.stringify(c))) used.add(i);
   }
   return [...idSet].filter((id) => !used.has(id));
@@ -675,8 +673,25 @@ export async function sweepOrphanRows() {
   const wordCardIds = new Set(wordCards.map(c => c.id));
   const delReviews = reviews.filter(r => !cardIds.has(r.cardId)).map(r => r.id);
   const delWord = wordReviews.filter(r => !wordCardIds.has(r.cardId)).map(r => r.id);
-  if (delReviews.length) { invalidateFailCountCache(); invalidateDashboardCache(); await db.reviews.bulkDelete(delReviews); }
-  if (delWord.length) await db.wordReviews.bulkDelete(delWord);
+  // round43 N3：清孤儿复习同样必须写墓碑——本端物理删行后若无墓碑，
+  // 对端同 id 行（老包/bridge 通道/未收到删除的设备）下次合并会按「新行」回灌，
+  // 幽灵复习复活计入统计。与 deleteCard（repo.js:555-561 round16 R16-1）和
+  // 导入侧 wordCard 级联（sync.js:972-988 round34 P2-5）的墓碑纪律同口径：删谁就给谁写墓碑。
+  if (delReviews.length || delWord.length) {
+    const nowTs = now();
+    await db.transaction('rw', db.reviews, db.wordReviews, db.tombstones, async () => {
+      if (delReviews.length) {
+        await db.reviews.bulkDelete(delReviews);
+        await db.tombstones.bulkPut(delReviews.map(id => ({ id, kind: 'review', deletedAt: nowTs })));
+        invalidateFailCountCache();
+        invalidateDashboardCache();
+      }
+      if (delWord.length) {
+        await db.wordReviews.bulkDelete(delWord);
+        await db.tombstones.bulkPut(delWord.map(id => ({ id, kind: 'wordReview', deletedAt: nowTs })));
+      }
+    });
+  }
   return delReviews.length + delWord.length;
 }
 

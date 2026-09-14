@@ -22,6 +22,19 @@ const DEFAULT_RATE = [1, 2];
 
 /** 粗略 token 估算：中文约 1 字 1 token，英文约 1 词 1.3 token，再计 10% 符号/格式开销 */
 export function estimateTokens(text) {
+  // round43 N4：多模态数组 content（[{type:'text'…},{type:'image_url'…}]）此前被
+  // String() 强转成 '[object Object]'，promptTokens 估算几乎为 0 → 用量账本失真。
+  // 数组时按部件展平：text 部件取正文，图片部件按固定 1000 token 粗估（与主流视觉模型量级一致）。
+  if (Array.isArray(text)) {
+    let n = 0;
+    for (const p of text) {
+      if (!p) continue;
+      if (typeof p === 'string') n += estimateTokens(p);
+      else if (p.type === 'text') n += estimateTokens(p.text);
+      else if (p.type === 'image_url') n += 1000;
+    }
+    return n;
+  }
   const s = String(text || '');
   if (!s) return 0;
   const cjk = (s.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;

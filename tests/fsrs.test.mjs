@@ -304,6 +304,32 @@ test('round42 F1: 首测（j=0）不计分——init 路径与 seed 路径口径
   assert.ok(rInit.weights.every((v) => Number.isFinite(v)), '权重全有限');
 });
 
+test('round43 N1: 空轨迹卡（init=null 且复习全被过滤）不崩溃，仅丢弃该轨迹', () => {
+  // 复现生产可达路径：prepareFsrsTrainingData 只过滤 quick 行、不剔除过滤后轨迹为空的卡。
+  // c1 是无 fsrs 历史的新卡（init=null），唯一一条复习是 quickCheck → 被滤空；
+  // c2 老卡有 9 条有效复习，让总样本越过 <8 早退门槛。
+  // 修复前：lossOf 的 init 分支读 revs[0].grade → TypeError: Cannot read properties of undefined。
+  // 修复后：空轨迹在构建期被丢弃，训练正常完成且样本数只计有效轨迹。
+  const cardsById = new Map([
+    ['c1', { fsrs: null, createdAt: T - 5 * DAY }],
+    ['c2', { fsrs: { s: 5, d: 4, reps: 3, last: T - 10 * DAY }, createdAt: T - 30 * DAY }],
+  ]);
+  const reviews = [
+    { cardId: 'c1', rating: 0, reviewedAt: T - 1 * DAY, type: 'quick' },
+    ...Array.from({ length: 9 }, (_, i) => ({ cardId: 'c2', rating: i % 3, reviewedAt: T - (9 - i) * DAY })),
+  ];
+  const r = trainWeights(reviews, cardsById, { iters: 3 });
+  assert.ok(Number.isFinite(r.loss), 'loss 有限（不抛 TypeError 且无 NaN）');
+  // c2 走 init 路径（fsrs.reps>0 → init=null），首测按 round42 F1 口径不计分（仅初始化 s/d），
+  // 故 9 条复习产出 8 个样本；关键是 c1 的空轨迹被丢弃、绝不抛 TypeError。
+  assert.equal(r.samples, 8, '样本数 = c2 的 9 条 - 首测 1 条（c1 空轨迹被丢弃不计）');
+  assert.ok(r.weights.every((v) => Number.isFinite(v)), '权重全有限');
+  // 对照：全 quick 输入（所有轨迹皆空）→ 走原有 <8 短路，同样不崩
+  const allQuick = Array.from({ length: 10 }, (_, i) => ({ cardId: 'c1', rating: 1, reviewedAt: T - i * DAY, type: 'quick' }));
+  const r2 = trainWeights(allQuick, new Map([['c1', { fsrs: null, createdAt: T }]]), { iters: 2 });
+  assert.equal(r2.samples, 0, '全空轨迹 → 0 样本（短路语义保持）');
+});
+
 // ---------- 持久化权重合并 ----------
 
 test('mergeUserWeights: v2 结构合法 → 原样返回副本', () => {

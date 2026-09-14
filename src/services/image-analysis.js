@@ -32,6 +32,10 @@ export const IMG_MODES = ['auto', 'ocrFirst', 'visionFirst'];
 // 费用护栏：单次分析最多发给视觉模型的图片数
 const VISION_LIMIT_FIRST = 3; // visionFirst 模式
 const VISION_LIMIT_FALLBACK = 1; // auto/ocrFirst 的兜底
+// round43 N5：OCR 文字化无总量护栏——多图消息（AI 回显带图上下文 / RAG 拼多张带图卡）
+// 会逐张 OCR，每张最长 30s，叠加可拖慢所有 AI 链路数分钟。与 visionLimit 对称加上限；
+// 超出的图直接标注「未识别（超出本次上限）」，不进 OCR 循环。
+const OCR_TEXT_LIMIT = 8;
 
 // ---- 设置解析 -------------------------------------------------------------
 
@@ -389,9 +393,12 @@ export async function enrichForLlm(messages, opts = {}) {
     });
   } else if (ids.length) {
     // ocrFirst / auto：OCR 文字化（会话内缓存，反复对话不重复识别）
+    // round43 N5：超出 OCR_TEXT_LIMIT 的图不进循环（标注「未识别」），防多图消息拖垮 AI 链路
+    const ocrIds = ids.slice(0, OCR_TEXT_LIMIT);
+    const skippedOcr = ids.slice(OCR_TEXT_LIMIT);
     const db = getDb();
     const ocrText = {};
-    for (const id of ids) {
+    for (const id of ocrIds) {
       const row = await db.images.get(id);
       // 缓存命中要求「图片行存在且未变更」：updatedAt 是图片被替换时必然推进的字段，
       // 拿它当版本签名，图片换了内容后旧识别结果自动作废（不需要在每个删除点挂钩子）。
@@ -421,9 +428,14 @@ export async function enrichForLlm(messages, opts = {}) {
         ? `【图片(${id}) 内文字（OCR）】\n${ocr.trim()}`
         : `【图片(${id})】未能识别文字，未纳入分析`);
     });
-    // auto 兜底：OCR 失败的图挂 1 张给多模态（并把标注改回「已送图」）
+    // round43 N5：被总量上限挡掉的图单独标注（区别于「识别失败」），且不进 auto 视觉兜底——
+    // 否则 OCR 护栏形同虚设（超限图全部转嫁到多模态发送）。
+    for (const id of skippedOcr) {
+      textMap.set(`sxy-img://${id}`, `【图片(${id})】未识别（超出本次 OCR 上限 ${OCR_TEXT_LIMIT} 张），如需分析请单独提问`);
+    }
+    // auto 兜底：OCR 失败的图挂 1 张给多模态（并把标注改回「已送图」；仅限真的进过 OCR 循环的图）
     if (policy.allowVisionFallback && vision.length < visionLimit) {
-      const failed = ids.filter((id) => !ocrText[id] || !ocrText[id].trim());
+      const failed = ocrIds.filter((id) => !ocrText[id] || !ocrText[id].trim());
       const room = visionLimit - vision.length;
       const mapped = await imageIdsToVisionContentMapped(failed.slice(0, room));
       for (const x of mapped) vision.push(x.part);

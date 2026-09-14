@@ -203,6 +203,19 @@ export function normalizeStructuredFinal(text) {
   if (!raw) return raw;
   if (parseStructuredReply(raw)) return raw;
 
+  // round44 N2：优先尝试「代码围栏」提取——正文里若还有第二个 {...} 示例文本，
+  // 下面的 first/last 兜底扫描会把最后一个 } 截进候选、解析失败。围栏块是模型
+  // 表达「这就是结构化回复」的最强信号，命中且带 type+data 就直接采用；
+  // 未命中或解析失败再走原有的首尾扫描兜底（保守规则不变）。
+  const fence = raw.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+  if (fence) {
+    try {
+      const obj = JSON.parse(fence[1]);
+      const type = String(obj?.type || obj?.shape || '').trim().toLowerCase();
+      if (type && obj.data != null) return fence[1];
+    } catch { /* 围栏内容不是合法结构化 JSON，走兜底 */ }
+  }
+
   const first = raw.indexOf('{');
   const last = raw.lastIndexOf('}');
   if (first === -1 || last <= first) return raw;

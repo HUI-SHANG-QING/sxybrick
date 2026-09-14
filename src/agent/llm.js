@@ -138,17 +138,33 @@ export async function chat(messages, cfg, opts = {}) {
       buf = lines.pop() || '';
       for (const line of lines) {
         const s = line.trim();
-        if (!s || !s.startsWith('data:')) continue;
-        const payload = s.slice(5).trim();
-        if (payload === '[DONE]') continue;
-        try {
-          const json = JSON.parse(payload);
+        if (!s) continue;
+        // 审计 P2（2026-09-14 续）：流式分支同款缺陷——服务端 200 + SSE error 行
+        // （余额不足/内容审核/模型不存在/图片过大）此前被静默忽略 → full='' →
+        // 上层误报「当前回答为空，请检查 AI 密钥与网络」。与上方非流式分支同口径：
+        // 任何 data 行或非 data 行解析出 {error} 即抛出可读原因，不掩盖成密钥/网络问题。
+        let json = null;
+        if (s.startsWith('data:')) {
+          const payload = s.slice(5).trim();
+          if (payload === '[DONE]') continue;
+          try { json = JSON.parse(payload); } catch { /* 非 JSON 行忽略 */ }
+        } else {
+          // 非 data: 行：服务端可能不回 SSE、直接整段 JSON 错误体（部分网关失败响应）
+          try { json = JSON.parse(s); } catch { /* 非 JSON 行忽略 */ }
+        }
+        if (json && json.error) {
+          const em = typeof json.error === 'object' && json.error
+            ? (json.error.message || json.error.type || '响应异常')
+            : String(json.error || '响应异常');
+          throw new Error(`AI 返回异常：${em}`);
+        }
+        if (s.startsWith('data:')) {
           const delta = json?.choices?.[0]?.delta?.content || '';
           if (delta) {
             full += delta;
             opts.onToken?.(delta, full);
           }
-        } catch { /* 忽略非 JSON 行 */ }
+        }
       }
     }
   } finally {

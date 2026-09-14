@@ -19,6 +19,22 @@ test('token 估算：中文按字、英文按词，空串为 0', () => {
   assert.ok(estimateTokens('混合 mixed 文本 test') > Math.max(zh, en) / 2);
 });
 
+test('round43 N4: 多模态数组 content 按部件展平，不再被 String() 压成 0', () => {
+  // 修复前：[{type:'text',text:'你好'},{type:'image_url',...}] 被 String() 强转成
+  // '[object Object]' → 估算几乎为 0，用量账本 token/费用失真。
+  const textOnly = estimateTokens('你好世界');
+  const multimodal = estimateTokens([
+    { type: 'text', text: '你好世界' },
+    { type: 'image_url', image_url: { url: 'data:image/png;base64,...' } },
+  ]);
+  assert.ok(multimodal > textOnly, `数组 content 估算（${multimodal}）必须大于纯文本部件（${textOnly}）：图片部件计入`);
+  assert.ok(multimodal >= textOnly + 1000, 'image_url 部件按 ≥1000 token 计入');
+  // 纯字符串数组（罕见但合法）也不失真
+  assert.equal(estimateTokens(['你好世界', '更多']), estimateTokens('你好世界') + estimateTokens('更多'));
+  // 非法部件（null/未知 type）不崩、不计
+  assert.equal(estimateTokens([null, { type: 'unknown' }, { type: 'text', text: '你好世界' }]), textOnly);
+});
+
 test('费用估算：费率表命中 + 未知模型回退默认费率', () => {
   // deepseek-chat 输入 1 元/M token
   assert.equal(estimateCost(1000000, 0, 'deepseek-chat'), 1);
