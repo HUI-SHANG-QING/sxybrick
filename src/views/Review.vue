@@ -509,6 +509,24 @@ function fmtTime(ts) {
 
 const focusSeconds = ref(0);
 let focusTimer = null;
+// round54 P2：专注时长改「墙钟差值」口径。旧实现 `setInterval(() => focusSeconds.value++, 1000)`
+// 把「定时器触发次数」当成「经过秒数」——浏览器会把后台标签页的定时器节流到约 1 次/分钟，
+// 于是「切出去 10 分钟」只记成 +10 秒，累计值（还会写进 localStorage 当长期指标）严重偏小。
+let focusBase = 0;          // 上一次结算时的累计秒数
+let focusActiveSince = 0;   // 当前「可见期」的墙钟起点；0 = 暂停中（后台不计入）
+function focusTick() {
+  if (!focusActiveSince) return;
+  focusSeconds.value = focusBase + Math.floor((Date.now() - focusActiveSince) / 1000);
+}
+function focusOnVis() {
+  if (document.visibilityState === 'hidden') {
+    focusTick();                 // 先把本轮可见时长结算进来
+    focusBase = focusSeconds.value;
+    focusActiveSince = 0;        // 后台期间不再累计（既防挂机刷时长，也免去节流误差）
+  } else if (!focusActiveSince) {
+    focusActiveSince = Date.now();
+  }
+}
 function fmtFocus(s) {
   const m = Math.floor(s / 60), sec = s % 60;
   return m > 0 ? t('views.review.focusMin', '{m} 分 {s} 秒', { m, s: sec }) : t('views.review.focusSec', '{s} 秒', { s: sec });
@@ -529,6 +547,7 @@ onMounted(async () => {
   goal.value = await getGoal();
   todayCount.value = await getTodayCount();
   focusSeconds.value = Number(localStorage.getItem('sxy_rv_focus')) || 0;
+  focusBase = focusSeconds.value;
   // 考试窗口感知：读取卡片洞察页保存的目标考试日，复习时把到期日软压缩进考前窗口并标注紧迫度
   try {
     const row = await db.meta.get('examAt');
@@ -546,7 +565,9 @@ onMounted(async () => {
   }
   loadQueue();
   loadMeta();
-  focusTimer = setInterval(() => { focusSeconds.value++; }, 1000);
+  focusActiveSince = Date.now();
+  focusTimer = setInterval(focusTick, 1000);
+  document.addEventListener('visibilitychange', focusOnVis);
   document.addEventListener('keydown', onKey);
   // 短期提取巩固：检查刚学的新卡是否需要快速校验
   const quickDue = await getQuickCheckDue();
@@ -577,10 +598,12 @@ watch([idx, queue], () => {
   }
 });
 onBeforeUnmount(() => {
+  focusTick();                       // 结算最后一段可见时长，避免丢秒
   clearInterval(focusTimer);
   clearInterval(sessionTimer);
   clearInterval(quickCheckTimer);
   localStorage.setItem('sxy_rv_focus', String(focusSeconds.value));
+  document.removeEventListener('visibilitychange', focusOnVis);
   document.body.classList.remove('review-focus');
   document.removeEventListener('keydown', onKey);
   stopRead(); // 离开页面停止朗读

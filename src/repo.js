@@ -358,9 +358,11 @@ export async function restoreFromTrash(t) {
   const edges = data._edges || null;
   // 审计（round35 小问题1）：每日计划快照含 _tasks，恢复时还原到 dailyTasks 表
   const dailyTasks = t.kind === 'dailyPlan' ? (data._tasks || null) : null;
+  // round54 P1：卡片快照含 _images（删卡会级联物理删图），恢复时必须一并写回 db.images
+  const cardImages = t.kind === 'card' && Array.isArray(data._images) ? data._images : null;
   delete data._reviews; delete data._groupLinks; delete data._text; delete data._textLen; delete data._edges;
   delete data._cardWordLinks; delete data._embeddings; delete data._linkedNoteIds; delete data._tasks;
-  delete data._cardLinks;
+  delete data._cardLinks; delete data._images;
   const transform = RESTORE_TRANSFORMS[t.kind];
   const row = { ...(transform ? transform(data) : data), id: t.id, updatedAt: Date.now() };
   const tables = [db[table], db.tombstones, db.trash];
@@ -378,6 +380,7 @@ export async function restoreFromTrash(t) {
   if (linkedNoteIds && linkedNoteIds.length) tables.push(db.notes);
   if (noteLinkedCardIds && noteLinkedCardIds.length) tables.push(db.cards);
   if (dailyTasks && dailyTasks.length) tables.push(db.dailyTasks);
+  if (cardImages && cardImages.length) tables.push(db.images);
   await db.transaction('rw', ...tables, async () => {
     await db[table].put(row);
     // 审计 P2：恢复 note 时裁剪幽灵 linkedCardIds——快照中的 linkedCardIds 可能包含
@@ -435,6 +438,13 @@ export async function restoreFromTrash(t) {
     if (dailyTasks && dailyTasks.length) {
       await db.dailyTasks.bulkPut(dailyTasks.map(task => ({ ...task, updatedAt: Date.now() })));
       await db.tombstones.bulkDelete(dailyTasks.map(task => task.id));
+    }
+    if (cardImages && cardImages.length) {
+      // round54 P1：按原 id 写回图片（正文 sxy-img://<id> 才能重新解析）。
+      // 必须 bump updatedAt —— livenessTs 取所有时间字段最大值，只有让它「晚于」删卡时写的
+      // image 墓碑，才不会被下轮同步的 applyTombstones 再删一遍（快照已消费 → 永久丢失）。
+      await db.images.bulkPut(cardImages.map(img => ({ ...img, updatedAt: Date.now() })));
+      await db.tombstones.bulkDelete(cardImages.map(img => img.id));
     }
     await db.tombstones.delete(t.id);
     await db.trash.delete(t.id);
@@ -508,7 +518,7 @@ export async function deleteCard(id) {
   // 事务内一次性完成 回收站快照 + 墓碑 + 删卡 + 删复习 + 删卡组关联 + 切断图谱边，保证原子、无悬空引用
   // 注：cardGroupLinks 此前漏删 —— 删卡后关联行原样留在库里（还进同步包跨设备传播），
   //     卡组详情页会统计到已被删除的「幽灵卡」，且永不清理。
-  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.cardWordLinks, db.cardLinks, db.embeddings, db.notes, async () => {
+  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.cardWordLinks, db.cardLinks, db.embeddings, db.notes, db.images, async () => {
     // 1) 回收站快照（含复习记录 + 卡组关联 + 卡↔词关联，便于恢复时一并还原）
     const reviews = await db.reviews.where('cardId').equals(id).toArray();
     const links = await db.cardGroupLinks.where('cardId').equals(id).toArray();
@@ -537,7 +547,11 @@ export async function deleteCard(id) {
     const allNotes = await db.notes.toArray();
     const linkedNotes = allNotes.filter(n => Array.isArray(n.linkedCardIds) && n.linkedCardIds.includes(id));
     const linkedNoteIds = linkedNotes.map(n => n.id);
-    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks, _cardLinks: ccLinks, _linkedNoteIds: linkedNoteIds });
+    // round54（P1 修复）：图片必须一起快照。本函数末尾会级联**物理删除**「不再被任何卡引用」
+    // 的图（见「清理孤儿图片」+ db.images.bulkDelete）。此前快照不含图片、restoreFromTrash 也不还原
+    // db.images → 删卡再还原，卡回来了但图永久丢失（正文 sxy-img:// 占位符全部悬空，且无法找回）。
+    const cardImages = imgIds.length ? (await db.images.bulkGet(imgIds)).filter(Boolean) : [];
+    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks, _cardLinks: ccLinks, _linkedNoteIds: linkedNoteIds, _images: cardImages });
     // 2) 墓碑（跨设备删除同步）：卡片本体 + 它的每一条卡组关联
     //    关联行不写墓碑的话，对端会在下次同步把「已删卡 → 卡组」的关联原样推回来，
     //    形成永远删不掉、且指向幽灵卡的悬空行

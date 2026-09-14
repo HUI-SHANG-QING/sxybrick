@@ -269,6 +269,10 @@ function fmtStats(stats) {
   if (stats.deleted) parts.push(S('deleted', '删除 {n}', stats.deleted));
   if (stats.duplicated) parts.push(S('duplicated', '去重跳过 {n}', stats.duplicated));
   parts.push(S('reviews', '复习 +{n}', stats.reviews || 0), S('images', '图片 +{n}', stats.images || 0));
+  // round54（P2-4）：图片解码/写库刻意拆在主事务之外（避免大事务卡 UI、单张坏图不回滚整包），
+  // 代价是可能出现「主数据已入库、图片缺失」的半导入。此前 stats.skippedImages 只写不读 →
+  // 用户看到"导入成功"却是破图，也不知道原因。这里显式汇报，让用户知道可以重试。
+  if (stats.skippedImages) parts.push(S('skippedImages', undefined, stats.skippedImages));
   const extra = [
     ['aiChats', 'aiChats'], ['aiMemories', 'aiMemories'], ['memos', 'memos'], ['plans', 'plans'],
     ['graphEdges', 'graphEdges'], ['docs', 'docs'], ['pomoSessions', 'pomoSessions'],

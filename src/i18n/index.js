@@ -204,6 +204,7 @@ const zh = {
   // ---------------- 常用 ----------------
   common: {
     more: '更多', resetTitle: '清空全部数据', resetConfirmHint: '此操作不可恢复，请谨慎。',
+    chunkReload: '应用已更新，正在刷新以加载新版本…',
     zoom: {
       label: '阅读缩放', in: '放大字号', out: '缩小字号', reset: '恢复默认字号',
       level: '当前缩放 {n}', fit: '适应窗口', fullscreen: '大图模式', exitFullscreen: '退出大图',
@@ -428,6 +429,7 @@ const en = {
   },
   common: {
     more: 'More', resetTitle: 'Erase All Data', resetConfirmHint: 'This cannot be undone. Please be careful.',
+    chunkReload: 'The app has been updated. Refreshing to load the new version…',
     zoom: {
       label: 'Text zoom', in: 'Increase text size', out: 'Decrease text size', reset: 'Reset text size',
       level: 'Zoom {n}', fit: 'Fit to window', fullscreen: 'Large view', exitFullscreen: 'Exit large view',

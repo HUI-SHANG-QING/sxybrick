@@ -1,6 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { pageView } from './utils/telemetry.js';
 import { getDbStatus } from './db.js';
+import { t } from './i18n/index.js';
+import { toast } from './utils/toast.js';
 
 const routes = [
   { path: '/', component: () => import('./views/Dashboard.vue') },
@@ -96,4 +98,19 @@ router.beforeEach(() => {
     }
   } catch { /* getDbStatus 异常不阻塞导航 */ }
   return true;
+});
+
+// round54（P2 修复）：懒加载分片 404 兜底。
+// 部署新版本后，仍开着的旧页面去加载「旧 hash 的路由分片」会 404
+// （ChunkLoadError / "Failed to fetch dynamically imported module" / "Importing a module script failed"），
+// 而 vue-router 默认**不处理**这类错误 → 该路由直接空白且无任何提示。
+// 这是 PWA「长驻页面 + 频繁发版」的必踩事故，命中时提示一句并整页刷新（刷新后即拿到新分片清单）。
+let _chunkReloading = false;
+router.onError((err) => {
+  const msg = String(err?.message || err || '');
+  const isChunkLoad = /ChunkLoadError|Loading chunk|dynamically imported module|Importing a module script failed/i.test(msg);
+  if (!isChunkLoad || _chunkReloading) return;
+  _chunkReloading = true;
+  try { toast(t('common.chunkReload'), 'warning'); } catch { /* 提示失败也要继续刷新 */ }
+  setTimeout(() => { try { window.location.reload(); } catch { /* ignore */ } }, 600);
 });

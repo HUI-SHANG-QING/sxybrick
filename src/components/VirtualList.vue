@@ -84,6 +84,11 @@ function bindResizeObserver() {
     }
     if (changed) heights.value = new Map(heights.value);
   });
+  // round54：模板 ref 回调（setItemRef）在**挂载 patch 阶段**就已执行，早于 onMounted；
+  // 那时 ro 还是 null → `ro?.observe(el)` 被静默跳过，首批可见条目永远不会被测量，
+  // 只能一直用 estHeight 占位（总高/滚动定位随之偏移，直到某次重渲染才自愈）。
+  // 这里在创建 observer 之后，把已挂载的条目补 observe 一次。
+  for (const el of itemRefs.values()) { try { ro.observe(el); } catch { /* 元素已卸载时忽略 */ } }
 }
 function setItemRef(el, id) {
   if (el) { itemRefs.set(id, el); el.dataset.vid = id; ro?.observe(el); }

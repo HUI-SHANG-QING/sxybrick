@@ -234,7 +234,7 @@ export const zh = {
   snapAutoHint: '（已自动创建导入前快照，可在下方回滚）',
   stats: {
     cards: '卡片 +{n}', updated: '更新 {n}', deleted: '删除 {n}', duplicated: '去重跳过 {n}',
-    reviews: '复习 +{n}', images: '图片 +{n}',
+    reviews: '复习 +{n}', images: '图片 +{n}', skippedImages: '图片未导入 {n}（可重新导入补齐）',
     aiChats: 'AI对话 +{n}', aiMemories: '记忆 +{n}', memos: '备忘 +{n}', plans: '计划 +{n}',
     graphEdges: '图谱 +{n}', docs: '文档 +{n}', pomoSessions: '专注 +{n}',
     mindmaps: '导图 +{n}', weeklyReports: '周报 +{n}', achievements: '成就 +{n}', exams: '模考 +{n}',
@@ -496,7 +496,7 @@ export const en = {
   snapAutoHint: ' (a pre-import snapshot was auto-created; roll back below)',
   stats: {
     cards: 'Cards +{n}', updated: 'Updated {n}', deleted: 'Deleted {n}', duplicated: 'Duplicated skip {n}',
-    reviews: 'Reviews +{n}', images: 'Images +{n}',
+    reviews: 'Reviews +{n}', images: 'Images +{n}', skippedImages: 'Images not imported {n} (re-import to fill in)',
     aiChats: 'AI chats +{n}', aiMemories: 'Memory +{n}', memos: 'Memos +{n}', plans: 'Plans +{n}',
     graphEdges: 'Graph edges +{n}', docs: 'Docs +{n}', pomoSessions: 'Focus +{n}',
     mindmaps: 'Mindmaps +{n}', weeklyReports: 'Weekly +{n}', achievements: 'Achievements +{n}', exams: 'Exams +{n}',

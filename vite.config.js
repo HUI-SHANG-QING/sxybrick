@@ -155,9 +155,11 @@ export default defineConfig({
             },
           },
           {
-            // 重型按需库（echarts/hljs/katex/pdf/xlsx/docx/three）：
+            // 重型按需库（echarts/hljs/katex/pdf/xlsx/docx/sheet/three）：
             // 构建产物带 hash，CacheFirst 命中即秒开，且不会拿到陈旧版本
-            urlPattern: ({ url, sameOrigin }) => sameOrigin && /\/(echarts|echarts-wordcloud|hljs|katex|pdf|pdf\.worker\.min|xlsx|parsers-docx|mammoth|three|tesseract)[-.]?[^/]*\.m?js$/i.test(url.pathname),
+            // round54：补上 parsers-sheet（~941KB）——此前它不匹配任何一条重库规则，
+            // 只能落到兜底 assets 的 SWR 规则上（每次后台多一次校验请求）。
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && /\/(echarts|echarts-wordcloud|hljs|katex|pdf|pdf\.worker\.min|xlsx|parsers-sheet|parsers-docx|mammoth|three|tesseract)[-.]?[^/]*\.m?js$/i.test(url.pathname),
             handler: 'CacheFirst',
             options: {
               cacheName: 'sxybrick-heavy-libs',

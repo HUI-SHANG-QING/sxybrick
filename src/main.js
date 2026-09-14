@@ -113,13 +113,10 @@ startTelemetry({
 startPerfMonitor();
 // PWA：注册 SW + 监听 online/offline + 周期检查 IndexedDB 配额
 initPwa();
-// 审计 C3：跨 tab 数据变更广播——另一 tab 导入/同步后，本页数据已过期。
-// 订阅后派发一个全局事件，模块/视图可据此刷新（无则静默，纯增强不阻断启动）。
-import { subscribeDbChanged } from './utils/dbEvents.js';
-subscribeDbChanged(() => {
-  if (typeof window === 'undefined') return;
-  try { window.dispatchEvent(new CustomEvent('sxy:data-refresh')); } catch { /* ignore */ }
-});
+// round54（P3 死代码清理）：这里原本订阅 dbChanged 后派发 `sxy:data-refresh` 全局事件，
+// 但**全仓没有任何监听者**（grep 确认仅此 1 处派发），属纯死代码。
+// 真正的跨 tab 刷新由各视图直接 `subscribeDbChanged(...)` 完成
+// （WordBook / WordGroups / WordPhrases 与 intelligence 的卡片缓存失效），不依赖该事件。
 // 插件：异步预热已启用插件，不阻塞挂载
 warmupPlugins();
 app.mount('#app');

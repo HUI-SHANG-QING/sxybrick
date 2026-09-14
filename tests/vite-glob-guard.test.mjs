@@ -49,10 +49,13 @@ test('word-enrich：分片加载器必须直接调用 glob，并由 try/catch �
   assert.match(s, /try\s*\{[\s\S]{0,200}import\.meta\.glob/, 'glob 调用必须在 try 块内（Node 下不是函数会抛 TypeError）');
 });
 
-test('构建产物（若已 build）：产品必须真的带上分片加载器', () => {
+test('构建产物（若已 build）：产品必须真的带上分片加载器', (t) => {
   if (!existsSync(join(DIST, 'assets'))) {
     // 未构建：不做产物断言（源码闸门已保证形态正确）。CI 在 build 之后跑本文件即生效。
-    console.log('[skip] dist 不存在，跳过产物校验（源码闸门已覆盖）');
+    // round54：旧写法是 console.log + return —— 在 node:test 里表现为**静默通过**，
+    // 让人误以为"本地测试已覆盖产物"，而 2026-09-14 的线上事故恰好出在这条路径上（glob 分支）。
+    // 改为 t.todo：明确标成「未执行」，不再以绿色 pass 出现，避免假绿。
+    t.todo('dist 不存在：本机未校验产物（CI 在 build 之后会自动校验；本地可先 npm run build）。');
     return;
   }
   const files = readdirSync(join(DIST, 'assets')).filter((n) => n.endsWith('.js'));

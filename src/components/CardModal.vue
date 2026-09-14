@@ -1,7 +1,8 @@
 <script setup>
 // 新建/编辑卡片弹窗：科目(含自定义)、标签自动完成、Markdown 实时预览、
 // 图片插入(本地存储)、字数统计(7500 预警 / 8000 上限)、实时校验
-import { ref, computed, watch, shallowRef } from 'vue';
+import { ref, computed, watch, shallowRef, onMounted, onBeforeUnmount } from 'vue';
+import { confirmDialog } from '../utils/confirm.js';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import { getSubjects, getTags, createCard, updateCard, WRONG_REASONS, wrongReasonToCode,
@@ -278,7 +279,30 @@ async function save() {
   } finally { saving.value = false; }
 }
 
-function close() { emit('update:modelValue', false); }
+// round54（P3 修复）：**未保存守卫**。此前保存只由「保存」按钮触发，一旦误点遮罩/✕、
+// 或直接关页面，本地编辑（front/back/标记/助记）全部静默丢失且无提示。
+// 脏值判定 = 「当前表单 vs 卡片原文」签名比对——只看用户真正会手改的字段，避免误报。
+function formSig() {
+  return JSON.stringify([front.value.trim(), back.value.trim(), marked.value, mnemonic.value]);
+}
+function cardSig() {
+  const c = props.card || {};
+  return JSON.stringify([String(c.front || '').trim(), String(c.back || '').trim(), !!c.marked, c.mnemonic || '']);
+}
+const dirty = computed(() => !!props.modelValue && formSig() !== cardSig());
+function onBeforeUnload(e) {
+  if (!dirty.value) return;
+  e.preventDefault();
+  e.returnValue = '';
+}
+onMounted(() => window.addEventListener('beforeunload', onBeforeUnload));
+onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload));
+
+async function close() {
+  // 未保存就直接关 → 先二次确认（统一走 utils/confirm.js 的 confirmDialog）
+  if (dirty.value && !(await confirmDialog('有未保存的修改，确定要丢弃吗？'))) return;
+  emit('update:modelValue', false);
+}
 </script>
 
 <template>

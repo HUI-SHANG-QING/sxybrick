@@ -10,8 +10,11 @@
 //   node scripts/check-view-i18n.mjs                    正向 + 字典完整性 + 占位符（默认）
 //   node scripts/check-view-i18n.mjs --strict           另加反向硬编码扫描（对照基线）
 //   node scripts/check-view-i18n.mjs --update-baseline  重写反向扫描基线（认领当前存量）
+//      ⚠ round54 起：**净增 > 0 会拒绝写入**（防"一键认领"把新增违规洗成存量）。
+//      确认是插行位移后，才加 --force-baseline 明确认领。
 //   node scripts/check-view-i18n.mjs --js              第三道闸：扫数据层 / 算法层 .js 硬编码中文（对照基线）
 //   node scripts/check-view-i18n.mjs --js-update-baseline  重写数据层基线（认领当前存量）
+//      ⚠ 同款护栏：净增 > 0 拒绝写入，需加 --force-baseline。
 //
 // 反向扫描为什么用基线而非零容忍：存量里有一大类「数据常量」——选项数组、AI prompt 模板、
 // 写进库的枚举值（如 PrivacyData 的 ['早餐','午餐','晚餐']）。它们不是界面文案，
@@ -278,6 +281,17 @@ if (STRICT || UPDATE_BASELINE) {
 
   if (UPDATE_BASELINE) {
     const old = existsSync(baselineFile) ? JSON.parse(readFileSync(baselineFile, 'utf8')) : {};
+    // round54（P2-5 护栏）：基线原本可被"一键认领"——谁跑一条命令都能把新增违规洗成"本来就有的"，
+    // 闸门就此永久失效且无人察觉。这里加护栏：**净增 > 0 拒绝写入**，必须显式 --force-baseline。
+    const oldTotal = Object.values(old).reduce((n, v) => n + (Number(v?.count) || 0), 0);
+    const deltaView = scanTotal - oldTotal;
+    if (deltaView > 0 && !args.has('--force-baseline')) {
+      console.error(`✗ 基线净增 ${deltaView} 行（${oldTotal} → ${scanTotal}）：拒绝自动认领。`);
+      console.error('  · 若确认是「插行位移」（新增数 == 消除数），请用 git show HEAD:<file> | grep -n 核对后加 --force-baseline 重跑；');
+      console.error('  · 若确有新增硬编码中文，请改用 i18n 字典 t(...)，不要把违规写进基线。');
+      process.exit(1);
+    }
+    if (deltaView) console.log(`  基线净增 ${deltaView} 行（${oldTotal} → ${scanTotal}，已用 --force-baseline 认领）`);
     const next = {};
     for (const [f, hits] of Object.entries(found).sort(([a], [b]) => a.localeCompare(b))) {
       const reasons = old[f]?.reasons || {};
@@ -329,6 +343,16 @@ if (JS || JS_UPDATE) {
   }
   if (JS_UPDATE) {
     const old = existsSync(jsBaselineFile) ? JSON.parse(readFileSync(jsBaselineFile, 'utf8')) : {};
+    // round54（P2-5 护栏）：与视图基线同款——净增 > 0 拒绝自动认领，必须 --force-baseline。
+    const oldTotalJs = Object.values(old).reduce((n, v) => n + (Number(v?.count) || 0), 0);
+    const deltaJs = jsScanTotal - oldTotalJs;
+    if (deltaJs > 0 && !args.has('--force-baseline')) {
+      console.error(`✗ 数据层基线净增 ${deltaJs} 行（${oldTotalJs} → ${jsScanTotal}）：拒绝自动认领。`);
+      console.error('  · 位移请先用 git show HEAD:<file> | grep -n 核对，确认零新增后加 --force-baseline 重跑；');
+      console.error('  · 新增文案请迁入 i18n 字典，不要把违规写进基线。');
+      process.exit(1);
+    }
+    if (deltaJs) console.log(`  数据层基线净增 ${deltaJs} 行（${oldTotalJs} → ${jsScanTotal}，已用 --force-baseline 认领）`);
     const next = {};
     for (const [f, hits] of Object.entries(found).sort(([a], [b]) => a.localeCompare(b))) {
       const reasons = old[f]?.reasons || {};
