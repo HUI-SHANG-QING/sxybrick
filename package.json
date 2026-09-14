@@ -13,6 +13,7 @@
     "test": "node scripts/check-view-i18n.mjs --strict && node scripts/check-view-i18n.mjs --js && node scripts/dep-check.mjs && node --test --test-concurrency=1 \"tests/*.test.mjs\"",
     "check:i18n": "node scripts/check-view-i18n.mjs --strict && node scripts/check-view-i18n.mjs --js",
     "dep:check": "node scripts/dep-check.mjs",
+    "check:build": "node scripts/check-build-shards.mjs",
     "git:check": "node scripts/git-check.mjs",
     "benchmark": "node scripts/benchmark.mjs",
     "lint": "eslint .",

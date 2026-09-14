@@ -262,11 +262,16 @@ function onUp() { drag = null; }
 
 function onImgError() { lb.value.error = true; }
 
-watch(() => props.content, () => {
+watch(() => props.content, async () => {
   // 内容切换：重算图片序列；灯箱开着则关闭（其全屏 DOM 可能已随内容重渲染）
   if (lb.value.open) closeLightbox();
   lb.value.idx = 0;
-});
+  await update();
+}, { immediate: true });
+// ⚠️ 这段 watch 必须调用 update() 且 immediate ——
+// html 只在 update() 里赋值，一旦漏调（或没有 immediate 首次不触发），
+// 组件就永远渲染空串：卡片正反面、编辑预览、AI 回复、资料解析全部空白，
+// 全屏因只剩黑底而表现为「黑屏」。2026-09-14 实测事故：灯箱改动把 update() 的调用整段删了。
 
 onBeforeUnmount(() => {
   if (lb.value.open) closeLightbox();

@@ -19,9 +19,27 @@
 //   { ok:false, reason:'not-in-local-wordbank' }    → 分片已加载但确无此词，明确跳过、绝不臆造
 import mainBank from '../data/word-enrich.json' with { type: 'json' };
 
-const IS_VITE = typeof import.meta.glob === 'function';
-/** Vite 编译期生成的「分片路径 → 惰性加载函数」映射 */
-const shardLoaders = IS_VITE ? import.meta.glob('../data/word-enrich-shards/*.json') : {};
+/**
+ * 分片加载器映射。
+ *
+ * ⚠️ 这里**不能**用「typeof 检查 import.meta.glob 是否存在」的方式判定环境 ——
+ * Vite 只把 `import.meta.glob(...)` 这个**调用**替换成对象字面量，**不替换 `typeof` 引用**，
+ * 于是产物里该判定恒为 `undefined === 'function'` = false，整个加载器表被丢弃成 {}，
+ * 浏览器端**任何单词都查不到**（表现为「该词暂无完整词条 / 该单词暂无释义」）。
+ * 2026-09-14 实测：dist 里 52 个分片 chunk 都构建出来了，但映射表是空的。
+ * 而 node --test 走 tests/_env.mjs 的 ingestShardPayload 注入，恰好绕开了这条路径 → 测试全绿却线上全崩。
+ *
+ * 正确做法：直接调用 import.meta.glob，用 try/catch 吃掉「Node 下不是函数」的 TypeError。
+ * Vite（dev/build）替换成 { 路径: () => import(分片 chunk) }；Node 返回 {} 由外部注入分片。
+ */
+function loadShardLoaders() {
+  try {
+    return import.meta.glob('../data/word-enrich-shards/*.json');
+  } catch {
+    return {}; // Node（node --test / 脚本）：无 glob，分片由 ingestShardPayload 注入
+  }
+}
+const shardLoaders = loadShardLoaders();
 
 /** word(小写) → 词条，仅含**已加载**分片中的条目 */
 const INDEX = new Map();

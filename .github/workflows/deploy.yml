@@ -42,6 +42,11 @@ jobs:
       #     全局状态竞争导致的偶发 test 失败。
       - run: npm test
       - run: npm run build
+      - name: Verify build artifacts (词库分片必须真的打进产物)
+        # 2026-09-14：vite 只替换 import.meta.glob 的调用、不替换 typeof 引用，
+        # 导致产物里分片加载器表为空 → 浏览器端任何单词都查不到。
+        # npm test 里的产物断言在 CI 上会跳过（测试跑在 build 之前），故这里兜底。
+        run: node scripts/check-build-shards.mjs
       - name: Build paper static pages
         # 将 paper/*.md 渲染为自包含 HTML，部署到 /paper（中文）与 /paper-en（英文）。
         # continue-on-error 作为安全网：论文渲染失败时仍保证主应用正常上线。
