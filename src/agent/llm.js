@@ -12,6 +12,19 @@ import { tryParseLLMJson } from '../utils/llm-json.js';
 // 本 chat() 是所有 AI 链路（对话/Agent/卡片联动/子任务）的唯一出口，在此覆盖全部。
 import { enrichForLlm } from '../services/image-analysis.js';
 
+// ---- 输出长度策略（round49）--------------------------------------------------
+// 默认输出上限：2000 对「分析两张思维导图」「给完整学习路径」这类长回答远远不够，会被
+// finish_reason='length' 硬截断（用户看到的「AI 回复被截断」就是这么来的，不是模型坏了）。
+// 提到 4096，并配合下方「截断自动续写」兜底；调用方仍可用 opts.maxTokens 覆盖。
+const DEFAULT_MAX_TOKENS = 4096;
+// 截断自动续写：模型因长度中断时，自动追加请求继续输出。
+// 业界标准做法（模型输出有硬上限，"分段生成 + 续写"是系统侧该做的事，而不是让用户把问题拆短）。
+const MAX_CONTINUATIONS = 3;      // 最多续写轮数
+const MAX_TOTAL_CHARS = 24000;    // 续写累计字符上限（防无界膨胀、防费用失控）
+const TRUNCATE_CONTINUE_PROMPT =
+  '上一条回复因长度限制被截断了。请**从中断处接着写**剩余内容，'
+  + '不要重复已经输出的部分，也不要添加任何前言或总结性收尾。';
+
 /**
  * 发起一次聊天补全。
  * @param {Array<{role:string,content:string}>} messages
@@ -58,7 +71,7 @@ export async function chat(messages, cfg, opts = {}) {
     model,
     messages: finalMessages,
     temperature: opts.temperature ?? 0.7,
-    max_tokens: opts.maxTokens ?? 2000,
+    max_tokens: opts.maxTokens ?? DEFAULT_MAX_TOKENS,
     stream: !!opts.stream,
   };
 
@@ -97,6 +110,16 @@ export async function chat(messages, cfg, opts = {}) {
       }
       const err = new Error(`AI 请求失败(${res.status}${httpHint(res.status)})：${t.slice(0, 300)}`);
       err.status = res.status;
+      // round49：某些本地/自建端点输出上限低于 4096，会把 max_tokens 判为非法（400/422）。
+      // 为「修截断」反而把请求打死不划算——按服务端提示降级重试一次（≤2000）。
+      if (!opts._maxTokenRetry && (res.status === 400 || res.status === 422) && /max[_\s-]?tokens?/i.test(t)) {
+        reportUsage(undefined, '', false);
+        return await chat(finalMessages, cfg, {
+          ...opts,
+          _maxTokenRetry: true,
+          maxTokens: Math.min(Number(opts.maxTokens) || DEFAULT_MAX_TOKENS, 2000),
+        });
+      }
       throw err;
     }
 
@@ -113,7 +136,7 @@ export async function chat(messages, cfg, opts = {}) {
       reportUsage(data?.usage, '', false);
       throw new Error(`AI 返回异常：${msg || '响应中没有 choices 字段'}`);
     }
-    const text = choice?.message?.content || '';
+    let text = choice?.message?.content || '';
     // HTTP 成功但正文为空：细分「截断 / 推理模型 / 附图被忽略」，绝不再静默返回空串
     if (!text.trim()) {
       const fr = choice?.finish_reason;
@@ -126,6 +149,45 @@ export async function chat(messages, cfg, opts = {}) {
       throw new Error(reason);
     }
     reportUsage(data?.usage, text, true);
+
+    // round49：**截断自动续写**（本轮的核心修复）。
+    // 模型输出都有硬上限；长回答（分析多张图 / 完整学习路径 / 长解析）在旧默认 2000 tokens 下
+    // 几乎必被截断，旧行为要么把半截回答丢给用户、要么抛错让上层「降级本地模式」。
+    // 正确做法是系统侧分段续写：把已输出内容作为 assistant 消息回灌 + 一句「接着写」，
+    // 最多 MAX_CONTINUATIONS 轮、累计不超过 MAX_TOTAL_CHARS（防费用/长度失控）。
+    if (choice?.finish_reason === 'length' && opts.continueOnTruncate !== false) {
+      let acc = text;
+      for (let i = 0; i < MAX_CONTINUATIONS; i += 1) {
+        if (acc.length >= MAX_TOTAL_CHARS) break;
+        let more = '';
+        let fr2 = null;
+        try {
+          const r2 = await fetch(`${base}/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              ...body,
+              messages: [
+                ...finalMessages,
+                { role: 'assistant', content: acc },
+                { role: 'user', content: TRUNCATE_CONTINUE_PROMPT },
+              ],
+            }),
+            signal,
+          });
+          if (!r2.ok) break;
+          const d2 = await r2.json();
+          const c2 = d2?.choices?.[0];
+          more = c2?.message?.content || '';
+          fr2 = c2?.finish_reason;
+          reportUsage(d2?.usage, more, true);
+        } catch { break; } // 续写失败就返回已有部分，绝不因续写把整体搞崩
+        if (!more.trim()) break;
+        acc += more;
+        if (fr2 !== 'length') break;
+      }
+      text = acc;
+    }
     return text;
   }
 
