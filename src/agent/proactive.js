@@ -328,6 +328,7 @@ export class ProactiveScheduler {
     this.cfgGetter = null; // 函数：返回最新 AI 配置（用户改 Key 后无需重启）
     this.lastRunAt = 0;
     this.onPush = null;
+    this._lightRunning = false; // round47 P2：_tickLight in-flight 互斥（防前台唤醒与定时 tick 并发重复推送）
   }
 
   async start(opt = {}) {
@@ -373,12 +374,20 @@ export class ProactiveScheduler {
   }
 
   async _tickLight() {
+    // round47 P2：定时 tick 与 visibilitychange 唤醒无互斥时会并发——两个 tick 都在
+    // generateRuleSuggestions 的 await 上等待，彼此都看到 canPush(key)=true（前一个还没
+    // markPushed）→ 同一 key 建议被推送两次、通知列表里出现两条。加 in-flight 互斥：
+    // 正在跑就直接跳过，下一次定时 tick 自然补上。
+    if (this._lightRunning) return;
+    this._lightRunning = true;
     try {
       const suggestions = await generateRuleSuggestions();
       await commitSuggestions(suggestions, { onPush: this.onPush });
       this.lastRunAt = Date.now();
     } catch (e) {
       console.warn('[proactive] 轻量检查失败：', e?.message || e);
+    } finally {
+      this._lightRunning = false;
     }
   }
 

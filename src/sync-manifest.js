@@ -404,7 +404,18 @@ function mergeMessageLists(a = [], b = []) {
 export function mergeChatPair(local, incoming) {
   const lt = local.updatedAt ?? local.createdAt ?? 0;
   const it = incoming.updatedAt ?? incoming.createdAt ?? 0;
-  const base = it >= lt ? incoming : local; // 时间新的一方提供标量字段
+  // round45 N1：标量字段的 LWW 平局必须确定性收敛——旧写法 `it >= lt` 在两台设备
+  // 同毫秒写同一字段（updatedAt 相等）时，谁是 local/incoming 由同步时序决定，
+  // 两端各自合并会得出不同结果（谁覆盖谁看运气）。这正是卡片侧 mergeCardPair
+  // （round32 C4）修掉的同毫秒非确定性，chat 侧此前的自定义合并没跟上口径。
+  // 平局时改用与「哪边内容更完整」相关的确定性 tiebreaker：消息数多者赢；
+  // 再平（同毫秒且同消息数）则保持 local——两端角色对调后消息数判定不变，
+  // 双方各自合并都收敛到同一行，后续同步不再振荡。
+  const tie = (x) => (Array.isArray(x?.messages) ? x.messages.length : 0);
+  let base;
+  if (it > lt) base = incoming;
+  else if (it < lt) base = local;
+  else base = tie(incoming) > tie(local) ? incoming : local; // 平局：消息多的一方提供标量
   return {
     ...base,
     title: (base.title != null && String(base.title).trim()) ? base.title : (local.title || incoming.title || ''),

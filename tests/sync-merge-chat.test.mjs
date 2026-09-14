@@ -61,3 +61,24 @@ test('P2-2 mergeChatPair：时间新一方的标量（title）胜出、messages 
   assert.equal(out.title, '新题');
   assert.equal(out.messages.length, 2);
 });
+
+test('round45 N1：同毫秒平局确定性收敛——消息数多者提供标量，与角色无关', () => {
+  // 旧实现 `it >= lt`：updatedAt 相等时 incoming 恒赢，谁是 incoming 由同步时序决定，
+  // 两端各自合并可能得出不同标量（A 端收「题甲」、B 端收「题乙」→ 下轮同步再振荡）。
+  // 修复后平局按消息数（内容完整性）判定，两端角色对调结果不变。
+  const A = { id: 'c', title: '题甲', updatedAt: 500, messages: [u(1)] };             // 1 条
+  const B = { id: 'c', title: '题乙', updatedAt: 500, messages: [u(1), a(2), u(3)] }; // 3 条
+  // 设备1视角：local=A, incoming=B → 消息多的 B 赢
+  const onA = mergeChatPair(A, B);
+  // 设备2视角：local=B, incoming=A → 消息多的 B 仍赢
+  const onB = mergeChatPair(B, A);
+  assert.equal(onA.title, '题乙', '同毫秒平局：消息多的一方提供标量');
+  assert.equal(onB.title, '题乙', '角色对调后判定不变（确定性收敛）');
+  assert.equal(onA.updatedAt, 500);
+  assert.equal(onB.updatedAt, 500);
+  // 同毫秒且消息数也相等 → 保持 local，不随机
+  const C = { id: 'c', title: '题丙', updatedAt: 500, messages: [u(9)] };
+  const D = { id: 'c', title: '题丁', updatedAt: 500, messages: [a(9)] };
+  assert.equal(mergeChatPair(C, D).title, '题丙', '完全平局保持 local（确定性）');
+  assert.equal(mergeChatPair(D, C).title, '题丁', '对调后同理');
+});
