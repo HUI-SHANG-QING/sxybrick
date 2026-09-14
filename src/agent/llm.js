@@ -42,11 +42,12 @@ export async function chat(messages, cfg, opts = {}) {
   // 所有 AI 链路（对话/Agent/卡片联动/子任务）都经此 chat() 发送，一处覆盖全部；
   // 富集失败不阻塞——降级纯文字照常发送（详见 services/image-analysis.js）。
   let finalMessages = messages;
+  let visionCount = 0;
   try {
     const en = await enrichForLlm(messages);
     finalMessages = en.messages;
+    visionCount = en.vision || 0;
   } catch (e) {
-    // eslint-disable-next-line no-console
     console.warn('[llm] 图片富集失败，按纯文字发送：', e?.message || e);
   }
 
@@ -81,6 +82,14 @@ export async function chat(messages, cfg, opts = {}) {
 
     if (!res.ok) {
       const t = await res.text().catch(() => '');
+      // 模型不支持视觉输入时（纯文本模型 + 我们发了图），服务端通常回 400/422。
+      // 直接抛错会让用户看到一句晦涩的「AI 请求失败」——而他的真实意图只是「分析图片内容」。
+      // 这里剥离附图重试一次，并在正文里说明「已省略 N 张图 + 怎么改设置」，
+      // 让用户至少得到一次可读的回答，而不是一个红字报错。
+      if (visionCount > 0 && !opts._visionRetry && (res.status === 400 || res.status === 422)) {
+        const plain = stripVisionForRetry(finalMessages, visionCount);
+        return await chat(plain, cfg, { ...opts, _visionRetry: true });
+      }
       const err = new Error(`AI 请求失败(${res.status}${httpHint(res.status)})：${t.slice(0, 300)}`);
       err.status = res.status;
       throw err;
@@ -161,4 +170,29 @@ function httpHint(status) {
  */
 export function extractJSON(text) {
   return tryParseLLMJson(text);
+}
+
+/**
+ * 视觉降级：把多模态消息还原成纯文本，并在末尾追加一句给模型的说明。
+ * 用于「模型不支持视觉 → 服务端 400/422」时重试，避免用户只拿到一个晦涩报错。
+ * @param {Array} messages 已富集的消息（可能含 image_url 数组）
+ * @param {number} visionCount 本次原本附带的图片数
+ */
+function stripVisionForRetry(messages, visionCount) {
+  const note = `\n\n（系统提示：本次原本附带了 ${visionCount} 张图片，但当前 AI 模型不支持视觉输入，已自动省略。`
+    + '请如实告知用户「图片内容本次未能分析」，并建议其到「英语中心 → 设置 → 图片分析策略」'
+    + '把模型换成支持视觉的型号（如 gpt-4o / qwen-vl-max / glm-4v / doubao-vision），或改用「先 OCR」策略；'
+    + '切勿凭已有文字臆测图片内容。）';
+  const arr = messages || [];
+  return arr.map((m, i) => {
+    const isLast = i === arr.length - 1;
+    if (typeof m?.content === 'string') {
+      return isLast ? { ...m, content: m.content + note } : m;
+    }
+    if (Array.isArray(m?.content)) {
+      const text = m.content.filter((p) => p?.type === 'text').map((p) => p.text).join('');
+      return { ...m, content: isLast ? text + note : text };
+    }
+    return m;
+  });
 }

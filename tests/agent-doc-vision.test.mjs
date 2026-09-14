@@ -187,3 +187,49 @@ test('enrichForLlm：渲染失败 → 明确告知未纳入分析（不静默丢
   assert.match(out.messages[0].content, /无文字层/);
   await rmDoc(id);
 });
+
+// ---------- 5) 视觉降级：模型不支持视觉时不报错，剥离附图重试一次 ----------
+// 现实坑：用户可能一直用纯文本模型（默认配置就是），此时我们发了图 → 服务端 400/422。
+// 若直接抛错，用户只看到「AI 请求失败」；正确做法是剥离附图重试，并把「为什么没分析图片」
+// 通过给模型的系统提示转述给用户。
+test('llm.chat：模型不支持视觉（400）→ 剥离附图重试一次并说明原因', async () => {
+  const { chat } = await import('../src/agent/llm.js');
+  const { saveWordSettings } = await import('../src/word-repo.js');
+  const imgId = crypto.randomUUID();
+  await db.images.put({ id: imgId, blob: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }), size: 3, updatedAt: Date.now() });
+  await saveWordSettings({ imageAnalysis: { mode: 'visionFirst' } });
+
+  const bodies = [];
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    if (bodies.length === 1) {
+      return { ok: false, status: 400, text: async () => 'image_url is not supported by this model' };
+    }
+    return { ok: true, json: async () => ({ choices: [{ message: { content: '已省略图片' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }) };
+  };
+  try {
+    const out = await chat(
+      [{ role: 'user', content: `看图 ![x](sxy-img://${imgId})` }],
+      { apiKey: 'sk-test', baseUrl: 'https://example.invalid', model: 'text-only' },
+    );
+    assert.equal(out, '已省略图片', '应返回重试后的正常回答，而不是抛错');
+    assert.equal(bodies.length, 2, '应发生一次重试');
+    // 首次带图
+    const first = bodies[0].messages[bodies[0].messages.length - 1];
+    assert.ok(Array.isArray(first.content), '首次请求应带视觉内容');
+    assert.ok(first.content.some((p) => p.type === 'image_url'));
+    // 重试不带图，但把「为什么」写进文本
+    const second = bodies[1].messages[bodies[1].messages.length - 1];
+    assert.equal(typeof second.content, 'string', '重试必须是纯文本');
+    assert.ok(!second.content.includes('image_url'));
+    assert.match(second.content, /不支持视觉/, '要说明图片未分析的原因');
+    assert.match(second.content, /图片分析策略/, '要给出可执行的下一步');
+  } finally {
+    globalThis.fetch = origFetch;
+    await saveWordSettings({ imageAnalysis: { mode: 'auto' } });
+    await db.images.delete(imgId);
+    await db.aiUsage.clear();
+  }
+});
