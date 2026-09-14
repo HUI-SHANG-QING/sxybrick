@@ -49,12 +49,12 @@ test('parsePageSpec / extractDocRefs：解析 "1,3-5" 与 "#2"', () => {
   assert.deepEqual(refs.get('klmnopqrst'), [], '未指定页码 → 空数组（调用方取默认前 N 页）');
 });
 
-// ---------- 2) list_docs 工具 ----------
+// ---------- 2) list_lib_docs 工具 ----------
 
-test('list_docs：列出资料并标注类型/页数/有无文字层', async () => {
+test('list_lib_docs：列出资料并标注类型/页数/有无文字层', async () => {
   const scanId = await mkDoc({ name: '扫描讲义.pdf', pageCount: 12 });
   const textId = await mkDoc({ name: '笔记.md', text: 'a'.repeat(500) });
-  const r = await run('list_docs');
+  const r = await run('list_lib_docs');
   assert.equal(r.ok, true);
   const scan = r.data.items.find((x) => x.docId === scanId);
   const note = r.data.items.find((x) => x.docId === textId);
@@ -65,11 +65,11 @@ test('list_docs：列出资料并标注类型/页数/有无文字层', async () 
   await rmDoc(scanId); await rmDoc(textId);
 });
 
-// ---------- 3) read_doc 工具 ----------
+// ---------- 3) read_lib_doc 工具 ----------
 
-test('read_doc：有文字层 → 直接返回文字摘录（不需要视觉）', async () => {
+test('read_lib_doc：有文字层 → 直接返回文字摘录（不需要视觉）', async () => {
   const id = await mkDoc({ name: '考点.txt', text: '死锁的四个必要条件：互斥、请求与保持、不可剥夺、循环等待。' });
-  const r = await run('read_doc', { docId: id });
+  const r = await run('read_lib_doc', { docId: id });
   assert.equal(r.ok, true);
   assert.equal(r.data.source, 'text');
   assert.match(r.data.excerpt, /死锁/);
@@ -77,9 +77,9 @@ test('read_doc：有文字层 → 直接返回文字摘录（不需要视觉）'
   await rmDoc(id);
 });
 
-test('read_doc：扫描件（无文字层）→ 返回 sxy-doc 视觉引用', async () => {
+test('read_lib_doc：扫描件（无文字层）→ 返回 sxy-doc 视觉引用', async () => {
   const id = await mkDoc({ name: '高数扫描.pdf', pageCount: 20 });
-  const r = await run('read_doc', { docId: id, pages: '3-5' });
+  const r = await run('read_lib_doc', { docId: id, pages: '3-5' });
   assert.equal(r.ok, true);
   assert.equal(r.data.source, 'vision');
   assert.equal(r.data.visionRef, `sxy-doc://${id}#3-5`);
@@ -87,12 +87,12 @@ test('read_doc：扫描件（无文字层）→ 返回 sxy-doc 视觉引用', as
   await rmDoc(id);
 });
 
-test('read_doc：支持按名称模糊匹配；找不到时列出可用资料', async () => {
+test('read_lib_doc：支持按名称模糊匹配；找不到时列出可用资料', async () => {
   const id = await mkDoc({ name: '线性代数第三章.pdf', pageCount: 8 });
-  const hit = await run('read_doc', { name: '线性代数' });
+  const hit = await run('read_lib_doc', { name: '线性代数' });
   assert.equal(hit.ok, true);
   assert.equal(hit.data.docId, id);
-  const miss = await run('read_doc', { name: '不存在的资料名' });
+  const miss = await run('read_lib_doc', { name: '不存在的资料名' });
   assert.equal(miss.ok, false);
   assert.match(miss.error, /线性代数第三章\.pdf/, '失败时要告诉模型有哪些资料可用');
   await rmDoc(id);
@@ -102,9 +102,9 @@ test('read_doc：支持按名称模糊匹配；找不到时列出可用资料', 
 
 test('enrichForLlm：visionFirst 下把资料页面图送进多模态（端到端）', async () => {
   const id = await mkDoc({ name: '扫描实验报告.pdf', pageCount: 10 });
-  const res = await run('read_doc', { docId: id });
+  const res = await run('read_lib_doc', { docId: id });
   // 模拟 ReAct 循环里 tool 消息的真实形态：工具结果被 JSON.stringify 进文本
-  const toolMsg = { role: 'tool', content: `工具 read_doc 返回：\n${JSON.stringify(res.data)}` };
+  const toolMsg = { role: 'tool', content: `工具 read_lib_doc 返回：\n${JSON.stringify(res.data)}` };
   const messages = [{ role: 'user', content: '这份实验报告的数据说明了什么？' }, toolMsg];
   const out = await enrichForLlm(messages, {
     settings: { imageAnalysis: { mode: 'visionFirst' } },

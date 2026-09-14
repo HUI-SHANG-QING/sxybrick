@@ -979,7 +979,11 @@ toolRegistry.register({
 // image-analysis.enrichForLlm 渲染成页面图送给多模态（与 sxy-img:// 同一套策略与护栏）。
 
 toolRegistry.register({
-  name: 'list_docs',
+  // 命名注意：既有 `list_docs` 是「列 AI 文档」（repo.docs），本工具是「列资料库文件」（docFiles）。
+  // 二者曾是同名 → 后注册者覆盖前者，AI 文档列表功能被静默顶掉（2026-09-14 审计发现）。
+  // 现统一加 `_lib_` 前缀（library = 资料库），并把 read 也改名成 read_lib_doc 成对，
+  // 顺便把 `read_doc` 这个名字让给未来的「读 AI 文档」工具，避免再次撞名。
+  name: 'list_lib_docs',
   description: '列出用户「资料库」里的文件（PDF/图片/文档）：名称、类型、页数、是否含可提取文字层。'
     + '用户提到「我上传的资料/课件/讲义」时先调它了解有什么，再用 read_doc 读具体内容。',
   parameters: {},
@@ -1002,12 +1006,12 @@ toolRegistry.register({
 });
 
 toolRegistry.register({
-  name: 'read_doc',
+  name: 'read_lib_doc',
   description: '读取某份资料的内容用于分析。有文字层的直接返回文字摘录；'
     + '扫描件/图表型（无文字层）会自动把页面图作为附图交给多模态模型，请直接看图分析。'
-    + '参数二选一：docId（来自 list_docs，最可靠）或 name（按文件名模糊匹配）。',
+    + '参数二选一：docId（来自 list_lib_docs，最可靠）或 name（按文件名模糊匹配）。',
   parameters: {
-    docId: '资料 id（来自 list_docs）',
+    docId: '资料 id（来自 list_lib_docs）',
     name: '资料名称或名称片段（模糊匹配）',
     pages: '要看的页码，如 "1,3-5"；仅扫描件/图表型有效，缺省看前 3 页',
   },
@@ -1026,7 +1030,7 @@ toolRegistry.register({
     }
     if (!target) {
       const names = files.slice(0, 20).map((f) => f.name).join('、');
-      return { ok: false, error: `未找到匹配的资料。可用资料：${names}。可先用 list_docs 查看完整列表。` };
+      return { ok: false, error: `未找到匹配的资料。可用资料：${names}。可先用 list_lib_docs 查看完整列表。` };
     }
 
     const profile = await docContentProfile(target.id);

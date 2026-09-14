@@ -3,7 +3,7 @@
 //   basic  正反面：点击翻转
 //   cloze  填空：正面把 {{答案}} 挖空，翻转后显示答案
 //   choice 选择：正面点选项作答，翻转后判对错
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { speak, mdToSpeech } from '../utils/tts.js';
 import { WRONG_REASONS, wrongReasonToCode } from '../repo.js';
@@ -134,6 +134,96 @@ function applyCustomWrong() {
   showCustomWrong.value = false;
 }
 
+// ---- 正反面内容全屏放大（文字+图片整体缩放/拖拽） ----
+// 与 MarkdownRenderer 的图片灯箱互补：那个只管单张图，这个管整面内容。
+const contentFs = ref({ open: false, side: 'front', zoom: 1, x: 0, y: 0 });
+const fsStage = ref(null);
+let fsDrag = null;
+let pinch = null;
+
+function openContentFs(side) {
+  contentFs.value.open = true;
+  contentFs.value.side = side;
+  contentFs.value.zoom = 1;
+  contentFs.value.x = 0;
+  contentFs.value.y = 0;
+  document.addEventListener('keydown', onFsKey, true);
+}
+function closeContentFs() {
+  if (!contentFs.value.open) return;
+  contentFs.value.open = false;
+  document.removeEventListener('keydown', onFsKey, true);
+}
+function onFsKey(e) {
+  if (e.key === 'Escape') { e.preventDefault(); closeContentFs(); }
+}
+function fsSetZoom(z, cx, cy) {
+  const nz = Math.min(5, Math.max(0.5, z));
+  if (cx == null || cy == null) {
+    const el = fsStage.value;
+    if (el) { cx = el.clientWidth / 2; cy = el.clientHeight / 2; }
+  }
+  if (cx != null) {
+    const k = nz / contentFs.value.zoom;
+    contentFs.value.x = cx - (cx - contentFs.value.x) * k;
+    contentFs.value.y = cy - (cy - contentFs.value.y) * k;
+  }
+  contentFs.value.zoom = nz;
+}
+function fsOnWheel(e) {
+  if (!contentFs.value.open) return;
+  e.preventDefault();
+  const r = fsStage.value?.getBoundingClientRect();
+  const cx = r ? e.clientX - r.left : null;
+  const cy = r ? e.clientY - r.top : null;
+  fsSetZoom(contentFs.value.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), cx, cy);
+}
+function fsOnPointerDown(e) {
+  if (e.pointerType === 'touch') return; // 触屏走 touchstart
+  fsDrag = { x: e.clientX - contentFs.value.x, y: e.clientY - contentFs.value.y };
+  fsStage.value?.setPointerCapture(e.pointerId);
+}
+function fsOnPointerMove(e) {
+  if (!fsDrag) return;
+  contentFs.value.x = e.clientX - fsDrag.x;
+  contentFs.value.y = e.clientY - fsDrag.y;
+}
+function fsOnPointerUp() { fsDrag = null; }
+function fsOnDoubleClick(e) {
+  const r = fsStage.value?.getBoundingClientRect();
+  const cx = r ? e.clientX - r.left : null;
+  const cy = r ? e.clientY - r.top : null;
+  fsSetZoom(contentFs.value.zoom > 1.01 ? 1 : 2, cx, cy);
+}
+// 触屏双指捏合缩放
+function fsTouchStart(e) {
+  if (e.touches.length === 2) {
+    const [a, b] = e.touches;
+    pinch = { dist: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), zoom: contentFs.value.zoom };
+  } else if (e.touches.length === 1) {
+    fsDrag = { x: e.touches[0].clientX - contentFs.value.x, y: e.touches[0].clientY - contentFs.value.y };
+  }
+}
+function fsTouchMove(e) {
+  if (e.touches.length === 2 && pinch) {
+    e.preventDefault();
+    const [a, b] = e.touches;
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const r = fsStage.value?.getBoundingClientRect();
+    const cx = r ? (a.clientX + b.clientX) / 2 - r.left : null;
+    const cy = r ? (a.clientY + b.clientY) / 2 - r.top : null;
+    fsSetZoom(pinch.zoom * (d / pinch.dist), cx, cy);
+  } else if (e.touches.length === 1 && fsDrag) {
+    contentFs.value.x = e.touches[0].clientX - fsDrag.x;
+    contentFs.value.y = e.touches[0].clientY - fsDrag.y;
+  }
+}
+function fsTouchEnd() { pinch = null; fsDrag = null; }
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onFsKey, true);
+});
+
 // 暴露给父级（键盘快捷键：空格翻面 / 1·2·3 评级）
 defineExpose({ flipped, showBack, doRate });
 </script>
@@ -144,6 +234,7 @@ defineExpose({ flipped, showBack, doRate });
     <div class="flip-inner" :class="{ flipped }">
       <!-- 正面 -->
       <div class="flip-face flip-front card-item" @click="type !== 'choice' && showBack()">
+        <button class="fs-btn" title="全屏查看正面" @click.stop="openContentFs('front')">⛶ 全屏</button>
         <div class="face-scroll">
           <div class="tags">
             <span class="tag-pill subj">{{ typeText }}</span>
@@ -191,6 +282,7 @@ defineExpose({ flipped, showBack, doRate });
           <button class="btn small" @click="showFront">看回问题</button>
           <button class="btn small" @click="speak(card.back)">朗读答案</button>
           <button class="btn small" @click.stop="emit('edit', card)">编辑这张卡</button>
+          <button class="btn small" @click.stop="openContentFs('back')">⛶ 全屏</button>
         </div>
         <div class="back-body face-scroll">
           <template v-if="type === 'choice'">
@@ -247,6 +339,40 @@ defineExpose({ flipped, showBack, doRate });
         </div>
       </div>
     </transition>
+
+    <!-- 正反面内容全屏放大层（文字+图片整体缩放/拖拽/捏合） -->
+    <Teleport to="body">
+      <div v-if="contentFs.open" class="content-fs-overlay" @click.self="closeContentFs">
+        <div class="content-fs-bar">
+          <span class="content-fs-label">{{ contentFs.side === 'front' ? '正面' : '背面' }}</span>
+          <span class="content-fs-zoom">{{ Math.round(contentFs.zoom * 100) }}%</span>
+          <button class="btn small" @click="fsSetZoom(contentFs.zoom > 1.01 ? 1 : 2)">复位</button>
+          <button class="btn small" @click="closeContentFs">✕ 关闭 (ESC)</button>
+        </div>
+        <div
+          ref="fsStage"
+          class="content-fs-stage"
+          @wheel="fsOnWheel"
+          @pointerdown="fsOnPointerDown"
+          @pointermove="fsOnPointerMove"
+          @pointerup="fsOnPointerUp"
+          @pointercancel="fsOnPointerUp"
+          @dblclick="fsOnDoubleClick"
+          @touchstart="fsTouchStart"
+          @touchmove="fsTouchMove"
+          @touchend="fsTouchEnd"
+        >
+          <div class="content-fs-inner" :style="{ transform: `translate(${contentFs.x}px, ${contentFs.y}px) scale(${contentFs.zoom})` }">
+            <MarkdownRenderer v-if="contentFs.side === 'front'" :content="maskedFront" />
+            <MarkdownRenderer v-else-if="type === 'choice'" :content="card.front" />
+            <MarkdownRenderer v-else-if="type === 'cloze'" :content="clozeReveal" />
+            <MarkdownRenderer v-else :content="card.back" />
+            <div v-if="contentFs.side === 'back' && type === 'cloze' && card.back" class="hint" style="margin-top:10px">{{ card.back }}</div>
+            <div v-if="contentFs.side === 'back' && card.mnemonic" class="mnemonic">助记：{{ card.mnemonic }}</div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -259,6 +385,9 @@ defineExpose({ flipped, showBack, doRate });
   gap: 10px;
 }
 .flip-inner {
+  /* ⚠️ 不要删掉这个 relative：正面右上角的「⛶ 全屏」按钮（.fs-btn）是 absolute，
+     它的定位基准就是这里（.flip-face 是 static，不会形成定位上下文）。
+     一旦改成 static，按钮会飘到 flip-scene 之外（2026-09-14 审计提示）。 */
   position: relative;
   transform-style: preserve-3d;
   transition: transform .55s cubic-bezier(.2, .7, .3, 1);
@@ -373,4 +502,70 @@ defineExpose({ flipped, showBack, doRate });
   .meta-row { gap: 8px; }
   .back-top { flex-wrap: wrap; }
 }
+
+/* 全屏放大按钮（正面右上角）
+   定位基准 = .flip-inner（它必须是 position: relative，见该规则处的警告） */
+.fs-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  font-size: 12px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink-2);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity .15s;
+}
+.fs-btn:hover { opacity: 1; }
+
+/* 正反面内容全屏放大层 */
+.content-fs-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  flex-direction: column;
+}
+.content-fs-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  flex-shrink: 0;
+}
+.content-fs-label { font-size: 14px; font-weight: 600; }
+.content-fs-zoom { font-size: 13px; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.content-fs-bar .btn { background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.25); }
+.content-fs-stage {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  cursor: grab;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.content-fs-stage:active { cursor: grabbing; }
+.content-fs-inner {
+  transform-origin: center center;
+  color: #e8e8e8;
+  max-width: 90vw;
+  padding: 24px;
+  box-sizing: border-box;
+}
+.content-fs-inner :deep(img) { max-width: 100%; border-radius: 8px; display: block; margin: 8px auto; }
+.content-fs-inner :deep(p), .content-fs-inner :deep(li) { color: #e8e8e8; line-height: 1.8; }
+.content-fs-inner :deep(h1), .content-fs-inner :deep(h2), .content-fs-inner :deep(h3) { color: #fff; }
+.content-fs-inner :deep(code) { background: rgba(255,255,255,0.1); color: #fbbf24; }
+.content-fs-inner :deep(pre) { background: rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; overflow: auto; }
+.content-fs-inner :deep(table) { color: #e8e8e8; border-collapse: collapse; }
+.content-fs-inner :deep(td), .content-fs-inner :deep(th) { border: 1px solid rgba(255,255,255,0.2); padding: 6px 10px; }
 </style>

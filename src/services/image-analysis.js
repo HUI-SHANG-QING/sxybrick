@@ -249,6 +249,18 @@ export async function recommendForCurrentData() {
  * @returns {Promise<Array<{type:'image_url',image_url:{url:string}}>>}（转换失败的 id 跳过）
  */
 export async function imageIdsToVisionContent(ids) {
+  return (await imageIdsToVisionContentMapped(ids)).map((x) => x.part);
+}
+
+/**
+ * 同 imageIdsToVisionContent，但保留 id 映射 → [{ id, part }]。
+ * 为什么需要：本函数会**跳过**「图片行不存在 / 压缩失败」的 id，只按返回数量去推「哪些图
+ * 发出去了」会张冠李戴（曾把「图 A 已发送」的标注贴到实际发送的图 B 上，2026-09-14 审计发现）。
+ * 调用方要写「已作为附图发送」这类标注时，必须用本函数拿精确 id。
+ * @param {string[]} ids
+ * @returns {Promise<Array<{id:string, part:{type:'image_url',image_url:{url:string}}}>>}
+ */
+export async function imageIdsToVisionContentMapped(ids) {
   if (!ids?.length) return [];
   let db;
   try {
@@ -261,7 +273,7 @@ export async function imageIdsToVisionContent(ids) {
     const row = await db.images.get(id);
     if (!row) continue;
     const dataUrl = await compressImageBlob(row.blob);
-    if (dataUrl) out.push({ type: 'image_url', image_url: { url: dataUrl } });
+    if (dataUrl) out.push({ id, part: { type: 'image_url', image_url: { url: dataUrl } } });
   }
   return out;
 }
@@ -366,9 +378,10 @@ export async function enrichForLlm(messages, opts = {}) {
   // ---------- 卡片图片 ----------
   if (policy.mode === 'visionFirst' && ids.length) {
     const picked = ids.slice(0, visionLimit);
-    const v = await imageIdsToVisionContent(picked);
-    for (const item of v) vision.push(item);
-    const sent = new Set(picked.slice(0, v.length)); // 转换失败的按未发送处理
+    const mapped = await imageIdsToVisionContentMapped(picked);
+    for (const x of mapped) vision.push(x.part);
+    // 精确「哪些 id 真的送出去了」——不能用 picked.slice(0, v.length) 推（中间项可能被跳过）
+    const sent = new Set(mapped.map((x) => x.id));
     ids.forEach((id, i) => {
       textMap.set(`sxy-img://${id}`, sent.has(id)
         ? `【图片${i + 1}：已作为附图发送，请直接看图分析】`
@@ -412,11 +425,11 @@ export async function enrichForLlm(messages, opts = {}) {
     if (policy.allowVisionFallback && vision.length < visionLimit) {
       const failed = ids.filter((id) => !ocrText[id] || !ocrText[id].trim());
       const room = visionLimit - vision.length;
-      const v = await imageIdsToVisionContent(failed.slice(0, room));
-      for (const item of v) vision.push(item);
-      if (v.length) {
-        const sentId = failed[v.length - 1];
-        textMap.set(`sxy-img://${sentId}`, `【图片(${sentId})：OCR 未能识别，已作为附图发送给多模态模型】`);
+      const mapped = await imageIdsToVisionContentMapped(failed.slice(0, room));
+      for (const x of mapped) vision.push(x.part);
+      // 逐 id 标注：送成功的写「已发送」，被跳过的（图没了/压缩失败）保持原「未能识别」标注
+      for (const { id } of mapped) {
+        textMap.set(`sxy-img://${id}`, `【图片(${id})：OCR 未能识别，已作为附图发送给多模态模型】`);
       }
     }
   }

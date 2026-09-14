@@ -11,6 +11,12 @@ export class ToolRegistry {
   }
   register(spec) {
     const tool = defineTool(spec);
+    // 同名工具会**静默覆盖**（后者赢）——2026-09-14 就因此把「列 AI 文档」的 list_docs
+    // 顶成了「列资料库文件」，功能凭空消失且不报错。插件热重载确实需要覆盖能力，
+    // 所以这里只告警不抛错；内置工具的重名由 tests/agent-tools-registry.test.mjs 兜住。
+    if (this.map.has(tool.name)) {
+      console.warn(`[agent] 工具名重复：${tool.name} 被重新注册，先前实现将被覆盖（改个名，或确认这是插件热重载）`);
+    }
     this.map.set(tool.name, tool);
     return tool;
   }
