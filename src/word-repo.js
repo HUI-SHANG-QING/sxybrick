@@ -179,19 +179,23 @@ export async function createWordCard(payload = {}) {
   // 直接写 IndexedDB 会因结构化克隆失败抛 DataCloneError（被 save 的 catch 当「保存失败」吞掉）。
   payload = plain(payload);
   const kind = WORD_KINDS.includes(payload.kind) ? payload.kind : 'word';
+  // round50 N1：词卡文本字段软上限（与卡片侧 validateCard 的 MAX_CHARS=8000 同防御思路，
+  // 只在写入边界收口）——防误粘贴超长文本膨胀同步包/白烧 AI 账。字段短文本属性决定
+  // 上限更小；slice 静默截断而非报错，与既有的 trim 行为风格一致。
+  const L = (s, max) => String(s ?? '').trim().slice(0, max);
   const t = now();
   const card = {
     id: uid(),
     kind,
-    word: String(payload.word || '').trim(),
-    phonetic: String(payload.phonetic || '').trim(),
-    meaning: String(payload.meaning || '').trim(),
-    example: String(payload.example || '').trim(),
-    exampleTrans: String(payload.exampleTrans || '').trim(),
-    note: String(payload.note || '').trim(),
+    word: L(payload.word, 200),
+    phonetic: L(payload.phonetic, 200),
+    meaning: L(payload.meaning, 5000),
+    example: L(payload.example, 5000),
+    exampleTrans: L(payload.exampleTrans, 5000),
+    note: L(payload.note, 5000),
     tags: Array.isArray(payload.tags) ? payload.tags.map(String).filter(Boolean) : [],
-    source: String(payload.source || '').trim(),
-    subject: String(payload.subject || '').trim(),
+    source: L(payload.source, 60),
+    subject: L(payload.subject, 30),
     familiar: 0,
     ...pickExt(payload),
     // SRS 初始状态：新卡立即到期（进入当日复习队列）

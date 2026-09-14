@@ -116,14 +116,18 @@ async function executeTool(name, args, ctx, onTrace) {
 // 策略（**安全优先**）：只截断「工具观察 / 助手原文」这类可再生的中间产物（从旧到新），
 // 绝不丢弃或改写 system 与用户消息——否则会丢掉用户真正的提问。
 const CONVO_CHAR_BUDGET = 48000; // 约 1.2万~2.4万 token 量级，给模型上限留足余量
-function compactConvo(convo) {
+// round50 N2 回归需要直测码点截断，故导出（纯函数，无副作用）
+export function compactConvo(convo) {
   const size = () => convo.reduce((n, m) => n + String(m?.content ?? '').length, 0);
   if (size() <= CONVO_CHAR_BUDGET) return convo;
   for (const m of convo) {
     if (size() <= CONVO_CHAR_BUDGET) break;
     if (m.role !== 'tool' && m.role !== 'assistant') continue;
     const s = String(m.content ?? '');
-    if (s.length > 1500) m.content = s.slice(0, 1500) + '…（已截断以控制上下文长度）';
+    // round50 N2：按码点截断（Array.from）——slice 按 UTF-16 码元切，emoji/组合字符
+    // 恰好骑在截断线上会被劈成半个（预览尾部显示乱码 �）。此处是喂给 AI 的上下文
+    // 出口，码点安全截断成本可忽略（仅超长 tool/assistant 消息才走 Array.from）。
+    if (s.length > 1500) m.content = Array.from(s).slice(0, 1500).join('') + '…（已截断以控制上下文长度）';
   }
   return convo;
 }
