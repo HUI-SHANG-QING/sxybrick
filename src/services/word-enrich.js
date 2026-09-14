@@ -89,18 +89,28 @@ export function isShardLoaded(shard) {
   return loadedShards.has(String(shard));
 }
 
+/** 进行中的分片加载（按分片去重，避免同一分片被并发 import 多次） */
+const shardLoading = new Map();
+
 /** 确保某分片已加载（幂等）。返回是否可用。 */
 export async function ensureShard(shard) {
   const id = String(shard || '');
   if (!id) return false;
   if (loadedShards.has(id)) return true;
-  const load = shardLoaders[`../data/word-enrich-shards/${id}.json`];
-  if (!load) return false;
-  const mod = await load();
-  const payload = mod?.default || mod || {};
-  for (const [k, v] of Object.entries(payload.entries || {})) INDEX.set(normKey(k), v);
-  loadedShards.add(id);
-  return true;
+  // 审计（2026-09-14）：fillCardsFromLocalBank 会对同一分片内的大量词并发调 ensureWord，
+  // 若没有 in-flight 缓存，同一分片会被并发 import 多次（浪费 + 竞态窗口）。
+  if (shardLoading.has(id)) return shardLoading.get(id);
+  const p = (async () => {
+    const load = shardLoaders[`../data/word-enrich-shards/${id}.json`];
+    if (!load) return false;
+    const mod = await load();
+    const payload = mod?.default || mod || {};
+    for (const [k, v] of Object.entries(payload.entries || {})) INDEX.set(normKey(k), v);
+    loadedShards.add(id);
+    return true;
+  })().finally(() => shardLoading.delete(id));
+  shardLoading.set(id, p);
+  return p;
 }
 
 /** 确保某词所在分片已加载。返回该词现在是否可查。 */
@@ -114,7 +124,14 @@ export async function ensureWord(word) {
 
 /** 强制加载全部分片（离线批量场景 / 测试用） */
 export async function loadAllShards() {
-  for (const s of SHARDS) await ensureShard(s.shard);
+  // 用 allSettled 而不是 for-await 串行：某个分片 404/解析失败时，
+  // 串行循环会**直接中断**，后面所有分片都不再加载（表现为"词库只加载了一半"）。
+  // 单个失败只记日志，其余照常加载。
+  const results = await Promise.allSettled(SHARDS.map((s) => ensureShard(s.shard)));
+  const failed = results.filter((r) => r.status === 'rejected').length;
+  if (failed) {
+    console.warn(`[word-enrich] ${failed}/${SHARDS.length} 个分片加载失败（其余已加载）`);
+  }
   return INDEX.size;
 }
 
@@ -208,7 +225,21 @@ export function fillCardFromLocalBank(card, opts = {}) {
     take('rootAffix', d.rootAffix); take('syllable', d.syllable);
     take('phonetic', d.phonetic);
     if (d.mnemonic) take('mnemonics', [d.mnemonic]);
-    out._localSource = 'full';
+    // 审计（2026-09-14）：词条存在但 defs 为空（分片里有词却没释义）时不能标 'full'——
+    // 否则 UI 显示「已收录完整词条」但内容全空。此时回退到种子释义兜底。
+    if (Array.isArray(d.defs) && d.defs.length && firstMeaning) {
+      out._localSource = 'full';
+      return out;
+    }
+    // 只有例句/词组等旁路字段、无可用释义：继续走 seed 兜底
+    const m = seedOf ? seedOf(word) : '';
+    if (m) {
+      take('meaning', m);
+      if (!(out.defs || []).length) out.defs = [{ pos: out.pos || '', meaning: m }];
+      out._localSource = 'seed';
+      return out;
+    }
+    out._localSource = 'none';
     return out;
   }
   if (r.reason === 'shard-not-loaded') { out._localSource = 'pending'; return out; }

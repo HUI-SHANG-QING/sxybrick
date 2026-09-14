@@ -15,6 +15,8 @@ export const zh = {
   // 筛选
   filterAll: '全部',
   filterWord: '单词',
+  filterUnfamiliar: '生词',
+  filterFamiliar: '熟词',
   filterPhrase: '词组',
   filterSentence: '短句',
   filterTemplate: '范文',
@@ -196,6 +198,8 @@ export const en = {
 
   filterAll: 'All',
   filterWord: 'Words',
+  filterUnfamiliar: 'New words',
+  filterFamiliar: 'Familiar',
   filterPhrase: 'Phrases',
   filterSentence: 'Sentences',
   filterTemplate: 'Templates',

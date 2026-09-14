@@ -27,9 +27,8 @@ const stats = ref(null);
 const groups = ref([]);
 const settings = ref(null);
 
-const filterKind = ref('all');     // all/word/phrase/sentence/template
+const filterKind = ref('all');     // all/word/unfamiliar/familiar/phrase/sentence/template
 const filterReviewed = ref('all'); // all/reviewed/unreviewed
-const filterFamiliar = ref(false);
 const q = ref('');
 
 // ---- 视图：我的词本 / 考研大纲词书 ----
@@ -193,6 +192,9 @@ function blankForm() {
 const kinds = [
   { id: 'all', label: t('views.wordBook.filterAll') },
   { id: 'word', label: t('views.wordBook.filterWord') },
+  // 生词/熟词：单词类目内的状态子分类（familiar=0/1），新加入的单词默认是生词
+  { id: 'unfamiliar', label: t('views.wordBook.filterUnfamiliar') },
+  { id: 'familiar', label: t('views.wordBook.filterFamiliar') },
   { id: 'phrase', label: t('views.wordBook.filterPhrase') },
   { id: 'sentence', label: t('views.wordBook.filterSentence') },
   { id: 'template', label: t('views.wordBook.filterTemplate') },
@@ -200,10 +202,12 @@ const kinds = [
 
 async function load(seq) {
   const f = {};
-  if (filterKind.value !== 'all') f.kind = filterKind.value;
+  // 生词/熟词是「单词」类别下的状态筛选：kind=word + familiar=0/1
+  if (filterKind.value === 'unfamiliar') { f.kind = 'word'; f.familiar = 0; }
+  else if (filterKind.value === 'familiar') { f.kind = 'word'; f.familiar = 1; }
+  else if (filterKind.value !== 'all') f.kind = filterKind.value;
   if (filterReviewed.value === 'reviewed') f.reviewedOnly = true;
   if (filterReviewed.value === 'unreviewed') f.reviewedOnly = false;
-  if (filterFamiliar.value) f.familiar = 1;
   const [c, s, g, w] = await Promise.all([
     listWordCards({ ...f, q: q.value }),
     wordStats(),
@@ -242,7 +246,7 @@ onMounted(async () => {
 // 审计 P1-1：watch 对数组源回调签名为 (newValue, oldValue)，
 // 直接传 load 会把数组当 seq 传入 load(seq)，守卫恒真 → 筛选切换不刷新列表。
 // 改为箭头函数 + bump loadSeq，与 onSearch 保持一致。
-watch([filterKind, filterReviewed, filterFamiliar], () => { loadSeq++; load(loadSeq); });
+watch([filterKind, filterReviewed], () => { loadSeq++; load(loadSeq); });
 
 let loadSeq = 0;
 let searchTimer = null;
@@ -794,7 +798,6 @@ async function addOcrWords() {
       </div>
       <div class="wb-actions">
         <input class="wb-search" v-model="q" :placeholder="t('views.wordBook.searchPlaceholder')" @input="onSearch" />
-        <button class="fam-toggle" :class="{ on: filterFamiliar }" @click="filterFamiliar = !filterFamiliar">{{ t('views.wordBook.familiarBadge') }}</button>
         <select class="wb-rev" v-model="filterReviewed">
           <option value="all">{{ t('views.wordBook.showAll') }}</option>
           <option value="reviewed">{{ t('views.wordBook.showReviewed') }}</option>
@@ -1225,8 +1228,7 @@ async function addOcrWords() {
 .kchip.on { background: var(--accent); color: #fff; }
 .wb-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .wb-search { flex: 1; min-width: 140px; border: 1px solid var(--line); border-radius: 14px; padding: 11px 14px; background: var(--panel); color: var(--ink); font-size: 13px; }
-.wb-rev, .fam-toggle { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--panel); color: var(--ink); font-size: 13px; cursor: pointer; }
-.fam-toggle.on { border-color: var(--accent); color: var(--accent); }
+.wb-rev { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--panel); color: var(--ink); font-size: 13px; cursor: pointer; }
 .wb-add { border: none; background: var(--accent); color: #fff; border-radius: 10px; padding: 8px 14px; font-size: 13px; cursor: pointer; white-space: nowrap; }
 
 .wb-list { padding: 0 16px; display: flex; flex-direction: column; gap: 12px; }

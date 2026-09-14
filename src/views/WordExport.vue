@@ -7,7 +7,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { listWordCards, listWordGroups } from '../word-repo.js';
-import { currentDbMode } from '../db.js';
+import { currentDbMode, db } from '../db.js';
 import { buildWordSheet, printWordSheet, downloadWordSheetHtml, PAGE_SIZE } from '../services/word-print.js';
 import { exportWordPdf, listExportHistory } from '../services/word-pdf.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
@@ -106,7 +106,19 @@ async function gather() {
   let list = await listWordCards(base);
   if (range.value === 'incremental') {
     const last = Number(localStorage.getItem(LAST_KEY) || 0);
-    list = list.filter((r) => (r.updatedAt || 0) > last);
+    // 审计（2026-09-14）：增量导出不能只看 updatedAt —— 词卡展示层会用本地词库
+    // 回填缺失释义（不落库、updatedAt 不变），如果只按 updatedAt 过滤，那些
+    // 「补全后才拿到释义」的裸卡会被漏掉，用户增量导出的包里还是空释义。
+    // 处理：bulkGet 原始库行，凡「库中原本无释义、回填后有释义」的卡也算增量。
+    const rawRows = await db.wordCards.bulkGet(list.map((r) => r.id)).catch(() => []);
+    const rawMap = new Map((rawRows || []).filter(Boolean).map((c) => [c.id, c]));
+    list = list.filter((r) => {
+      if ((r.updatedAt || 0) > last) return true;
+      const orig = rawMap.get(r.id);
+      const origMeaning = String(orig?.meaning || '').trim();
+      const nowMeaning = String(r.meaning || '').trim();
+      return !origMeaning && nowMeaning; // 库中原本无释义、回填后有释义 → 算增量
+    });
   }
   list = list.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   rows.value = list;

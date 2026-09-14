@@ -19,7 +19,22 @@ const PROTOCOL = `
 2) 工具返回后，你会看到“工具 X 返回：...”，据此继续推理；
 3) 当你已能完整回答用户时，必须输出：
 <final>这里写给用户的最终回答</final>
-注意：不要同时混用两种标签；<final> 之外不要输出多余说明。`;
+注意：不要同时混用两种标签；<final> 之外不要输出多余说明。
+
+4) 当答案本质是「一组条目 / 一张表 / 一张关系图」时，<final> 里**只输出**下面这种结构化 JSON
+   （不要加任何解释文字，前端会按类型渲染成列表、表格或图，直接输出 JSON 文本反而不可读）：
+   · 条目：{"type":"list","data":{"items":[{"title":"…","detail":"…"}]},"note":"…"}
+   · 表格：{"type":"table","data":{"columns":["…"],"rows":[["…","…"]]}}
+   · 关系/图谱/关键路径：{"type":"graph","data":{"kind":"force|critical-path","nodes":[{"id":"a","name":"停止-等待","category":"数据链路层"}],"links":[{"source":"a","target":"b","label":"服务于"}]},"note":"…"}
+   只有确实适合图形化表达时才用 graph；能用自然语言讲清的就用普通文本。
+   切勿把工具返回的原始 JSON 原样抄给用户——那是给程序看的，不是给用户的答案。`;
+
+/** 结构化输出协议（供测试与提示一致性校验引用） */
+export const STRUCTURED_REPLY_CONTRACT = {
+  list: '{"type":"list","data":{"items":[{"title":"","detail":""}]},"note":""}',
+  table: '{"type":"table","data":{"columns":[],"rows":[]}}',
+  graph: '{"type":"graph","data":{"kind":"","nodes":[],"links":[]},"note":""}',
+};
 
 function buildSystemPrompt(agent, ctx) {
   let p = agent.systemPrompt || '';

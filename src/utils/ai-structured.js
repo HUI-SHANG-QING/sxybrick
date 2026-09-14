@@ -1,0 +1,180 @@
+// src/utils/ai-structured.js
+// AI / Agent 回复的「结构化结果」识别与渲染（纯函数，可测）。
+//
+// 背景（2026-09-14 用户反馈）：工具结果以 JSON 进上下文后，模型有时会**把 JSON 原样抄出来**当回答，
+// 用户看到的是一大坨 `{"type":"list","data":{"items":[...]}}`——
+// 既不可读，也浪费一次回答。用户要求：list 应渲染成列表、graph 应渲染成图，
+// 而不是把 JSON 文本甩给用户。
+//
+// 设计原则（保守，绝不误伤正文）：
+//   · 只认「整段就是一个 JSON 对象」（trim 后以 { 开头、} 结尾，或 ```json 代码块裹一层）；
+//     正文里夹带的 JSON 片段一律不动——卡片正文/笔记里出现 JSON 是合法的用户内容；
+//   · 必须同时具备 type 与 data 字段才认定为结构化回复（否则当普通文本）；
+//   · 渲染失败/类型不认识 → 返回 null，调用方按原文显示（降级不丢信息）。
+
+/** 支持的形状（与 Agent 提示协议、前端渲染分支保持一致） */
+export const STRUCTURED_TYPES = ['list', 'table', 'graph', 'cards', 'keyvalue'];
+
+/**
+ * 尝试把一段回复解析为结构化结果。
+ * @param {string} text
+ * @returns {{type:string, data:object, note:string, raw:string}|null}
+ */
+export function parseStructuredReply(text) {
+  const raw = String(text ?? '').trim();
+  if (!raw) return null;
+
+  let body = raw;
+  // ```json ... ``` / ``` ... ``` 包裹（模型最常见的输出形态）
+  const fence = body.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fence) body = fence[1].trim();
+
+  // 严格门禁：整段必须是一个 JSON 对象
+  if (!(body.startsWith('{') && body.endsWith('}'))) return null;
+
+  let obj;
+  try { obj = JSON.parse(body); } catch { return null; }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+
+  const type = String(obj.type || obj.shape || '').trim().toLowerCase();
+  if (!type) return null;
+  // 必须有 data（list/graph/table… 的数据体）；note 可选
+  if (obj.data == null) return null;
+
+  return {
+    type,
+    data: obj.data,
+    note: typeof obj.note === 'string' ? obj.note : '',
+    raw,
+  };
+}
+
+const esc = (s) => String(s ?? '').replace(/[<>]/g, (c) => (c === '<' ? '&lt;' : '&gt;'));
+
+/** list：{ items: [{title, detail, meta?}] } → 有序列表 */
+function listToMd(data) {
+  const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : null);
+  if (!items || !items.length) return null;
+  const lines = items.map((it, i) => {
+    if (it == null) return `${i + 1}. —`;
+    if (typeof it === 'string') return `${i + 1}. ${esc(it)}`;
+    const title = esc(it.title || it.name || it.word || it.front || `#${i + 1}`);
+    const detail = esc(it.detail || it.desc || it.note || it.meaning || it.back || '');
+    const meta = esc(it.meta || it.subject || '');
+    const tail = [detail, meta].filter(Boolean).join(' · ');
+    return `${i + 1}. **${title}**${tail ? ` — ${tail}` : ''}`;
+  });
+  return lines.join('\n');
+}
+
+/** table：{ columns:[...], rows:[[...]] } 或 rows:[{...}] → Markdown 表格 */
+function tableToMd(data) {
+  const rows = Array.isArray(data?.rows) ? data.rows : null;
+  if (!rows || !rows.length) return null;
+  if (Array.isArray(rows[0])) {
+    const cols = Array.isArray(data.columns) && data.columns.length
+      ? data.columns.map(esc)
+      : rows[0].map((_, i) => `列${i + 1}`);
+    const head = `| ${cols.join(' | ')} |`;
+    const sep = `| ${cols.map(() => '---').join(' | ')} |`;
+    const body = rows.map((r) => `| ${(Array.isArray(r) ? r : []).map(esc).join(' | ')} |`).join('\n');
+    return [head, sep, body].join('\n');
+  }
+  // 对象数组：列取并集
+  const cols = [...new Set(rows.flatMap((r) => Object.keys(r || {})))];
+  if (!cols.length) return null;
+  const head = `| ${cols.map(esc).join(' | ')} |`;
+  const sep = `| ${cols.map(() => '---').join(' | ')} |`;
+  const body = rows.map((r) => `| ${cols.map((c) => esc(r?.[c])).join(' | ')} |`).join('\n');
+  return [head, sep, body].join('\n');
+}
+
+/** cards：[{front, back, subject?}] → 问答列表（比裸 JSON 好读，但不落库） */
+function cardsToMd(data) {
+  const items = Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : null);
+  if (!items || !items.length) return null;
+  const lines = items.map((c, i) => {
+    const front = esc(c?.front || c?.title || c?.word || '');
+    const back = esc(c?.back || c?.detail || c?.meaning || '');
+    const subject = esc(c?.subject || '');
+    return `**${i + 1}. ${front}**${subject ? `（${subject}）` : ''}\n\n${back}`;
+  });
+  return lines.join('\n\n');
+}
+
+/** keyvalue / 兜底：平铺对象 → 键值列表；数组 → 逐项列表 */
+function genericToMd(data) {
+  if (Array.isArray(data)) return listToMd({ items: data });
+  if (!data || typeof data !== 'object') return null;
+  const entries = Object.entries(data).filter(([, v]) => v != null);
+  if (!entries.length) return null;
+  // 值里有长数组/对象时给个紧凑表示，避免又变成一坨 JSON
+  const fmt = (v) => {
+    if (Array.isArray(v)) {
+      const head = v.slice(0, 8).map((x) => (typeof x === 'object' ? JSON.stringify(x) : String(x)));
+      return head.join('；') + (v.length > 8 ? `；…还有 ${v.length - 8} 项` : '');
+    }
+    if (typeof v === 'object') return JSON.stringify(v).slice(0, 300);
+    return String(v);
+  };
+  return entries.map(([k, v]) => `- **${esc(k)}**：${esc(fmt(v))}`).join('\n');
+}
+
+/**
+ * 把结构化结果渲染成 Markdown（便于现有的 MarkdownRenderer 统一展示）。
+ * @param {{type:string, data:object, note?:string}} parsed
+ * @returns {string|null} null = 该类型应交由专用组件渲染（如 graph）或无法渲染
+ */
+export function structuredToMarkdown(parsed) {
+  if (!parsed || !parsed.type) return null;
+  const { type, data, note } = parsed;
+  let body = null;
+  if (type === 'list') body = listToMd(data);
+  else if (type === 'table') body = tableToMd(data);
+  else if (type === 'cards') body = cardsToMd(data);
+  else if (type === 'keyvalue') body = genericToMd(data);
+  else if (type === 'graph') return null; // 交给图表组件渲染
+  else body = genericToMd(data);
+  if (!body) return null;
+  return note ? `${note}\n\n${body}` : body;
+}
+
+/** 该结构化结果是否需要交给专用图组件渲染 */
+export function isGraphReply(parsed) {
+  return !!parsed && parsed.type === 'graph' && parsed.data && typeof parsed.data === 'object';
+}
+
+/**
+ * 从 graph 结构里规整出 ECharts 需要的 nodes/links（容错各种字段命名）。
+ * @param {object} data
+ * @returns {{nodes:Array, links:Array, kind:string}|null}
+ */
+export function normalizeGraphData(data) {
+  if (!data || typeof data !== 'object') return null;
+  const rawNodes = Array.isArray(data.nodes) ? data.nodes : (Array.isArray(data.vertices) ? data.vertices : []);
+  const rawLinks = Array.isArray(data.links) ? data.links
+    : (Array.isArray(data.edges) ? data.edges : (Array.isArray(data.relations) ? data.relations : []));
+  if (!rawNodes.length) return null;
+  const nodes = rawNodes.map((n, i) => {
+    if (typeof n === 'string') return { id: n, name: n, category: '' };
+    const id = String(n.id ?? n.key ?? n.name ?? `n${i}`);
+    return {
+      id,
+      name: String(n.name ?? n.label ?? n.title ?? id),
+      category: String(n.category ?? n.group ?? n.subject ?? ''),
+      value: n.value ?? n.count ?? 1,
+    };
+  });
+  const idSet = new Set(nodes.map((n) => n.id));
+  const nameToId = new Map(nodes.map((n) => [n.name, n.id]));
+  const links = rawLinks.map((l) => {
+    const s = String(l?.source ?? l?.from ?? '');
+    const t = String(l?.target ?? l?.to ?? '');
+    return {
+      source: idSet.has(s) ? s : (nameToId.get(s) || s),
+      target: idSet.has(t) ? t : (nameToId.get(t) || t),
+      label: String(l?.label ?? l?.relation ?? l?.name ?? ''),
+    };
+  }).filter((l) => idSet.has(l.source) && idSet.has(l.target) && l.source !== l.target);
+  return { nodes, links, kind: String(data.kind ?? data.layout ?? '').toLowerCase() };
+}

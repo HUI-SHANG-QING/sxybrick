@@ -6,6 +6,8 @@ import { ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import { marked } from 'marked';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
 import { sanitizeHtml } from '../utils/sanitize.js';
+import { parseStructuredReply, structuredToMarkdown, isGraphReply } from '../utils/ai-structured.js';
+import AiGraphView from './AiGraphView.vue';
 
 const props = defineProps({ content: { type: String, default: '' } });
 
@@ -115,12 +117,29 @@ function render(src) {
 const html = ref('');
 // 当前内容的本地图片 id（灯箱顺序导航用；与渲染出的 <img> 顺序一致）
 const imgIds = ref([]);
+// 结构化 graph 回复（模型按协议返回）→ 交给图表组件而不是 v-html
+const graphReply = ref(null);
 
 async function update() {
-  const ids = extractImageIds(props.content);
+  const src0 = props.content || '';
+
+  // 结构化回复识别（严格门禁：只有「整段就是 JSON 且带 type/data」才认，
+  // 卡片正文里夹带的 JSON 一律不动）。模型有时会把工具结果原样抄出来当回答，
+  // 直接显示会给用户一坨 {"type":"list","data":{...}} —— 这里按类型渲染成可读内容。
+  const parsed = parseStructuredReply(src0);
+  if (isGraphReply(parsed)) {
+    graphReply.value = { data: parsed.data, note: parsed.note };
+    html.value = '';
+    imgIds.value = [];
+    return;
+  }
+  graphReply.value = null;
+  const effective = parsed ? (structuredToMarkdown(parsed) ?? src0) : src0;
+
+  const ids = extractImageIds(effective);
   await ensureImages(ids);
   imgIds.value = ids;
-  const src = props.content || '';
+  const src = effective;
   // 按需加载：仅当源文本包含对应语法标记时才加载重型库
   // 这两个 await 是串行的（一般内容里两种语法都很少），可保证 render 时模块就位
   if (src.includes('$')) await loadKatex();
@@ -182,12 +201,29 @@ function resetView() {
   lb.value.rotate = 0;
 }
 
-/** 旋转 90°（dir=1 顺时针 / -1 逆时针）。旋转后回到 1:1 并居中——转过 90° 后
- *  原来的平移与缩放锚点已经没有意义，继续沿用会让人以为"图片飞了"。 */
+/** 旋转 90°（dir=1 顺时针 / -1 逆时针）。旋转后自适应缩放——转过 90° 后
+ *  原来的平移与缩放锚点已无意义，继续沿用会让人以为"图片飞了"，且竖图转横后
+ *  长边会超出视口被裁。改为回到居中并按容器尺寸适配。 */
 function rotateBy(dir) {
   if (!lb.value.open) return;
   lb.value.rotate = ((lb.value.rotate + dir * 90) % 360 + 360) % 360;
-  lb.value.zoom = 1;
+  fitAfterRotate();
+}
+
+/** 旋转后按容器尺寸自适应（0.1x~1x，保持完整可见） */
+function fitAfterRotate() {
+  const el = stage.value?.querySelector('img');
+  const host = stage.value;
+  if (!el || !host) { lb.value.zoom = 1; lb.value.x = 0; lb.value.y = 0; return; }
+  const nw = el.naturalWidth || el.width || 1;
+  const nh = el.naturalHeight || el.height || 1;
+  const swapped = lb.value.rotate % 180 !== 0;
+  const w = swapped ? nh : nw;
+  const h = swapped ? nw : nh;
+  const availW = Math.max(1, host.clientWidth - 48);
+  const availH = Math.max(1, host.clientHeight - 48);
+  const fit = Math.min(availW / w, availH / h, 1);
+  lb.value.zoom = Math.max(0.1, fit);
   lb.value.x = 0;
   lb.value.y = 0;
 }
@@ -293,7 +329,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="md-body" v-html="html" @click="openLightbox"></div>
+  <!-- 结构化 graph 回复 → 内联图表（知识图谱 / 关键路径等） -->
+  <div v-if="graphReply" class="md-body md-graph">
+    <AiGraphView :data="graphReply.data" :note="graphReply.note" />
+  </div>
+  <div v-else class="md-body" v-html="html" @click="openLightbox"></div>
   <Teleport to="body">
     <div v-if="lb.open" ref="lbRoot" class="img-lb" :class="{ 'is-native': lb.native }" @click.self="closeLightbox" @wheel.prevent="onWheel">
       <div

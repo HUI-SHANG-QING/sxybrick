@@ -1,7 +1,7 @@
 <script setup>
 // 新建/编辑卡片弹窗：科目(含自定义)、标签自动完成、Markdown 实时预览、
 // 图片插入(本地存储)、字数统计(7500 预警 / 8000 上限)、实时校验
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, shallowRef } from 'vue';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import { getSubjects, getTags, createCard, updateCard, WRONG_REASONS, wrongReasonToCode,
@@ -49,8 +49,12 @@ const ccLinks = ref([]);
 const relMode = ref('card'); // 'card' = 本库卡片（默认，覆盖大多数场景）| 'word' = 英语词卡
 const cwPickOpen = ref(false);
 const cwPickQ = ref('');
-let cwWordCache = [];
-let ccCardCache = [];
+// 审计（2026-09-14）：候选缓存必须用 shallowRef 而不是普通 let——
+// relHasCache/relPickList 是 computed，普通变量的赋值不会触发重算，
+// 结果「＋ 关联」按钮的 disabled 状态永远停在初始的 true（缓存未加载时），
+// 表现为按钮无法点击、候选列表永远打不开。改成 ref 后缓存赋值即刷新。
+const cwWordCache = shallowRef([]);
+const ccCardCache = shallowRef([]);
 /** 卡片显示标题：取正文首个标题行（与卡片列表口径一致） */
 function cardHead(c) {
   const lines = String(c?.front || '').split('\n').map(s => s.trim()).filter(Boolean);
@@ -61,17 +65,17 @@ const relPickList = computed(() => {
   const q = String(cwPickQ.value || '').trim().toLowerCase();
   if (relMode.value === 'word') {
     const linked = new Set(cwLinks.value.map(c => c.id));
-    return cwWordCache
+    return cwWordCache.value
       .filter(c => !linked.has(c.id) && (!q || (c.word || '').toLowerCase().includes(q) || (c.meaning || '').toLowerCase().includes(q)))
       .slice(0, 8);
   }
   const linked = new Set(ccLinks.value.map(c => c.id));
-  return ccCardCache
+  return ccCardCache.value
     .filter(c => c.id !== props.card?.id && !linked.has(c.id)
       && (!q || cardHead(c).toLowerCase().includes(q) || String(c.subject || '').toLowerCase().includes(q)))
     .slice(0, 8);
 });
-const relHasCache = computed(() => !!(cwWordCache.length || ccCardCache.length));
+const relHasCache = computed(() => !!(cwWordCache.value.length || ccCardCache.value.length));
 async function refreshCwLinks() {
   const [w, c] = await Promise.all([
     listWordCards().then(rows => rows.slice(0, 500)).catch(() => []),
@@ -79,8 +83,8 @@ async function refreshCwLinks() {
     // 否则 slice 抛错被 catch 吞掉，卡片候选恒为空（静默失败）。
     listCards({ mode: 'all' }).then(r => (r?.items || []).slice(0, 500)).catch(() => []),
   ]);
-  cwWordCache = w;
-  ccCardCache = c;
+  cwWordCache.value = w;
+  ccCardCache.value = c;
   if (!props.card?.id) { cwLinks.value = []; ccLinks.value = []; return; }
   const [wl, cl] = await Promise.all([
     wordCardsOfCard(props.card.id).catch(() => []),
@@ -397,10 +401,10 @@ function close() { emit('update:modelValue', false); }
 
           <div class="rel-tabs">
             <button class="rel-tab" :class="{ on: relMode === 'card' }" @click="relMode = 'card'; cwPickQ = ''">
-              本库卡片（{{ ccLinks.length }}）
+              本库卡片（已关联 {{ ccLinks.length }} · 可关联 {{ ccCardCache.length }}）
             </button>
             <button class="rel-tab" :class="{ on: relMode === 'word' }" @click="relMode = 'word'; cwPickQ = ''">
-              英语词卡（{{ cwLinks.length }}）
+              英语词卡（已关联 {{ cwLinks.length }} · 可关联 {{ cwWordCache.length }}）
             </button>
           </div>
 
@@ -443,6 +447,10 @@ function close() { emit('update:modelValue', false); }
             <div v-else class="hint">
               {{ relMode === 'card' ? '无候选（本库暂无其它卡片或无匹配）' : '无候选（英语模块暂无词卡或无匹配）' }}
             </div>
+          </div>
+          <!-- 可关联总量提示：卡片数量 >0 但当前卡尚未关联任何对象时，明确告知不是「库是空的」 -->
+          <div v-if="!cwPickOpen" class="hint" style="margin:6px 0 0">
+            本库共 {{ ccCardCache.length }} 张卡 · 英语词库共 {{ cwWordCache.length }} 个可关联
           </div>
         </div>
 

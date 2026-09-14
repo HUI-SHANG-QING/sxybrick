@@ -3,7 +3,8 @@
 //   basic  正反面：点击翻转
 //   cloze  填空：正面把 {{答案}} 挖空，翻转后显示答案
 //   choice 选择：正面点选项作答，翻转后判对错
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onBeforeUnmount } from 'vue';
+import { useRoute } from 'vue-router';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import { speak, mdToSpeech } from '../utils/tts.js';
 import { WRONG_REASONS, wrongReasonToCode } from '../repo.js';
@@ -154,6 +155,13 @@ function closeContentFs() {
   contentFs.value.open = false;
   document.removeEventListener('keydown', onFsKey, true);
 }
+// 路由切换 / 组件卸载时关闭内容全屏浮层。
+// 否则用户在卡片全屏状态下点导航切换页面，浮层会跟着留在新页面上层遮挡界面
+// （内容全屏层是 fixed 全屏，组件被复用时不会自动消失）。
+const route = useRoute();
+watch(() => route.fullPath, () => { if (contentFs.value.open) closeContentFs(); });
+onBeforeUnmount(() => { if (contentFs.value.open) closeContentFs(); });
+
 function onFsKey(e) {
   if (e.key === 'Escape') { e.preventDefault(); closeContentFs(); }
 }
