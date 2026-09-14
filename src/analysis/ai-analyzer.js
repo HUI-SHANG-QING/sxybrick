@@ -57,10 +57,10 @@ export async function analyzeWithAI(cards, question, cfg, opts = {}) {
   ];
   const raw = await llmChat(messages, cfg, {
     temperature: 0.4,
-    // round49：2000 → 4096。学习路径/依赖链这类结构化输出天然很长，旧值会把 JSON 截断成
-    // 非法结构 → extractJSON 失败 → 上层"降级本地模式"（用户看到的"AI 模式失败"）。
-    // llm.js 另有 finish_reason='length' 的自动续写兜底。
-    maxTokens: 4096,
+    // round50：不再硬编码输出上限——交给用户在「AI 设置 → 最大输出长度」里决定
+    // （llm.js 取值优先级：opts.maxTokens > cfg.maxTokens > 默认 8192）。
+    // 学习路径/依赖链这类结构化输出天然很长，此前硬编码 2000 会把 JSON 截断成非法结构 →
+    // extractJSON 失败 → 上层「降级本地模式」（用户看到的「AI 模式失败」）。
     timeoutMs: opts.timeoutMs ?? 45000,
     signal: opts.signal,
     source: 'analysis:ai',

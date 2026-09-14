@@ -6,6 +6,7 @@ import './_env.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chat } from '../src/agent/llm.js';
+import { getAIConfig } from '../src/ai.js';
 
 const CFG = { baseUrl: 'http://mock.local', apiKey: 'k', model: 'm' };
 const okRes = (json) => ({ ok: true, status: 200, json: async () => json, text: async () => '' });
@@ -24,7 +25,7 @@ test('chat：finish_reason=length 时自动续写并拼接（不再把半截回�
     const out = await chat([{ role: 'user', content: '你好' }], CFG, {});
     assert.equal(out, '前半段…后半段。', '应把续写内容拼接到原回答之后');
     assert.equal(bodies.length, 2, '应发起一次续写请求');
-    assert.equal(bodies[0].max_tokens, 4096, '默认输出上限已由 2000 提到 4096');
+    assert.equal(bodies[0].max_tokens, 8192, '默认输出上限已由 2000 提到 8192');
     assert.ok(
       bodies[1].messages.some((m) => m.role === 'assistant' && m.content === '前半段…'),
       '续写请求应回灌已输出内容',
@@ -74,6 +75,30 @@ test('chat：端点拒绝 max_tokens 时降级重试（不为修截断反把请�
   };
   try {
     assert.equal(await chat([{ role: 'user', content: '你好' }], CFG, {}), 'OK');
-    assert.deepEqual(seen, [4096, 2000], '第二次应以更小的 max_tokens 重试');
+    assert.deepEqual(seen, [8192, 2000], '第二次应以更小的 max_tokens 重试');
   } finally { globalThis.fetch = orig; }
+});
+
+// ---------- round50：输出长度可由用户在 AI 设置里配置 ----------
+test('chat：未传 opts.maxTokens 时采用 cfg.maxTokens（用户在 AI 设置里的选择）', async () => {
+  let seen = null;
+  const orig = globalThis.fetch;
+  globalThis.fetch = async (_u, init) => {
+    seen = JSON.parse(init.body).max_tokens;
+    return okRes({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }], usage: {} });
+  };
+  try {
+    await chat([{ role: 'user', content: 'hi' }], { ...CFG, maxTokens: 32768 }, {});
+    assert.equal(seen, 32768, '用户设置的 32768 应生效');
+  } finally { globalThis.fetch = orig; }
+});
+
+test('getAIConfig：含默认 maxTokens=8192，非法值回落默认、合法值生效', () => {
+  localStorage.removeItem('sxy_ai_config');
+  assert.equal(getAIConfig().maxTokens, 8192, '缺省时应给出 8192');
+  localStorage.setItem('sxy_ai_config', JSON.stringify({ apiKey: 'k', maxTokens: 'oops' }));
+  assert.equal(getAIConfig().maxTokens, 8192, '非法（字符串）maxTokens 应回落默认');
+  localStorage.setItem('sxy_ai_config', JSON.stringify({ apiKey: 'k', maxTokens: 16384 }));
+  assert.equal(getAIConfig().maxTokens, 16384, '合法值应生效');
+  localStorage.removeItem('sxy_ai_config');
 });

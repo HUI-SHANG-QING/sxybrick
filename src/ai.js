@@ -30,12 +30,25 @@ export async function runAgentTurn(opt) {
 
 const CFG_KEY = 'sxy_ai_config';
 
+// 默认最大输出长度（round50）：2000/4096 对「分析多张图 / 生成完整学习路径(依赖链) / 长解析」
+// 这类回答偏小，会被 finish_reason='length' 截断。提到 8192（DeepSeek V3 起普遍支持），
+// 并在「AI 设置」里开放给用户按自己模型的上限调整（V4 Pro/Flash 上限 384K；V3 约 8K~16K；
+// R1 约 16K~32K）。设置超出模型上限时，llm.js 会按服务端提示自动降级重试一次，不会打死请求。
+export const DEFAULT_AI_MAX_TOKENS = 8192;
+
 export function getAIConfig() {
   try {
     const c = JSON.parse(localStorage.getItem(CFG_KEY) || 'null');
-    return { baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-v4-flash', ...(c || {}) };
+    const merged = {
+      baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-v4-flash',
+      maxTokens: DEFAULT_AI_MAX_TOKENS,
+      ...(c || {}),
+    };
+    // 旧配置没有 maxTokens（或存了非法值）→ 回落到默认；注意展开会带进 undefined，必须补一次
+    if (!Number.isFinite(merged.maxTokens)) merged.maxTokens = DEFAULT_AI_MAX_TOKENS;
+    return merged;
   } catch {
-    return { baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-v4-flash' };
+    return { baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-v4-flash', maxTokens: DEFAULT_AI_MAX_TOKENS };
   }
 }
 

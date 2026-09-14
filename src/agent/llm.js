@@ -12,11 +12,12 @@ import { tryParseLLMJson } from '../utils/llm-json.js';
 // 本 chat() 是所有 AI 链路（对话/Agent/卡片联动/子任务）的唯一出口，在此覆盖全部。
 import { enrichForLlm } from '../services/image-analysis.js';
 
-// ---- 输出长度策略（round49）--------------------------------------------------
+// ---- 输出长度策略（round49 建立 / round50 开放给用户配置）---------------------
 // 默认输出上限：2000 对「分析两张思维导图」「给完整学习路径」这类长回答远远不够，会被
 // finish_reason='length' 硬截断（用户看到的「AI 回复被截断」就是这么来的，不是模型坏了）。
-// 提到 4096，并配合下方「截断自动续写」兜底；调用方仍可用 opts.maxTokens 覆盖。
-const DEFAULT_MAX_TOKENS = 4096;
+// 取值优先级：opts.maxTokens（调用方显式指定） > cfg.maxTokens（用户在「AI 设置」里选的） > 本常量。
+// 配合下方「截断自动续写」兜底；用户可按自己模型的上限调高（V4 Pro/Flash 上限 384K）。
+const DEFAULT_MAX_TOKENS = 8192;
 // 截断自动续写：模型因长度中断时，自动追加请求继续输出。
 // 业界标准做法（模型输出有硬上限，"分段生成 + 续写"是系统侧该做的事，而不是让用户把问题拆短）。
 const MAX_CONTINUATIONS = 3;      // 最多续写轮数
@@ -71,7 +72,7 @@ export async function chat(messages, cfg, opts = {}) {
     model,
     messages: finalMessages,
     temperature: opts.temperature ?? 0.7,
-    max_tokens: opts.maxTokens ?? DEFAULT_MAX_TOKENS,
+    max_tokens: opts.maxTokens ?? (Number.isFinite(cfg?.maxTokens) ? cfg.maxTokens : DEFAULT_MAX_TOKENS),
     stream: !!opts.stream,
   };
 
@@ -117,7 +118,10 @@ export async function chat(messages, cfg, opts = {}) {
         return await chat(finalMessages, cfg, {
           ...opts,
           _maxTokenRetry: true,
-          maxTokens: Math.min(Number(opts.maxTokens) || DEFAULT_MAX_TOKENS, 2000),
+          maxTokens: Math.min(
+            Number(opts.maxTokens) || (Number.isFinite(cfg?.maxTokens) ? cfg.maxTokens : DEFAULT_MAX_TOKENS),
+            2000,
+          ),
         });
       }
       throw err;

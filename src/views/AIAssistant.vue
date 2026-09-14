@@ -40,6 +40,26 @@ const showTimeline = ref(__isWide);
 const showSettings = ref(false);
 const cfg = ref(getAIConfig());
 
+// 最大输出长度档位（round50）：数值越大单次回答能写越长，费用/等待也越高。
+// 让用户按自己模型的上限选（V4 Pro/Flash 上限 384K；V3 约 8K~16K；R1 约 16K~32K），
+// 并随所选档位动态给出选择建议（mtHint）+ 一句通用提醒（mtHintNote）。
+const MT_OPTIONS = computed(() => [
+  { value: 4096, label: `4096 · ${t('views.aiAssistant.mtShort')}` },
+  { value: 8192, label: `8192 · ${t('views.aiAssistant.mtDefault')}` },
+  { value: 16384, label: `16384 · ${t('views.aiAssistant.mtLong')}` },
+  { value: 32768, label: `32768 · ${t('views.aiAssistant.mtReason')}` },
+  { value: 65536, label: `65536 · ${t('views.aiAssistant.mtV4')}` },
+  { value: 131072, label: `131072 · ${t('views.aiAssistant.mtHuge')}` },
+]);
+const mtHint = computed(() => {
+  const v = Number(cfg.value.maxTokens) || 8192;
+  if (v <= 4096) return t('views.aiAssistant.mtHint4096');
+  if (v <= 8192) return t('views.aiAssistant.mtHint8192');
+  if (v <= 16384) return t('views.aiAssistant.mtHint16384');
+  if (v <= 32768) return t('views.aiAssistant.mtHint32768');
+  return t('views.aiAssistant.mtHintBig');
+});
+
 const genOpen = ref(false);
 const genText = ref('');
 const genSubject = ref('');
@@ -361,6 +381,14 @@ onMounted(async () => {
           <input v-model="cfg.apiKey" class="input" type="password" :placeholder="t('views.aiAssistant.apiKeyPlaceholder')" />
           <div class="field-label">{{ t('views.aiAssistant.modelLabel') }}</div>
           <input v-model="cfg.model" class="input" :placeholder="t('views.aiAssistant.modelPlaceholder')" />
+          <!-- 最大输出长度（round50）：默认 8192；长回答（分析多图 / 生成完整依赖链）可调高。
+               设置超出模型上限时接口会报错，llm.js 会自动降到 2000 重试一次。 -->
+          <div class="field-label">{{ t('views.aiAssistant.maxTokensLabel') }}</div>
+          <select v-model.number="cfg.maxTokens" class="input">
+            <option v-for="o in MT_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+          <div class="hint" style="margin-top:6px">{{ mtHint }}</div>
+          <div class="hint" style="margin-top:4px">{{ t('views.aiAssistant.mtHintNote') }}</div>
           <div class="hint" style="margin-top:8px">{{ t('views.aiAssistant.apiHint') }}</div>
           <!-- 图片分析策略：影响本页对话 / Agent / 卡片联动 / 资料问答里「图片怎么送到模型」。
                与「英语中心 → 设置」共用同一组件与同一份设置（改即保存）——

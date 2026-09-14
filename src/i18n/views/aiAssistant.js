@@ -120,6 +120,20 @@ export const zh = {
   importDone: '已导入 {created} 张卡片',
   importFailed: '，{n} 张失败',
   coldDone: '冷启动生成 {cand} 张卡（去重后 {dedup} 张）',
+  // ——— 最大输出长度（round50）———
+  maxTokensLabel: '最大输出长度（Token）',
+  mtShort: '省费用 / 只问短问题',
+  mtDefault: '推荐默认 / 兼顾质量与费用',
+  mtLong: '长回答 / 分析多图、完整依赖链',
+  mtReason: '推理模型 / 需要一次性长输出',
+  mtV4: '仅 V4 系列 / 超长输出',
+  mtHuge: 'V4 Pro・Flash（上限 384K）',
+  mtHint4096: '偏保守：适合只问短问题、想省费用。分析多张图或生成完整依赖链时可能触发自动续写（会更慢一些）。',
+  mtHint8192: '推荐：V3 及主流模型都支持，长回答基本够用，费用也不会失控。不确定选它就对。',
+  mtHint16384: '长回答充裕：适合「分析两张思维导图」「生成完整学习路径/依赖链」「长解析」等场景。',
+  mtHint32768: '很充裕：给推理模型（R1 等）或确实需要一次写很长时用；普通问答用不满，费用略高。',
+  mtHintBig: '极大：仅当模型明确支持时选（V4 Pro/Flash 上限 384K）。超长输出会明显增加费用与等待时间。',
+  mtHintNote: '数值越大，单次能写越长，费用和等待也随之上升。若填的值超过模型上限，接口会报错——系统会自动降到 2000 重试一次，你也可以手动改小。',
 };
 
 export const en = {
@@ -239,4 +253,18 @@ export const en = {
   importDone: 'Imported {created} cards',
   importFailed: ', {n} failed',
   coldDone: 'Cold-start generated {cand} cards (after dedup: {dedup})',
+  // ——— Max output length (round50) ———
+  maxTokensLabel: 'Max output length (tokens)',
+  mtShort: 'Save cost / short questions only',
+  mtDefault: 'Recommended default / balanced',
+  mtLong: 'Long answers / multi-image & full dependency chains',
+  mtReason: 'Reasoning models / very long single output',
+  mtV4: 'V4 series only / extra-long output',
+  mtHuge: 'V4 Pro・Flash (up to 384K)',
+  mtHint4096: 'Conservative: good for short questions and saving cost. Analyzing multiple images or generating a full dependency chain may trigger auto-continuation (a bit slower).',
+  mtHint8192: 'Recommended: supported by V3 and most models; long answers mostly fit and cost stays reasonable. Pick this if unsure.',
+  mtHint16384: 'Plenty for long answers: analyzing multiple mind maps, full learning paths / dependency chains, long explanations.',
+  mtHint32768: 'Very generous: for reasoning models (R1 etc.) or when a single very long output is truly needed. Overkill for normal Q&A.',
+  mtHintBig: 'Extreme: only when the model explicitly supports it (V4 Pro/Flash up to 384K). Extra-long output notably increases cost and latency.',
+  mtHintNote: 'The larger the value, the longer a single answer can be — with higher cost and latency. If it exceeds your model limit, the API will error; we auto-retry once at 2000, and you can also lower it manually.',
 };
