@@ -10,6 +10,10 @@
 // 3. 全链路可降级——OCR 失败不阻塞，最终退化为纯文字 + 明确标注「N 张图未纳入」；
 // 4. 零新依赖——只复用 docs-lib（识别）/ images.js（存取）/ word-repo（设置）。
 //
+// 除卡片图片（sxy-img://）外，本模块还处理**资料库文件**的视觉引用 sxy-doc://<docId>[#<pages>]：
+// 工具（agent/tools 的 read_doc）无法直接把图片塞进文本协议的返回值，所以在文本里留一个
+// sxy-doc:// 引用，由这里统一渲染成页面图送给多模态——与 sxy-img:// 同构，复用同一套策略与护栏。
+//
 // settings.imageAnalysis.mode：
 //   auto（默认）  = OCR 先行；OCR 不可用/全失败 → 视觉兜底（若允许）→ 纯文字+标注
 //   ocrFirst     = 只 OCR，永不主动调视觉（省钱/离线）
@@ -22,6 +26,7 @@ import { extractImageIds } from '../images.js';
 // 接收 File/Blob，返回清洗后的纯文本字符串；识别不到/失败时抛异常。
 import { ocrImageText } from '../docs-lib.js';
 import { compressImageBlob } from '../utils/img-compress.js';
+import { docKindOf, docContentProfile, docVisionContent, DOC_VISION_LIMIT } from './doc-vision.js';
 
 export const IMG_MODES = ['auto', 'ocrFirst', 'visionFirst'];
 // 费用护栏：单次分析最多发给视觉模型的图片数
@@ -172,7 +177,6 @@ export async function statImageAssets() {
   let docVisual = 0;
   let docVisionPages = 0;
   try {
-    const { docKindOf } = await import('./doc-vision.js');
     for (const f of db.docFiles ? await db.docFiles.toArray() : []) {
       const kind = docKindOf(f);
       if (kind === 'image') { docVisual += 1; docVisionPages += 1; }
@@ -270,6 +274,46 @@ export { compressImageBlob, blobToDataUrlRaw } from '../utils/img-compress.js';
 // 会话内 OCR 缓存：同一图片不重复识别（反复对话时 context 带同一批图占位符，命中即复用）
 const ocrCache = new Map();
 
+// ---- 资料页视觉引用协议：sxy-doc://<docId>[#<pages>] --------------------------
+// 为什么需要：Agent 的 ReAct 工具调用走「文本协议」返回（tool 消息是字符串），
+// 无法直接把图片塞进返回值。于是规定工具在文本里留一个 sxy-doc:// 引用，
+// 由本模块在 chat() 出口统一渲染成页面图交给多模态 —— 与 sxy-img:// 完全同构。
+// pages 形如 "1,3-5"；缺省 = 前 N 页（N 取 DOC_VISION_LIMIT）。
+// 注意：这里返回**新建**的正则（不导出共享实例）——带 g 的正则对象在 matchAll/replace
+// 之间共用会有 lastIndex 状态隐患，每个调用点各自持有一个最省心。
+export function docRefRe() {
+  return new RegExp('sxy-doc:\\/\\/([A-Za-z0-9_-]{6,})(?:#([0-9,\\-]+))?', 'g');
+}
+
+/** 解析 "#1,3-5" → [1,3,4,5]（非法片段忽略，上限由调用方按护栏截断） */
+export function parsePageSpec(spec) {
+  const out = new Set();
+  for (const part of String(spec || '').split(',')) {
+    const seg = part.trim();
+    if (!seg) continue;
+    const m = seg.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (m) {
+      const a = Number(m[1]); const b = Number(m[2]);
+      if (a >= 1 && b >= a && b - a <= 50) for (let i = a; i <= b; i += 1) out.add(i);
+      continue;
+    }
+    if (/^\d+$/.test(seg)) { const n = Number(seg); if (n >= 1) out.add(n); }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/** 从文本里收集资料引用：docId → 页码数组（空数组 = 未指定，取默认前 N 页） */
+export function extractDocRefs(text) {
+  const out = new Map();
+  for (const m of String(text || '').matchAll(docRefRe())) {
+    const id = m[1];
+    const pages = parsePageSpec(m[2]);
+    if (!out.has(id)) out.set(id, []);
+    if (pages.length) out.set(id, [...new Set([...out.get(id), ...pages])].sort((a, b) => a - b));
+  }
+  return out;
+}
+
 /**
  * 把喂给 LLM 的 messages 里的图片占位符富集为可分析内容——所有 AI 链路
  * （对话/Agent/卡片联动/子任务）的必经入口，一处覆盖全部。
@@ -290,93 +334,139 @@ const ocrCache = new Map();
 export async function enrichForLlm(messages, opts = {}) {
   if (!Array.isArray(messages) || !messages.length) return { messages, vision: 0 };
 
-  // 收集所有 string content 里的图片占位（去重）
+  // 收集两类引用：卡片/笔记正文图片（sxy-img://）与资料库文件页（sxy-doc://）
   const allIds = new Set();
+  const docRefs = new Map();
   for (const m of messages) {
-    if (typeof m?.content === 'string') {
-      for (const id of extractImageIds(m.content)) allIds.add(id);
+    if (typeof m?.content !== 'string') continue;
+    for (const id of extractImageIds(m.content)) allIds.add(id);
+    for (const [id, pages] of extractDocRefs(m.content)) {
+      const prev = docRefs.get(id) || [];
+      docRefs.set(id, [...new Set([...prev, ...pages])].sort((a, b) => a - b));
     }
   }
-  if (!allIds.size) return { messages, vision: 0 };
+  if (!allIds.size && !docRefs.size) return { messages, vision: 0 };
 
   const settings = opts.settings || (await getWordSettings());
   const policy = resolveImagePolicy(settings);
   const ids = [...allIds];
+  // 总视觉额度：visionFirst 3 张；auto 兜底 1 张；ocrFirst 0（永不主动调视觉）
+  const visionLimit = policy.mode === 'visionFirst'
+    ? VISION_LIMIT_FIRST
+    : (policy.allowVisionFallback ? VISION_LIMIT_FALLBACK : 0);
 
-  // ① visionFirst：直接发图（护栏截断 3 张），不 OCR
-  if (policy.mode === 'visionFirst') {
-    const picked = ids.slice(0, VISION_LIMIT_FIRST);
-    const vision = await imageIdsToVisionContent(picked);
-    if (!vision.length) return { messages, vision: 0 };
-    // 关键：送图的图要在正文里留「已作为附图发送」的标注，超出单次上限的图要显式说明未发送。
-    // 否则模型只看到一串 sxy-img://xxx 占位符，会误以为「只有标题、看不到内容」——
-    // 这正是用户反馈的「白搞」场景（护栏截断后尤其明显）。
-    const sent = new Set(picked.slice(0, vision.length)); // 转换失败的按未发送处理
-    const marked = messages.map((m) => {
-      if (typeof m.content !== 'string') return m;
-      let text = m.content;
-      let n = 0;
-      for (const id of ids) {
-        n += 1;
-        const block = sent.has(id)
-          ? `【图片${n}：已作为附图发送，请直接看图分析】`
-          : `【图片${n}：未随本次发送（单次最多 ${VISION_LIMIT_FIRST} 张），如需分析请单独提问】`;
-        text = text.split(`sxy-img://${id}`).join(block);
-      }
-      return { ...m, content: text };
+  const textMap = new Map(); // 精确 token（sxy-img://id）→ 替换文本
+  const docTextMap = new Map(); // docId → 替换文本（按正则整体替换，兼容 #pages 变体）
+  const vision = [];
+
+  // ---------- 卡片图片 ----------
+  if (policy.mode === 'visionFirst' && ids.length) {
+    const picked = ids.slice(0, visionLimit);
+    const v = await imageIdsToVisionContent(picked);
+    for (const item of v) vision.push(item);
+    const sent = new Set(picked.slice(0, v.length)); // 转换失败的按未发送处理
+    ids.forEach((id, i) => {
+      textMap.set(`sxy-img://${id}`, sent.has(id)
+        ? `【图片${i + 1}：已作为附图发送，请直接看图分析】`
+        : `【图片${i + 1}：未随本次发送（单次最多 ${visionLimit} 张），如需分析请单独提问】`);
     });
-    return { messages: attachVisionToLastUser(marked, vision), vision: vision.length };
-  }
-
-  // ② ocrFirst / auto：OCR 文字化（带缓存）。ocrFn 为识别注入点（默认 ocrImageText）。
-  const db = getDb();
-  const ocrText = {};
-  for (const id of ids) {
-    if (ocrCache.has(id)) { ocrText[id] = ocrCache.get(id); continue; }
-    let text = '';
-    const row = await db.images.get(id);
-    if (row) {
-      try {
-        if (opts.ocrFn) {
-          text = (await opts.ocrFn(id, row.blob)) || '';
-        } else {
-          const t = AbortSignal.timeout?.(30000);
-          text = (await ocrImageText(row.blob, { signal: t })) || '';
+  } else if (ids.length) {
+    // ocrFirst / auto：OCR 文字化（会话内缓存，反复对话不重复识别）
+    const db = getDb();
+    const ocrText = {};
+    for (const id of ids) {
+      if (ocrCache.has(id)) { ocrText[id] = ocrCache.get(id); continue; }
+      let text = '';
+      const row = await db.images.get(id);
+      if (row) {
+        try {
+          if (opts.ocrFn) {
+            text = (await opts.ocrFn(id, row.blob)) || '';
+          } else {
+            const t = AbortSignal.timeout?.(30000);
+            text = (await ocrImageText(row.blob, { signal: t })) || '';
+          }
+        } catch {
+          text = ''; // 识别失败：留空，由下方 visionRefs 兜底或标注「未能识别」
         }
-      } catch { text = ''; }
+      }
+      ocrCache.set(id, text);
+      ocrText[id] = text;
     }
-    ocrCache.set(id, text);
-    ocrText[id] = text;
+    ids.forEach((id) => {
+      const ocr = ocrText[id];
+      textMap.set(`sxy-img://${id}`, ocr && ocr.trim()
+        ? `【图片(${id}) 内文字（OCR）】\n${ocr.trim()}`
+        : `【图片(${id})】未能识别文字，未纳入分析`);
+    });
+    // auto 兜底：OCR 失败的图挂 1 张给多模态（并把标注改回「已送图」）
+    if (policy.allowVisionFallback && vision.length < visionLimit) {
+      const failed = ids.filter((id) => !ocrText[id] || !ocrText[id].trim());
+      const room = visionLimit - vision.length;
+      const v = await imageIdsToVisionContent(failed.slice(0, room));
+      for (const item of v) vision.push(item);
+      if (v.length) {
+        const sentId = failed[v.length - 1];
+        textMap.set(`sxy-img://${sentId}`, `【图片(${sentId})：OCR 未能识别，已作为附图发送给多模态模型】`);
+      }
+    }
   }
 
-  // 占位符 → OCR 文字块（完整占位符才替换；被切片切断的不命中→安全降级）
+  // ---------- 资料库文件页 ----------
+  if (docRefs.size) {
+    const db = getDb();
+    for (const [docId, pages] of docRefs) {
+      const file = await db.docFiles?.get(docId);
+      if (!file) { docTextMap.set(docId, '【资料引用失效：找不到该资料】'); continue; }
+      const name = String(file.name || docId);
+      const profile = await docContentProfile(docId);
+      const text = String((await db.docTexts?.get(docId))?.text || '').trim();
+
+      // ① 有可用文字层（且不像扫描件）→ 直接给文字，最省最准
+      if (text && !profile.suspectedScan) {
+        docTextMap.set(docId, `【资料《${name}》文字摘录（共 ${profile.pageCount || '?'} 页）】\n${text.slice(0, 2000)}`);
+        continue;
+      }
+      // ② 无文字层 / 疑似扫描件 → 渲染页面图送多模态（ocrFirst 明确不送）
+      const room = visionLimit - vision.length;
+      const wantVision = policy.mode !== 'ocrFirst' && profile.canVision && room > 0;
+      if (wantVision) {
+        const v = await docVisionContent(docId, {
+          maxPages: Math.min(DOC_VISION_LIMIT, room),
+          pages: pages.length ? pages : undefined,
+          renderPdfPagesFn: opts.renderDocPagesFn, // 测试注入点
+        });
+        if (v.length) {
+          for (const item of v) vision.push(item);
+          const shown = pages.length ? pages.slice(0, v.length).join(', ') : `1-${v.length}`;
+          docTextMap.set(docId, `【资料《${name}》第 ${shown} 页：该文件没有可提取的文字层（扫描件/图表），`
+            + '已作为附图发送，请直接看图分析（公式、图表数值、版式都在图里）】');
+          continue;
+        }
+      }
+      // ③ 兜底：明确说清原因与下一步，绝不让模型以为「资料是空的」
+      const why = policy.mode === 'ocrFirst'
+        ? '当前「图片分析策略」为「先 OCR」，未送图；如需分析图表请改为「先多模态」'
+        : (!profile.canVision
+          ? '原始文件不在本机（或无法渲染），无法送图'
+          : `本次送图额度已用完（单次最多 ${visionLimit} 张），可单独提问该资料`);
+      docTextMap.set(docId, `【资料《${name}》：无文字层（扫描件/图表），${why}】`);
+    }
+  }
+
+  // ---------- 统一替换占位符 + 挂载视觉内容 ----------
   const replaced = messages.map((m) => {
     if (typeof m.content !== 'string') return m;
-    let s = m.content;
-    for (const id of ids) {
-      const ocr = ocrText[id];
-      const block = ocr && ocr.trim()
-        ? `【图片(${id}) 内文字（OCR）】\n${ocr.trim()}`
-        : `【图片(${id})】未能识别文字，未纳入分析`;
-      s = s.split(`sxy-img://${id}`).join(block);
+    let text = m.content;
+    for (const [token, block] of textMap) text = text.split(token).join(block);
+    if (docTextMap.size) {
+      text = text.replace(docRefRe(), (whole, id) => docTextMap.get(id) ?? whole);
     }
-    return { ...m, content: s };
+    return { ...m, content: text };
   });
 
-  // ③ auto 兜底：允许视觉且存在 OCR 失败的图 → 挂 1 张给多模态
-  let finalMsgs = replaced;
-  let vision = 0;
-  if (policy.allowVisionFallback) {
-    const failedIds = ids.filter((id) => !ocrText[id] || !ocrText[id].trim());
-    if (failedIds.length) {
-      const v = await imageIdsToVisionContent(failedIds.slice(0, VISION_LIMIT_FALLBACK));
-      if (v.length) {
-        finalMsgs = attachVisionToLastUser(replaced, v);
-        vision = v.length;
-      }
-    }
-  }
-  return { messages: finalMsgs, vision };
+  const finalMsgs = vision.length ? attachVisionToLastUser(replaced, vision) : replaced;
+  return { messages: finalMsgs, vision: vision.length };
 }
 
 /** 把视觉 content 挂到最后一条 user message（text 在前、图片在后）；无 user 则挂最后一条 */

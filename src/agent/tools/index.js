@@ -29,6 +29,8 @@ import {
 import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards, getGraphDrivenReviewPlan, generateAutoPlan, getCalibration } from '../analytics.js';
 import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';
 import { hybridSearch, retrieveContext, ensureIndex, rebuildIndex, getIndexStatus } from '../retrieval.js';
+import { listDocFiles, getDocText } from '../../docs-lib.js';
+import { docKindOf, docContentProfile } from '../../services/doc-vision.js';
 import { agentRegistry } from '../registry.js';
 
 // ---------- 1. 数据感知类（只读） ----------
@@ -967,5 +969,98 @@ toolRegistry.register({
     }
     const quiz = planMistakeQuiz(clusters, pool, { limit, count, prereq, interleave });
     return { ok: true, data: quiz };
+  },
+});
+
+// ---------- 资料库文件（列表 / 读取；扫描件自动携带视觉引用） ----------
+// 背景：卡片图片走 sxy-img:// 占位符能被富集，但**资料库文件**（docFiles/docBlobs）不在那条链路上。
+// 用户上传的扫描 PDF / 图表资料没有文字层，Agent 若不看内容就只能答「查不到」。
+// 方案：read_doc 在文本里留一个 sxy-doc://<docId>[#pages] 引用，由 chat() 出口的
+// image-analysis.enrichForLlm 渲染成页面图送给多模态（与 sxy-img:// 同一套策略与护栏）。
+
+toolRegistry.register({
+  name: 'list_docs',
+  description: '列出用户「资料库」里的文件（PDF/图片/文档）：名称、类型、页数、是否含可提取文字层。'
+    + '用户提到「我上传的资料/课件/讲义」时先调它了解有什么，再用 read_doc 读具体内容。',
+  parameters: {},
+  readsData: true,
+  async execute() {
+    const files = await listDocFiles();
+    const items = [];
+    for (const f of files.slice(0, 50)) {
+      const text = await getDocText(f.id).catch(() => '');
+      items.push({
+        docId: f.id,
+        name: f.name,
+        kind: docKindOf(f),
+        pageCount: Number(f.pageCount) || 0,
+        hasTextLayer: !!String(text || '').trim(),
+      });
+    }
+    return { ok: true, data: { total: files.length, items } };
+  },
+});
+
+toolRegistry.register({
+  name: 'read_doc',
+  description: '读取某份资料的内容用于分析。有文字层的直接返回文字摘录；'
+    + '扫描件/图表型（无文字层）会自动把页面图作为附图交给多模态模型，请直接看图分析。'
+    + '参数二选一：docId（来自 list_docs，最可靠）或 name（按文件名模糊匹配）。',
+  parameters: {
+    docId: '资料 id（来自 list_docs）',
+    name: '资料名称或名称片段（模糊匹配）',
+    pages: '要看的页码，如 "1,3-5"；仅扫描件/图表型有效，缺省看前 3 页',
+  },
+  readsData: true,
+  async execute(args = {}) {
+    const files = await listDocFiles();
+    if (!files.length) {
+      return { ok: false, error: '资料库里还没有文件。请先在「资料库」页上传，再让我分析。' };
+    }
+    const byId = args.docId ? files.find((f) => f.id === String(args.docId)) : null;
+    let target = byId;
+    if (!target && args.name) {
+      const q = String(args.name).trim().toLowerCase();
+      target = files.find((f) => String(f.name || '').toLowerCase() === q)
+        || files.find((f) => String(f.name || '').toLowerCase().includes(q));
+    }
+    if (!target) {
+      const names = files.slice(0, 20).map((f) => f.name).join('、');
+      return { ok: false, error: `未找到匹配的资料。可用资料：${names}。可先用 list_docs 查看完整列表。` };
+    }
+
+    const profile = await docContentProfile(target.id);
+    const text = String((await getDocText(target.id).catch(() => '')) || '').trim();
+    const base = {
+      docId: target.id, name: target.name, kind: profile.kind, pageCount: profile.pageCount,
+    };
+
+    // ① 文字层可用 → 直接给文字（最省最准，不需要视觉）
+    if (text && !profile.suspectedScan) {
+      return {
+        ok: true,
+        data: {
+          ...base, source: 'text', excerpt: text.slice(0, 3000),
+          note: '以下是该资料的可提取文字内容，请基于它回答；如需查看原版式/图表，可指定 pages 让我按页看图。',
+        },
+      };
+    }
+
+    // ② 无文字层 / 疑似扫描件 → 附视觉引用（由 chat 出口渲染成页面图送多模态）
+    const pages = String(args.pages || '').trim();
+    const visionRef = `sxy-doc://${target.id}${pages ? '#' + pages : ''}`;
+    return {
+      ok: true,
+      data: {
+        ...base,
+        source: 'vision',
+        visionRef,
+        excerpt: text ? text.slice(0, 800) : '',
+        note: '该资料没有可提取的文字层（扫描件/图表型），页面图会作为附图一并发送给多模态模型。'
+          + '请直接依据图片内容回答，不要凭文件名或标题猜测。'
+          + '若你收到的内容里没有图片，说明当前图片分析策略为「先 OCR」或模型不支持视觉——'
+          + '请如实告知用户去「设置 → 图片分析策略」改为「先多模态」，不要编造资料内容。',
+      },
+    };
   },
 });
