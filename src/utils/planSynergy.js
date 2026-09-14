@@ -21,7 +21,7 @@
 
 import { db } from '../db.js';
 // 审计 P1-2（round33）：每日协同的「复习次数/评分分布」只计真实复习，排除 quickCheck
-import { isRealReview } from '../repo-core.js';
+import { isRealReview, isMastered } from '../repo-core.js';
 
 /** 本地日期串 YYYY-MM-DD */
 function localDateStr(d = new Date()) {
@@ -100,7 +100,11 @@ async function aggregateReviews(dayStart, dayEnd) {
   const subjOf = new Map(cards.filter(Boolean).map(c => [c.id, c.subject || '未分类']));
   // round17 R17-3：grade 已从三档数字升级为四档字符串（round13 P2-C）——
   // 此前 `g === 0/1/2` 对字符串恒 false，评分分布恒空。字符串映射回数字档。
-  const GRADE_NUM = { failed: 0, hard: 0, medium: 1, easy: 2 };
+  // round48：四档 grade 字符串 → 三桶分布（0 没记住 / 1 模糊 / 2 记住）。
+  // 此前 `hard: 0` 把「勉强记住（score 0.5，见 session.js GRADE_SCORE）」错误并入「没记住」；
+  // 按 session.js 的分档语义应为 failed→0、hard/medium→1、easy→2。
+  // 注：byGrade 当前在视图层尚无消费者，此处按正确语义修正以备后用（不是靠它掩盖问题）。
+  const GRADE_NUM = { failed: 0, hard: 1, medium: 1, easy: 2 };
   for (const r of rows) {
     const subj = r.subject || subjOf.get(r.cardId) || '未分类';
     base.bySubject[subj] = (base.bySubject[subj] || 0) + 1;
@@ -136,16 +140,19 @@ async function aggregateCards(dayStart, dayEnd) {
   }
   // 今日到期（dueAt 落在今日）
   base.dueToday = await SAFE(() => db.cards.where('dueAt').between(dayStart, dayEnd, true, true).count(), 0);
-  // 今日掌握（consolidation 进入新阶段）—— 简化：今日 reviewedAt 且 level 显著上升
-  // 今日错题（wrongReasonAt 落在今日）
-  base.wrongToday = await SAFE(() => {
-    if (!db.cards.schema) return 0;
-    // wrongReasonAt 不是索引字段，全表扫描今日命中数（量小可接受）
-    return db.cards.toArray().then(arr => arr.filter(c => {
-      const t = c.wrongReasonAt;
-      return t != null && t >= dayStart && t < dayEnd;
-    }).length);
-  }, 0);
+  // 今日错题 + 今日掌握：共用一次全表快照（wrongReasonAt 非索引字段，量级可控）。
+  const snap = await SAFE(() => db.cards.toArray(), []);
+  base.wrongToday = snap.filter(c => {
+    const t = c.wrongReasonAt;
+    return t != null && Number.isFinite(t) && t >= dayStart && t < dayEnd;
+  }).length;
+  // round48：mastered 此前初始化后**从不赋值**，而 getDailySynergy 的 totals.actions 却
+  // `+ cards.mastered` → 每日「今日动作数」永远少算「掌握」这一类（恒 +0）。
+  // 口径：今日复习过、且当前已达 isMastered（level>=4 || intervalDays>=21，与卡片列表/gradeCard 同源）。
+  base.mastered = snap.filter(c => {
+    const t = c.reviewedAt;
+    return t != null && Number.isFinite(t) && t >= dayStart && t < dayEnd && isMastered(c);
+  }).length;
   return base;
 }
 

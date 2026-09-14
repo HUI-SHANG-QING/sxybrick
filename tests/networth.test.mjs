@@ -67,8 +67,8 @@ test('computeNetWorth：汇总净值 / 保持率 / 状态分解', () => {
     mkCard({ id: 'a', subject: '计算机组成原理', difficulty: 'challenge', marked: true, source: '教材' }),
     // 已复习 basic，90 天前 → R=0.5 → 净值 0.5
     mkCard({ id: 'b', subject: '线性代数', fsrs: { s: 10, d: 5, reps: 2, last: NOW - 90 * DAY } }),
-    // 刚复习 applied → R=1 → 净值 1.5
-    mkCard({ id: 'c', subject: '操作系统', difficulty: 'applied', fsrs: { s: 10, d: 5, reps: 3, last: NOW } }),
+    // 刚复习 applied → R=1 → 净值 1.5；level 4 满足「已掌握」口径（repo-core.isMastered）
+    mkCard({ id: 'c', subject: '操作系统', difficulty: 'applied', level: 4, fsrs: { s: 10, d: 5, reps: 3, last: NOW } }),
   ];
   const r = computeNetWorth(cards, NOW);
   assert.equal(r.totalValue, 2.0);   // 0 + 0.5 + 1.5（未复习卡不计净值）
@@ -79,7 +79,7 @@ test('computeNetWorth：汇总净值 / 保持率 / 状态分解', () => {
   assert.equal(r.retentionRate, 80); // round(2.0/2.5*100)=80
   assert.equal(r.newCount, 1);       // 卡 a 未复习
   assert.equal(r.reviewedCount, 2);
-  assert.equal(r.masteredCount, 1);  // 只有卡 c R>=0.9
+  assert.equal(r.masteredCount, 1);  // round48：改用 repo-core.isMastered（卡 c level=4 达标，卡 b 未达）
   assert.equal(r.totalCards, 3);
   // 按科目：三科各一条，按净值降序（未学的那科净值为 0，排最后）
   assert.equal(r.bySubject.length, 3);

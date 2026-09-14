@@ -990,17 +990,18 @@ toolRegistry.register({
   readsData: true,
   async execute() {
     const files = await listDocFiles();
-    const items = [];
-    for (const f of files.slice(0, 50)) {
+    // round48：并发取「是否有文字层」——此前 `for + await getDocText` 是串行 N+1，
+    // 50 份资料 = 50 次顺序往返。这里只读 docTexts 的 text 字段，并发安全。
+    const items = await Promise.all(files.slice(0, 50).map(async (f) => {
       const text = await getDocText(f.id).catch(() => '');
-      items.push({
+      return {
         docId: f.id,
         name: f.name,
         kind: docKindOf(f),
         pageCount: Number(f.pageCount) || 0,
         hasTextLayer: !!String(text || '').trim(),
-      });
-    }
+      };
+    }));
     return { ok: true, data: { total: files.length, items } };
   },
 });

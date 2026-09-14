@@ -478,15 +478,27 @@ function toggleExample(i) {
 const linkedCards = ref([]);
 const linkedPickOpen = ref(false);
 const linkedPickQ = ref('');
-// 审计 F-31：关联候选缓存——全表扫描后永不失效，新增卡片永远不在候选列表中。
-// 改为 30s TTL 自动失效，确保用户新增的卡片在合理延迟后出现在关联候选中。
-let linkedCardCache = [];
+// 关联候选缓存：只存「卡片轻量投影」（id/front/subject），并**真正**按 TTL 失效。
+// 历史缺陷（round48）：曾声明 linkedCardCacheTs/LINKED_CACHE_TTL 却从不读写（注释谎称「30s TTL 自动失效」），
+// 且 `db.cards.toArray().slice(0, 500)` 硬截断 —— 卡片 >500 的用户第 501 张起永不出现在候选里，
+// 期间新建的卡也永不出现。现改为：ref（响应式，缓存更新即重算）+ 真实 TTL + 不限量（只留轻量字段）。
+const linkedCardCache = ref([]);
 let linkedCardCacheTs = 0;
 const LINKED_CACHE_TTL = 30000;
+async function ensureLinkedCache() {
+  if (linkedCardCache.value.length && Date.now() - linkedCardCacheTs < LINKED_CACHE_TTL) return;
+  const { db } = await import('../db.js');
+  const all = await db.cards.toArray();
+  // 万卡级：只保留搜索/展示需要的字段，避免整表（back/tags/fsrs…）长期占内存
+  linkedCardCache.value = all.map(c => ({ id: c.id, front: c.front, subject: c.subject }));
+  linkedCardCacheTs = Date.now();
+}
+// 打开候选面板时确保缓存新鲜（过期即重建）
+watch(linkedPickOpen, (v) => { if (v) ensureLinkedCache(); });
 const linkedPickList = computed(() => {
   const linked = new Set(linkedCards.value.map(c => c.id));
   const q = String(linkedPickQ.value || '').trim().toLowerCase();
-  return linkedCardCache
+  return linkedCardCache.value
     .filter(c => !linked.has(c.id) && (!q || (c.front || '').toLowerCase().includes(q) || (c.subject || '').toLowerCase().includes(q)))
     .slice(0, 8);
 });
@@ -496,9 +508,7 @@ async function refreshLinked() {
   const ids = [...new Set(links.filter(l => l.wordCardId === detail.value.id).map(l => l.cardId))];
   const { db } = await import('../db.js');
   linkedCards.value = (await Promise.all(ids.map(id => db.cards.get(id)))).filter(Boolean);
-  if (!linkedCardCache.length) {
-    linkedCardCache = (await db.cards.toArray()).slice(0, 500);
-  }
+  await ensureLinkedCache();
 }
 async function doLinkCard(card) {
   if (!detail.value?.id) return;

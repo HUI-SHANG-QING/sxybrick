@@ -5,26 +5,68 @@
 import { db, uid } from '../db.js';
 import { extractJSON } from './llm.js';
 
-/** 列出全部记忆 */
-export async function listMemories() {
-  return db.aiMemories.orderBy('updatedAt').reverse().toArray();
+/** 列出记忆（limit 可选：喂 LLM 时按 updatedAt 倒序取前 N 条即可，避免全表物化） */
+export async function listMemories(limit) {
+  const col = db.aiMemories.orderBy('updatedAt').reverse();
+  return (typeof limit === 'number' && limit > 0) ? col.limit(limit).toArray() : col.toArray();
 }
 
-/** 新增一条记忆 */
+// 记忆条数硬上限（round48）：addMemory 此前无去重、无上限 —— 同一条事实在每轮对话都被
+// extractMemories 重新提取、反复插入，几个月就有几十上百条重复；既把注入提示挤满（真·新记忆
+// 被 `MEM_LIMITS` 条数上限挡在门外），又让 buildMemoryText 每轮全表扫描越来越慢。
+const MEM_MAX_ROWS = 300;
+
+/** 记忆上限清理：超出上限删最旧的（写墓碑，否则对端同步会复活）。与 errorLog 同款处理。 */
+async function pruneMemories() {
+  try {
+    const count = await db.aiMemories.count();
+    if (count <= MEM_MAX_ROWS) return 0;
+    const stale = await db.aiMemories.orderBy('updatedAt').limit(count - MEM_MAX_ROWS).toArray();
+    if (!stale.length) return 0;
+    const ts = Date.now();
+    await db.transaction('rw', db.aiMemories, db.tombstones, async () => {
+      await db.aiMemories.bulkDelete(stale.map(r => r.id));
+      await db.tombstones.bulkPut(stale.map(r => ({ id: r.id, kind: 'memory', deletedAt: ts })));
+    });
+    return stale.length;
+  } catch { return 0; }
+}
+
+/** 新增一条记忆（同内容去重：命中已有则只刷新时间戳/重要度，不新增行） */
 export async function addMemory(item) {
   const content = String(item?.content || '').trim();
   if (!content) return null;
+  const category = ['core', 'preference', 'fact'].includes(item?.category) ? item.category : 'fact';
+  // 去重键：忽略大小写与空白差异（同一事实常以不同标点/空格被重复提取）
+  const norm = content.replace(/\s+/g, ' ').toLowerCase();
+  try {
+    const dup = (await db.aiMemories.toArray()).find(
+      m => String(m.content || '').trim().replace(/\s+/g, ' ').toLowerCase() === norm,
+    );
+    if (dup) {
+      await db.aiMemories.put({
+        ...dup,
+        category,
+        updatedAt: Date.now(),
+        importance: Math.max(Number(dup.importance) || 0, Number(item?.importance) || 2),
+      });
+      return dup.id;
+    }
+  } catch { /* 去重扫描失败则继续走新增，不阻断记忆写入 */ }
+
+  const nowTs = Date.now();
   const m = {
     id: uid(),
     content,
-    category: ['core', 'preference', 'fact'].includes(item?.category) ? item.category : 'fact',
+    category,
     importance: item?.importance || 2,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdAt: nowTs,
+    updatedAt: nowTs,
     // round38：字段级时间戳（为将来「记忆可编辑」路径预留逐字段合并语义）
-    fieldTs: { content: Date.now(), category: Date.now(), importance: Date.now() },
+    fieldTs: { content: nowTs, category: nowTs, importance: nowTs },
   };
   await db.aiMemories.put(m);
+  await pruneMemories();
   return m;
 }
 
@@ -49,10 +91,13 @@ export async function deleteMemory(id) {
 const MEM_LIMITS = { core: 12, preference: 12, fact: 20 };
 const MEM_ITEM_MAX = 120;
 const MEM_TOTAL_MAX = 1800;
+// 扫描上限（round48）：只需凑够 12+12+20=44 条，留足跳过空内容的余量即可——
+// 此前 listMemories() 全表物化，记忆越多每轮对话越慢。
+const MEM_SCAN_LIMIT = 200;
 
 /** 把分层记忆拼成注入文本（核心 > 偏好 > 事实），带条数/长度/总量三重上界 */
 export async function buildMemoryText() {
-  const mems = await listMemories();
+  const mems = await listMemories(MEM_SCAN_LIMIT);
   if (!mems.length) return '';
   const g = { core: [], preference: [], fact: [] };
   for (const m of mems) {

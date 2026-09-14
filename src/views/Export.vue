@@ -209,7 +209,9 @@ const exportDate = computed(() => {
 const candidates = computed(() => {
   let cards = allCache.value;
   const k = q.value.trim();
-  if (k) cards = cards.filter(c => c.front.includes(k) || c.back.includes(k));
+  // round48：front/back 可能为 null（导入/损坏数据）——裸调 .includes 会抛 TypeError 让整页崩。
+  // 与同函数下方 tags 的 `|| []` 兜底保持一致的防御口径。
+  if (k) cards = cards.filter(c => String(c.front || '').includes(k) || String(c.back || '').includes(k));
   if (subjectSel.value.length) {
     cards = cards.filter(c => subjectSel.value.includes(c.subject || '未分类'));
   }

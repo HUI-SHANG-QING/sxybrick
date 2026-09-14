@@ -41,10 +41,13 @@ export async function chat(messages, cfg, opts = {}) {
   // 图片富集：正文里的 sxy-img:// 占位符按策略转成 AI 可分析内容（OCR 文字 / 多模态图片）。
   // 所有 AI 链路（对话/Agent/卡片联动/子任务）都经此 chat() 发送，一处覆盖全部；
   // 富集失败不阻塞——降级纯文字照常发送（详见 services/image-analysis.js）。
+  // round48：把**外部取消信号**透传进富集——用户点"取消"时应能中断图片 OCR，否则最多
+  // 8 张图 ×30s 的串行识别仍会跑完（"取消"名不副实）。这里只传外部 signal、不传本函数的
+  // 60s 超时，以免多图 OCR 被整体截断（OCR 自身已有每张 30s 上限）。
   let finalMessages = messages;
   let visionCount = 0;
   try {
-    const en = await enrichForLlm(messages);
+    const en = await enrichForLlm(messages, { signal: opts.signal });
     finalMessages = en.messages;
     visionCount = en.vision || 0;
   } catch (e) {
@@ -87,6 +90,8 @@ export async function chat(messages, cfg, opts = {}) {
       // 这里剥离附图重试一次，并在正文里说明「已省略 N 张图 + 怎么改设置」，
       // 让用户至少得到一次可读的回答，而不是一个红字报错。
       if (visionCount > 0 && !opts._visionRetry && (res.status === 400 || res.status === 422)) {
+        // round48：首失败请求也要记一笔用量（此前只在成功分支记账 → 账本少计、计费失真）
+        reportUsage(undefined, '', false);
         const plain = stripVisionForRetry(finalMessages, visionCount);
         return await chat(plain, cfg, { ...opts, _visionRetry: true });
       }

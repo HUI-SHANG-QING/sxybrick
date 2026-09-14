@@ -110,6 +110,24 @@ async function executeTool(name, args, ctx, onTrace) {
   }
 }
 
+// round48：整段上下文的**总量封顶**。此前各分项（记忆 / 单条工具结果）都有上限，但多步 ReAct
+// 会把「每步完整 raw（含 thought）+ 工具回包」逐步累加、每步重发全量，长历史 + 大工具回包时
+// 仍可能撑爆模型上下文（413，或服务端静默截断掉真正的对话）。
+// 策略（**安全优先**）：只截断「工具观察 / 助手原文」这类可再生的中间产物（从旧到新），
+// 绝不丢弃或改写 system 与用户消息——否则会丢掉用户真正的提问。
+const CONVO_CHAR_BUDGET = 48000; // 约 1.2万~2.4万 token 量级，给模型上限留足余量
+function compactConvo(convo) {
+  const size = () => convo.reduce((n, m) => n + String(m?.content ?? '').length, 0);
+  if (size() <= CONVO_CHAR_BUDGET) return convo;
+  for (const m of convo) {
+    if (size() <= CONVO_CHAR_BUDGET) break;
+    if (m.role !== 'tool' && m.role !== 'assistant') continue;
+    const s = String(m.content ?? '');
+    if (s.length > 1500) m.content = s.slice(0, 1500) + '…（已截断以控制上下文长度）';
+  }
+  return convo;
+}
+
 /**
  * 运行一个 ReAct Agent。
  * @param {object} agent  Agent 定义
@@ -133,7 +151,7 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
   for (let step = 0; step < maxSteps; step++) {
     let raw;
     try {
-      raw = await ctx.chat(convo);
+      raw = await ctx.chat(compactConvo(convo));
     } catch (e) {
       // 链路彻底断了（非网络错误也会走到这里）。已有工具数据 → 本地直出，保底给用户真内容。
       const local = buildLocalAnswer({ observations });

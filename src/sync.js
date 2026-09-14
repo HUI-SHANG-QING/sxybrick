@@ -1071,7 +1071,18 @@ export async function importBackup(backup, opts = {}) {
   //   新卡引用的图不在 orphan 集，安全）。
   fireProgress(opts, PHASE.IMAGES, 0);
   stats.images = 0;
-  const incomingImgs = (backup.images || []).filter(img => img && img.id && img.data);
+  // round48（P2-1）：**消费图片墓碑**。此前主表循环里 images 被 `if (t.table === 'images') continue`
+  // 跳过，本段又只 bulkPut 新图 → 删除侧（repo.deleteCard/deleteNote、word-repo 清孤儿图）写的
+  // kind:'image' 墓碑**永不生效**：对端图片删不掉、还随同步回灌（孤儿图堆积 + 包体膨胀）。
+  // 图片 id 是 UUID（重建必然是全新 id），故按墓碑 id 直接删是安全的（不存在"删了又建同一个 id"）。
+  // 放在 bulkGet 之前：先删本地命中墓碑的图，再从 incoming 里剔除同 id，避免刚删又被写回。
+  let imgTombIds = new Set();
+  try {
+    const tombs = await db.tombstones.toArray();
+    imgTombIds = new Set(tombs.filter(x => kindOf(x) === 'image').map(x => x.id));
+  } catch { /* 墓碑读失败不阻断图片导入 */ }
+  if (imgTombIds.size) await db.images.bulkDelete([...imgTombIds]);
+  const incomingImgs = (backup.images || []).filter(img => img && img.id && img.data && !imgTombIds.has(img.id));
   if (incomingImgs.length) {
     const existing = await db.images.bulkGet(incomingImgs.map(i => i.id));
     fireProgress(opts, PHASE.IMAGES, 0.5);

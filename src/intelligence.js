@@ -148,14 +148,19 @@ export async function recommendGraphEdges(opt = {}) {
   const cards = await allCardsCached();
   if (cards.length < 2) return [];
 
-  // 已存在的边集合，避免重复推荐
+  // 已存在的边集合，避免重复推荐。**优先稳定 id**（fromCardId/toCardId），老边（无 id）退回正文标签。
+  // round48：原实现只用 `e.from/e.to`（卡片正文截断 30 字）——两张不同卡只要前 30 字相同就被当成
+  // 同一对（合法推荐被误删）；正文一经编辑，旧边标签与新正文不再匹配 → 「已存在」漏判、重复推荐。
+  // 同文件下方（候选 → pairKeyOf(fromId,toId)）已用稳定 id，此处口径应统一。
   const existing = opt.withExisting !== false ? await listGraphEdges() : [];
   const existPair = new Set();
+  const addPair = (a, b) => {
+    if (a == null || b == null || a === '' || b === '') return;
+    existPair.add(`${a}\u0001${b}`); existPair.add(`${b}\u0001${a}`);
+  };
   for (const e of existing) {
-    // 双向去重：A→B 和 B→A 视为同一对
-    const k1 = `${e.from}\u0001${e.to}`;
-    const k2 = `${e.to}\u0001${e.from}`;
-    existPair.add(k1); existPair.add(k2);
+    if (e.fromCardId != null && e.toCardId != null) addPair(e.fromCardId, e.toCardId);
+    else addPair(e.from, e.to); // 兼容老边：无稳定 id 时退回标签
   }
 
   // 预处理：每张卡的词频 + 词集合 + 标签集合
@@ -344,19 +349,21 @@ export async function recommendGraphEdges(opt = {}) {
     }
   } catch { /* 共现分析失败不影响主流程 */ }
 
-  // 去重 + 过滤已存在
+  // 去重 + 过滤已存在（键一律用稳定 cardId —— 候选自带 fromId/toId）
   const seen = new Set();
   const out = [];
   for (const c of candidates) {
-    // 双向键
-    const k1 = `${c.from}\u0001${c.to}\u0001${c.label}`;
-    const k2 = `${c.to}\u0001${c.from}\u0001${c.label}`;
+    const k1 = `${c.fromId}\u0001${c.toId}\u0001${c.label}`;
+    const k2 = `${c.toId}\u0001${c.fromId}\u0001${c.label}`;
     if (seen.has(k1) || seen.has(k2)) continue;
     seen.add(k1); seen.add(k2);
-    // 跳过已存在的边（按 pair）
-    const pk1 = `${c.from}\u0001${c.to}`;
-    const pk2 = `${c.to}\u0001${c.from}`;
+    // 跳过已存在的边：id 命中优先；老边（无 id）再退标签命中
+    const pk1 = `${c.fromId}\u0001${c.toId}`;
+    const pk2 = `${c.toId}\u0001${c.fromId}`;
     if (existPair.has(pk1) || existPair.has(pk2)) continue;
+    const lk1 = `${c.from}\u0001${c.to}`;
+    const lk2 = `${c.to}\u0001${c.from}`;
+    if (existPair.has(lk1) || existPair.has(lk2)) continue;
     out.push(c);
   }
 

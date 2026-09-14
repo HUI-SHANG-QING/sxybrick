@@ -397,8 +397,11 @@ export async function enrichForLlm(messages, opts = {}) {
     const ocrIds = ids.slice(0, OCR_TEXT_LIMIT);
     const skippedOcr = ids.slice(OCR_TEXT_LIMIT);
     const db = getDb();
+    // round48：接收外部取消信号——用户点"取消"后不再继续逐张 OCR（此前完全不可中断）
+    const ocrSignal = opts.signal;
     const ocrText = {};
     for (const id of ocrIds) {
+      if (ocrSignal?.aborted) break;
       const row = await db.images.get(id);
       // 缓存命中要求「图片行存在且未变更」：updatedAt 是图片被替换时必然推进的字段，
       // 拿它当版本签名，图片换了内容后旧识别结果自动作废（不需要在每个删除点挂钩子）。
@@ -413,7 +416,11 @@ export async function enrichForLlm(messages, opts = {}) {
             text = (await opts.ocrFn(id, row.blob)) || '';
           } else {
             const t = AbortSignal.timeout?.(30000);
-            text = (await ocrImageText(row.blob, { signal: t })) || '';
+            // 每张 30s 上限 与 外部取消 任一触发即中断（旧环境无 AbortSignal.any 时退化为单个信号）
+            const ocrAbort = ocrSignal && t && AbortSignal.any
+              ? AbortSignal.any([ocrSignal, t])
+              : (ocrSignal || t);
+            text = (await ocrImageText(row.blob, { signal: ocrAbort })) || '';
           }
         } catch {
           text = ''; // 识别失败：留空，由下方 visionRefs 兜底或标注「未能识别」

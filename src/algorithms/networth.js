@@ -4,6 +4,7 @@
 // 纯函数、确定性，Node 可直接单测。与 FSRS 共用 retrievability 保持口径一致。
 
 import { retrievability, DEFAULT_WEIGHTS } from '../fsrs.js';
+import { isMastered } from '../repo-core.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -101,7 +102,10 @@ export function computeNetWorth(cards, nowTs = Date.now(), w = DEFAULT_WEIGHTS, 
     let R = 0; // 未复习 = 0（不是 1）
     if (isReviewed(card)) {
       R = retentionOf(card, nowTs, w, opts);
-      if (R >= 0.9) masteredCount++;
+      // round48：口径统一到 repo-core.isMastered（level>=4 || intervalDays>=21）。
+      // 此前用瞬时 `R>=0.9` 判定 —— 刚复习完的卡 R≈1 被全部计为「已掌握」，与卡片列表 /
+      // gradeCard 的「已掌握」不是一个数（健康页与卡片页显示两个不同的"已掌握"，用户必然困惑）。
+      if (isMastered(card)) masteredCount++;
       reviewedIdeal += wgt;
     } else {
       newCount++;

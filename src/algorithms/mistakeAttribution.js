@@ -94,13 +94,23 @@ export function attributeMistakes(cards, opts = {}) {
     // 两个独立簇（如「死锁」在块 1 和块 2 各成一簇）→ 错题集里同一知识点出现两次。
     // 桶内已是同科目，同名 concept（高频 token）即同一概念，cardIds 合并、size 重算。
     const byConcept = new Map();
+    // 已测量「对数」= C(n,2)：与 score（簇内平均两两相似度）的定义同尺度，用于加权合并
+    const pairCount = (n) => (n * (n - 1)) / 2;
     for (const c of merged) {
       const k = c.concept;
       const hit = byConcept.get(k);
       if (!hit) { byConcept.set(k, { ...c, cardIds: [...c.cardIds] }); continue; }
+      // round48：合并后 score 应取「按已测量对数加权的平均」，而不是两者取最大值——
+      // 取 max 会让一个内部相似度虚高的小子簇把整个合并簇的分数抬高，错题归因排序失真。
+      const prevScore = hit.score;
+      const w1 = pairCount(hit.cardIds.length);
+      const w2 = pairCount(c.cardIds.length);
+      const wsum = w1 + w2;
       hit.cardIds.push(...c.cardIds);
       hit.size = hit.cardIds.length;
-      hit.score = Math.max(hit.score, c.score);
+      hit.score = wsum > 0
+        ? Number(((prevScore * w1 + c.score * w2) / wsum).toFixed(3))
+        : Math.max(prevScore, c.score); // 两簇都只有单卡（无对可测）时退回 max
     }
     return [...byConcept.values()].sort((a, b) => b.size - a.size);
   }

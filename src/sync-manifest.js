@@ -233,12 +233,22 @@ export function filterClearedRows(rows, before) {
 // 墓碑 kind 缺省 = card（兼容旧数据包）
 export function kindOf(t) { return t?.kind || 'card'; }
 
+// 时间戳净化（round48）：只认「有限数值」与「可解析为有限数值的字符串」，其余一律归 0。
+// 合并入口此前直接 `x.updatedAt ?? 0` —— 遇字符串时 `Math.max('2026…', 100) = NaN`，该行
+// updatedAt 变 NaN → livenessTs 忽略非有限值 → 增量导出 `livenessTs > since` 恒假（该行永不重传）；
+// 墓碑 deletedAt 为字符串时 `rTs <= '…'` 恒 false → 删除永不生效。畸形/老数据包可静默破坏同步。
+export function numTs(x) {
+  if (typeof x === 'number') return Number.isFinite(x) ? x : 0;
+  if (typeof x === 'string') { const n = Number(x); return Number.isFinite(n) ? n : 0; }
+  return 0;
+}
+
 // 卡片字段级合并：内容、SRS、错因各自独立取「新者」，
 // 解决「复习动作 bump updatedAt 会把另一台设备的文字编辑覆盖掉」的数据丢失问题，
 // 同时解决「错因随复习写入但不 bump updatedAt，另一台设备编辑文字后错因被丢」的问题
 export function mergeCardPair(local, incoming, extFields = []) {
-  const incTs = incoming.updatedAt ?? 0;
-  const locTs = local.updatedAt ?? 0;
+  const incTs = numTs(incoming.updatedAt);
+  const locTs = numTs(local.updatedAt);
   // 审计 D1+D5（reviewedAt 语义分裂）：此前 `x.reviewedAt ?? updatedAt` 把「从未复习
   // （undefined/0）」错误等价于「用内容更新时间顶替的 SRS 时间戳」——设备 A 只改内容
   // （updatedAt 很新、从未复习）会在 SRS 竞争里覆盖设备 B 已复习的真实调度，跨设备丢复习进度。
@@ -605,8 +615,8 @@ export function mergeTombstones(base, incoming, opts = {}) {
     const cur = m.get(t.id);
     const nt = { ...t, kind: kindOf(t) };
     if (!cur) { m.set(t.id, nt); continue; }
-    const cd = cur.deletedAt ?? 0;
-    const td = t.deletedAt ?? 0;
+    const cd = numTs(cur.deletedAt);
+    const td = numTs(t.deletedAt);
     if (td > cd) m.set(t.id, nt);
     else if (td === cd && JSON.stringify(nt) !== JSON.stringify(cur)) {
       m.set(t.id, JSON.stringify(nt) < JSON.stringify(cur) ? nt : cur);
@@ -656,16 +666,22 @@ export function livenessTs(row) {
 // 对某一种类的行应用墓碑：
 //   行的最新活跃时间 <= 墓碑时间 → 删除，返回 removed；
 //   行的最新活跃时间 >  墓碑时间 → 该行已「复活」，标记墓碑为 stale（应清除）
-export function applyTombstones(rows, tombstones, kind) {
+export function applyTombstones(rows, tombstones, kind, nowTs = Date.now()) {
   const map = new Map((rows || []).map(r => [r.id, r]));
   const removed = [];
   const stale = [];
+  // round48：时钟合理性上界——墓碑 deletedAt 若落在「本机 now + 容忍窗口」之外（多为一台时钟被拨到
+  // 未来的设备，虚拟机/双系统常见），则忽略该墓碑，避免它"一刀切"删掉本地匹配行（= 数据丢失）。
+  // 保守取向：宁可暂时不删（下次同步数据仍在），也不因对方时钟异常误删用户数据。容忍 30 天。
+  const futureLimit = (Number.isFinite(nowTs) ? nowTs : Date.now()) + 30 * 86400000;
   for (const t of tombstones || []) {
     if (kindOf(t) !== kind) continue;
+    const dt = numTs(t.deletedAt);
+    if (dt > futureLimit) continue;
     const r = map.get(t.id);
     if (!r) continue;
     const rTs = livenessTs(r);
-    if (rTs <= (t.deletedAt ?? 0)) { map.delete(t.id); removed.push(t.id); }
+    if (rTs <= dt) { map.delete(t.id); removed.push(t.id); }
     else stale.push(t.id);
   }
   return { rows: [...map.values()], removed, stale };

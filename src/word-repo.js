@@ -548,7 +548,10 @@ export async function dueWordCards(opts = {}) {
     // 只写 dueAt/updatedAt 两个字段，其余字段一律不碰；补扫与 meta 哨兵包进同一
     // rw 事务，保证「补了但哨兵没写」不会留下重复补扫，也不会半途失败留残。
     await db.transaction('rw', db.wordCards, db.meta, async () => {
-      const missing = await db.wordCards.filter(r => r.dueAt == null).toArray();
+      // round48：修复条件由 `dueAt == null` 放宽到「非有限值」——原实现漏掉 NaN。
+      // NaN 行同样不在 dueAt 索引里（→ dueWordCards 永不入队），但 wordStats 的 `|| 0`
+      // 会把 NaN 当 0 计入「待背」→ 显示数 > 实际队列数。两处口径必须一致。
+      const missing = await db.wordCards.filter(r => !Number.isFinite(r.dueAt)).toArray();
       if (missing.length) {
         await db.wordCards.bulkUpdate(
           missing.map(r => ({ key: r.id, changes: { dueAt: 0, updatedAt: t } })),
@@ -589,7 +592,9 @@ export async function wordStats() {
     if (r.kind === 'template') { templates++; continue; }
     if (r.familiar) { familiar++; continue; }
     if ((r.createdAt || 0) >= dayStart) newToday++;
-    if ((r.dueAt || 0) <= t) due++;
+    // round48：「待背」必须与 dueWordCards 队列同口径——只算「有限且已到期」。
+    // 原 `(r.dueAt || 0) <= t` 会把 NaN 当 0 计入（NaN 行却不在索引队列里）。
+    if (Number.isFinite(r.dueAt) && r.dueAt <= t) due++;
     // N-8（审计口径说明）：mastered 用 level>=4 || intervalDays>=21 双条件。
     //   FSRS 路径 level 封顶 4（需 S≥15 天）；SM-2 路径 level 无上限——两套调度器
     //   「已掌握」的实际门槛不同（FSRS 更严）。UI 统计口径可接受，但跨模块对比

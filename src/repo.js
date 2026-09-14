@@ -168,7 +168,10 @@ export async function listCards({ q = '', subject = '', tags = [], logic = 'AND'
   // 语义不变：科目精确匹配；q 覆盖 正面/背面/标签/科目/来源/助记（大小写不敏感）；
   // 标签走 tagFilter 的 AND/OR/NOT。
   let cards = applyCardFilters(all, { q, subject, tags, logic });
-  if (mode === 'due') cards = cards.filter(c => c.dueAt <= now());
+  // round48：到期过滤统一走 dueOf（与下方 dueCount 同口径）——裸比较 `c.dueAt <= now()` 与
+  // dueOf 在 dueAt 为 NaN 时结论相反（NaN<=now 恒 false；dueOf 归一到 0 视为到期），
+  // 会出现「标题显示到期 N 张、列表却只有 N-1 条」的口径错位。
+  if (mode === 'due') cards = cards.filter(c => dueOf(c) <= now());
   if (sortBy === 'created') cards.sort((a, b) => (b.createdAt - a.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   else if (sortBy === 'due') cards.sort((a, b) => (a.dueAt - b.dueAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   else if (sortBy === 'subject') cards.sort((a, b) => String(a.subject || '').localeCompare(String(b.subject || '')) || (b.updatedAt - a.updatedAt));

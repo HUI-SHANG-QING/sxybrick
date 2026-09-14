@@ -216,8 +216,23 @@ export function shouldFallback() {
   } catch { return true; }
 }
 
-/** 判断一个错误是否是网络/请求失败（可兜底） */
+/**
+ * 判断一个错误是否是「真正的网络不可达」（可降级到离线兜底）。
+ *
+ * 历史缺陷（round48）：原实现用一句宽正则 `/fetch|network|网络|请求失败|AI 请求失败|timeout|aborted/`
+ * 去猜，而 `agent/llm.js` 抛的 HTTP 错误消息恰好以 `AI 请求失败(401：API 密钥无效或已过期)` 开头
+ * → **密钥失效 / 无权限 / 模型不存在 / 限流(429) / 服务端 5xx 全被误判成断网**，界面统一显示
+ * 「网络连接失败或 AI 服务不可达」，把可诊断的真因彻底掩盖（用户密钥网络明明正常）。
+ *
+ * 改为结构化判定：
+ *   ① 有 HTTP 状态码 → 请求已到达服务端、只是被拒绝 → 绝不当网络错误；
+ *   ② 用户/超时主动中断（AbortError / aborted）→ 不是不可达，原样抛出；
+ *   ③ 只有确属「连不上 / 断网 / DNS 失败 / fetch 抛错」才降级。
+ */
 export function isNetworkError(err) {
+  if (!err) return false;
+  if (typeof err.status === 'number') return false;
+  if (err.name === 'AbortError' || err.aborted === true) return false;
   const m = String(err?.message || err || '');
-  return /fetch|network|Failed to fetch|网络|请求失败|AI 请求失败|timeout|aborted/i.test(m);
+  return /failed to fetch|fetch failed|network\s*error|networkerror|err_network|enotfound|econnrefused|econnreset|etimedout|getaddrinfo|dns|offline|断网|网络连接失败|无法解析服务器地址|请检查网络/i.test(m);
 }
