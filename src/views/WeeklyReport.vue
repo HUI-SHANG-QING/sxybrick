@@ -6,6 +6,7 @@ import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted } from 'vue';
 import { db } from '../db.js';
 import { listWeeklyReports, getWeeklyReportByWeek, saveWeeklyReport, deleteWeeklyReport, isPomoCountable } from '../repo.js';
+import { realReviews } from '../repo-core.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import EmptyState from '../components/EmptyState.vue';
@@ -37,10 +38,10 @@ async function loadHistory() { reports.value = await listWeeklyReports(); }
 async function aggregate(ws) {
   const from = ws, to = ws + 7 * DAY;
   const [reviews, cards, pomos, docs, plans, chats, edges, memos] = await Promise.all([
-    db.reviews.toArray().then(rs => rs.filter(r => r.type !== 'quick')), db.cards.toArray(), db.pomoSessions.toArray(),
+    db.reviews.toArray().then(rs => realReviews(rs)), db.cards.toArray(), db.pomoSessions.toArray(),
     db.docs.toArray(), db.plans.toArray(), db.aiChats.toArray(), db.graphEdges.toArray(), db.memos.toArray(),
   ]);
-  const rWeek = reviews.filter(r => r.reviewedAt >= from && r.reviewedAt < to);
+  const rWeek = reviews.filter(r => Number(r.reviewedAt) >= from && Number(r.reviewedAt) < to);
   const correct = rWeek.filter(r => r.rating === 2).length;
   const cardIds = new Set(rWeek.map(r => r.cardId));
   const cardsMap = new Map(cards.map(c => [c.id, c]));
@@ -49,7 +50,7 @@ async function aggregate(ws) {
     const s = cardsMap.get(r.cardId)?.subject || t('views.weeklyReport.uncategorized');
     subjectReview.set(s, (subjectReview.get(s) || 0) + 1);
   }
-  const newCards = cards.filter(c => c.createdAt >= from && c.createdAt < to);
+  const newCards = cards.filter(c => Number(c.createdAt) >= from && Number(c.createdAt) < to);
   const subjectNew = new Map();
   for (const c of newCards) subjectNew.set(c.subject || t('views.weeklyReport.uncategorized'), (subjectNew.get(c.subject || t('views.weeklyReport.uncategorized')) || 0) + 1);
   const topSubjects = [...subjectReview.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
@@ -63,11 +64,11 @@ async function aggregate(ws) {
     newCards: newCards.length,
     pomo: pomosWeek.filter(isPomoCountable).length,
     pomoMinutes: pomosWeek.reduce((s, p) => s + (p.duration || 0), 0),
-    docs: docs.filter(d => d.createdAt >= from && d.createdAt < to).length,
-    plansDone: plans.filter(p => p.status === 'done' && (p.updatedAt >= from && p.updatedAt < to)).length,
-    feynman: chats.filter(c => c.type === 'feynman' && (c.updatedAt >= from && c.updatedAt < to)).length,
-    graphEdges: edges.filter(e => e.createdAt >= from && e.createdAt < to).length,
-    memos: memos.filter(m => m.at >= from && m.at < to).length,
+    docs: docs.filter(d => Number(d.createdAt) >= from && Number(d.createdAt) < to).length,
+    plansDone: plans.filter(p => p.status === 'done' && (Number(p.updatedAt) >= from && Number(p.updatedAt) < to)).length,
+    feynman: chats.filter(c => c.type === 'feynman' && (Number(c.updatedAt) >= from && Number(c.updatedAt) < to)).length,
+    graphEdges: edges.filter(e => Number(e.createdAt) >= from && Number(e.createdAt) < to).length,
+    memos: memos.filter(m => Number(m.at) >= from && Number(m.at) < to).length,
     topSubjects,
     topNewSubjects: [...subjectNew.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5),
   };
@@ -123,11 +124,34 @@ function openReport(r) {
   selectWeek(r.weekStart).then(() => { summary.value = r.summary || ''; });
 }
 
+// 最近一次学习活动所在的周一（真实复习 / 新建卡），用于「当前周没数据时自动回落到有数据的周」
+async function latestActiveWeek() {
+  const cur = mondayOf(Date.now());
+  let lastTs = 0;
+  try {
+    const lastReview = await db.reviews.orderBy('reviewedAt').reverse().filter(r => r.type !== 'quick').first();
+    if (lastReview?.reviewedAt) lastTs = Math.max(lastTs, Number(lastReview.reviewedAt) || 0);
+  } catch { /* 索引缺失时忽略 */ }
+  try {
+    const lastCard = await db.cards.orderBy('createdAt').reverse().first();
+    if (lastCard?.createdAt) lastTs = Math.max(lastTs, Number(lastCard.createdAt) || 0);
+  } catch { /* ignore */ }
+  if (!lastTs) return cur;
+  const w = mondayOf(lastTs);
+  return w < cur ? w : cur; // 只回看历史，不回跳到未来
+}
+
 onMounted(async () => {
   loading.value = true;
   try {
     await loadHistory();
-    await selectWeek(mondayOf(Date.now()));
+    // 默认看当前周；若当前周完全没数据（周一/周二最常见），自动回落到最近有学习记录的周——
+    // 否则用户打开就是整屏 0，误以为数据丢了 / 没同步（2026-09-14 用户反馈）。
+    const cur = mondayOf(Date.now());
+    let ws = cur;
+    const probe = await aggregate(cur);
+    if (!probe.reviews && !probe.newCards) ws = await latestActiveWeek();
+    await selectWeek(ws);
   } finally { loading.value = false; }
 });
 </script>

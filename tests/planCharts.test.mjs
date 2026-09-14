@@ -79,3 +79,24 @@ test('跨午夜时长 label 标注「次日」，且高度截断到网格底部'
   assert.equal(b.placed[0].height, 56);
   assert.equal(b.placed[0].top + b.placed[0].height, b.totalHeight);
 });
+
+// 回归（渲染崩溃 "is not a function"）：task.title 非字符串（同步/旧 schema 遗留的畸形数据）
+// 时，构建器内部的 .slice 会抛 "X.slice is not a function" → 视图 ErrorBoundary 整块降级。
+test('riskOption：title 非字符串不抛错（渲染健壮性）', () => {
+  const risks = [
+    { task: { title: 12345, quadrant: 'Q1', estimatedMinutes: 60 }, severity: 'high', reason: 'x' },
+    { task: { title: null, quadrant: 'Q3' }, severity: 'low', reason: 'y' },
+    { task: { title: undefined }, severity: 'medium', reason: 'z' },
+  ];
+  const opt = riskOption(risks);
+  assert.ok(opt.series[0].data.every(d => typeof d.name === 'string'), 'name 必须被强制为字符串');
+});
+
+test('checkinTimelineOption：title 非字符串不抛错（渲染健壮性）', () => {
+  const tasks = [
+    { title: 12345, scheduledHour: 9, status: 'pending' },
+    { title: null, scheduledHour: 14, status: 'done', completedAt: new Date().toISOString() },
+  ];
+  const opt = checkinTimelineOption(tasks);
+  assert.ok(opt.yAxis.data.every(c => typeof c === 'string'), 'yAxis 分类必须为字符串');
+});

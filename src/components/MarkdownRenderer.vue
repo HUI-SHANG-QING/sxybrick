@@ -260,36 +260,33 @@ function onKey(e) {
 
 function setZoom(z, cx, cy) {
   const nz = Math.min(4, Math.max(0.5, z));
-  if (cx == null || cy == null) {
-    // 无锚点（快捷键）：围绕当前中心缩放
-    const el = stage.value;
-    if (el) { cx = el.clientWidth / 2; cy = el.clientHeight / 2; }
-  }
-  // 以 (cx,cy) 为不动点缩放：新平移 = 锚点 - 锚点/zoom * nz
-  if (cx != null) {
-    const k = nz / lb.value.zoom;
-    lb.value.x = cx - (cx - lb.value.x) * k;
-    lb.value.y = cy - (cy - lb.value.y) * k;
-  }
+  const el = stage.value;
+  const S = el?.clientWidth ?? 0;
+  const Sh = el?.clientHeight ?? 0;
+  // 无锚点（快捷键/滚轮）→ 围绕舞台中心缩放
+  if (cx == null || cy == null) { cx = S / 2; cy = Sh / 2; }
+  // ⚠ 图片是 absolute + left/top:50% + translate:-50% -50% 居中，且 transform-origin:center。
+  // 因此缩放不动点要按「相对舞台中心」的偏移算（d = 锚点 - 舞台中心），旧实现直接用 cx
+  // 等于假设左上角原点 → 缩放整体漂移、不居中（2026-09-14 修复）。
+  const k = nz / lb.value.zoom;
+  const dx = cx - S / 2;
+  const dy = cy - Sh / 2;
+  lb.value.x = dx - (dx - lb.value.x) * k;
+  lb.value.y = dy - (dy - lb.value.y) * k;
   lb.value.zoom = nz;
 }
 
 function onWheel(e) {
   if (!lb.value.open) return;
   e.preventDefault();
-  const r = stage.value ? stage.value.getBoundingClientRect() : null;
-  const cx = r ? e.clientX - r.left : null;
-  const cy = r ? e.clientY - r.top : null;
-  setZoom(lb.value.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), cx, cy);
+  // 居中缩放（浏览器式）：以舞台中心为锚点，不跟随光标
+  setZoom(lb.value.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
 }
 
 function onDbl(e) {
   if (!lb.value.open) return;
   if (lb.value.zoom > 1.01) resetView();
-  else {
-    const r = stage.value ? stage.value.getBoundingClientRect() : null;
-    setZoom(2, r ? e.clientX - r.left : null, r ? e.clientY - r.top : null);
-  }
+  else setZoom(2);
 }
 
 function onDown(e) {

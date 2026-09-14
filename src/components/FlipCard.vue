@@ -167,24 +167,25 @@ function onFsKey(e) {
 }
 function fsSetZoom(z, cx, cy) {
   const nz = Math.min(5, Math.max(0.5, z));
-  if (cx == null || cy == null) {
-    const el = fsStage.value;
-    if (el) { cx = el.clientWidth / 2; cy = el.clientHeight / 2; }
-  }
-  if (cx != null) {
-    const k = nz / contentFs.value.zoom;
-    contentFs.value.x = cx - (cx - contentFs.value.x) * k;
-    contentFs.value.y = cy - (cy - contentFs.value.y) * k;
-  }
+  const el = fsStage.value;
+  const S = el?.clientWidth ?? 0;
+  const Sh = el?.clientHeight ?? 0;
+  if (cx == null || cy == null) { cx = S / 2; cy = Sh / 2; }
+  // ⚠ transform-origin 是 center center，且舞台用 flex 居中内容 —— 缩放不动点必须按
+  // 「相对舞台中心」的偏移计算（d = 锚点 - 舞台中心）。旧实现按左上角原点算（直接用 cx），
+  // 与 center 原点差半个舞台尺寸 → 滚轮缩放整体漂移、不居中（2026-09-14 修复）。
+  const k = nz / contentFs.value.zoom;
+  const dx = cx - S / 2;
+  const dy = cy - Sh / 2;
+  contentFs.value.x = dx - (dx - contentFs.value.x) * k;
+  contentFs.value.y = dy - (dy - contentFs.value.y) * k;
   contentFs.value.zoom = nz;
 }
 function fsOnWheel(e) {
   if (!contentFs.value.open) return;
   e.preventDefault();
-  const r = fsStage.value?.getBoundingClientRect();
-  const cx = r ? e.clientX - r.left : null;
-  const cy = r ? e.clientY - r.top : null;
-  fsSetZoom(contentFs.value.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), cx, cy);
+  // 居中缩放（浏览器式）：始终以舞台中心为锚点，不跟随光标 → 放大后内容保持居中
+  fsSetZoom(contentFs.value.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
 }
 function fsOnPointerDown(e) {
   if (e.pointerType === 'touch') return; // 触屏走 touchstart

@@ -97,7 +97,29 @@ export async function chat(messages, cfg, opts = {}) {
 
   if (!opts.stream) {
     const data = await res.json();
-    const text = data?.choices?.[0]?.message?.content || '';
+    const choice = data?.choices?.[0];
+    const apiErr = data?.error;
+    // 服务端可能返回 200 + {error:{...}}（内容审核 / 余额不足 / 模型不存在 / 图片过大等）——
+    // 此时没有 choices。旧代码 `data?.choices?.[0]?.message?.content || ''` 静默返回空串，
+    // 上层只显示「当前回答为空，请检查 AI 密钥与网络」，把真实原因彻底掩盖（用户明明密钥/网络正常）。
+    // 这里显式抛出可读原因，让 UI 直接告诉用户「到底哪里不对」。
+    if (apiErr || !Array.isArray(data?.choices) || !data.choices.length) {
+      const msg = apiErr?.message || apiErr?.code || JSON.stringify(apiErr ?? data ?? {}).slice(0, 300);
+      reportUsage(data?.usage, '', false);
+      throw new Error(`AI 返回异常：${msg || '响应中没有 choices 字段'}`);
+    }
+    const text = choice?.message?.content || '';
+    // HTTP 成功但正文为空：细分「截断 / 推理模型 / 附图被忽略」，绝不再静默返回空串
+    if (!text.trim()) {
+      const fr = choice?.finish_reason;
+      const reasoning = choice?.message?.reasoning_content;
+      let reason = 'AI 返回了空内容';
+      if (fr === 'length') reason = 'AI 回复被截断（max_tokens 用尽），请缩短问题或调大 max_tokens';
+      else if (reasoning) reason = '当前模型只返回了推理过程（reasoning_content）、正文为空——请在 AI 设置里改用普通对话模型';
+      else if (visionCount > 0) reason = `AI 未返回内容（本次附带了 ${visionCount} 张图片，当前模型可能不支持视觉输入，可在「图片分析策略」里改用 OCR 或换视觉模型）`;
+      reportUsage(data?.usage, '', false);
+      throw new Error(reason);
+    }
     reportUsage(data?.usage, text, true);
     return text;
   }
