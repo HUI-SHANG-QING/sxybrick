@@ -120,27 +120,45 @@ function isEmbeddingsUnsupported(cfg) {
 /**
  * 批量生成 embedding
  * @param {string[]} texts
- * @returns {Promise<number[][]>} 向量数组
+ * @returns {Promise<{ vectors: number[][], degraded: boolean }>}
+ *   vectors: 向量数组；degraded: 本批是否实际使用了本地降级向量
+ *
+ * ⚠️ 2026-09-14 审计 P2：degraded 必须显式透出。
+ * 旧实现失败静默降级、且调用方用 getModelSig()（只看配置）写行签名——
+ * 远程恢复后查询向量 1536 维 vs 降级期间写入的 256 维行 cosine=0，
+ * 而签名相同（配置没变）→ 这些行**永远不会被判定为过期重建**，语义检索永久丢失。
+ * 写入方拿到 degraded 后应落「降级签名」（见 retrieval.js 的 modelSigFor），
+ * 远程恢复后签名不匹配 → computeStaleItems 自动触发全量重建。
  */
 export async function embedBatch(texts) {
-  if (!texts.length) return [];
+  if (!texts.length) return { vectors: [], degraded: false };
   // 远程仅在「有 key 且提供方支持 embeddings」时尝试；其余（无 key / DeepSeek 等）直接本地，零报错。
   const tryRemote = hasKey() && !isEmbeddingsUnsupported(getCfg());
   if (tryRemote) {
     try {
-      return await remoteEmbed(texts);
+      const vectors = await remoteEmbed(texts);
+      return { vectors, degraded: false };
     } catch (e) {
       // 远程失败时降级到本地，保证可用性（info 级，非报错）
       console.info('[embedding] 远程 embedding 不可用，已降级本地向量：', e.message);
+      return { vectors: localEmbed(texts), degraded: true };
     }
   }
-  return localEmbed(texts);
+  return { vectors: localEmbed(texts), degraded: false };
 }
 
-/** 单条 embedding */
+/** 单条 embedding（返回向量；查询侧使用，不关心降级标记） */
 export async function embed(text) {
-  const arr = await embedBatch([String(text || '')]);
-  return arr[0];
+  const { vectors } = await embedBatch([String(text || '')]);
+  return vectors[0];
+}
+
+/**
+ * 行签名：写入索引时的 modelSig。降级批次落「降级签名」，
+ * 使远程恢复后（签名回到纯 api 签名）与存量行签名不匹配 → 自动重建。
+ */
+export function modelSigFor(sig, degraded) {
+  return degraded ? `local:fallback:${sig}` : sig;
 }
 
 /** 余弦相似度 */

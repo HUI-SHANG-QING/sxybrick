@@ -56,7 +56,7 @@ test('目标卡自身不会被当作前驱加入', () => {
 // ---------------------------------------------------------------------------
 const dbMod = await import('fake-indexeddb/auto');
 const { db } = await import('../src/db.js');
-const { autoBuildGraph } = await import('../src/algorithms/graphAuto.js');
+const { autoBuildGraph, pruneDeadEdges } = await import('../src/algorithms/graphAuto.js');
 
 const mkCard = (id, difficulty) => ({
   id, front: 'F-' + id, back: 'B-' + id, subject: '计组', tags: ['t1'], type: 'basic',
@@ -122,4 +122,53 @@ test('autoBuildGraph：边标签落库语义 code 而非中文（round11b N-1）
     assert.ok(e.labelKind, `落库边必须有 labelKind（视图靠它判断是否需要翻译）：${e.id}`);
     assert.ok(!/[\u4e00-\u9fa5]/.test(e.label || ''), `库里落了中文标签：${e.label}`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// pruneDeadEdges：死边清理判定（2026-09-14 审计 P1）
+// 旧实现用 `fromCardId || from` 校验"卡片存在性"→ AI 建的知识点文本边
+// （fromCardId 为空、from 是人类可读知识点名）被整批误判死边删除并写墓碑。
+// ---------------------------------------------------------------------------
+test('pruneDeadEdges：AI 知识点文本边（无 cardId）不误删', async () => {
+  await db.graphEdges.clear(); await db.cards.clear();
+  await db.cards.bulkPut([{ id: 'card-1', front: 'F', back: 'B' }]);
+  // link_cards 建边：按卡片正面解析不到 id → fromCardId 空、from/to 是知识点名
+  await db.graphEdges.bulkPut([
+    { id: 'e-ai', from: '死锁', to: '银行家算法', label: '前置', fromCardId: '', toCardId: '', kind: 'manual' },
+  ]);
+  const r = await pruneDeadEdges();
+  assert.equal(r.removed, 0, '纯文本知识点边不是死边，不得误删');
+  assert.equal((await db.graphEdges.toArray()).length, 1, '边应保留');
+});
+
+test('pruneDeadEdges：声称引用已删卡片的边才清理 + 写墓碑', async () => {
+  await db.graphEdges.clear(); await db.cards.clear();
+  await db.cards.bulkPut([{ id: 'alive-1', front: 'F', back: 'B' }]);
+  await db.tombstones.clear();
+  await db.graphEdges.bulkPut([
+    { id: 'e-dead', from: 'GONE', to: 'alive-1', label: '相关', fromCardId: 'ghost-9', toCardId: 'alive-1', kind: 'manual' },
+    { id: 'e-live', from: 'F', to: 'alive-1', label: '相关', fromCardId: 'alive-1', toCardId: 'alive-1', kind: 'manual' },
+  ]);
+  const r = await pruneDeadEdges();
+  assert.equal(r.removed, 1, '只有引用幽灵卡的那条死');
+  assert.ok(r.ids.includes('e-dead'));
+  assert.equal((await db.graphEdges.toArray()).length, 1, '有效边保留');
+  const tombstones = await db.tombstones.toArray();
+  assert.ok(tombstones.some(t => t.id === 'e-dead' && t.kind === 'graphEdge'), '手动边被删应写墓碑');
+});
+
+test('pruneDeadEdges：历史裸 UUID 脏边清理；资料边豁免', async () => {
+  await db.graphEdges.clear(); await db.cards.clear();
+  await db.cards.bulkPut([{ id: 'deadbeef-1234-5678-9abc-def012345678', front: 'F', back: 'B' }]);
+  const deadId = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'; // 不存在的卡 id
+  await db.graphEdges.bulkPut([
+    { id: 'e-raw', from: deadId, to: 'alive-label', kind: 'manual' }, // 历史裸 UUID 脏边
+    { id: 'e-doc', from: '📄 操作系统笔记.pdf', to: 'F', docId: 'doc-1', type: 'doc-card', kind: 'manual' },
+  ]);
+  const r = await pruneDeadEdges();
+  assert.equal(r.removed, 1, '只清裸 UUID 脏边');
+  assert.ok(r.ids.includes('e-raw'));
+  const remain = await db.graphEdges.toArray();
+  assert.ok(remain.some(e => e.id === 'e-doc'), '资料边豁免保留');
+  assert.equal(remain.length, 1, '另一条是 e-doc');
 });

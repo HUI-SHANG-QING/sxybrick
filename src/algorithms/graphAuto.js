@@ -194,7 +194,8 @@ export async function autoBuildGraph(opts = {}) {
     // 把「经常模糊答对」的卡排除在薄弱簇外；模糊答对同样是需要加强的信号，计入 coMistake
     // （rating>=2 才是真正回忆，不计入）。
     if (r.rating > 1) continue;
-    const day = Math.floor(Number(r.reviewedAt) / DAY_MS);
+    // 本地日界：Math.floor(ts/DAY_MS) 是 UTC 日界，凌晨 0–8 点的错题会被错分到前一天
+    const day = new Date(Number(r.reviewedAt)).setHours(0, 0, 0, 0);
     if (!Number.isFinite(day)) continue;
     if (!wrongByDay.has(day)) wrongByDay.set(day, []);
     wrongByDay.get(day).push(r.cardId);
@@ -331,19 +332,37 @@ export async function derivePrereqPlan(cardId) {
 }
 
 /**
- * 清理「失效关联」：两端都查不到对应卡片的边（卡片已删、或历史脏数据把裸 ID 写进了 from/to）。
- * @returns {{ removed:number, ids:string[] }}
+ * 清理「失效关联」：声称引用卡片、但两端卡片都已不存在的边。
+ *
+ * ⚠️ 2026-09-14 审计 P1：旧实现用 `e.fromCardId || e.from` 做存在性校验——
+ * AI 建边工具（link_cards）建的「知识点文本节点」边（如 from="死锁"→to="银行家算法"）
+ * 的 fromCardId 按卡片正面匹配、匹配不到就是空串，from/to 是**人类可读知识点名**。
+ * 旧逻辑把 from 当卡片 id 查 → 必然不在卡片 id 集合 → 这些**有效的**知识点边
+ * 被「清理失效关联」整批误删并写墓碑（还随同步传播到其他设备）。数据丢失。
+ *
+ * 正确语义分三类：
+ *   · 带 fromCardId/toCardId 的边：声称引用卡片 → 引用的卡片必须存在，缺则死边；
+ *   · 纯文本知识点边（两端都无 cardId）：不是"卡片引用"，永不判死；
+ *   · 历史遗留「裸 UUID 文本」脏边（旧版只写 from=UUID、无 fromCardId）：
+ *     文本长得像卡片 id 且库里没有该卡 → 死边，继续清理。
+ *   · 资料边（doc-card / 带 docId）本就不参与卡片存在性校验（豁免保留）。
  */
 export async function pruneDeadEdges() {
   const [edges, cards] = await Promise.all([db.graphEdges.toArray(), db.cards.toArray()]);
   const ids = new Set(cards.map(c => c.id));
+  const looksLikeId = (s) => /^[0-9a-f]{8,}-[0-9a-f-]{10,}$/i.test(s);
   const dead = edges.filter(e => {
-    const a = String(e.fromCardId || e.from || '').trim();
-    const b = String(e.toCardId || e.to || '').trim();
-    if (!a || !b) return true;
     // 资料边（doc-card）的 from 是「📄 文件名」，不参与卡片存在性校验
     if (e.type === 'doc-card' || e.docId) return false;
-    return !ids.has(a) || !ids.has(b);
+    const a = String(e.fromCardId || '').trim();
+    const b = String(e.toCardId || '').trim();
+    if (a || b) {
+      // 至少一端声称引用卡片：引用必须真实存在
+      return (a && !ids.has(a)) || (b && !ids.has(b));
+    }
+    // 两端都无 cardId：只有「文本本身长得像已删卡片 UUID」才是历史脏数据
+    const fa = String(e.from || '').trim(), fb = String(e.to || '').trim();
+    return (looksLikeId(fa) && !ids.has(fa)) || (looksLikeId(fb) && !ids.has(fb));
   });
   if (dead.length) {
     await db.graphEdges.bulkDelete(dead.map(e => e.id));

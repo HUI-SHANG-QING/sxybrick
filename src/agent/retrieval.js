@@ -9,7 +9,7 @@
 //   4) 模型签名(modelSig)：embedding 模型变更时自动标记全量重建
 
 import { db, uid } from '../db.js';
-import { embedBatch, embed, getModelSig } from './embedding.js';
+import { embedBatch, embed, getModelSig, modelSigFor } from './embedding.js';
 import { computeStaleItems } from './stale.js';
 import { scoreSemantic, scoreKeyword, fuseResults } from './retrieval-core.js';
 
@@ -57,8 +57,9 @@ export async function indexCard(card) {
   if (!card?.id) return;
   const text = cardToText(card);
   if (!text.trim()) return;
-  const vec = await embed(text);
-  const modelSig = getModelSig();
+  const { vectors, degraded } = await embedBatch([text]);
+  const vec = vectors[0];
+  const modelSig = modelSigFor(getModelSig(), degraded);
   const existing = await db.embeddings.where('sourceId').equals(card.id).first();
   await db.embeddings.put({
     id: existing?.id || uid(),
@@ -90,8 +91,9 @@ export async function indexDoc(doc) {
   const subject = docSubject(doc);
   for (let i = 0; i < chunks.length; i += BATCH) {
     const batch = chunks.slice(i, i + BATCH);
-    const vecs = await embedBatch(batch);
+    const { vectors: vecs, degraded } = await embedBatch(batch);
     const now = Date.now();
+    const rowSig = modelSigFor(modelSig, degraded);
     for (let j = 0; j < batch.length; j++) {
       await db.embeddings.put({
         id: uid(),
@@ -102,7 +104,7 @@ export async function indexDoc(doc) {
         vector: vecs[j],
         subject,
         updatedAt: now,
-        modelSig,
+        modelSig: rowSig,
       });
     }
   }
@@ -163,7 +165,8 @@ export async function ensureIndex(maxCards = 50, maxDocs = 10) {
   for (let i = 0; i < staleCards.length; i += BATCH) {
     const batch = staleCards.slice(i, i + BATCH);
     const texts = batch.map(cardToText);
-    const vecs = await embedBatch(texts);
+    const { vectors: vecs, degraded } = await embedBatch(texts);
+    const rowSig = modelSigFor(modelSig, degraded);
     for (let j = 0; j < batch.length; j++) {
       const existing = await db.embeddings.where('sourceId').equals(batch[j].id).first();
       await db.embeddings.put({
@@ -175,7 +178,7 @@ export async function ensureIndex(maxCards = 50, maxDocs = 10) {
         vector: vecs[j],
         subject: batch[j].subject || '',
         updatedAt: now,
-        modelSig,
+        modelSig: rowSig,
       });
       indexed++;
     }
