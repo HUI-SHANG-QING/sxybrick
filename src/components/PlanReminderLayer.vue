@@ -3,18 +3,21 @@
     <Transition name="remind-pop">
       <div v-if="queue.length" class="pr-layer" role="alert">
         <div class="pr-stack">
-          <div v-for="(t, i) in queue" :key="t.id + '_' + i" class="pr-card" :style="{ animationDelay: (i * 0.12) + 's' }">
+          <!-- 循环变量必须避开 t：它在本子树内会遮蔽 i18n 的 t() 函数，
+               只要有人在这里加一句 t('xxx') 就会在生产压缩后报 e is not a function
+               （DailyPlanView 踩过，已复发 3 次）。统一用 task。 -->
+          <div v-for="(task, i) in queue" :key="task.id + '_' + i" class="pr-card" :style="{ animationDelay: (i * 0.12) + 's' }">
             <div class="pr-head">
               <span class="pr-badge">⏰ 日程提醒</span>
-              <span class="pr-time" v-if="t.scheduledHour != null">{{ String(t.scheduledHour).padStart(2, '0') }}:00</span>
+              <span class="pr-time" v-if="task.scheduledHour != null">{{ String(task.scheduledHour).padStart(2, '0') }}:00</span>
             </div>
-            <div class="pr-title">{{ t.title }}</div>
+            <div class="pr-title">{{ task.title }}</div>
             <div class="pr-meta">
-              <span class="pr-type">{{ TYPE_ICON[t.type] }} {{ TYPE_LABEL[t.type] }}</span>
-              <span v-if="t.subject" class="pr-sub">📚 {{ t.subject }}</span>
-              <span v-if="t.targetCount" class="pr-sub">🎯 {{ t.targetCount }} 项</span>
+              <span class="pr-type">{{ TYPE_ICON[task.type] }} {{ TYPE_LABEL[task.type] }}</span>
+              <span v-if="task.subject" class="pr-sub">📚 {{ task.subject }}</span>
+              <span v-if="task.targetCount" class="pr-sub">🎯 {{ task.targetCount }} 项</span>
             </div>
-            <button class="pr-dismiss" @click="dismiss(t)">知道了 ✓</button>
+            <button class="pr-dismiss" @click="dismiss(task)">知道了 ✓</button>
           </div>
         </div>
       </div>

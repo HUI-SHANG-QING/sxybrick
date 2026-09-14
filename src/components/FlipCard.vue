@@ -148,7 +148,7 @@ defineExpose({ flipped, showBack, doRate });
           <div class="tags">
             <span class="tag-pill subj">{{ typeText }}</span>
             <span v-if="card.subject" class="tag-pill subj">{{ card.subject }}</span>
-            <span v-for="t in card.tags" :key="t" class="tag-pill">{{ t }}</span>
+            <span v-for="tag in card.tags" :key="tag" class="tag-pill">{{ tag }}</span>
           </div>
 
           <template v-if="type === 'choice'">

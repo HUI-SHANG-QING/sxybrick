@@ -778,7 +778,7 @@ async function recordDuelWrong(idA, idB) {
         </div>
         <div class="field-label">{{ t('views.review.fTagLabel') }}</div>
         <div class="row">
-          <button v-for="t in allTags" :key="t.name" class="chip" :class="{ on: fTags.includes(t.name) }" @click="toggleFTag(t.name)">{{ t.name }}<span class="n">{{ t.count }}</span></button>
+          <button v-for="tag in allTags" :key="tag.name" class="chip" :class="{ on: fTags.includes(tag.name) }" @click="toggleFTag(tag.name)">{{ tag.name }}<span class="n">{{ tag.count }}</span></button>
           <select v-if="fTags.length" v-model="fLogic" class="input" style="width:auto">
             <option value="OR">{{ t('views.review.logicOr') }}</option>
             <option value="AND">{{ t('views.review.logicAnd') }}</option>
@@ -891,7 +891,7 @@ async function recordDuelWrong(idA, idB) {
           <div v-for="h in shownHistory" :key="h.id" class="card-item">
             <div class="tags">
               <span v-if="h.subject" class="tag-pill subj">{{ h.subject }}</span>
-              <span v-for="t in h.tags" :key="t" class="tag-pill">{{ t }}</span>
+              <span v-for="tag in h.tags" :key="tag" class="tag-pill">{{ tag }}</span>
             </div>
             <!-- 默认全展开；点「收起」才隐藏详情 -->
             <div v-if="!collapsedIds.has(h.id)" class="history-detail">

@@ -126,7 +126,7 @@ onMounted(applyRouteId);
               </div>
             </div>
             <div v-if="d.tags && d.tags.length" style="margin-bottom:8px">
-              <span v-for="t in d.tags" :key="t" class="tag">{{ t }}</span>
+              <span v-for="tag in d.tags" :key="tag" class="tag">{{ tag }}</span>
             </div>
             <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
               <FullscreenButton :active="docFs" @toggle="toggleDocFs" />

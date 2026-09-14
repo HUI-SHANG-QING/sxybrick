@@ -821,8 +821,8 @@ async function rescueAll() {
       <div class="row">
         <span class="hint" style="width:56px">{{ t('views.cards.tagLabel') }}</span>
         <button class="chip" :class="{ on: !filters.tags.length }" @click="filters.tags = []">{{ t('views.cards.all') }}</button>
-        <button v-for="t in allTags.slice(0, 20)" :key="t.name" class="chip" :class="{ on: filters.tags.includes(t.name) }"
-                @click="toggleTag(t.name)">{{ t.name }}<span class="n">{{ t.count }}</span></button>
+        <button v-for="tag in allTags.slice(0, 20)" :key="tag.name" class="chip" :class="{ on: filters.tags.includes(tag.name) }"
+                @click="toggleTag(tag.name)">{{ tag.name }}<span class="n">{{ tag.count }}</span></button>
         <select v-if="filters.tags.length" v-model="filters.logic" class="input" style="width:auto;margin-left:8px">
           <option value="AND">{{ t('views.cards.logicAnd') }}</option>
           <option value="OR">{{ t('views.cards.logicOr') }}</option>
@@ -916,7 +916,7 @@ async function rescueAll() {
           <label v-if="selectMode" class="chk" @click.stop><input type="checkbox" :checked="selectedIds.has(item.id)" @change="toggleSelect(item.id)" /></label>
           <div class="tags">
             <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
-            <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
+            <span v-for="tag in item.tags" :key="tag" class="tag-pill">{{ tag }}</span>
             <span v-if="item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '答错{n}次', { n: item.failCount }) }}</span>
             <span style="flex:1"></span>
             <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)" :title="(expandAllByDefault ? (collapsedIds.has(item.id) ? t('views.cards.expandDetailTitle') : t('views.cards.collapseDetailTitle')) : (collapsedIds.has(item.id) ? t('views.cards.collapseDetailTitle') : t('views.cards.expandDetailTitle')))">
@@ -951,7 +951,7 @@ async function rescueAll() {
         <label v-if="selectMode" class="chk" @click.stop><input type="checkbox" :checked="selectedIds.has(item.id)" @change="toggleSelect(item.id)" /></label>
         <div class="tags">
           <span class="grade-pill" :class="gradeCard(item).cls">{{ gradeCard(item).label }}</span> <span v-if="item.type && item.type !== 'basic'" class="tag-pill" style="background:var(--blue);color:#fff">{{ typeName(item.type) }}</span> <span v-if="item.subject" class="tag-pill subj">{{ item.subject }}</span>
-          <span v-for="t in item.tags" :key="t" class="tag-pill">{{ t }}</span>
+          <span v-for="tag in item.tags" :key="tag" class="tag-pill">{{ tag }}</span>
           <span v-if="item.failCount" class="tag-pill" style="background:var(--red);color:#fff">{{ t('views.cards.forgotN', '答错{n}次', { n: item.failCount }) }}</span>
           <span style="flex:1"></span>
           <button class="chip mini expand-chip" @click.stop="toggleExpand(item.id)">
@@ -1071,7 +1071,7 @@ async function rescueAll() {
           <div v-if="historyData && historyData.card" class="card-item" style="margin:8px 0">
             <div class="tags">
               <span v-if="historyData.card.subject" class="tag-pill subj">{{ historyData.card.subject }}</span>
-              <span v-for="t in historyData.card.tags" :key="t" class="tag-pill">{{ t }}</span>
+              <span v-for="tag in historyData.card.tags" :key="tag" class="tag-pill">{{ tag }}</span>
             </div>
             <div class="front-preview">{{ plain(historyData.card.front).slice(0, 80) || t('views.cards.empty') }}</div>
           </div>

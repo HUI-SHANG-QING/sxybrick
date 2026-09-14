@@ -579,9 +579,9 @@ async function doApkgImport() {
 
       <div class="field-label">{{ t('views.export.tagsLabel') }}</div>
       <div class="row">
-        <button v-for="t in allTags" :key="t.name" class="chip"
-                :class="{ on: tagNames.includes(t.name) }" @click="toggleTag(t.name)">
-          {{ t.name }}<span class="n">{{ t.count }}</span>
+        <button v-for="tag in allTags" :key="tag.name" class="chip"
+                :class="{ on: tagNames.includes(tag.name) }" @click="toggleTag(tag.name)">
+          {{ tag.name }}<span class="n">{{ tag.count }}</span>
         </button>
         <select v-if="tagNames.length" v-model="logic" class="input" style="width:auto">
           <option value="AND">{{ t('views.export.logicAnd') }}</option>
@@ -627,7 +627,7 @@ async function doApkgImport() {
           <span class="pick-main">
             <span class="pick-head">
               <span class="pick-subj">{{ c.subject || '未分类' }}</span>
-              <span v-for="t in c.tags" :key="t" class="tag-pill">{{ t }}</span>
+              <span v-for="tag in c.tags" :key="tag" class="tag-pill">{{ tag }}</span>
             </span>
             <span class="pick-front">{{ plain(c.front) }}</span>
           </span>
@@ -687,7 +687,7 @@ async function doApkgImport() {
                 <div class="card-head">
                   <span class="card-no">{{ g.name === '未分类' ? '' : g.name + ' · ' }}#{{ i + 1 }}</span>
                   <span class="card-tags">
-                    <span v-for="t in c.tags" :key="t" class="tag-pill">{{ t }}</span>
+                    <span v-for="tag in c.tags" :key="tag" class="tag-pill">{{ tag }}</span>
                   </span>
                 </div>
                 <div class="qa q-side"><span class="qa-mark">Q</span><MarkdownRenderer :content="c.front" /></div>

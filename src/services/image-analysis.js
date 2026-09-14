@@ -166,35 +166,37 @@ export async function statImageAssets() {
     if (n) bySource[source] = n;
   };
 
-  scan('cards', (await db.cards.toArray()).filter((c) => c.front || c.back));
-  scan('notes', await db.notes.toArray());
-  scan('memos', await db.memos.toArray());
-  if (db.docFiles) scan('docFiles', await db.docFiles.toArray());
+  // 一次取快照、多处复用：此前 cards/notes/memos 各查两遍、docFiles 查三遍
+  // （scan 一遍 + 视觉型统计一遍 + docs 总数一遍），几千张卡时设置页「智能推荐」明显卡顿。
+  const cardRows = (await db.cards.toArray()).filter((c) => c.front || c.back);
+  const noteRows = await db.notes.toArray();
+  const memoRows = await db.memos.toArray();
+  const docRows = db.docFiles ? await db.docFiles.toArray() : [];
+
+  scan('cards', cardRows);
+  scan('notes', noteRows);
+  scan('memos', memoRows);
+  scan('docFiles', docRows);
 
   // 资料库的「视觉型文件」单独统计：pdf/图片文件不走 sxy-img:// 占位符，
   // 上面那轮 scan 一定漏掉它们——而扫描件/图表资料恰恰是最需要视觉分析的部分。
-  // 动态 import doc-vision 避免与它形成静态环（doc-vision → utils/img-compress 单向）。
   let docVisual = 0;
   let docVisionPages = 0;
   try {
-    for (const f of db.docFiles ? await db.docFiles.toArray() : []) {
+    for (const f of docRows) {
       const kind = docKindOf(f);
       if (kind === 'image') { docVisual += 1; docVisionPages += 1; }
       else if (kind === 'pdf') { docVisual += 1; docVisionPages += Math.max(1, Number(f.pageCount) || 1); }
     }
   } catch { /* 统计失败不影响主流程 */ }
 
-  // 孤儿校验：占位符指向但 db.images 里没有的（不计入 imgUnique）
-  let live = 0;
-  for (const id of all) {
-    const row = await db.images.get(id);
-    if (row) live += 1;
-  }
+  // 孤儿校验：占位符指向但 db.images 里没有的（不计入 imgUnique）。
+  // 用一次 bulkGet 代替逐个 get——图片多时前者是一次事务，后者是 N 次往返。
+  const refIds = [...all];
+  const refRows = refIds.length ? await db.images.bulkGet(refIds) : [];
+  const live = refRows.filter(Boolean).length;
 
-  const docs = (await db.cards.toArray()).filter((c) => c.front || c.back).length
-    + (await db.notes.toArray()).length
-    + (await db.memos.toArray()).length
-    + (db.docFiles ? (await db.docFiles.toArray()).length : 0);
+  const docs = cardRows.length + noteRows.length + memoRows.length + docRows.length;
 
   return { imgRefs, imgUnique: live, imgDocs, docs, bySource, docVisual, docVisionPages };
 }
@@ -271,8 +273,10 @@ export { compressImageBlob, blobToDataUrlRaw } from '../utils/img-compress.js';
 
 // ---- LLM 消息富集（AI 链路的唯一接线点） ----------------------------------
 
-// 会话内 OCR 缓存：同一图片不重复识别（反复对话时 context 带同一批图占位符，命中即复用）
-const ocrCache = new Map();
+// 会话内 OCR 缓存：同一图片不重复识别（反复对话时 context 带同一批图占位符，命中即复用）。
+// 已下沉到 utils/ocr-cache.js：带 LRU 上限（防长会话内存无界增长）与版本签名校验
+// （图片行的 updatedAt 变了即视为失效 —— 避免拿着旧图的 OCR 结果回答新图的内容）。
+import { getOcr, setOcr } from '../utils/ocr-cache.js';
 
 // ---- 资料页视觉引用协议：sxy-doc://<docId>[#<pages>] --------------------------
 // 为什么需要：Agent 的 ReAct 工具调用走「文本协议」返回（tool 消息是字符串），
@@ -375,9 +379,14 @@ export async function enrichForLlm(messages, opts = {}) {
     const db = getDb();
     const ocrText = {};
     for (const id of ids) {
-      if (ocrCache.has(id)) { ocrText[id] = ocrCache.get(id); continue; }
-      let text = '';
       const row = await db.images.get(id);
+      // 缓存命中要求「图片行存在且未变更」：updatedAt 是图片被替换时必然推进的字段，
+      // 拿它当版本签名，图片换了内容后旧识别结果自动作废（不需要在每个删除点挂钩子）。
+      // row 缺失（图已删）时不复用缓存——否则会拿着已删图片的旧文字继续回答。
+      const sig = row?.updatedAt ?? null;
+      const cached = row ? getOcr(id, sig) : null;
+      if (cached !== null) { ocrText[id] = cached; continue; }
+      let text = '';
       if (row) {
         try {
           if (opts.ocrFn) {
@@ -390,7 +399,7 @@ export async function enrichForLlm(messages, opts = {}) {
           text = ''; // 识别失败：留空，由下方 visionRefs 兜底或标注「未能识别」
         }
       }
-      ocrCache.set(id, text);
+      setOcr(id, text, sig);
       ocrText[id] = text;
     }
     ids.forEach((id) => {

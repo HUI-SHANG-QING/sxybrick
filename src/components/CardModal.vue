@@ -338,8 +338,8 @@ function close() { emit('update:modelValue', false); }
 
         <div class="field-label">标签（最多 {{ MAX_TAGS }} 个，回车添加）</div>
         <div class="tag-box input" style="position:relative">
-          <span v-for="t in tags" :key="t" class="tag-pill" style="margin-right:6px">
-            {{ t }} <a style="cursor:pointer" @click="tags = tags.filter(x => x !== t)">×</a>
+          <span v-for="tag in tags" :key="tag" class="tag-pill" style="margin-right:6px">
+            {{ tag }} <a style="cursor:pointer" @click="tags = tags.filter(x => x !== tag)">×</a>
           </span>
           <input v-model="tagInput" style="border:none;outline:none;flex:1;min-width:120px"
                  placeholder="输入标签，回车添加" @keydown="onTagKeydown"

@@ -148,3 +148,55 @@ test('全部 .vue 模板：v-for 变量不得遮蔽模板内被调用的函数�
   }
   assert.deepEqual(bad, [], `以下位置 v-for 变量遮蔽了函数名，改个名字（如 tsk/item/row）：\n${bad.join('\n')}`);
 });
+
+// ---------- 坑 3b：v-for 变量直接叫 t（预防性） ----------
+//
+// 上面那个闸门只能抓到「已经调用」的遮蔽；而 `v-for="t in list"` 即使当前没在子树里
+// 调用 t('...')，也只是「暂时没炸」——后人随手加一句翻译就复现生产崩溃
+// （2026-09-14 审计发现 PlanReminderLayer.vue / Sync.vue 两处如此）。
+// t 是本项目 i18n 函数的固定名字，因此直接禁止用它当循环变量：简单、无歧义、可执行。
+export function findVForVarNamedT(src, filename = 'x.vue') {
+  const { descriptor } = parse(src, { filename });
+  const tpl = descriptor.template;
+  if (!tpl || !tpl.ast) return [];
+  const out = [];
+  const visit = (node) => {
+    if (node.type === 1) {
+      const vfor = (node.props || []).find((p) => p.type === 7 && p.name === 'for');
+      if (vfor) {
+        const expr = String(vfor.exp?.content || '');
+        const names = new Set();
+        const m1 = expr.match(/^\s*\(\s*([A-Za-z_$][\w$]*)\s*,\s*([A-Za-z_$][\w$]*)\s*\)\s+in\s/);
+        if (m1) { names.add(m1[1]); names.add(m1[2]); } else {
+          const m2 = expr.match(/^\s*([A-Za-z_$][\w$]*)\s+in\s/);
+          if (m2) names.add(m2[1]);
+        }
+        if (names.has('t')) {
+          out.push({ expr: expr.trim(), line: src.slice(0, node.loc.start.offset).split('\n').length });
+        }
+      }
+    }
+    for (const ch of node.children || []) visit(ch);
+  };
+  visit(tpl.ast);
+  return out;
+}
+
+test('v-for 变量名 detect 器自检：能抓出 t、不误报 task', () => {
+  const BAD = `<template><div><span v-for="t in list">{{ t.title }}</span></div></template>`;
+  const GOOD = `<template><div><span v-for="task in list">{{ task.title }}</span></div></template>`;
+  assert.equal(findVForVarNamedT(BAD, 'B.vue').length, 1);
+  assert.deepEqual(findVForVarNamedT(GOOD, 'G.vue'), []);
+});
+
+test('全部 .vue 模板：v-for 循环变量不得命名为 t', () => {
+  const bad = [];
+  for (const f of files) {
+    let hits;
+    try { hits = findVForVarNamedT(readFileSync(f, 'utf8'), f); } catch { continue; }
+    for (const h of hits) {
+      bad.push(`${relative(SRC, f)}:${h.line} v-for "${h.expr}" 用了变量名 t（会遮蔽 i18n 的 t 函数）`);
+    }
+  }
+  assert.deepEqual(bad, [], `以下 v-for 变量叫 t，请改成 task/tip/item 之类：\n${bad.join('\n')}`);
+});

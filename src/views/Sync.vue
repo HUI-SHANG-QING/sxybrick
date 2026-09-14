@@ -717,17 +717,17 @@ async function refreshStatus() { await loadModuleStatus(); }
           {{ t('views.sync.deckLabel') }}<b>{{ importPreview.deckMeta.author || t('views.sync.deckAnon') }}</b><template v-if="importPreview.deckMeta.description"> · {{ importPreview.deckMeta.description }}</template>
         </p>
         <div class="preview-list">
-          <div v-for="t in previewTables" :key="t.table" class="preview-item">
-            <div class="preview-label">{{ t.label }}</div>
+          <div v-for="tbl in previewTables" :key="tbl.table" class="preview-item">
+            <div class="preview-label">{{ tbl.label }}</div>
             <div class="preview-nums">
-              <span v-if="t.added" class="pn add">+{{ t.added }}</span>
-              <span v-if="t.overwritten" class="pn ov">~{{ t.overwritten }}</span>
-              <span v-if="t.skipped" class="pn skip">={{ t.skipped }}</span>
-              <span v-if="t.duplicated" class="pn dup">⊘{{ t.duplicated }}</span>
-              <span v-if="t.deleted" class="pn del">-{{ t.deleted }}</span>
+              <span v-if="tbl.added" class="pn add">+{{ tbl.added }}</span>
+              <span v-if="tbl.overwritten" class="pn ov">~{{ tbl.overwritten }}</span>
+              <span v-if="tbl.skipped" class="pn skip">={{ tbl.skipped }}</span>
+              <span v-if="tbl.duplicated" class="pn dup">⊘{{ tbl.duplicated }}</span>
+              <span v-if="tbl.deleted" class="pn del">-{{ tbl.deleted }}</span>
             </div>
             <div class="preview-samples">
-              <span v-for="(s, i) in t.samples" :key="i" class="ps" :class="'ps-' + s.status">{{ s.title }}</span>
+              <span v-for="(s, i) in tbl.samples" :key="i" class="ps" :class="'ps-' + s.status">{{ s.title }}</span>
             </div>
           </div>
         </div>
@@ -906,7 +906,7 @@ async function refreshStatus() { await loadModuleStatus(); }
             : hubStatus.tokenOk ? t('views.sync.hubTokenOk')
             : t('views.sync.hubTokenFail')
           }}
-          <ul v-if="hubStatus.tips?.length" style="margin:6px 0 0 18px;padding:0"><li v-for="(t,i) in hubStatus.tips" :key="i" class="hint" style="font-size:12px">{{ t }}</li></ul>
+          <ul v-if="hubStatus.tips?.length" style="margin:6px 0 0 18px;padding:0"><li v-for="(tip,i) in hubStatus.tips" :key="i" class="hint" style="font-size:12px">{{ tip }}</li></ul>
         </template>
         <template v-else>
           {{ t('views.sync.hubUnreachable') }}<b>{{ hubStatus.error }}</b>
