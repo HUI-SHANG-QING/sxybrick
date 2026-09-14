@@ -11,6 +11,10 @@
 //       · template 是范文模板，无 SRS 语义，仅存储+收藏+导出。
 //   - 删除走「回收站快照 + 墓碑」双写，与 deleteCard 一致，确保跨设备删除生效。
 import { db, uid } from './db.js';
+// 词卡「展示回填」：大纲词卡是只有单词的裸卡，展示前必须用本地词库补 meaning 等字段，
+// 否则背诵页/13 模式/AI 智能模式一律显示「暂无释义」。放在读取层 = 所有英语视图自动受益。
+import { fillCardFromLocalBank } from './services/word-enrich.js';
+import { builtinMeaning } from './services/word-syllabus.js';
 // 复用记忆卡调度器（SM-2/FSRS 自动切换）与权重配置：避免两套调度逻辑漂移
 import { scheduleReview } from './srs.js';
 import { getSchedConfig, formatDue, trashItem, findOrphanImages, invalidateFailCountCache, invalidateDashboardCache } from './repo.js';
@@ -481,7 +485,17 @@ export async function listWordCards(filter = {}) {
       (r.example || '').toLowerCase().includes(q));
   }
   rows.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-  return rows;
+  return backfillCards(rows);
+}
+
+/**
+ * 读取层的即时回填：用「已加载分片 + 内置种子释义」补齐缺失字段（同步、零等待）。
+ * 分片尚未加载的卡带 _localSource='pending'，调用方可用 fillCardsFromLocalBank
+ * await ensureWord 后再补一次（背诵页就是这么做的）。
+ */
+function backfillCards(rows) {
+  const levels = ['simple', 'long'];
+  return rows.map((r) => fillCardFromLocalBank(r, { levels, seedMeaning: (w) => builtinMeaning(w) }));
 }
 
 // 备用卡组停车（与通用卡组 repo.getParkedCardIds 完全同口径）：
@@ -561,7 +575,7 @@ export async function dueWordCards(opts = {}) {
     if (an !== bn) return bn - an;
     return (a.dueAt || 0) - (b.dueAt || 0);
   });
-  return rows;
+  return backfillCards(rows);
 }
 
 // 统计：待复习 / 已掌握 / 今日新学 / 熟词 / 总数 / 范文数

@@ -6,6 +6,7 @@
 //  - 全程通过 onTrace 回传轨迹节点，UI 可实时展示 Agent 的思考过程。
 
 import { toolRegistry } from '../registry.js';
+import { compactToolPayload } from '../tools/compact.js';
 import { TraceKind } from '../types.js';
 import { buildLocalAnswer } from '../local-answer.js';
 import { isOfflineReply } from '../../utils/offlineAI.js';
@@ -146,7 +147,12 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
       }
       const res = await executeTool(toolCall.name, toolCall.args, ctx, onTrace);
       convo.push({ role: 'assistant', content: raw });
-      const payload = res?.ok === false ? `错误：${res.error}` : JSON.stringify(res?.data ?? res);
+      // 工具结果必须**限量**再进上下文：卡片全文/OCR 长文本会让单请求轻易超限，
+      // 表现为「AI 合成回答暂不可用」反复失败。压缩保留 JSON 结构（数组留前 N 项、
+      // 长字段截断并标注原长度），并在超限时附说明，模型据此不会误以为"只有这些"。
+      const payload = res?.ok === false
+        ? `错误：${res.error}`
+        : compactToolPayload(res?.data ?? res);
       convo.push({ role: 'tool', content: `工具 ${toolCall.name} 返回：\n${payload}` });
       observations.push({
         name: toolCall.name,

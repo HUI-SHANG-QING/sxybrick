@@ -6,7 +6,7 @@ import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { getWordSettings, saveWordSettings } from '../word-repo.js';
 import { LLM_PROVIDERS, testLlmConnection } from '../services/word-llm.js';
-import { recommendForCurrentData } from '../services/image-analysis.js';
+import ImagePolicySetting from '../components/ImagePolicySetting.vue';
 import WordQuickBar from '../components/WordQuickBar.vue';
 
 const router = useRouter();
@@ -37,44 +37,7 @@ const levelLabels = {
 
 onMounted(async () => {
   form.value = await getWordSettings();
-  loadRecommendation();
 });
-
-// ---- 图片分析策略（OCR 先行 / 视觉兜底，见 services/image-analysis.js）----
-const IMG_MODE_LABELS = { auto: 'recModeAuto', ocrFirst: 'recModeOcr', visionFirst: 'recModeVision' };
-const rec = ref(null);          // { mode, reason, stats } 来自 recommendForCurrentData
-const recLoading = ref(false);
-const recError = ref(false);
-
-async function loadRecommendation() {
-  recLoading.value = true;
-  recError.value = false;
-  try {
-    rec.value = await recommendForCurrentData();
-  } catch (e) {
-    recError.value = true;
-    console.warn('[WordSettings] image strategy recommendation failed:', e?.message || e);
-  } finally {
-    recLoading.value = false;
-  }
-}
-
-function currentImgMode() {
-  const m = form.value?.imageAnalysis?.mode;
-  return ['auto', 'ocrFirst', 'visionFirst'].includes(m) ? m : 'auto';
-}
-
-function setImgMode(mode) {
-  form.value.imageAnalysis = { ...form.value.imageAnalysis, mode };
-}
-
-function applyRecommended() {
-  if (rec.value?.mode) setImgMode(rec.value.mode);
-}
-
-function recModeLabel() {
-  return rec.value?.mode ? t(`views.wordSettings.${IMG_MODE_LABELS[rec.value.mode]}`) : '';
-}
 
 async function save() {
   if (!form.value) return;
@@ -96,7 +59,6 @@ async function save() {
       confusion: !!form.value.confusion,
       aiFallback: form.value.aiFallback,
       dailyGoal: Number(form.value.dailyGoal) || 20,
-      imageAnalysis: { ...form.value.imageAnalysis, mode: currentImgMode() },
     });
     toast(t('views.wordSettings.savedToast'), 'success');
   } catch (e) {
@@ -213,39 +175,9 @@ async function testConn() {
         </button>
       </section>
 
-      <!-- 图片分析策略 -->
-      <section class="fblock">
-        <h3>
-          {{ t('views.wordSettings.imageTitle') }}
-          <em class="hint-inline" style="display:inline;margin-left:8px">{{ t('views.wordSettings.imageHint') }}</em>
-        </h3>
-        <div class="imgmode-list">
-          <label v-for="m in [
-            { id: 'auto', label: t('views.wordSettings.imgModeAuto'), desc: t('views.wordSettings.modeAutoDesc') },
-            { id: 'ocrFirst', label: t('views.wordSettings.imgModeOcr'), desc: t('views.wordSettings.modeOcrDesc') },
-            { id: 'visionFirst', label: t('views.wordSettings.imgModeVision'), desc: t('views.wordSettings.modeVisionDesc') },
-          ]" :key="m.id" class="imgmode" :class="{ on: currentImgMode() === m.id }">
-            <input type="radio" name="imgMode" :value="m.id" :checked="currentImgMode() === m.id" @change="setImgMode(m.id)" />
-            <span class="imgmode-label">{{ m.label }}</span>
-            <span class="imgmode-desc">{{ m.desc }}</span>
-          </label>
-        </div>
-        <p class="imgmode-tip">{{ t('views.wordSettings.visionNeedsKey') }}</p>
-        <div class="imgmode-rec">
-          <span class="imgmode-rec-title">{{ t('views.wordSettings.recTitle') }}</span>
-          <span v-if="recLoading">{{ t('views.wordSettings.recComputing') }}</span>
-          <span v-else-if="recError">—</span>
-          <span v-else-if="!rec?.stats?.imgRefs && !rec?.stats?.docVisual">{{ t('views.wordSettings.recNone') }}</span>
-          <template v-else>
-            <span v-if="rec.stats.docVisual">{{ t('views.wordSettings.recLineMixed', undefined, { imgs: rec.stats.imgRefs, docVisual: rec.stats.docVisual, pages: rec.stats.docVisionPages, mode: recModeLabel() }) }}</span>
-            <span v-else>{{ t('views.wordSettings.recLine', undefined, { imgs: rec.stats.imgRefs, docs: rec.stats.imgDocs, mode: recModeLabel() }) }}</span>
-            <button class="imgmode-apply" :disabled="currentImgMode() === rec.mode" @click="applyRecommended">
-              {{ t('views.wordSettings.recApply') }}
-            </button>
-          </template>
-        </div>
-        <p v-if="rec && !recLoading && !recError && rec.reason" class="imgmode-reason">{{ rec.reason }}</p>
-      </section>
+      <!-- 图片分析策略：抽成组件与「AI 助手 → AI 设置」共用（改即保存） -->
+      <ImagePolicySetting />
+
 
       <!-- 助记顺序 / 拆分助记 / 混淆辨析 -->
       <section class="fblock">

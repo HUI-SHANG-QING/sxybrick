@@ -136,6 +136,7 @@ const lb = ref({
   zoom: 1,
   x: 0,
   y: 0,
+  rotate: 0,   // 旋转角度（0/90/180/270）——手机竖拍的照片要能转正看
   native: false,
   error: false,
 });
@@ -178,6 +179,17 @@ function resetView() {
   lb.value.zoom = 1;
   lb.value.x = 0;
   lb.value.y = 0;
+  lb.value.rotate = 0;
+}
+
+/** 旋转 90°（dir=1 顺时针 / -1 逆时针）。旋转后回到 1:1 并居中——转过 90° 后
+ *  原来的平移与缩放锚点已经没有意义，继续沿用会让人以为"图片飞了"。 */
+function rotateBy(dir) {
+  if (!lb.value.open) return;
+  lb.value.rotate = ((lb.value.rotate + dir * 90) % 360 + 360) % 360;
+  lb.value.zoom = 1;
+  lb.value.x = 0;
+  lb.value.y = 0;
 }
 
 function closeLightbox() {
@@ -207,6 +219,7 @@ function onKey(e) {
   else if (e.key === 'ArrowRight') { e.preventDefault(); nav(1); }
   else if (e.key === 'ArrowLeft') { e.preventDefault(); nav(-1); }
   else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setZoom(1.8); }
+  else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); rotateBy(e.shiftKey ? -1 : 1); }
 }
 
 function setZoom(z, cx, cy) {
@@ -298,7 +311,7 @@ onBeforeUnmount(() => {
           :src="imgUrl(imgIds[lb.idx])"
           alt="图片预览"
           draggable="false"
-          :style="{ transform: `translate(${lb.x}px, ${lb.y}px) scale(${lb.zoom})` }"
+          :style="{ transform: `translate(${lb.x}px, ${lb.y}px) scale(${lb.zoom}) rotate(${lb.rotate}deg)` }"
           @error="onImgError"
         />
       </div>
@@ -309,7 +322,10 @@ onBeforeUnmount(() => {
       <div class="img-lb-bar">
         <span v-if="lb.total > 1" class="img-lb-count">{{ lb.idx + 1 }} / {{ lb.total }}</span>
         <span class="img-lb-zoom">{{ Math.round(lb.zoom * 100) }}%</span>
-        <span class="img-lb-tip">滚轮缩放 · 拖拽移动 · 双击复位 · Esc 退出</span>
+        <button class="img-lb-rot" title="逆时针旋转 90°（Shift+R）" @click.stop="rotateBy(-1)">↺</button>
+        <button class="img-lb-rot" title="顺时针旋转 90°（R）" @click.stop="rotateBy(1)">↻</button>
+        <span v-if="lb.rotate" class="img-lb-rot-deg">{{ lb.rotate }}°</span>
+        <span class="img-lb-tip">滚轮缩放 · 拖拽移动 · R 旋转 · 双击复位 · Esc 退出</span>
       </div>
     </div>
   </Teleport>
@@ -317,6 +333,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .md-img { max-width: 100%; border-radius: 8px; cursor: zoom-in; }
+
+/* 灯箱工具栏的旋转按钮 */
+.img-lb-rot {
+  background: rgba(255,255,255,0.14); color: #fff; border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 6px; padding: 2px 9px; font-size: 15px; line-height: 1.4; cursor: pointer;
+}
+.img-lb-rot:hover { background: rgba(255,255,255,0.24); }
+.img-lb-rot-deg { color: #fff; opacity: .8; font-variant-numeric: tabular-nums; font-size: 12px; }
 
 /* 图片全屏灯箱：非原生全屏时 fixed 铺满兜底；is-native 时由浏览器全屏接管尺寸 */
 .img-lb {

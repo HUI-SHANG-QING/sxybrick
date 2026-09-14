@@ -522,12 +522,14 @@ defineExpose({ flipped, showBack, doRate });
 }
 .fs-btn:hover { opacity: 1; }
 
-/* 正反面内容全屏放大层 */
+/* 正反面内容全屏放大层
+   ⚠️ 颜色必须全部走主题变量：这里原来写死 rgba(0,0,0,.92) 黑底 + #fff/#e8e8e8 白字，
+   在白天/护眼主题下全屏就是一块突兀的黑板（2026-09-14 用户反馈）。 */
 .content-fs-overlay {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(0, 0, 0, 0.92);
+  background: var(--bg, #f5f6f8);
   display: flex;
   flex-direction: column;
 }
@@ -536,13 +538,14 @@ defineExpose({ flipped, showBack, doRate });
   align-items: center;
   gap: 10px;
   padding: 10px 16px;
-  background: rgba(0, 0, 0, 0.6);
-  color: #fff;
+  background: var(--panel, #fff);
+  border-bottom: 1px solid var(--line, #e3e8ee);
+  color: var(--ink, #16202c);
   flex-shrink: 0;
 }
 .content-fs-label { font-size: 14px; font-weight: 600; }
-.content-fs-zoom { font-size: 13px; opacity: 0.7; font-variant-numeric: tabular-nums; }
-.content-fs-bar .btn { background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.25); }
+.content-fs-zoom { font-size: 13px; color: var(--ink-2, #5b6b7d); font-variant-numeric: tabular-nums; }
+.content-fs-bar .btn { background: var(--panel, #fff); color: var(--ink, #16202c); border-color: var(--line, #e3e8ee); }
 .content-fs-stage {
   flex: 1;
   overflow: hidden;
@@ -556,16 +559,16 @@ defineExpose({ flipped, showBack, doRate });
 .content-fs-stage:active { cursor: grabbing; }
 .content-fs-inner {
   transform-origin: center center;
-  color: #e8e8e8;
+  color: var(--ink, #16202c);
   max-width: 90vw;
   padding: 24px;
   box-sizing: border-box;
 }
 .content-fs-inner :deep(img) { max-width: 100%; border-radius: 8px; display: block; margin: 8px auto; }
-.content-fs-inner :deep(p), .content-fs-inner :deep(li) { color: #e8e8e8; line-height: 1.8; }
-.content-fs-inner :deep(h1), .content-fs-inner :deep(h2), .content-fs-inner :deep(h3) { color: #fff; }
-.content-fs-inner :deep(code) { background: rgba(255,255,255,0.1); color: #fbbf24; }
-.content-fs-inner :deep(pre) { background: rgba(255,255,255,0.08); border-radius: 8px; padding: 12px; overflow: auto; }
-.content-fs-inner :deep(table) { color: #e8e8e8; border-collapse: collapse; }
-.content-fs-inner :deep(td), .content-fs-inner :deep(th) { border: 1px solid rgba(255,255,255,0.2); padding: 6px 10px; }
+.content-fs-inner :deep(p), .content-fs-inner :deep(li) { color: var(--ink, #16202c); line-height: 1.8; }
+.content-fs-inner :deep(h1), .content-fs-inner :deep(h2), .content-fs-inner :deep(h3) { color: var(--ink, #16202c); }
+.content-fs-inner :deep(code) { background: var(--code-inline, #eef2f6); color: var(--ink, #16202c); padding: 1px 4px; border-radius: 4px; }
+.content-fs-inner :deep(pre) { background: var(--code-bg, #f6f8fa); border-radius: 8px; padding: 12px; overflow: auto; }
+.content-fs-inner :deep(table) { color: var(--ink, #16202c); border-collapse: collapse; }
+.content-fs-inner :deep(td), .content-fs-inner :deep(th) { border: 1px solid var(--line, #e3e8ee); padding: 6px 10px; }
 </style>

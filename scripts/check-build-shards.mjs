@@ -39,14 +39,18 @@ const host = files.find((n) => readFileSync(join(ASSETS, n), 'utf8').includes('w
 if (!host) fail('产物里找不到词库分片路径映射 —— 加载器表被条件判定丢弃了（词库将完全不可用）');
 
 const body = readFileSync(join(ASSETS, host), 'utf8');
-const refs = [...new Set([...body.matchAll(/import\("\.\/([^"]+\.js)"\)/g)].map((m) => m[1]))];
+// 必须按「分片路径 → chunk」**配对**提取：该 chunk 里还有别的动态 import（katex/tesseract 等），
+// 只按 import() 数量统计会把它们算进来（曾误报 111 != 52 —— 与"按数量反推 id"是同一类错误）。
+const pairs = [...body.matchAll(/word-enrich-shards\/([A-Za-z0-9_-]+)\.json"\s*:\s*\(\)\s*=>\s*[^,]{0,80}?import\("\.\/([^"]+\.js)"/g)];
+const refs = pairs.map((m) => m[2]);
+const shardKeys = [...new Set(pairs.map((m) => m[1]))];
 
 const srcShardCount = existsSync(SHARDS_DIR) ? readdirSync(SHARDS_DIR).filter((n) => n.endsWith('.json')).length : 0;
-if (refs.length < 50) {
-  fail(`映射表只引用 ${refs.length} 个分片 chunk（源分片 ${srcShardCount} 个）—— 加载器表被截断了`);
+if (shardKeys.length < 50) {
+  fail(`映射表只登记了 ${shardKeys.length} 个分片（源分片 ${srcShardCount} 个）—— 加载器表被截断了`);
 }
-if (srcShardCount && refs.length !== srcShardCount) {
-  fail(`映射表 ${refs.length} 条 != 源分片 ${srcShardCount} 个 —— 有分片没被打包，对应字母段的词将查不到`);
+if (srcShardCount && shardKeys.length !== srcShardCount) {
+  fail(`映射表 ${shardKeys.length} 个分片 != 源分片 ${srcShardCount} 个 —— 有分片没被打包，对应字母段的词将查不到`);
 }
 
 // ③ 每条引用都必须能落地
@@ -55,4 +59,4 @@ if (missing.length) {
   fail(`有 ${missing.length} 个分片 chunk 在产物里缺失（对应分片的词全部查不到）：${missing.slice(0, 8).join(', ')}`);
 }
 
-console.log(`✓ 构建产物校验通过：${refs.length} 个词库分片全部就位（host chunk: ${host}）`);
+console.log(`✓ 构建产物校验通过：${shardKeys.length} 个词库分片全部就位（host chunk: ${host}）`);

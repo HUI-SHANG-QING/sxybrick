@@ -14,6 +14,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { escapeRegExp } from '../utils/regexp.js';
 import { toast } from '../utils/toast.js';
+import { fillCardsFromLocalBank } from '../services/word-enrich.js';
+import { builtinMeaning } from '../services/word-syllabus.js';
 import { speak, speechSupported } from '../utils/speak.js';
 import {
   dueWordCards, listWordCards, reviewWord, getWordSettings, listWordGroups,
@@ -116,7 +118,22 @@ async function start() {
   else if (scope.value === 'all') rows = await listWordCards({ schedulableOnly: true });
   else rows = await listWordCards({ kind: scope.value, schedulableOnly: true });
   if (!rows.length) { toast(t('views.wordReview.noCards'), 'warn'); return; }
-  queue.value = rows;
+
+  // 用本地词库回填缺失字段（必须补 meaning —— 背诵页的出题与判分只认它）。
+  // 大纲词卡是「只有单词」的裸卡，不回填就会出现「该单词暂无释义」、选项空白、
+  // 「此单词缺少释义/拼写，无法判定」。
+  // 两段式：先即时用「已加载分片 + 内置种子释义」填一遍让用户马上有内容，
+  // 再等分片加载完成后补全（首屏不用等 52 个分片）。
+  const levels = settings.value?.exampleLevels;
+  const seedMeaning = (w) => builtinMeaning(w);
+  queue.value = await fillCardsFromLocalBank(rows, {
+    levels, seedMeaning,
+    onReady: (filled) => {
+      // 分片到位后的补全结果：刷新队列并重算当前题面（保持答题进度不变）
+      queue.value = filled;
+      setupQuestion();
+    },
+  });
   idx.value = 0; sessionCount.value = 0;
   phase.value = 'question';
   setupQuestion();

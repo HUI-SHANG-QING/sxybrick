@@ -16,6 +16,7 @@ import { mdRender, toggleMdRender } from '../utils/md-pref.js';
 import { speak } from '../utils/tts.js';
 import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
+import ImagePolicySetting from '../components/ImagePolicySetting.vue';
 import { stringifyReply } from '../agent/reply.js';
 
 const chats = ref([]);
@@ -361,6 +362,10 @@ onMounted(async () => {
           <div class="field-label">{{ t('views.aiAssistant.modelLabel') }}</div>
           <input v-model="cfg.model" class="input" :placeholder="t('views.aiAssistant.modelPlaceholder')" />
           <div class="hint" style="margin-top:8px">{{ t('views.aiAssistant.apiHint') }}</div>
+          <!-- 图片分析策略：影响本页对话 / Agent / 卡片联动 / 资料问答里「图片怎么送到模型」。
+               与「英语中心 → 设置」共用同一组件与同一份设置（改即保存）——
+               此前只有英语中心有入口，用户在这里找不到（2026-09-14 反馈）。 -->
+          <ImagePolicySetting style="margin-top:14px" />
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
             <button class="btn" :disabled="testing" @click="testConnection">{{ testing ? t('views.aiAssistant.testing') : t('views.aiAssistant.testConn') }}</button>
             <button class="btn" @click="showSettings = false">{{ t('views.aiAssistant.cancel') }}</button>

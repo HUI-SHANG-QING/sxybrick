@@ -68,9 +68,11 @@ test('构建产物（若已 build）：产品必须真的带上分片加载器',
   assert.ok(host, '产物里找不到分片路径映射 —— 加载器表可能被条件判定丢弃');
   const body = readFileSync(join(DIST, 'assets', host), 'utf8');
 
-  const refs = [...body.matchAll(/import\("\.\/([^"]+\.js)"\)/g)].map((m) => m[1]);
-  const uniq = [...new Set(refs)];
-  assert.ok(uniq.length >= 50, `映射表只引用 ${uniq.length} 个分片 chunk（应 ≥50）——加载器表被截断了`);
+  // 按「分片路径 → chunk」配对提取（该 chunk 里还有 katex 等其它动态 import，不能只数 import() 个数）
+  const pairs = [...body.matchAll(/word-enrich-shards\/([A-Za-z0-9_-]+)\.json"\s*:\s*\(\)\s*=>\s*[^,]{0,80}?import\("\.\/([^"]+\.js)"/g)];
+  const uniq = [...new Set(pairs.map((m) => m[2]))];
+  const shardKeys = [...new Set(pairs.map((m) => m[1]))];
+  assert.ok(shardKeys.length >= 50, `映射表只登记 ${shardKeys.length} 个分片（应 ≥50）——加载器表被截断了`);
 
   // ③ 引用必须都能落地：缺一个 chunk，就是该分片的词在线上全部查不到
   const missing = uniq.filter((n) => !existsSync(join(DIST, 'assets', n)));

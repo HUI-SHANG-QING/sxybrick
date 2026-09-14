@@ -146,6 +146,98 @@ export function localMeaning(word) {
 const DEFAULT_LEVELS = ['simple', 'long'];
 
 /**
+ * 用本地词库「回填」一张词卡缺失的字段（纯函数，不写库）。
+ *
+ * 背景：大纲词卡是「只有单词、没有释义」的裸卡（用户不需要额外生成，数据应由产品内置）。
+ * 而背诵页/13 种模式**只读 card.meaning**，因此裸卡在背诵页一律显示「该单词暂无释义」、
+ * 选项空白、判分缺答案。展示前必须用本地词库补齐，且**必须补 meaning**
+ * （它是出题与判分的唯一字段，defs 只用于详情展示）。
+ *
+ * 语义（刻意保守，绝不臆造）：
+ *   · 只填空字段，已有值一律保留（用户手改/导入的数据优先）；
+ *   · 命中完整词条 → _localSource = 'full'；
+ *   · 只命中内置种子释义（约 450 词）→ 'seed'；
+ *   · 都没有 → 'none'，由 UI 明确提示「未收录」；
+ *   · 分片尚未加载（reason='shard-not-loaded'）→ 'pending'，调用方 await ensureWord() 后重试。
+ *
+ * @param {object} card 词卡行（含 word 等字段）
+ * @param {{ levels?: string[], seedMeaning?: (w:string)=>string }} [opts]
+ *   seedMeaning 为种子释义注入点（默认用 word-syllabus 的 builtinMeaning，便于测试打桩）
+ * @returns {object} 新对象（不修改入参）
+ */
+export function fillCardFromLocalBank(card, opts = {}) {
+  const c = card || {};
+  const word = String(c.word || '').trim();
+  const out = { ...c };
+  const blank = (k) => {
+    const v = out[k];
+    if (Array.isArray(v)) return v.length === 0;
+    return !String(v ?? '').trim();
+  };
+  const take = (key, val) => {
+    if (val == null) return;
+    if (Array.isArray(val)) {
+      if (blank(key) && val.length) out[key] = val;
+    } else if (blank(key) && String(val).trim()) out[key] = val;
+  };
+
+  const seedOf = typeof opts.seedMeaning === 'function' ? opts.seedMeaning : null;
+  const applySeed = () => {
+    const m = seedOf ? seedOf(word) : '';
+    if (m) {
+      take('meaning', m);
+      if (!(out.defs || []).length) out.defs = [{ pos: out.pos || '', meaning: m }];
+      out._localSource = 'seed';
+      return true;
+    }
+    out._localSource = 'none';
+    return false;
+  };
+
+  if (!word) { out._localSource = 'none'; return out; }
+
+  const r = enrichWordMaterials({ word, levels: opts.levels });
+  if (r.ok && r.data) {
+    const d = r.data;
+    // meaning 优先取首个义项的中文（WordReview 等出题路径只认这个字段）
+    const firstMeaning = Array.isArray(d.defs) && d.defs.length ? d.defs[0].meaning : '';
+    take('meaning', firstMeaning);
+    take('defs', d.defs); take('pos', d.pos); take('examples', d.examples);
+    take('collocations', d.collocations); take('phrases', d.phrases);
+    take('derived', d.derived); take('synonyms', d.synonyms);
+    take('rootAffix', d.rootAffix); take('syllable', d.syllable);
+    take('phonetic', d.phonetic);
+    if (d.mnemonic) take('mnemonics', [d.mnemonic]);
+    out._localSource = 'full';
+    return out;
+  }
+  if (r.reason === 'shard-not-loaded') { out._localSource = 'pending'; return out; }
+  applySeed();
+  return out;
+}
+
+/**
+ * 把一批词卡按本地词库回填（先即时用已加载分片填一遍，再按需加载分片后补全）。
+ * 供背诵页/单词本共用：既保证首屏立刻有内容，又保证分片到位后数据完整。
+ * @param {object[]} cards
+ * @param {{ levels?: string[], seedMeaning?: Function, ensureFn?: (w:string)=>Promise<boolean>, onReady?: (filled:object[])=>void }} [opts]
+ * @returns {Promise<object[]>} 回填后的卡数组（顺序不变）
+ */
+export async function fillCardsFromLocalBank(cards, opts = {}) {
+  const list = Array.isArray(cards) ? cards : [];
+  const first = list.map((c) => fillCardFromLocalBank(c, opts));
+  const pending = [...new Set(first.filter((c) => c._localSource === 'pending').map((c) => String(c.word || '').trim()).filter(Boolean))];
+  if (!pending.length) return first;
+
+  const ensure = typeof opts.ensureFn === 'function' ? opts.ensureFn : ensureWord;
+  await Promise.all(pending.map((w) => ensure(w).catch(() => false)));
+  const filled = list.map((c) => fillCardFromLocalBank(c, opts));
+  if (typeof opts.onReady === 'function') { try { opts.onReady(filled); } catch { /* 回调失败不影响返回 */ } }
+  return filled;
+}
+
+
+/**
  * 生成与 normalize() 同构的完整素材（含长难句解析）。
  * @param {{word:string, levels?:string[]}} req
  * @returns {{ok:boolean, data?:object, via?:string, reason?:string, skipped?:string, shard?:string}}

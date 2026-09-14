@@ -13,7 +13,7 @@ import {
 } from '../word-repo.js';
 import { linkCardWord, unlinkCardWord, allCardWordLinks } from '../repo.js';
 import { generateWordMaterials } from '../services/word-llm.js';
-import { enrichWordMaterials, ensureWord } from '../services/word-enrich.js';
+import { fillCardFromLocalBank, ensureWord } from '../services/word-enrich.js';
 import { isInSyllabus, getSyllabusMeta, listSyllabus, builtinMeaning } from '../services/word-syllabus.js';
 import { getMeanings, meaningCoverage, syncWithSyllabus } from '../services/word-meaning.js';
 import { ocrImageText } from '../docs-lib.js';
@@ -434,36 +434,12 @@ async function toggleFamiliar(c) {
 //  ③ 都没有 → 标记 none，由 UI 明确提示「未收录」。
 // 这样「大纲内但尚未收录完整词条」的词不再显示成一片「暂无内容」。
 function fillFromLocalBank(card) {
-  const c = card || {};
-  const word = String(c.word || '').trim();
-  if (!word) return { ...c, _localSource: 'none' };
-  const out = { ...c };
-  const take = (key, val) => {
-    if (val == null) return;
-    if (Array.isArray(val)) { if (!(out[key] || []).length && val.length) out[key] = val; }
-    else if (!String(out[key] || '').trim() && String(val).trim()) out[key] = val;
-  };
-  const r = enrichWordMaterials({ word, levels: settings.value?.exampleLevels });
-  if (r.ok && r.data) {
-    const d = r.data;
-    take('defs', d.defs); take('pos', d.pos); take('examples', d.examples);
-    take('collocations', d.collocations); take('phrases', d.phrases);
-    take('derived', d.derived); take('synonyms', d.synonyms);
-    take('rootAffix', d.rootAffix); take('syllable', d.syllable);
-    if (d.mnemonic) take('mnemonics', [d.mnemonic]);
-    out._localSource = 'full';
-    return out;
-  }
-  const m = builtinMeaning(word);
-  if (m) {
-    if (!(out.defs || []).length && !String(out.meaning || '').trim()) {
-      out.defs = [{ pos: out.pos || '', meaning: m }];
-    }
-    out._localSource = 'seed';
-    return out;
-  }
-  out._localSource = 'none';
-  return out;
+  // 逻辑已下沉到 services/word-enrich.fillCardFromLocalBank（与背诵页、word-repo 读取层共用一份，
+  // 避免三处各写一套导致行为漂移）。这里只负责传入当前设置与种子释义。
+  return fillCardFromLocalBank(card, {
+    levels: settings.value?.exampleLevels,
+    seedMeaning: (w) => builtinMeaning(w),
+  });
 }
 
 // 打开详情：先用「已加载数据 + 种子释义兜底」即时渲染，再按需加载该词所在词库分片，
