@@ -290,7 +290,7 @@ onMounted(async () => {
       <button class="chip" style="border-color:var(--green);color:var(--green)" @click="coldOpen = true">{{ t('views.aiAssistant.coldDeckBtn') }}</button>
     </div>
 
-    <div class="ai-body" :class="{ 'fs-mode': aiFs, 'no-left': !showSidebar || aiFs, 'no-right': !showTimeline || aiFs }">
+    <div class="ai-body" :class="{ 'fs-mode': aiFs, 'no-left': !showSidebar || aiFs, 'no-right': !showTimeline }">
       <!-- 左栏：历史对话（移动端默认隐藏，点按钮展开） -->
       <div class="chat-side" :class="{ expanded: showSidebar }">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -500,11 +500,13 @@ onMounted(async () => {
 .chat-box { grid-column: 2; grid-row: 2; min-height: 0; }
 .timeline { grid-column: 3; grid-row: 1 / -1; }
 .chat-side, .timeline { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 10px; overflow-y: auto; overflow-x: hidden; }
-/* 缩放/全屏模式：隐藏左右侧栏，消息流占满整个宽度 */
-.ai-body.fs-mode { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-.ai-body.fs-mode .chat-side, .ai-body.fs-mode .timeline { display: none; }
-.ai-body.fs-mode .chat-fs-row { grid-column: 1; grid-row: 1; }
+/* 缩放/全屏模式：只藏左侧历史栏，保留右侧提问节点（方便全屏里快速定位问题）；
+   对话区占主列、节点固定在右列。桌面媒体查询里 .no-left 已是同口径两列。 */
+.ai-body.fs-mode { grid-template-columns: 1fr 120px; grid-template-rows: auto 1fr; }
+.ai-body.fs-mode .chat-side { display: none; }
+.ai-body.fs-mode .chat-fs-row { grid-column: 1 / -1; grid-row: 1; }
 .ai-body.fs-mode .chat-box { grid-column: 1; grid-row: 2; }
+.ai-body.fs-mode .timeline { display: block; grid-column: 2; grid-row: 1 / -1; }
 /* 桌面端：点左右栏 ✕ 关闭按钮隐藏对应侧栏、对话区扩宽（移动端侧栏是抽屉，单独处理，不在此列）。
    仅桌面生效，避免 `grid-template-columns` 覆盖移动端单列布局。 */
 @media (min-width: 901px) {
