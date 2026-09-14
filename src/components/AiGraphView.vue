@@ -20,7 +20,12 @@ const props = defineProps({
 
 const el = ref(null);
 const failed = ref(false);
+const truncated = ref(false); // 节点数超护栏被截断时提示（2026-09-14 审计 P2）
 let resizeObserver = null;
+
+// 力导向布局节点数护栏：模型按协议返回超大图时，上千节点会让 force layout 卡死主线程
+// （repulsion O(n²)）。只渲染前 MAX_NODES 个节点及其内部边，并在图上明确告知被截断。
+const MAX_NODES = 120;
 
 async function ensureChart() {
   const dom = el.value;
@@ -46,7 +51,11 @@ function buildOption(g) {
     tooltip: {
       confine: true,
       formatter: (p) => {
-        if (p.dataType === 'edge') return p.data.label ? `${p.data.source} → ${p.data.target}${p.data.label ? `（${p.data.label}）` : ''}` : '';
+        if (p.dataType === 'edge') {
+          // 无 label 时也给出端点信息，避免悬浮显示空白框（2026-09-14 审计 P3）
+          const l = p.data.label ? `（${p.data.label}）` : '';
+          return `${p.data.source} → ${p.data.target}${l}`;
+        }
         return p.data.name;
       },
     },
@@ -65,7 +74,9 @@ function buildOption(g) {
       lineStyle: { color: 'source', opacity: 0.55, curveness: 0.08, width: 1.4 },
       categories: cats.map((c) => ({ name: c })),
       data: g.nodes.map((n) => ({
-        id: n.id, name: n.name, symbolSize: Math.max(18, Math.min(48, 18 + Number(n.value || 1) * 4)),
+        id: n.id, name: n.name,
+        // value=0（或缺失）时用真实 0 —— 旧写法 `n.value || 1` 把 0 当成 1，气泡大小失真
+        symbolSize: Math.max(18, Math.min(48, 18 + (Number(n.value) || 0) * 4)),
         category: n.category ? cats.indexOf(n.category) : undefined,
       })),
       links: g.links.map((l) => ({ source: l.source, target: l.target, label: l.label || '' })),
@@ -74,8 +85,15 @@ function buildOption(g) {
 }
 
 async function draw() {
-  const g = normalizeGraphData(props.data);
+  let g = normalizeGraphData(props.data);
   if (!g) { failed.value = true; return; }
+  // 节点数护栏：只保留前 MAX_NODES 个节点及其两端都在保留集内的边。
+  // 截断只影响展示（超大图本来也看不清），数据完整性与其余协议内容不受影响。
+  if (g.nodes.length > MAX_NODES) {
+    const keep = new Set(g.nodes.slice(0, MAX_NODES).map((n) => n.id));
+    g = { ...g, nodes: g.nodes.filter((n) => keep.has(n.id)), links: g.links.filter((l) => keep.has(l.source) && keep.has(l.target)) };
+    truncated.value = true;
+  }
   await nextTick();
   const chart = await ensureChart()
     // 容器刚渲染出来可能还没尺寸：重试一次
@@ -112,6 +130,7 @@ onBeforeUnmount(() => {
     <div v-if="failed" class="ai-graph-err">图表渲染失败，以下为原始结构：{{ JSON.stringify(data).slice(0, 500) }}</div>
     <div v-else ref="el" class="ai-graph-canvas"></div>
     <div v-if="note" class="ai-graph-note">{{ note }}</div>
+    <div v-if="truncated" class="ai-graph-note">节点过多，已截断显示前 {{ MAX_NODES }} 个（其余省略）。</div>
   </div>
 </template>
 

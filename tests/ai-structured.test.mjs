@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  parseStructuredReply, structuredToMarkdown, isGraphReply, normalizeGraphData,
+  parseStructuredReply, structuredToMarkdown, isGraphReply, normalizeGraphData, normalizeStructuredFinal,
 } from '../src/utils/ai-structured.js';
 
 test('识别：整段 JSON（含 ```json 包裹）才认定为结构化回复', () => {
@@ -96,6 +96,26 @@ test('normalizeGraphData：无节点 → null（调用方降级为原文显示�
   assert.equal(normalizeGraphData({}), null);
   assert.equal(normalizeGraphData(null), null);
   assert.equal(normalizeGraphData({ nodes: [] }), null);
+});
+
+test('normalizeStructuredFinal：带引子的结构化 JSON 剥离成纯 JSON（出口净化）', () => {
+  const json = '{"type":"list","data":{"items":[{"title":"A"}]}}';
+  // 模型给 JSON 加了个短引子 → 剥离
+  assert.equal(normalizeStructuredFinal(`结果如下：\n\n${json}`), json);
+  assert.equal(normalizeStructuredFinal(`根据查询：${json}，共 1 条`), json);
+  // 整段 JSON / 代码块本来就能被 parseStructuredReply 识别 → 原样
+  assert.equal(normalizeStructuredFinal(json), json);
+  assert.equal(normalizeStructuredFinal('```json\n' + json + '\n```'), '```json\n' + json + '\n```');
+  // 绝不误伤正文
+  assert.equal(normalizeStructuredFinal('普通回答'), '普通回答');
+  assert.equal(normalizeStructuredFinal(''), '');
+  assert.equal(normalizeStructuredFinal('看下这段 JSON {"a":1} 是什么'), '看下这段 JSON {"a":1} 是什么');
+  // 前后缀过长 → 判定为正文夹带，不动
+  const longPrefix = '下面是详细的查询结果，请你仔细阅读每一个条目，然后针对其中的重点内容给我一个完整的分析说明：' + json;
+  assert.equal(normalizeStructuredFinal(longPrefix), longPrefix);
+  // 有 type 但无 data → 不算结构化回复，不动
+  const noData = '结果：' + '{"type":"list"}';
+  assert.equal(normalizeStructuredFinal(noData), noData);
 });
 
 test('提示协议与前端支持的类型一致（防止 Agent 提示改了、渲染没跟上）', async () => {

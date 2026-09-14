@@ -90,7 +90,19 @@ export function attributeMistakes(cards, opts = {}) {
         merged.push(...attributeMistakes(chunk, opts));
       }
     }
-    return merged.sort((a, b) => b.size - a.size);
+    // 跨块合并同名概念簇（2026-09-14 审计 P3）：同一概念横跨两块边界时会被切成
+    // 两个独立簇（如「死锁」在块 1 和块 2 各成一簇）→ 错题集里同一知识点出现两次。
+    // 桶内已是同科目，同名 concept（高频 token）即同一概念，cardIds 合并、size 重算。
+    const byConcept = new Map();
+    for (const c of merged) {
+      const k = c.concept;
+      const hit = byConcept.get(k);
+      if (!hit) { byConcept.set(k, { ...c, cardIds: [...c.cardIds] }); continue; }
+      hit.cardIds.push(...c.cardIds);
+      hit.size = hit.cardIds.length;
+      hit.score = Math.max(hit.score, c.score);
+    }
+    return [...byConcept.values()].sort((a, b) => b.size - a.size);
   }
   const texts = cards.map(c => `${c.front || ''} ${c.back || ''} ${(c.tags || []).join(' ')} ${(c.wrongReason || '')}`);
   const vecs = buildVectors(texts);

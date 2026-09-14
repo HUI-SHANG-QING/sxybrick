@@ -117,7 +117,19 @@ export function useFullscreen(targetRef, onChange) {
     document.removeEventListener('fullscreenchange', onFsChange);
     document.removeEventListener('keydown', onKey);
     removeFakeExitBtn();
-    if (fake.value && targetRef.value) targetRef.value.classList.remove('fake-fullscreen');
+    // P2（2026-09-14 审计）：路由跳转/组件卸载时若仍处于全屏，必须主动退出。
+    //   · 真实全屏：不退出会让浏览器停留在「全屏黑屏/悬空元素」状态（目标元素已卸载），
+    //     用户只能按 ESC 或 F11 自救；
+    //   · fake 全屏：移除铺满 class，并还原进入时落下的背景色（旧实现只清 class 不清背景）。
+    if (fake.value && targetRef.value) {
+      targetRef.value.classList.remove('fake-fullscreen');
+      targetRef.value.style.background = '';
+    }
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+    if (targetRef.value) targetRef.value.style.background = '';
+    isFullscreen.value = false;
   });
 
   return { isFullscreen, fakeFullscreen: fake, enter, exit, toggle };

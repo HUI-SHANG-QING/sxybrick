@@ -149,10 +149,13 @@ export function filterReviewCandidates(cards, filter = {}, nowTs = Date.now()) {
   let out = [...cards];
   if (f.subjects?.length) out = out.filter(c => f.subjects.includes(c.subject || '未分类'));
   if (f.tags?.length) {
-    const ts = f.tags, logic = f.logic || 'OR';
-    if (logic === 'AND') out = out.filter(c => ts.every(t => (c.tags || []).includes(t)));
-    else if (logic === 'NOT') out = out.filter(c => !ts.some(t => (c.tags || []).includes(t)));
-    else out = out.filter(c => ts.some(t => (c.tags || []).includes(t)));
+    // 与 tagFilter 同口径：存储的标签可能未经 trim（旧备份导入/AI 生成），
+    // 直接 includes 会让「短期不重要」与「短期不重要 」不匹配，复习队列与列表筛选结果不一致。
+    const ts = f.tags.map(t => String(t).trim()).filter(Boolean), logic = f.logic || 'OR';
+    const has = (c, t) => (c.tags || []).some(ct => String(ct).trim() === t);
+    if (logic === 'AND') out = out.filter(c => ts.every(t => has(c, t)));
+    else if (logic === 'NOT') out = out.filter(c => !ts.some(t => has(c, t)));
+    else out = out.filter(c => ts.some(t => has(c, t)));
   }
   if (f.wrongReasons?.length) out = out.filter(c => { const wr = c.wrongReason || ''; return f.wrongReasons.includes(wr) || f.wrongReasons.some(r => WRONG_REASON_MAP[r] === wr); });
   // 默认只背到期卡（遵循复习曲线）；includeDueOnly=false 时可背全部（重复复习场景）
@@ -203,7 +206,15 @@ export function selectZombieIds(cards, reviewedIds, nowTs = Date.now(), staleDay
 
 // ---------- 复习提醒建议（getReviewSuggestion 核心） ----------
 export function buildReviewSuggestion(cards, reviews, nowTs = Date.now()) {
-  const due = cards.filter(c => c.dueAt <= nowTs);
+  // 与 filterReviewCandidates 同一幽灵卡口径：NaN/null dueAt 视为 0（到期一次，复习后自愈），
+  // undefined 视为不到期。旧实现直接 `c.dueAt <= nowTs` —— NaN 恒假（卡片在队列里排最前、
+  // 建议里却不计数）、null 会被当成 1970 年，两个入口数字对不上。
+  const dueOf = (c) => {
+    const d = c.dueAt;
+    if (d === undefined) return Infinity;
+    return (d === null || Number.isNaN(d)) ? 0 : d;
+  };
+  const due = cards.filter(c => dueOf(c) <= nowTs);
 
   // 今天待背按科目分组
   const bySubject = new Map();

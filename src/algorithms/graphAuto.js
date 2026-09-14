@@ -136,7 +136,14 @@ export async function autoBuildGraph(opts = {}) {
         existing.updatedAt = Date.now();
         return;
       }
-      if (weight > existing.weight) { existing.weight = weight; existing.label = label; }
+      if (weight > existing.weight) {
+        existing.weight = weight;
+        // 前置边的标签承载「方向语义」（prereq → 视图翻译成"前置"），不能被更高权重的
+        // related 边覆盖成 sameTag/similar/coMistake —— 否则图谱上「按前置关系连线、
+        // 却标着相似/同标签」的错位。只有后来者也是 prereq 时才更新标签。
+        if (existing.kind !== 'prereq' || kind === 'prereq') existing.label = label;
+        existing.updatedAt = Date.now();
+      }
       return;
     }
     edges.set(key, {
@@ -310,7 +317,15 @@ export async function autoBuildGraph(opts = {}) {
 export async function derivePrereqPlan(cardId) {
   const edges = await db.graphEdges.toArray();
   const cards = await db.cards.toArray();
-  const mastered = new Set(cards.filter(c => (c.fsrs?.s ?? 0) >= 7 && (c.level ?? 0) >= 3).map(c => c.id));
+  // 「已掌握」判定必须兼容两种调度器：
+  //   · FSRS 卡：fsrs.s >= 7（稳定度 7 天以上）且 level >= 3；
+  //   · SM-2 卡：没有 fsrs 字段（默认调度器！），用等价信号 intervalDays >= 7。
+  // 旧实现只认 fsrs.s —— SM-2 用户所有卡恒判「未掌握」，前置补练会把已掌握的卡
+  // 也塞进练习队列，推荐完全失真。
+  const mastered = new Set(cards.filter(c => {
+    if (c.fsrs?.s != null) return c.fsrs.s >= 7 && (c.level ?? 0) >= 3;
+    return (c.intervalDays ?? 0) >= 7 && (c.level ?? 0) >= 3;
+  }).map(c => c.id));
   // 多层前驱回溯（N4 修复：原先只回溯单层，会漏掉「未掌握前置的前置」）
   return resolvePrereqPlan(edges, mastered, cardId);
 }

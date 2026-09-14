@@ -266,9 +266,9 @@ d.version(26).stores({
 
 // v27：英语模块对标成熟单词 App 补全
 //   wordCards 扩展字段（非索引）：derived(派生词数组[{word,meaning}]，与 rootAffix/syllable 配套)
-//   wordStudyLog：学习时长流水（id=`t-${date}`, date, ms 当日累计毫秒, updatedAt）。
-//     round38 起跨设备同步（idOnly）：同一天两端各自累计，合并按 id 幂等（不做求和，
-//     避免跨设备相加虚增）；如需跨设备求和需改为按设备分片键。
+//   wordStudyLog：学习时长流水（round38 起 id=`t-YYYY-MM-DD-<deviceId>` 按设备分片，date, ms 当日累计毫秒, updatedAt）。
+//     分片原因：跨设备同步（idOnly）时同一天两端各自累计成独立行，读取按 date 汇总——
+//     旧格式（v27 的 id=`t-${date}` 单行）会把一端时长覆盖掉；合并按 id 幂等，跨设备不互相抹除。
 d.version(27).stores({
   wordCards: 'id, kind, subject, dueAt, updatedAt, createdAt, familiar',
   wordReviews: 'id, cardId, reviewedAt',

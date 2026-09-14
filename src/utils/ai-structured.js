@@ -178,3 +178,43 @@ export function normalizeGraphData(data) {
   }).filter((l) => idSet.has(l.source) && idSet.has(l.target) && l.source !== l.target);
   return { nodes, links, kind: String(data.kind ?? data.layout ?? '').toLowerCase() };
 }
+
+/**
+ * 回复出口净化：把「带引子的结构化 JSON」剥离成前端可渲染的纯 JSON。
+ *
+ * 场景（2026-09-14 用户实测）：模型按协议把工具结果抄出来，但常给 JSON 加个引子——
+ *   `结果如下：\n\n{"type":"list","data":{...}}` 或
+ *   `根据查询：\n\n```json\n{...}\n````
+ * parseStructuredReply 只认「整段就是 JSON/代码块」，这类带前后缀的会被当成普通文本
+ * 原样展示 → 用户又看到一坨 JSON。
+ *
+ * 规则（保守，绝不误伤正文）：
+ *   · 已经能被 parseStructuredReply 识别的 → 原样返回；
+ *   · 从文本中提取「第一个 { 到最后一个 }」之间的 JSON，且：
+ *       a) 可解析为合法对象；
+ *       b) 带 type + data（结构化回复特征）；
+ *       c) 前后缀都 ≤ 40 字符（判定为「模型加了个引子」，而不是正文里夹 JSON）。
+ *     同时满足才剥离；否则原样返回。
+ * @param {string} text
+ * @returns {string}
+ */
+export function normalizeStructuredFinal(text) {
+  const raw = String(text ?? '').trim();
+  if (!raw) return raw;
+  if (parseStructuredReply(raw)) return raw;
+
+  const first = raw.indexOf('{');
+  const last = raw.lastIndexOf('}');
+  if (first === -1 || last <= first) return raw;
+  const prefix = raw.slice(0, first).trim();
+  const suffix = raw.slice(last + 1).trim();
+  if (prefix.length > 40 || suffix.length > 40) return raw;
+
+  const body = raw.slice(first, last + 1);
+  try {
+    const obj = JSON.parse(body);
+    const type = String(obj?.type || obj?.shape || '').trim().toLowerCase();
+    if (type && obj.data != null) return body;
+  } catch { /* 不是合法 JSON，按原文返回 */ }
+  return raw;
+}

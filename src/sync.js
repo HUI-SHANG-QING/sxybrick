@@ -21,8 +21,19 @@ import {
 /** 按表读取待导出行（应用清单上的 exportFilter，排除派生/本机专属数据，如 kind='auto' 的图谱边）
  *  额外支持 entry.strip: string[] —— 导出前剔除敏感字段（如 wordSettings 的 LLM Key），
  *  不影响本机存储，仅让同步/备份包不含该字段（对端导入时保留自己的本地值）。 */
-async function exportRows(t) {
-  let rows = await db[t.table].toArray();
+async function exportRows(t, since = 0) {
+  let rows;
+  // 大 idOnly 表（userOps/embeddings 可达十万级）增量导出时用索引范围查询，
+  // 避免每次同步都整表 toArray（2026-09-14 审计 P3）。等价性：这两表各自唯一的时间字段
+  // （userOps.t / embeddings.updatedAt）就是 livenessTs 的判定值，`> since` 与增量过滤同构。
+  // since=0（首包）必须走全表 —— R17-14 要放行全 0 时间戳的遗留行。
+  if (since > 0 && t.table === 'userOps') {
+    rows = await db.userOps.where('t').above(since).toArray();
+  } else if (since > 0 && t.table === 'embeddings') {
+    rows = await db.embeddings.where('updatedAt').above(since).toArray();
+  } else {
+    rows = await db[t.table].toArray();
+  }
   if (typeof t.exportFilter === 'function') rows = rows.filter(r => shouldExportRow(t, r));
   // round18 R18-5：与合并侧（mergeRows）/ 中枢（hub merge）共用同一个净化函数，
   // 三处口径一致，避免「导出剔了、合并又放进来」的半程保护。
@@ -183,7 +194,7 @@ export async function buildIncrementalBackup(lastSyncAt = 0, opts = {}) {
     //   reviews（只有 reviewedAt）与 embeddings（只有 updatedAt）的字段都不在链上
     //   → 判定值恒为 0 → `0 > since` 恒假 → 这两张表永不上传。
     //   livenessTs 取全部已知时间字段的最大值，任一表只要带其中一个字段即可正确判定。
-    const rows = await exportRows(t);
+    const rows = await exportRows(t, since);
     // round17 R17-14：同卡片过滤——首包放行全 0 时间戳行（防遗留行永久漏传）
     parts[t.table] = rows.filter(r => livenessTs(r) > since || (since === 0 && livenessTs(r) === 0));
   }
@@ -1152,12 +1163,12 @@ function previewSample(t, row) {
  * @param tombstones 入站墓碑（仅计算「将删除的本地行」）
  * @param clearedBefore 该表的隐私清空水位（preview 此前漏了这道过滤——import 有）
  */
-function simulateTableMerge(t, incoming, base, tombstones, clearedBefore) {
+function simulateTableMerge(t, incoming, base, tombstones, clearedBefore, clockSkew = 0) {
   let filtered = incoming;
   if (clearedBefore) filtered = filterClearedRows(filtered, clearedBefore);
   const baseMap = new Map(base.map(x => [x.id, x]));
-  // 与 importBackup 主路径同一合并实现
-  const merged = filtered.length ? mergeRows(base, filtered, t.merge, { strip: t.strip, extFields: t.extFields }) : [];
+  // 与 importBackup 主路径同一合并实现（含 clockSkew 时间戳换算；预览场景恒 0，显式传参保证同构）
+  const merged = filtered.length ? mergeRows(base, filtered, t.merge, { strip: t.strip, extFields: t.extFields, clockSkew }) : [];
   let added = 0, overwritten = 0, skipped = 0;
   for (const row of merged) {
     const old = baseMap.get(row.id);
@@ -1204,6 +1215,19 @@ export async function previewImport(backup) {
     }
     let incoming = (backup[t.table] || []).filter(x => x && x.id);
     if (!incoming.length) continue;
+    // 大 idOnly 表与 importBackup 主路径同款：bulkGet 存在性判定即可，不做整表 toArray
+    // （十万级行数全表载入内存会让预览卡死；2026-09-14 审计 P3）
+    if (t.table === 'userOps' || t.table === 'embeddings') {
+      const present = new Set(
+        (await db[t.table].bulkGet(incoming.map((x) => x.id))).filter(Boolean).map((x) => x.id));
+      const added = incoming.filter((x) => !present.has(x.id)).length;
+      const skipped = incoming.length - added;
+      if (added || skipped) {
+        tables.push({ table: t.table, kind: t.kind, label: TABLE_LABEL[t.table] || t.table, total: incoming.length, added, overwritten: 0, skipped, duplicated: 0, deleted: 0, samples: [] });
+        totalAdded += added; totalSkipped += skipped;
+      }
+      continue;
+    }
     const base = await db[t.table].toArray();
     const baseMap = new Map(base.map(x => [x.id, x]));
     let duplicated = 0;
@@ -1211,11 +1235,18 @@ export async function previewImport(backup) {
       const d = dedupeIncomingCards(incoming, baseMap, base);
       duplicated = d.duplicated;
       incoming = d.kept;
+    } else if (t.table === 'wordCards') {
+      // 审计（2026-09-14）：预览此前只对 cards 去重、漏了 wordCards ——
+      // 正式导入会对英语词卡跨设备内容去重（dedupeIncomingWordCards），
+      // 预览却把重复词算进「新增」，数字与执行不一致。这里对齐。
+      const d = dedupeIncomingWordCards(incoming, baseMap, base);
+      duplicated = d.duplicated;
+      incoming = d.kept;
     }
     // 审计 B7：与 importBackup 完全同口径（mergeRows 字段级合并 + 隐私清空水位过滤）
     const clearedBefore = (typeof localStorage !== 'undefined')
       ? Number(localStorage.getItem(clearedBeforeKey(t.table)) || 0) : 0;
-    const { added, overwritten, skipped, deleted } = simulateTableMerge(t, incoming, base, tombstones, clearedBefore);
+    const { added, overwritten, skipped, deleted } = simulateTableMerge(t, incoming, base, tombstones, clearedBefore, 0);
     // 抽样展示：仍从入站行取（用户看到的是「导入方的东西」），口径与统计一致
     const samples = [];
     for (const row of incoming) {

@@ -9,6 +9,7 @@ import { toolRegistry } from '../registry.js';
 import { compactToolPayload } from '../tools/compact.js';
 import { TraceKind } from '../types.js';
 import { buildLocalAnswer } from '../local-answer.js';
+import { normalizeStructuredFinal } from '../../utils/ai-structured.js';
 import { isOfflineReply } from '../../utils/offlineAI.js';
 
 const PROTOCOL = `
@@ -189,8 +190,11 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
           return local;
         }
       }
-      onTrace?.({ kind: TraceKind.FINAL, text: final });
-      return final;
+      // 出口净化（2026-09-14）：模型可能给结构化 JSON 加引子（"结果如下：{...}"），
+      // 剥离成纯 JSON 交给前端按类型渲染（list → 列表、graph → 图），否则又是一坨裸 JSON。
+      const out = normalizeStructuredFinal(final);
+      onTrace?.({ kind: TraceKind.FINAL, text: out });
+      return out;
     }
     // 兜底：既无 tool 也无 final，视为异常，直接返回原文
     if (isOfflineReply(raw) && observations.length) {
@@ -200,8 +204,9 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
         return local;
       }
     }
-    onTrace?.({ kind: TraceKind.FINAL, text: raw });
-    return raw;
+    const out = normalizeStructuredFinal(raw);
+    onTrace?.({ kind: TraceKind.FINAL, text: out });
+    return out;
   }
   const msg = '（已达到最大推理步数，Agent 提前结束）';
   onTrace?.({ kind: TraceKind.FINAL, text: msg });

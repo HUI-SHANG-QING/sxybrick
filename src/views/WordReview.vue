@@ -124,17 +124,18 @@ async function start() {
   // 「此单词缺少释义/拼写，无法判定」。
   // 两段式：先即时用「已加载分片 + 内置种子释义」填一遍让用户马上有内容，
   // 再等分片加载完成后补全（首屏不用等 52 个分片）。
+  // 竞态防护（2026-09-14 审计）：await 分片期间把界面先退回 setup（不是卡死也不是
+  // 上轮残影）；onReady 触发时 idx 还是上一轮的值，绝不能在这里 setupQuestion ——
+  // 会用旧 idx 访问新队列（current 越界 → phase 闪一帧 'done'），统一由 await 返回后
+  // 的 idx=0 + setupQuestion 开题。onReady 只负责把补全数据喂给 queue。
   const levels = settings.value?.exampleLevels;
   const seedMeaning = (w) => builtinMeaning(w);
+  idx.value = 0; sessionCount.value = 0;
+  phase.value = 'setup';
   queue.value = await fillCardsFromLocalBank(rows, {
     levels, seedMeaning,
-    onReady: (filled) => {
-      // 分片到位后的补全结果：刷新队列并重算当前题面（保持答题进度不变）
-      queue.value = filled;
-      setupQuestion();
-    },
+    onReady: (filled) => { queue.value = filled; },
   });
-  idx.value = 0; sessionCount.value = 0;
   phase.value = 'question';
   setupQuestion();
 }
