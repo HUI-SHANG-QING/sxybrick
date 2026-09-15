@@ -9,6 +9,7 @@ import { db } from '../src/db.js';
 import {
   parseImageMode, resolveImagePolicy, recommendMode, recommendForCurrentData,
   enrichForLlm, textifyContent, imageIdsToVisionContent, normalizeVisionLimit,
+  imageIdsToVisionContentMapped, VISION_LIMIT_MAX, VISION_BYTES_BUDGET,
 } from '../src/services/image-analysis.js';
 
 after(async () => { try { await db.close(); } catch {} });
@@ -116,7 +117,8 @@ test('normalizeVisionLimit：合法值原样、脏值回退默认、超限夹到
   assert.equal(normalizeVisionLimit(-5), 3);
   assert.equal(normalizeVisionLimit(NaN), 3);
   assert.equal(normalizeVisionLimit(Infinity), 3);
-  assert.equal(normalizeVisionLimit(1e9), 20, '必须夹到上限，防账单失控');
+  assert.equal(normalizeVisionLimit(1e9), 1000, '必须夹到上限，防手滑输入天文数字');
+  assert.equal(normalizeVisionLimit(1000), 1000, '上限本身合法');
   assert.equal(normalizeVisionLimit(3.7), 3, '向下取整');
 });
 
@@ -159,6 +161,66 @@ test('文案区分：额度内读不出的图不再被误报为「超出额度�
   const seg = typeof c === 'string' ? c : c.filter((p) => p.type === 'text').map((p) => p.text).join('');
   assert.match(seg, /读取失败/, '应如实说明是读取失败');
   assert.ok(!/超出本次送图额度/.test(seg), '不得误报为超出额度（否则用户会白重发一次）');
+});
+
+// ── round67b：张数上限放宽到 1000，真正护栏改为「请求体积预算」 ──────────────
+
+test('张数上限已放宽到 1000（不再用人为小数字卡用户）', () => {
+  assert.equal(VISION_LIMIT_MAX, 1000);
+  assert.ok(Number.isFinite(VISION_BYTES_BUDGET) && VISION_BYTES_BUDGET > 0, '体积预算必须是有限正数');
+  assert.equal(normalizeVisionLimit(500), 500, '500 张应被接受（旧上限 20 会夹掉）');
+});
+
+test('字节预算：超预算的图不再发送，且 onSkip 报告原因是 budget（不是 missing）', async () => {
+  const ids = [UUID1, UUID2, UUID3];
+  for (const id of ids) await db.images.put({ id, blob: blob(), name: `${id}.jpg` });
+  const skipped = [];
+  const out = await imageIdsToVisionContentMapped(ids, {
+    bytesBudget: 1, // 极小预算 → 第一张就超
+    onSkip: (id, reason) => skipped.push([id, reason]),
+  });
+  assert.equal(out.length, 0, '预算为 1 字节时一张都不该发');
+  assert.equal(skipped.length, 3, '每一张都应被报告跳过（不能静默丢弃）');
+  assert.ok(skipped.every(([, r]) => r === 'budget'), `原因应全为 budget，实际 ${JSON.stringify(skipped)}`);
+});
+
+test('字节预算：充足预算下全部发送，且不产生任何 skip 记录', async () => {
+  const ids = [UUID1, UUID2, UUID3];
+  for (const id of ids) await db.images.put({ id, blob: blob(), name: `${id}.jpg` });
+  const skipped = [];
+  const out = await imageIdsToVisionContentMapped(ids, {
+    bytesBudget: VISION_BYTES_BUDGET,
+    onSkip: (id, reason) => skipped.push([id, reason]),
+  });
+  assert.equal(out.length, 3);
+  assert.equal(skipped.length, 0);
+});
+
+test('字节预算：缺图报告 missing、超预算报告 budget（两种原因必须可区分）', async () => {
+  await db.images.put({ id: UUID1, blob: blob(), name: 'a.jpg' });
+  const skipped = [];
+  await imageIdsToVisionContentMapped(
+    [UUID1, 'deadbeef-0000-4000-8000-000000000000'],
+    { bytesBudget: VISION_BYTES_BUDGET, onSkip: (id, reason) => skipped.push([id, reason]) },
+  );
+  assert.deepEqual(skipped, [['deadbeef-0000-4000-8000-000000000000', 'missing']]);
+});
+
+test('端到端：体积超限的图在正文里标注为「体积上限」而非「超出额度」', async () => {
+  const ids = [UUID1, UUID2];
+  for (const id of ids) await db.images.put({ id, blob: blob(), name: `${id}.jpg` });
+  const r = await enrichForLlm(
+    [{ role: 'user', content: ids.map((i) => `看 sxy-img://${i}`).join(' ') }],
+    {
+      settings: { imageAnalysis: { mode: 'visionFirst', visionLimit: 10 } },
+      // 注入极小预算模拟「图很大、体积先到顶」：额度 10 张远没用完
+      bytesBudget: 1,
+    },
+  );
+  const c = r.messages[r.messages.length - 1].content;
+  const seg = typeof c === 'string' ? c : c.filter((p) => p.type === 'text').map((p) => p.text).join('');
+  assert.ok(!/超出本次送图额度/.test(seg), '体积超限不得被说成「超出额度」——额度是 10，这里只发了 0 张');
+  assert.match(seg, /读取失败|体积上限/, '应说明真实原因');
 });
 
 test('textifyContent：无图原文返回；有图产出分析副本（原文不变）', async () => {

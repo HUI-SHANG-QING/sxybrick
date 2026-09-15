@@ -31,11 +31,17 @@ import { docKindOf, docContentProfile, docVisionContent } from './doc-vision.js'
 export const IMG_MODES = ['auto', 'ocrFirst', 'visionFirst'];
 // 送图额度：单次请求最多附带几张图。
 // ⚠️ 一次 API 请求**可以携带多张图**（见 attachVisionToLastUser：content 数组里挂 N 个 image_url），
-// 额度限制的是「张数」而不是「请求次数」。之所以要设上限：图片按 token 计费，且 base64 会显著
-// 放大请求体（每张压缩后 100–300KB，×1.33 ≈ 3 张 1MB / 10 张 3–4MB），同时挤占上下文窗口。
-// 默认 3；用户可在设置里按需调整（1..VISION_LIMIT_MAX）。
+// 额度限制的是「张数」而不是「请求次数」。
+//
+// 张数上限放到 1000（用户要求「不要用人为数字卡我」），但**真正的瓶颈是请求体积**，不是张数：
+// 每张图压缩后（1568px / JPEG q0.8）data URL 约 200–600KB，1000 张 ≈ 200–600MB ——
+// 浏览器构造这么大的字符串会直接崩，上传也必然撞穿 chat() 的 60s 超时。
+// 因此这里改用**字节预算**做真实护栏：小图能送很多张，大图自动收敛，永不 OOM。
+// 超预算的图会被明确标注原因（而非静默丢弃），用户可减少张数或调低分辨率后重试。
 export const VISION_LIMIT_DEFAULT = 3;
-export const VISION_LIMIT_MAX = 20;
+export const VISION_LIMIT_MAX = 1000;
+// 单次请求图片总字节预算（base64 后的字符串长度）。24MB 是「家用宽带上行 + 60s 超时」下的稳妥值。
+export const VISION_BYTES_BUDGET = 24 * 1024 * 1024;
 const VISION_LIMIT_FALLBACK = 1; // auto/ocrFirst 的兜底：仅 OCR 全失败时补 1 张，保持保守
 // round43 N5：OCR 文字化无总量护栏——多图消息（AI 回显带图上下文 / RAG 拼多张带图卡）
 // 会逐张 OCR，每张最长 30s，叠加可拖慢所有 AI 链路数分钟。与 visionLimit 对称加上限；
@@ -287,7 +293,7 @@ export async function imageIdsToVisionContent(ids) {
  * @param {string[]} ids
  * @returns {Promise<Array<{id:string, part:{type:'image_url',image_url:{url:string}}}>>}
  */
-export async function imageIdsToVisionContentMapped(ids) {
+export async function imageIdsToVisionContentMapped(ids, opts = {}) {
   if (!ids?.length) return [];
   let db;
   try {
@@ -295,12 +301,21 @@ export async function imageIdsToVisionContentMapped(ids) {
   } catch {
     return []; // 无 IndexedDB 环境（如 SSR/测试）→ 无视觉内容，调用方自动降级
   }
+  const onSkip = typeof opts.onSkip === 'function' ? opts.onSkip : null;
+  const budget = Number.isFinite(opts.bytesBudget) ? opts.bytesBudget : VISION_BYTES_BUDGET;
   const out = [];
+  let bytes = 0;
+  let exhausted = false; // 超预算后不再读盘/压缩（否则白白跑几十次 canvas + base64）
   for (const id of ids) {
+    if (exhausted) { onSkip?.(id, 'budget'); continue; }
     const row = await db.images.get(id);
-    if (!row) continue;
+    if (!row) { onSkip?.(id, 'missing'); continue; }
     const dataUrl = await compressImageBlob(row.blob);
-    if (dataUrl) out.push({ id, part: { type: 'image_url', image_url: { url: dataUrl } } });
+    if (!dataUrl) { onSkip?.(id, 'unreadable'); continue; }
+    // 字节预算：请求体积是硬约束（张数上限只是名义值，1000 张大图 = 数百 MB，物理上发不出去）
+    if (bytes + dataUrl.length > budget) { exhausted = true; onSkip?.(id, 'budget'); continue; }
+    bytes += dataUrl.length;
+    out.push({ id, part: { type: 'image_url', image_url: { url: dataUrl } } });
   }
   return out;
 }
@@ -406,21 +421,29 @@ export async function enrichForLlm(messages, opts = {}) {
   // ---------- 卡片图片 ----------
   if (policy.mode === 'visionFirst' && ids.length) {
     const picked = ids.slice(0, visionLimit);
-    const mapped = await imageIdsToVisionContentMapped(picked);
+    // 收集「额度内却被跳过」的原因，用于给出准确标注（预算超限 vs 图读不出来）
+    const skipReason = new Map();
+    const mapped = await imageIdsToVisionContentMapped(picked, {
+      onSkip: (id, reason) => skipReason.set(id, reason),
+      bytesBudget: opts.bytesBudget, // 高级调用方/测试可覆盖；缺省走 VISION_BYTES_BUDGET
+    });
     for (const x of mapped) vision.push(x.part);
     // 精确「哪些 id 真的送出去了」——不能用 picked.slice(0, v.length) 推（中间项可能被跳过）
     const sent = new Set(mapped.map((x) => x.id));
+    const budgetMB = Math.round(VISION_BYTES_BUDGET / 1024 / 1024);
     ids.forEach((id, i) => {
       let note;
       if (sent.has(id)) {
         note = `【图片${i + 1}：已作为附图发送，请直接看图分析】`;
-      } else if (i < visionLimit) {
-        // 额度内却没送出去 → 是图片本身读不出来（已删除 / 压缩失败），**不是**额度不够。
-        // 必须与「超额度」分成两句：原先共用一句会让模型把「图丢了」误判为「额度不够」，
-        // 于是回答用户「重发一张吧」——而真正原因是上游把引用截断了，重发也白搭。
-        note = `【图片${i + 1}：读取失败（图片可能已被删除或无法解析），请确认该图仍在卡片中】`;
-      } else {
+      } else if (i >= picked.length) {
+        // 压根没进「本批要送的名单」→ 这才是真的超额度
         note = `【图片${i + 1}：超出本次送图额度（最多 ${visionLimit} 张），如需分析请单独提问】`;
+      } else if (skipReason.get(id) === 'budget') {
+        // 额度内、但请求体积已到顶 —— 与「图片坏了」是两回事，必须分开说
+        note = `【图片${i + 1}：已达单次请求体积上限（约 ${budgetMB}MB），本次未发送；减少图片数量后可重试】`;
+      } else {
+        // 额度内、体积也没超，却没送出去 → 图本身读不出来（已删除 / 压缩失败）
+        note = `【图片${i + 1}：读取失败（图片可能已被删除或无法解析），请确认该图仍在卡片中】`;
       }
       textMap.set(`sxy-img://${id}`, note);
     });
