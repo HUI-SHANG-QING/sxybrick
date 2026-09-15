@@ -238,7 +238,16 @@ export function sanitizeIncomingRow(table, row) {
   for (const f of TIMESTAMP_FIELDS) {
     if (!(f in row)) continue;
     const next = normalizeTs(row[f]);
-    if (!Object.is(next, row[f])) { row[f] = next; fixed++; }
+    if (Object.is(next, row[f])) continue;
+    // round68 S3（P2）：updatedAt 被毁到无法恢复（置 null）= 双重死局——livenessTs 忽略 null →
+    // `livenessTs > since` 恒假（增量导出永不重传）+ LWW 永远输给对端。若被毁的只是
+    // 本机真实较新数据的时间戳，其内容会被对端旧值每轮覆盖且永远推不出去（单向丢数据）。
+    // 改为 bump 到「净化时刻」：该行重新获得出口（可导出、可参与 LWW），
+    // 内容本身合法（仅时间戳字段损坏），让它赢回是符合意图的降级方向。
+    // 可逆规范化（数字字符串→数字）维持原值不动；其余时间戳字段不参与行导出水位，维持置 null。
+    if (f === 'updatedAt' && next === null) row[f] = Date.now();
+    else row[f] = next;
+    fixed++;
   }
   const dom = FIELD_DOMAINS[table];
   if (dom) {

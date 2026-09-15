@@ -14,7 +14,7 @@ import { encryptBackup, decryptBackup } from './utils/crypto.js';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES, EXCLUDED_FROM_SYNC,
   CARD_CONTENT_FIELDS, CARD_SRS_FIELDS,
-  mergeRows, mergeTombstones, applyTombstones, kindOf, livenessTs, shouldExportRow,
+  mergeRows, mergeTombstones, applyTombstones, kindOf, livenessTs, shouldExportRow, normalizeTs,
   clearedBeforeKey, filterClearedRows, sanitizeStripRows, sanitizeIncomingTable,
 } from './sync-manifest.js';
 
@@ -799,7 +799,17 @@ export async function importBackup(backup, opts = {}) {
   if (cardDedupe.kept.length) {
     const baseCards = await db.cards.toArray();
     const baseCardsMap = new Map(baseCards.map(x => [x.id, x]));
-    cardDedupe = dedupeIncomingCards(cardDedupe.kept, baseCardsMap, baseCards);
+    // round68 S1（P1）：去重保留目标绝不能选「本轮将被墓碑级联删除」的本地卡——
+    // 否则入站重复卡 remap 过去的 reviews/关联会随该卡一起被物理删除。
+    // 这里用与阶段 3) 完全相同的口径（applyTombstones('card')）预演本地死亡集：
+    // 墓碑来源 = 本地已有 + 本包携带，与后续 applyTombstones 看到的合并结果一致。
+    let deadBaseIds = null;
+    try {
+      const localTombs = await db.tombstones.toArray();
+      const allTombs = mergeTombstones(localTombs, backup.tombstones || [], opts);
+      deadBaseIds = new Set(applyTombstones(baseCards, allTombs, 'card').removed);
+    } catch (e) { console.warn('[sync] 去重存活预演失败（按全部存活处理）:', e?.message || e); }
+    cardDedupe = dedupeIncomingCards(cardDedupe.kept, baseCardsMap, baseCards, deadBaseIds);
     if (cardDedupe.idRemap.size) {
       // BUG-04：关联引用重定向收敛到 sync-dedup.js 的 remapCardRefs（单一实现），
       // 引用字段清单（CARD_REF_FIELDS 等）也统一登记在 sync-dedup.js 头部，
@@ -1052,9 +1062,12 @@ export async function importBackup(backup, opts = {}) {
   //   复现：快时钟对端的 goal 原本永远压过本机）。
   if (backup.streakMeta && typeof backup.streakMeta.goal === 'number') {
     const local = await db.meta.get('goal');
-    const incTs = (backup.streakMeta.updatedAt || 0) - skew;
-    const locTs = local?.updatedAt || 0;
-    if (!local || incTs > locTs || (incTs === locTs && String(backup.streakMeta.goal) > String(local.value ?? ''))) {
+    // round68 S4（P2）：meta 块此前不在净化域——updatedAt 被损坏/篡改为合法有限数
+    // （如 9999999999999999）可永久钉死 LWW 且写回 meta，本机后续合法更新永远输。
+    // 与行级净化同口径：不可解析的时间戳按 0 处理（该 incoming 永远输，安全降级）。
+    const incTs = normalizeTs(backup.streakMeta.updatedAt ?? 0) ?? 0;
+    const locTs = normalizeTs(local?.updatedAt ?? 0) ?? 0;
+    if (incTs - skew > locTs || (incTs - skew === locTs && String(backup.streakMeta.goal) > String(local.value ?? ''))) {
       await db.meta.put({ key: 'goal', value: backup.streakMeta.goal, updatedAt: incTs || Date.now() });
     }
   }
@@ -1064,10 +1077,11 @@ export async function importBackup(backup, opts = {}) {
   if (backup.examMeta && backup.examMeta.examAt != null) {
     const local = await db.meta.get('examAt');
     // 审计 P2-3（round37）：补 clockSkew 换算（与 goal 同款、与 hub.js 同口径）
-    const incTs = (backup.examMeta.updatedAt || 0) - skew;
-    const locTs = local?.updatedAt || 0;
-    const incomingWins = !local || incTs > locTs
-      || (incTs === locTs && String(backup.examMeta.examAt) > String(local.value ?? ''));
+    // round68 S4（P2）：updatedAt 同样过 normalizeTs（与 goal 块同口径）
+    const incTs = normalizeTs(backup.examMeta.updatedAt ?? 0) ?? 0;
+    const locTs = normalizeTs(local?.updatedAt ?? 0) ?? 0;
+    const incomingWins = incTs - skew > locTs
+      || (incTs - skew === locTs && String(backup.examMeta.examAt) > String(local.value ?? ''));
     if (incomingWins) {
       await db.meta.put({ key: 'examAt', value: backup.examMeta.examAt, updatedAt: incTs || Date.now() });
     }
@@ -1079,8 +1093,9 @@ export async function importBackup(backup, opts = {}) {
       const inc = backup.schedMeta[k];
       if (!inc || inc.value === undefined) continue;
       const cur = await db.meta.get(k);
-      const incTs = (inc.updatedAt || 0) - skew;
-      const curTs = cur?.updatedAt || 0;
+      // round68 S4（P2）：同 goal/examMeta，updatedAt 过 normalizeTs（不可解析按 0 = 永远输）
+      const incTs = (normalizeTs(inc.updatedAt ?? 0) ?? 0) - skew;
+      const curTs = normalizeTs(cur?.updatedAt ?? 0) ?? 0;
       const incWins = !cur || incTs > curTs
         || (incTs === curTs && JSON.stringify(inc.value) > JSON.stringify(cur.value ?? null));
       if (incWins) await db.meta.put({ key: k, value: inc.value, updatedAt: incTs || Date.now() });

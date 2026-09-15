@@ -77,12 +77,16 @@ function fireHook(event, ...args) {
 // P1-1 FSRS 调度配置缓存：避免每次复习都查 db.meta（scheduler/fsrsWeights）
 let _schedCache = null;
 export async function getSchedConfig() {
-  if (_schedCache && Date.now() - _schedCache.loadedAt < 60000) return _schedCache;
+  // round68 S7（P2）：缓存必须校验 db 实例 mode——setDbInstance('test'/'real') 切换
+  // 实例后 60s 内，旧缓存会让演示/真实库混用另一实例的 scheduler/weights
+  // （dashboardSnapshot 的 key 已纳入 mode，此处补齐同款口径）。
+  if (_schedCache && _schedCache.mode === currentDbMode() && Date.now() - _schedCache.loadedAt < 60000) return _schedCache;
   const [sched, wRow] = await Promise.all([db.meta.get('scheduler'), db.meta.get('fsrsWeights')]);
   _schedCache = {
     scheduler: sched?.value === 'fsrs' ? 'fsrs' : 'sm2',
     weights: mergeUserWeights(wRow?.value),
     loadedAt: Date.now(),
+    mode: currentDbMode(),
   };
   return _schedCache;
 }
@@ -280,10 +284,13 @@ export async function trashItem(id, kind, data) {
     await db.trash.put({ id, kind, deletedAt: now(), data });
     return true;
   } catch (e) {
-    // round15 P2：快照失败不再静默——删除照常完成，但回收站无快照 = 恢复不可能。
-    // L-2：返回 false 让调用方（deleteCard）可提示用户，而非仅 console.warn。
-    console.warn('[trash] 回收站快照写入失败（该记录将无法从回收站恢复）:', kind, id, e?.message || e);
-    return false;
+    // round68 S5（P2）：快照失败必须中止删除——此前仅 console + 返回 false，而全部
+    // 调用点（deleteCard/deleteMemo/deleteNote/deleteDoc/deleteDailyPlan/deleteCardGroup/
+    // deleteWordCard/deleteWordGroup/deleteDocFile 等）都未检查返回值 → 配额写满等场景下
+    // 「回收站无快照 + 主行已被删」= 数据不可恢复。所有调用点均在 Dexie 事务内，
+    // 抛错使整个删除事务回滚（主行/墓碑/级联一并撤销），失败路径有重试通道。
+    console.warn('[trash] 回收站快照写入失败，中止本次删除（事务回滚）:', kind, id, e?.message || e);
+    throw e;
   }
 }
 
@@ -364,7 +371,16 @@ export async function restoreFromTrash(t) {
   delete data._cardWordLinks; delete data._embeddings; delete data._linkedNoteIds; delete data._tasks;
   delete data._cardLinks; delete data._images;
   const transform = RESTORE_TRANSFORMS[t.kind];
-  const row = { ...(transform ? transform(data) : data), id: t.id, updatedAt: Date.now() };
+  // round68 S6（P2）：恢复必须重盖 fieldTs——快照里的 fieldTs 是删除前的旧值，
+  // 若对端仍持有墓碑（本端只清了本地墓碑），下轮同步字段级合并会因
+  // fieldTs.* < 对端墓碑 deletedAt 把恢复的内容字段判为「已删字段」而清空。
+  // 统一 bump 到恢复时刻，让恢复内容在字段层赢过所有旧墓碑（notes 路径 :459 已同款）。
+  const restoredTs = Date.now();
+  const restoredFieldTs = Object.keys(data.fieldTs || {}).length
+    ? Object.fromEntries(Object.keys(data.fieldTs).map(k => [k, restoredTs]))
+    : undefined;
+  const row = { ...(transform ? transform(data) : data), id: t.id, updatedAt: restoredTs,
+    ...(restoredFieldTs ? { fieldTs: restoredFieldTs } : {}) };
   const tables = [db[table], db.tombstones, db.trash];
   // P1-A：单词模块的附表与记忆卡不同（wordReviews / wordGroupLinks），按 kind 分流；
   // 记忆卡（card）与普通卡组（cardGroup）都走 reviews / cardGroupLinks（原逻辑）。

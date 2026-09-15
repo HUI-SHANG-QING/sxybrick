@@ -287,7 +287,9 @@ export function scheduleReview(card, rating, intensity = 1, guessed = false, opt
     r.dueAt = compressIntoWindow(r.dueAt, opts.examAt, { now: opts.now });
   }
   // 节假日弹性：due 落在休息日则顺延到最近工作日（仅展示/排程层）
-  if (opts.restDays && opts.restDays.weekdays?.length || opts.restDays?.dates?.length) {
+  // round68 S8（P3）：补括号——原式 `restDays && weekdays?.length || dates?.length`
+  // 按优先级解析为 `(restDays && weekdays?.length) || dates?.length`，当前仅靠侥幸正确。
+  if (opts.restDays && (opts.restDays.weekdays?.length || opts.restDays.dates?.length)) {
     const moved = applyElasticDue(r.dueAt, opts.restDays);
     if (moved !== r.dueAt) r.dueAt = moved;
   }

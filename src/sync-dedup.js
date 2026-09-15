@@ -27,13 +27,18 @@ export function remapWikilinks(text, idRemap) {
   return out;
 }
 
-export function dedupeIncomingCards(incoming, baseById, baseCards = []) {
+export function dedupeIncomingCards(incoming, baseById, baseCards = [], deadBaseIds = null) {
   const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
   const keyToKeptId = new Map(); // 内容键 → 保留下来的 id（本地优先，其次批次内首个保留的 incoming）
   // O1（round13）：用 \x01 不可打印分隔符替代 ||——卡面本身含 || 时
   // 不同卡会生成相同内容键被误判为重复，\x01 不会出现在正常文本中。
   const SEP = '\x01';
   for (const c of (baseCards || [])) {
+    // round68 S1（P1）：本地 base 卡若已被墓碑判死（applyTombstones 将按 cardId 级联删除
+    // 其 reviews/关联），绝不能作为去重保留目标——否则入站重复卡被 remap 到它后，
+    // 随墓碑级联一起被删，复习记录物理丢失。调用方以「本地+入站墓碑合并后」的
+    // applyTombstones(...).removed 同口径传入死亡 id 集。
+    if (deadBaseIds && deadBaseIds.has(c.id)) continue;
     const k = `${norm(c.front)}${SEP}${norm(c.back)}${SEP}${c.subject || ''}`;
     if (!keyToKeptId.has(k)) keyToKeptId.set(k, c.id); // 本地卡优先作为重定向目标
   }
@@ -131,6 +136,11 @@ export function remapCardRefs(backup, idRemap) {
         if (r.sourceCardId != null && idRemap.has(r.sourceCardId)) {
           row = { ...row, sourceCardId: idRemap.get(r.sourceCardId) };
         }
+        // round68 S2（P2）：cards 行正文的 [[c-id]] 双链此前不 remap——上面的
+        // remapWikilinks 只覆盖 content/text 字段，而卡面存于 front/back，
+        // 指向被跳过卡的链接成为永久悬空死链（笔记/备忘正常，唯独卡面旁路）。
+        if (typeof row.front === 'string') row = { ...row, front: remapWikilinks(row.front, idRemap) };
+        if (typeof row.back === 'string') row = { ...row, back: remapWikilinks(row.back, idRemap) };
         return row;
       }
       for (const f of CARD_REF_FIELDS) {
