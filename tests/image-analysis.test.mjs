@@ -9,7 +9,7 @@ import { db } from '../src/db.js';
 import {
   parseImageMode, resolveImagePolicy, recommendMode, recommendForCurrentData,
   enrichForLlm, textifyContent, imageIdsToVisionContent, normalizeVisionLimit,
-  imageIdsToVisionContentMapped, VISION_LIMIT_MAX, VISION_BYTES_BUDGET,
+  imageIdsToVisionContentMapped, VISION_LIMIT_MAX, VISION_BYTES_BUDGET, statImageAssets,
 } from '../src/services/image-analysis.js';
 import { resolveImageQuality, IMAGE_QUALITY_KEYS, IMAGE_QUALITY_PRESETS } from '../src/utils/img-compress.js';
 
@@ -246,6 +246,50 @@ test('resolveImagePolicy：带出质量档位（脏值回退默认）', () => {
   assert.equal(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst', imageQuality: 'low' } }).imageQuality, 'low');
   assert.equal(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst', imageQuality: 'bogus' } }).imageQuality, 'high');
   assert.equal(resolveImagePolicy({ imageAnalysis: { mode: 'auto', imageQuality: 'standard' } }).imageQuality, 'standard');
+});
+
+// ── round67d：图片资产统计口径（背面图漏统计 / 悬空引用未暴露） ──────────────
+
+test('statImageAssets：背面图片必须计入统计（此前只扫 front，背面图整批漏报）', async () => {
+  await db.cards.clear(); await db.images.clear();
+  // 卡 A 图在正面；卡 B「图在背面」—— 这正是错题卡的常见形态
+  await db.cards.put({ id: 'a', front: `题 ![image](sxy-img://${UUID1})`, back: '答' });
+  await db.cards.put({ id: 'b', front: '流量控制与滑动窗口机制', back: `答案 ![image](sxy-img://${UUID2})` });
+  await db.images.put({ id: UUID1, blob: blob(), updatedAt: 1 });
+  await db.images.put({ id: UUID2, blob: blob(), updatedAt: 1 });
+
+  const s = await statImageAssets();
+  assert.equal(s.imgRefs, 2, '正面与背面的图片引用都要计入');
+  assert.equal(s.imgUnique, 2);
+  assert.equal(s.imgDangling, 0);
+  assert.equal(s.imgDocs, 2, '两张卡都含图');
+});
+
+test('statImageAssets：悬空引用必须单独报出（图丢了不能只说「只有 N 张」）', async () => {
+  await db.cards.clear(); await db.images.clear();
+  await db.cards.put({ id: 'a', front: '题', back: `![image](sxy-img://${UUID1}) ![image](sxy-img://${UUID2})` });
+  await db.images.put({ id: UUID1, blob: blob(), updatedAt: 1 }); // UUID2 故意不存 → 模拟图丢失
+
+  const s = await statImageAssets();
+  assert.equal(s.imgRefs, 2, '引用两处');
+  assert.equal(s.imgUnique, 1, '库里只有 1 张');
+  assert.equal(s.imgDangling, 1, '必须明确报出 1 张悬空，而不是让用户对着「1 张」发懵');
+  assert.deepEqual(s.danglingIds, [UUID2]);
+});
+
+test('statImageAssets：同一张图被多卡引用只算一次 imgUnique', async () => {
+  await db.cards.clear(); await db.images.clear();
+  await db.cards.put({ id: 'a', front: `![image](sxy-img://${UUID1})`, back: '' });
+  await db.cards.put({ id: 'b', front: '另一题', back: `![image](sxy-img://${UUID1})` });
+  await db.images.put({ id: UUID1, blob: blob(), updatedAt: 1 });
+
+  const s = await statImageAssets();
+  assert.equal(s.imgRefs, 2, '引用 2 处');
+  assert.equal(s.imgUnique, 1, '去重后只有 1 张实体图');
+  assert.equal(s.imgDangling, 0);
+
+  // 收尾清理：本组用例动过 db.cards，而后续（既有）用例假设库里只有自己造的数据
+  await db.cards.clear(); await db.images.clear();
 });
 
 test('textifyContent：无图原文返回；有图产出分析副本（原文不变）', async () => {

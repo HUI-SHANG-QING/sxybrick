@@ -194,8 +194,12 @@ export async function statImageAssets() {
   const scan = (source, rows) => {
     let n = 0;
     for (const r of rows) {
-      const text = r.front || r.back || r.content || '';
-      const ids = typeof text === 'string' ? extractImageIds(text) : [];
+      // ⚠️ 必须是「拼接所有正文字段」，不能用 `front || back || content`：
+      // 卡片正面几乎总有文字，用短路或会让 back 永远不被扫描 ——
+      // 而错题卡的图恰恰常放在背面（实测：多张背面带图的卡被整批漏统计）。
+      const text = [r.front, r.back, r.content]
+        .filter((x) => typeof x === 'string' && x).join('\n');
+      const ids = text ? extractImageIds(text) : [];
       if (ids.length) {
         imgDocs += 1;
         n += 1;
@@ -233,11 +237,18 @@ export async function statImageAssets() {
   // 用一次 bulkGet 代替逐个 get——图片多时前者是一次事务，后者是 N 次往返。
   const refIds = [...all];
   const refRows = refIds.length ? await db.images.bulkGet(refIds) : [];
-  const live = refRows.filter(Boolean).length;
+  const danglingIds = refIds.filter((_, i) => !refRows[i]);
+  const live = refIds.length - danglingIds.length;
 
   const docs = cardRows.length + noteRows.length + memoRows.length + docRows.length;
 
-  return { imgRefs, imgUnique: live, imgDocs, docs, bySource, docVisual, docVisionPages };
+  // imgDangling = 正文引用了、但库里已经找不到的图片数。
+  // 这是「AI 说图片读取失败」的直接原因，必须暴露出来 —— 只报 imgUnique 会让用户看到
+  // 「你只有 1 张图片」而正文里明明有十几处引用，完全无从判断是统计口径问题还是图真的丢了。
+  return {
+    imgRefs, imgUnique: live, imgDangling: danglingIds.length, danglingIds,
+    imgDocs, docs, bySource, docVisual, docVisionPages,
+  };
 }
 
 /**

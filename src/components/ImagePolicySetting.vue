@@ -164,6 +164,12 @@ onMounted(() => { load(); loadRecommendation(); });
         </button>
       </template>
     </div>
+    <p v-if="rec?.stats?.imgDangling" class="imgmode-dangling">
+      {{ t('views.wordSettings.recDangling', undefined, { refs: rec.stats.imgRefs, n: rec.stats.imgDangling }) }}
+    </p>
+    <p v-else-if="rec?.stats?.imgRefs" class="imgmode-healthy">
+      {{ t('views.wordSettings.recHealthy', undefined, { refs: rec.stats.imgRefs }) }}
+    </p>
     <p v-if="rec?.reason" class="imgmode-reason">{{ rec.reason }}</p>
     <BatchImageAnalysis />
   </section>
@@ -207,4 +213,10 @@ onMounted(() => { load(); loadRecommendation(); });
 }
 .imgmode-apply:disabled { opacity: .45; cursor: default; }
 .imgmode-reason { font-size: 12px; color: var(--ink-2); margin: 8px 0 0; line-height: 1.7; }
+.imgmode-dangling {
+  font-size: 12.5px; color: #e0735a; line-height: 1.7; margin: 8px 0 0;
+  padding: 8px 10px; border-radius: var(--radius);
+  background: color-mix(in srgb, #e0735a 8%, transparent);
+}
+.imgmode-healthy { font-size: 12px; color: var(--ink-2); margin: 8px 0 0; line-height: 1.6; }
 </style>
