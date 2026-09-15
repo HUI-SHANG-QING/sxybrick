@@ -223,6 +223,8 @@ function scanHardcoded(file) {
 //   · 挖空 console.* 调用参数（日志不是文案）
 //   · 跳过 throw new Error(...) 所在行（错误码不是 UI 文案）
 //   · 只报「行内最长连续中文 ≤ 24 字」—— AI prompt 模板普遍是长串（>24 字），排除掉。
+//   · round71：`src/agent/tools/` 下 `toolRegistry.register({...})` 的元数据段整体挖空——
+//     description / parameters 是发给模型的 prompt 契约（中文、永不翻译），不属于 UI 文案。
 //     这样能命中 graph-resolve 的 '相关' 兜底词、calibration 的 '样本不足' verdict 这类短 UI 文案，
 //     又不误杀动辄数百字的 prompt。
 const JS_TARGETS = ['src/repo.js', 'src/repo-core.js', 'src/agent', 'src/algorithms'];
@@ -254,6 +256,25 @@ function lstatSyncSafe(abs) {
   try { return statSync(abs).isDirectory() ? 'dir' : 'file'; } catch { return 'file'; }
 }
 
+/**
+ * 挖空 `toolRegistry.register({...})` 的**元数据段**（name / description / parameters / readsData …）。
+ *
+ * 为什么需要：description 与 parameters 不是 UI 文案，而是**发给模型的 prompt 契约**——
+ * 它们天然只能是中文（Agent 的提示词全是中文）、且永不翻译，本来就该留在代码里。
+ * 但它们的句子普遍很短（'number: 本次返回条数，默认 20，最大 50' 最长连续中文只有 6 字），
+ * 过不了「最长连续中文 > 24 字即视为 prompt」那条去噪规则，于是每次扩写工具说明都会假红，
+ * 逼着人反复重锚基线 —— 基线的意义被稀释成「点一下就好」，真正的 UI 泄漏反而更易溜过。
+ * 这里按结构精确挖空：只到第一个 `execute` 为止；工具**实现体**里的中文仍被闸门盯着
+ * （那里可能混进真正需要翻译的用户可见文案）。
+ * 注：若某个 description 文本里恰好出现 "execute:" 字样，挖空会提前结束（fail-open：宁可多报，不漏报）。
+ */
+function maskRegisterMetadata(src) {
+  return src.replace(
+    /(toolRegistry\.register\(\{)([\s\S]*?)(?=(?:async\s+)?execute\s*[:(])/g,
+    (m, head, body) => head + blankKeepNewlines(body),
+  );
+}
+
 function scanJsHardcoded(abs) {
   let src = readFileSync(abs, 'utf8');
   const names = new Set([
@@ -261,6 +282,8 @@ function scanJsHardcoded(abs) {
   ]);
   src = src.replace(/\/\*[\s\S]*?\*\//g, blankKeepNewlines);   // 块注释
   src = maskCallArgs(src, names);                              // 挖空 console.* 参数
+  // 工具注册的元数据（description / parameters）是 prompt 契约而非 UI 文案，见 maskRegisterMetadata
+  if (/agent[\\/]tools[\\/]/.test(abs)) src = maskRegisterMetadata(src);
   src = src.replace(/(^|[ \t])\/\/[^\n]*/gm, (m, p1) => p1 + ' '.repeat(m.length - p1.length)); // 行注释
 
   const hits = [];

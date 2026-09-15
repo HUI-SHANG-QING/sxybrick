@@ -65,7 +65,8 @@ toolRegistry.register({
 toolRegistry.register({
   name: 'get_weak_cards',
   description: '获取当前最薄弱/最易错的卡片列表（按遗忘次数排序），用于定位复习重点。'
-    + '返回项含 id 与 hasImage：hasImage 为 true 表示该卡带图，如需看图请再用 get_card_detail 取完整内容。',
+    + '返回项含 id、正面 60 字、背面 60 字、遗忘次数与 hasImage；'
+    + '要看完整正/背面或看图，需再用 get_card_detail 传该项 id。',
   parameters: {
     limit: 'number: 返回数量，默认 10',
     minFail: 'number: 最小遗忘次数阈值，默认 2',
@@ -78,8 +79,11 @@ toolRegistry.register({
     return {
       ok: true,
       data: cards.map((c) => ({
+        id: c.id,
         subject: c.subject,
         front: String(c.front).slice(0, 60),
+        // round71：补背面摘要（同 search_cards）——旧版只有正面，模型无法引用答案侧内容
+        back: String(c.back || '').slice(0, 60),
         // 摘要只给前 60 字，但必须让模型知道「这张卡有图」——
         // 否则图在背面 / 标记被截断时，模型完全不知道有图可看。
         // 不在此保留完整图片引用：列表可能命中几十张卡，保留会把送图额度瞬间吃光。
@@ -117,14 +121,19 @@ toolRegistry.register({
 
 toolRegistry.register({
   name: 'search_cards',
-  description: '按关键词/科目/标签搜索卡片，支持 AND/OR/NOT 组合，返回命中卡片的概要。'
-    + '概要不含图片内容，但每项带 hasImage：为 true 时若要看图请用 get_card_detail 取完整正文。',
+  description: '按关键词/科目/标签搜索卡片，支持 AND/OR/NOT 组合，返回命中卡片的**概要**'
+    + '（每项含 id、科目、正面 80 字、背面 80 字、标签、level、hasImage）。'
+    + '概要**不含完整正文与图片内容**：需要完整正面/背面或看图时，必须再用 get_card_detail 传入该项的 id 获取；'
+    + 'hasImage 为 true 说明该卡带图，不看图会漏掉图上的内容。'
+    + '结果可能被截断（total 大于返回条数），此时用 offset 翻页继续取，不要断言"只有这些"。',
   parameters: {
     q: 'string: 模糊搜索正/背面关键词',
     subject: 'string: 限定科目（可选）',
     tags: 'string: 逗号分隔的标签（可选）',
     logic: 'string: 标签组合逻辑 AND/OR/NOT，默认 AND',
     mode: 'string: all=全部, due=仅到期',
+    limit: 'number: 本次返回条数，默认 20，最大 50',
+    offset: 'number: 跳过前 N 条（翻页用），默认 0',
   },
   readsData: true,
   async execute(args) {
@@ -136,15 +145,25 @@ toolRegistry.register({
       logic: args?.logic || 'AND',
       mode: args?.mode || 'all',
     });
+    const limit = Math.min(Math.max(Math.trunc(Number(args?.limit)) || 20, 1), 50);
+    const offset = Math.max(Math.trunc(Number(args?.offset)) || 0, 0);
+    const page = r.items.slice(offset, offset + limit);
     return {
       ok: true,
       data: {
         total: r.total,
         dueCount: r.dueCount,
-        items: r.items.slice(0, 30).map((c) => ({
+        offset,
+        hasMore: offset + page.length < r.total,
+        items: page.map((c) => ({
           id: c.id,
           subject: c.subject,
           front: String(c.front).slice(0, 80),
+          // round71【本次核心修复之一】此前**只返回 front**，back 一个字都没有，
+          // 于是用户问「这张卡背面写了什么」时模型手上根本没有背面数据，
+          // 只能回答「我看不到背面内容」——用户视角就是「AI 连卡片内容都看不到」。
+          // 这里补上背面摘要（完整背面仍走 get_card_detail，避免几十张卡的全文撑爆上下文）。
+          back: String(c.back || '').slice(0, 80),
           // 同 get_weak_cards：摘要不保留图片引用，但要让模型知道「这张卡有图可看」
           hasImage: hasImageRef(c.front) || hasImageRef(c.back),
           tags: c.tags,

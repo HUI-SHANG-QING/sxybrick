@@ -115,7 +115,12 @@ export async function runTask(opt) {
     cfg,
     studyContext,
     memoryText,
-    chat: (messages, opts = {}) => chatWithFallback(messages, cfg, { ...opts, signal, source: `agent:${agent.id}` }),
+    // round71：Agent 链路默认走**流式**。非流式下 60s 的含义是「整段回答必须在 60s 内写完」，
+    // 而 Agent 常被要求做长输出（「把 17 张卡逐张列出来」「完整知识图谱」）→ 必然撞超时 →
+    // 降级成本地直出（用户看到的「AI 合成回答暂不可用」）。流式把判定改成「空闲超时」
+    // （llm.js 内实现：每收到一段增量就重置计时），长回答不再被误杀。
+    // 调用方显式传 opts.stream 时仍以调用方为准。
+    chat: (messages, opts = {}) => chatWithFallback(messages, cfg, { stream: true, ...opts, signal, source: `agent:${agent.id}` }),
   };
 
   // 3) 拼接对话（保留最近若干轮历史，控制 token）

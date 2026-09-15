@@ -235,9 +235,27 @@ const zh = {
       routedToAgent: '路由到 Agent：{name}',
       emptyReplyFallback: '（当前未生成回答内容，请重试或检查 AI 配置）',
     },
+    // LLM 适配层（src/agent/llm.js）：超时语义为「空闲超时」，超时但有部分输出时交出已生成内容
+    llm: {
+      timeoutError: 'AI 请求超时（>{n}s 无新数据）',
+      canceled: 'AI 请求已取消',
+      timeoutPartial: '> ⏱️ 本次回答因超时中断，以上为**已生成的部分**。可把问题拆小（例如分批列卡片）后重试。',
+    },
     // 有工具数据但 LLM 合成失败时的本地直出（src/agent/local-answer.js）
     localAnswer: {
       notice: '> ⚠️ **AI 合成回答暂不可用**（网络或服务异常）。以下是你本地数据的直接结果，未经模型改写。',
+      // round71：带上**真实原因**。旧版一律写「网络或服务异常」，密钥过期/被限流/回答超长的用户
+      // 都被误导成"网断了"，只能反复重试同一件错事。
+      noticeWithReason: '> ⚠️ **AI 合成回答暂不可用**（{reason}）。以下是你本地数据的直接结果，未经模型改写。',
+      reasonTimeout: '模型响应超时，已改为本地直出',
+      reasonCanceled: '请求被取消',
+      reasonAuth: 'API 密钥无效或无权限，请到「AI 设置」检查密钥',
+      reasonModel: '接口或模型不存在，请检查 baseUrl / model',
+      reasonRate: '触发频率限制（429），请稍后重试',
+      reasonServer: '模型服务暂时不可用（5xx），请稍后重试',
+      reasonHttp: '接口返回 HTTP {status}',
+      reasonNetwork: '网络或服务异常',
+      reasonOffline: 'AI 未生成可用的回答内容',
       listFrom: '工具 {tool} · 共 {n} 条',
       more: '还有 {n} 条未展开',
       dataFrom: '工具 {tool} 返回',
@@ -454,9 +472,25 @@ const en = {
       routedToAgent: 'Routed to Agent: {name}',
       emptyReplyFallback: '(Empty response — please retry or check your AI configuration)',
     },
+    // LLM adapter (src/agent/llm.js): timeout means *idle* timeout; partial output is salvaged on timeout
+    llm: {
+      timeoutError: 'AI request timed out (no new data for >{n}s)',
+      canceled: 'AI request was canceled',
+      timeoutPartial: '> ⏱️ This answer was cut off by a timeout; the above is the part already generated. Try narrowing the question (e.g. list cards in batches) and retry.',
+    },
     // Local fallback answer built from tool results when LLM synthesis fails
     localAnswer: {
       notice: '> ⚠️ **AI synthesis unavailable** (network or service error). Below is the direct result from your local data, not rewritten by a model.',
+      noticeWithReason: '> ⚠️ **AI synthesis unavailable** ({reason}). Below is the direct result from your local data, not rewritten by a model.',
+      reasonTimeout: 'the model timed out, so the local result is shown instead',
+      reasonCanceled: 'the request was canceled',
+      reasonAuth: 'invalid or unauthorized API key — check it in AI Settings',
+      reasonModel: 'endpoint or model not found — check baseUrl / model',
+      reasonRate: 'rate limited (429), please retry later',
+      reasonServer: 'model service temporarily unavailable (5xx), please retry later',
+      reasonHttp: 'endpoint returned HTTP {status}',
+      reasonNetwork: 'network or service error',
+      reasonOffline: 'the AI produced no usable answer',
       listFrom: 'Tool {tool} · {n} item(s)',
       more: '{n} more not expanded',
       dataFrom: 'Tool {tool} returned',

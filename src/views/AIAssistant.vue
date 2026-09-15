@@ -120,7 +120,12 @@ async function send() {
   loading.value = true;
   scroll();
   try {
-    const [ctx, mem] = await Promise.all([buildContext(), buildMemoryText()]);
+    // ⚠️ 必须用 buildFullContext(query) 而不是 buildContext()：
+    // 后者只给「统计面板」（卡片数量/掌握度/标签这类目录级信息），模型看不到任何正文，
+    // 于是用户问「这张卡背面写了什么」它只能答「我看不到内容」。
+    // buildFullContext = buildStudyContext + buildRAGContext(query)，会把与问题相关的
+    // 卡片/文档**原文片段**一并带上（图片引用也完整保留，可被多模态富集）。
+    const [ctx, mem] = await Promise.all([buildFullContext(text), buildMemoryText()]);
     const reply = await chatAI([
       { role: 'system', content: SYSTEM_PROMPT + '\n\n' + (mem ? mem + '\n\n' : '') + ctx },
       ...currentChat.value.messages,

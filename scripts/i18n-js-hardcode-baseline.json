@@ -6,157 +6,157 @@
       "你可以使用下方列出的工具来辅助回答。调用与收尾严格遵循以下格式：": {
         "reason": "",
         "lines": [
-          17
+          18
         ]
       },
       "1) 如需调用工具（每次仅一个），输出：": {
         "reason": "",
         "lines": [
-          19
+          20
         ]
       },
       "<tool>工具名</tool><args>{\"参数名\":\"参数值\"}</args>": {
         "reason": "",
         "lines": [
-          20
+          21
         ]
       },
       "2) 工具返回后，你会看到“工具 X 返回：...”，据此继续推理；": {
         "reason": "",
         "lines": [
-          21
+          22
         ]
       },
       "3) 当你已能完整回答用户时，必须输出：": {
         "reason": "",
         "lines": [
-          22
+          23
         ]
       },
       "<final>这里写给用户的最终回答</final>": {
         "reason": "",
         "lines": [
-          23
+          24
         ]
       },
       "注意：不要同时混用两种标签；<final> 之外不要输出多余说明。": {
         "reason": "",
         "lines": [
-          24
+          25
         ]
       },
       "4) 当答案本质是「一组条目 / 一张表 / 一张关系图」时，<final> 里**只输出**下面这种结构化 JSON": {
         "reason": "",
         "lines": [
-          26
+          27
         ]
       },
       "（不要加任何解释文字，前端会按类型渲染成列表、表格或图，直接输出 JSON 文本反而不可读）：": {
         "reason": "",
         "lines": [
-          27
+          28
         ]
       },
       "· 条目：{\"type\":\"list\",\"data\":{\"items\":[{\"title\":\"…\",\"detail\":\"…\"}]},\"note\":\"…\"}": {
         "reason": "",
         "lines": [
-          28
+          29
         ]
       },
       "· 表格：{\"type\":\"table\",\"data\":{\"columns\":[\"…\"],\"rows\":[[\"…\",\"…\"]]}}": {
         "reason": "",
         "lines": [
-          29
+          30
         ]
       },
       "· 关系/图谱/关键路径：{\"type\":\"graph\",\"data\":{\"kind\":\"force|critical-path\",\"nodes\":[{\"id\":\"a\",\"name\":\"停止-等待\",\"category\":\"数据链路层\"}],\"links\":[{\"source\":\"a\",\"target\":\"b\",\"label\":\"服务于\"}]},\"note\":\"…\"}": {
         "reason": "",
         "lines": [
-          30
+          31
         ]
       },
       "只有确实适合图形化表达时才用 graph；能用自然语言讲清的就用普通文本。": {
         "reason": "",
         "lines": [
-          31
+          32
         ]
       },
       "切勿把工具返回的原始 JSON 原样抄给用户——那是给程序看的，不是给用户的答案。`;": {
         "reason": "",
         "lines": [
-          32
+          33
         ]
       },
       "p += '\\n\\n【可用工具】\\n' + toolRegistry.toPrompt(agent.tools) + '\\n' + PROTOCOL;": {
         "reason": "",
         "lines": [
-          46
+          47
         ]
       },
       "parseError = '参数必须是 JSON 对象';": {
         "reason": "",
         "lines": [
-          64
+          65
         ]
       },
       "parseError = e.message || '参数不是合法 JSON';": {
         "reason": "",
         "lines": [
-          70
+          71
         ]
       },
       "const err = `未知工具：${name}`;": {
         "reason": "",
         "lines": [
-          88
+          112
         ]
       },
       "text: `调用工具 ${name}`,": {
         "reason": "",
         "lines": [
-          94
+          118
         ]
       },
       "text: `工具 ${name} 返回`,": {
         "reason": "",
         "lines": [
-          103
+          127
         ]
       },
       "onTrace?.({ kind: TraceKind.ERROR, text: `工具 ${name} 执行出错：${e.message}` });": {
         "reason": "",
         "lines": [
-          109
+          133
         ]
       },
       "if (s.length > 1500) m.content = clipText(s, 1500) + '…（已截断以控制上下文长度）';": {
         "reason": "",
         "lines": [
-          131
+          155
         ]
       },
       "onTrace?.({ kind: TraceKind.ERROR, text: `模型调用失败：${e?.message || e}` });": {
         "reason": "",
         "lines": [
-          164
+          189
         ]
       },
       "? `错误：${res.error}`": {
         "reason": "",
         "lines": [
-          193
+          218
         ]
       },
       "convo.push({ role: 'tool', content: `工具 ${toolCall.name} 返回：\\n${payload}` });": {
         "reason": "",
         "lines": [
-          195
+          220
         ]
       },
       "const msg = '（已达到最大推理步数，Agent 提前结束）';": {
         "reason": "",
         "lines": [
-          234
+          259
         ]
       }
     }
@@ -672,91 +672,85 @@
     }
   },
   "src/agent/llm.js": {
-    "count": 14,
+    "count": 13,
     "note": "",
     "items": {
       "'上一条回复因长度限制被截断了。请**从中断处接着写**剩余内容，'": {
         "reason": "",
         "lines": [
-          26
+          31
         ]
       },
       "+ '不要重复已经输出的部分，也不要添加任何前言或总结性收尾。';": {
         "reason": "",
         "lines": [
-          27
+          32
         ]
       },
       "console.warn('[llm] 图片富集失败，按纯文字发送：', e?.message || e);": {
         "reason": "",
         "lines": [
-          68
+          73
         ]
       },
       "const err = new Error(`AI 请求失败(${res.status}${httpHint(res.status)})：${t.slice(0, 300)}`);": {
         "reason": "",
         "lines": [
-          112
+          132
         ]
       },
       "let reason = 'AI 返回了空内容';": {
         "reason": "",
         "lines": [
-          148
+          168
         ]
       },
       "? (json.error.message || json.error.type || '响应异常')": {
         "reason": "",
         "lines": [
-          228
+          255
         ]
       },
       ": String(json.error || '响应异常');": {
         "reason": "",
         "lines": [
-          229
-        ]
-      },
-      "const err = new Error(timeoutMs ? `AI 请求超时（>${Math.round(timeoutMs / 1000)}s 未响应）` : 'AI 请求已取消');": {
-        "reason": "",
-        "lines": [
-          251
+          256
         ]
       },
       "if (status === 401) return '：API 密钥无效或已过期';": {
         "reason": "",
         "lines": [
-          266
+          314
         ]
       },
       "if (status === 403) return '：无权限访问该模型';": {
         "reason": "",
         "lines": [
-          267
+          315
         ]
       },
       "if (status === 404) return '：接口或模型不存在（检查 baseUrl / model）';": {
         "reason": "",
         "lines": [
-          268
+          316
         ]
       },
       "if (status === 429) return '：请求过于频繁，稍后重试';": {
         "reason": "",
         "lines": [
-          269
+          317
         ]
       },
       "if (status >= 500) return '：服务暂时不可用（稍后重试）';": {
         "reason": "",
         "lines": [
-          270
+          318
         ]
       },
       "+ '切勿凭已有文字臆测图片内容。）';": {
         "reason": "",
         "lines": [
-          294
+          342
         ]
       }
     }
@@ -1086,91 +1080,91 @@
       "push({ kind: TraceKind.THOUGHT, text: '无预设匹配，用 LLM 自动分解任务' });": {
         "reason": "",
         "lines": [
-          153
+          155
         ]
       },
       "push({ kind: TraceKind.ERROR, text: '任务分解失败，回退到单 Agent 模式' });": {
         "reason": "",
         "lines": [
-          157
+          159
         ]
       },
       "text: `启动「${pipelineName}」流水线：${steps.map((s) => s.agent).join(' → ')}`,": {
         "reason": "",
         "lines": [
-          169
+          171
         ]
       },
       "push({ kind: TraceKind.ERROR, text: `Agent 不存在：${step.agent}，跳过` });": {
         "reason": "",
         "lines": [
-          178
+          180
         ]
       },
       "text: `步骤 ${i + 1}/${steps.length}：${agent.name} 执行「${step.instruction}」`,": {
         "reason": "",
         "lines": [
-          184
+          186
         ]
       },
       "const fullContext = [studyContext, bbContext ? `\\n【协作黑板】\\n${bbContext}` : ''].filter(Boolean).join('\\n');": {
         "reason": "",
         "lines": [
-          191
+          193
         ]
       },
       "bb.log(agent.id, `步骤${i + 1}完成`);": {
         "reason": "",
         "lines": [
-          209
+          211
         ]
       },
       "push({ kind: TraceKind.ERROR, text: `${agent.name} 执行出错：${e.message}` });": {
         "reason": "",
         "lines": [
-          212
+          214
         ]
       },
       "bb.addFinding(agent.id, `执行出错：${e.message}`);": {
         "reason": "",
         "lines": [
-          213
+          215
         ]
       },
       "push({ kind: TraceKind.ROUTE, text: '聚合所有 Agent 的发现，生成最终回答', agentId: 'pipeline' });": {
         "reason": "",
         "lines": [
-          218
+          220
         ]
       },
       "const aggPrompt = `你是多智能体协作的聚合器。以下是一个团队协作完成「${query}」的全过程发现，请综合成一份结构清晰的最终回答给用户。": {
         "reason": "",
         "lines": [
-          219
+          221
         ]
       },
       "要求：分点输出，标注每个结论来自哪个 Agent 的发现，让用户看到团队协作的全貌。`;": {
         "reason": "",
         "lines": [
-          223
+          225
         ]
       },
       "{ role: 'user', content: '请综合以上发现，给出最终回答。' },": {
         "reason": "",
         "lines": [
-          229
+          231
         ]
       },
       "push({ kind: TraceKind.ERROR, text: `聚合失败，使用原始发现兜底：${e.message}` });": {
         "reason": "",
         "lines": [
-          234
+          236
         ]
       },
       "const verbs = (q.match(/学|复|测|分析|计划|组卡|讲解|背|练|整理/g) || []).length;": {
         "reason": "",
         "lines": [
-          251
+          253
         ]
       }
     }
@@ -1400,739 +1394,178 @@
       "if (depth >= opt.maxDepth) return Array.isArray(value) ? `[…${value.length} 项，层级过深已省略]` : '…（层级过深已省略）';": {
         "reason": "",
         "lines": [
-          32
+          38
         ]
       },
       "if (value.length > opt.maxItems) head.push(`…还有 ${value.length - opt.maxItems} 项（已省略）`);": {
         "reason": "",
         "lines": [
-          36
+          42
         ]
       }
     }
   },
   "src/agent/tools/index.js": {
-    "count": 125,
+    "count": 29,
     "note": "",
     "items": {
-      "description: '获取当前最薄弱/最易错的卡片列表（按遗忘次数排序），用于定位复习重点。'": {
-        "reason": "",
-        "lines": [
-          67
-        ]
-      },
-      "limit: 'number: 返回数量，默认 10',": {
-        "reason": "",
-        "lines": [
-          70
-        ]
-      },
-      "minFail: 'number: 最小遗忘次数阈值，默认 2',": {
-        "reason": "",
-        "lines": [
-          71
-        ]
-      },
-      "description: '列出所有科目及其卡片数量、所有标签及使用次数。',": {
-        "reason": "",
-        "lines": [
-          109
-        ]
-      },
-      "q: 'string: 模糊搜索正/背面关键词',": {
-        "reason": "",
-        "lines": [
-          123
-        ]
-      },
-      "subject: 'string: 限定科目（可选）',": {
-        "reason": "",
-        "lines": [
-          124,
-          289
-        ]
-      },
-      "tags: 'string: 逗号分隔的标签（可选）',": {
-        "reason": "",
-        "lines": [
-          125
-        ]
-      },
-      "logic: 'string: 标签组合逻辑 AND/OR/NOT，默认 AND',": {
-        "reason": "",
-        "lines": [
-          126
-        ]
-      },
-      "mode: 'string: all=全部, due=仅到期',": {
-        "reason": "",
-        "lines": [
-          127
-        ]
-      },
-      "text: 'string: 待拆解的学习内容',": {
-        "reason": "",
-        "lines": [
-          164
-        ]
-      },
-      "subject: 'string: 指定科目（可选，不填由模型判断）',": {
-        "reason": "",
-        "lines": [
-          165
-        ]
-      },
       "if (!text.trim()) return { ok: false, error: '内容为空' };": {
-        "reason": "",
-        "lines": [
-          170
-        ]
-      },
-      "text: 'string: 学习内容（笔记/讲义/文章，可超长，自动分块）',": {
-        "reason": "",
-        "lines": [
-          187
-        ]
-      },
-      "subject: 'string: 指定科目（可选）',": {
-        "reason": "",
-        "lines": [
-          188
-        ]
-      },
-      "title: 'string: 源文档标题（可选）',": {
         "reason": "",
         "lines": [
           189
         ]
       },
-      "saveSource: 'boolean: 是否持久化源文档，默认 true',": {
-        "reason": "",
-        "lines": [
-          190
-        ]
-      },
-      "cards: 'array: 候选卡数组 [{front,back,subject,tags,type}]',": {
-        "reason": "",
-        "lines": [
-          210
-        ]
-      },
-      "sourceDocId: 'string: 源文档 id（可选，会写入 source 字段）',": {
-        "reason": "",
-        "lines": [
-          211
-        ]
-      },
-      "subject: 'string: 统一科目覆盖（可选）',": {
-        "reason": "",
-        "lines": [
-          212
-        ]
-      },
       "if (!list.length) return { ok: false, error: 'cards 为空' };": {
         "reason": "",
         "lines": [
-          217
-        ]
-      },
-      "templateId: 'string: 冷启动模板 id（如 cs-ds/cs-net/cs-os/math-gaoshu/en-vocab）',": {
-        "reason": "",
-        "lines": [
-          231
-        ]
-      },
-      "front: 'string: 正面（问题/提示）',": {
-        "reason": "",
-        "lines": [
-          264
-        ]
-      },
-      "back: 'string: 背面（答案）',": {
-        "reason": "",
-        "lines": [
-          265
-        ]
-      },
-      "subject: 'string: 科目',": {
-        "reason": "",
-        "lines": [
-          266
-        ]
-      },
-      "tags: 'string: 逗号分隔标签',": {
-        "reason": "",
-        "lines": [
-          267
-        ]
-      },
-      "description: '基于用户薄弱点或指定科目，生成一份选择题测验（先不给答案），用于自测。',": {
-        "reason": "",
-        "lines": [
-          287
-        ]
-      },
-      "count: 'number: 题目数量，默认 3',": {
-        "reason": "",
-        "lines": [
-          290
+          236
         ]
       },
       "? `请围绕「${subject}」科目`": {
         "reason": "",
         "lines": [
-          297
+          316
         ]
       },
       ": '请基于用户整体学习情况';": {
         "reason": "",
         "lines": [
-          298
+          317
         ]
       },
       "const out = await ctx.chat([{ role: 'system', content: sys }, { role: 'user', content: '开始出题' }]);": {
         "reason": "",
         "lines": [
-          300
-        ]
-      },
-      "+ '卡片带图时会返回完整正文与图片引用，图片将作为附图发送给你。'": {
-        "reason": "",
-        "lines": [
-          312
-        ]
-      },
-      "parameters: { id: 'string: 卡片 id' },": {
-        "reason": "",
-        "lines": [
-          314
+          319
         ]
       },
       "if (!card) return { ok: false, error: '卡片不存在' };": {
         "reason": "",
         "lines": [
-          318
-        ]
-      },
-      "description: '获取最近若干条复习记录（含每张卡的评级文本），用于分析错因与复习节奏。',": {
-        "reason": "",
-        "lines": [
-          332
-        ]
-      },
-      "parameters: { limit: 'number: 条数，默认 20' },": {
-        "reason": "",
-        "lines": [
-          333
-        ]
-      },
-      "description: '编辑一张已有卡片（正/背面、科目、标签、错因、口诀均可更新）。',": {
-        "reason": "",
-        "lines": [
-          344
-        ]
-      },
-      "id: 'string: 卡片 id',": {
-        "reason": "",
-        "lines": [
-          346
-        ]
-      },
-      "front: 'string: 新正面（可选）',": {
-        "reason": "",
-        "lines": [
-          347
-        ]
-      },
-      "back: 'string: 新背面（可选）',": {
-        "reason": "",
-        "lines": [
-          348
-        ]
-      },
-      "subject: 'string: 新科目（可选）',": {
-        "reason": "",
-        "lines": [
-          349
-        ]
-      },
-      "tags: 'string: 逗号分隔新标签（可选）',": {
-        "reason": "",
-        "lines": [
-          350
-        ]
-      },
-      "wrongReason: 'string: 错因（可选）',": {
-        "reason": "",
-        "lines": [
-          351
-        ]
-      },
-      "mnemonic: 'string: 口诀（可选）',": {
-        "reason": "",
-        "lines": [
-          352
+          337
         ]
       },
       "if (!old) return { ok: false, error: '卡片不存在' };": {
         "reason": "",
         "lines": [
-          358
-        ]
-      },
-      "description: '新增一条四象限备忘录（可选 important/urgent 标记）。',": {
-        "reason": "",
-        "lines": [
           377
-        ]
-      },
-      "text: 'string: 备忘内容',": {
-        "reason": "",
-        "lines": [
-          379
-        ]
-      },
-      "important: 'boolean: 是否重要',": {
-        "reason": "",
-        "lines": [
-          380
-        ]
-      },
-      "urgent: 'boolean: 是否紧急',": {
-        "reason": "",
-        "lines": [
-          381
         ]
       },
       "if (!m) return { ok: false, error: '内容为空' };": {
         "reason": "",
         "lines": [
-          386
-        ]
-      },
-      "description: '列出用户全部备忘录。',": {
-        "reason": "",
-        "lines": [
-          393
-        ]
-      },
-      "description: '创建一份学习计划并持久化（会随数据包同步）。返回计划 id。',": {
-        "reason": "",
-        "lines": [
-          406
-        ]
-      },
-      "title: 'string: 计划标题',": {
-        "reason": "",
-        "lines": [
-          408
-        ]
-      },
-      "content: 'string: 计划内容（分阶段/每日任务/里程碑）',": {
-        "reason": "",
-        "lines": [
-          409
-        ]
-      },
-      "description: '列出全部学习计划（含状态 active/done/archived）。',": {
-        "reason": "",
-        "lines": [
-          420
-        ]
-      },
-      "description: '更新学习计划状态（active/done/archived）。',": {
-        "reason": "",
-        "lines": [
-          431
-        ]
-      },
-      "parameters: { id: 'string: 计划 id', status: 'string: active|done|archived' },": {
-        "reason": "",
-        "lines": [
-          432
-        ]
-      },
-      "description: '在知识图谱中新建一条关联边（如 依赖/前置/对比），并持久化同步。',": {
-        "reason": "",
-        "lines": [
-          444
-        ]
-      },
-      "from: 'string: 起点知识点/卡片名',": {
-        "reason": "",
-        "lines": [
-          446
-        ]
-      },
-      "to: 'string: 终点知识点/卡片名',": {
-        "reason": "",
-        "lines": [
-          447
-        ]
-      },
-      "label: 'string: 关系，默认 相关',": {
-        "reason": "",
-        "lines": [
-          448
-        ]
-      },
-      "subject: 'string: 所属科目（可选）',": {
-        "reason": "",
-        "lines": [
-          449
+          405
         ]
       },
       "note: '这条关联已经存在，无需重复建立',": {
         "reason": "",
         "lines": [
-          472
-        ]
-      },
-      "description: '列出知识图谱中所有已持久化的关联边。',": {
-        "reason": "",
-        "lines": [
-          481
-        ]
-      },
-      "description: '为一段知识点生成记忆口诀/联想记忆法。',": {
-        "reason": "",
-        "lines": [
-          494
-        ]
-      },
-      "parameters: { text: 'string: 需要记忆的知识点内容' },": {
-        "reason": "",
-        "lines": [
-          495
+          491
         ]
       },
       "if (!text) return { ok: false, error: '内容为空' };": {
         "reason": "",
         "lines": [
-          499
-        ]
-      },
-      "description: '讲解一个概念，优先结合用户已有卡片/笔记，做到针对性讲解。',": {
-        "reason": "",
-        "lines": [
-          508
-        ]
-      },
-      "parameters: { concept: 'string: 要讲解的概念' },": {
-        "reason": "",
-        "lines": [
-          509
+          518
         ]
       },
       "if (!concept) return { ok: false, error: '概念为空' };": {
         "reason": "",
         "lines": [
-          513
+          532
         ]
       },
       "const out = await ctx.chat([{ role: 'system', content: sys }, { role: 'user', content: `请讲解：${concept}` }]);": {
         "reason": "",
         "lines": [
-          520
-        ]
-      },
-      "parameters: { cardId: 'string: 卡片 id' },": {
-        "reason": "",
-        "lines": [
-          530
+          539
         ]
       },
       "if (!a) return { ok: false, error: '卡片不存在' };": {
         "reason": "",
         "lines": [
-          534
-        ]
-      },
-      "description: '获取最近 N 天（默认昨天=1）答错的题，按错误次数排序，用于针对性复习。',": {
-        "reason": "",
-        "lines": [
-          541
-        ]
-      },
-      "parameters: { days: 'number: 最近几天，默认 1' },": {
-        "reason": "",
-        "lines": [
-          542
-        ]
-      },
-      "description: '列出全部 AI 文档（标题/类型/更新时间）。',": {
-        "reason": "",
-        "lines": [
-          570
-        ]
-      },
-      "title: 'string: 标题',": {
-        "reason": "",
-        "lines": [
-          583
-        ]
-      },
-      "content: 'string: 正文内容',": {
-        "reason": "",
-        "lines": [
-          584
-        ]
-      },
-      "type: 'string: 类型 summary|note|plan|other',": {
-        "reason": "",
-        "lines": [
-          585
-        ]
-      },
-      "tags: 'string: 逗号分隔标签（可选）',": {
-        "reason": "",
-        "lines": [
-          586
-        ]
-      },
-      "parameters: { limit: 'number: 建议复习数量，默认 20' },": {
-        "reason": "",
-        "lines": [
-          610
-        ]
-      },
-      "parameters: { limit: 'number: 返回对数，默认 10' },": {
-        "reason": "",
-        "lines": [
-          643
-        ]
-      },
-      "limit: 'number: 复习卡数上限，默认 50',": {
-        "reason": "",
-        "lines": [
-          657
-        ]
-      },
-      "parameters: { days: 'number: 计划天数，默认 7，范围 1-30' },": {
-        "reason": "",
-        "lines": [
-          684
-        ]
-      },
-      "description: '获取高频错题（知识缺口），是「费曼→错题→补卡」闭环的起点。',": {
-        "reason": "",
-        "lines": [
-          695
-        ]
-      },
-      "parameters: { limit: 'number: 数量，默认 15' },": {
-        "reason": "",
-        "lines": [
-          696
-        ]
-      },
-      "parameters: { front: 'string: 原卡正面', back: 'string: 原卡背面' },": {
-        "reason": "",
-        "lines": [
-          708
+          553
         ]
       },
       "if (!front || !back) return { ok: false, error: '需要原卡正反面' };": {
         "reason": "",
         "lines": [
-          713
+          732
         ]
       },
       "{ role: 'user', content: `原卡正面：${front}\\n原卡背面：${back}` },": {
         "reason": "",
         "lines": [
-          717
-        ]
-      },
-      "query: 'string: 搜索内容',": {
-        "reason": "",
-        "lines": [
-          731
-        ]
-      },
-      "topK: 'number: 返回条数，默认 6',": {
-        "reason": "",
-        "lines": [
-          732,
-          770
-        ]
-      },
-      "subject: 'string: 可选，限定科目（走索引，缩小检索范围、提速）',": {
-        "reason": "",
-        "lines": [
-          733,
-          771
+          736
         ]
       },
       "if (!query) return { ok: false, error: '查询为空' };": {
         "reason": "",
         "lines": [
-          738,
-          776
+          757,
+          795
         ]
       },
       "return { ok: false, error: e?.message || '检索失败' };": {
         "reason": "",
         "lines": [
-          760,
-          784
-        ]
-      },
-      "query: 'string: 需要检索的问题/关键词',": {
-        "reason": "",
-        "lines": [
-          769
-        ]
-      },
-      "maxCards: 'number: 最多处理卡片数，默认 50',": {
-        "reason": "",
-        "lines": [
-          793
-        ]
-      },
-      "maxDocs: 'number: 最多处理文档数，默认 10',": {
-        "reason": "",
-        "lines": [
-          794
-        ]
-      },
-      "agentId: 'string: 目标 Agent id（tutor/analyst/cardsmith/quizmaster/mnemonist/smart-reviewer/mistake-analyst/graph-builder/planner）',": {
-        "reason": "",
-        "lines": [
-          831
-        ]
-      },
-      "task: 'string: 委托的具体任务描述',": {
-        "reason": "",
-        "lines": [
-          832
+          779,
+          803
         ]
       },
       "if (!targetAgent) return { ok: false, error: `Agent 不存在：${args?.agentId}` };": {
         "reason": "",
         "lines": [
-          837
+          856
         ]
       },
       "if (!task) return { ok: false, error: '任务为空' };": {
         "reason": "",
         "lines": [
-          839
+          858
         ]
       },
       "if (bbText) sys += `\\n\\n【协作黑板】\\n${bbText}`;": {
         "reason": "",
         "lines": [
-          847
+          866
         ]
       },
       "if (!ctx.blackboard) return { ok: false, error: '当前不在多智能体协作模式（无黑板）' };": {
         "reason": "",
         "lines": [
-          867,
-          892
-        ]
-      },
-      "finding: 'string: 发现/结论文本（可选，与 artifactKey 二选一）',": {
-        "reason": "",
-        "lines": [
-          886
-        ]
-      },
-      "artifactKey: 'string: 产出键名（可选，如 cards/plan/analysis）',": {
-        "reason": "",
-        "lines": [
-          887
-        ]
-      },
-      "artifactValue: 'string: 产出内容（可选，与 artifactKey 配对）',": {
-        "reason": "",
-        "lines": [
-          888
-        ]
-      },
-      "days: 'number: 只统计最近 N 天的错题，默认 30',": {
-        "reason": "",
-        "lines": [
-          917
-        ]
-      },
-      "limit: 'number: 最多取多少张错题卡，默认 50',": {
-        "reason": "",
-        "lines": [
-          918
+          886,
+          911
         ]
       },
       "if (!cards.length) return { ok: true, data: { clusters: [], note: '暂无错题' } };": {
         "reason": "",
         "lines": [
-          923
+          942
         ]
       },
       "note: '按簇大小降序；建议从最大簇开始补练（先补前置再练当前）',": {
         "reason": "",
         "lines": [
-          932
-        ]
-      },
-      "limit: 'number: 取前几个错因簇，默认 5',": {
-        "reason": "",
-        "lines": [
-          962
-        ]
-      },
-      "count: 'number: 测验总卡数上限，默认 10',": {
-        "reason": "",
-        "lines": [
-          963
-        ]
-      },
-      "interleave: 'boolean: 是否交错排序，默认 true',": {
-        "reason": "",
-        "lines": [
-          965
+          951
         ]
       },
       "return { ok: true, data: { clusters: [], sequence: [], meta: { note: '暂无错题，先去复习积累数据' } } };": {
         "reason": "",
         "lines": [
-          975
-        ]
-      },
-      "description: '读取某份资料的内容用于分析。有文字层的直接返回文字摘录；'": {
-        "reason": "",
-        "lines": [
-          1028
-        ]
-      },
-      "docId: '资料 id（来自 list_lib_docs）',": {
-        "reason": "",
-        "lines": [
-          1032
-        ]
-      },
-      "name: '资料名称或名称片段（模糊匹配）',": {
-        "reason": "",
-        "lines": [
-          1033
-        ]
-      },
-      "pages: '要看的页码，如 \"1,3-5\"；仅扫描件/图表型有效，缺省看前 3 页',": {
-        "reason": "",
-        "lines": [
-          1034
+          994
         ]
       },
       "return { ok: false, error: '资料库里还没有文件。请先在「资料库」页上传，再让我分析。' };": {
         "reason": "",
         "lines": [
-          1040
+          1059
         ]
       },
       "+ '请直接依据图片内容回答，不要凭文件名或标题猜测。'": {
         "reason": "",
         "lines": [
-          1082
+          1101
         ]
       }
     }

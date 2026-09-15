@@ -113,14 +113,19 @@ export function renderObservation(ob) {
 
 /**
  * 用已拿到的工具结果拼出本地回答。
- * @param {{observations?:Array}} opt
+ * @param {{observations?:Array, reason?:string}} opt
+ *   reason: 上游失败的真实原因（超时 / 限流 / 密钥无效 …）。带上它，用户才知道该改什么，
+ *   而不是被一句笼统的「网络或服务异常」误导着反复重试同一件错事。
  * @returns {string} 无可用观察时返回 ''（调用方据此决定是否回退到 offlineChat 文案）
  */
-export function buildLocalAnswer({ observations = [] } = {}) {
+export function buildLocalAnswer({ observations = [], reason = '' } = {}) {
   const usable = (observations || []).filter((o) => o && (o.ok === false || o.data != null));
   if (!usable.length) return '';
 
-  const blocks = [t('agent.localAnswer.notice'), ''];
+  const head = reason
+    ? t('agent.localAnswer.noticeWithReason', undefined, { reason })
+    : t('agent.localAnswer.notice');
+  const blocks = [head, ''];
   for (const ob of usable) blocks.push(renderObservation(ob), '');
   blocks.push(`_${t('agent.localAnswer.retryHint')}_`);
   return blocks.join('\n');

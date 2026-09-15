@@ -12,6 +12,7 @@ import { buildLocalAnswer } from '../local-answer.js';
 import { normalizeStructuredFinal } from '../../utils/ai-structured.js';
 import { isOfflineReply } from '../../utils/offlineAI.js';
 import { clipText } from '../../utils/clip.js';
+import { t } from '../../i18n/index.js';
 
 const PROTOCOL = `
 你可以使用下方列出的工具来辅助回答。调用与收尾严格遵循以下格式：
@@ -74,12 +75,35 @@ export function parseToolCall(raw) {
   return { name, args, argsRaw, parseError, thought };
 }
 
-function parseFinal(raw) {
+// round71：导出供回归测试直接校验「截断抢救」后的标签剥离行为
+export function parseFinal(raw) {
   const m = String(raw).match(/<final>([\s\S]*?)<\/final>/);
   if (m) return m[1].trim();
-  // 没有 <final> 标签时，若也没有 <tool> 标签，则整段视为最终回答
-  if (!/<tool>/.test(raw)) return String(raw).trim();
+  // 没有 <final> 标签时，若也没有 <tool> 标签，则整段视为最终回答。
+  // round71：流式超时抢救回来的内容可能是「被砍在中间」的 <final>（只有开始标签没有结束标签），
+  // 此时要把标签本身剥掉，否则用户会看到正文开头挂着一串 `<final>`。
+  if (!/<tool>/.test(raw)) return String(raw).replace(/<\/?final>/g, '').trim();
   return null;
+}
+
+/**
+ * 把 LLM 调用的失败原因翻成一句用户能看懂、能自救的话（round71）。
+ *
+ * 旧行为：不论什么原因（密钥失效 / 被限流 / 回答太长超时 / 上下文超长）都统一写
+ * 「网络或服务异常」，用户只能反复重试同一件错事——明明是密钥过期，他却在重启路由器。
+ * 这里按错误码/HTTP 状态给出精确原因，再交给 local-answer 显示。
+ */
+function explainLlmFailure(e) {
+  const code = e?.code;
+  const status = Number(e?.status);
+  if (code === 'TIMEOUT') return t('agent.localAnswer.reasonTimeout');
+  if (code === 'ABORTED') return t('agent.localAnswer.reasonCanceled');
+  if (status === 401 || status === 403) return t('agent.localAnswer.reasonAuth');
+  if (status === 404) return t('agent.localAnswer.reasonModel');
+  if (status === 429) return t('agent.localAnswer.reasonRate');
+  if (Number.isFinite(status) && status >= 500) return t('agent.localAnswer.reasonServer');
+  if (Number.isFinite(status) && status > 0) return t('agent.localAnswer.reasonHttp', undefined, { status });
+  return t('agent.localAnswer.reasonNetwork');
 }
 
 async function executeTool(name, args, ctx, onTrace) {
@@ -159,7 +183,8 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
       raw = await ctx.chat(compactConvo(convo));
     } catch (e) {
       // 链路彻底断了（非网络错误也会走到这里）。已有工具数据 → 本地直出，保底给用户真内容。
-      const local = buildLocalAnswer({ observations });
+      // round71：把**真实原因**一并带出去，别再一律写「网络或服务异常」。
+      const local = buildLocalAnswer({ observations, reason: explainLlmFailure(e) });
       if (local) {
         onTrace?.({ kind: TraceKind.ERROR, text: `模型调用失败：${e?.message || e}` });
         onTrace?.({ kind: TraceKind.FINAL, text: local });
@@ -207,7 +232,7 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
       // 关键修复：raw 是离线兜底占位（模型没答出来，chatWithFallback 顶了段提示），
       // 而本轮已经拿到工具数据 → 用本地直出替换，绝不让占位覆盖真实结果。
       if (isOfflineReply(final) && observations.length) {
-        const local = buildLocalAnswer({ observations });
+        const local = buildLocalAnswer({ observations, reason: t('agent.localAnswer.reasonOffline') });
         if (local) {
           onTrace?.({ kind: TraceKind.FINAL, text: local });
           return local;
@@ -221,7 +246,7 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
     }
     // 兜底：既无 tool 也无 final，视为异常，直接返回原文
     if (isOfflineReply(raw) && observations.length) {
-      const local = buildLocalAnswer({ observations });
+      const local = buildLocalAnswer({ observations, reason: t('agent.localAnswer.reasonOffline') });
       if (local) {
         onTrace?.({ kind: TraceKind.FINAL, text: local });
         return local;

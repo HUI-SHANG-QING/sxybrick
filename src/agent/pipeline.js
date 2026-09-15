@@ -139,8 +139,10 @@ export async function runPipeline(opt) {
   }
 
   // 2) 构建基础上下文
+  // round71：同 orchestrator —— 流水线每步都要长输出（组卡/讲解/出题），必须走流式，
+  // 否则 60s 总时长上限会把正常的长回答判成超时，整条流水线退回本地直出。
   const makeChat = (tag) => (messages, opts = {}) =>
-    chatWithFallback(messages, cfg, { ...opts, signal, source: `pipeline:${tag || pipelineName || 'auto'}` });
+    chatWithFallback(messages, cfg, { stream: true, ...opts, signal, source: `pipeline:${tag || pipelineName || 'auto'}` });
   const ctx = {
     cfg,
     studyContext: '',

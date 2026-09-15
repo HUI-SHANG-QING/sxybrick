@@ -6,7 +6,7 @@
 // 新增：导出 agentSystem（专业 Agent 框架的公共 API）与 runAgentTurn 高层编排入口。
 
 import { db, uid } from './db.js';
-import { buildStudyContext } from './agent/context.js';
+import { buildStudyContext, buildFullContext as ctxFull } from './agent/context.js';
 import {
   listMemories as mList,
   addMemory as mAdd,
@@ -76,6 +76,22 @@ export async function chatAI(messages, opts = {}) {
 export function buildContext() {
   return buildStudyContext();
 }
+
+/**
+ * 带检索的完整上下文：统计面板 + 与问题相关的**原文片段**（卡片正/背面、文档等）。
+ *
+ * ⚠️ 对话入口必须用这个，而不是 buildContext()：
+ * 后者只给「目录级」信息（卡片数量、掌握度、标签），模型看不到任何正文，
+ * 于是用户问「这张卡背面写了什么」时只能回答「我看不到内容」。
+ * buildFullContext = buildStudyContext + buildRAGContext(query)。
+ *
+ * @param {string} query 用户问题（用于检索相关内容）
+ * @returns {Promise<string>}
+ */
+export function buildFullContext(query) {
+  return ctxFull(query);
+}
+
 export function buildMemoryText() {
   return mText();
 }

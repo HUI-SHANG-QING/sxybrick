@@ -8,6 +8,7 @@
 
 import { recordUsage, estimateTokens } from '../utils/ai-usage.js';
 import { tryParseLLMJson } from '../utils/llm-json.js';
+import { t } from '../i18n/index.js'; // 错误/降级文案走字典（check-view-i18n --js 闸门）
 // 图片富集：把消息里的 sxy-img:// 占位符转成 AI 可分析内容（OCR 先行 / 视觉兜底）。
 // 本 chat() 是所有 AI 链路（对话/Agent/卡片联动/子任务）的唯一出口，在此覆盖全部。
 import { enrichForLlm } from '../services/image-analysis.js';
@@ -21,6 +22,10 @@ const DEFAULT_MAX_TOKENS = 8192;
 // 截断自动续写：模型因长度中断时，自动追加请求继续输出。
 // 业界标准做法（模型输出有硬上限，"分段生成 + 续写"是系统侧该做的事，而不是让用户把问题拆短）。
 const MAX_CONTINUATIONS = 3;      // 最多续写轮数
+// 流式「空闲超时」默认值：比非流式的 60s 宽松，因为它的含义是「多久没收到新数据」而不是「整段写完要多久」
+const DEFAULT_STREAM_IDLE_MS = 120000;
+// 兜底解析保留的原始响应上限（防个别网关忽略 stream 参数、回整段巨型 JSON 时占满内存）
+const RAW_TAIL_CAP = 200000;
 const MAX_TOTAL_CHARS = 24000;    // 续写累计字符上限（防无界膨胀、防费用失控）
 const TRUNCATE_CONTINUE_PROMPT =
   '上一条回复因长度限制被截断了。请**从中断处接着写**剩余内容，'
@@ -80,14 +85,29 @@ export async function chat(messages, cfg, opts = {}) {
   // 审计 P2-5（round32）：此前 `external || 自建` 在调用方传入 signal 时把超时兜底整个丢弃
   // ——外部中断与超时是 AND 关系（任一触发都该中断），不是 OR。改用 AbortSignal.any
   // 让两者同时生效；旧环境无 AbortSignal.any 时退回原行为（外部 signal 时无超时，不比之前差）。
-  let ctrl;
-  let timeoutId;
+  //
+  // round71【本次核心修复】流式与非流式的超时**含义不同**，这里必须分开：
+  //   · 非流式：60s = 「整段回答必须在 60s 内写完」。回答越长越容易被判超时；而用户在设置里
+  //     把 max_tokens 调到 65536（≈4.7 万字）等于鼓励模型写更长 → **越调大输出上限越容易失败**，
+  //     这正是「有时能成功、有时不能」看起来随机的原因（短问答能过、长回答必挂）。
+  //   · 流式：改为「**空闲超时**」——每收到一段增量即重置计时。只要模型在持续输出，
+  //     写 3000 字还是 30000 字都不会被判超时；只有真正卡死（N 秒无任何新数据）才中止。
+  const streaming = !!opts.stream;
+  let ctrl = null;
+  let timeoutId = null;
+  let timedOut = false;
   const external = opts.signal;
-  const timeoutMs = opts.timeoutMs ?? 60000;
-  const timeoutSignal = (ctrl = new AbortController(), (timeoutId = setTimeout(() => ctrl.abort(), timeoutMs)), ctrl.signal);
+  const timeoutMs = opts.timeoutMs ?? (streaming ? DEFAULT_STREAM_IDLE_MS : 60000);
+  const arm = (ms) => {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => { timedOut = true; ctrl.abort(); }, ms);
+  };
+  const timeoutSignal = (ctrl = new AbortController(), arm(timeoutMs), ctrl.signal);
   const signal = (external && typeof AbortSignal !== 'undefined' && AbortSignal.any)
     ? AbortSignal.any([external, timeoutSignal])
     : (external || timeoutSignal);
+  // 流式已收到的内容（catch 里抢救用）：超时不该把用户已经等到的几百字全丢掉
+  let received = '';
 
   try {
     const res = await fetch(`${base}/chat/completions`, {
@@ -200,11 +220,18 @@ export async function chat(messages, cfg, opts = {}) {
   const decoder = new TextDecoder();
   let buf = '';
   let full = '';
+  // 原始文本尾巴：个别自建网关**忽略 stream 参数**直接回整段 JSON（没有 data: 行），
+  // 旧实现会把这种响应解析成空串 → 上层报「AI 返回了空内容」。留一份原文用于兜底解析。
+  let rawTail = '';
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      buf += decoder.decode(value, { stream: true });
+      // 空闲重置：收到数据即证明连接活跃，重新计时（见上方超时语义说明）
+      arm(timeoutMs);
+      const chunk = decoder.decode(value, { stream: true });
+      if (rawTail.length < RAW_TAIL_CAP) rawTail += chunk;
+      buf += chunk;
       const lines = buf.split('\n');
       buf = lines.pop() || '';
       for (const line of lines) {
@@ -233,10 +260,17 @@ export async function chat(messages, cfg, opts = {}) {
           const delta = json?.choices?.[0]?.delta?.content || '';
           if (delta) {
             full += delta;
+            received = full;
             opts.onToken?.(delta, full);
           }
         }
       }
+    }
+    // 兜底：服务端没走 SSE（直接回整段 JSON）时，从原始文本里取出正文
+    if (!full.trim() && rawTail.trim()) {
+      const j = tryParseLLMJson(rawTail);
+      const c = j?.choices?.[0]?.message?.content;
+      if (typeof c === 'string' && c.trim()) full = c;
     }
   } finally {
     // 审计 P2-5（round32）：abort/异常退出时释放 SSE 连接体——否则底层 socket 挂到服务端超时
@@ -245,14 +279,28 @@ export async function chat(messages, cfg, opts = {}) {
   reportUsage(null, full, true);
   return full;
   } catch (e) {
-    reportUsage(null, '', false);
     // P1-9：超时 / 用户取消统一归类为 AbortError，给出可读错误码便于上层降级
     if (e?.name === 'AbortError') {
-      const err = new Error(timeoutMs ? `AI 请求超时（>${Math.round(timeoutMs / 1000)}s 未响应）` : 'AI 请求已取消');
-      err.code = 'TIMEOUT';
+      // round71【抢救已生成内容】超时/取消时不再整段丢弃。
+      // 旧行为：abort 时一个字都不返回 → 上层只能顶一句「AI 合成回答暂不可用」，
+      // 用户白等一分钟后什么都没拿到，重试还是同一个结果。
+      const partial = String(received || '').trim();
+      if (timedOut && partial) {
+        reportUsage(null, partial, true);
+        return `${partial}
+
+${t('agent.llm.timeoutPartial')}`;
+      }
+      reportUsage(null, '', false);
+      const err = new Error(timedOut
+        ? t('agent.llm.timeoutError', undefined, { n: Math.round(timeoutMs / 1000) })
+        : t('agent.llm.canceled'));
+      err.code = timedOut ? 'TIMEOUT' : 'ABORTED';
       err.aborted = true;
+      err.timeoutMs = timeoutMs;
       throw err;
     }
+    reportUsage(null, '', false);
     throw e;
   } finally {
     if (timeoutId) clearTimeout(timeoutId);

@@ -12,8 +12,14 @@
 // 而不是以为这就是全部（防止幻觉式总结）。
 
 const DEFAULTS = {
-  maxChars: 4000,    // 单次工具结果进上下文的字符预算
-  maxItems: 8,       // 数组最多保留几项
+  // round71：4000 -> 6000。真实场景是「17 张卡的正+背面摘要」约 4600 字，4000 会把最后
+  // 两三张挤掉。配合已改为流式（空闲超时）的 LLM 路径，多这 2000 字只增加约 800 token 的预填成本，
+  // 换回来的是「模型确实看到了全部卡片」——这正是用户抱怨「AI 看不到我卡片内容」的主因。
+  maxChars: 6000,    // 单次工具结果进上下文的字符预算
+  // round71: 8 -> 20。用户库里 17 张卡，搜一次「只给我前 8 张」会让模型如实回答
+  // 「我只看到 8 张」——用户视角就是「AI 看不到我的卡片」。20 条覆盖绝大多数单次检索，
+  // 超出部分仍由下方「条数递减 + 明确标注省略了多少条」兜住。
+  maxItems: 20,      // 数组最多保留几项
   maxStringLen: 300, // 单个字符串字段最长保留多少字符
   maxDepth: 3,       // 递归深度上限
 };
@@ -66,15 +72,34 @@ export function compactToolPayload(data, opts = {}) {
   // 极端小预算（< 200 字）：结构化压缩 + 截断说明本身就会超出预算，没有意义，直接硬截断
   if (opt.maxChars < 200) return text.slice(0, opt.maxChars);
 
+  const notice = `（原始结果约 ${text.length} 字，已按结构压缩；若信息不足，可缩小查询范围或分批取，勿据此断言"只有这些"）`;
+  const budget = Math.max(0, opt.maxChars - notice.length);
+
+  // round71【关键修正】数组型结果优先「**多留几条**」，而不是「每条多留几个字」，
+  // 更不是把 JSON 一刀切两半。旧兜底是 compacted.slice(0, budget)：产出的是**半个 JSON**，
+  // 模型既解析不了、也看不出缺了哪几条 —— 比诚实地少给几条更糟（还会误以为数据就这么多）。
+  // 新做法：条数从上限逐条递减，取能完整塞进预算的最大条数，并显式标注省略了多少条。
+  const rows = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : null);
+  if (rows && rows.length > 1) {
+    for (let n = Math.min(opt.maxItems, rows.length); n >= 1; n -= 1) {
+      const head = shrink(rows.slice(0, n), { ...opt, maxItems: n }, 1);
+      if (n < rows.length) head.push(`…还有 ${rows.length - n} 项（已省略，可缩小查询范围或分批取）`);
+      const wrapped = Array.isArray(data) ? head : { ...data, items: head };
+      let cand;
+      try { cand = JSON.stringify(wrapped); } catch { cand = null; }
+      if (cand && cand.length <= budget) return cand + notice;
+    }
+  }
+
   let compacted;
   try {
     compacted = JSON.stringify(shrink(data, opt));
   } catch {
-    compacted = text.slice(0, opt.maxChars);
+    return text.slice(0, opt.maxChars);
   }
-  const notice = `（原始结果约 ${text.length} 字，已按结构压缩；若信息不足，可缩小查询范围或分批取，勿据此断言"只有这些"）`;
-  if (compacted.length + notice.length <= opt.maxChars) return compacted + notice;
-  return `${compacted.slice(0, Math.max(0, opt.maxChars - notice.length))}${notice}`;
+  if (compacted.length <= budget) return compacted + notice;
+  // 极端兜底：连最短形式都放不下（如单个超长字符串字段）——保留硬截断
+  return `${compacted.slice(0, budget)}${notice}`;
 }
 
 /** 估算一段文本给模型的量级（供测试与调试展示） */
