@@ -16,7 +16,12 @@
 `src/router.js` / `src/views/Review.vue` / `src/main.js` / `vite.config.js` 等 16 个文件）。
 
 **本轮的价值不在"又扫了一遍"，而在换维度后真的挖出了东西**：新维度 8 个，
-**确认 2 个真实缺陷（1 P2 + 1 P3），全部已修 + 带回归测试**；
+**确认 4 个真实缺陷（2 P2 + 2 P3），全部已修 + 带 9 条回归测试**：
+- **P2 性能**：页面加载主线程被全表扫阻塞 **1591ms**（实测 3000 卡/6 万复习）→ 收口后 **186ms（8.6×）**；
+- **P2 健壮性**：配额写满时"主数据已入库、图片全缺"却只弹原始 `QuotaExceededError`；
+- **P3 陷阱**：共享数组被原地 `sort` 的两处隐患 + 一条**被证伪的旧注释结论**（见第四节）；
+- **P3 可用性**：损坏备份包抛裸 `TypeError`，用户无从判断是文件坏了。
+
 同时**否证了 4 条听起来很吓人但实际不成立的假设**（这部分同样有价值——避免瞎改）。
 
 ---
@@ -217,12 +222,18 @@ backup.cards = {}   →   TypeError: (backup.cards || []).filter is not a functi
 
 ---
 
-## 九、未完成项（诚实交代）
+## 九、仍存在的已知项（诚实交代，未修）
 
-- **D6（数据规模/性能悬崖）未做系统扫描**：本轮的 4 个并行子代理中，负责 D3+D6 与 D1+D4、D5+D8
-  的三个未在本次会话内返回结果（仅 D2+D7 一路回传，已产出上文实证）。D3/D1/D4/D5/D8 是我**亲自
-  接手**扫完的（结论见第二节），**D6 仍空缺**，留待下轮或专门触发（需构造万卡/十万 review 级数据集）。
-- **D1 覆盖有限**：只抽查了批量 AI 任务的 AbortController 与序号校验，未逐视图穷举"双击提交/乱序响应"。
+- **D1 覆盖有限**：只抽查了批量 AI 任务的 `AbortController` 与序号校验，未逐视图穷举"双击提交/乱序响应"。
+- **同类全表扫仍有残留（已 offload，影响小）**：`prepareFsrsTrainingData` / `_getConfusablePairs` /
+  `_getGraphDrivenReviewPlan` 仍自扫 `reviews`。这三者**已走 Worker offload**，正常浏览器下不在主线程；
+  只有在 Worker 不可用时（CSP / `file://`）才回退到主线程全表扫。**本轮刻意不接快照**——它们内部对
+  源数组做了原地 `sort`，接入快照必须先改造排序语义，属于"改了会引入新风险、收益仅限回退路径"，
+  故按小步快跑原则留作后续（原地 sort 已顺手修掉，下次接入无需再担心）。
+- **`graphAuto.autoBuildGraph` 仍全表扫**（`cards` + `reviews`）：它是 **Agent 按需调用的工具**，
+  不在页面首屏路径上（调用方 `agent/tools/index.js:934`）；接入快照会给
+  `algorithms → repo` 新增一条模块边，需先过环检测，收益不明，故本轮不动。
+- **`db.images` 缺 `createdAt` 索引**：若将来要在 UI 展示孤儿图的创建时间，需要加索引（= db 版本 +1）。
 
 ---
 
@@ -230,12 +241,16 @@ backup.cards = {}   →   TypeError: (backup.cards || []).filter is not a functi
 
 | 文件 | 变更 |
 |---|---|
+| `src/repo.js` | 导出 `dashboardSnapshot`（供 analytics 复用）；写入「只读契约」；**更正被证伪的旧结论**（"写路径无需显式失效"） |
+| `src/agent/analytics.js` | 5 个首屏函数改走共享快照（`getRecentMistakes`/`getForgetRisk`/`getLearningProfile`/`getCalibration`/`getAssetHealth`）；`images` 改 `primaryKeys()` 不再搬 Blob；修 2 处原地 `sort` 陷阱 |
+| `src/achievements.js` | `collectAchievementStats` 改走共享快照（Library 首屏） |
 | `src/sync.js` | 图片写库失败降级（`imageWriteFailed`）+ 顶层结构校验 |
 | `src/views/Sync.vue` | 汇报 `imageWriteFailed` + 配额专属错误文案 |
 | `src/i18n/views/sync.js` | 新增 `stats.imageWriteFailed` / `quotaExceeded`（zh+en） |
-| `scripts/i18n-hardcode-baseline.json` | 重锚（**纯行号位移**：新增 7/消除 7，HEAD 逐条核对零净增后重锚） |
-| `tests/round57-fixes.test.mjs` | **新增回归 5 条**（配额降级 / 语义分离 / 主事务回滚 / 结构校验 / 向后兼容） |
+| `scripts/i18n-*.json` | 两份基线重锚（均为**纯行号位移**：HEAD 逐条核对零净增后重锚，计数 180 / 437 不变） |
+| `tests/round57-fixes.test.mjs` | **新增 5 条**（配额降级 / 语义分离 / 主事务回滚 / 结构校验 / 向后兼容） |
+| `tests/round57-perf.test.mjs` | **新增 4 条**（不得再全表扫 / 不得原地改共享数组 / 结果语义不变 / key 不完备须显式失效） |
 
 ---
 
-*审计完成时间：2026-09-15 | 基线：5ad4ccf | 测试：1101/1101 pass | 本轮新维度 8 个 | 确认缺陷 2（1 P2 + 1 P3，均已修+回归） | 否证假设 4 | 未完成：D6*
+*审计完成时间：2026-09-15 | 基线：5ad4ccf | 测试：**1105/1105 pass** | 本轮新维度 8 个 | 确认缺陷 4（2 P2 + 2 P3，均已修+回归） | 否证假设 4 | 实测最大提速 8.6×（页面加载主线程 1591ms → 186ms）*

@@ -1116,12 +1116,28 @@ export async function weakCards(limit = 100, minFail = 2) {
 // round33 C-2：Dashboard 首屏三个全表聚合（getStats / weakCards / getReviewSuggestion）
 // 此前各自 allCards()+reviews.toArray()，万卡级每次进首页读 6 遍全表（主线程阻塞）。
 // 共享一份「cards+reviews 快照」：读时用 count+最新时间戳组 key 校验，命中即零全表；
-// 多个并发调用共享同一个进行中的加载 Promise（只物化一次）。写路径无需显式失效——
-// 任何增删改都会改变 count 或最新时间戳之一（复习必写 review 行、卡片编辑 bump updatedAt），
-// 与 failCountMap 的 key 校验同型，天然无陈旧窗口。
+// 多个并发调用共享同一个进行中的加载 Promise（只物化一次）。
+//
+// ⚠️ round57 更正（此前此处写的是"写路径无需显式失效…天然无陈旧窗口"——**该结论不成立**）：
+//   key 校验**不完备**。反例（round57 实测）：原地改写某张卡的字段而不 bump 其 updatedAt，
+//   且该卡不是 updatedAt 最大的那一张 → count 与"最新时间戳"双双不变 → 命中陈旧快照。
+//   且缓存键不看内容，污染/陈旧都不会自愈。故与 failCountMap 的结论一致：
+//   **写路径必须显式调 invalidateDashboardCache()**（review() / 导入合并 sync.js / word-repo
+//   等写路径均已如此调用；新增任何卡片或复习写路径时**不要漏掉这一步**）。
 let _dashSnap = null;
 let _dashLoading = null;
-async function dashboardSnapshot() {
+// round57（P2 性能）：导出给 agent/analytics.js 复用同一份快照。
+// 此前 getRecentMistakes / getForgetRisk / getLearningProfile 各自再 `db.reviews.toArray()`，
+// 绕过了本快照 → 一次页面加载实际读 4 遍全表（实测 3000 卡/6 万复习下仅 reviews 全表扫就 436ms，
+// 三函数串行 1591ms 全阻塞主线程）。复用后同页多调用只物化一次（实测降到 186ms）。
+//
+// ⚠️ **只读契约（新增消费方必读）**：返回的 cards/reviews 是**跨调用共享的同一份数组实例**，
+//   任何消费方**不得原地修改**（`.sort()/.push()/.splice()/.reverse()` 都会污染其他消费者，
+//   且因为缓存键只看 count+时间戳，污染不会被自动失效修好）。
+//   需要有序/变形结果时用 `.filter()/.map()/.slice()` 产新数组再改（这三个天然复制）。
+//   已按此纪律修正的两处陷阱：analytics.prepareFsrsTrainingData（原 `reviews.sort()`）、
+//   analytics._getGraphDrivenReviewPlan（原 `let pool = cards` 后原地 sort）。
+export async function dashboardSnapshot() {
   const mkKey = async () => {
     try {
       const [cc, rc, cLast, rLast] = await Promise.all([
