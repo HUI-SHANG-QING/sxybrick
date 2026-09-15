@@ -74,7 +74,10 @@
 | 7 | `src/agent/tools/compact.js` | `maxItems 8→20`、`maxChars 4000→6000`（17 张卡的正+背面摘要约 4600 字，现在能完整进上下文）；超预算时**按条数递减**并保持**合法 JSON**（旧实现会 `slice` 出半个 JSON，模型解析不了、还看不出缺了哪几条） |
 | 8 | `src/agent/tools/index.js` | `search_cards` 返回 **`back` 摘要** + `limit`/`offset`/`hasMore` 翻页；`get_weak_cards` 补 `id` + `back`；两者描述明确写出「完整正文要调 `get_card_detail(id)`」 |
 | 9 | `src/ai.js`、`src/views/AIAssistant.vue` | （上一轮被中断的收尾）对话入口改用 `buildFullContext(query)`：带 **RAG 原文片段**，而不是只有统计面板 |
-| 10 | `scripts/check-view-i18n.mjs` | 第三道闸豁免 `toolRegistry.register` 的**元数据段**：`description`/`parameters` 是发给模型的 prompt 契约（中文、永不翻译），不是 UI 文案 |
+| 10 | `src/ai.js` | `chatAI`（非 Agent 的全部 AI 入口：问答/组卡/出题/文档/分析）**默认 `stream: true`**，调用方可用 `{ stream: false }` 关闭 |
+| 11 | `src/analysis/ai-analyzer.js` | 直连 `llm.js` 的分析链路同样开流式（45s 从「整段写完」变成「45s 无新数据」） |
+| 12 | `src/agent/llm.js` | 两道防御：① 端点回 400/422 且错误文本含 `stream` → **自动退回非流式重试一次**（防「换个自建端点就全挂」）；② 200 响应没有可读流（`res.body` 为空）→ 退回非流式解析 |
+| 13 | `scripts/check-view-i18n.mjs` | 第三道闸豁免 `toolRegistry.register` 的**元数据段**：`description`/`parameters` 是发给模型的 prompt 契约（中文、永不翻译），不是 UI 文案 |
 
 ### 关于第 10 条的取舍
 
@@ -89,14 +92,14 @@
 ## 三、验证
 
 ```
-npm test            → 1203 passed / 0 failed   （基线 1191 + 本轮新增 12）
+npm test            → 1205 passed / 0 failed   （基线 1191 + 本轮新增 14）
 npm run build       → BUILD_EXIT=0
 npm run check:build → ✓ 52 个词库分片全部就位
 dep:check           → 272 个源文件，0 循环依赖
 i18n --strict / --js→ 通过（数据层 440→341 行，较基线新增 0）
 ```
 
-新增闸门 `tests/agent-llm-resilience.test.mjs`（12 条），钉住的行为契约：
+新增闸门 `tests/agent-llm-resilience.test.mjs`（14 条），钉住的行为契约：
 
 1. 流式：5 片 × 40ms = 200ms 总时长 > 120ms 超时，**但每次间隔 < 超时 → 必须成功**（长回答不再被误杀）；
 2. 流式：真卡死（无新数据超时）仍抛 `TIMEOUT`（不会永久挂起）；
@@ -109,7 +112,9 @@ i18n --strict / --js→ 通过（数据层 440→341 行，较基线新增 0）
 9. `compact`：超预算时**仍是合法 JSON**（`JSON.parse` 通过）+ 保留顶层 `total` + 末尾「还有 N 项」；
 10. `compact`：25 条小结果默认完整保留（默认 20 条上限生效）；
 11. `search_cards`：25 张卡 → 第 1 页 20 条 + `hasMore:true`，第 2 页 5 条 + `hasMore:false`，两页**无重复无遗漏**，每项都带 `back`；
-12. `get_weak_cards`：返回 `id` + `back`。
+12. `get_weak_cards`：返回 `id` + `back`；
+13. 端点拒绝流式（400 + 错误文本含 stream）→ 自动退回非流式重试一次，且断言**第二次请求 `stream: false`**；
+14. **接线源码闸门**：`orchestrator.js` / `pipeline.js` / `ai-analyzer.js` / `ai.js` 四处都必须出现 `stream: true`（防止将来有人「顺手删掉」又退回 60s 总超时）。
 
 ---
 
@@ -123,8 +128,9 @@ i18n --strict / --js→ 通过（数据层 440→341 行，较基线新增 0）
 
 ## 五、仍未做（按价值排序）
 
-1. **max_tokens 与模型实际上限的对齐**：当前只有「服务端拒绝 max_tokens → 降级到 2000 重试一次」。
+1. UI 仍无**打字机效果**：`onToken` 已全链路打通但无人消费（内容最终一次性渲染）。属体验优化，非缺陷。
+2. **max_tokens 与模型实际上限的对齐**：当前只有「服务端拒绝 max_tokens → 降级到 2000 重试一次」。
    若服务端因上下文超长拒绝（错误文本不含 max_tokens），仍会直接失败。建议按输入 token 估算做**自适应上限**。
-2. UI 尚未展示「本次回答被截断/抢救」的独立提示位（目前混在正文末尾）。
-3. `get_card_detail` 之外，资料库 / 笔记 / 计划等模块的列表工具同样缺 `back`/`offset` —— 需逐个补（本轮先修卡片域）。
-4. 流式已具备，但 UI 仍无**打字机效果**（`onToken` 已通，只是没人消费）——属体验优化，非缺陷。
+3. UI 尚未展示「本次回答被截断/抢救」的独立提示位（目前混在正文末尾）。
+4. `get_card_detail` 之外，资料库 / 笔记 / 计划等模块的列表工具同样缺 `back`/`offset` —— 需逐个补（本轮先修卡片域）。
+

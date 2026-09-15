@@ -65,7 +65,14 @@ export function hasAIKey() {
 export async function chatAI(messages, opts = {}) {
   if (shouldFallback()) return offlineChat(messages);
   try {
-    return await llmChat(messages, getAIConfig(), opts);
+    // round73：默认走**流式**。非流式下 llm.js 的 60s 是「整段回答必须在 60s 内写完」的硬上限
+    // （约 1500~2000 汉字），而本项目的 AI 场景几乎全是长输出（周报 / 组卡 / 出题 / 学习路径 /
+    // 逐张列卡片 / 文档总结）—— 于是间歇性失败，且越长越必挂。流式把判定改成**空闲超时**
+    // （每收到增量即重置计时），长回答不再被误杀。
+    // · 调用方仍可用 { stream: false } 显式关闭；
+    // · 端点不支持流式时（400/422 且错误文本含 stream）llm.js 会自动退回非流式重试一次；
+    // · 流式超时/取消时，已生成的内容会被抢救返回（llm.js 内实现）。
+    return await llmChat(messages, getAIConfig(), { stream: true, ...opts });
   } catch (e) {
     if (isNetworkError(e)) return offlineChat(messages);
     throw e;

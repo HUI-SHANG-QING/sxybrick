@@ -133,6 +133,12 @@ export async function chat(messages, cfg, opts = {}) {
       err.status = res.status;
       // round49：某些本地/自建端点输出上限低于 4096，会把 max_tokens 判为非法（400/422）。
       // 为「修截断」反而把请求打死不划算——按服务端提示降级重试一次（≤2000）。
+      // round73：默认流式之后，必须给「不接受 stream 参数的端点/网关」留退路。
+      // 这类服务通常回 400/422 且错误文本里带 stream —— 直接抛错会让用户换了个自建端点就全挂。
+      if (!opts._streamRetry && opts.stream && (res.status === 400 || res.status === 422) && /stream/i.test(t)) {
+        reportUsage(undefined, '', false);
+        return await chat(finalMessages, cfg, { ...opts, stream: false, _streamRetry: true });
+      }
       if (!opts._maxTokenRetry && (res.status === 400 || res.status === 422) && /max[_\s-]?tokens?/i.test(t)) {
         reportUsage(undefined, '', false);
         return await chat(finalMessages, cfg, {
@@ -147,7 +153,10 @@ export async function chat(messages, cfg, opts = {}) {
       throw err;
     }
 
-  if (!opts.stream) {
+  // round73：流式已成为多数链路的默认值，这里补一道防御——200 响应没有可读流
+  // （res.body 为空，部分网关/测试替身会出现）时退回非流式解析，
+  // 否则 `res.body.getReader()` 抛 TypeError，把一次本该成功的调用变成失败。
+  if (!opts.stream || !res.body || typeof res.body.getReader !== 'function') {
     const data = await res.json();
     const choice = data?.choices?.[0];
     const apiErr = data?.error;

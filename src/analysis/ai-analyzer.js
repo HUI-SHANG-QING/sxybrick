@@ -61,6 +61,9 @@ export async function analyzeWithAI(cards, question, cfg, opts = {}) {
     // （llm.js 取值优先级：opts.maxTokens > cfg.maxTokens > 默认 8192）。
     // 学习路径/依赖链这类结构化输出天然很长，此前硬编码 2000 会把 JSON 截断成非法结构 →
     // extractJSON 失败 → 上层「降级本地模式」（用户看到的「AI 模式失败」）。
+    // round73：走流式（超时语义 = 空闲超时）。45s 的含义从「整段写完」变成「45s 没有新数据」，
+    // 长回答（学习路径 / 依赖链）不再因为总时长久而被判超时降级。
+    stream: true,
     timeoutMs: opts.timeoutMs ?? 45000,
     signal: opts.signal,
     source: 'analysis:ai',

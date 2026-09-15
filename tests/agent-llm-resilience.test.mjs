@@ -17,6 +17,8 @@ import 'fake-indexeddb/auto';
 import './_env.mjs';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 import { chat } from '../src/agent/llm.js';
 import { compactToolPayload } from '../src/agent/tools/compact.js';
@@ -177,6 +179,41 @@ test('流式：服务端忽略 stream 参数、直接回整段 JSON 时也能取
     const out = await chat([{ role: 'user', content: 'hi' }], CFG, { stream: true, timeoutMs: 2000 });
     assert.equal(out, '整段正文', '非 SSE 响应必须兜底解析，不能返回空串让上层报「AI 返回了空内容」');
   } finally { globalThis.fetch = orig; }
+});
+
+// ---------------- B2. 端点不支持流式时自动退回非流式 ----------------
+
+test('流式请求被端点拒绝（错误文本含 stream）时自动退回非流式重试，不打死请求', async () => {
+  const bodies = [];
+  const okRes = (json) => ({ ok: true, status: 200, json: async () => json, text: async () => '' });
+  const orig = globalThis.fetch;
+  globalThis.fetch = async (_u, init) => {
+    const b = JSON.parse(init.body);
+    bodies.push(b);
+    if (bodies.length === 1) {
+      return { ok: false, status: 400, text: async () => '{"error":{"message":"stream is not supported by this endpoint"}}', json: async () => ({}) };
+    }
+    return okRes({ choices: [{ message: { content: '非流式兜底OK' }, finish_reason: 'stop' }], usage: {} });
+  };
+  try {
+    assert.equal(await chat([{ role: 'user', content: 'hi' }], CFG, { stream: true }), '非流式兜底OK');
+    assert.equal(bodies.length, 2, '应重试一次');
+    assert.equal(bodies[0].stream, true);
+    assert.equal(bodies[1].stream, false, '重试必须关掉 stream（否则换个自建端点就全挂）');
+  } finally { globalThis.fetch = orig; }
+});
+
+test('接线的源码形态闸门：Agent / 流水线 / 分析链路与 chatAI 都必须默认开启流式', () => {
+  const must = [
+    ['../src/agent/orchestrator.js', /stream:\s*true/],
+    ['../src/agent/pipeline.js', /stream:\s*true/],
+    ['../src/analysis/ai-analyzer.js', /stream:\s*true/],
+    ['../src/ai.js', /stream:\s*true/],
+  ];
+  for (const [rel, re] of must) {
+    const src = readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
+    assert.match(src, re, rel + ' 未开启流式：非流式下 60s 是「整段回答必须 60s 内写完」，长回答必挂');
+  }
 });
 
 // ---------------- C. 降级文案必须给出真实原因 ----------------
