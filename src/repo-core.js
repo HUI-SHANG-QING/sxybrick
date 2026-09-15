@@ -285,8 +285,27 @@ export function countReviewsInWindow(reviews, win) {
 
 export function computeStats(cards, reviews, nowTs = Date.now()) {
   // 审计 P2：过滤 quickCheck 行——快速检测不计入 SRS 统计（today/mastery/trend/ratingDist 等）
-  const real = (reviews || []).filter(r => r.type !== 'quick');
+  // round61（P2）：**两级过滤词汇**——区分「可用复习行」与「评分可参与计算的行」，
+  //   因为这是两个不同概念，混用一个过滤器会同时犯两类错（过严会漏计今日复习、过松会让坏评分污染数学）：
+  //   · real（可用复习行）= 非 quick + **reviewedAt 有限数字**。
+  //     实证不过滤的后果：`new Date(NaN)` 的 getFullYear/getMonth/getDate 全为 NaN →
+  //     热力图出现 `"NaN-NaN-NaN"` 脏桶；`new Date(NaN).getHours()` 为 NaN →
+  //     `hourly[NaN]++` 把小时分布写成 NaN 属性（图表取到 NaN）。
+  //   · rated（评分可计算）= real + **rating 在域 {0,1,2} 内**。
+  //     实证不过滤的后果：`sum += rating` 得 NaN → **一条坏行污染全局 avgMastery**
+  //     （NaN 沿加权平均传播，下游 `NaN || 0` 又静默退化成「掌握度 0」＝判用户完全没掌握）；
+  //     越界值产出 250% / -50%；且坏行只进 correct/stable 的分母不进分子 → 静默压低正确率。
+  //   两类脏行都只可能来自损坏/手改的备份包或外部导入（应用写入恒为 Date.now() / 0|1|2）。
+  //   剔除数记入 stats.dirtyReviews，**不静默**（与 skippedImages / imageWriteFailed 同纪律）。
+  const all = Array.isArray(reviews) ? reviews : [];
+  const isFiniteTs = (r) => Number.isFinite(Number(r?.reviewedAt));
+  const inRatingDomain = (r) => { const rt = r?.rating; return rt === 0 || rt === 1 || rt === 2; };
+  // ⚠️ 脏行不含 quick 行——那是合法业务数据，不是脏数据
+  const dirtyReviews = all.filter((r) => r.type !== 'quick' && (!isFiniteTs(r) || !inRatingDomain(r))).length;
+  const real = all.filter((r) => r.type !== 'quick' && isFiniteTs(r));
+  const rated = real.filter(inRatingDomain);
   const totalCards = cards.length;
+  // totalReviews 沿用「可用复习行」口径（计数类统计的基准，不掺入评分有效性）
   const totalReviews = real.length;
 
   // 今日复习 = 去重卡片数（同一张卡今天复习多次只算 1 张）—— 口径见 countReviewsInWindow
@@ -308,7 +327,9 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   const since90 = nowTs - 90 * DAY;
   const agg = {};
   for (const c of cards) { const k = c.subject || '未分类'; if (!agg[k]) agg[k] = { sum: 0, n: 0 }; }
-  for (const r of real) {
+  // round61：掌握度是**评分数学**，故遍历 rated（域校验由上方 rated 单一事实源完成），
+  // 此处直取不再各自 guard——避免"两处校验口径漂移"这种老病。
+  for (const r of rated) {
     if (r.reviewedAt < since90) continue;
     const c = cardMap.get(r.cardId);
     const key = c?.subject || '未分类';
@@ -353,7 +374,9 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   const subjectCards = {};
   for (const c of cards) { const k = c.subject || '未分类'; subjectCards[k] = (subjectCards[k] || 0) + 1; }
   const ratingDist = { 0: 0, 1: 0, 2: 0 };
-  for (const r of real) if (ratingDist[r.rating] !== undefined) ratingDist[r.rating]++;
+  // round61：分布只统计评分合法的行（与 rated 同源）
+  for (const r of rated) ratingDist[r.rating]++;
+
 
   // 24 小时复习时间分布
   const hourly = new Array(24).fill(0);
@@ -361,7 +384,8 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
 
   // 近 30 天遗忘率（单趟扫描分桶，避免原「每天 filter 一次」的 O(30·N)）
   const forgotBucket = new Map(); // 当天 0 点时间戳 → { total, forgot }
-  for (const r of real) {
+  // round61：遗忘率是比率 → 分母只认评分合法的行（否则坏行只进分母，遗忘率被静默稀释）
+  for (const r of rated) {
     if (r.reviewedAt < nowTs - 30 * DAY) continue;
     const d = new Date(r.reviewedAt);
     const ds = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -384,10 +408,17 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   // 新用户会看到「稳定度 100% / 正确率 0% / 掌握度 0%」这种自相矛盾的面板。
   // 与上面 mastery 分支同一口径：无数据记 0，另给 noData 标记供 UI 显示「暂无数据」。
   const hasReviews = totalReviews > 0;
-  const total = totalReviews || 1;
-  const correct = hasReviews ? Math.round((real.filter(r => r.rating === 2).length / total) * 100) : 0;
-  const stable = hasReviews ? Math.round((1 - real.filter(r => r.rating === 0).length / total) * 100) : 0;
-  const reviewedCount = new Set(real.map(r => r.cardId)).size;
+  // round61（P2）：correct/stable 是**评分数学**，分母改用 rated——
+  // 此前用 totalReviews（含评分非法的行）会让坏行只进分母不进分子，静默压低正确率（实测 100%→67%）。
+  const hasRated = rated.length > 0;
+  const total = rated.length || 1;
+  const correct = hasRated ? Math.round((rated.filter(r => r.rating === 2).length / total) * 100) : 0;
+  const stable = hasRated ? Math.round((1 - rated.filter(r => r.rating === 0).length / total) * 100) : 0;
+  // round61（P2）：覆盖率 = 「仍存在且已复习的卡」/「总卡数」。
+  //   实证：悬空复习行（cardId 指向已删卡——跨设备删除后本端 sweepOrphanRows 尚未跑到时**真实存在**）
+  //   会让分子 > 分母，算出 coverage = 200% 这种越界值，直接喂给 UI 与 AI 分析。
+  //   分子与 cardMap（本库现存卡）求交，天然 ≤ totalCards。
+  const reviewedCount = new Set(real.map(r => r.cardId).filter(id => cardMap.has(id))).size;
   const coverage = totalCards ? Math.round((reviewedCount / totalCards) * 100) : 0;
   const ability = { mastery: avgMastery, correct, stable, coverage, noData: !hasReviews };
 
@@ -396,7 +427,9 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   for (const c of cards) for (const t of (c.tags || [])) tagMap.set(t, (tagMap.get(t) || 0) + 1);
   const tagCounts = [...tagMap.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10);
 
-  return { totalCards, totalReviews, todayReviews, dueToday, avgMastery, heatmap: heat, mastery, trend, subjectCards, ratingDist, hourly, forgotTrend, ability, tagCounts };
+  // round61：dirtyReviews = reviewedAt 非有限数字而被剔除的复习行数（损坏包/手改数据的体检信号），
+  //   供「数据体检」类界面消费；不参与任何比率计算。
+  return { totalCards, totalReviews, todayReviews, dueToday, avgMastery, heatmap: heat, mastery, trend, subjectCards, ratingDist, hourly, forgotTrend, ability, tagCounts, dirtyReviews };
 }
 
 // ---------- userOps 分组聚合（queryUserOps 核心） ----------
