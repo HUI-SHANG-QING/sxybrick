@@ -4,7 +4,7 @@
 // 全部只读，纯前端查询 IndexedDB，零服务器。
 
 import { db } from '../db.js';
-import { getStats, weakCards, isPomoCountable, getSchedConfig } from '../repo.js';
+import { getStats, weakCards, isPomoCountable, getSchedConfig, dashboardSnapshot } from '../repo.js';
 import { getReplyStats } from './reply.js';
 import { trainWeights } from '../fsrs.js';
 import { dueOf } from '../repo-core.js';
@@ -111,7 +111,9 @@ export async function getRecentMistakes(days = 1) {
   const since = now() - days * DAY;
   // N+1 修复：一次全表扫描在内存聚合每卡错误/总数，替代逐卡 getCardAnalytics（N 次 get + N 次索引查询）
   // 审计 P1-2（round33）：quickCheck 行不计入错题聚合——统一口径
-  const reviews = (await db.reviews.toArray()).filter(r => r.type !== 'quick');
+  // round57（P2 性能）：改用 repo 的共享快照（round33 C-2 已为首页建立），不再自扫全表——
+  //   同页多次分析只物化一次 reviews。
+  const reviews = (await dashboardSnapshot()).reviews.filter(r => r.type !== 'quick');
   const wrongIds = new Set();
   const wrongCount = new Map();
   const totalCount = new Map();
@@ -183,8 +185,13 @@ export async function prepareFsrsTrainingData() {
   const cardsById = new Map(cards.map(c => [c.id, c]));
   // 审计 P2：过滤 quickCheck 行——快速检测距真实复习仅10分钟~1h，混入训练数据
   // 会合成"近距高R+高成功"分布，拟合权重偏向过度乐观
-  reviews.sort((a, b) => (a.reviewedAt || 0) - (b.reviewedAt || 0));
-  return { reviews: reviews.filter(r => r.type !== 'quick'), cardsById };
+  // round57（P3）：**先 filter 再 sort**——原写法 `reviews.sort()` 是原地排序。
+  // 虽当前 reviews 来自 toArray() 的新数组（安全），但这是共享快照类改动的陷阱：
+  // 一旦本函数改走 dashboardSnapshot()，原地 sort 会把共享数组排乱、污染其他消费者。
+  // 统一纪律：来自快照/外部的数组一律不在原地改（filter/map/slice 天然产新数组）。
+  const real = reviews.filter(r => r.type !== 'quick');
+  real.sort((a, b) => (a.reviewedAt || 0) - (b.reviewedAt || 0));
+  return { reviews: real, cardsById };
 }
 // 训练用户 FSRS 权重（自动 offload 到 worker；样本不足/无 worker 回退默认）
 export async function trainFsrsModel() {
@@ -218,7 +225,8 @@ export async function getModuleSummary() {
 export async function getLearningProfile() {
   const stats = await getStats();
   // 审计 P1-2（round33）：quickCheck 行不计入学习画像——统一口径
-  const reviews = (await db.reviews.toArray()).filter(r => r.type !== 'quick');
+  // round57（P2 性能）：getStats() 内部已走共享快照，这里再自扫一遍纯属重复（同页多读一次全表）。
+  const reviews = (await dashboardSnapshot()).reviews.filter(r => r.type !== 'quick');
   const mastery = stats.avgMastery || 0;
   const correct = stats.ability?.correct || 0;
   const stable = stats.ability?.stable || 0;
@@ -336,9 +344,11 @@ export async function getGapCards(limit = 15) {
 
 // ---------- D1 遗忘预警：3 天内到期且历史表现不稳的卡（趁没忘先救） ----------
 export async function getForgetRisk(limit = 5) {
-  const cards = await db.cards.toArray();
+  // round57（P2 性能）：cards + reviews 一并取共享快照——原先这里自扫两张全表（最大的两笔开销）
+  const snap = await dashboardSnapshot();
+  const cards = snap.cards;
   // 审计 P1-2（round33）：quickCheck 行不计入遗忘风险统计——统一口径
-  const reviews = (await db.reviews.toArray()).filter(r => r.type !== 'quick');
+  const reviews = snap.reviews.filter(r => r.type !== 'quick');
   const nowTs = now();
   const fail = new Map(); const total = new Map();
   for (const r of reviews) {
@@ -464,9 +474,10 @@ async function _getGraphDrivenReviewPlan(opts = {}) {
   // 审计 P1-2（round33）：quickCheck 行不计入图谱复习计划——统一口径
   const reviews = reviewsRaw.filter(r => r.type !== 'quick');
   if (!edges.length) {
+    // round57（P3）：不再原地 sort 源数组（原 `let pool = cards` 会直接排乱 cards）。
+    // 与 prepareFsrsTrainingData 同纪律：外部/快照数组一律先 slice/filter 再排序。
     const nowTs = now();
-    let pool = cards;
-    if (includeDueOnly) pool = pool.filter(c => dueOf(c) <= nowTs);
+    let pool = includeDueOnly ? cards.filter(c => dueOf(c) <= nowTs) : cards.slice();
     pool.sort((a, b) => (a.dueAt - b.dueAt) || (a.id < b.id ? -1 : 1));
     return { path: pool.slice(0, limit), prereqsAdded: [], contrastPairs: [], unmapped: [], edgesUsed: 0, fallback: true };
   }
@@ -702,9 +713,18 @@ export async function generateAutoPlan(days = 7) {
 
 // ---------- E1 资产健康度：重复卡 / 僵尸卡 / 孤儿图片 / 无标签卡 ----------
 export async function getAssetHealth() {
-  const [cards, reviews, images] = await Promise.all([
-    db.cards.toArray(), db.reviews.toArray().then(rs => rs.filter(r => r.type !== 'quick')), db.images.toArray(),
+  // round57（P2 性能）：cards/reviews 走共享快照（Health.vue / Cards.vue 首屏直调本函数）。
+  // images 表存的是 **Blob 本体**——`toArray()` 会把每张图的二进制全部读出来，
+  // 而本函数只用到 id（外加全仓确认无人消费的 createdAt）。改用 primaryKeys()
+  // （IndexedDB getAllKeys：只取 key 不取 value）→ 不再搬运图片字节。
+  // 注：收益随图片总量线性增长（照片多的库可达数十~数百 MB），沙箱内无法实测真实
+  //     Blob 反序列化开销（fake-indexeddb 不做磁盘序列化），此处按结构性改进计。
+  const [snap, imageIds] = await Promise.all([
+    dashboardSnapshot(),
+    db.images.toCollection().primaryKeys(),
   ]);
+  const cards = snap.cards;
+  const reviews = snap.reviews.filter(r => r.type !== 'quick');
   const nowTs = now();
   const norm = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
@@ -732,7 +752,9 @@ export async function getAssetHealth() {
     let m;
     while ((m = re.exec(text))) used.add(m[1]);
   }
-  const orphanImages = images.filter(i => !used.has(i.id)).map(i => ({ id: i.id, createdAt: i.createdAt }));
+  // round57（P2 性能）：只保留 id——全仓（含 tests/）grep 确认 createdAt 无任何消费方
+  // （消费方只用 i.id 与 .length），故不再为它多读一次 Blob。展示需要时再给 images.createdAt 建索引。
+  const orphanImages = imageIds.filter(id => !used.has(id)).map(id => ({ id }));
 
   const untaggedCount = cards.filter(c => !(c.tags || []).length).length;
 
@@ -752,7 +774,9 @@ export async function getAssetHealth() {
 import { computeCalibration } from '../algorithms/calibration.js';
 export async function getCalibration() {
   // 审计 P1-2（round33）：校准只基于真实复习（computeCalibration 内部亦过滤，此处双重保险）
-  const [reviews, cfg] = await Promise.all([db.reviews.toArray().then(rs => rs.filter(r => r.type !== 'quick')), getSchedConfig()]);
+  // round57（P2 性能）：走共享快照（Stats.vue 首屏 5 个聚合之一，原先自扫一遍全表）
+  const [snap, cfg] = await Promise.all([dashboardSnapshot(), getSchedConfig()]);
+  const reviews = snap.reviews.filter(r => r.type !== 'quick');
   return computeCalibration(reviews, { weights: cfg.weights });
 }
 

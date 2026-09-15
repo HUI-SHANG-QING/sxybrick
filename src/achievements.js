@@ -3,7 +3,7 @@
 // 把新解锁的成就落库（id 确定性 ach-<key>，随数据包同步，跨设备幂等）。
 import { db } from './db.js';
 import { getStreak } from './utils/streak.js';
-import { isPomoCountable } from './repo.js';
+import { isPomoCountable, dashboardSnapshot } from './repo.js';
 
 // 成就目录：value(input) 返回当前数值，>= goal 即解锁
 // category：用于"学习成长树"按枝分组（P4 可视化）
@@ -35,7 +35,9 @@ export const ACHIEVEMENTS = [
 // 汇总成就判定所需的全部本地数据（只读）
 export async function collectAchievementStats() {
   // 审计 P1-2（round33）：quickCheck 行不计入成就统计——统一口径
-  const reviews = (await db.reviews.toArray()).filter(r => r.type !== 'quick');
+  // round57（P2 性能）：改走 repo 的共享快照——Library.vue 首屏会调本函数，
+  // 此前自扫全表（实测 6 万条 review 全表扫 ≈380ms）与首页其它聚合重复读同一份数据。
+  const reviews = (await dashboardSnapshot()).reviews.filter(r => r.type !== 'quick');
   const total = reviews.length || 1;
   const correct = reviews.filter(r => r.rating === 2).length;
   const [cards, pomo, docs, plans, graphEdges, aiMemories, aiChats, mindmaps, reports] = await Promise.all([

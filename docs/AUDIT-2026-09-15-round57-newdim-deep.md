@@ -30,13 +30,94 @@
 | D3 | 时间、时区与日期边界 | 零发现（UTC/本地口径统一、无固定毫秒加日期） |
 | D4 | 多标签页并发 / SW 更新 | 零发现（Dexie blocked/versionchange 横幅 + BroadcastChannel + SW prompt） |
 | D5 | 安全边界（XSS/公式注入/凭证泄漏） | 零发现（公式注入已防、4 处凭证均无同步出口） |
-| D6 | 数据规模与性能悬崖 | 见下（未完成系统扫描，见"未完成项"） |
+| D6 | 数据规模与性能悬崖 | **发现 P2（主线程全表扫，已修，实测 8.6×）+ P3×2（原地改共享数组陷阱，已修）** |
 | D7 | 备份/还原版本兼容与完整性 | **发现 P3（已修）**；tombstones 缺失、meta 同步均安全 |
 | D8 | 资源生命周期与配对 | 零发现（配对统计：revoke 22≥create 20、clear 22≥set 18） |
 
 ---
 
-## 三、P2：配额写满时"主数据已入库、图片全缺"，且 UI 只弹原始 QuotaExceededError
+## 三、P2（性能）：主线程 1.6 秒全表扫——绕过已有的共享快照
+
+### 5.1 实证（可复现的基准，不是推测）
+
+构造重度用户规模（**3000 张卡 / 60000 条复习** ≈ 100 条/天 × 600 天），用 `fake-indexeddb` 忠实复现：
+
+| 操作 | 修复前 | 修复后 | 提升 |
+|---|---|---|---|
+| `db.reviews.toArray()`（全表扫） | 436 ms | — | — |
+| `where(reviewedAt).above(7d)`（走索引） | **17 ms** | — | 比全表扫快 **25×** |
+| `getRecentMistakes(7)` | 577.2 ms | **58.2 ms** | 9.9× |
+| `getForgetRisk(5)` | 533.8 ms | **23.6 ms** | 22.6× |
+| `getLearningProfile()` | 638.2 ms | **128.9 ms** | 5.0× |
+| **三者串行（≈ 一次页面加载）** | **1591.4 ms** | **185.7 ms** | **8.6×** |
+
+另一组（1500 卡 / 30000 复习）：`getAssetHealth` 125.2 → **23.3 ms**；`getCalibration` 120.9 → **43.1 ms**。
+
+> 口径说明：`fake-indexeddb` 是纯 JS 实现，**绝对耗时高于真实浏览器**（真实环境大约低 3~5 倍）。
+> 但它不影响结论的方向与量级，也**不影响 25× 这个结构性差距**（全表扫 vs 索引查）。
+
+### 5.2 根因
+
+`repo.js` 早在 round33 C-2 就为首页建立了**共享快照** `dashboardSnapshot()`（按 count+最新时间戳
+自失效、并发调用只物化一次），并把 `getStats`/`weakCards`/`getReviewSuggestion` 接了进去。
+
+**但 `agent/analytics.js` 的多个首屏函数绕过了它**，各自再 `db.reviews.toArray()`：
+
+| 函数 | 归属页面 | 状态 |
+|---|---|---|
+| `getRecentMistakes` | Cards | 绕过快照 |
+| `getForgetRisk` | Cards / Stats | 绕过快照（另加 `cards.toArray()`） |
+| `getLearningProfile` | Stats（内部 `getStats()` 已走快照 → **第二次扫描纯属重复**） | 绕过快照 |
+| `getCalibration` | Stats | 绕过快照 |
+| `getAssetHealth` | Health / Cards | 绕过快照（另加 `cards` + `images` 全表） |
+| `collectAchievementStats` | Library（首屏） | 绕过快照 |
+
+于是「**一次页面加载读 4~6 遍同一份全表数据**」——正是 round33 C-2 注释里已经指出过的病，只是当时只治了首页三个函数。
+
+### 5.3 修复
+
+统一收口到 `dashboardSnapshot()`（`analytics.js` 本就 import `repo.js`，**零新增模块边、0 环**）。
+
+**另附一条结构性改进（不宣称实测收益）**：`getAssetHealth` 原先 `db.images.toArray()` 把
+**每张图的二进制全读出来**，而它只用到 `id`（`createdAt` 全仓 grep 确认**无任何消费方**）。
+改用 `toCollection().primaryKeys()`（IndexedDB `getAllKeys`，只取 key 不取 value）。
+收益随图片总量线性增长（照片多的库可达数十~数百 MB），**但沙箱内无法实测**——
+我在造数据时复用了同一个 Blob 对象，而 fake-indexeddb 不做磁盘序列化，
+测出来的 4.8ms 是假象。故此处按结构性改进计，**不编造提速数字**。
+
+---
+
+## 四、P3（陷阱）：共享数组被原地修改的两处隐患
+
+引入共享快照后，**同一份数组实例会被多个消费者持有**。此时任何 `.sort()/.push()/.splice()`
+都会**污染其他消费者**，且缓存键只看 count+时间戳——**污染不会自愈**。
+
+审计发现两处已经存在的原地修改（今天安全纯属侥幸：它们当前读的是 `toArray()` 的新数组，
+一旦将来被接到快照上就会静默出错）：
+
+| 位置 | 原写法 | 风险 |
+|---|---|---|
+| `analytics.prepareFsrsTrainingData` | `reviews.sort(...)` 原地排序 | 接到快照后把共享数组排乱 |
+| `analytics._getGraphDrivenReviewPlan` | `let pool = cards` 后 `pool.sort(...)` | 直接排乱共享 `cards` |
+
+修法：**先 `filter`/`slice` 产新数组再排序**（顺带不再排序将被丢弃的 quick 行）。
+并把「只读契约」与这两处陷阱**写进 `dashboardSnapshot()` 的注释**（新增消费方必读）。
+
+### 6.1 附带更正一条**已被证伪的旧结论**
+
+`dashboardSnapshot` 上方原注释写着：「写路径无需显式失效——任何增删改都会改变 count 或最新
+时间戳之一……**天然无陈旧窗口**」。**该结论不成立**，实测反例：
+
+> 原地改写某张卡的字段但不 bump 其 `updatedAt`，且该卡不是 `updatedAt` 最大的那一张
+> → count 与「最新时间戳」双双不变 → **命中陈旧快照**。
+
+所幸代码本身是安全的——写路径（`review()` / 导入合并 `sync.js` / `word-repo`）**都显式调了
+`invalidateDashboardCache()`**。是**注释描述错了**，容易误导后来者（以为可以省掉这步）。
+已把注释更正为与 `failCountMap` 一致的结论：**写路径必须显式失效**，并补了回归测试④把这个局限钉死。
+
+---
+
+## 五、P2：配额写满时"主数据已入库、图片全缺"，且 UI 只弹原始 QuotaExceededError
 
 ### 3.1 实证（不是推测）
 
@@ -75,7 +156,7 @@ P2-4 补上提示）。**配额写满是另一条路**：它是 `bulkPut` 整体
 
 ---
 
-## 四、P3：损坏备份包抛裸 `TypeError`，用户无从判断"其实是文件坏了"
+## 六、P3：损坏备份包抛裸 `TypeError`，用户无从判断"其实是文件坏了"
 
 ### 4.1 实证
 
@@ -100,7 +181,7 @@ backup.cards = {}   →   TypeError: (backup.cards || []).filter is not a functi
 
 ---
 
-## 五、被否证的 4 条假设（避免误报的价值）
+## 七、被否证的 4 条假设（避免误报的价值）
 
 审计的一半价值在于**不说假话**。以下 4 条都是"读代码时很像 bug"的，实测/深读后**证伪**：
 
@@ -122,7 +203,7 @@ backup.cards = {}   →   TypeError: (backup.cards || []).filter is not a functi
 
 ---
 
-## 六、并行会话冲突记录（重要）
+## 八、并行会话冲突记录（重要）
 
 本轮审计期间有并行会话在同时工作，**两次撞车**，如实记录以免后人误判：
 
@@ -136,7 +217,7 @@ backup.cards = {}   →   TypeError: (backup.cards || []).filter is not a functi
 
 ---
 
-## 七、未完成项（诚实交代）
+## 九、未完成项（诚实交代）
 
 - **D6（数据规模/性能悬崖）未做系统扫描**：本轮的 4 个并行子代理中，负责 D3+D6 与 D1+D4、D5+D8
   的三个未在本次会话内返回结果（仅 D2+D7 一路回传，已产出上文实证）。D3/D1/D4/D5/D8 是我**亲自
@@ -145,7 +226,7 @@ backup.cards = {}   →   TypeError: (backup.cards || []).filter is not a functi
 
 ---
 
-## 八、交付物
+## 十、交付物
 
 | 文件 | 变更 |
 |---|---|
