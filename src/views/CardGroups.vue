@@ -6,6 +6,7 @@ import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { confirmDialog } from '../utils/confirm.js';
 import CardModal from '../components/CardModal.vue';
+import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import {
   listCardGroups, createCardGroup, updateCardGroup, deleteCardGroup,
   cardGroupCardIds, setCardGroups, listCards,
@@ -200,8 +201,8 @@ onMounted(reload);
           <div v-if="!expandedCards.length" class="hint">{{ t('views.cardGroups.emptyCards') }}</div>
           <div v-for="c in expandedCards" :key="c.id" class="gc-row">
             <div class="gc-text" @click="openCard(c)" :title="t('views.cardGroups.editTip')">
-              <div class="gc-front">{{ c.front }}</div>
-              <div class="gc-back">{{ c.back }}</div>
+              <div class="gc-front"><MarkdownRenderer :content="c.front" /></div>
+              <div class="gc-back"><MarkdownRenderer :content="c.back" /></div>
               <div v-if="c.tags && c.tags.length" class="gc-tags">
                 <span v-for="tag in c.tags" :key="tag" class="gc-tag">#{{ tag }}</span>
               </div>
@@ -249,8 +250,8 @@ onMounted(reload);
 .gc-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
 .gc-text { flex: 1; min-width: 0; cursor: pointer; line-height: 1.55; }
 .gc-text:hover { background: var(--panel); }
-.gc-front { font-weight: 600; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
-.gc-back { color: var(--ink-2); white-space: pre-wrap; word-break: break-word; margin-top: 2px; }
+.gc-front { font-weight: 600; color: var(--ink); word-break: break-word; }
+.gc-back { color: var(--ink-2); word-break: break-word; margin-top: 2px; }
 .gc-tags { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
 .gc-tag { font-size: 11px; color: var(--accent, #1677ff); background: color-mix(in srgb, var(--accent, #1677ff) 10%, transparent); border-radius: 6px; padding: 0 6px; }
 .gc-add { margin-bottom: 4px; }
