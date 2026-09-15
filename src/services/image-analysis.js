@@ -25,7 +25,9 @@ import { extractImageIds } from '../images.js';
 // ocrImageText：真正导出的单图识别入口（云端优先→本地 Tesseract，docs-lib 内部分级），
 // 接收 File/Blob，返回清洗后的纯文本字符串；识别不到/失败时抛异常。
 import { ocrImageText } from '../docs-lib.js';
-import { compressImageBlob } from '../utils/img-compress.js';
+import {
+  compressImageBlob, resolveImageQuality, IMAGE_QUALITY_KEYS, IMAGE_QUALITY_DEFAULT,
+} from '../utils/img-compress.js';
 import { docKindOf, docContentProfile, docVisionContent } from './doc-vision.js';
 
 export const IMG_MODES = ['auto', 'ocrFirst', 'visionFirst'];
@@ -70,6 +72,10 @@ export function resolveImagePolicy(settings) {
     // 用户配置的单次送图上限。只有「先多模态」把它当主路径额度用；
     // auto / ocrFirst 的视觉兜底仍保守取 1（那只是 OCR 失败后的补救，不该按用户额度放大）。
     visionLimit: normalizeVisionLimit(settings?.imageAnalysis?.visionLimit),
+    // 图片质量档位：降低单张体积比放大字节预算更有效（同预算能装 3–4 倍张数，且不增崩溃风险）
+    imageQuality: IMAGE_QUALITY_KEYS.includes(settings?.imageAnalysis?.imageQuality)
+      ? settings.imageAnalysis.imageQuality
+      : IMAGE_QUALITY_DEFAULT,
   };
 }
 
@@ -310,7 +316,8 @@ export async function imageIdsToVisionContentMapped(ids, opts = {}) {
     if (exhausted) { onSkip?.(id, 'budget'); continue; }
     const row = await db.images.get(id);
     if (!row) { onSkip?.(id, 'missing'); continue; }
-    const dataUrl = await compressImageBlob(row.blob);
+    // 质量档位决定单张体积（越省，同样的字节预算能装越多张）
+    const dataUrl = await compressImageBlob(row.blob, { maxEdge: opts.maxEdge, quality: opts.quality });
     if (!dataUrl) { onSkip?.(id, 'unreadable'); continue; }
     // 字节预算：请求体积是硬约束（张数上限只是名义值，1000 张大图 = 数百 MB，物理上发不出去）
     if (bytes + dataUrl.length > budget) { exhausted = true; onSkip?.(id, 'budget'); continue; }
@@ -426,6 +433,7 @@ export async function enrichForLlm(messages, opts = {}) {
     const mapped = await imageIdsToVisionContentMapped(picked, {
       onSkip: (id, reason) => skipReason.set(id, reason),
       bytesBudget: opts.bytesBudget, // 高级调用方/测试可覆盖；缺省走 VISION_BYTES_BUDGET
+      ...resolveImageQuality(policy.imageQuality), // 质量档位 → 单张体积（同预算装更多张）
     });
     for (const x of mapped) vision.push(x.part);
     // 精确「哪些 id 真的送出去了」——不能用 picked.slice(0, v.length) 推（中间项可能被跳过）
@@ -532,6 +540,7 @@ export async function enrichForLlm(messages, opts = {}) {
           maxPages: Math.min(policy.visionLimit, room),
           pages: pages.length ? pages : undefined,
           renderPdfPagesFn: opts.renderDocPagesFn, // 测试注入点
+          ...resolveImageQuality(policy.imageQuality), // 资料页渲染同样按质量档位产出
         });
         if (v.length) {
           for (const item of v) vision.push(item);

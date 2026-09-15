@@ -13,6 +13,35 @@
 const MAX_EDGE = 1568;
 
 /**
+ * 图片质量档位（用户可选）。
+ *
+ * 为什么需要：单次请求的图片总体积才是真正先到顶的约束（见 image-analysis 的
+ * VISION_BYTES_BUDGET）。**降低单张体积比放大预算更有效** —— 质量调低一档，
+ * 同样的字节预算能装下 3–4 倍张数，而且不增加崩溃/超时风险。
+ *
+ * 实测参考（1568px ≈ 200–600KB 视内容复杂度而定）：
+ *   high     ≈ 200–600KB/张   → 24MB 约装 40–120 张（识别质量优先，默认）
+ *   standard ≈ 80–200KB/张    → 24MB 约装 120–300 张
+ *   low      ≈ 30–80KB/张     → 24MB 约装 300–800 张（截图类通常仍可读）
+ */
+export const IMAGE_QUALITY_PRESETS = Object.freeze({
+  high: Object.freeze({ maxEdge: 1568, quality: 0.8 }),
+  standard: Object.freeze({ maxEdge: 1024, quality: 0.75 }),
+  low: Object.freeze({ maxEdge: 768, quality: 0.6 }),
+});
+export const IMAGE_QUALITY_KEYS = Object.freeze(Object.keys(IMAGE_QUALITY_PRESETS));
+export const IMAGE_QUALITY_DEFAULT = 'high';
+
+/**
+ * 档位 key → { maxEdge, quality }；非法 / 缺省回退默认档（脏设置兜底）。
+ * @param {*} key
+ * @returns {{ maxEdge: number, quality: number }}
+ */
+export function resolveImageQuality(key) {
+  return IMAGE_QUALITY_PRESETS[IMAGE_QUALITY_KEYS.includes(key) ? key : IMAGE_QUALITY_DEFAULT];
+}
+
+/**
  * 压缩图片 Blob 为 dataURL。
  * @param {Blob} blob
  * @param {{ maxEdge?: number, quality?: number }} [opts]

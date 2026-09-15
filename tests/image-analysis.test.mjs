@@ -11,6 +11,7 @@ import {
   enrichForLlm, textifyContent, imageIdsToVisionContent, normalizeVisionLimit,
   imageIdsToVisionContentMapped, VISION_LIMIT_MAX, VISION_BYTES_BUDGET,
 } from '../src/services/image-analysis.js';
+import { resolveImageQuality, IMAGE_QUALITY_KEYS, IMAGE_QUALITY_PRESETS } from '../src/utils/img-compress.js';
 
 after(async () => { try { await db.close(); } catch {} });
 
@@ -23,10 +24,10 @@ test('策略解析：缺省/非法值回退 auto，各档语义正确', () => {
   assert.equal(parseImageMode(undefined), 'auto');
   assert.equal(parseImageMode({}), 'auto');
   assert.equal(parseImageMode({ imageAnalysis: { mode: 'bogus' } }), 'auto');
-  // round67 起 resolveImagePolicy 额外带出 visionLimit（可配的送图额度）
-  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'auto' } }), { mode: 'auto', allowVisionFallback: true, visionLimit: 3 });
-  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'ocrFirst' } }), { mode: 'ocrFirst', allowVisionFallback: false, visionLimit: 3 });
-  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst' } }), { mode: 'visionFirst', allowVisionFallback: false, visionLimit: 3 });
+  // round67 起 resolveImagePolicy 额外带出 visionLimit（可配的送图额度）与 imageQuality（质量档位）
+  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'auto' } }), { mode: 'auto', allowVisionFallback: true, visionLimit: 3, imageQuality: 'high' });
+  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'ocrFirst' } }), { mode: 'ocrFirst', allowVisionFallback: false, visionLimit: 3, imageQuality: 'high' });
+  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst' } }), { mode: 'visionFirst', allowVisionFallback: false, visionLimit: 3, imageQuality: 'high' });
 });
 
 test('推荐规则：无图→auto；过半含图→visionFirst；其余→ocrFirst', () => {
@@ -221,6 +222,30 @@ test('端到端：体积超限的图在正文里标注为「体积上限」而�
   const seg = typeof c === 'string' ? c : c.filter((p) => p.type === 'text').map((p) => p.text).join('');
   assert.ok(!/超出本次送图额度/.test(seg), '体积超限不得被说成「超出额度」——额度是 10，这里只发了 0 张');
   assert.match(seg, /读取失败|体积上限/, '应说明真实原因');
+});
+
+// ── round67b：图片质量档位 ──────────────────────────────────────────────
+
+test('质量档位：预设单调递减（越省流单张越小），非法档位回退默认', () => {
+  const h = resolveImageQuality('high');
+  const s = resolveImageQuality('standard');
+  const l = resolveImageQuality('low');
+  assert.equal(h.maxEdge, 1568, '默认档仍是 1568px（识别质量优先，不得悄悄降级）');
+  assert.ok(h.maxEdge > s.maxEdge && s.maxEdge > l.maxEdge, '分辨率必须单调递减');
+  assert.ok(h.quality > s.quality && s.quality > l.quality, 'JPEG 质量必须单调递减');
+  // 脏设置兜底
+  assert.equal(resolveImageQuality('bogus').maxEdge, 1568);
+  assert.equal(resolveImageQuality(undefined).maxEdge, 1568);
+  assert.equal(resolveImageQuality(null).maxEdge, 1568);
+  assert.deepEqual(IMAGE_QUALITY_KEYS, ['high', 'standard', 'low']);
+  assert.ok(Object.isFrozen(IMAGE_QUALITY_PRESETS));
+});
+
+test('resolveImagePolicy：带出质量档位（脏值回退默认）', () => {
+  assert.equal(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst' } }).imageQuality, 'high');
+  assert.equal(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst', imageQuality: 'low' } }).imageQuality, 'low');
+  assert.equal(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst', imageQuality: 'bogus' } }).imageQuality, 'high');
+  assert.equal(resolveImagePolicy({ imageAnalysis: { mode: 'auto', imageQuality: 'standard' } }).imageQuality, 'standard');
 });
 
 test('textifyContent：无图原文返回；有图产出分析副本（原文不变）', async () => {

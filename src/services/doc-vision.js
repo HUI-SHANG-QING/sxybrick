@@ -124,7 +124,7 @@ export async function docVisionContent(docId, opts = {}) {
 
   try {
     if (kind === 'image') {
-      const url = await compressImageBlob(blob);
+      const url = await compressImageBlob(blob, { maxEdge: opts.maxEdge, quality: opts.quality });
       return url ? [{ type: 'image_url', image_url: { url } }] : [];
     }
     // PDF：渲染页面为 JPEG（测试可注入 renderPdfPagesFn，避免依赖 canvas）

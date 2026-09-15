@@ -12,6 +12,7 @@ import { ref, onMounted } from 'vue';
 import { t } from '../i18n/index.js';
 import { getWordSettings, saveWordSettings } from '../word-repo.js';
 import { recommendForCurrentData, normalizeVisionLimit, VISION_LIMIT_MAX, VISION_LIMIT_DEFAULT } from '../services/image-analysis.js';
+import { IMAGE_QUALITY_KEYS, IMAGE_QUALITY_DEFAULT } from '../utils/img-compress.js';
 
 const MODES = ['auto', 'ocrFirst', 'visionFirst'];
 const LABEL_KEY = { auto: 'recModeAuto', ocrFirst: 'recModeOcr', visionFirst: 'recModeVision' };
@@ -21,11 +22,19 @@ const OPTION_KEY = {
   ocrFirst: { label: 'imgModeOcr', desc: 'modeOcrDesc' },
   visionFirst: { label: 'imgModeVision', desc: 'modeVisionDesc' },
 };
+// 质量档位的文案键（与 OPTION_KEY 同模式：静态映射，便于 i18n 闸门静态解析）
+const QUALITY_KEY = {
+  high: { label: 'qualityHigh', desc: 'qualityDescHigh' },
+  standard: { label: 'qualityStandard', desc: 'qualityDescStandard' },
+  low: { label: 'qualityLow', desc: 'qualityDescLow' },
+};
 
 const mode = ref('auto');
 // round67：送图额度（一次请求最多附几张图）改为用户可调，默认 3。
 // 上限 VISION_LIMIT_MAX(20)：图片按 token 计费，不设上限等于把账单交给手滑。
 const visionLimit = ref(VISION_LIMIT_DEFAULT);
+// round67b：图片质量档位 —— 降低单张体积比放大字节预算更有效
+const quality = ref(IMAGE_QUALITY_DEFAULT);
 const rec = ref(null);
 const recLoading = ref(false);
 const recError = ref(false);
@@ -37,9 +46,12 @@ async function load() {
     const m = s?.imageAnalysis?.mode;
     mode.value = MODES.includes(m) ? m : 'auto';
     visionLimit.value = normalizeVisionLimit(s?.imageAnalysis?.visionLimit);
+    const q = s?.imageAnalysis?.imageQuality;
+    quality.value = IMAGE_QUALITY_KEYS.includes(q) ? q : IMAGE_QUALITY_DEFAULT;
   } catch {
     mode.value = 'auto';
     visionLimit.value = VISION_LIMIT_DEFAULT;
+    quality.value = IMAGE_QUALITY_DEFAULT;
   }
 }
 
@@ -63,6 +75,19 @@ async function setLimit(v) {
   try {
     const s = await getWordSettings();
     await saveWordSettings({ imageAnalysis: { ...(s?.imageAnalysis || {}), visionLimit: n } });
+  } catch { /* 保存失败不阻塞 */ } finally {
+    saving.value = false;
+  }
+}
+
+// 质量档位：改即保存（与模式选择同约定）
+async function setQuality(k) {
+  if (!IMAGE_QUALITY_KEYS.includes(k) || k === quality.value) return;
+  quality.value = k;
+  saving.value = true;
+  try {
+    const s = await getWordSettings();
+    await saveWordSettings({ imageAnalysis: { ...(s?.imageAnalysis || {}), imageQuality: k } });
   } catch { /* 保存失败不阻塞 */ } finally {
     saving.value = false;
   }
@@ -115,6 +140,16 @@ onMounted(() => { load(); loadRecommendation(); });
       <span class="imgmode-limit-unit">{{ t('views.wordSettings.visionLimitUnit') }}</span>
       <span class="imgmode-limit-hint">{{ t('views.wordSettings.visionLimitHint') }}</span>
     </div>
+    <div class="quality-block">
+      <div class="quality-title">{{ t('views.wordSettings.qualityLabel') }}</div>
+      <div class="imgmode-list">
+        <label v-for="k in IMAGE_QUALITY_KEYS" :key="k" class="imgmode" :class="{ on: quality === k }">
+          <input type="radio" name="imgQuality" :value="k" :checked="quality === k" @change="setQuality(k)" />
+          <span class="imgmode-label">{{ t(`views.wordSettings.${QUALITY_KEY[k].label}`) }}</span>
+          <span class="imgmode-desc">{{ t(`views.wordSettings.${QUALITY_KEY[k].desc}`) }}</span>
+        </label>
+      </div>
+    </div>
     <div class="imgmode-rec">
       <span class="imgmode-rec-title">{{ t('views.wordSettings.recTitle') }}</span>
       <span v-if="recLoading">{{ t('views.wordSettings.recComputing') }}</span>
@@ -156,6 +191,8 @@ onMounted(() => { load(); loadRecommendation(); });
 }
 .imgmode-limit-input:disabled { opacity: .5; }
 .imgmode-limit-hint { flex-basis: 100%; font-size: 12px; line-height: 1.6; }
+.quality-block { margin-top: 14px; }
+.quality-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--ink); }
 .imgmode-rec {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-top: 10px; padding: 8px 10px; border-radius: var(--radius);
