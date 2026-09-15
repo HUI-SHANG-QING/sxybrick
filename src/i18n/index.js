@@ -251,6 +251,13 @@ const zh = {
       badDate: 'date 格式应为 YYYY-MM-DD，收到「{value}」。',
       noPlanThatDay: '这一天没有规划记录。',
       noNotes: '还没有任何笔记，请让用户在「笔记」页新建后再让我读。',
+      emptyContent: '内容不能为空，请先给我要写入的正文。',
+      emptyTaskTitle: '任务标题不能为空。',
+      emptyPatch: '没有要修改的字段（content / newTitle / category / tags 至少给一个）。',
+      noteVanished: '这篇笔记不存在或已被删除。',
+      badCheckinStatus: '打卡状态只能是 done / partial / skipped。',
+      taskNotFound: '未找到匹配的任务。可先用 list_daily_tasks 传日期查看当天任务，再用 taskId 打卡。',
+      taskWriteFailed: '任务写入失败（计划创建后未返回任务行），请重试或改用 create_daily_plan。',
     },
     // 有工具数据但 LLM 合成失败时的本地直出（src/agent/local-answer.js）
     localAnswer: {
@@ -496,6 +503,13 @@ const en = {
       badDate: 'date must be in YYYY-MM-DD format; received "{value}".',
       noPlanThatDay: 'No plan was recorded for this day.',
       noNotes: 'No notes yet — ask the user to create one on the Notes page, then I can read it.',
+      emptyContent: 'Content cannot be empty.',
+      emptyTaskTitle: 'Task title cannot be empty.',
+      emptyPatch: 'Nothing to update (provide at least one of content / newTitle / category / tags).',
+      noteVanished: 'That note does not exist or was deleted.',
+      badCheckinStatus: 'Check-in status must be done / partial / skipped.',
+      taskNotFound: 'No matching task found. Use list_daily_tasks with a date to list the tasks of that day, then check in by taskId.',
+      taskWriteFailed: 'Task write failed (plan created but no task row returned). Retry, or use create_daily_plan instead.',
     },
     // Local fallback answer built from tool results when LLM synthesis fails
     localAnswer: {

@@ -28,8 +28,13 @@ import {
   createDoc,
   listNotes,
   getNote,
+  createNote,
+  updateNote,
   listDailyPlan,
   listDailyPlanSummary,
+  createDailyPlan,
+  addDailyTask,
+  checkinDailyTask,
 } from '../../repo.js';
 import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards, getGraphDrivenReviewPlan, generateAutoPlan, getCalibration } from '../analytics.js';
 import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';
@@ -496,7 +501,213 @@ toolRegistry.register({
   },
 });
 
-// ---------- 5. 学习计划（持久化） ----------
+// ---------- 5. 写入类：笔记 / 每日规划（round76） ----------
+//
+// 为什么加：「AI 能读全部模块，但产出无处可落」——此前 12 个写工具里没有一个是写笔记或每日任务的，
+// 于是「帮我把这段整理成笔记」只能落成 AI 文档（另一个模块）、「把这几张卡排进今天」根本做不到。
+//
+// 写入纪律（四个工具共用，改描述时别删这几条）：
+//   ① **先确认再写**：必须先把「将要写入的内容」呈现给用户并得到同意，才调用写入工具；
+//   ② 只写用户明确要写的内容，不擅自扩写/改写；
+//   ③ 回传 id 供后续引用（update/打卡用 id，**不要凭记忆编 id**）；
+//   ④ 会覆盖既有数据的操作（如重建当天计划）必须先明确告知用户。
+
+toolRegistry.register({
+  name: 'create_note',
+  description: '新建一篇**笔记**（厚笔记：Markdown 正文 + 分类 + 标签，正文里可用 [[card-id]] 形成双向链接）。'
+    + '⚠️ 写入前必须先把你打算写入的「标题 + 正文摘要 + 分类/标签」呈现给用户并得到确认，不要未经确认直接写库。'
+    + '只写用户给的或已确认的内容，不要擅自扩写。返回 noteId，后续修改请用 update_note 传该 id。',
+  parameters: {
+    title: 'string: 笔记标题',
+    content: 'string: Markdown 正文（必填）',
+    category: 'string: 分类（可选，如「线性代数」）',
+    tags: 'string: 逗号分隔标签（可选）',
+  },
+  writesData: true,
+  async execute(args) {
+    const content = String(args?.content ?? '').trim();
+    if (!content) return { ok: false, error: t('agent.toolMsg.emptyContent') };
+    const tags = args?.tags ? String(args.tags).split(',').map((x) => x.trim()).filter(Boolean) : [];
+    const n = await createNote({ title: args?.title || '', content, category: args?.category || '', tags });
+    return {
+      ok: true,
+      data: { noteId: n.id, title: n.title, category: n.category || '', tags: n.tags || [], chars: content.length },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'update_note',
+  description: '修改一篇**已有**笔记（只覆盖你传入的字段，未传字段保持原值）。参数二选一：id（来自 list_notes）或 title（模糊匹配）。'
+    + '⚠️ 同样先确认：把「改哪一篇、改成什么」讲清楚并得到用户同意后再写。返回改了哪些字段。',
+  parameters: {
+    id: 'string: 笔记 id（来自 list_notes，最可靠）',
+    title: 'string: 笔记标题或片段（用于定位，模糊匹配）',
+    content: 'string: 新的 Markdown 正文（可选）',
+    newTitle: 'string: 新的标题（可选；定位用 title，改名用 newTitle，别混）',
+    category: 'string: 新分类（可选）',
+    tags: 'string: 新的逗号分隔标签（可选）',
+  },
+  writesData: true,
+  async execute(args) {
+    const notes = await listNotes();
+    if (!notes.length) return { ok: false, error: t('agent.toolMsg.noNotes') };
+    const target = pickByIdOrTitle(notes, args);
+    if (!target) {
+      const titles = notes.slice(0, 20).map((x) => x.title).join('、');
+      return { ok: false, error: `未找到匹配的笔记。现有笔记：${titles}。可先用 list_notes 查看完整列表。` };
+    }
+    const patch = {};
+    if (args?.content != null) patch.content = String(args.content);
+    if (args?.newTitle != null) patch.title = String(args.newTitle);
+    if (args?.category != null) patch.category = String(args.category);
+    if (args?.tags != null) patch.tags = String(args.tags).split(',').map((x) => x.trim()).filter(Boolean);
+    if (!Object.keys(patch).length) return { ok: false, error: t('agent.toolMsg.emptyPatch') };
+    const out = await updateNote(target.id, patch);
+    if (!out) return { ok: false, error: t('agent.toolMsg.noteVanished') };
+    return { ok: true, data: { noteId: out.id, title: out.title, changed: Object.keys(patch) } };
+  },
+});
+
+toolRegistry.register({
+  name: 'create_daily_plan',
+  description: '为用户**某一天**创建「每日规划」：把要做的事写成一段自然语言（可含时间/时长/科目），系统会解析成任务清单。'
+    + '⚠️ 两个必须确认的点：① 先把这段口述文本给用户看；② 那天**已有计划时本工具会覆盖重建**（旧计划进回收站），必须先明确告知用户。'
+    + '返回 planId 与解析出的任务；之后可用 add_daily_task 追加单条任务。',
+  parameters: {
+    rawInput: 'string: 当天要做什么（自然语言，如「9点线代 45 分钟，下午做计网错题 30 分钟」）',
+    date: 'string: 日期 YYYY-MM-DD（可选，默认今天）',
+  },
+  writesData: true,
+  async execute(args) {
+    const rawInput = String(args?.rawInput ?? '').trim();
+    if (!rawInput) return { ok: false, error: t('agent.toolMsg.emptyContent') };
+    const date = String(args?.date || '').trim();
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { ok: false, error: t('agent.toolMsg.badDate', undefined, { value: date }) };
+    }
+    const r = await createDailyPlan({ rawInput, ...(date ? { date } : {}) });
+    return {
+      ok: true,
+      data: {
+        planId: r.plan.id,
+        date: r.plan.date,
+        taskCount: r.tasks.length,
+        tasks: r.tasks.map((x) => ({
+          id: x.id, title: x.title, type: x.type,
+          estimatedMinutes: x.estimatedMinutes,
+          scheduledHour: Number.isFinite(Number(x.scheduledHour)) ? Number(x.scheduledHour) : null,
+          quadrant: x.quadrant,
+        })),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'add_daily_task',
+  description: '把**一条任务**加进某一天的规划里 —— 用户说「把这件事排进今天」时用它。'
+    + '当天还没有规划时，本工具会**自动新建**当天计划再追加（以任务标题作为该计划的口述原文）。'
+    + '⚠️ 写入前先确认任务标题、预估时长与开始时刻，用户同意后再调。返回 taskId。',
+  parameters: {
+    title: 'string: 任务标题（必填）',
+    date: 'string: 日期 YYYY-MM-DD（可选，默认今天）',
+    planId: 'string: 指定计划 id（可选，来自 create_daily_plan / list_daily_tasks）',
+    type: 'string: 类型 review|pomodoro|doc|exam|note|other（默认 other）',
+    quadrant: 'string: 四象限 Q1|Q2|Q3|Q4（默认 Q4）',
+    estimatedMinutes: 'number: 预估分钟数（可选）',
+    scheduledHour: 'number: 计划开始时刻 0-23（可选）',
+    subject: 'string: 科目（可选）',
+  },
+  writesData: true,
+  async execute(args) {
+    const title = String(args?.title ?? '').trim();
+    if (!title) return { ok: false, error: t('agent.toolMsg.emptyTaskTitle') };
+    const date = String(args?.date || '').trim();
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { ok: false, error: t('agent.toolMsg.badDate', undefined, { value: date }) };
+    }
+    const draft = {
+      title,
+      type: args?.type || 'other',
+      quadrant: args?.quadrant || 'Q4',
+      estimatedMinutes: Number.isFinite(Number(args?.estimatedMinutes)) ? Number(args.estimatedMinutes) : undefined,
+      scheduledHour: Number.isFinite(Number(args?.scheduledHour)) ? Math.floor(Number(args.scheduledHour)) : undefined,
+      subject: args?.subject || '',
+    };
+    let planId = String(args?.planId || '').trim();
+    let task;
+    if (planId) {
+      task = await addDailyTask(planId, draft);
+    } else {
+      const found = await listDailyPlan(date || undefined); // 缺省 = 今天
+      if (found?.plan?.id) {
+        planId = found.plan.id;
+        task = await addDailyTask(planId, draft);
+      } else {
+        // 当天没有计划 → 直接建计划，并走「**调用方给任务**」路径（tasks 参数）。
+        // 为什么不能只传 rawInput：那样口述原文会被再解析一遍，若解析出同名任务，
+        // 就与随后的 addDailyTask 重复成两条（实测踩到）。
+        const created = await createDailyPlan({ rawInput: title, ...(date ? { date } : {}), tasks: [draft] });
+        planId = created.plan.id;
+        task = created.tasks[0];
+      }
+    }
+    if (!task) return { ok: false, error: t('agent.toolMsg.taskWriteFailed') };
+    return {
+      ok: true,
+      data: {
+        taskId: task.id, planId, date: task.date, title: task.title,
+        estimatedMinutes: task.estimatedMinutes,
+        scheduledHour: Number.isFinite(Number(task.scheduledHour)) ? Number(task.scheduledHour) : null,
+        status: task.status,
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'checkin_daily_task',
+  description: '给任务打卡：done 完成 / partial 部分完成 / skipped 跳过（可带一句完成备注）。'
+    + '参数：taskId（来自 list_daily_tasks，最可靠）或 title（在指定日期/今天的任务里模糊匹配）。'
+    + '⚠️ 打卡代表真实完成，务必先确认是哪一条任务、什么状态，不要替用户"猜着打勾"。',
+  parameters: {
+    taskId: 'string: 任务 id（来自 list_daily_tasks）',
+    title: 'string: 任务标题或片段（模糊匹配；缺省在今天的任务里找）',
+    date: 'string: 哪一天的任务 YYYY-MM-DD（可选，默认今天）',
+    status: 'string: done|partial|skipped（默认 done）',
+    note: 'string: 完成备注（可选）',
+  },
+  writesData: true,
+  async execute(args) {
+    const status = String(args?.status || 'done');
+    if (!['done', 'partial', 'skipped'].includes(status)) {
+      return { ok: false, error: t('agent.toolMsg.badCheckinStatus') };
+    }
+    const date = String(args?.date || '').trim();
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { ok: false, error: t('agent.toolMsg.badDate', undefined, { value: date }) };
+    }
+    let taskId = String(args?.taskId || '').trim();
+    if (!taskId) {
+      const found = await listDailyPlan(date || undefined);
+      const tasks = found?.tasks || [];
+      const q = String(args?.title || '').trim().toLowerCase();
+      const hit = tasks.find((x) => String(x.id) === String(args?.title || ''))
+        || (q ? tasks.find((x) => String(x.title || '').toLowerCase() === q)
+          || tasks.find((x) => String(x.title || '').toLowerCase().includes(q)) : null);
+      if (!hit) return { ok: false, error: t('agent.toolMsg.taskNotFound') };
+      taskId = hit.id;
+    }
+    const out = await checkinDailyTask(taskId, status, String(args?.note || ''));
+    return {
+      ok: true,
+      data: { taskId: out.id, title: out.title, status: out.status, completionNote: out.completionNote || '' },
+    };
+  },
+});
+
+// ---------- 6. 学习计划（持久化） ----------
 
 toolRegistry.register({
   name: 'create_plan',

@@ -10,11 +10,12 @@ agentRegistry.register({
   name: '学习答疑导师',
   description: '回答各科知识点疑问，结合你的卡片库做针对性讲解，适合“这个概念怎么理解”类问题。',
   systemPrompt:
-    '你是「SxyBrick 记忆卡片」的学习答疑导师，擅长把复杂概念讲得通俗易懂。\n{context}\n{memory}\n请用中文、分点、举例说明；必要时调用搜索/讲解工具核对用户已有卡片，避免凭空编造。若涉及公式，用 $...$ 行内或 $$...$$ 块级表达。',
+    '你是「SxyBrick 记忆卡片」的学习答疑导师，擅长把复杂概念讲得通俗易懂。\n{context}\n{memory}\n请用中文、分点、举例说明；必要时调用搜索/讲解工具核对用户已有卡片，避免凭空编造。若涉及公式，用 $...$ 行内或 $$...$$ 块级表达。\n'
+    + '用户要求**写入**（整理成笔记、排进今天、打卡）时：先用读取工具取到原文，再把「将要写入的内容」摘要给用户确认，得到同意后才调写入工具；不要未经确认直接写库，也不要替用户猜测完成状态。',
   // round74：把「笔记 / AI 文档 / 计划 / 每日任务 / 备忘」的读取工具挂上——
   // 此前导师 Agent 手上**只有卡片与资料库工具**，所以用户问「我笔记里写了什么」「我的计划是什么」
   // 时它只能回答「我看不到」，与卡片域修复前是同一类缺陷（工具不可见 = AI 看不到）。
-  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'list_lib_docs', 'read_lib_doc', 'explain_concept', 'get_card_detail', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_memos', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
+  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'list_lib_docs', 'read_lib_doc', 'explain_concept', 'get_card_detail', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_memos', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
   maxSteps: 6,
 });
 
@@ -38,7 +39,7 @@ agentRegistry.register({
   systemPrompt:
     '你是卡片生产工，负责把学习内容转化为高质量记忆卡片。\n{memory}\n流程：\n1) 优先调用 generate_card_deck（高级版，自带质量评分+去重+源文档溯源）；若用户内容很短或仅做轻量拆解，可退回 generate_cards。\n2) 把候选卡（含 score 与 dupScore）简要呈现给用户：标注质量分<60 的低质卡、dupScore>=0.35 的疑似重复卡。\n3) 用户确认后调用 bulk_create_cards 批量入库（不要逐张 create_card，效率低且丢源文档回链）。\n4) 若用户卡片库为空（0 卡新用户），优先推荐 list_cold_start_templates + cold_start_deck 一键生成入门卡包，解决冷启动。\n5) 也可用 get_gap_cards 找高频错题、generate_variant_card 生成变式题，形成「错题→补卡」闭环。\n保证 front 是“问题/提示”、back 是“答案”。',
   // round74：「把笔记/讲义拆成卡片」是它的核心工作，此前却读不到用户的笔记与 AI 文档
-  tools: ['generate_card_deck', 'generate_cards', 'bulk_create_cards', 'create_card', 'list_subjects_and_tags', 'search_cards', 'semantic_search', 'list_lib_docs', 'read_lib_doc', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'get_gap_cards', 'generate_variant_card', 'list_cold_start_templates', 'cold_start_deck'],
+  tools: ['generate_card_deck', 'generate_cards', 'bulk_create_cards', 'create_card', 'list_subjects_and_tags', 'search_cards', 'semantic_search', 'list_lib_docs', 'read_lib_doc', 'list_notes', 'read_note', 'create_note', 'list_docs', 'read_doc', 'get_gap_cards', 'generate_variant_card', 'list_cold_start_templates', 'cold_start_deck'],
   maxSteps: 12,
 });
 
@@ -61,7 +62,7 @@ agentRegistry.register({
   systemPrompt:
     '你是复习计划编排师，擅长把“目标”拆成“可执行的步骤序列”。\n{context}\n{memory}\n流程：\n1) 优先调用 auto_generate_plan（数据驱动、零 LLM 即可生成结构化阶段计划 markdown + meta），把生成的 title/content 直接交给 create_plan 持久化。\n2) 如用户希望更个性化，再叠加 graph_review_plan（图驱动复习路径）作为计划内的复习序列补充。\n3) 若用户认可最终计划，调用 create_plan 落库（会随数据包同步）。\n用 <final> 输出最终计划摘要。',
   // round74：编排计划前要先看得见「已有的计划与每天实际排了什么」，否则会排出与现状脱节的计划
-  tools: ['auto_generate_plan', 'graph_review_plan', 'get_stats', 'get_review_suggestion', 'get_weak_cards', 'create_plan', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_notes'],
+  tools: ['auto_generate_plan', 'graph_review_plan', 'get_stats', 'get_review_suggestion', 'get_weak_cards', 'create_plan', 'list_plans', 'read_plan', 'list_daily_tasks', 'create_daily_plan', 'add_daily_task', 'list_notes'],
   maxSteps: 10,
 });
 
@@ -117,7 +118,8 @@ agentRegistry.register({
   systemPrompt:
     '你是智能复习教练，必须基于跨模块真实数据出复习方案。\n{context}\n{memory}\n先用 get_cross_insight / get_recent_mistakes / smart_review_plan / get_learning_profile 拿数据，必要时用 get_confusable_pairs 找易混对、get_gap_cards 找知识缺口，再输出一份「今天优先复习什么、为什么、怎么复习」的清单（分级：P0 昨天答错→P1 高频错→P2 易混对→P3 到期→P4 计划内）。\n若用户想集中攻克高频错题，调用 build_quiz_from_mistakes 生成「错题轰炸」测验序列（零 LLM：错因簇→先补前置→交错出题），然后按序逐卡引导用户作答并即时讲解。',
   // round74：它的职责描述里就写着「综合…计划与费曼反馈」，但此前只有 list_plans（摘要）
-  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_notes', 'read_note', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'build_quiz_from_mistakes', 'semantic_search', 'retrieve_context', 'list_lib_docs', 'read_lib_doc', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
+  // round76：复习清单给出后要能「排进今天 + 打卡」，否则清单只停在聊天里
+  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'list_plans', 'read_plan', 'list_daily_tasks', 'add_daily_task', 'checkin_daily_task', 'list_notes', 'read_note', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'build_quiz_from_mistakes', 'semantic_search', 'retrieve_context', 'list_lib_docs', 'read_lib_doc', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
   maxSteps: 10,
 });
 
