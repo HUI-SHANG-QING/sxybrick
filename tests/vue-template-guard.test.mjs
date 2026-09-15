@@ -200,3 +200,50 @@ test('全部 .vue 模板：v-for 循环变量不得命名为 t', () => {
   }
   assert.deepEqual(bad, [], `以下 v-for 变量叫 t，请改成 task/tip/item 之类：\n${bad.join('\n')}`);
 });
+
+// ---------------- 坑 3（round75 新增）：.js 里把 t 用作局部变量，遮蔽 i18n 的 t() ----------------
+//
+// 与坑 2（模板 v-for 变量名 t）同源，但发生在**脚本**里：文件顶部 `import { t } from '.../i18n'`，
+// 同一作用域又写了 `const t = await res.text()` / `.map((t) => …)` / `catch (t)`。
+// 后者会**静默遮蔽**前者：同段代码里所有 `t('some.key')` 都会抛 `t is not a function`。
+// 实测踩到（round75）：llm.js 用 `const t = await res.text()` 存响应文本，新加的
+// `t('agent.llm.retried', …)` 直接变成「调用字符串」→ 重试耗尽后的错误信息整段构造失败。
+// 编译/静态检查都不会报它，只在运行到那一行时才炸。
+function walkScripts(dir, out = []) {
+  for (const n of readdirSync(dir)) {
+    const p = join(dir, n);
+    if (statSync(p).isDirectory()) walkScripts(p, out);
+    else if (n.endsWith('.js') || n.endsWith('.mjs')) out.push(p);
+  }
+  return out;
+}
+
+/** 该文件是否从 i18n 引入了 t */
+const importsI18nT = (src) => /import\s*\{[^}]*\bt\b[^}]*\}\s*from\s*['"][^'"]*i18n\/index\.js['"]/.test(src);
+
+/** 是否把 t 用作局部变量 / 形参（会遮蔽 import 进来的 t） */
+const shadowsT = (src) => /(?:const|let|var)\s+t\s*=/.test(src)
+  || /\(\s*t\s*\)\s*=>/.test(src)
+  || /(^|[^.\w])t\s*=>/.test(src)
+  || /catch\s*\(\s*t\s*\)/.test(src);
+
+test('t 遮蔽检测器自检：能抓出负例、不误报 task / t 开头的词', () => {
+  assert.ok(shadowsT("const t = await res.text();"), '应抓出 const t =');
+  assert.ok(shadowsT('items.map((t) => t.trim())'), '应抓出箭头参数 t');
+  assert.ok(shadowsT('try {} catch (t) {}'), '应抓出 catch(t)');
+  assert.ok(!shadowsT('const task = 1; items.map((task) => task.id)'), '不得误报 task');
+  assert.ok(!shadowsT("const txt = 'a'; const total = 1;"), '不得误报 t 开头的其它标识符');
+  assert.ok(!shadowsT("import { t } from '../i18n/index.js'; t('k', 'v');"), '正常调用不应误报');
+});
+
+test('src/agent 下引入 i18n t 的文件：不得把 t 用作局部变量/形参（会遮蔽 t()）', () => {
+  const files = walkScripts(join(SRC, 'agent'));
+  const offenders = [];
+  for (const f of files) {
+    const src = readFileSync(f, 'utf8');
+    if (!importsI18nT(src)) continue;
+    if (shadowsT(src)) offenders.push(relative(SRC, f).replace(/\\/g, '/'));
+  }
+  assert.deepEqual(offenders, [], '这些文件里 t(\'key\') 会抛「t is not a function」，请把局部变量改名（如 bodyText）');
+});
+

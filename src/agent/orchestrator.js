@@ -41,9 +41,11 @@ const INTENT_RULES = [
 ];
 
 function routeIntent(text) {
-  const t = String(text || '');
+  // 局部变量**不要**命名成 t：本文件 import 了 i18n 的 t()，遮蔽后
+  // `t('agent.orchestrator…')` 会抛「t is not a function」（round75 已在 llm.js 踩到同类）。
+  const s = String(text || '');
   for (const rule of INTENT_RULES) {
-    if (rule.keys.some((k) => t.includes(k))) return rule.agent;
+    if (rule.keys.some((k) => s.includes(k))) return rule.agent;
   }
   return 'tutor'; // 默认：答疑导师（知识点疑问）
 }
@@ -55,13 +57,13 @@ function routeIntent(text) {
 // 否则只保留记忆文本（memorykeeper 依赖它，且成本可控）。
 const CHITCHAT_RE = /^(你好|您好|hi|hello|嗨|哈喽|在吗|谢谢|感谢|辛苦|拜拜|再见|早上好|下午好|晚上好|晚安|ok|好的|嗯|哦)[!！。~～\s]*$/i;
 function needsFullContext(userInput) {
-  const t = String(userInput || '').trim();
-  if (!t) return false;
-  if (CHITCHAT_RE.test(t)) return false;
-  if (t.length >= 12) return true; // 足够长，视为实质问题
+  const text = String(userInput || '').trim();
+  if (!text) return false;
+  if (CHITCHAT_RE.test(text)) return false;
+  if (text.length >= 12) return true; // 足够长，视为实质问题
   const intentKeys = INTENT_RULES.flatMap((r) => r.keys);
   const questionWords = ['什么', '怎么', '为什么', '如何', '哪', '吗', '？', '?', '解释', '讲', '帮我'];
-  return intentKeys.some((k) => t.includes(k)) || questionWords.some((k) => t.includes(k));
+  return intentKeys.some((k) => text.includes(k)) || questionWords.some((k) => text.includes(k));
 }
 
 /**
@@ -144,10 +146,11 @@ export function listAgents() {
 }
 
 export function listTools() {
-  return toolRegistry.list().map((t) => ({
-    name: t.name,
-    description: t.description,
-    readsData: t.readsData,
-    writesData: t.writesData,
+  // 形参同样别叫 t：本文件 import 了 i18n 的 t()，遮蔽后极易在后续编辑里埋雷
+  return toolRegistry.list().map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    readsData: tool.readsData,
+    writesData: tool.writesData,
   }));
 }

@@ -240,6 +240,8 @@ const zh = {
       timeoutError: 'AI 请求超时（>{n}s 无新数据）',
       canceled: 'AI 请求已取消',
       timeoutPartial: '> ⏱️ 本次回答因超时中断，以上为**已生成的部分**。可把问题拆小（例如分批列卡片）后重试。',
+      retried: '，已自动重试 {n} 次',
+      requestFailed: 'AI 请求失败({info})：{detail}',
     },
     // 工具返回给模型的提示/错误（src/agent/tools/index.js）。
     // 为什么进字典而不是硬编码：llm 不可达时 buildLocalAnswer 会把工具的错误/提示
@@ -486,6 +488,8 @@ const en = {
       timeoutError: 'AI request timed out (no new data for >{n}s)',
       canceled: 'AI request was canceled',
       timeoutPartial: '> ⏱️ This answer was cut off by a timeout; the above is the part already generated. Try narrowing the question (e.g. list cards in batches) and retry.',
+      retried: ', auto-retried {n} time(s)',
+      requestFailed: 'AI request failed ({info}): {detail}',
     },
     // Tool-side notices/errors surfaced to the model (src/agent/tools/index.js)
     toolMsg: {

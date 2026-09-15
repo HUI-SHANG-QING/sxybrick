@@ -61,6 +61,75 @@ const TRUNCATE_CONTINUE_PROMPT =
   '上一条回复因长度限制被截断了。请**从中断处接着写**剩余内容，'
   + '不要重复已经输出的部分，也不要添加任何前言或总结性收尾。';
 
+// round75：**暂时性失败的自动重试**（此前完全没有，是本项目「高频失败」里除超时之外最大的一块）。
+//
+// 为什么必须有：一次问话可能连发 3~6 次调用（多智能体流水线 = 任务分解 + N 个 Agent 各自的
+// ReAct + 最终汇总），任何一次撞上 429（限流）/ 500~504（后端抖动）/ 网络瞬时失败，
+// 那一步就直接降级——用户看到的正是「三个 Agent 的 AI 合成环节均不可用」这种整片失败。
+// 而这类失败**退避重试一两次基本都能过**；不重试等于把「服务端瞬时抖动」直接翻译成「功能坏了」。
+//
+// 边界（很重要，别把重试变成拖时间）：
+//   · 只重试 429 与 5xx；400/401/403/404/413/422 是**确定性**错误，重试只会让用户多等；
+//   · 用户取消（abort）绝不重试——否则「取消」还要等好几轮退避才生效；
+//   · 只在**状态码阶段**重试（此时还没开始流式输出，重发不会产生重复内容）。
+const MAX_ATTEMPTS = 3;
+const RETRY_BASE_MS = 800;
+const RETRY_MAX_MS = 4000;
+
+/** 暂时性 HTTP 状态：值得重试的 */
+function isTransientStatus(status) {
+  return status === 429 || (status >= 500 && status <= 599);
+}
+
+/** 可中断的等待：用户取消时立刻返回，不让退避拖住「取消」 */
+function sleep(ms, signal) {
+  return new Promise((resolve) => {
+    const id = setTimeout(resolve, ms);
+    signal?.addEventListener?.('abort', () => { clearTimeout(id); resolve(); }, { once: true });
+  });
+}
+
+/** 第 n 次重试要等多久：指数退避 + 抖动；服务端给了 Retry-After 就听服务端的 */
+function backoffMs(attempt, retryAfterSec, baseMs) {
+  if (retryAfterSec > 0) return Math.min(retryAfterSec * 1000, 15000);
+  const base = Math.min(baseMs * (2 ** attempt), RETRY_MAX_MS);
+  return Math.round(base * (0.7 + Math.random() * 0.6));
+}
+
+/**
+ * 带重试的 fetch。返回 `{ res, attempts }`（attempts = 实际用掉的尝试次数，含首次），
+ * 调用方据此在最终失败时如实告知「已自动重试 N 次」。
+ * @param {string} url
+ * @param {object} init
+ * @param {{ attempts?: number, signal?: AbortSignal, retryBaseMs?: number }} [opt]
+ */
+async function fetchWithRetry(url, init, opt = {}) {
+  const maxAttempts = Math.max(1, Math.min(Math.trunc(Number(opt.attempts)) || MAX_ATTEMPTS, 5));
+  const baseMs = Number.isFinite(Number(opt.retryBaseMs)) ? Math.max(0, Number(opt.retryBaseMs)) : RETRY_BASE_MS;
+  const signal = opt.signal;
+  let lastErr = null;
+  for (let i = 0; i < maxAttempts; i += 1) {
+    try {
+      const res = await fetch(url, init);
+      if (res.ok || !isTransientStatus(res.status) || i === maxAttempts - 1) {
+        return { res, attempts: i + 1 };
+      }
+      const retryAfter = Number(res.headers?.get?.('retry-after')) || 0;
+      await res.text().catch(() => {}); // 消费掉错误响应体，避免连接悬挂
+      if (signal?.aborted) return { res, attempts: i + 1 };
+      await sleep(backoffMs(i, retryAfter, baseMs), signal);
+    } catch (e) {
+      // 用户取消 / 超时中止 → 直接抛，不重试
+      if (e?.name === 'AbortError' || signal?.aborted) throw e;
+      lastErr = e;
+      if (i === maxAttempts - 1) throw e;
+      await sleep(backoffMs(i, 0, baseMs), signal);
+    }
+  }
+  if (lastErr) throw lastErr;
+  throw new Error('AI 请求失败');
+}
+
 /**
  * 发起一次聊天补全。
  * @param {Array<{role:string,content:string}>} messages
@@ -146,15 +215,17 @@ export async function chat(messages, cfg, opts = {}) {
   let received = '';
 
   try {
-    const res = await fetch(`${base}/chat/completions`, {
+    const { res, attempts } = await fetchWithRetry(`${base}/chat/completions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify(body),
       signal,
-    });
+    }, { signal, retryBaseMs: opts.retryBaseMs, attempts: opts.retryAttempts });
 
     if (!res.ok) {
-      const t = await res.text().catch(() => '');
+      // 注意：这里**不能**把响应文本命名为 t —— 会遮蔽上面 import 的 i18n 函数 t()，
+      // 于是同一段代码里调用 t('...') 会抛「t is not a function」（round75 实测踩到）。
+      const bodyText = await res.text().catch(() => '');
       // 模型不支持视觉输入时（纯文本模型 + 我们发了图），服务端通常回 400/422。
       // 直接抛错会让用户看到一句晦涩的「AI 请求失败」——而他的真实意图只是「分析图片内容」。
       // 这里剥离附图重试一次，并在正文里说明「已省略 N 张图 + 怎么改设置」，
@@ -165,22 +236,29 @@ export async function chat(messages, cfg, opts = {}) {
         const plain = stripVisionForRetry(finalMessages, visionCount);
         return await chat(plain, cfg, { ...opts, _visionRetry: true });
       }
-      const err = new Error(`AI 请求失败(${res.status}${httpHint(res.status)})：${t.slice(0, 300)}`);
+      // round75：如实写出「已自动重试 N 次」——否则用户分不清「服务端就是不行」和「刚才是抖动」，
+      // 只能反复手动重试。重试过还失败 = 大概率不是抖动，该换模型/查额度了。
+      const retried = attempts > 1 ? t('agent.llm.retried', undefined, { n: attempts - 1 }) : '';
+      // 文案走字典：这条错误会直接出现在 UI（toast / 降级提示），属于用户可见文案
+      const err = new Error(t('agent.llm.requestFailed', undefined, {
+        info: `${res.status}${httpHint(res.status)}${retried}`,
+        detail: bodyText.slice(0, 300),
+      }));
       err.status = res.status;
       // round49：某些本地/自建端点输出上限低于 4096，会把 max_tokens 判为非法（400/422）。
       // 为「修截断」反而把请求打死不划算——按服务端提示降级重试一次（≤2000）。
       // round73：默认流式之后，必须给「不接受 stream 参数的端点/网关」留退路。
       // 这类服务通常回 400/422 且错误文本里带 stream —— 直接抛错会让用户换了个自建端点就全挂。
-      if (!opts._streamRetry && opts.stream && (res.status === 400 || res.status === 422) && /stream/i.test(t)) {
+      if (!opts._streamRetry && opts.stream && (res.status === 400 || res.status === 422) && /stream/i.test(bodyText)) {
         reportUsage(undefined, '', false);
         return await chat(finalMessages, cfg, { ...opts, stream: false, _streamRetry: true });
       }
-      if (!opts._maxTokenRetry && (res.status === 400 || res.status === 422) && /max[_\s-]?tokens?/i.test(t)) {
+      if (!opts._maxTokenRetry && (res.status === 400 || res.status === 422) && /max[_\s-]?tokens?/i.test(bodyText)) {
         reportUsage(undefined, '', false);
         // round73：不再一律降到 2000。先从服务端文案里解析**它允许的上限**并按上限重试，
         // 同时把上限记住（后续调用直接夹紧）。旧行为降到 2000 = 长回答被硬截断，
         // 用户明明买了个大窗口的模型，却一直在用 2K 的输出。
-        const bound = parseMaxTokensBound(t);
+        const bound = parseMaxTokensBound(bodyText);
         if (bound) MAX_TOKEN_CAP.set(`${base}|${model}`, bound);
         return await chat(finalMessages, cfg, {
           ...opts,

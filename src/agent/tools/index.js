@@ -202,7 +202,7 @@ toolRegistry.register({
   },
   readsData: true,
   async execute(args) {
-    const tags = args?.tags ? String(args.tags).split(',').map((t) => t.trim()).filter(Boolean) : [];
+    const tags = args?.tags ? String(args.tags).split(',').map((x) => x.trim()).filter(Boolean) : [];
     const r = await listCards({
       q: args?.q || '',
       subject: args?.subject || '',
@@ -333,8 +333,8 @@ toolRegistry.register({
     return {
       ok: true,
       data: {
-        templates: COLD_START_TEMPLATES.map(t => ({
-          id: t.id, name: t.name, subject: t.subject, description: t.description,
+        templates: COLD_START_TEMPLATES.map(x => ({
+          id: x.id, name: x.name, subject: x.subject, description: x.description,
         })),
       },
     };
@@ -352,7 +352,7 @@ toolRegistry.register({
   },
   writesData: true,
   async execute(args) {
-    const tags = args?.tags ? String(args.tags).split(',').map((t) => t.trim()).filter(Boolean) : [];
+    const tags = args?.tags ? String(args.tags).split(',').map((x) => x.trim()).filter(Boolean) : [];
     const card = await createCard({
       front: String(args?.front || '').trim(),
       back: String(args?.back || '').trim(),
@@ -440,7 +440,7 @@ toolRegistry.register({
     const id = String(args?.id || '');
     const old = await getCard(id);
     if (!old) return { ok: false, error: '卡片不存在' };
-    const tags = args?.tags != null ? String(args.tags).split(',').map((t) => t.trim()).filter(Boolean) : old.tags;
+    const tags = args?.tags != null ? String(args.tags).split(',').map((x) => x.trim()).filter(Boolean) : old.tags;
     const card = await updateCard(id, {
       front: args?.front ?? old.front,
       back: args?.back ?? old.back,
@@ -602,7 +602,7 @@ toolRegistry.register({
     if (!found) {
       return { ok: true, data: { mode: 'day', date, total: 0, items: [], note: t('agent.toolMsg.noPlanThatDay') } };
     }
-    const all = (found.tasks || []).filter((t) => (args?.status ? t.status === args.status : true));
+    const all = (found.tasks || []).filter((task) => (args?.status ? task.status === args.status : true));
     const page = pageOf(all, args);
     return {
       ok: true,
@@ -611,12 +611,12 @@ toolRegistry.register({
         planId: found.plan?.id || '', planStatus: found.plan?.status || '',
         rawInput: clipText(String(found.plan?.rawInput || ''), 500),
         total: page.total, offset: page.offset, hasMore: page.hasMore,
-        items: page.items.map((t) => ({
-          id: t.id, title: t.title, type: t.type || '', subject: t.subject || '',
-          important: !!t.important, urgent: !!t.urgent, quadrant: t.quadrant || '',
-          estimatedMinutes: Number(t.estimatedMinutes) || 0,
-          scheduledHour: Number.isFinite(Number(t.scheduledHour)) ? Number(t.scheduledHour) : null,
-          status: t.status, completionNote: String(t.completionNote || ''),
+        items: page.items.map((task) => ({
+          id: task.id, title: task.title, type: task.type || '', subject: task.subject || '',
+          important: !!task.important, urgent: !!task.urgent, quadrant: task.quadrant || '',
+          estimatedMinutes: Number(task.estimatedMinutes) || 0,
+          scheduledHour: Number.isFinite(Number(task.scheduledHour)) ? Number(task.scheduledHour) : null,
+          status: task.status, completionNote: String(task.completionNote || ''),
         })),
       },
     };
@@ -906,7 +906,7 @@ toolRegistry.register({
   },
   writesData: true,
   async execute(args) {
-    const tags = args?.tags ? String(args.tags).split(',').map(t => t.trim()).filter(Boolean) : [];
+    const tags = args?.tags ? String(args.tags).split(',').map(x => x.trim()).filter(Boolean) : [];
     const d = await createDoc({ title: args?.title, content: args?.content, type: args?.type, tags });
     return { ok: true, data: { id: d.id, title: d.title, type: d.type } };
   },

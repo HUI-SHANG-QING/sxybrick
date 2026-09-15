@@ -351,6 +351,102 @@ test('学到上限后夹紧：不再每次调用都白撞一次 400', async () =
   } finally { globalThis.fetch = orig; }
 });
 
+// ---------------- B5. 暂时性失败自动重试（429 / 5xx / 网络抖动） ----------------
+
+const okJson = (json) => ({ ok: true, status: 200, json: async () => json, text: async () => '' });
+const errRes = (status, body = '{}', headers) => ({
+  ok: false, status, text: async () => body, json: async () => ({}), headers: headers || { get: () => null },
+});
+const okBody = { choices: [{ message: { content: '重试成功' }, finish_reason: 'stop' }], usage: {} };
+
+test('429 限流：自动退避重试并成功（此前一次 429 就直接降级）', async () => {
+  let n = 0;
+  const orig = globalThis.fetch;
+  globalThis.fetch = async () => {
+    n += 1;
+    if (n <= 2) return errRes(429, '{"error":{"message":"rate limited"}}');
+    return okJson(okBody);
+  };
+  try {
+    const out = await chat([{ role: 'user', content: 'hi' }], CFG, { retryBaseMs: 1 });
+    assert.equal(out, '重试成功');
+    assert.equal(n, 3, '前两次 429 应被重试');
+  } finally { globalThis.fetch = orig; }
+});
+
+test('5xx 连续失败：重试到上限后抛出，并如实告知「已自动重试 N 次」', async () => {
+  let n = 0;
+  const orig = globalThis.fetch;
+  globalThis.fetch = async () => { n += 1; return errRes(503, '{"error":{"message":"upstream down"}}'); };
+  try {
+    await assert.rejects(
+      () => chat([{ role: 'user', content: 'hi' }], CFG, { retryBaseMs: 1 }),
+      (e) => { assert.match(e.message, /已自动重试 2 次/, '要告诉用户系统已经试过了，而不是只丢一句失败'); return true; },
+    );
+    assert.equal(n, 3, '最多 3 次尝试（首次 + 2 次重试），不能无界重试');
+  } finally { globalThis.fetch = orig; }
+});
+
+test('确定性错误（400/401/404）不重试：重试只会让用户白等', async () => {
+  for (const status of [400, 401, 404]) {
+    let n = 0;
+    const orig = globalThis.fetch;
+    globalThis.fetch = async () => { n += 1; return errRes(status, '{"error":{"message":"bad request"}}'); };
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await assert.rejects(() => chat([{ role: 'user', content: 'hi' }], CFG, { retryBaseMs: 1 }));
+      assert.equal(n, 1, `HTTP ${status} 应只请求一次`);
+    } finally { globalThis.fetch = orig; }
+  }
+});
+
+test('网络抖动（fetch 直接 reject）：重试后成功', async () => {
+  let n = 0;
+  const orig = globalThis.fetch;
+  globalThis.fetch = async () => {
+    n += 1;
+    if (n === 1) throw new TypeError('Failed to fetch');
+    return okJson(okBody);
+  };
+  try {
+    assert.equal(await chat([{ role: 'user', content: 'hi' }], CFG, { retryBaseMs: 1 }), '重试成功');
+    assert.equal(n, 2);
+  } finally { globalThis.fetch = orig; }
+});
+
+test('用户取消（外部 abort）不重试：否则「取消」还要等好几轮退避', async () => {
+  let n = 0;
+  const orig = globalThis.fetch;
+  const ctrl = new AbortController();
+  globalThis.fetch = async () => {
+    n += 1;
+    const e = new Error('The operation was aborted.');
+    e.name = 'AbortError';
+    throw e;
+  };
+  ctrl.abort();
+  try {
+    await assert.rejects(() => chat([{ role: 'user', content: 'hi' }], CFG, { retryBaseMs: 1, signal: ctrl.signal }));
+    assert.equal(n, 1, '取消后不得再发请求');
+  } finally { globalThis.fetch = orig; }
+});
+
+test('服务端给了 Retry-After 就听服务端的（不要再按自己的退避猛敲）', async () => {
+  let n = 0;
+  const t0 = Date.now();
+  const orig = globalThis.fetch;
+  globalThis.fetch = async () => {
+    n += 1;
+    if (n === 1) return errRes(429, '{"error":{"message":"slow down"}}', { get: (k) => (k === 'retry-after' ? '1' : null) });
+    return okJson(okBody);
+  };
+  try {
+    assert.equal(await chat([{ role: 'user', content: 'hi' }], CFG, { retryBaseMs: 1 }), '重试成功');
+    assert.ok(Date.now() - t0 >= 900, '应等待服务端要求的 1 秒');
+    assert.equal(n, 2);
+  } finally { globalThis.fetch = orig; }
+});
+
 // ---------------- C. 降级文案必须给出真实原因 ----------------
 
 test('本地直出：带 reason 时文案写真实原因，不再一律「网络或服务异常」', async () => {
