@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildScheduleBoard, riskOption, checkinTimelineOption } from '../src/utils/planCharts.js';
+import { buildScheduleBoard, riskOption, checkinTimelineOption, scheduleOption } from '../src/utils/planCharts.js';
 
 const task = (over = {}) => ({
   id: 't' + Math.random().toString(36).slice(2),
@@ -99,4 +99,74 @@ test('checkinTimelineOption：title 非字符串不抛错（渲染健壮性）',
   ];
   const opt = checkinTimelineOption(tasks);
   assert.ok(opt.yAxis.data.every(c => typeof c === 'string'), 'yAxis 分类必须为字符串');
+});
+
+// ── round66：脏 scheduledHour / estimatedMinutes 的展示侧护栏 ──
+// 背景：`sh < 6 || sh > 23` 这类范围守卫**对 NaN 恒为 false**，脏值会直接穿透 →
+// top 算成 NaN → 整块课程表布局错乱；estimatedMinutes 为 'abc' 时 `|| defaultDur` 同样短路失效。
+test('buildScheduleBoard：脏 scheduledHour 不得落格（NaN 会穿透范围守卫）', () => {
+  for (const bad of [NaN, '9:00', 'abc', undefined, {}]) {
+    const b = buildScheduleBoard([task({ scheduledHour: bad })]);
+    assert.equal(b.placed.length, 0, `scheduledHour=${String(bad)} 不应落格`);
+    assert.equal(b.unscheduled.length, 1);
+  }
+  // 越界值原本就走 unscheduled —— 回归防护，修复不得放宽
+  const out = buildScheduleBoard([task({ scheduledHour: 25 })]);
+  assert.equal(out.placed.length, 0);
+  assert.equal(out.unscheduled.length, 1);
+});
+
+test('buildScheduleBoard：脏 estimatedMinutes 回落默认时长，top/height/label 必须有限', () => {
+  for (const bad of ['abc', NaN, -5, 0, {}]) {
+    const b = buildScheduleBoard([task({ scheduledHour: 9, estimatedMinutes: bad })], { rowH: 56, defaultDur: 60 });
+    assert.equal(b.placed.length, 1, `时长=${String(bad)} 仍应落格`);
+    const p = b.placed[0];
+    assert.ok(Number.isFinite(p.top), 'top 必须有限');
+    assert.ok(Number.isFinite(p.height), 'height 必须有限');
+    assert.equal(p.label, '09:00–10:00', `应回落 60 分钟默认时长，实际 ${p.label}`);
+  }
+});
+
+test('buildScheduleBoard：字符串数字的点钟 / 时长按数值解析（不误伤合法数据）', () => {
+  const b = buildScheduleBoard([task({ scheduledHour: '9', estimatedMinutes: '90' })], { rowH: 56 });
+  assert.equal(b.placed.length, 1);
+  assert.equal(b.placed[0].top, 3 * 56);
+  assert.equal(b.placed[0].height, 84);
+  assert.equal(b.placed[0].label, '09:00–10:30');
+});
+
+test('scheduleOption：脏 scheduledHour 不得抛 TypeError（buckets 索引越界）', () => {
+  assert.doesNotThrow(() => scheduleOption([
+    task({ scheduledHour: 25 }), task({ scheduledHour: '9:00' }), task({ scheduledHour: 9.5 }),
+  ]));
+  const opt = scheduleOption([
+    task({ scheduledHour: 9 }), task({ scheduledHour: 25 }), task({ scheduledHour: '9:00' }),
+  ]);
+  const data = opt.series[0].data;
+  assert.equal(data.length, 24);
+  assert.equal(data[9].value, 1, '合法 9 点应入桶');
+  assert.equal(data.reduce((s, d) => s + d.value, 0), 1, '脏值不得进入任何桶');
+});
+
+test('scheduleOption：小数点位（9.5）不得击穿桶索引', () => {
+  assert.doesNotThrow(() => scheduleOption([task({ scheduledHour: 9.5 })]));
+  const opt = scheduleOption([task({ scheduledHour: 9.5 })]);
+  assert.equal(opt.series[0].data.reduce((s, d) => s + d.value, 0), 0, '非整数不应入桶（桶按整点）');
+});
+
+test('checkinTimelineOption：脏计划时刻不得产出 NaN / 越界坐标（点会"视觉消失"）', () => {
+  const rows = [
+    task({ scheduledHour: '9:00' }),
+    task({ scheduledHour: NaN }),
+    task({ scheduledHour: 25 }),
+    task({ scheduledHour: 9, completedAt: Date.now() }), // 合法对照
+  ];
+  const opt = checkinTimelineOption(rows);
+  const planned = opt.series[0].data;
+  assert.equal(planned.length, 1, '只有合法那条产生计划点');
+  assert.equal(planned[0].value[0], 9);
+  for (const p of opt.series[1].data) {
+    assert.ok(Number.isFinite(p.value[0]), '实际打卡点坐标必须有限');
+    assert.ok(p.value[0] >= 0 && p.value[0] <= 24, '坐标必须在轴范围内');
+  }
 });

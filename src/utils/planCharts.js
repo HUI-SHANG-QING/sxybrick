@@ -168,7 +168,7 @@ export function trendOption(trend = []) {
 export function riskOption(risks = []) {
   if (!risks?.length) return emptyOption();
   const data = risks.slice().reverse().map(r => ({
-    value: r.task.estimatedMinutes || 30,
+    value: safeDur(r.task.estimatedMinutes, 30),
     name: String(r.task.title ?? '').slice(0, 16),
     itemStyle: { color: SEVERITY_COLOR[r.severity] },
   }));
@@ -189,10 +189,14 @@ export function riskOption(risks = []) {
 // ──────────────── 6. 日程时间轴（按小时分布） ────────────────
 
 export function scheduleOption(tasks = []) {
-  const scheduled = tasks.filter(t => t.scheduledHour != null);
   // 未排程的任务显示在右侧"未排程"区域，由视图处理
   const buckets = Array.from({ length: 24 }, (_, h) => ({ hour: h, tasks: [] }));
-  for (const t of scheduled) buckets[t.scheduledHour].tasks.push(t);
+  // 脏 scheduledHour（'9:00' / NaN / 25 / 9.5）会让 `buckets[25]` 取到 undefined → TypeError。
+  // 归一化后只接受 0–23 的整数，其余视作"未排程"交给视图处理。
+  for (const t of (tasks || [])) {
+    const h = Number(t.scheduledHour);
+    if (Number.isInteger(h) && h >= 0 && h <= 23) buckets[h].tasks.push(t);
+  }
   const data = buckets.map(b => ({
     value: b.tasks.length,
     hour: b.hour,
@@ -280,18 +284,26 @@ export function compareBarOption(completion = []) {
 export function checkinTimelineOption(tasks = []) {
   const rows = tasks.filter(t => t.scheduledHour != null || t.completedAt);
   if (!rows.length) return emptyOption('暂无排程/打卡数据');
+  // 脏 scheduledHour（'9:00' / NaN / 25）会让散点落到 NaN 坐标、或被 xAxis(max:24) 裁到画布外
+  // 而"视觉消失"（任务像凭空不见了，还不报错）。统一归一化：非法计划时刻按"无计划"处理，
+  // 不影响实际打卡点（completedAt）的展示。
+  const planHour = rows.map((t) => {
+    const h = Number(t.scheduledHour);
+    return Number.isFinite(h) && h >= 0 && h <= 23 ? h : null;
+  });
   const cats = rows.map(t => String(t.title ?? '').slice(0, 14));
   const planned = [];
   const actual = [];
   rows.forEach((t, i) => {
     const y = i;
-    if (t.scheduledHour != null) {
-      planned.push({ value: [t.scheduledHour, y], name: t.title, itemStyle: { color: '#d4a853' } });
+    const ph = planHour[i];
+    if (ph != null) {
+      planned.push({ value: [ph, y], name: t.title, itemStyle: { color: '#d4a853' } });
     }
     if (t.completedAt) {
       const d = new Date(t.completedAt);
       const h = d.getHours() + d.getMinutes() / 60;
-      const late = t.scheduledHour != null && h > t.scheduledHour + 1; // 晚于计划 1h 算滞后
+      const late = ph != null && h > ph + 1; // 晚于计划 1h 算滞后
       actual.push({
         value: [h, y],
         name: t.title,
@@ -305,7 +317,7 @@ export function checkinTimelineOption(tasks = []) {
       formatter: p => {
         const t = rows[p.dataIndex];
         let s = `${t.title}<br/>`;
-        if (t.scheduledHour != null) s += `计划：${t.scheduledHour}:00<br/>`;
+        if (planHour[p.dataIndex] != null) s += `计划：${planHour[p.dataIndex]}:00<br/>`;
         if (t.completedAt) s += `完成：${fmtLocaleTime(t.completedAt)}`;
         else s += '完成：未打卡';
         return s;
@@ -370,16 +382,22 @@ export function buildScheduleBoard(tasks = [], opts = {}) {
   const items = [];
   const unscheduled = [];
   for (const t of (tasks || [])) {
-    const sh = t.scheduledHour;
-    if (sh == null || sh < startHour || sh > endHour) {
+    // ⚠️ 脏值防护：scheduledHour / estimatedMinutes 可能来自手改数据包或旧版同步
+    // （'9:00' 字符串、NaN、'abc' 时长）。注意 `sh < startHour || sh > endHour` 这类
+    // 范围守卫**对 NaN 恒为 false** —— 脏值会直接穿透，top 算成 NaN，整块课程表布局错乱。
+    // 故先归一化并显式 isFinite 校验，非法值归入"未排程"而不是画到 NaN 坐标上。
+    const sh = Number(t.scheduledHour);
+    if (!Number.isFinite(sh) || sh < startHour || sh > endHour) {
       unscheduled.push(t);
       continue;
     }
-    const durMin = t.estimatedMinutes || defaultDur;
+    const durMin = safeDur(t.estimatedMinutes, defaultDur);
     const top = (sh - startHour) * rowH;
     // 高度按分钟折算，但截断到网格底部（如 23:00 开始的 90min 任务只显示到 24:00）
     const height = Math.min(Math.max(34, Math.round((durMin / 60) * rowH)), Math.max(34, maxBottom - top));
-    items.push({ task: t, top, height, bottom: top + height });
+    // hour / durMin 存归一化后的值：label 与后续计算一律用它们，
+    // 避免再回头读 task 上的原始脏值（字符串偏移会拼出 NaN 时刻）。
+    items.push({ task: t, top, height, bottom: top + height, hour: sh, durMin });
   }
   // 按开始时间排序，便于贪心分配列
   items.sort((a, b) => a.top - b.top);
@@ -404,7 +422,7 @@ export function buildScheduleBoard(tasks = [], opts = {}) {
     left: `calc(${Math.round((it.lane / laneCount) * 10000) / 100}% + 5px)`,
     width: `calc(${Math.round((1 / laneCount) * 10000) / 100}% - 10px)`,
     color: QUAD_COLOR[it.task.quadrant] || QUAD_COLOR.Q4,
-    label: `${fmtHour(it.task.scheduledHour)}–${fmtHour(it.task.scheduledHour + (it.task.estimatedMinutes || defaultDur) / 60)}`,
+    label: `${fmtHour(it.hour)}–${fmtHour(it.hour + it.durMin / 60)}`,
     // 标题显示行数随块高自适应（防长文字溢出）
     clamp: it.height <= 72 ? 1 : it.height <= 144 ? 2 : 3,
     // 注：label 结束时刻不截断——「跨午夜任务」（如 23:00 起 90min）是既有意图特性
@@ -418,6 +436,19 @@ export function buildScheduleBoard(tasks = [], opts = {}) {
     totalHeight: (endHour - startHour + 1) * rowH,
     placed, unscheduled,
   };
+}
+
+/**
+ * 时长归一化：非有限 / 非正 / 缺失一律回落到 fallback。
+ * 脏值（`'abc'`、`NaN`）会让 ECharts 算出 NaN 尺寸或让 `||` 短路失效
+ * （`'abc' || 60` 得到 `'abc'` 而非 60），故不能用裸 `||` 兜底。
+ * @param {*} v 原始时长
+ * @param {number} fallback 兜底值
+ * @returns {number}
+ */
+function safeDur(v, fallback) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 /** 小时 → HH:MM；跨午夜（≥24）时标注"次日" */
