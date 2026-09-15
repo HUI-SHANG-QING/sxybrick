@@ -169,6 +169,95 @@ export const SYNC_TABLES = [
   { table: 'wordStudyLog', kind: 'wordStudyLog', merge: 'idOnly' },
 ];
 
+// ---------------------------------------------------------------------------
+// 行级域校验（round64）：导入 / 中枢合并入口的数据净化
+// ---------------------------------------------------------------------------
+// 背景：round61 发现 rating 越界 / 非数字会让 avgMastery 变 NaN（下游 `|| 0` 静默退化成
+//   「掌握度 0」＝判用户完全没掌握），且坏行只进 correct/stable 分母、静默稀释正确率。
+//   当时只在**读取侧**（repo-core.computeStats 的 inRatingDomain）加了护栏——那只堵住
+//   「统计」一个出口：脏行照样入库，并随同步传播到每一台设备，每个出口都得各自设防，
+//   漏一个就前功尽弃。在**入口**收一次才是根治；hub.js 中枢合并复用本函数，两端行为一致。
+//
+// 三条设计原则（缺一出事）：
+//   ① 只清洗字段值，**绝不丢行** —— 丢行 = 用户复习记录凭空消失（不可接受的静默数据丢失）。
+//   ② 只动「明确非法」的值；合法值（含 null / undefined）原样放行 —— 兼容老版本包。
+//   ③ 时间戳做**可逆规范化**（'1757894400000' → 1757894400000），转不动的置 null。
+//      时间戳参与 LWW 比较：置 null 让该行永远输给对端（安全降级）；留着字符串则
+//      `'2026-09-15' > 1757894400000` 恒为 false → 该行成为「永不更新的僵尸行」，比置 null 更糟。
+//
+// ⚠️ 字段名**无法**从 SYNC_TABLES 派生（清单只登记表名与合并策略，不登记字段），
+//    故这里是唯一允许的枚举点。新增受约束字段必须同时登记本表 + 补测试。
+export const TIMESTAMP_FIELDS = Object.freeze([
+  'updatedAt', 'createdAt', 'deletedAt', 'addedAt',                   // 通用行水位
+  'reviewedAt', 'selfExplainAt', 'wrongReasonAt', 'lastReviewedAt',   // 复习 / 错因时间
+  'dueAt',                                                            // 调度到期时间
+]);
+
+// 表专属域：表名 → { 字段: 判定合法 }。判据是「合法值集合」而非「类型」——
+// 越界数字（rating = 7）同样必须拦下。
+export const FIELD_DOMAINS = Object.freeze({
+  // 与 repo-core.computeStats 的 inRatingDomain 同口径
+  reviews: Object.freeze({
+    rating: (v) => v === undefined || v === null || v === 0 || v === 1 || v === 2,
+    type: (v) => v === undefined || v === null || typeof v === 'string',
+  }),
+  // 每日任务：scheduledHour 是「几点」（0–23）、estimatedMinutes 是时长。
+  // 二者都是数值语义，脏值（NaN / '9:00' / 25）会让课程表的 top / height 算成 NaN
+  // → 整块布局错乱。注意展示侧 `planCharts.buildScheduleBoard` 的守卫写作
+  // `sh < 6 || sh > 23`——**对 NaN 恒为 false**，压根拦不住，所以入口这一层是必需的。
+  dailyTasks: Object.freeze({
+    scheduledHour: (v) => v === undefined || v === null
+      || (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 23),
+    estimatedMinutes: (v) => v === undefined || v === null
+      || (typeof v === 'number' && Number.isFinite(v) && v >= 0),
+  }),
+});
+
+/** 时间戳规范化：合法数字 / 空值原样；数字字符串转数字；其余（对象 / 布尔 / 乱码）置 null */
+export function normalizeTs(v) {
+  if (v === undefined || v === null) return v;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v);
+    if (Number.isFinite(n)) return n;
+  }
+  return null;
+}
+
+/**
+ * 就地净化一行入站数据，返回被修正的字段数（0 = 无需改动）。
+ * 「就地」是安全的：入站数据一律刚经 JSON 往返（importBackup 的 JSON.parse(JSON.stringify) /
+ * hub 同理），是纯数据、不与任何 reactive 对象共享引用。
+ * @param {string} table SYNC_TABLES 条目的 table 字段
+ * @param {object} row 入站行（会被就地修改）
+ * @returns {number} 修正的字段数
+ */
+export function sanitizeIncomingRow(table, row) {
+  if (!row || typeof row !== 'object' || Array.isArray(row)) return 0;
+  let fixed = 0;
+  for (const f of TIMESTAMP_FIELDS) {
+    if (!(f in row)) continue;
+    const next = normalizeTs(row[f]);
+    if (!Object.is(next, row[f])) { row[f] = next; fixed++; }
+  }
+  const dom = FIELD_DOMAINS[table];
+  if (dom) {
+    for (const [f, ok] of Object.entries(dom)) {
+      if (!(f in row)) continue;
+      if (!ok(row[f])) { row[f] = null; fixed++; }
+    }
+  }
+  return fixed;
+}
+
+/** 批量净化某表的入站行，返回修正字段总数（供 UI 汇报「修正了 N 个异常字段」） */
+export function sanitizeIncomingTable(table, rows) {
+  if (!Array.isArray(rows)) return 0;
+  let fixed = 0;
+  for (const row of rows) fixed += sanitizeIncomingRow(table, row);
+  return fixed;
+}
+
 /**
  * 导出侧行级过滤（可选）：清单条目可带 exportFilter(row) => boolean。
  * 用于排除「派生数据 / 本机专属数据」，避免它们进入备份包或被同步到别的设备。

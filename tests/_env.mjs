@@ -2,6 +2,11 @@
 // 避免 dexie / embedding 在 Node 下因缺少浏览器全局而报错。
 globalThis.localStorage ||= {
   _m: new Map(),
+  // 与真实 Storage 对齐：键枚举 API（src/stores/reset.js、utils/plan-reminder.js 都依赖）。
+  // 此前垫片只有 get/set/remove，依赖 `length`/`key(i)` 的代码在 Node 下取不到任何键，
+  // 测试会静默通过却在浏览器里行为不同 —— 补齐避免这类"测试假绿"。
+  get length() { return this._m.size; },
+  key(i) { return [...this._m.keys()][i] ?? null; },
   getItem(k) { return this._m.has(k) ? this._m.get(k) : null; },
   setItem(k, v) { this._m.set(k, String(v)); },
   removeItem(k) { this._m.delete(k); },

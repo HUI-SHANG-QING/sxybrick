@@ -15,7 +15,7 @@ import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES, EXCLUDED_FROM_SYNC,
   CARD_CONTENT_FIELDS, CARD_SRS_FIELDS,
   mergeRows, mergeTombstones, applyTombstones, kindOf, livenessTs, shouldExportRow,
-  clearedBeforeKey, filterClearedRows, sanitizeStripRows,
+  clearedBeforeKey, filterClearedRows, sanitizeStripRows, sanitizeIncomingTable,
 } from './sync-manifest.js';
 
 /** 按表读取待导出行（应用清单上的 exportFilter，排除派生/本机专属数据，如 kind='auto' 的图谱边）
@@ -759,6 +759,18 @@ export async function importBackup(backup, opts = {}) {
   const stats = { cards: 0, reviews: 0, overridden: 0, deleted: 0, duplicated: 0, conflicts: [], snapshotId: null };
   const effTables = getEffectiveSyncTables();
   for (const t of effTables) if (t.table !== 'cards' && t.table !== 'reviews') stats[t.table] = 0;
+
+  // round64：行级域校验（入口收口）。此前脏行（rating 越界/字符串、时间戳乱码）会一路入库，
+  // 并随同步扩散到所有设备，只能靠每个读取出口各自设防（round61 只补了统计这一处）。
+  // 这里一次洗净：非法字段置空、时间戳可逆规范化；**绝不丢行**（丢行 = 复习记录静默消失）。
+  // 在卡片去重/引用重映射之前执行，保证下游看到的是干净数据。
+  let sanitizedFields = 0;
+  const sanitizedTables = {};
+  for (const t of effTables) {
+    const n = sanitizeIncomingTable(t.table, backup[t.table]);
+    if (n) { sanitizedFields += n; sanitizedTables[t.table] = n; }
+  }
+  if (sanitizedFields) stats.sanitized = { fields: sanitizedFields, tables: sanitizedTables };
 
   // P3-3 0) 合并前自动保存快照（便于事后回滚）；失败不阻断导入
   //   opts.skipSnapshot —— round18 R18-2：推送前的 pull-merge 由代码自动触发，

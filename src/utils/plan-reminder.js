@@ -105,9 +105,35 @@ export function isReminded(date, taskId) {
   return localStorage.getItem(`${REMINDED_PREFIX}_${date}_${taskId}`) === '1';
 }
 
+/**
+ * 清掉「非本日」的提醒去重键。
+ *
+ * 去重键 id 形如 `sxy_plan_reminded_<date>_<taskId>`，语义只有「当天」——
+ * 「这个任务今天响过了」跨天即失效。但此前只写不删（全项目 removeItem 调用 0 次），
+ * 键数随天数线性增长：按每天 20 条任务估算，一年 ≈ 7000 键 / 148KB，
+ * 长期占用 localStorage 配额。故在写入当天键时顺带扫掉其他日期的同类键，
+ * 总量恒定在「当前这一天」。
+ *
+ * ⚠️ 先收集、后删除：在 `for (i < localStorage.length) + key(i)` 遍历中直接
+ * removeItem 会实时改变索引，导致后续键被跳过、漏删一半。
+ */
+function pruneOtherDays(date) {
+  if (typeof localStorage === 'undefined') return;
+  const head = `${REMINDED_PREFIX}_`;
+  const keep = `${head}${date}_`;
+  const stale = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    // 前缀含分隔下划线，不会误伤 sxy_plan_remindedX_* 之类的相邻键
+    if (k && k.startsWith(head) && !k.startsWith(keep)) stale.push(k);
+  }
+  for (const k of stale) localStorage.removeItem(k);
+}
+
 export function markReminded(date, taskId) {
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(`${REMINDED_PREFIX}_${date}_${taskId}`, '1');
+  pruneOtherDays(date);
 }
 
 // ──────────────── 媒体通道（浏览器 API，Node 安全） ────────────────

@@ -15,6 +15,7 @@ import { randomBytes } from 'node:crypto';
 import {
   BACKUP_VERSION, SYNC_TABLES, PRIVACY_SYNC_TABLES,
   mergeRows, mergeTombstones, applyTombstones, shouldExportRow, sanitizeStripRows,
+  sanitizeIncomingRow,
 } from '../src/sync-manifest.js';
 import {
   AUTH_VERSION, signPayload, safeEqual, createChallengeStore,
@@ -301,6 +302,11 @@ function merge(base, incoming, clockSkew = 0) {
     // 之前中枢不过滤 —— 老客户端推上来的 kind='auto' 派生图谱边会被中枢存下来，
     // 再回灌给所有设备（客户端侧是过滤的，两端口径不一致 → 边越同步越多）。
     const inRows = (incoming[t.table] || []).filter(r => shouldExportRow(t, r));
+    // round64：行级域校验，与前端 importBackup 同口径。
+    // 只在前端洗净是不够的——中枢仍会把脏行存进 hub-data.json 并回灌所有设备，
+    // 前端那一层修复等于白做。base 侧同样净化（同 R18-5 的道理）：中枢文件里
+    // 可能驻留着域校验上线之前推上来的历史脏行。
+    for (const r of inRows) sanitizeIncomingRow(t.table, r);
     // round17 R17-9/R17-20：透传 strip（wordSettings 的 LLM Key 合并时保留本地值，
     // 防止旧客户端推送的明文 Key 常驻 hub 数据文件）与 extFields（wordCards AI 扩展字段并集保护）
     //
@@ -309,6 +315,7 @@ function merge(base, incoming, clockSkew = 0) {
     // 挡不住从 base 原样带出来的历史残留 —— 于是「A 清空本地 Key」后中枢仍会回灌。
     // 中枢不是任何人的本地设备，strip 字段对它一律无意义：存进来即丢弃。
     const baseRows = sanitizeStripRows(base[t.table], t.strip);
+    for (const r of baseRows) sanitizeIncomingRow(t.table, r); // round64：洗净中枢驻留的历史脏行
     out[t.table] = mergeRows(baseRows, inRows, t.merge, { strip: t.strip, extFields: t.extFields, clockSkew });
   }
 
