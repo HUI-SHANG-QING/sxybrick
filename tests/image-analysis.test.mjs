@@ -8,7 +8,7 @@ import { after } from 'node:test';
 import { db } from '../src/db.js';
 import {
   parseImageMode, resolveImagePolicy, recommendMode, recommendForCurrentData,
-  enrichForLlm, textifyContent, imageIdsToVisionContent,
+  enrichForLlm, textifyContent, imageIdsToVisionContent, normalizeVisionLimit,
 } from '../src/services/image-analysis.js';
 
 after(async () => { try { await db.close(); } catch {} });
@@ -22,9 +22,10 @@ test('策略解析：缺省/非法值回退 auto，各档语义正确', () => {
   assert.equal(parseImageMode(undefined), 'auto');
   assert.equal(parseImageMode({}), 'auto');
   assert.equal(parseImageMode({ imageAnalysis: { mode: 'bogus' } }), 'auto');
-  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'auto' } }), { mode: 'auto', allowVisionFallback: true });
-  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'ocrFirst' } }), { mode: 'ocrFirst', allowVisionFallback: false });
-  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst' } }), { mode: 'visionFirst', allowVisionFallback: false });
+  // round67 起 resolveImagePolicy 额外带出 visionLimit（可配的送图额度）
+  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'auto' } }), { mode: 'auto', allowVisionFallback: true, visionLimit: 3 });
+  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'ocrFirst' } }), { mode: 'ocrFirst', allowVisionFallback: false, visionLimit: 3 });
+  assert.deepEqual(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst' } }), { mode: 'visionFirst', allowVisionFallback: false, visionLimit: 3 });
 });
 
 test('推荐规则：无图→auto；过半含图→visionFirst；其余→ocrFirst', () => {
@@ -101,6 +102,63 @@ test('enrichForLlm 降级：图片行不存在 → 纯文字标注，不阻塞',
   );
   assert.equal(r.vision, 0);
   assert.ok(typeof r.messages[0].content === 'string', '应降级为纯文字');
+});
+
+// ── round67：送图额度可配置（额度 = 张数，不是请求次数） ──────────────────
+
+test('normalizeVisionLimit：合法值原样、脏值回退默认、超限夹到上限', () => {
+  assert.equal(normalizeVisionLimit(5), 5);
+  assert.equal(normalizeVisionLimit('8'), 8, '数字字符串应被接受');
+  assert.equal(normalizeVisionLimit(undefined), 3, '缺省 → 默认 3');
+  assert.equal(normalizeVisionLimit(null), 3);
+  assert.equal(normalizeVisionLimit('abc'), 3);
+  assert.equal(normalizeVisionLimit(0), 3, '0 张无意义 → 回退默认');
+  assert.equal(normalizeVisionLimit(-5), 3);
+  assert.equal(normalizeVisionLimit(NaN), 3);
+  assert.equal(normalizeVisionLimit(Infinity), 3);
+  assert.equal(normalizeVisionLimit(1e9), 20, '必须夹到上限，防账单失控');
+  assert.equal(normalizeVisionLimit(3.7), 3, '向下取整');
+});
+
+test('resolveImagePolicy：带出用户配置的送图额度', () => {
+  assert.equal(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst' } }).visionLimit, 3);
+  assert.equal(resolveImagePolicy({ imageAnalysis: { mode: 'visionFirst', visionLimit: 10 } }).visionLimit, 10);
+  assert.equal(
+    resolveImagePolicy({ imageAnalysis: { mode: 'ocrFirst', visionLimit: 10 } }).visionLimit, 10,
+    '额度本身与模式无关（用不用由各模式决定）',
+  );
+});
+
+test('端到端：调高额度后一次请求能带更多图（3 → 5，仍是单条消息）', async () => {
+  const ids = [UUID1, UUID2, UUID3,
+    '550e8400-e29b-41d4-a716-446655440004',
+    '550e8400-e29b-41d4-a716-446655440005'];
+  for (const id of ids) await db.images.put({ id, blob: blob(), name: `${id}.jpg` });
+  const content = `看图 ${ids.map((i) => `sxy-img://${i}`).join(' ')}`;
+
+  const r3 = await enrichForLlm([{ role: 'user', content }], {
+    settings: { imageAnalysis: { mode: 'visionFirst' } },
+  });
+  assert.equal(r3.vision, 3, '默认额度 3');
+
+  const r5 = await enrichForLlm([{ role: 'user', content }], {
+    settings: { imageAnalysis: { mode: 'visionFirst', visionLimit: 5 } },
+  });
+  assert.equal(r5.vision, 5, '调高额度后应全部送出');
+  const last = r5.messages[r5.messages.length - 1];
+  assert.equal(last.content.filter((p) => p.type === 'image_url').length, 5, '一次请求带 5 张图');
+  assert.equal(last.content.filter((p) => p.type === 'text').length, 1, '仍只有一条消息（一次请求，非多次）');
+});
+
+test('文案区分：额度内读不出的图不再被误报为「超出额度」', async () => {
+  const r = await enrichForLlm(
+    [{ role: 'user', content: '看 sxy-img://deadbeef-0000-4000-8000-000000000000' }],
+    { settings: { imageAnalysis: { mode: 'visionFirst', visionLimit: 3 } } },
+  );
+  const c = r.messages[r.messages.length - 1].content;
+  const seg = typeof c === 'string' ? c : c.filter((p) => p.type === 'text').map((p) => p.text).join('');
+  assert.match(seg, /读取失败/, '应如实说明是读取失败');
+  assert.ok(!/超出本次送图额度/.test(seg), '不得误报为超出额度（否则用户会白重发一次）');
 });
 
 test('textifyContent：无图原文返回；有图产出分析副本（原文不变）', async () => {

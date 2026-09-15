@@ -47,13 +47,23 @@ export function stripImageRefs(text) {
 }
 
 /**
+ * 码点安全截断：防把 emoji / 组合字符劈成半个（与调用方原有的 Array.from 口径一致）。
+ * 先按码元粗切到 2n（n 个码点最多占 2n 个码元）再按码点精切，避免对大文本做全量展开。
+ */
+function clipByCodePoint(text, n) {
+  if (text.length <= n) return text;
+  const head = text.length > n * 2 ? text.slice(0, n * 2) : text;
+  return Array.from(head).slice(0, n).join('');
+}
+
+/**
  * 图片感知截断：按 maxLen 截断正文，但所有图片引用完整保留。
  *
  * 返回值**可能略长于 maxLen**（正文 maxLen + 图片引用总长）——这是刻意的：
  * 图片引用是稀缺且不可再生的信息，宁可多几十字符也不能切坏 id。
  *
  * @param {*} text 原始正文
- * @param {number} maxLen 正文截断长度
+ * @param {number} maxLen 正文截断长度（按码点计）
  * @returns {string}
  */
 export function clipText(text, maxLen) {
@@ -64,12 +74,8 @@ export function clipText(text, maxLen) {
 
   const re = new RegExp(IMG_REF_SRC, 'g'); // 每次新建，避免 lastIndex 残留
   const refs = s.match(re);
-  if (!refs || !refs.length) return s.slice(0, n);
+  if (!refs || !refs.length) return clipByCodePoint(s, n); // 无图也必须码点安全
 
   // 去掉引用后再截断正文，引用原样追加 —— 保证 id 完整可解析
-  const body = s.replace(re, '');
-  // 码点安全截断（防把 emoji 等代理对切成半个字符，与调用方的 Array.from 口径一致）：
-  // 先按码元粗切到 2n（n 个码点最多占 2n 个码元），再按码点精切 —— 避免对大文本做全量展开。
-  const head = body.length > n * 2 ? body.slice(0, n * 2) : body;
-  return `${Array.from(head).slice(0, n).join('')}${refs.join('')}`;
+  return `${clipByCodePoint(s.replace(re, ''), n)}${refs.join('')}`;
 }

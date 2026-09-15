@@ -6,6 +6,7 @@
 // 纯函数、确定性，Node 可直接单测。
 
 import { isReviewed, cardNetValue, contentWeight } from './networth.js';
+import { stripImageRefs } from '../utils/clip.js';
 
 export function normalizeSource(source) {
   return String(source || '').trim().replace(/\s+/g, ' ').slice(0, 60);
@@ -69,7 +70,7 @@ export function traceCardLineage(card, cards) {
   return {
     source,
     variantOf: card?.sourceCardId || null,
-    variants: variants.map(c => ({ id: c.id, front: String(c.front || '').slice(0, 40), sourceCardId: c.sourceCardId || '' })),
+    variants: variants.map(c => ({ id: c.id, front: stripImageRefs(c.front).slice(0, 40), sourceCardId: c.sourceCardId || '' })),
     sameSourceIds: sameSource.slice(0, 20).map(c => c.id),
     sameSourceCount: sameSource.length,
   };

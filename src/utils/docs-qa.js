@@ -5,7 +5,7 @@
 import { db } from '../db.js';
 import { hybridSearch } from '../agent/retrieval.js';
 import { chatAI } from '../ai.js';
-import { docContentProfile, docVisionContent, DOC_VISION_LIMIT } from '../services/doc-vision.js';
+import { docContentProfile, docVisionContent, DOC_VISION_LIMIT, DOC_VISION_MAX } from '../services/doc-vision.js';
 
 /** 检索结果 → 引用片段（裁剪到 limit 条、每条 maxChars） */
 export function trimDocExcerpts(results, limit = 4, maxChars = 400) {
@@ -97,7 +97,7 @@ export async function askDoc(docId, question, opts = {}) {
   // ② 无文本 / 疑似扫描件 → 视觉路径（这正是「上传了资料却问不出内容」的修复点）
   if (profile.canVision) {
     const vision = await docVisionContent(docId, {
-      maxPages: Math.min(Number(opts.maxPages) || DOC_VISION_LIMIT, DOC_VISION_LIMIT),
+      maxPages: Math.min(Number(opts.maxPages) || DOC_VISION_LIMIT, DOC_VISION_MAX),
       renderPdfPagesFn: opts.renderPdfPagesFn, // 测试注入点
     });
     if (vision.length) {

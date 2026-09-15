@@ -99,15 +99,19 @@ test('docVisionContent：图片型资料 → 1 个 image_url（Node 无 canvas �
   await db.docFiles.delete(id); await db.docBlobs.delete(id);
 });
 
-test('docVisionContent：PDF 渲染页面，护栏截断到 ≤3 页', async () => {
+test('docVisionContent：默认护栏 3 页；调用方可放宽至硬上限内', async () => {
   const id = await mkDoc({ name: '扫描.pdf', text: '', pageCount: 10 });
   const stub = async (blob, opts) => Array.from(
     { length: Math.min(opts.maxPages, 10) },
     (_, i) => ({ page: i + 1, dataUrl: `data:image/jpeg;base64,P${i + 1}` }),
   );
-  const v = await docVisionContent(id, { maxPages: 99, renderPdfPagesFn: stub });
-  assert.equal(v.length, DOC_VISION_LIMIT, '单次最多 3 页（费用护栏）');
-  assert.equal(v[0].image_url.url, 'data:image/jpeg;base64,P1');
+  // round67：额度改为可配 —— 缺省仍是保守的 3 页；调用方（用户调高了送图额度）可放宽，
+  // 但绝不能越过 DOC_VISION_MAX 硬上限。
+  const def = await docVisionContent(id, { renderPdfPagesFn: stub });
+  assert.equal(def.length, DOC_VISION_LIMIT, '缺省仍是最多 3 页（保守默认）');
+  const wide = await docVisionContent(id, { maxPages: 99, renderPdfPagesFn: stub });
+  assert.equal(wide.length, 10, '调用方放宽后按传入值送出（硬上限 20 之内）');
+  assert.equal(wide[0].image_url.url, 'data:image/jpeg;base64,P1');
   await db.docFiles.delete(id); await db.docBlobs.delete(id);
 });
 
@@ -210,7 +214,7 @@ test('enrichForLlm(visionFirst)：送图与超限图片在正文里都有明确�
     assert.equal(r.vision, 3, '护栏：单次最多送 3 张');
     const text = last.content.filter((p) => p.type === 'text').map((p) => p.text).join('');
     assert.match(text, /已作为附图发送/, '送出的图要有「已作为附图发送」标注');
-    assert.match(text, /未随本次发送/, '超限的图要显式说明未发送，不能只留占位符');
+    assert.match(text, /超出本次送图额度/, '超限的图要显式说明超额度，不能只留占位符');
     assert.ok(!text.includes('sxy-img://'), '正文里不应再残留占位符（模型看不懂）');
     assert.equal(last.content.filter((p) => p.type === 'image_url').length, 3);
   } finally {

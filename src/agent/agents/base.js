@@ -11,6 +11,7 @@ import { TraceKind } from '../types.js';
 import { buildLocalAnswer } from '../local-answer.js';
 import { normalizeStructuredFinal } from '../../utils/ai-structured.js';
 import { isOfflineReply } from '../../utils/offlineAI.js';
+import { clipText } from '../../utils/clip.js';
 
 const PROTOCOL = `
 你可以使用下方列出的工具来辅助回答。调用与收尾严格遵循以下格式：
@@ -124,10 +125,10 @@ export function compactConvo(convo) {
     if (size() <= CONVO_CHAR_BUDGET) break;
     if (m.role !== 'tool' && m.role !== 'assistant') continue;
     const s = String(m.content ?? '');
-    // round50 N2：按码点截断（Array.from）——slice 按 UTF-16 码元切，emoji/组合字符
-    // 恰好骑在截断线上会被劈成半个（预览尾部显示乱码 �）。此处是喂给 AI 的上下文
-    // 出口，码点安全截断成本可忽略（仅超长 tool/assistant 消息才走 Array.from）。
-    if (s.length > 1500) m.content = Array.from(s).slice(0, 1500).join('') + '…（已截断以控制上下文长度）';
+    // round50 N2：按码点截断（防 emoji / 组合字符被劈成半个，预览尾部出现乱码 �）。
+    // round67：改用 clipText —— 在码点安全之外，还保证 `![image](sxy-img://uuid)` 这类
+    // 视觉引用不被切坏。此处是 tool 消息进 AI 的上下文压缩出口，切坏引用 = 图静默丢失。
+    if (s.length > 1500) m.content = clipText(s, 1500) + '…（已截断以控制上下文长度）';
   }
   return convo;
 }

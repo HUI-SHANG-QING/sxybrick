@@ -8,6 +8,8 @@ import { getStats, weakCards, isPomoCountable, getSchedConfig, dashboardSnapshot
 import { getReplyStats } from './reply.js';
 import { trainWeights } from '../fsrs.js';
 import { dueOf } from '../repo-core.js';
+// round67：AI 分析结果里的卡片摘要也要保护图片引用（朴素 slice 会切坏 56 字符的图片标记）
+import { clipText, stripImageRefs } from '../utils/clip.js';
 
 const DAY = 86400000;
 const now = () => Date.now();
@@ -91,7 +93,7 @@ export async function getCardAnalytics(cardId) {
   return {
     id: card.id,
     subject: card.subject,
-    front: String(card.front).slice(0, 60),
+    front: clipText(card.front, 60),
     tags: card.tags || [],
     marked: !!card.marked,
     wrongReason: card.wrongReason || '',
@@ -131,7 +133,7 @@ export async function getRecentMistakes(days = 1) {
   const out = [];
   cards.forEach((c, i) => {
     if (!c) return;
-    out.push({ id: ids[i], subject: c.subject, front: String(c.front).slice(0, 60), wrongCount: wrongCount.get(ids[i]) || 0, total: totalCount.get(ids[i]) || 0 });
+    out.push({ id: ids[i], subject: c.subject, front: clipText(c.front, 60), wrongCount: wrongCount.get(ids[i]) || 0, total: totalCount.get(ids[i]) || 0 });
   });
   return out.sort((a, b) => b.wrongCount - a.wrongCount);
 }
@@ -317,8 +319,8 @@ async function _getConfusablePairs(limit = 10) {
       if (seen.has(key)) continue;
       seen.add(key);
       pairs.push({
-        a: { id: a.id, subject: a.subject, front: String(a.front).slice(0, 40), tags: a.tags || [] },
-        b: { id: b.id, subject: b.subject, front: String(b.front).slice(0, 40), tags: b.tags || [] },
+        a: { id: a.id, subject: a.subject, front: clipText(a.front, 40), tags: a.tags || [] },
+        b: { id: b.id, subject: b.subject, front: clipText(b.front, 40), tags: b.tags || [] },
         confusable: (wrongCount.get(a.id) || 0) + (wrongCount.get(b.id) || 0) + (duelWrongKeys.has(key) ? 5 : 0),
       });
     }
@@ -337,7 +339,7 @@ export async function getConfusablePairs(limit = 10) {
 export async function getGapCards(limit = 15) {
   const weak = await weakCards(limit, 1);
   return weak.map(c => ({
-    id: c.id, subject: c.subject, front: String(c.front).slice(0, 60), back: String(c.back).slice(0, 80),
+    id: c.id, subject: c.subject, front: clipText(c.front, 60), back: clipText(c.back, 80),
     failCount: c.failCount, tags: c.tags || [],
   }));
 }
@@ -376,7 +378,7 @@ export async function getForgetRisk(limit = 5) {
     if (risk < 0.35) continue;
     out.push({
       id: c.id, subject: c.subject || '未分类',
-      front: String(c.front).slice(0, 50),
+      front: clipText(c.front, 50),
       risk: Math.round(risk * 100),
       failRate: Math.round(failRate * 100),
       reviews: t,
@@ -622,7 +624,7 @@ async function _generateAutoPlan(days = 7) {
   const dailyDue = Math.max(5, Math.ceil(stats.dueToday / Math.max(1, D)));
 
   const riskList = risks.slice(0, 8).map(r => `- [${r.subject}] ${r.front}（风险 ${r.risk}%，错率 ${r.failRate}%）`);
-  const weakList = weak.slice(0, 8).map(c => `- [${c.subject || '未分类'}] ${String(c.front).slice(0, 50)}（错 ${c.failCount} 次）`);
+  const weakList = weak.slice(0, 8).map(c => `- [${c.subject || '未分类'}] ${clipText(c.front, 50)}（错 ${c.failCount} 次）`);
 
   const graphHint = graph.fallback
     ? '（暂无知识图谱，建议去「知识图谱」页生成并保存关联，启用图驱动复习）'
@@ -635,7 +637,7 @@ async function _generateAutoPlan(days = 7) {
       goal: `主攻最薄弱科目「${focusSubject || '综合'}」与 ${risks.length} 张遗忘风险卡`,
       tasks: [
         `每天清 ${dailyDue} 张到期卡（优先 ${topSubjects.slice(0, 2).map(s => s.subject).join('、')}）`,
-        `重做 ${Math.min(risks.length, 5)} 张遗忘风险卡（${risks.slice(0, 3).map(r => r.front.slice(0, 16)).join('、')}…）`,
+        `重做 ${Math.min(risks.length, 5)} 张遗忘风险卡（${risks.slice(0, 3).map(r => stripImageRefs(r.front).slice(0, 16)).join('、')}…）`,
         '错题本标记卡逐张过一遍（清零目标）',
       ],
       milestone: `抢救期结束：薄弱科目掌握度 +10，遗忘风险卡清空过半`,
@@ -736,7 +738,7 @@ export async function getAssetHealth() {
     byKey.get(k).push(c);
   }
   const duplicates = [...byKey.values()].filter(g => g.length > 1)
-    .map(g => ({ key: g[0].front.slice(0, 30), front: g[0].front, back: g[0].back, subject: g[0].subject || '', cards: g, n: g.length }));
+    .map(g => ({ key: stripImageRefs(g[0].front).slice(0, 30), front: g[0].front, back: g[0].back, subject: g[0].subject || '', cards: g, n: g.length }));
 
   // 僵尸卡：创建超过 90 天、从未复习、且已到期迟迟未处理
   const reviewedIds = new Set(reviews.map(r => r.cardId));

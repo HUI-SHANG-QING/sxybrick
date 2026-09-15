@@ -13,6 +13,7 @@
 //     会话内间隔保证（相邻 N 张内不重复同科目/同题型/同变式）。
 
 import { prioritizeForExam } from './scheduling.js';
+import { stripImageRefs } from '../utils/clip.js';
 
 /** 检索分级档位元信息（factor 供需要显式调制间隔的调用方使用） */
 export const RETRIEVAL_GRADE_META = {
@@ -253,7 +254,7 @@ export function planMistakeQuiz(clusters, cards, opts = {}) {
   return {
     clusters: top.map(c => ({ concept: c.concept, size: c.size, score: c.score, cardIds: c.cardIds })),
     sequence: sequence.map(c => ({
-      id: c.id, subject: c.subject, front: String(c.front || '').slice(0, 80),
+      id: c.id, subject: c.subject, front: stripImageRefs(c.front).slice(0, 80),
       role: c._role, cluster: c._cluster, dueAt: c.dueAt, level: c.level,
     })),
     meta: {

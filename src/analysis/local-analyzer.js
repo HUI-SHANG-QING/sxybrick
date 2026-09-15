@@ -5,6 +5,7 @@
 // 性能：>100 张卡时关键词矩阵改为「标签/科目优先 + 截断文本」，避免 O(n²) 全文相似度爆炸。
 
 import { tokenize } from '../utils/classifier.js';
+import { stripImageRefs } from '../utils/clip.js';
 
 /** 卡片 → 轻量文本画像（标签/科目加权 + 内容关键词） */
 export function cardProfile(card) {
@@ -149,7 +150,7 @@ export function learningPath(cards, matrix) {
   // round30（P3）：矩阵与卡片必须同源，否则 matrix[i] 为 undefined → `.reduce` TypeError 让面板崩。
   // 与 rankByBaseness / topDegreeBridges 同款防御；runPreset 内 matrix 必同源，属潜伏风险兜底。
   if (!Array.isArray(matrix) || matrix.length !== n) {
-    return cards.map(c => ({ id: c.id, front: (c.front || '').slice(0, 40), weak: (c.failCount || 0) >= 2 || (c.ease || 2.5) < 2.2, ease: c.ease }));
+    return cards.map(c => ({ id: c.id, front: stripImageRefs(c.front).slice(0, 40), weak: (c.failCount || 0) >= 2 || (c.ease || 2.5) < 2.2, ease: c.ease }));
   }
   const isWeak = c => (c.failCount || 0) >= 2 || (c.ease || 2.5) < 2.2;
   const scored = cards.map((c, i) => {
@@ -163,7 +164,7 @@ export function learningPath(cards, matrix) {
   });
   return scored.map(({ id, weak }) => {
     const c = byId.get(id);
-    return { id, front: (c.front || '').slice(0, 40), weak, ease: c.ease };
+    return { id, front: stripImageRefs(c.front).slice(0, 40), weak, ease: c.ease };
   });
 }
 
@@ -174,13 +175,13 @@ export function relationGraph(cards, matrix, threshold = 0.08, maxEdges = 60) {
   // 与 learningPath / rankByBaseness 同款防御；runPreset 内 matrix 必同源，属潜伏风险兜底。
   if (!Array.isArray(matrix) || matrix.length !== n) {
     return { type: 'graph', data: { nodes: cards.map((c, i) => ({
-      id: c.id, name: (c.front || '').slice(0, 18) || `卡${i + 1}`,
+      id: c.id, name: stripImageRefs(c.front).slice(0, 18) || `卡${i + 1}`,
       subject: c.subject || '', group: c.subject || '其他', symbolSize: 14,
     })), edges: [] } };
   }
   const nodes = cards.map((c, i) => ({
     id: c.id,
-    name: (c.front || '').slice(0, 18) || `卡${i + 1}`,
+    name: stripImageRefs(c.front).slice(0, 18) || `卡${i + 1}`,
     subject: c.subject || '',
     group: c.subject || '其他',
     symbolSize: 14 + Math.min(26, (matrix[i].reduce((a, b) => a + b, 0) * 8)),
@@ -209,8 +210,8 @@ export function compareCards(cards) {
     ...(both.length ? [`共同关键词：${both.slice(0, 10).join('、')}`] : ['共同关键词：较少（内容差异较大）']),
   ];
   const diff = [
-    `A「${(a.front || '').slice(0, 24)}」独有：${onlyA.length ? onlyA.slice(0, 8).join('、') : '—'}`,
-    `B「${(b.front || '').slice(0, 24)}」独有：${onlyB.length ? onlyB.slice(0, 8).join('、') : '—'}`,
+    `A「${stripImageRefs(a.front).slice(0, 24)}」独有：${onlyA.length ? onlyA.slice(0, 8).join('、') : '—'}`,
+    `B「${stripImageRefs(b.front).slice(0, 24)}」独有：${onlyB.length ? onlyB.slice(0, 8).join('、') : '—'}`,
   ];
   return {
     type: 'list',
@@ -244,7 +245,7 @@ export function runPreset(preset, cards) {
         const c = byId.get(id);
         const subj = c?.subject || '其他';
         return {
-          id, name: (c?.front || '').slice(0, 18) || `卡${i + 1}`,
+          id, name: stripImageRefs(c?.front).slice(0, 18) || `卡${i + 1}`,
           subject: subj, group: subj, order: i,
           x: i * 90, y: (subjIdx.get(subj) || 0) * 90,
           symbolSize: 16 + Math.min(20, (c?.ease || 2.5) * 3),
@@ -306,7 +307,7 @@ export function runPreset(preset, cards) {
       const items = [
         {
           term: '卡片对比',
-          detail: `A「${(cards[0]?.front || '').slice(0, 24)}」 vs B「${(cards[1]?.front || '').slice(0, 24)}」 · 内容相似度 ${(Number(d.similarity ?? jac) * 100).toFixed(1)}%`,
+          detail: `A「${stripImageRefs(cards[0]?.front).slice(0, 24)}」 vs B「${stripImageRefs(cards[1]?.front).slice(0, 24)}」 · 内容相似度 ${(Number(d.similarity ?? jac) * 100).toFixed(1)}%`,
         },
         { term: '### 共同点', text: (d.same || []).map(x => `- ${typeof x === 'object' && x.text ? x.text : String(x)}`).join('\n') || '（未发现显著共同点）' },
         { term: '### 差异点', text: (d.diff || []).map(x => `- ${typeof x === 'object' && x.text ? x.text : String(x)}`).join('\n') || '（内容非常接近）' },

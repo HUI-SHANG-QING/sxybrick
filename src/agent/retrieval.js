@@ -12,6 +12,9 @@ import { db, uid } from '../db.js';
 import { embedBatch, embed, getModelSig, modelSigFor } from './embedding.js';
 import { computeStaleItems } from './stale.js';
 import { scoreSemantic, scoreKeyword, fuseResults } from './retrieval-core.js';
+// round67：RAG 片段是「图片进 AI 上下文」的主要入口，截断必须保护图片引用完整性
+// （朴素 slice 会把 56 字符的 `![image](sxy-img://uuid)` 切成残缺 id → 图静默丢失）
+import { clipText } from '../utils/clip.js';
 
 const CHUNK_LEN = 500; // 文档分块长度
 const CHUNK_OVERLAP = 50; // 分块重叠（避免切断语义）
@@ -312,12 +315,12 @@ export async function retrieveContext(query, opts = {}) {
       const c = cardMap.get(r.row.sourceId);
       if (!c) continue;
       L.push(
-        `- [卡片·相似${score}%] [${c.subject || '未分类'}] Q: ${String(c.front).slice(0, 80).replace(/\s+/g, ' ')} | A: ${String(c.back).slice(0, 120).replace(/\s+/g, ' ')}`,
+        `- [卡片·相似${score}%] [${c.subject || '未分类'}] Q: ${clipText(c.front, 80).replace(/\s+/g, ' ')} | A: ${clipText(c.back, 120).replace(/\s+/g, ' ')}`,
       );
     } else {
       const d = docMap.get(r.row.sourceId);
       const title = d?.title || r.row.subject || '文档片段';
-      L.push(`- [文档·相似${score}%] ${title}: ${r.row.text.slice(0, 150).replace(/\s+/g, ' ')}`);
+      L.push(`- [文档·相似${score}%] ${title}: ${clipText(r.row.text, 150).replace(/\s+/g, ' ')}`);
     }
   }
   return L.join('\n');

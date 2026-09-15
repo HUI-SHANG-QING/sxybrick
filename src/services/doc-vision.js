@@ -23,8 +23,10 @@ import { getDb } from '../db.js';
 // image-analysis 侧改用动态 import 引入本模块的统计，见 recommendForCurrentData）
 import { compressImageBlob } from '../utils/img-compress.js';
 
-/** 单次送多模态的最大页数/图片数（费用护栏；与 image-analysis 的 3 张口径一致） */
+/** 单次送多模态的最大页数/图片数**默认值**（费用护栏；与 image-analysis 的送图额度默认 3 一致） */
 export const DOC_VISION_LIMIT = 3;
+/** 硬上限：调用方可按用户配置传更大的 maxPages，但绝不越过此线（防账单失控） */
+export const DOC_VISION_MAX = 20;
 
 /** 「疑似扫描件」判定阈值：每页可提取字符数低于此值，视为文本层不可用 */
 export const SCAN_DENSITY_THRESHOLD = 80;
@@ -102,7 +104,7 @@ async function hasOriginalBlob(docId) {
  *   空数组 = 无法产出（无 Blob / Node 无 canvas / 渲染失败）→ 调用方降级
  */
 export async function docVisionContent(docId, opts = {}) {
-  const maxPages = Math.max(1, Math.min(Number(opts.maxPages) || DOC_VISION_LIMIT, DOC_VISION_LIMIT));
+  const maxPages = Math.max(1, Math.min(Number(opts.maxPages) || DOC_VISION_LIMIT, DOC_VISION_MAX));
   let db;
   try {
     db = getDb();

@@ -26,12 +26,17 @@ import { extractImageIds } from '../images.js';
 // 接收 File/Blob，返回清洗后的纯文本字符串；识别不到/失败时抛异常。
 import { ocrImageText } from '../docs-lib.js';
 import { compressImageBlob } from '../utils/img-compress.js';
-import { docKindOf, docContentProfile, docVisionContent, DOC_VISION_LIMIT } from './doc-vision.js';
+import { docKindOf, docContentProfile, docVisionContent } from './doc-vision.js';
 
 export const IMG_MODES = ['auto', 'ocrFirst', 'visionFirst'];
-// 费用护栏：单次分析最多发给视觉模型的图片数
-const VISION_LIMIT_FIRST = 3; // visionFirst 模式
-const VISION_LIMIT_FALLBACK = 1; // auto/ocrFirst 的兜底
+// 送图额度：单次请求最多附带几张图。
+// ⚠️ 一次 API 请求**可以携带多张图**（见 attachVisionToLastUser：content 数组里挂 N 个 image_url），
+// 额度限制的是「张数」而不是「请求次数」。之所以要设上限：图片按 token 计费，且 base64 会显著
+// 放大请求体（每张压缩后 100–300KB，×1.33 ≈ 3 张 1MB / 10 张 3–4MB），同时挤占上下文窗口。
+// 默认 3；用户可在设置里按需调整（1..VISION_LIMIT_MAX）。
+export const VISION_LIMIT_DEFAULT = 3;
+export const VISION_LIMIT_MAX = 20;
+const VISION_LIMIT_FALLBACK = 1; // auto/ocrFirst 的兜底：仅 OCR 全失败时补 1 张，保持保守
 // round43 N5：OCR 文字化无总量护栏——多图消息（AI 回显带图上下文 / RAG 拼多张带图卡）
 // 会逐张 OCR，每张最长 30s，叠加可拖慢所有 AI 链路数分钟。与 visionLimit 对称加上限；
 // 超出的图直接标注「未识别（超出本次上限）」，不进 OCR 循环。
@@ -53,7 +58,25 @@ export function parseImageMode(settings) {
  */
 export function resolveImagePolicy(settings) {
   const mode = parseImageMode(settings);
-  return { mode, allowVisionFallback: mode === 'auto' };
+  return {
+    mode,
+    allowVisionFallback: mode === 'auto',
+    // 用户配置的单次送图上限。只有「先多模态」把它当主路径额度用；
+    // auto / ocrFirst 的视觉兜底仍保守取 1（那只是 OCR 失败后的补救，不该按用户额度放大）。
+    visionLimit: normalizeVisionLimit(settings?.imageAnalysis?.visionLimit),
+  };
+}
+
+/**
+ * 送图额度归一化：非法 / 缺省 → VISION_LIMIT_DEFAULT；夹到 [1, VISION_LIMIT_MAX]。
+ * 脏设置（'abc' / 0 / -5 / 1e9）一律兜住，绝不让它传导成「无限张图」把账单打爆。
+ * @param {*} raw 设置里的原始值
+ * @returns {number}
+ */
+export function normalizeVisionLimit(raw) {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 1) return VISION_LIMIT_DEFAULT;
+  return Math.min(n, VISION_LIMIT_MAX);
 }
 
 // ---- 图片 → 文本（OCR 先行） ----------------------------------------------
@@ -84,7 +107,7 @@ export async function textifyContent(content, opts = {}) {
   if (policy.mode === 'visionFirst') {
     return {
       text: content,
-      visionRefs: ids.slice(0, VISION_LIMIT_FIRST),
+      visionRefs: ids.slice(0, policy.visionLimit),
       ocrDone: 0,
       ocrFailed: 0,
     };
@@ -298,7 +321,7 @@ import { getOcr, setOcr } from '../utils/ocr-cache.js';
 // 为什么需要：Agent 的 ReAct 工具调用走「文本协议」返回（tool 消息是字符串），
 // 无法直接把图片塞进返回值。于是规定工具在文本里留一个 sxy-doc:// 引用，
 // 由本模块在 chat() 出口统一渲染成页面图交给多模态 —— 与 sxy-img:// 完全同构。
-// pages 形如 "1,3-5"；缺省 = 前 N 页（N 取 DOC_VISION_LIMIT）。
+// pages 形如 "1,3-5"；缺省 = 前 N 页（N 由调用方的送图额度决定，硬上限 DOC_VISION_MAX）。
 // 注意：这里返回**新建**的正则（不导出共享实例）——带 g 的正则对象在 matchAll/replace
 // 之间共用会有 lastIndex 状态隐患，每个调用点各自持有一个最省心。
 export function docRefRe() {
@@ -371,9 +394,10 @@ export async function enrichForLlm(messages, opts = {}) {
   const policy = resolveImagePolicy(settings);
   const ids = [...allIds];
   // 总视觉额度：visionFirst 3 张；auto 兜底 1 张；ocrFirst 0（永不主动调视觉）
+  // 主路径（先多模态）按用户配置的额度送图；auto 的视觉兜底仍保守取 1；ocrFirst 不送
   const visionLimit = policy.mode === 'visionFirst'
-    ? VISION_LIMIT_FIRST
-    : (policy.allowVisionFallback ? VISION_LIMIT_FALLBACK : 0);
+    ? policy.visionLimit
+    : (policy.allowVisionFallback ? Math.min(VISION_LIMIT_FALLBACK, policy.visionLimit) : 0);
 
   const textMap = new Map(); // 精确 token（sxy-img://id）→ 替换文本
   const docTextMap = new Map(); // docId → 替换文本（按正则整体替换，兼容 #pages 变体）
@@ -387,9 +411,18 @@ export async function enrichForLlm(messages, opts = {}) {
     // 精确「哪些 id 真的送出去了」——不能用 picked.slice(0, v.length) 推（中间项可能被跳过）
     const sent = new Set(mapped.map((x) => x.id));
     ids.forEach((id, i) => {
-      textMap.set(`sxy-img://${id}`, sent.has(id)
-        ? `【图片${i + 1}：已作为附图发送，请直接看图分析】`
-        : `【图片${i + 1}：未随本次发送（单次最多 ${visionLimit} 张），如需分析请单独提问】`);
+      let note;
+      if (sent.has(id)) {
+        note = `【图片${i + 1}：已作为附图发送，请直接看图分析】`;
+      } else if (i < visionLimit) {
+        // 额度内却没送出去 → 是图片本身读不出来（已删除 / 压缩失败），**不是**额度不够。
+        // 必须与「超额度」分成两句：原先共用一句会让模型把「图丢了」误判为「额度不够」，
+        // 于是回答用户「重发一张吧」——而真正原因是上游把引用截断了，重发也白搭。
+        note = `【图片${i + 1}：读取失败（图片可能已被删除或无法解析），请确认该图仍在卡片中】`;
+      } else {
+        note = `【图片${i + 1}：超出本次送图额度（最多 ${visionLimit} 张），如需分析请单独提问】`;
+      }
+      textMap.set(`sxy-img://${id}`, note);
     });
   } else if (ids.length) {
     // ocrFirst / auto：OCR 文字化（会话内缓存，反复对话不重复识别）
@@ -473,7 +506,7 @@ export async function enrichForLlm(messages, opts = {}) {
       const wantVision = policy.mode !== 'ocrFirst' && profile.canVision && room > 0;
       if (wantVision) {
         const v = await docVisionContent(docId, {
-          maxPages: Math.min(DOC_VISION_LIMIT, room),
+          maxPages: Math.min(policy.visionLimit, room),
           pages: pages.length ? pages : undefined,
           renderPdfPagesFn: opts.renderDocPagesFn, // 测试注入点
         });
