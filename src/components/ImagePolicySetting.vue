@@ -13,6 +13,7 @@ import { t } from '../i18n/index.js';
 import { getWordSettings, saveWordSettings } from '../word-repo.js';
 import { recommendForCurrentData, normalizeVisionLimit, VISION_LIMIT_MAX, VISION_LIMIT_DEFAULT } from '../services/image-analysis.js';
 import { IMAGE_QUALITY_KEYS, IMAGE_QUALITY_DEFAULT } from '../utils/img-compress.js';
+import BatchImageAnalysis from './BatchImageAnalysis.vue';
 
 const MODES = ['auto', 'ocrFirst', 'visionFirst'];
 const LABEL_KEY = { auto: 'recModeAuto', ocrFirst: 'recModeOcr', visionFirst: 'recModeVision' };
@@ -164,6 +165,7 @@ onMounted(() => { load(); loadRecommendation(); });
       </template>
     </div>
     <p v-if="rec?.reason" class="imgmode-reason">{{ rec.reason }}</p>
+    <BatchImageAnalysis />
   </section>
 </template>
 
