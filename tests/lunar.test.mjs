@@ -52,3 +52,19 @@ test('formatLunarDate 组合字段', () => {
   assert.ok(f.fullText.includes('农历七月十六'));
   assert.ok(f.fullText.includes('丙午年'));
 });
+
+
+test('范围守卫：1900 前 / 2100 后 / 无效日期 → null，不产出错误农历', () => {
+  assert.equal(getLunar(new Date(1899, 11, 31)), null); // 表外下限
+  assert.equal(getLunar(new Date(2101, 0, 1)), null);   // 表外上限
+  assert.equal(getLunar(new Date('not-a-date')), null); // 无效日期
+  assert.equal(getLunar(-2208988800000), null);          // 1900 前（1899-12-31 的负时间戳）
+});
+
+test('formatLunarDate 越界降级为纯公历，不抛错', () => {
+  const f = formatLunarDate(new Date(2101, 0, 1));
+  assert.equal(f.lunarText, '');
+  assert.equal(f.ganzhiText, '');
+  assert.ok(f.fullText.includes('2101年1月1日'));
+  assert.ok(!f.fullText.includes('农历'));
+});

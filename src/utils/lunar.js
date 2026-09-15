@@ -86,9 +86,18 @@ export function monthDaysOf(y, m) {
  */
 export function getLunar(date) {
   const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return null; // 无效日期
+  const _y = d.getFullYear();
+  // 范围守卫：lunarInfo 只编码 1900~2100。越界时若继续算，
+  // lunarInfo[y-1900] 越界为 undefined，位运算静默变 0，会产出「看似合理实则错误」的农历
+  // （且 DAY_CN 兜底把越界日显示成『初一』，错误被掩盖）。返回 null 由调用方降级。
+  if (_y < 1900 || _y > 2100) return null;
   let offset = Math.floor(
-    (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - BASE_UTC) / 86400000,
+    (Date.UTC(_y, d.getMonth(), d.getDate()) - BASE_UTC) / 86400000,
   );
+  // 精确下限：offset < 0 = 早于基准日 1900-01-31（公历年 1900 前 30 天年份在范围、日期在表外，
+  // 若继续算会得到 month=0/day=负 的荒谬农历）。同样返回 null。
+  if (offset < 0) return null;
 
   // 1) 定位农历年
   let year = 1900;
@@ -98,6 +107,8 @@ export function getLunar(date) {
     offset -= temp;
   }
   if (offset < 0) { offset += temp; year--; }
+  // 精确上限：循环以 year < 2101 退出且 offset 仍 > 0 → 日期超出 2100 农历年尾，表外
+  if (year > 2100) return null;
 
   // 2) 定位农历月（含闰月）
   const leapM = leapMonthOf(year);
@@ -156,11 +167,17 @@ export function formatLunarDate(date) {
   const d = date instanceof Date ? date : new Date(date);
   const l = getLunar(d);
   const week = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+  const solarText = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+  const weekdayText = `星期${week}`;
+  if (!l) {
+    // 越界/无效日期：不产出错误农历，降级为纯公历（调用方为渲染期 computed，绝不能 throw）
+    return { solarText, weekdayText, lunarText: '', ganzhiText: '', fullText: `${solarText} ${weekdayText}` };
+  }
   return {
-    solarText: `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`,
-    weekdayText: `星期${week}`,
+    solarText,
+    weekdayText,
     lunarText: l.text,
     ganzhiText: l.ganzhiText,
-    fullText: `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 星期${week} ${l.text}（${l.ganzhiText}）`,
+    fullText: `${solarText} ${weekdayText} ${l.text}（${l.ganzhiText}）`,
   };
 }
