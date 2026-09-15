@@ -786,7 +786,9 @@ export async function getCalibration() {
 // 预测未来 N 天每日到期卡量（含复习推进模拟）；纯函数在 algorithms/forecast.js，这里只做 IO。
 import { forecastDue } from '../algorithms/forecast.js';
 export async function getDueForecast(days = 30) {
-  const cards = await db.cards.toArray();
+  // round75 审计：主线程全表读必须走共享快照（round57 契约）——此处曾直接 db.cards.toArray()，
+  // 与仪表盘首屏并发时会各自再扫一遍全表。forecastDue 只遍历、不原地改，可安全共享。
+  const { cards } = await dashboardSnapshot();
   return forecastDue(cards, days);
 }
 
@@ -794,8 +796,9 @@ export async function getDueForecast(days = 30) {
 // 卡片库「知识资产负债表」；纯函数在 algorithms/networth.js，这里只做 IO。
 import { computeNetWorth } from '../algorithms/networth.js';
 export async function getNetWorth() {
-  const [cards, schedRow] = await Promise.all([
-    db.cards.toArray(),
+  // round75 审计：同上，改用共享快照（computeNetWorth 只读；其内部 sort 作用在派生数组上）
+  const [{ cards }, schedRow] = await Promise.all([
+    dashboardSnapshot(),
     db.meta.get('scheduler').catch(() => null),
   ]);
   const scheduler = schedRow?.value === 'sm2' ? 'sm2' : (schedRow?.value === 'fsrs' ? 'fsrs' : undefined);
@@ -818,6 +821,7 @@ export async function getSubjectRetentionMap() {
 // 来源聚合 + 单卡血缘追溯；纯函数在 algorithms/source-trace.js，这里只做 IO。
 import { sourceOverview } from '../algorithms/source-trace.js';
 export async function getSourceOverview() {
-  const cards = await db.cards.toArray();
+  // round75 审计：同上（sourceOverview 的 sort 作用于派生数组）
+  const { cards } = await dashboardSnapshot();
   return sourceOverview(cards);
 }

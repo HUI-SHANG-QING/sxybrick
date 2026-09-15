@@ -12,6 +12,7 @@ import 'fake-indexeddb/auto';
 import './_env.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { db } from '../src/db.js';
 import { dashboardSnapshot, invalidateDashboardCache } from '../src/repo.js';
 import {
@@ -137,4 +138,92 @@ test('round57 性能契约④：key 不完备 → 写路径必须显式失效，
   const fresh = (await dashboardSnapshot()).cards.find(c => c.id === 'c1');
   assert.equal(fresh.front, '原地改写的正面', 'invalidated 后必须读到新值——写路径漏调它会静默陈旧');
   await shutdownAnalyticsWorker();
+});
+
+// round75 审计新增（契约⑤）：把 round57 的「共享快照」契约从**只盯 5 个已迁移函数**
+// 升级为**结构性闸门** —— analytics.js 里任何裸 `db.cards/reviews.toArray()` 都必须落在
+// 「已委托给 Web Worker」的函数里（那些在 worker 线程跑，不阻塞主线程）；
+// 其余主线程函数必须改用 dashboardSnapshot()。
+//
+// 为什么加：审计扫全仓时发现 getDueForecast / getNetWorth / getSourceOverview 三个主线程函数
+// 一直绕开快照（旧 P1「analytics 全表 toArray」只修了最热的 5 个，剩下的没人管），
+// 而 round57 的测试只覆盖已迁移的那 5 个 → 漏网者可以长期存在。本闸门按「违规形态」定义，
+// 白名单**从 analytics.worker.js 的实际导入派生**（不是手写清单），新增委托时自动生效。
+test('round57 性能契约⑤：analytics 的裸全表读只允许出现在 Worker 委托函数里', () => {
+  const analyticsSrc = readFileSync(new URL('../src/agent/analytics.js', import.meta.url), 'utf8');
+  const workerSrc = readFileSync(new URL('../src/agent/analytics.worker.js', import.meta.url), 'utf8');
+
+  // 白名单 = worker 从 analytics.js 导入的函数名（真正在 worker 线程执行的）
+  const imported = /import\s*\{([\s\S]*?)\}\s*from\s*['"]\.\/analytics\.js['"]/.exec(workerSrc);
+  assert.ok(imported, '必须能从 analytics.worker.js 解析出导入块（解析失败说明结构变了，闸门需同步）');
+  const workerFns = new Set(imported[1].split(',').map((s) => s.trim()).filter(Boolean));
+  assert.ok(workerFns.size >= 4, `白名单异常偏小（${workerFns.size}）：${[...workerFns].join(',')}`);
+
+  // 白名单还须包含 Worker 委托函数的**私有实现**（`_getConfusablePairs` 这类）：
+  // worker 线程里 offload 返回 _FALLBACK → 公共 wrapper 原地调用私有实现，仍在 worker 线程执行。
+  const allowed = new Set([...workerFns, ...[...workerFns].map((n) => '_' + n)]);
+
+  // 逐个裸全表读定位其所属函数。
+  // ⚠️ 必须先剥掉注释：本文件里就有解释性注释写着 `db.cards.toArray()`，
+  // 不剥注释会把注释当违规（实测误报过一次）。
+  const codeOnly = analyticsSrc
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split(/\r?\n/)
+    .map((l) => l.replace(/(^|[^:'"`])\/\/[^\n]*/, '$1'));
+
+  const offenders = [];
+  let fn = '(module)';
+  codeOnly.forEach((line, i) => {
+    const m = /^\s*(?:export\s+)?(?:async\s+)?function\s+(\w+)/.exec(line);
+    if (m) fn = m[1];
+    if (/db\.(cards|reviews)\.toArray\(\)/.test(line) && !allowed.has(fn)) {
+      offenders.push(`${fn}（第 ${i + 1} 行）`);
+    }
+  });
+  assert.deepEqual(
+    offenders, [],
+    '这些主线程函数绕开了 dashboardSnapshot()：' + offenders.join('、')
+      + '。改用 `const { cards } = await dashboardSnapshot();`，或把函数委托给 Worker。',
+  );
+});
+
+// round75 审计新增（契约⑥）：repo.js 里**所有**写 db.cards / db.reviews 的函数，
+// 必须显式调 invalidateDashboardCache()，或落入「key 天然覆盖」白名单。
+//
+// 白名单 = 改变「卡数」的写路径（新建/删除/回收站还原）：快照 key 含 count，
+// 行数一变 key 必变 → 天然失效。**其余（改字段类）必须显式失效**，因为
+// 「同一毫秒内第二次编辑」不会改变最大 updatedAt → key 不变 → 命中陈旧快照。
+// 本轮审计实证：updateCard / setMarked 属于此类却未显式失效（已补）。
+test('round57 性能契约⑥：repo 的 cards/reviews 写路径必须显式失效快照（或属 key 已覆盖的增删类）', () => {
+  // key 含 count → 行数变化即天然换 key，无需显式失效
+  const KEY_COVERED = new Set(['createCard', 'deleteCard', 'restoreFromTrash']);
+  const src = readFileSync(new URL('../src/repo.js', import.meta.url), 'utf8');
+  const WRITE = /db\.(cards|reviews)\.(put|bulkPut|delete|add|update|clear)\(/;
+
+  // 按「顶格声明的函数」切段：嵌套函数（缩进声明）不得重置归属。
+  // 反例（实测）：deleteNote 内部有嵌套函数，若用「最后见到的函数名」归属，
+  // 函数末尾的失效调用会被算到嵌套函数头上，deleteNote 被误报。
+  const TOP_FN = /^(?:export\s+)?(?:async\s+)?function\s+(\w+)/;
+  const lines = src.split(/\r?\n/);
+  const segs = [];
+  lines.forEach((line, i) => {
+    const m = TOP_FN.exec(line);
+    if (m) segs.push({ name: m[1], start: i, lines: [] });
+    if (segs.length) segs[segs.length - 1].lines.push(line);
+  });
+
+  const offenders = [];
+  for (const seg of segs) {
+    const body = seg.lines.join('\n');
+    if (!WRITE.test(body)) continue;
+    if (KEY_COVERED.has(seg.name)) continue;
+    if (/invalidateDashboardCache\(\)/.test(body)) continue;
+    offenders.push(seg.name);
+  }
+
+  assert.deepEqual(
+    offenders, [],
+    '这些函数改了卡片/复习却没显式失效快照：' + offenders.join('、')
+      + '。加 `invalidateDashboardCache();`，或（若会改变行数）登记进 KEY_COVERED 白名单。',
+  );
 });

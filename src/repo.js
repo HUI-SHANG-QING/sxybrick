@@ -258,6 +258,12 @@ export async function updateCard(id, payload) {
     }
     card.fieldTs = fieldTs;
     await db.cards.put(card);
+    // round75 审计：字段编辑后**显式失效**共享快照。
+    // 快照 key 含「卡数 + 最大 updatedAt」，本函数 bump 了 updatedAt 故通常能天然换 key；
+    // 但**同一毫秒内的第二次编辑**（updatedAt 与当前最大值相同）不会换 key → 命中陈旧快照，
+    // 于是「知识净值 / 到期预测 / 来源血缘」这些走快照的分析会显示旧值。
+    // 显式失效把这条例外彻底封死，且与 review / applyCardFeedback 等写路径口径一致。
+    invalidateDashboardCache();
     fireHook('onCardSaved', card);
     return card;
   });
@@ -860,6 +866,8 @@ export async function setMarked(id, marked) {
     if (!card) throw new Error('卡片不存在');
     const t = now();
     await db.cards.update(id, { marked: !!marked, updatedAt: t, fieldTs: { ...(card.fieldTs || {}), marked: t } });
+    // round75 审计：同 updateCard —— 纯字段变更必须显式失效（同毫秒二次写不换 key）
+    invalidateDashboardCache();
     return { ...card, marked: !!marked, updatedAt: t };
   });
 }
@@ -1667,6 +1675,9 @@ export async function deleteNote(id) {
       await db.images.bulkDelete(orphanImages);
     }
   }
+  // round75 审计：删笔记会级联清洗卡片侧的 linkedNoteIds（对 db.cards 做字段级 update），
+  // 属「改字段」类写路径 → 显式失效共享快照（与 updateCard / setMarked 同口径）。
+  invalidateDashboardCache();
 }
 
 /** 反向链接：哪些笔记的 content 里有 [[id]]？ */

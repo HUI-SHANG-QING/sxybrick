@@ -317,6 +317,10 @@ export function computeStats(cards, reviews, nowTs = Date.now()) {
   const heat = {};
   for (const r of real) {
     if (r.reviewedAt < since) continue;
+    // round75 审计：**不采纳明显未来的时间戳** —— 时钟漂移 / 坏包会让热力图多出「未来日期格」。
+    // 留 1 天宽限：避免把「刚刚复习」因毫秒级 skew 挤出今天的格子。
+    // 只影响热力图口径，real / dirtyReviews 等计数口径一律不动。
+    if (r.reviewedAt > nowTs + DAY) continue;
     const d = new Date(r.reviewedAt);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     heat[key] = (heat[key] || 0) + 1;

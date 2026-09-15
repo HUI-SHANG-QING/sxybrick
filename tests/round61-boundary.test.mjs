@@ -105,3 +105,26 @@ test('round61：正常数据结果不得被本次过滤改变（防误伤）', (
   assert.deepEqual(st.ratingDist, { 0: 1, 1: 1, 2: 1 });
   assertSane(st, '正常数据');
 });
+
+// round75 全面审计新增：**明显未来**的 reviewedAt（时钟漂移 / 坏包导入）不得在热力图里
+// 造出「未来日期格」——旧实现只过滤下界（`reviewedAt < since` 跳过），没有上界。
+// 口径刻意留 1 天宽限：毫秒级 skew 下「刚刚复习」不能被挤出今天的格子。
+// 注意：本守卫**只改热力图**，real / dirtyReviews / todayReviews 等计数口径一律不动。
+test('round75：未来时间戳不得产出热力图「未来日期格」（1 天内宽限）', () => {
+  // 与 computeStats 生成键的口径一致（本地时区 getter）
+  const keyOf = (ts) => {
+    const d = new Date(ts);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const cards = [mkCard(0), mkCard(1)];
+  const reviews = [
+    mkReview(0, { reviewedAt: NOW + 30 * DAY }), // 明显未来 → 必须剔除
+    mkReview(1, { reviewedAt: NOW + 60000 }),    // 轻微 skew（+1 分钟）→ 仍应计入今天
+  ];
+  const st = computeStats(cards, reviews, NOW);
+  const keys = Object.keys(st.heatmap);
+  assert.ok(!keys.includes(keyOf(NOW + 30 * DAY)), `热力图不得出现未来日期格：${keys.join(',')}`);
+  assert.ok(keys.includes(keyOf(NOW + 60000)), '1 分钟内的 skew 仍应计入（否则"刚刚复习"会被挤出格子）');
+  // 计数口径不受影响：两行都仍是合法复习（只是其中一行不进热力图）
+  assert.equal(st.totalReviews, 2, 'totalReviews 口径不动');
+});
