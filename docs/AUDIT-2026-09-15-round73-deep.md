@@ -59,6 +59,52 @@
 同时 `agent/tools/compact.js` 默认 `maxItems = 8`：17 张卡的检索结果**只喂给模型前 8 张**
 （虽有「还有 N 项」提示，但列表工具连 `offset` 参数都没有，模型想翻页也翻不了）。
 
+### R5.【真凶】Agent 用**原生 `role:'tool'`** 回灌工具结果 → 只要调过工具，下一次调用必然 400
+
+这是「**Agent 每次都要失败两次才正常、而 AI 学习助手一次就成功**」的确切原因。
+
+`src/agent/llm.js` 的设计声明写得很清楚：
+
+> 3) 不依赖原生 function calling —— 工具调用交由上层用**文本协议**解析，保证任意兼容端点都能跑通。
+
+但 `agents/base.js` 回灌工具结果时用的是**原生 tool 角色**：
+
+```js
+convo.push({ role: 'tool', content: `工具 ${toolCall.name} 返回：\n${payload}` });
+```
+
+而 OpenAI / DeepSeek 对 `role:'tool'` 有**硬约束**：它必须回应前一条带 `tool_calls` 的 assistant 消息，
+且必须带 `tool_call_id`。我们两者都没有，服务端直接 **400**（官方原文）：
+
+```
+messages with role 'tool' must be a response to a preceding message with 'tool_calls'
+```
+
+于是本轮的现象全部被解释：
+
+| 现象 | 机制 |
+| --- | --- |
+| **AI 学习助手一次就成功** | 它是**单次问答**（`chatAI`），消息里只有 system/user，永远不会出现 tool 角色 → 不会 400 |
+| **Agent 每次失败** | Agent 是 ReAct：第 1 步模型输出 `<tool>…</tool>` 成功 → 第 2 步提示里必然多出一条 tool 角色消息 → **400** → 降级成本地直出 |
+| **降级结果里却有真实数据** | 400 发生在「合成」那一步，此时工具**已经执行完**，`buildLocalAnswer(observations)` 把工具原始数据顶上来 —— 正是 `工具 search_cards · 共 13 条` 那段 |
+| **「失败两次后第三次就正常」** | 历史消息里已经带着上一次的本地直出内容（`runTask` 会带最近 12 条），模型发现「数据已在手上」→ 索性不再调工具、直接作答 → 单次调用、无 tool 角色 → 成功 |
+
+**修法**：文本协议下不该用原生 tool 角色。改为 `user` 角色承载（附内部标记 `__toolObs`，出站前剥掉），
+`compactConvo` 同步升级为「带标记的 user 消息仍属可压缩的中间产物」，而**真正的用户消息与 system 依旧永不改动**。
+
+新增闸门直接**复刻严格端点行为**：请求体里一旦出现裸 tool 角色，就按官方原文回 400，断言 Agent 仍能
+跑完「工具 → 合成」两步并拿到模型回答。
+
+### R6. `max_tokens = 65536` 的第二重伤害：每次调用都白撞一次 400，并被降级到 2000
+
+DeepSeek 等端点的合法区间是 `[1, 8192]`。旧逻辑在服务端拒绝后**一律降到 2000** 重试 ——
+于是用户明明配了大窗口模型，实际长期在用 **2K 输出**（长回答被硬截断），
+而且**每次调用**都要先浪费一个注定失败的 400 往返（Agent 一轮 2~4 次调用 = 白花 0.5~2s）。
+
+现在：从服务端文案里**解析它真正允许的上限**（`[1, 8192]` / `less than or equal to 16384` /
+`8192, max allowed is 8192` 等形态），按该上限重试并**记住**，后续调用直接夹紧 ——
+一次学到，之后不再试探；也不再无脑降到 2000。
+
 ---
 
 ## 二、修复
@@ -77,6 +123,9 @@
 | 10 | `src/ai.js` | `chatAI`（非 Agent 的全部 AI 入口：问答/组卡/出题/文档/分析）**默认 `stream: true`**，调用方可用 `{ stream: false }` 关闭 |
 | 11 | `src/analysis/ai-analyzer.js` | 直连 `llm.js` 的分析链路同样开流式（45s 从「整段写完」变成「45s 无新数据」） |
 | 12 | `src/agent/llm.js` | 两道防御：① 端点回 400/422 且错误文本含 `stream` → **自动退回非流式重试一次**（防「换个自建端点就全挂」）；② 200 响应没有可读流（`res.body` 为空）→ 退回非流式解析 |
+| 14 | `src/agent/agents/base.js` | **工具观察改用 `user` 角色承载**（新增 `toolObservation()`），不再发原生 `role:'tool'` —— 修掉「Agent 每轮必 400」的真凶（R5） |
+| 15 | `src/agent/agents/base.js` | `compactConvo` 同步升级：识别带标记的 user 消息仍可压缩，并在出站前**剥掉内部标记**（`__toolObs`/`__toolName` 绝不进请求体） |
+| 16 | `src/agent/llm.js` | `max_tokens` 自适应：`parseMaxTokensBound()` 解析服务端允许上限 → 按上限重试并记忆（`MAX_TOKEN_CAP`）→ 后续调用直接夹紧（不再每次撞 400、不再无脑降到 2000）（R6） |
 | 13 | `scripts/check-view-i18n.mjs` | 第三道闸豁免 `toolRegistry.register` 的**元数据段**：`description`/`parameters` 是发给模型的 prompt 契约（中文、永不翻译），不是 UI 文案 |
 
 ### 关于第 10 条的取舍
@@ -92,14 +141,14 @@
 ## 三、验证
 
 ```
-npm test            → 1205 passed / 0 failed   （基线 1191 + 本轮新增 14）
+npm test            → 1209 passed / 0 failed   （基线 1191 + 本轮新增 18）
 npm run build       → BUILD_EXIT=0
 npm run check:build → ✓ 52 个词库分片全部就位
 dep:check           → 272 个源文件，0 循环依赖
 i18n --strict / --js→ 通过（数据层 440→341 行，较基线新增 0）
 ```
 
-新增闸门 `tests/agent-llm-resilience.test.mjs`（14 条），钉住的行为契约：
+新增闸门 `tests/agent-llm-resilience.test.mjs`（18 条），钉住的行为契约：
 
 1. 流式：5 片 × 40ms = 200ms 总时长 > 120ms 超时，**但每次间隔 < 超时 → 必须成功**（长回答不再被误杀）；
 2. 流式：真卡死（无新数据超时）仍抛 `TIMEOUT`（不会永久挂起）；
@@ -114,7 +163,11 @@ i18n --strict / --js→ 通过（数据层 440→341 行，较基线新增 0）
 11. `search_cards`：25 张卡 → 第 1 页 20 条 + `hasMore:true`，第 2 页 5 条 + `hasMore:false`，两页**无重复无遗漏**，每项都带 `back`；
 12. `get_weak_cards`：返回 `id` + `back`；
 13. 端点拒绝流式（400 + 错误文本含 stream）→ 自动退回非流式重试一次，且断言**第二次请求 `stream: false`**；
-14. **接线源码闸门**：`orchestrator.js` / `pipeline.js` / `ai-analyzer.js` / `ai.js` 四处都必须出现 `stream: true`（防止将来有人「顺手删掉」又退回 60s 总超时）。
+14. **接线源码闸门**：`orchestrator.js` / `pipeline.js` / `ai-analyzer.js` / `ai.js` 四处都必须出现 `stream: true`（防止将来有人「顺手删掉」又退回 60s 总超时）；
+15. **严格端点下 Agent 必须跑通**：mock 复刻 OpenAI 的 tool 角色约束，请求体出现裸 tool 角色就回 400 —— 断言 Agent 仍拿到模型回答（而非本地直出）、工具观察以 `user` 角色承载、不伪造 `tool_call_id`、内部标记不泄漏（**这条就是防 R5 复发**）；
+16. `compactConvo`：带标记的工具观察仍会被压缩，真正用户消息原封不动，内部标记出站前剥净；未超预算且无标记时保持原数组（零拷贝路径）；
+17. `parseMaxTokensBound`：`[1, 8192]` / `less than or equal to 16384` / `8192, max allowed is 8192` 三种文案都能解析出真实上限，无数字时返回 0；
+18. 学到上限后**第二次调用直接夹紧**（断言请求序列 `[65536, 8192]` 之后只有一个请求且 `max_tokens=8192`）。
 
 ---
 
@@ -125,6 +178,9 @@ i18n --strict / --js→ 通过（数据层 440→341 行，较基线新增 0）
 - 失败时**明确告诉你是什么原因**：密钥无效 / 被限流 / 模型不存在 / 超时 —— 各自对应不同的自救动作。
 - 「把 17 张卡列出来」这类需求，模型**确实拿到了全部 17 张（含背面摘要）**，并能翻页取更多。
 - 问「这张卡背面写了什么」时，模型**手上有背面数据**，不再回答「我看不到」。
+- **Agent 不再每轮必失败**：以前只要它调用了工具，合成那一步就会被端点拒绝（401/400 一类）而退回本地直出；
+  现在工具结果按文本协议以普通消息回灌，一步到位拿到模型回答 —— 「助手一次成功、agent 每次失败」这个怪现象消失。
+- **不再长期偷偷用 2K 输出**：配了 65536 也能稳定拿到端点允许的最大输出，且不再每次白撞一次 400 往返。
 
 ## 五、仍未做（按价值排序）
 

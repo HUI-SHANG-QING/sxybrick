@@ -135,6 +135,27 @@ async function executeTool(name, args, ctx, onTrace) {
   }
 }
 
+/**
+ * 把「工具观察」包成一条对话消息（round73 修，本轮最关键的修复）。
+ *
+ * **为什么不用原生 `role: 'tool'`**：
+ * 本项目的工具调用是**文本协议**（`<tool>/<args>`，见 llm.js 的设计声明「不依赖原生 function
+ * calling，保证任意兼容端点都能跑通」）。而 OpenAI / DeepSeek 等端点对 `role:'tool'` 有硬约束：
+ * 它**必须**回应前一条带 `tool_calls` 的 assistant 消息，且必须带 `tool_call_id`。我们两者都没有，
+ * 于是服务端直接 400：
+ *   `messages with role 'tool' must be a response to a preceding message with 'tool_calls'`
+ *
+ * 后果正是用户报的现象：**Agent 每轮只要调过工具，第 2 次 LLM 调用必然 400 → 降级成本地直出**
+ * （界面上就是「⚠️ AI 合成回答暂不可用」+ 一堆工具原始数据）；而「AI 学习助手」是单次问答、
+ * 从不带工具消息，所以**一次就成功** —— 这个不对称就是这么来的。
+ *
+ * 解法：用 `user` 角色承载（文本协议下这就是「环境把工具结果告诉我」），
+ * 并打内部标记 `__toolObs`，供 compactConvo 识别可压缩的中间产物（出站前会剥掉该标记）。
+ */
+function toolObservation(name, content) {
+  return { role: 'user', content, __toolObs: true, __toolName: name };
+}
+
 // round48：整段上下文的**总量封顶**。此前各分项（记忆 / 单条工具结果）都有上限，但多步 ReAct
 // 会把「每步完整 raw（含 thought）+ 工具回包」逐步累加、每步重发全量，长历史 + 大工具回包时
 // 仍可能撑爆模型上下文（413，或服务端静默截断掉真正的对话）。
@@ -144,17 +165,31 @@ const CONVO_CHAR_BUDGET = 48000; // 约 1.2万~2.4万 token 量级，给模型�
 // round50 N2 回归需要直测码点截断，故导出（纯函数，无副作用）
 export function compactConvo(convo) {
   const size = () => convo.reduce((n, m) => n + String(m?.content ?? '').length, 0);
-  if (size() <= CONVO_CHAR_BUDGET) return convo;
+  const over = size() > CONVO_CHAR_BUDGET;
+  const hasInternal = convo.some((m) => m && (m.__toolObs || m.__toolName));
+  // 常规路径（未超预算、无内部标记）：原样返回，零拷贝开销
+  if (!over && !hasInternal) return convo;
+
+  const out = [];
   for (const m of convo) {
-    if (size() <= CONVO_CHAR_BUDGET) break;
-    if (m.role !== 'tool' && m.role !== 'assistant') continue;
-    const s = String(m.content ?? '');
-    // round50 N2：按码点截断（防 emoji / 组合字符被劈成半个，预览尾部出现乱码 �）。
-    // round67：改用 clipText —— 在码点安全之外，还保证 `![image](sxy-img://uuid)` 这类
-    // 视觉引用不被切坏。此处是 tool 消息进 AI 的上下文压缩出口，切坏引用 = 图静默丢失。
-    if (s.length > 1500) m.content = clipText(s, 1500) + '…（已截断以控制上下文长度）';
+    // 出站净化：`__toolObs` / `__toolName` 是内部标记，绝不能进请求体
+    // （非标准字段会被严格网关判为非法请求）。
+    const copy = { ...m };
+    delete copy.__toolObs;
+    delete copy.__toolName;
+    // 可压缩对象 = 工具观察（原生 tool 角色 或 带标记的 user 消息）与 assistant 原文；
+    // 真正的用户消息与 system 永不改动 —— 那是用户的原话，改了就是篡改提问。
+    const compressible = m?.role === 'tool' || m?.__toolObs === true || m?.role === 'assistant';
+    if (over && compressible) {
+      const s = String(m.content ?? '');
+      // round50 N2：按码点截断（防 emoji / 组合字符被劈成半个，预览尾部出现乱码 �）。
+      // round67：改用 clipText —— 在码点安全之外，还保证 `![image](sxy-img://uuid)` 这类
+      // 视觉引用不被切坏。此处是工具结果进 AI 的上下文压缩出口，切坏引用 = 图静默丢失。
+      if (s.length > 1500) copy.content = clipText(s, 1500) + '…（已截断以控制上下文长度）';
+    }
+    out.push(copy);
   }
-  return convo;
+  return out;
 }
 
 /**
@@ -203,10 +238,11 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
           text: `工具 ${toolCall.name} 参数解析失败：${toolCall.parseError}`,
         });
         convo.push({ role: 'assistant', content: raw });
-        convo.push({
-          role: 'tool',
-          content: `工具 ${toolCall.name} 参数解析失败：${toolCall.parseError}（原始参数：${toolCall.argsRaw}）。请用合法 JSON 对象重试。`,
-        });
+        // 同下方：工具反馈一律用 user 角色承载，见 toolObservation() 的说明
+        convo.push(toolObservation(
+          toolCall.name,
+          `工具 ${toolCall.name} 参数解析失败：${toolCall.parseError}（原始参数：${toolCall.argsRaw}）。请用合法 JSON 对象重试。`,
+        ));
         continue;
       }
       const res = await executeTool(toolCall.name, toolCall.args, ctx, onTrace);
@@ -217,7 +253,7 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
       const payload = res?.ok === false
         ? `错误：${res.error}`
         : compactToolPayload(res?.data ?? res);
-      convo.push({ role: 'tool', content: `工具 ${toolCall.name} 返回：\n${payload}` });
+      convo.push(toolObservation(toolCall.name, `工具 ${toolCall.name} 返回：\n${payload}`));
       observations.push({
         name: toolCall.name,
         ok: res?.ok !== false,

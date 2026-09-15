@@ -26,6 +26,36 @@ const MAX_CONTINUATIONS = 3;      // 最多续写轮数
 const DEFAULT_STREAM_IDLE_MS = 120000;
 // 兜底解析保留的原始响应上限（防个别网关忽略 stream 参数、回整段巨型 JSON 时占满内存）
 const RAW_TAIL_CAP = 200000;
+// round73：已学到的「服务端允许的 max_tokens 上限」，按 `base|model` 记住。
+// 用户把「最大输出长度」调到 65536 而端点只允许 8K 时，此前**每次调用**都要先撞一次 400
+// 再降级重试（Agent 一轮 2~4 次调用 = 白花 0.5~2s）。学到之后直接夹紧，不再重复试探。
+const MAX_TOKEN_CAP = new Map();
+
+/**
+ * 从服务端 400 文案里解析它允许的 max_tokens 上限（round73）。
+ * 覆盖常见形态：
+ *   "the valid range of max_tokens is [1, 8192]"
+ *   "max_tokens must be less than or equal to 16384"
+ *   "max_tokens: 65536 > 8192, max allowed is 8192"
+ * 解析不出时返回 0，调用方退回保守降级（2K）。
+ * @param {string} text
+ * @returns {number}
+ */
+export function parseMaxTokensBound(text) {
+  const s = String(text || '');
+  const pats = [
+    /max[_-]?tokens?[^0-9]{0,60}\[\s*\d+\s*,\s*(\d{2,7})\s*\]/i,
+    /max[_-]?tokens?[^0-9]{0,60}(?:less than or equal to|not exceed|at most|maximum(?:\s+is|\s+allowed\s+is)?|max\s+allowed\s+is|<=\s*)\s*(\d{2,7})/i,
+    // 容忍中间夹标点（如 "8192, max allowed is 8192"）——\s* 太窄，实测会漏
+    /(\d{2,7})[^0-9]{0,15}(?:is\s+the\s+maximum|max(?:imum)?\s+allowed)/i,
+  ];
+  for (const re of pats) {
+    const m = s.match(re);
+    const v = m && Number(m[1]);
+    if (Number.isFinite(v) && v > 0) return v;
+  }
+  return 0;
+}
 const MAX_TOTAL_CHARS = 24000;    // 续写累计字符上限（防无界膨胀、防费用失控）
 const TRUNCATE_CONTINUE_PROMPT =
   '上一条回复因长度限制被截断了。请**从中断处接着写**剩余内容，'
@@ -73,11 +103,17 @@ export async function chat(messages, cfg, opts = {}) {
     console.warn('[llm] 图片富集失败，按纯文字发送：', e?.message || e);
   }
 
+  // round73：把「用户设置的上限」夹到**已学到的服务端上限**之内（仅学到过时才生效）。
+  // 否则用户设 65536、端点只给 8192 时，每次调用都要先浪费一个 400 往返。
+  const learnedCap = MAX_TOKEN_CAP.get(`${base}|${model}`) || 0;
+  const wantTokens = opts.maxTokens ?? (Number.isFinite(cfg?.maxTokens) ? cfg.maxTokens : DEFAULT_MAX_TOKENS);
+  const effectiveMaxTokens = learnedCap ? Math.min(wantTokens, learnedCap) : wantTokens;
+
   const body = {
     model,
     messages: finalMessages,
     temperature: opts.temperature ?? 0.7,
-    max_tokens: opts.maxTokens ?? (Number.isFinite(cfg?.maxTokens) ? cfg.maxTokens : DEFAULT_MAX_TOKENS),
+    max_tokens: effectiveMaxTokens,
     stream: !!opts.stream,
   };
 
@@ -141,10 +177,15 @@ export async function chat(messages, cfg, opts = {}) {
       }
       if (!opts._maxTokenRetry && (res.status === 400 || res.status === 422) && /max[_\s-]?tokens?/i.test(t)) {
         reportUsage(undefined, '', false);
+        // round73：不再一律降到 2000。先从服务端文案里解析**它允许的上限**并按上限重试，
+        // 同时把上限记住（后续调用直接夹紧）。旧行为降到 2000 = 长回答被硬截断，
+        // 用户明明买了个大窗口的模型，却一直在用 2K 的输出。
+        const bound = parseMaxTokensBound(t);
+        if (bound) MAX_TOKEN_CAP.set(`${base}|${model}`, bound);
         return await chat(finalMessages, cfg, {
           ...opts,
           _maxTokenRetry: true,
-          maxTokens: Math.min(
+          maxTokens: bound || Math.min(
             Number(opts.maxTokens) || (Number.isFinite(cfg?.maxTokens) ? cfg.maxTokens : DEFAULT_MAX_TOKENS),
             2000,
           ),

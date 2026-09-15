@@ -129,34 +129,34 @@
           133
         ]
       },
-      "if (s.length > 1500) m.content = clipText(s, 1500) + '…（已截断以控制上下文长度）';": {
+      "if (s.length > 1500) copy.content = clipText(s, 1500) + '…（已截断以控制上下文长度）';": {
         "reason": "",
         "lines": [
-          155
+          188
         ]
       },
       "onTrace?.({ kind: TraceKind.ERROR, text: `模型调用失败：${e?.message || e}` });": {
         "reason": "",
         "lines": [
-          189
+          224
         ]
       },
       "? `错误：${res.error}`": {
         "reason": "",
         "lines": [
-          218
+          254
         ]
       },
-      "convo.push({ role: 'tool', content: `工具 ${toolCall.name} 返回：\\n${payload}` });": {
+      "convo.push(toolObservation(toolCall.name, `工具 ${toolCall.name} 返回：\\n${payload}`));": {
         "reason": "",
         "lines": [
-          220
+          256
         ]
       },
       "const msg = '（已达到最大推理步数，Agent 提前结束）';": {
         "reason": "",
         "lines": [
-          259
+          295
         ]
       }
     }
@@ -678,79 +678,79 @@
       "'上一条回复因长度限制被截断了。请**从中断处接着写**剩余内容，'": {
         "reason": "",
         "lines": [
-          31
+          61
         ]
       },
       "+ '不要重复已经输出的部分，也不要添加任何前言或总结性收尾。';": {
         "reason": "",
         "lines": [
-          32
+          62
         ]
       },
       "console.warn('[llm] 图片富集失败，按纯文字发送：', e?.message || e);": {
         "reason": "",
         "lines": [
-          73
+          103
         ]
       },
       "const err = new Error(`AI 请求失败(${res.status}${httpHint(res.status)})：${t.slice(0, 300)}`);": {
         "reason": "",
         "lines": [
-          132
+          168
         ]
       },
       "let reason = 'AI 返回了空内容';": {
         "reason": "",
         "lines": [
-          168
+          218
         ]
       },
       "? (json.error.message || json.error.type || '响应异常')": {
         "reason": "",
         "lines": [
-          255
+          305
         ]
       },
       ": String(json.error || '响应异常');": {
         "reason": "",
         "lines": [
-          256
+          306
         ]
       },
       "if (status === 401) return '：API 密钥无效或已过期';": {
         "reason": "",
         "lines": [
-          314
+          364
         ]
       },
       "if (status === 403) return '：无权限访问该模型';": {
         "reason": "",
         "lines": [
-          315
+          365
         ]
       },
       "if (status === 404) return '：接口或模型不存在（检查 baseUrl / model）';": {
         "reason": "",
         "lines": [
-          316
+          366
         ]
       },
       "if (status === 429) return '：请求过于频繁，稍后重试';": {
         "reason": "",
         "lines": [
-          317
+          367
         ]
       },
       "if (status >= 500) return '：服务暂时不可用（稍后重试）';": {
         "reason": "",
         "lines": [
-          318
+          368
         ]
       },
       "+ '切勿凭已有文字臆测图片内容。）';": {
         "reason": "",
         "lines": [
-          342
+          392
         ]
       }
     }

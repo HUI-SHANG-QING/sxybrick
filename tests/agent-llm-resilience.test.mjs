@@ -23,7 +23,9 @@ import { fileURLToPath } from 'node:url';
 import { chat } from '../src/agent/llm.js';
 import { compactToolPayload } from '../src/agent/tools/compact.js';
 import { buildLocalAnswer } from '../src/agent/local-answer.js';
-import { parseFinal } from '../src/agent/agents/base.js';
+import { parseFinal, compactConvo } from '../src/agent/agents/base.js';
+import { runReActAgent } from '../src/agent/agents/base.js';
+import { parseMaxTokensBound } from '../src/agent/llm.js';
 import { toolRegistry } from '../src/agent/registry.js';
 import '../src/agent/tools/index.js';
 import { createCard } from '../src/repo.js';
@@ -214,6 +216,139 @@ test('接线的源码形态闸门：Agent / 流水线 / 分析链路与 chatAI �
     const src = readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8');
     assert.match(src, re, rel + ' 未开启流式：非流式下 60s 是「整段回答必须 60s 内写完」，长回答必挂');
   }
+});
+
+// ---------------- B3. 严格端点：绝不发裸 role:'tool'（Agent 每轮必失败的元凶） ----------------
+
+/**
+ * 模拟 OpenAI / DeepSeek 对 tool 角色的硬约束 —— 没有前置 assistant.tool_calls 时，
+ * 带 role:'tool' 的消息会被服务端 400：
+ *   messages with role 'tool' must be a response to a preceding message with 'tool_calls'
+ *
+ * 本项目走**文本协议**（不用原生 function calling），所以一旦发出裸 tool 角色消息，
+ * 「Agent 每次调用工具后的那一步」都会 400 → 降级成本地直出（用户看到的
+ * 「⚠️ AI 合成回答暂不可用」+ 工具原始数据）。而单次问答的「AI 学习助手」不带工具消息，
+ * 所以它一次就成功 —— 用户观察到的「助手 1 次、agent 每次失败」就是这个不对称。
+ */
+function strictEndpointFetch(script) {
+  const seen = [];
+  const violations = [];
+  let i = 0;
+  return {
+    seen,
+    violations,
+    install() {
+      const orig = globalThis.fetch;
+      globalThis.fetch = async (_url, init) => {
+        const body = JSON.parse(init.body);
+        seen.push(body);
+        const msgs = body.messages || [];
+        msgs.forEach((m, idx) => {
+          if (m.role === 'tool') {
+            const prev = msgs[idx - 1];
+            const okShape = m.tool_call_id && prev?.role === 'assistant' && Array.isArray(prev.tool_calls);
+            if (!okShape) violations.push('裸 tool 角色消息（缺 tool_call_id / 前置 tool_calls）');
+          }
+          for (const k of Object.keys(m)) {
+            if (k.startsWith('__')) violations.push('内部标记泄漏到请求体：' + k);
+          }
+        });
+        if (violations.length) {
+          return {
+            ok: false,
+            status: 400,
+            text: async () => '{"error":{"message":"messages with role \'tool\' must be a response to a preceding message with \'tool_calls\'"}}',
+            json: async () => ({}),
+          };
+        }
+        const content = script[Math.min(i, script.length - 1)];
+        i += 1;
+        return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content }, finish_reason: 'stop' }], usage: {} }), text: async () => '' };
+      };
+      return () => { globalThis.fetch = orig; };
+    },
+  };
+}
+
+test('严格端点下 Agent 的 ReAct 仍能跑通（工具结果不能用原生 tool 角色回灌）', async () => {
+  const fake = strictEndpointFetch([
+    '<tool>list_subjects_and_tags</tool><args>{}</args>',
+    '<final>统计完成</final>',
+  ]);
+  const restore = fake.install();
+  try {
+    const agent = {
+      id: 'tutor', name: '学习答疑导师', systemPrompt: '你是导师',
+      tools: ['list_subjects_and_tags'], maxSteps: 4,
+    };
+    const ctx = { cfg: CFG, studyContext: '', memoryText: '', chat: (messages) => chat(messages, CFG, {}) };
+    const out = await runReActAgent({
+      agent,
+      userMessages: [{ role: 'user', content: '我的题库里有哪些科目和标签？' }],
+      ctx,
+      onTrace: () => {},
+    });
+    assert.deepEqual(fake.violations, [], '请求体必须干净：不能有裸 tool 角色、不能泄漏内部标记');
+    assert.equal(out, '统计完成', '拿到的应是模型真实回答，而不是本地直出降级');
+    assert.ok(fake.seen.length >= 2, '应确实走完了「工具 → 合成」两步');
+    // 工具观察必须以 user 角色承载，且内容仍然告诉模型「这是工具返回」
+    // 注意排除 system：系统提示里本身就写着「工具 X 返回：...」这句协议说明
+    const obsMsg = fake.seen[1].messages.find((m) => m.role !== 'system' && /返回：/.test(String(m.content)));
+    assert.ok(obsMsg, '第二次请求里应带上工具观察');
+    assert.equal(obsMsg.role, 'user', '文本协议下工具观察用 user 角色（端点唯一普遍接受的角色）');
+    assert.equal(obsMsg.tool_call_id, undefined, '不应伪造 tool_call_id（我们并没有原生 tool_calls）');
+  } finally { restore(); }
+});
+
+test('compactConvo：工具观察仍可被压缩，且出站前剥掉内部标记', () => {
+  const big = 'x'.repeat(60000);
+  const convo = [
+    { role: 'system', content: 'S' },
+    { role: 'user', content: '用户原话' },
+    { role: 'user', content: big, __toolObs: true, __toolName: 'search_cards' },
+    { role: 'assistant', content: big },
+  ];
+  const out = compactConvo(convo);
+  assert.equal(out[1].content, '用户原话', '真正的用户消息绝不能被截断');
+  assert.ok(String(out[2].content).length < 2000, '工具观察（带标记的 user 消息）超预算时必须被压缩');
+  assert.ok(!('__toolObs' in out[2]) && !('__toolName' in out[2]), '内部标记必须剥掉，不能进请求体');
+  assert.ok(String(out[3].content).length < 2000, 'assistant 原文照旧可压缩');
+  // 未超预算且无标记时保持原数组（零拷贝路径）
+  const small = [{ role: 'user', content: 'hi' }];
+  assert.equal(compactConvo(small), small);
+});
+
+// ---------------- B4. max_tokens：按服务端允许的上限自适应 ----------------
+
+test('parseMaxTokensBound：从服务端文案里解析出真实允许上限', () => {
+  assert.equal(parseMaxTokensBound('{"error":{"message":"Invalid max_tokens value, the valid range of max_tokens is [1, 8192]"}}'), 8192);
+  assert.equal(parseMaxTokensBound('max_tokens must be less than or equal to 16384'), 16384);
+  assert.equal(parseMaxTokensBound('max_tokens: 65536 > 8192, max allowed is 8192'), 8192);
+  assert.equal(parseMaxTokensBound('max_tokens is too large'), 0, '没有具体数字时返回 0（退回保守降级）');
+});
+
+test('学到上限后夹紧：不再每次调用都白撞一次 400', async () => {
+  const orig = globalThis.fetch;
+  const seen = [];
+  let first = true;
+  globalThis.fetch = async (_u, init) => {
+    const b = JSON.parse(init.body);
+    seen.push(b.max_tokens);
+    if (first) {
+      first = false;
+      return { ok: false, status: 400, text: async () => '{"error":{"message":"valid range of max_tokens is [1, 8192]"}}', json: async () => ({}) };
+    }
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }], usage: {} }), text: async () => '' };
+  };
+  try {
+    const cfg = { baseUrl: 'http://cap.local', apiKey: 'k', model: 'cap-model', maxTokens: 65536 };
+    assert.equal(await chat([{ role: 'user', content: 'hi' }], cfg, {}), 'ok');
+    assert.deepEqual(seen.slice(0, 2), [65536, 8192], '第二次应按服务端允许的 8192 重试（而不是旧行为的 2000）');
+    // 第二次调用：已学到上限，应直接用 8192，不再撞 400
+    assert.equal(await chat([{ role: 'user', content: 'hi again' }], cfg, {}), 'ok');
+    assert.equal(seen[2], 8192, '后续调用应直接夹紧到 8192，省掉一次注定失败的 400 往返');
+    assert.equal(seen.length, 3, '第二次调用只应发一个请求');
+  } finally { globalThis.fetch = orig; }
 });
 
 // ---------------- C. 降级文案必须给出真实原因 ----------------
