@@ -11,7 +11,7 @@
 import { ref, onMounted } from 'vue';
 import { t } from '../i18n/index.js';
 import { getWordSettings, saveWordSettings } from '../word-repo.js';
-import { recommendForCurrentData } from '../services/image-analysis.js';
+import { recommendForCurrentData, normalizeVisionLimit, VISION_LIMIT_MAX, VISION_LIMIT_DEFAULT } from '../services/image-analysis.js';
 
 const MODES = ['auto', 'ocrFirst', 'visionFirst'];
 const LABEL_KEY = { auto: 'recModeAuto', ocrFirst: 'recModeOcr', visionFirst: 'recModeVision' };
@@ -23,6 +23,9 @@ const OPTION_KEY = {
 };
 
 const mode = ref('auto');
+// round67：送图额度（一次请求最多附几张图）改为用户可调，默认 3。
+// 上限 VISION_LIMIT_MAX(20)：图片按 token 计费，不设上限等于把账单交给手滑。
+const visionLimit = ref(VISION_LIMIT_DEFAULT);
 const rec = ref(null);
 const recLoading = ref(false);
 const recError = ref(false);
@@ -33,7 +36,11 @@ async function load() {
     const s = await getWordSettings();
     const m = s?.imageAnalysis?.mode;
     mode.value = MODES.includes(m) ? m : 'auto';
-  } catch { mode.value = 'auto'; }
+    visionLimit.value = normalizeVisionLimit(s?.imageAnalysis?.visionLimit);
+  } catch {
+    mode.value = 'auto';
+    visionLimit.value = VISION_LIMIT_DEFAULT;
+  }
 }
 
 async function setMode(m) {
@@ -44,6 +51,19 @@ async function setMode(m) {
     const s = await getWordSettings();
     await saveWordSettings({ imageAnalysis: { ...(s?.imageAnalysis || {}), mode: m } });
   } catch { /* 保存失败不阻塞选择（下次进入会看到旧值，用户可再点） */ } finally {
+    saving.value = false;
+  }
+}
+
+// 送图额度：改即保存。用 @change（失焦/回车）而非 @input，避免每敲一个数字就写一次库。
+async function setLimit(v) {
+  const n = normalizeVisionLimit(v);
+  visionLimit.value = n; // 回显归一化结果：脏输入（0 / 999 / 'abc'）当场被纠正
+  saving.value = true;
+  try {
+    const s = await getWordSettings();
+    await saveWordSettings({ imageAnalysis: { ...(s?.imageAnalysis || {}), visionLimit: n } });
+  } catch { /* 保存失败不阻塞 */ } finally {
     saving.value = false;
   }
 }
@@ -84,6 +104,17 @@ onMounted(() => { load(); loadRecommendation(); });
       </label>
     </div>
     <p class="imgmode-tip">{{ t('views.wordSettings.visionNeedsKey') }}</p>
+    <div class="imgmode-limit">
+      <label class="imgmode-limit-label" for="imgVisionLimit">{{ t('views.wordSettings.visionLimitLabel') }}</label>
+      <input
+        id="imgVisionLimit" class="imgmode-limit-input" type="number"
+        :min="1" :max="VISION_LIMIT_MAX" step="1"
+        :value="visionLimit" :disabled="saving"
+        @change="setLimit($event.target.value)"
+      />
+      <span class="imgmode-limit-unit">{{ t('views.wordSettings.visionLimitUnit') }}</span>
+      <span class="imgmode-limit-hint">{{ t('views.wordSettings.visionLimitHint') }}</span>
+    </div>
     <div class="imgmode-rec">
       <span class="imgmode-rec-title">{{ t('views.wordSettings.recTitle') }}</span>
       <span v-if="recLoading">{{ t('views.wordSettings.recComputing') }}</span>
@@ -114,6 +145,17 @@ onMounted(() => { load(); loadRecommendation(); });
 .imgmode-label { font-weight: 600; font-size: 14px; }
 .imgmode-desc { font-size: 12.5px; color: var(--ink-2); line-height: 1.7; }
 .imgmode-tip { font-size: 12px; color: var(--ink-2); margin: 10px 0 0; line-height: 1.7; }
+.imgmode-limit {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 10px; font-size: 12.5px; color: var(--ink-2);
+}
+.imgmode-limit-label { font-weight: 600; color: var(--ink); }
+.imgmode-limit-input {
+  width: 68px; padding: 4px 8px; border: 1px solid var(--line);
+  border-radius: 6px; background: var(--panel); color: var(--ink); font-size: 13px;
+}
+.imgmode-limit-input:disabled { opacity: .5; }
+.imgmode-limit-hint { flex-basis: 100%; font-size: 12px; line-height: 1.6; }
 .imgmode-rec {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-top: 10px; padding: 8px 10px; border-radius: var(--radius);
