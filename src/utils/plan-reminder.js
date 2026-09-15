@@ -58,6 +58,14 @@ export function dateStr(d = new Date()) {
  *   - 必须有 scheduledHour（未排程不提醒）；
  *   - 状态 pending / partial 才提醒（done/skipped 跳过）；
  *   - 当前时刻落在 [计划时刻-提前量, +15 分钟) 窗口内才算到期（错过不补）。
+ *
+ * round62 修复：**提前量跨午夜**。scheduledHour=0 的任务配 advanceMin=10 时，
+ *   `due = 0 - 10 = -10` → 窗口 [-10, 5)。此前 curMin 只有 0..1439（当天分钟数），
+ *   于是该窗口在"当天 00:00~00:05"才成立 —— 而用户设的"提前 10 分钟"本意是
+ *   **前一天 23:50**。实际后果：0 点任务的提前提醒时刻被整体平移到最后 15 分钟，
+ *   深夜 23:50 那一刻不会响（要等 00:00 之后，此时"提前量"已变成滞后）。
+ *   修法：窗口按 1440 分钟取模判定，跨日时**两段都算命中**（23:50~23:59 与 00:00~00:04），
+ *   任一段落在当前时刻即算到期。不做单向回绕——那只修前半段，会丢掉 00:00 之后那截。
  * @param {Array} tasks 任务数组（含 scheduledHour/status）
  * @param {Date} [now]
  * @param {number} [advanceMin=0] 提前量（分钟）
@@ -65,12 +73,26 @@ export function dateStr(d = new Date()) {
  */
 export function dueTasksOf(tasks = [], now = new Date(), advanceMin = 0) {
   const curMin = now.getHours() * 60 + now.getMinutes();
+  const DAY_MIN = 1440;
   const WINDOW = 15;
   return (tasks || []).filter(t => {
     if (t.status === 'done' || t.status === 'skipped') return false;
     if (t.scheduledHour == null) return false;
-    const due = t.scheduledHour * 60 - (advanceMin || 0);
-    return curMin >= due && curMin < due + WINDOW;
+    // 越界 hour 直接不提醒：写入侧（repo.js:1389 / plan-parser）已 clamp 到 0..23，
+    // 但手改的数据包与跨设备同步来的行可能带脏值——让 `25` 经取模变成 1 点提醒
+    // 是"凭空造出一个提醒"，比不提醒更糟（用户会困惑于自己没排过 1 点的事）。
+    const h = Number(t.scheduledHour);
+    if (!Number.isFinite(h) || h < 0 || h > 23) return false;
+    const due = h * 60 - (advanceMin || 0);
+    // 窗口 [due, due+WINDOW) 按 1440 取模判定——这样窗口跨午夜时**两段都算命中**：
+    //   0 点任务 + 提前 10 → 窗口 [1430, 1445) 折成 23:50~23:59 与 00:00~00:04 两段，
+    //   用户在前一晚 23:50 和当天刚过 0 点都会收到提醒（此前只做单向回绕，
+    //   会丢掉 00:00~00:04 这后半段——实测过，是半个修复）。
+    const lo = ((due % DAY_MIN) + DAY_MIN) % DAY_MIN; // 归一化到 [0,1440)
+    const end = lo + WINDOW;
+    return end <= DAY_MIN
+      ? (curMin >= lo && curMin < end)                       // 不跨日
+      : (curMin >= lo || curMin < end - DAY_MIN);            // 跨日：两段取并集
   });
 }
 
@@ -186,15 +208,32 @@ export function startReminderScheduler(onDue, intervalMs = 20000) {
     try {
       const { db } = await import('../db.js');
       const today = dateStr();
-      const plans = await db.dailyPlans.where('date').equals(today).toArray();
+      const now = new Date();
+      // round62：除了「今天」，还要查「明天」——0 点任务 + 提前量会让提醒时刻回绕到
+      // **前一天深夜**（dueTasksOf 的 wrap 分支）。即：今天是 D-1，要在 23:50 提醒
+      // **D 日 0 点**的任务，故必须把明天的 plan 一起查出来。
+      // 去重 key 仍按**任务所属日期**（d）记录，语义不变（同一任务只提醒一次）。
+      const tomorrow = dateStr(new Date(now.getTime() + 86400000));
+      const dates = (settings.advanceMin || 0) > 0 ? [today, tomorrow] : [today];
+      const plans = await db.dailyPlans.where('date').anyOf(dates).toArray();
       if (!plans.length) return;
       const tasks = await db.dailyTasks.where('planId').anyOf(plans.map(p => p.id)).toArray();
-      const due = dueTasksOf(tasks, new Date(), settings.advanceMin);
-      const fresh = due.filter(t => !isReminded(today, t.id));
-      for (const t of fresh) {
-        markReminded(today, t.id);
-        triggerReminder(t, settings);
+      // 按任务所属日期分组（去重 key 用），窗口判定本身已由 dueTasksOf 内部处理回绕
+      const byDate = new Map();
+      for (const t of tasks) {
+        const d = t.date || today;
+        if (!byDate.has(d)) byDate.set(d, []);
+        byDate.get(d).push(t);
       }
+      const fresh = [];
+      for (const [d, list] of byDate) {
+        for (const t of dueTasksOf(list, now, settings.advanceMin)) {
+          if (isReminded(d, t.id)) continue;
+          markReminded(d, t.id);
+          fresh.push(t);
+        }
+      }
+      for (const t of fresh) triggerReminder(t, settings);
       if (fresh.length) onDue?.(fresh);
     } catch { /* 静默，下次再查 */ }
   };
