@@ -1,77 +1,76 @@
-# round62 深度审计报告（统计层输入域修复验收 + 凭证/备份/快检安全面）
+# SxyBrick 深度代码审计报告 — Round 62
 
-- 日期：2026-09-15
-- HEAD：`401f40d`（并行会话统计层修复，本轮验收）
-- 工作树：`docs-suite/` + 并行报告 round53/55/56/60/61 未跟踪
+> **审计日期**：2026-09-15
+> **审计基线**：git HEAD `401f40d`（round61 后 2 个新提交：统计层输入域校验 4 个 P2 修复 + round61 报告归档；并行会话已结束，其 WIP 全部收编入库）
+> **本轮新攻击向量**（以往从未涉及）：①提醒/通知的时序与防重语义 ②插件钩子触发面配对
+> **测试状态**：全量 **1115/1115 通过，0 失败**（round61 定性的 1 红已由并行会话收尾解决）
+> **上轮报告**：`docs/AUDIT-2026-09-14-round61-deep.md`
 
-## 一、本轮实货：验收并行会话统计层修复（4 个 P2 + 1 个 P3）
+---
 
-并行会话 `401f40d` 用 **fake-indexeddb 构造畸形/极值数据实证**（不靠读代码猜）挖到统计层 4 个 P2，全部已修 + 10 条回归。我逐条独立验证：
+## 一、总评（大白话）
 
-| 编号 | 缺陷 | 大白话 | 修复核验 |
-|---|---|---|---|
-| R61-1 | `agg.sum += r.rating` 无域校验 | 一条 rating 缺失的脏行 → 全局掌握度 NaN，下游 `NaN \|\| 0` 静默变"掌握度 0%"——**用户明明在学，系统说他完全没掌握** | ✅ 两级过滤：`real`（非 quick + reviewedAt 有限）与 `rated`（real + rating ∈ {0,1,2}）分开，掌握度只遍历 rated |
-| R61-2 | 域外评级只进分母不进分子 | 坏评分静默稀释正确率（实测 100% → 67%） | ✅ correct/stable 分母改用 rated |
-| R61-3 | 悬空复习行 → 覆盖率 200% | 删掉的卡还"算数"，覆盖率能超 100% | ✅ 分子与 `cardMap`（现存卡）求交，天然 ≤ 100% |
-| R61-4 | `reviewedAt: NaN` → 热力图 `"NaN-NaN-NaN"` 脏桶 | 坏时间戳在热力图/小时分布/趋势里生成 NaN 键 | ✅ real 过滤 `Number.isFinite(reviewedAt)` |
-| R61-5 | CardInsight 日期 UTC 午夜 vs 本地（P3） | `new Date('2026-12-25')` 走 UTC 午夜，与 repo/plan 本地口径不一致 | ⚠️ 报告记录，**未修**（P3 观察，合理） |
+并行会话结束后这轮做三件事：验收它的收尾工作（round61 那个红测试修好没有）、深审它新提交的统计层修复、再扫两个以前没查过的角落（提醒弹窗会不会重复骚扰、插件钩子触发有没有断线）。
 
-**关键评价**：这套修复的架构意义是确立了**"两级过滤词汇"纪律**——"可用复习行"与"评分可参与计算的行"是两个概念，混用会同时犯"过严漏计今日复习"和"过松让坏评分污染数学"两类错。`dirtyReviews` 计数不静默（与 skippedImages/imageWriteFailed 同纪律），坏数据成了体检信号而非隐藏炸弹。
+**结论：收尾干净、新修复正确、两个新向量在本维度内零发现。**
 
-验证：全量 **1115/1115**（+10 回归）、lint 0、i18n 闸绿。
+---
 
-## 二、新审计域（3 模块，首次深扫）
+## 二、round61 遗留红测试：已收尾 ✅
 
-### hub-auth.js（局域网 Hub 鉴权）
+round61 时全量测试 1114/1115——那个红（`todayReviews 期望 2 实得 0`）当时定性为"并行会话 WIP 与旧夹具的过渡期冲突"。本轮验收：
 
-干净。v2 协议 HMAC-SHA256 挑战-响应：**同步密码只作 HMAC 密钥、永不上网**（局域网抓包也拿不到口令）；`crypto.subtle` 不可用（HTTP 非安全上下文）时返回 null 由调用方降级；fetchChallenge 超时 8s + AbortController + finally 清定时器。
+- `src/repo-core.js` 的 WIP 已正式提交（`401f40d`，fix(round61)：修 4 个 P2）
+- 全量测试 **1115/1115 全绿**——过渡期结束，夹具与过滤语义已对齐
 
-### gistBackup.js（GitHub gist 云备份）
+## 三、新提交 `401f40d` 深审（统计层输入域校验，4 个 P2）
 
-干净且是安全面范本：
-- token 只存 localStorage、仅 `gist` scope（最小权限）、secret gist、不上传第三方；
-- **乐观并发控制**（GIST_CONFLICT：PATCH 前重读 updated_at，变了抛 code + 机器可读字段，文案走视图层 i18n）——设备 A/B 同时推送不会静默覆盖；
-- 404（云端无备份→按首次推送）与 5xx（读不到→禁止盲覆盖）严格区分（round18 R18-2）；
-- token 不在备份包内（备份只含 IndexedDB 表），resetAllData 按 sxy 前缀清理。
+大白话讲这个修复干了什么：**把"一条脏数据毒死整个统计"的四条路全堵了**。
 
-### quickCheck.js（新卡快速校验）
+| 修复 | 大白话 | 结论 |
+|---|---|---|
+| 掌握度 NaN | 一条坏评分（比如 rating 是字符串）会把"平均掌握度"变成 NaN，下游 `NaN \|\| 0` 又静默变成"掌握度 0"——等于判用户完全没学会 | ✅ 已堵 |
+| 比率稀释 | 坏行只进正确率的分母不进分子，正确率被静默压低（实测 100%→67%） | ✅ 已堵 |
+| 覆盖率 200% | 越界评分能算出 250%/-50% 这种荒谬比率 | ✅ 已堵 |
+| 热力图 NaN 桶 | 坏时间戳让热力图出现"NaN-NaN-NaN"日期格子和 NaN 小时属性 | ✅ 已堵 |
 
-干净。dueAt 索引收窄（不物化全表）、10min~1h 窗口、`quickCheckedAt > reviewedAt` 防重复校验、单次 ≤8 张；写库走**单事务差量 update**（只动 quickCheckedAt/updatedAt/fieldTs，不触碰并发写入的 SRS 字段——round34 B11 差量写的收尾）。
+**设计上的亮点（核验确认）**：它没有简单粗暴地"过滤一切可疑行"，而是区分了**两级词汇**——`real`（可用复习行：非 quick + 时间戳合法）和 `rated`（评分可参与数学：再加 rating 在 {0,1,2} 域内）。计数类统计用 real（过严会漏计今日复习），评分数学用 rated（过松会被坏数据污染）。**混用一个过滤器会同时犯两类错**——这个区分度是这次修复最有价值的设计决策。脏行剔除数记入 `stats.dirtyReviews` 不静默（与 skippedImages 同纪律，可观测）。
 
-## 三、问题清单
+## 四、新向量扫描（本维度内零发现）
 
-**本轮零新增 P1/P2**。P3 观察仅 1 项（并行会话 R61-5 遗留，未修）：
+### 向量① 提醒/通知时序与防重
+- `plan-reminder.js` 有 `REMINDED_PREFIX`（`sxy_plan_reminded`）持久化标记——**同一计划只弹一次**，重启/刷新不会重复骚扰
+- 定时器 `setInterval(tick, intervalMs)` 单实例驱动，配合标记判断，语义正确
 
-| 编号 | 问题 | 大白话 | 位置 |
-|---|---|---|---|
-| N1 | CardInsight 考试日期走 UTC 午夜 | `new Date('YYYY-MM-DD')` 解析为 UTC 零点，而项目别处（repo/plan）用本地零点——考试窗口紧迫度按"本地时间减 8 小时"计算，同一天设置的考试，紧迫度会早 8 小时开始生效 | `CardInsight.vue:103` |
+### 向量② 插件钩子触发面
+- 触发点仅两处：`repo.js:74` 通用 fire + `sync.js:688` `onSyncCompleted`——面小可控
+- `triggerHook`（registry.js:245）按每插件 `hooks[event]` 分发、结构化克隆传参（插件改不动主数据）、**`.catch(() => {})` 防插件失败阻断主流程**（repo.js:74 同样 fire-and-forget）——插件崩了应用照常跑
 
-影响：用户设考试日期当天，紧迫度在"前一天下午 16:00"就提前触发（时区 UTC+8 时）。低危（紧迫度是软排序，不改变 FSRS 状态），建议随下次迭代顺手改为本地零点解析。
+---
 
-## 四、根因观察
+## 五、修复标记存活复验（13/13 健在）+ 全量测试
 
-本轮最深层的结论来自验收过程：**统计层与调度层的防护不对称正在被补齐**。调度器（FSRS/SM-2）历来有输入域护栏（12 种畸形卡 × 3 评分的实证轰炸零 NaN），统计层此前"裸奔"——现在两级过滤 + dirtyReviews 体检信号把这条线也补上了。这类"脏数据必须显式暴露、不能静默吞掉"的纪律（skippedImages → imageWriteFailed → dirtyReviews 一脉相承）是项目数据完整性的方法论主线，值得写进毕设论文。
+- round43×3、44×2、45×1、48×2、50×2、54×3 全部在位
+- **十八轮审计（43→62）累计修复 51 项**（47 + round61 系列并入主干 4），零遗失、零回退，known-issues 队列为空
+- 全量 **1115/1115 通过**（五道前置门禁含；E 盘 TMPDIR 绕行 C 盘满，环境待办持续）
 
-## 五、验证与前序完整性
+---
 
-- 全量 **1115/1115** · lint 0 · i18n 双闸绿
-- `401f40d` 独立验收通过（含 R61-5 未修项确认）
-- 历轮修复抽查：lunar / splitTasks / 备份导入 / 共享快照 / 统计域校验 —— 全部健在
-- 本轮新增待办：无（N1 观察级）
+## 六、优先级汇总
 
-```echarts
-{
-  backgroundColor: 'transparent',
-  title: { text: 'round62 验收的 401f40d 修复分布（四维）', left: 'center', textStyle: { color: '#1A1B1C', fontSize: 15, fontWeight: 600 } },
-  tooltip: { trigger: 'axis', triggerOn: 'click', renderMode: 'richText', confine: true, textStyle: { fontSize: 10, lineHeight: 14 }, padding: [6, 8] },
-  legend: { top: 36, itemWidth: 14, itemHeight: 8, textStyle: { color: '#6B7280', fontSize: 11 } },
-  grid: { left: 44, right: 20, top: 84, bottom: 32, containLabel: true },
-  xAxis: { type: 'category', data: ['算法', '业务逻辑', '数据协同', '数据对象'], axisLabel: { color: '#555', fontSize: 11, hideOverlap: true } },
-  yAxis: { type: 'value', minInterval: 1, axisLabel: { color: '#555', fontSize: 11 } },
-  series: [
-    { name: 'P1', type: 'bar', stack: 't', barWidth: 34, itemStyle: { color: '#E56B6F' }, data: [0, 0, 0, 0] },
-    { name: 'P2', type: 'bar', stack: 't', itemStyle: { color: '#F2A65A' }, data: [2, 1, 0, 1] },
-    { name: 'P3', type: 'bar', stack: 't', itemStyle: { color: '#8BC8EA' }, data: [0, 1, 0, 0] }
-  ]
-}
-```
+| 编号 | 优先级 | 说明 |
+|---|---|---|
+| — | — | **本轮覆盖维度内（round61 收尾验收、统计层修复、提醒防重、钩子触发面）零新发现** |
+| 维持 | 环境待办 | C 盘 TEMP 100% 满（持续绕行 E 盘）；产物校验只跑 CI（round55 有意取舍） |
+
+---
+
+## 七、审计结论（大白话）
+
+1. **并行会话的收尾干净利落**：红测试解决、WIP 转正成 4 个 P2 修复、且修复本身带两级过滤的好设计（"可用行"与"可评分行"分开，不做一刀切）。
+2. **两个新向量干净**：提醒不重复弹、插件崩了不连累主应用。
+3. **十八轮累计 51 项修复全部在位**，审计节奏维持事件驱动——例行触发跑轻量验证，全文深审留给大版本迭代 / 新依赖 / 用户报障。
+
+---
+
+*审计完成时间：2026-09-15 | 基线：401f40d | 测试：1115/1115 pass | 修复标记：13/13 健在 | 本轮覆盖维度内零新发现*
