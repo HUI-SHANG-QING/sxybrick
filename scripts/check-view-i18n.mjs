@@ -207,7 +207,10 @@ function scanHardcoded(file) {
     // 翻译会破坏 prompt 结构，豁免（KnowledgeGraph 3 处 system prompt 曾长期误报）；
     // promptLike 兜底「长字符串字面量」型 prompt（连续中文被英文打断的情形）。
     if (maxCJKRun(line) > 24 || promptLike(line)) return;
-    hits.push({ line: i + 1, text: line.trim().slice(0, 160) });
+    // round71（P2）：基线按「行内容」登记而非行号——任何文件头部插行/删行（import、注释、
+    // 空行）都会让全部后续行号漂移，旧实现导致整文件基线失配、全量假红（已两次实证）。
+    // key = 完整去首尾空白后的行内容：行号漂移时内容不变 → 不误报；真改内容 → 报新增（正确）。
+    hits.push({ line: i + 1, text: line.trim().slice(0, 160), key: line.trim() });
   });
   return hits;
 }
@@ -265,9 +268,30 @@ function scanJsHardcoded(abs) {
     if (!HAS_CJK.test(line)) return;
     if (maxCJKRun(line) > 24 || promptLike(line)) return;       // 长串（AI prompt）跳过
     if (/throw\s+new\s+Error/.test(line)) return;              // 错误码非文案
-    hits.push({ line: i + 1, text: line.trim().slice(0, 160) });
+    // round71（P2）：key = 完整去首尾空白后的行内容（行号漂移免疫），见 scanHardcoded 注释
+    hits.push({ line: i + 1, text: line.trim().slice(0, 160), key: line.trim() });
   });
   return hits;
+}
+
+// round71（P2）：基线登记从「行号」迁移到「行内容」——行号漂移不再引发全文件假红。
+// 新格式：{ [file]: { count, note, items: { [行内容]: { reason, lines: [行号…] } } } }
+// 旧格式（legacy，迁移前）：reasons: { [行号]: reason }——按行号比对（防御），迁移后不再产生。
+function baselineKnown(base, file) {
+  const f = base?.[file];
+  if (!f) return new Set();
+  if (f.items) return new Set(Object.keys(f.items));
+  return new Set(Object.keys(f.reasons || {})); // legacy：行号集合
+}
+
+/** 按「行内容」归组 hits → items 结构（reason 从旧 items 继承，行号列表收集全部出现处） */
+function buildItems(hits, oldItems = {}) {
+  const byKey = {};
+  for (const h of hits) {
+    if (!byKey[h.key]) byKey[h.key] = { reason: oldItems[h.key]?.reason || '', lines: [] };
+    byKey[h.key].lines.push(h.line);
+  }
+  return byKey;
 }
 
 let scanTotal = 0;
@@ -294,25 +318,24 @@ if (STRICT || UPDATE_BASELINE) {
     if (deltaView) console.log(`  基线净增 ${deltaView} 行（${oldTotal} → ${scanTotal}，已用 --force-baseline 认领）`);
     const next = {};
     for (const [f, hits] of Object.entries(found).sort(([a], [b]) => a.localeCompare(b))) {
-      const reasons = old[f]?.reasons || {};
       next[f] = {
         count: hits.length,
         note: old[f]?.note || '',
-        reasons: Object.fromEntries(hits.map(h => [String(h.line), reasons[String(h.line)] || ''])),
+        items: buildItems(hits, old[f]?.items),
       };
     }
     writeFileSync(baselineFile, JSON.stringify(next, null, 2) + '\n', 'utf8');
-    console.log(`✓ 基线已更新：scripts/i18n-hardcode-baseline.json（${Object.keys(next).length} 文件 / ${scanTotal} 行）`);
+    console.log(`✓ 基线已更新：scripts/i18n-hardcode-baseline.json（${Object.keys(next).length} 文件 / ${scanTotal} 行，按行内容登记）`);
   } else {
     const base = existsSync(baselineFile) ? JSON.parse(readFileSync(baselineFile, 'utf8')) : {};
     let added = 0, removed = 0;
     for (const [f, hits] of Object.entries(found)) {
-      const known = new Set(Object.keys(base[f]?.reasons || {}));
-      const now = new Set(hits.map(h => String(h.line)));
+      const known = baselineKnown(base, f); // round71：内容集合（行号漂移免疫）
       for (const h of hits) {
-        if (!known.has(String(h.line))) { fail(`新增硬编码中文 ${f}:${h.line}  ${h.text}`); added++; }
+        if (!known.has(h.key)) { fail(`新增硬编码中文 ${f}:${h.line}  ${h.text}`); added++; }
       }
-      for (const k of known) if (!now.has(k)) removed++;
+      const nowKeys = new Set(hits.map(h => h.key));
+      for (const k of known) if (!nowKeys.has(k)) removed++;
     }
     for (const f of Object.keys(base)) {
       if (base[f]?.count > 0 && !found[f]) console.log(`  可回收：${f} 已无硬编码中文，请跑 --update-baseline`);
@@ -355,17 +378,16 @@ if (JS || JS_UPDATE) {
     if (deltaJs) console.log(`  数据层基线净增 ${deltaJs} 行（${oldTotalJs} → ${jsScanTotal}，已用 --force-baseline 认领）`);
     const next = {};
     for (const [f, hits] of Object.entries(found).sort(([a], [b]) => a.localeCompare(b))) {
-      const reasons = old[f]?.reasons || {};
-      next[f] = { count: hits.length, note: old[f]?.note || '', reasons: Object.fromEntries(hits.map(h => [String(h.line), reasons[String(h.line)] || ''])) };
+      next[f] = { count: hits.length, note: old[f]?.note || '', items: buildItems(hits, old[f]?.items) };
     }
     writeFileSync(jsBaselineFile, JSON.stringify(next, null, 2) + '\n', 'utf8');
-    console.log(`✓ 数据层基线已更新：scripts/i18n-js-hardcode-baseline.json（${Object.keys(next).length} 文件 / ${jsScanTotal} 行）`);
+    console.log(`✓ 数据层基线已更新：scripts/i18n-js-hardcode-baseline.json（${Object.keys(next).length} 文件 / ${jsScanTotal} 行，按行内容登记）`);
   } else {
     const base = existsSync(jsBaselineFile) ? JSON.parse(readFileSync(jsBaselineFile, 'utf8')) : {};
     let added = 0;
     for (const [f, hits] of Object.entries(found)) {
-      const known = new Set(Object.keys(base[f]?.reasons || {}));
-      for (const h of hits) if (!known.has(String(h.line))) { fail(`[数据层] 新增硬编码中文 ${f}:${h.line}  ${h.text}`); added++; }
+      const known = baselineKnown(base, f); // round71：内容集合（行号漂移免疫）
+      for (const h of hits) if (!known.has(h.key)) { fail(`[数据层] 新增硬编码中文 ${f}:${h.line}  ${h.text}`); added++; }
     }
     console.log(`  数据层扫描：命中 ${jsScanTotal} 行（.vue 第三道闸），较基线新增 ${added} 行`);
   }

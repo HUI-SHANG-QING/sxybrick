@@ -2,313 +2,1188 @@
   "Achievements.vue": {
     "count": 2,
     "note": "成就名称/描述的中文常量（与 db 成就定义配套）。",
-    "reasons": {
-      "40": "",
-      "44": ""
+    "items": {
+      "const BRANCH_ORDER = ['建卡', '复习', '打卡', '专注', '图谱', '文档', '计划', '记忆', '费曼', '导图', '复盘'];": {
+        "reason": "",
+        "lines": [
+          40
+        ]
+      },
+      "const cat = a.category || '其他';": {
+        "reason": "",
+        "lines": [
+          44
+        ]
+      }
     }
   },
   "AIAssistant.vue": {
     "count": 3,
     "note": "AI system prompt 与示例对话。",
-    "reasons": {
-      "168": "",
-      "179": "",
-      "180": ""
+    "items": {
+      "const r = await chatAI([{ role: 'user', content: '请只回复「连接成功」四个字' }]);": {
+        "reason": "",
+        "lines": [
+          168
+        ]
+      },
+      "{ label: 'quickWeekly', prompt: '请根据我的数据，生成一份本周学习周报：学了什么、哪里薄弱、下周复习建议' },": {
+        "reason": "",
+        "lines": [
+          179
+        ]
+      },
+      "{ label: 'quickRelate', prompt: '请分析我的卡片涉及的知识点之间的关联，帮我把它们串成一个知识网络' },": {
+        "reason": "",
+        "lines": [
+          180
+        ]
+      }
     }
   },
   "CardLinkAnalysis.vue": {
     "count": 1,
     "note": "AI 分析 prompt 模板。",
-    "reasons": {
-      "89": ""
+    "items": {
+      "title: cards.value[0] ? (cards.value[0].front || '').slice(0, 20) + ` 等 ${cards.value.length} 卡` : '分析会话',": {
+        "reason": "",
+        "lines": [
+          89
+        ]
+      }
     }
   },
   "DailyPlanView.vue": {
     "count": 3,
     "note": "AI 日程解析 prompt 模板与示例。",
-    "reasons": {
-      "26": "",
-      "27": "",
-      "28": ""
+    "items": {
+      "const TYPE_LABEL = { review: '复习', pomodoro: '番茄', doc: '资料', exam: '做题', note: '笔记', write: '写作', other: '其他' };": {
+        "reason": "",
+        "lines": [
+          26
+        ]
+      },
+      "const QUADRANT_LABEL = { Q1: '重要×紧急', Q2: '重要×非紧急', Q3: '非重要×紧急', Q4: '非重要×非紧急' };": {
+        "reason": "",
+        "lines": [
+          27
+        ]
+      },
+      "const STATUS_LABEL = { pending: '待办', done: '已完成', partial: '部分完成', skipped: '已跳过' };": {
+        "reason": "",
+        "lines": [
+          28
+        ]
+      }
     }
   },
   "Exam.vue": {
     "count": 1,
     "note": "AI 组卷 prompt 模板。",
-    "reasons": {
-      "139": ""
+    "items": {
+      "const r = await wrongQuestionsToCards(wrongs, { tag: '模考错题', source: '模考-错题补卡' });": {
+        "reason": "",
+        "lines": [
+          139
+        ]
+      }
     }
   },
   "Export.vue": {
     "count": 16,
     "note": "全部为数据值/标识符：未分类(科目回退，与筛选/分组/排序逻辑绑定，本地化会破坏一致性)、清空埋点/清空隐私(用户键入的危险操作确认词，须与提示文案原样匹配)、分享码导入/Anki导入(落库 cards.source，翻译污染同步数据)、下载文件名派生词(聚合/全量/卡片，随 locale 变化会造成同名混乱)。",
-    "reasons": {
-      "106": "",
-      "159": "",
-      "178": "",
-      "216": "",
-      "254": "",
-      "260": "",
-      "261": "",
-      "284": "",
-      "389": "",
-      "415": "",
-      "499": "",
-      "549": "",
-      "626": "",
-      "631": "",
-      "690": "",
-      "747": ""
+    "items": {
+      "a.download = `sxybrick-userOps-${exportOpsMode.value === 'aggregate' ? '聚合' : '全量'}-${range === 'all' ? 'all' : range + 'd'}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.json`;": {
+        "reason": "",
+        "lines": [
+          106
+        ]
+      },
+      "if (dangerConfirm.value !== '清空埋点') return toast(t                              , 'warn');": {
+        "reason": "",
+        "lines": [
+          159
+        ]
+      },
+      "if (dangerConfirm.value !== '清空隐私') return toast(t                                  , 'warn');": {
+        "reason": "",
+        "lines": [
+          178
+        ]
+      },
+      "cards = cards.filter(c => subjectSel.value.includes(c.subject || '未分类'));": {
+        "reason": "",
+        "lines": [
+          216
+        ]
+      },
+      "const key = c.subject || '未分类';": {
+        "reason": "",
+        "lines": [
+          254
+        ]
+      },
+      "if (a.name === '未分类') return 1;": {
+        "reason": "",
+        "lines": [
+          260
+        ]
+      },
+      "if (b.name === '未分类') return -1;": {
+        "reason": "",
+        "lines": [
+          261
+        ]
+      },
+      "subjects.value = [...subjects.value.filter(s => s.name !== '未分类'), { name: '未分类', count: cnt }];": {
+        "reason": "",
+        "lines": [
+          284
+        ]
+      },
+      "const k = c.subject || '未分类';": {
+        "reason": "",
+        "lines": [
+          389
+        ]
+      },
+      "a.download = `sxybrick-卡片-${exportDate.value}.md`;": {
+        "reason": "",
+        "lines": [
+          415
+        ]
+      },
+      "source: '分享码导入',": {
+        "reason": "",
+        "lines": [
+          499
+        ]
+      },
+      "tags: c.tags || [], type: 'basic', source: 'Anki 导入',": {
+        "reason": "",
+        "lines": [
+          549
+        ]
+      },
+      "<span v-else class=\"thumb-ph\">{{ (c.subject || '未分类').slice(0, 1) }}</span>": {
+        "reason": "",
+        "lines": [
+          626
+        ]
+      },
+      "<span class=\"pick-subj\">{{ c.subject || '未分类' }}</span>": {
+        "reason": "",
+        "lines": [
+          631
+        ]
+      },
+      "<span class=\"card-no\">{{ g.name === '未分类' ? '' : g.name + ' · ' }}#{{ i + 1 }}</span>": {
+        "reason": "",
+        "lines": [
+          690
+        ]
+      },
+      "· {{ (c.subject || '未分类') }} — {{ String(c.front).slice(0, 40) }}": {
+        "reason": "",
+        "lines": [
+          747
+        ]
+      }
     }
   },
   "Feynman.vue": {
     "count": 5,
     "note": "AI prompt 模板（FEYN_PROMPT）与拼给 LLM 的中文上下文（【用户复习数据】等）。LLM 输出语种属产品决策，不由界面语言决定。",
-    "reasons": {
-      "57": "",
-      "86": "",
-      "107": "",
-      "125": "",
-      "234": ""
+    "items": {
+      "if (selSubjects.value.length) r = r.filter(c => selSubjects.value.includes(c.subject || '未分类'));": {
+        "reason": "",
+        "lines": [
+          57
+        ]
+      },
+      "const flags = [s?.isHighFreq ? '高频' : '', s?.isWrongFreq ? '错频' : ''].filter(Boolean).join('/');": {
+        "reason": "",
+        "lines": [
+          86
+        ]
+      },
+      "L.push(`【本范围内卡片（含复习统计）】`);": {
+        "reason": "",
+        "lines": [
+          107
+        ]
+      },
+      "{ role: 'user', content: initialUserMsg || '开始吧，先看看我最薄弱的点，出第一道题。' },": {
+        "reason": "",
+        "lines": [
+          125
+        ]
+      },
+      "title: '费曼练习',": {
+        "reason": "",
+        "lines": [
+          234
+        ]
+      }
     }
   },
   "GenQuiz.vue": {
     "count": 5,
     "note": "AI 出题 prompt 模板与学科示例。",
-    "reasons": {
-      "35": "",
-      "49": "",
-      "58": "",
-      "114": "",
-      "139": ""
+    "items": {
+      "history.value = all.filter(e => (e.title || '').includes('生成式测验'));": {
+        "reason": "",
+        "lines": [
+          35
+        ]
+      },
+      "if (selSubjects.value.length) pool = pool.filter(c => selSubjects.value.includes(c.subject || '未分类'));": {
+        "reason": "",
+        "lines": [
+          49
+        ]
+      },
+      "quizTitle.value = `${selSubjects.value.join('+') || '综合'} 生成式测验 ${new Date().toLocaleDateString()}`;": {
+        "reason": "",
+        "lines": [
+          58
+        ]
+      },
+      "const r = await wrongQuestionsToCards(wrongs, { tag: '生成式测验错题', source: '生成式测验-错题补卡' });": {
+        "reason": "",
+        "lines": [
+          114
+        ]
+      },
+      "questions.value = (h.questions || []).map(q => ({ ...q, subject: h.subject || '未分类' }));": {
+        "reason": "",
+        "lines": [
+          139
+        ]
+      }
     }
   },
   "KnowledgeGraph.vue": {
     "count": 1,
     "note": "AI prompt 样例(含科目回退值与标签标记)，翻译会破坏 LLM 输入结构。",
-    "reasons": {
-      "368": ""
+    "items": {
+      "const sample = cards.slice(0, 80).map(c => `[${c.subject || '未分类'}] ${plain(c.front)} / ${plain(c.back)}（标签:${(c.tags || []).join(',')}）`).join('\\n');": {
+        "reason": "",
+        "lines": [
+          368
+        ]
+      }
     }
   },
   "Mindmap.vue": {
     "count": 12,
     "note": "AI prompt 模板（要求 LLM 输出中文 JSON 结构）+ 写入库的默认节点名（中心主题/新节点/主题）。",
-    "reasons": {
-      "309": "",
-      "326": "",
-      "328": "",
-      "342": "",
-      "349": "",
-      "350": "",
-      "369": "",
-      "371": "",
-      "372": "",
-      "397": "",
-      "398": "",
-      "412": ""
+    "items": {
+      "const m = await createMindmap({ title: t                              , rootLabel: '中心主题' });": {
+        "reason": "",
+        "lines": [
+          309
+        ]
+      },
+      "const { root } = edgesToForest(usable, { rootLabel: '📚 知识图谱', labelMap });": {
+        "reason": "",
+        "lines": [
+          326
+        ]
+      },
+      "const withIds = n => ({ id: uid(), label: String(n.name || '主题').slice(0, 30), children: (n.children || []).map(withIds) });": {
+        "reason": "",
+        "lines": [
+          328
+        ]
+      },
+      "const sample = cards.slice(0, 60).map(c => `[${c.subject || '未分类'}] ${String(c.front).slice(0, 80)}${c.back ? ' / ' + String(c.back).slice(0, 60) : ''}`).join('\\n');": {
+        "reason": "",
+        "lines": [
+          342
+        ]
+      },
+      "if (!obj?.root?.label) throw new Error('AI 没返回有效结构');": {
+        "reason": "",
+        "lines": [
+          349,
+          397
+        ]
+      },
+      "const withIds = n => ({ id: uid(), label: String(n.label || '主题').slice(0, 30), children: (n.children || []).slice(0, 40).map(withIds) });": {
+        "reason": "",
+        "lines": [
+          350,
+          372,
+          398
+        ]
+      },
+      "if (!m) throw new Error('Agent 未返回 JSON 结构');": {
+        "reason": "",
+        "lines": [
+          369
+        ]
+      },
+      "if (!obj?.root?.label) throw new Error('Agent 没返回有效结构');": {
+        "reason": "",
+        "lines": [
+          371
+        ]
+      },
+      "target.children.push({ id: uid(), label: '新节点', children: [] });": {
+        "reason": "",
+        "lines": [
+          412
+        ]
+      }
     }
   },
   "Plugins.vue": {
     "count": 1,
     "note": "插件示例描述。",
-    "reasons": {
-      "95": ""
+    "items": {
+      "await triggerHook(event, { id: 'demo-card', front: '演示卡片', back: '这是触发钩子的演示数据' });": {
+        "reason": "",
+        "lines": [
+          95
+        ]
+      }
     }
   },
   "PrivacyData.vue": {
     "count": 47,
     "note": "数据常量（写进库的选项枚举：三餐/运动/屏幕等 15 类 × 子类）+ AI 分析报告的中文 prompt 模板。不是界面文案，翻译会污染数据。",
-    "reasons": {
-      "64": "",
-      "65": "",
-      "66": "",
-      "67": "",
-      "68": "",
-      "69": "",
-      "70": "",
-      "71": "",
-      "72": "",
-      "73": "",
-      "74": "",
-      "75": "",
-      "76": "",
-      "77": "",
-      "78": "",
-      "79": "",
-      "90": "",
-      "91": "",
-      "92": "",
-      "93": "",
-      "94": "",
-      "95": "",
-      "96": "",
-      "106": "",
-      "175": "",
-      "184": "",
-      "195": "",
-      "339": "",
-      "340": "",
-      "341": "",
-      "342": "",
-      "343": "",
-      "344": "",
-      "345": "",
-      "346": "",
-      "347": "",
-      "348": "",
-      "349": "",
-      "365": "",
-      "366": "",
-      "367": "",
-      "368": "",
-      "369": "",
-      "370": "",
-      "371": "",
-      "372": "",
-      "717": ""
+    "items": {
+      "{ id: 'sleep',      label: '😴 睡眠', sub: ['整晚','午睡','小憩','补觉','失眠片段'] },": {
+        "reason": "",
+        "lines": [
+          64
+        ]
+      },
+      "{ id: 'eat',        label: '🍽️ 饮食', sub: ['早餐','午餐','晚餐','加餐','宵夜','饮水','咖啡因','酒精','补品'] },": {
+        "reason": "",
+        "lines": [
+          65
+        ]
+      },
+      "{ id: 'move',       label: '🏃 运动', sub: ['有氧','力量','拉伸','瑜伽','球类','户外徒步','通勤运动','康复训练'] },": {
+        "reason": "",
+        "lines": [
+          66
+        ]
+      },
+      "{ id: 'learn',      label: '📖 学习', sub: ['复习卡片','费曼讲解','模考','阅读','网课','写作','专题练习','错题复盘'] },": {
+        "reason": "",
+        "lines": [
+          67
+        ]
+      },
+      "{ id: 'work',       label: '💼 工作', sub: ['会议','深度工作','杂务','沟通','文档','代码','汇报','复盘'] },": {
+        "reason": "",
+        "lines": [
+          68
+        ]
+      },
+      "{ id: 'screen',     label: '📱 屏幕', sub: ['手机','电脑','电视','短视频','社交平台','游戏','摸鱼浏览'] },": {
+        "reason": "",
+        "lines": [
+          69
+        ]
+      },
+      "{ id: 'social',     label: '👥 社交', sub: ['家人','朋友','同事','聚会','1v1 深聊','网络社交','线下活动'] },": {
+        "reason": "",
+        "lines": [
+          70
+        ]
+      },
+      "{ id: 'meditation', label: '🧘 冥想', sub: ['正念','呼吸','观想','放松','白噪音','祈祷'] },": {
+        "reason": "",
+        "lines": [
+          71
+        ]
+      },
+      "{ id: 'commute',    label: '🚗 通勤', sub: ['步行','骑车','公交','地铁','自驾','打车','长途旅行'] },": {
+        "reason": "",
+        "lines": [
+          72
+        ]
+      },
+      "{ id: 'housework',  label: '🧹 家务', sub: ['做饭','清洁','整理','购物','维修','照护家人','衣物','园艺'] },": {
+        "reason": "",
+        "lines": [
+          73
+        ]
+      },
+      "{ id: 'medical',    label: '🏥 医疗', sub: ['体检','就医','复诊','吃药','手术','牙齿','眼科','理疗'] },": {
+        "reason": "",
+        "lines": [
+          74
+        ]
+      },
+      "{ id: 'shop',       label: '🛒 消费', sub: ['日用品','服装','电子','餐饮','学习用品','娱乐','冲动消费'] },": {
+        "reason": "",
+        "lines": [
+          75
+        ]
+      },
+      "{ id: 'finance',    label: '💰 财务', sub: ['收入','支出','储蓄','投资','还款','意外花销','捐赠'] },": {
+        "reason": "",
+        "lines": [
+          76
+        ]
+      },
+      "{ id: 'excrete',    label: '🚽 排泄', sub: ['小便','大便','腹泻','便秘','尿频','夜尿'] },": {
+        "reason": "",
+        "lines": [
+          77
+        ]
+      },
+      "{ id: 'other',      label: '🛈 其它', sub: ['娱乐','休息躺平','洗澡','碎片时间'] },": {
+        "reason": "",
+        "lines": [
+          78
+        ]
+      },
+      "{ id: 'mental',     label: '🧠 精神/心得', sub: ['每日总结','情绪记录','灵感','感恩','反思','计划展望','梦境笔记'] },": {
+        "reason": "",
+        "lines": [
+          79
+        ]
+      },
+      "{ v: 1, label: '1 · 硬球状（严重便秘）' },": {
+        "reason": "",
+        "lines": [
+          90
+        ]
+      },
+      "{ v: 2, label: '2 · 块状（便秘）' },": {
+        "reason": "",
+        "lines": [
+          91
+        ]
+      },
+      "{ v: 3, label: '3 · 干裂香肠（轻度便秘）' },": {
+        "reason": "",
+        "lines": [
+          92
+        ]
+      },
+      "{ v: 4, label: '4 · 正常光滑香肠（理想）' },": {
+        "reason": "",
+        "lines": [
+          93
+        ]
+      },
+      "{ v: 5, label: '5 · 软块状（纤维不足）' },": {
+        "reason": "",
+        "lines": [
+          94
+        ]
+      },
+      "{ v: 6, label: '6 · 糊状（轻度腹泻）' },": {
+        "reason": "",
+        "lines": [
+          95
+        ]
+      },
+      "{ v: 7, label: '7 · 水样（严重腹泻）' },": {
+        "reason": "",
+        "lines": [
+          96
+        ]
+      },
+      "subType: '复习卡片',": {
+        "reason": "",
+        "lines": [
+          106
+        ]
+      },
+      "form.moveBlock = { kind: '有氧', minutes: 0, heartRateAvg: 0, heartRateMax: 0, steps: 0, distanceKm: 0, calories: 0, hrZone: [0,0,0,0,0], notes: '' };": {
+        "reason": "",
+        "lines": [
+          175
+        ]
+      },
+      "form.screenBlock = { device: '手机', totalMin: 0, appMinutes: [], blueLightReduced: 0, eyeBreak: 0, notes: '' };": {
+        "reason": "",
+        "lines": [
+          184
+        ]
+      },
+      "function addMeal() { form.eatBlock.meals.push({ name: '', kcal: 0, portion: '中碗' }); }": {
+        "reason": "",
+        "lines": [
+          195
+        ]
+      },
+      "const prompt = `你是一位「数字生命画像分析师」。用户系统已生成以下 4 段结构化画像（近 ${persona.value.stats.rangeDays} 天，共 ${persona.value.stats.N} 条个人行为/精神记录）：": {
+        "reason": "",
+        "lines": [
+          339
+        ]
+      },
+      "【物理画像】\\n${persona.value.physical}\\n": {
+        "reason": "",
+        "lines": [
+          340
+        ]
+      },
+      "【行为画像(融合系统操作埋点)】\\n${persona.value.behavioral}\\n": {
+        "reason": "",
+        "lines": [
+          341
+        ]
+      },
+      "【精神画像】\\n${persona.value.mental}\\n": {
+        "reason": "",
+        "lines": [
+          342
+        ]
+      },
+      "【下一步预测/调节建议(纯文字实验室版)】\\n${persona.value.prediction}\\n": {
+        "reason": "",
+        "lines": [
+          343
+        ]
+      },
+      "【统计摘要】N=${persona.value.stats.N} avgSleep=${persona.value.stats.avgSleep} avgMood=${persona.value.stats.avgMood} avgEnergy=${persona.value.stats.avgEnergy} avgStress=${persona.value.stats.avgStress}\\n": {
+        "reason": "",
+        "lines": [
+          344
+        ]
+      },
+      "请在不修改任何系统设置的前提下，输出一份「更有洞察力的增强版调节报告」：": {
+        "reason": "",
+        "lines": [
+          345
+        ]
+      },
+      "- 用 3 段总结用户的「真实人物肖像」（数字资产画像），": {
+        "reason": "",
+        "lines": [
+          346
+        ]
+      },
+      "- 给出 7 条\"下一步 24 小时\"的具体可执行调节建议（不要真的改系统，只输出文字），": {
+        "reason": "",
+        "lines": [
+          347
+        ]
+      },
+      "- 给出 3 条对下周学习 / 作息 / 社交 / 财务的预测性趋势判断（仅作参考，不承诺准确）。": {
+        "reason": "",
+        "lines": [
+          348
+        ]
+      },
+      "中文，语气温暖、专业、可执行。`;": {
+        "reason": "",
+        "lines": [
+          349
+        ]
+      },
+      "{ key: 'morning',   label: '🌅 清晨时段',    start: '07:00', end: '09:00', recommend: 'eat/早餐' },": {
+        "reason": "",
+        "lines": [
+          365
+        ]
+      },
+      "{ key: 'morningStudy',label:'📚 上午学习',   start: '09:00', end: '12:00', recommend: 'learn/复习卡片' },": {
+        "reason": "",
+        "lines": [
+          366
+        ]
+      },
+      "{ key: 'noon',      label: '🌤️ 午间',         start: '12:00', end: '13:30', recommend: 'eat/午餐 + sleep/小憩' },": {
+        "reason": "",
+        "lines": [
+          367
+        ]
+      },
+      "{ key: 'afternoon', label: '💼 下午工作',     start: '13:30', end: '18:00', recommend: 'work/深度工作' },": {
+        "reason": "",
+        "lines": [
+          368
+        ]
+      },
+      "{ key: 'evening',   label: '🏃 晚间运动',     start: '18:00', end: '19:30', recommend: 'move/有氧' },": {
+        "reason": "",
+        "lines": [
+          369
+        ]
+      },
+      "{ key: 'dinner',    label: '🍽️ 晚餐',         start: '19:30', end: '20:30', recommend: 'eat/晚餐' },": {
+        "reason": "",
+        "lines": [
+          370
+        ]
+      },
+      "{ key: 'night',     label: '🌙 夜学习/复盘',   start: '20:30', end: '22:30', recommend: 'learn/错题复盘 + mental/每日总结' },": {
+        "reason": "",
+        "lines": [
+          371
+        ]
+      },
+      "{ key: 'nightSleep',label: '😴 睡眠',          start: '23:00', end: '07:00', recommend: 'sleep/整晚' },": {
+        "reason": "",
+        "lines": [
+          372
+        ]
+      },
+      "<option v-for=\"k in ['手机','电脑','平板','电视','游戏机','其它']\" :key=\"k\" :value=\"k\">{{ t                                         }}</option>": {
+        "reason": "",
+        "lines": [
+          717
+        ]
+      }
     }
   },
   "RecycleBin.vue": {
     "count": 4,
     "note": "类型标签兜底值。",
-    "reasons": {
-      "32": "",
-      "42": "",
-      "45": "",
-      "56": ""
+    "items": {
+      "if (t.kind === 'card') return `[${d.subject || '未分类'}] ${d.front || ''}`.slice(0, 90);": {
+        "reason": "",
+        "lines": [
+          32
+        ]
+      },
+      "return n ? `${base}（全文 ${n} 字）` : base;": {
+        "reason": "",
+        "lines": [
+          42
+        ]
+      },
+      "if (t.kind === 'wordCard') return `[${d.subject || '未分类'}] ${d.word || ''} — ${(d.meaning || '').slice(0, 60)}`.slice(0, 90);": {
+        "reason": "",
+        "lines": [
+          45
+        ]
+      },
+      "return dateStr ? `${dateStr}（${n} 个任务）` : `${n} 个任务`;": {
+        "reason": "",
+        "lines": [
+          56
+        ]
+      }
     }
   },
   "Review.vue": {
     "count": 3,
     "note": "错因/评分枚举的中文标签（部分写进 reviews 表）。",
-    "reasons": {
-      "152": "",
-      "153": "",
-      "154": ""
+    "items": {
+      "if (c.graphReason === '前置知识') return t                            ;": {
+        "reason": "",
+        "lines": [
+          152
+        ]
+      },
+      "if (c.graphReason === '易混配对') return t                                ;": {
+        "reason": "",
+        "lines": [
+          153
+        ]
+      },
+      "if (c.graphReason === '到期/薄弱') return t                         ;": {
+        "reason": "",
+        "lines": [
+          154
+        ]
+      }
     }
   },
   "Sync.vue": {
     "count": 7,
     "note": "错误提示文案（Hub 返回 HTTP …）+ saveReport('导入数据包') 等写进同步报告表的标签。",
-    "reasons": {
-      "340": "",
-      "401": "",
-      "407": "",
-      "421": "",
-      "458": "",
-      "535": "",
-      "589": ""
+    "items": {
+      "saveReport('导入数据包', stats);": {
+        "reason": "",
+        "lines": [
+          340
+        ]
+      },
+      "if (/failed to fetch|networkerror|网络错误|typeerror: failed/.test(text)) {": {
+        "reason": "",
+        "lines": [
+          401
+        ]
+      },
+      "if (/401|密码|token|unauthorized/.test(text)) hints.push(t                        );": {
+        "reason": "",
+        "lines": [
+          407
+        ]
+      },
+      "if (!res.ok) throw new Error(`Hub 返回 HTTP ${res.status}`);": {
+        "reason": "",
+        "lines": [
+          421
+        ]
+      },
+      "saveReport('局域网一键同步', stats);": {
+        "reason": "",
+        "lines": [
+          458
+        ]
+      },
+      "await createCard({ front: p.front, back: p.back, subject: '', tags: [], type: 'basic', source: 'Anki 导入' });": {
+        "reason": "",
+        "lines": [
+          535
+        ]
+      },
+      "saveReport('立即同步（全部模块）', stats);": {
+        "reason": "",
+        "lines": [
+          589
+        ]
+      }
     }
   },
   "UIKit.vue": {
     "count": 57,
     "note": "组件演示页（Style Guide）：57 行全是 Element Plus 组件的示例文案与假数据，面向开发者，非用户可见业务页。",
-    "reasons": {
-      "14": "",
-      "15": "",
-      "16": "",
-      "17": "",
-      "18": "",
-      "19": "",
-      "22": "",
-      "23": "",
-      "24": "",
-      "25": "",
-      "28": "",
-      "29": "",
-      "32": "",
-      "33": "",
-      "34": "",
-      "35": "",
-      "36": "",
-      "38": "",
-      "39": "",
-      "62": "",
-      "63": "",
-      "64": "",
-      "69": "",
-      "70": "",
-      "71": "",
-      "79": "",
-      "87": "",
-      "88": "",
-      "89": "",
-      "90": "",
-      "91": "",
-      "92": "",
-      "93": "",
-      "94": "",
-      "97": "",
-      "100": "",
-      "108": "",
-      "109": "",
-      "150": "",
-      "151": "",
-      "152": "",
-      "156": "",
-      "157": "",
-      "158": "",
-      "162": "",
-      "163": "",
-      "164": "",
-      "168": "",
-      "173": "",
-      "206": "",
-      "207": "",
-      "221": "",
-      "236": "",
-      "247": "",
-      "248": "",
-      "249": "",
-      "250": ""
+    "items": {
+      "<el-button>默认</el-button>": {
+        "reason": "",
+        "lines": [
+          14,
+          33
+        ]
+      },
+      "<el-button type=\"primary\">主要</el-button>": {
+        "reason": "",
+        "lines": [
+          15
+        ]
+      },
+      "<el-button type=\"success\">成功</el-button>": {
+        "reason": "",
+        "lines": [
+          16
+        ]
+      },
+      "<el-button type=\"warning\">警告</el-button>": {
+        "reason": "",
+        "lines": [
+          17
+        ]
+      },
+      "<el-button type=\"danger\">危险</el-button>": {
+        "reason": "",
+        "lines": [
+          18
+        ]
+      },
+      "<el-button type=\"info\">信息</el-button>": {
+        "reason": "",
+        "lines": [
+          19
+        ]
+      },
+      "<el-button plain>朴素</el-button>": {
+        "reason": "",
+        "lines": [
+          22
+        ]
+      },
+      "<el-button type=\"primary\" plain>主要朴素</el-button>": {
+        "reason": "",
+        "lines": [
+          23
+        ]
+      },
+      "<el-button type=\"danger\" plain>危险朴素</el-button>": {
+        "reason": "",
+        "lines": [
+          24
+        ]
+      },
+      "<el-button round>圆角</el-button>": {
+        "reason": "",
+        "lines": [
+          25
+        ]
+      },
+      "<el-button type=\"primary\" disabled>禁用</el-button>": {
+        "reason": "",
+        "lines": [
+          28
+        ]
+      },
+      "<el-button type=\"primary\" loading>加载中</el-button>": {
+        "reason": "",
+        "lines": [
+          29
+        ]
+      },
+      "<el-button size=\"large\">大号</el-button>": {
+        "reason": "",
+        "lines": [
+          32
+        ]
+      },
+      "<el-button size=\"small\">小号</el-button>": {
+        "reason": "",
+        "lines": [
+          34
+        ]
+      },
+      "<el-button type=\"text\">文字按钮</el-button>": {
+        "reason": "",
+        "lines": [
+          35
+        ]
+      },
+      "<el-button type=\"primary\" link>链接按钮</el-button>": {
+        "reason": "",
+        "lines": [
+          36
+        ]
+      },
+      "<el-button type=\"primary\"><el-icon><ArrowLeft /></el-icon>上一张</el-button>": {
+        "reason": "",
+        "lines": [
+          38
+        ]
+      },
+      "<el-button type=\"primary\">下一张<el-icon><ArrowRight /></el-icon></el-button>": {
+        "reason": "",
+        "lines": [
+          39
+        ]
+      },
+      "<el-radio value=\"easy\">简单</el-radio>": {
+        "reason": "",
+        "lines": [
+          62
+        ]
+      },
+      "<el-radio value=\"hard\">困难</el-radio>": {
+        "reason": "",
+        "lines": [
+          63
+        ]
+      },
+      "<el-radio value=\"again\">重来</el-radio>": {
+        "reason": "",
+        "lines": [
+          64
+        ]
+      },
+      "<el-checkbox value=\"m1\">背单词</el-checkbox>": {
+        "reason": "",
+        "lines": [
+          69
+        ]
+      },
+      "<el-checkbox value=\"m2\">做真题</el-checkbox>": {
+        "reason": "",
+        "lines": [
+          70
+        ]
+      },
+      "<el-checkbox value=\"m3\">看资料</el-checkbox>": {
+        "reason": "",
+        "lines": [
+          71
+        ]
+      },
+      "<el-button type=\"primary\" @click=\"addTag\">添加</el-button>": {
+        "reason": "",
+        "lines": [
+          79
+        ]
+      },
+      "<el-tag type=\"primary\">主色</el-tag>": {
+        "reason": "",
+        "lines": [
+          87
+        ]
+      },
+      "<el-tag type=\"success\">已掌握</el-tag>": {
+        "reason": "",
+        "lines": [
+          88
+        ]
+      },
+      "<el-tag type=\"warning\">待复习</el-tag>": {
+        "reason": "",
+        "lines": [
+          89
+        ]
+      },
+      "<el-tag type=\"danger\">易错</el-tag>": {
+        "reason": "",
+        "lines": [
+          90
+        ]
+      },
+      "<el-tag type=\"info\">信息</el-tag>": {
+        "reason": "",
+        "lines": [
+          91
+        ]
+      },
+      "<el-tag closable>可关闭</el-tag>": {
+        "reason": "",
+        "lines": [
+          92
+        ]
+      },
+      "<el-tag type=\"success\" effect=\"dark\">实心</el-tag>": {
+        "reason": "",
+        "lines": [
+          93
+        ]
+      },
+      "<el-tag type=\"warning\" effect=\"plain\">描边</el-tag>": {
+        "reason": "",
+        "lines": [
+          94
+        ]
+      },
+      "<el-alert type=\"success\" title=\"今日计划完成 ✓\" description=\"已复习 32 张卡片，保持率 91%\" :closable=\"false\" />": {
+        "reason": "",
+        "lines": [
+          97
+        ]
+      },
+      "<el-alert type=\"warning\" title=\"有 8 张卡片即将到期\" description=\"建议今晚 21:00 前完成复习，否则遗忘曲线开始衰减。\" :closable=\"false\" />": {
+        "reason": "",
+        "lines": [
+          100
+        ]
+      },
+      "<el-badge :value=\"12\" class=\"item\"><el-button size=\"small\">待复习</el-button></el-badge>": {
+        "reason": "",
+        "lines": [
+          108
+        ]
+      },
+      "<el-badge is-dot class=\"item\"><el-button size=\"small\">新消息</el-button></el-badge>": {
+        "reason": "",
+        "lines": [
+          109
+        ]
+      },
+      "<el-breadcrumb-item :to=\"{ path: '/' }\">首页</el-breadcrumb-item>": {
+        "reason": "",
+        "lines": [
+          150
+        ]
+      },
+      "<el-breadcrumb-item>学习</el-breadcrumb-item>": {
+        "reason": "",
+        "lines": [
+          151
+        ]
+      },
+      "<el-breadcrumb-item>背诵</el-breadcrumb-item>": {
+        "reason": "",
+        "lines": [
+          152
+        ]
+      },
+      "<el-tab-pane label=\"卡片\" name=\"a\">卡片相关设置与统计。</el-tab-pane>": {
+        "reason": "",
+        "lines": [
+          156
+        ]
+      },
+      "<el-tab-pane label=\"复习\" name=\"b\">复习节奏与调度参数。</el-tab-pane>": {
+        "reason": "",
+        "lines": [
+          157
+        ]
+      },
+      "<el-tab-pane label=\"同步\" name=\"c\">跨设备数据同步状态。</el-tab-pane>": {
+        "reason": "",
+        "lines": [
+          158
+        ]
+      },
+      "<el-step title=\"收集错题\" description=\"导入错题本\" />": {
+        "reason": "",
+        "lines": [
+          162
+        ]
+      },
+      "<el-step title=\"生成卡片\" description=\"AI 提炼知识点\" />": {
+        "reason": "",
+        "lines": [
+          163
+        ]
+      },
+      "<el-step title=\"循环复习\" description=\"FSRS 调度\" />": {
+        "reason": "",
+        "lines": [
+          164
+        ]
+      },
+      "<el-tooltip content=\"Tooltip：间隔复习是最有效的记忆方式\" placement=\"top\">": {
+        "reason": "",
+        "lines": [
+          168
+        ]
+      },
+      "<div>Popover 内容：可以放任何东西，比如快捷操作。</div>": {
+        "reason": "",
+        "lines": [
+          173
+        ]
+      },
+      "<div style=\"font-weight:600\">SxyBrick 学习员</div>": {
+        "reason": "",
+        "lines": [
+          206
+        ]
+      },
+      "<div class=\"hint\">连续打卡 17 天 · 本周保持率 92%</div>": {
+        "reason": "",
+        "lines": [
+          207
+        ]
+      },
+      "const subjects = ['计算机组成原理', '线性代数', '数据结构', '操作系统', '编译原理'];": {
+        "reason": "",
+        "lines": [
+          221
+        ]
+      },
+      "tags: ['考研', '408'],": {
+        "reason": "",
+        "lines": [
+          236
+        ]
+      },
+      "{ subject: '计算机组成原理', cards: 128, due: 12, retention: 88 },": {
+        "reason": "",
+        "lines": [
+          247
+        ]
+      },
+      "{ subject: '线性代数', cards: 96, due: 3, retention: 91 },": {
+        "reason": "",
+        "lines": [
+          248
+        ]
+      },
+      "{ subject: '数据结构', cards: 210, due: 26, retention: 76 },": {
+        "reason": "",
+        "lines": [
+          249
+        ]
+      },
+      "{ subject: '操作系统', cards: 64, due: 0, retention: 95 },": {
+        "reason": "",
+        "lines": [
+          250
+        ]
+      }
     }
   },
   "WeeklyReport.vue": {
     "count": 2,
     "note": "AI 周报 prompt 模板。",
-    "reasons": {
-      "95": "",
-      "192": ""
+    "items": {
+      "`复习最多的科目：${d.topSubjects.map(([s, n]) => `${s}(${n})`).join('、') || '无'}；`,": {
+        "reason": "",
+        "lines": [
+          95
+        ]
+      },
+      "{{ t                                         }}{{ data.topSubjects.map(([s, n]) => `${s} ${n} 次`).join(' · ') }}": {
+        "reason": "",
+        "lines": [
+          192
+        ]
+      }
     }
   },
   "WordBook.vue": {
     "count": 3,
     "note": "",
-    "reasons": {
-      "142": "",
-      "163": "",
-      "187": ""
+    "items": {
+      "await createWordCard({ kind: 'word', word: w, subject: '考研', source: syllabusMeta.title });": {
+        "reason": "",
+        "lines": [
+          142,
+          163
+        ]
+      },
+      "exampleTrans: '', note: '', source: '', subject: '考研', tags: '',": {
+        "reason": "",
+        "lines": [
+          187
+        ]
+      }
     }
   },
   "WordExport.vue": {
     "count": 2,
     "note": "",
-    "reasons": {
-      "18": "",
-      "46": ""
+    "items": {
+      "const SUBJECTS = ['考研', '四六级', '雅思', '托福', '专四专八', '其他'];": {
+        "reason": "",
+        "lines": [
+          18
+        ]
+      },
+      "const rangeSubject = ref('考研');": {
+        "reason": "",
+        "lines": [
+          46
+        ]
+      }
     }
   },
   "WordReview.vue": {
     "count": 1,
     "note": "",
-    "reasons": {
-      "89": ""
+    "items": {
+      "console.warn('[WordReview] 初始化失败：', e);": {
+        "reason": "",
+        "lines": [
+          89
+        ]
+      }
     }
   },
   "Workspace.vue": {
     "count": 1,
     "note": "console.error 的中文日志前缀（开发者可见，非界面文案）。",
-    "reasons": {
-      "27": ""
+    "items": {
+      "try { data.value = await getWorkspaceOverview(); } catch (e) { console.error('[workspace] 聚合失败', e); }": {
+        "reason": "",
+        "lines": [
+          27
+        ]
+      }
     }
   },
   "WrongBook.vue": {
     "count": 3,
     "note": "AI 错题分析 prompt 模板。",
-    "reasons": {
-      "156": "",
-      "165": "",
-      "167": ""
+    "items": {
+      "{ role: 'user', content: `原题：${plain(c.front)}\\n原答案：${plain(c.back)}\\n错因：${reason(c)}` },": {
+        "reason": "",
+        "lines": [
+          156
+        ]
+      },
+      "tags: ['错题变式', ...(c.tags || []).slice(0, 3)],": {
+        "reason": "",
+        "lines": [
+          165
+        ]
+      },
+      "source: '错题智能补卡',": {
+        "reason": "",
+        "lines": [
+          167
+        ]
+      }
     }
   }
 }
