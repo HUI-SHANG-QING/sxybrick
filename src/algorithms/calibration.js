@@ -95,8 +95,17 @@ export function calibrationBuckets(rows, width = 0.1) {
  * 校准总统计：Brier 分数 / ECE / 总偏差 / 结论。
  * rows: [{ predR, rating }]
  */
+export const MIN_STATS_SAMPLES = 20; // 低于此样本量**不给确定性结论**（反馈链另有 50 的调度门槛）
+const RATING_DOMAIN = new Set([0, 1, 2]); // 自评取值域：0 没记住 / 1 模糊 / 2 记住
+
 export function calibrationStats(rows) {
-  const valid = (rows || []).filter(r => typeof r.predR === 'number' && Number.isFinite(r.predR));
+  // round80 审计 A2：rating 缺失/非法**不能当「遗忘」**。
+  // 旧实现 `r.rating > 0 ? 1 : 0` 把 undefined / null / NaN 全归 0，于是：
+  //   导入或旧版本数据里缺 rating 的行 → 实际值被当成"忘了" → bias 系统性偏「高估记忆」
+  //   → n≥50 时这条偏差会经 calibration-feedback **真的改每张卡的复习间隔**。
+  // 改为：rating 不在域内的行**整行剔除**（不猜、也不计入 n）——猜出来的偏差比没有偏差更糟。
+  const valid = (rows || []).filter(r => typeof r.predR === 'number' && Number.isFinite(r.predR)
+    && RATING_DOMAIN.has(r.rating));
   const n = valid.length;
   if (!n) {
     return { n: 0, buckets: [], brier: null, ece: null, bias: null, verdict: '样本不足', note: '还没有可回测的复习记录（需先积累带 FSRS 状态的复习）。' };
@@ -112,22 +121,32 @@ export function calibrationStats(rows) {
   let ece = 0;
   for (const b of buckets) ece += (b.n / n) * Math.abs(b.delta);
   const bias = predSum / n - okSum / n;
+  // round80 审计 A1：**小样本不下结论**。此前只有 n===0 护栏，复习 2 次就会输出
+  // 「预测偏乐观/偏悲观 + 应上调/下调目标保持率」这种处方——数字能算，但结论不成立
+  // （2 个样本的 bias 毫无统计意义）。作者在 calibration-feedback.js 设了 50 样本门槛，
+  // 却只保护了那一个出口；展示层（Stats 页）与 AI 工具都会照搬这里的 verdict/note。
+  // 故：数字照给（n/brier/ece/bias 是客观统计量），**结论与处方只在样本足够时给**。
+  const reliable = n >= MIN_STATS_SAMPLES;
   let verdict = '校准良好';
   if (bias > 0.05) verdict = '预测偏乐观（高估记忆）';
   else if (bias < -0.05) verdict = '预测偏悲观（低估记忆）';
   if (ece > 0.1) verdict += '，建议重新训练权重';
+  if (!reliable) verdict = '样本不足';
   return {
     n,
+    reliable,
     buckets,
     brier: Number((brierSum / n).toFixed(4)),
     ece: Number(ece.toFixed(4)),
     bias: Number(bias.toFixed(4)),
     verdict,
-    note: bias > 0.05
-      ? '模型高估了你的记忆：实际忘得比预测多（间隔太长）。应上调目标保持率，让复习更频繁。'
-      : bias < -0.05
-        ? '模型低估了你的记忆：实际记得比预测牢（间隔太短）。可下调目标保持率减少复习量。'
-        : '预测与实际基本一致，当前调度参数可信。',
+    note: !reliable
+      ? `样本太少（${n} 条，建议 ≥${MIN_STATS_SAMPLES} 条再校准）：下面的偏差数字只能当参考，先按默认参数多复习几天。`
+      : bias > 0.05
+        ? '模型高估了你的记忆：实际忘得比预测多（间隔太长）。应上调目标保持率，让复习更频繁。'
+        : bias < -0.05
+          ? '模型低估了你的记忆：实际记得比预测牢（间隔太短）。可下调目标保持率减少复习量。'
+          : '预测与实际基本一致，当前调度参数可信。',
   };
 }
 

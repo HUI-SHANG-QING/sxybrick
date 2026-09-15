@@ -69,8 +69,11 @@ const MAX_CLUSTER_INPUT = 500;
  */
 export function attributeMistakes(cards, opts = {}) {
   const threshold = opts.threshold ?? 0.32;
-  if (!cards || cards.length < 2) {
-    return cards.map(c => ({ concept: c.subject || '未分类', cardIds: [c.id], size: 1, score: 1, representative: summarize(c) }));
+  // round80 审计 A4：守卫写错——`!cards` 成立后仍调 `cards.map` → 传 undefined/null 直接
+  // TypeError（工具链路 cards 来自查询结果，异常路径可能给到空值）。先归一成数组再判断。
+  const list = Array.isArray(cards) ? cards : [];
+  if (list.length < 2) {
+    return list.map(c => ({ concept: c?.subject || '未分类', cardIds: [c?.id], size: 1, score: 1, representative: summarize(c) }));
   }
   if (cards.length > MAX_CLUSTER_INPUT) {
     // round26 M-5 修正：分桶后不再 slice(0, MAX_CLUSTER_INPUT) 丢弃尾部卡片。
@@ -141,7 +144,9 @@ export function attributeMistakes(cards, opts = {}) {
     // 概念名：取簇内 token 频率最高的非停用词
     const freq = new Map();
     for (const { card } of items) {
-      for (const tk of tokenize(`${card.front} ${(card.tags || []).join('')}`)) {
+      // round80 审计 A5：`card.front` 缺守卫 → undefined 拼出 token "undefined"，
+      // 会被选成概念名，用户在归因结果里看到「undefined」这个"知识点"。
+      for (const tk of tokenize(`${card?.front || ''} ${(card?.tags || []).join('')}`)) {
         if (STOP.has(tk)) continue;
         freq.set(tk, (freq.get(tk) || 0) + 1);
       }

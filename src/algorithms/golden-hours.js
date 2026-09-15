@@ -10,6 +10,8 @@
  *   total: number, hasData: boolean, label: string
  * }}
  */
+export const MIN_HOURS_SAMPLES = 10; // 低于此总样本量只给分布、不给"建议这样安排"的处方
+
 export function goldenHours(hourly, opts = {}) {
   // 审计 A9：windowSize 只保下界 → >24 时每个起点都覆盖全 24 小时多次，bestSum 恒等、
   // bestStart 停在 0、end 出现 >23 的模值，结果失真。环形滑动窗要求 windowSize ∈ [1,24]，
@@ -36,11 +38,18 @@ export function goldenHours(hourly, opts = {}) {
   const end = (bestStart + windowSize - 1) % 24;
   const endLabel = (end + 1) % 24; // 结束小时（含），如 22-24 点窗口 end=23 → 结束 0 点
 
+  // round80 审计 A3：**1 条记录也算不出"黄金时段"**。此前 total≥1 就输出
+  // 「你通常在 3:00 复习最集中，建议安排在 1:00–4:00」——单个样本推出的作息建议是误导。
+  // 分布数字照给（peakHour/bestWindow 是客观统计），处方文案只在样本够时给。
+  const reliable = total >= MIN_HOURS_SAMPLES;
   return {
     peakHour,
     bestWindow: { start: bestStart, end, count: bestSum },
     total,
     hasData: true,
-    label: `你通常在 ${peakHour}:00 复习最集中，建议把复习安排在 ${bestStart}:00–${endLabel}:00 黄金时段`,
+    reliable,
+    label: reliable
+      ? `你通常在 ${peakHour}:00 复习最集中，建议把复习安排在 ${bestStart}:00–${endLabel}:00 黄金时段`
+      : `复习记录还太少（${total} 条，建议 ≥${MIN_HOURS_SAMPLES} 条），暂时看不出黄金时段，先多复习几天。`,
   };
 }

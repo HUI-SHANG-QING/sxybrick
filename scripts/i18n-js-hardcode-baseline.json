@@ -1391,43 +1391,49 @@
     }
   },
   "src/algorithms/calibration.js": {
-    "count": 6,
+    "count": 7,
     "note": "",
     "items": {
       "return { n: 0, buckets: [], brier: null, ece: null, bias: null, verdict: '样本不足', note: '还没有可回测的复习记录（需先积累带 FSRS 状态的复习）。' };": {
         "reason": "",
         "lines": [
-          102
+          111
         ]
       },
       "let verdict = '校准良好';": {
         "reason": "",
         "lines": [
-          115
+          130
         ]
       },
       "if (bias > 0.05) verdict = '预测偏乐观（高估记忆）';": {
         "reason": "",
         "lines": [
-          116
+          131
         ]
       },
       "else if (bias < -0.05) verdict = '预测偏悲观（低估记忆）';": {
         "reason": "",
         "lines": [
-          117
+          132
         ]
       },
       "if (ece > 0.1) verdict += '，建议重新训练权重';": {
         "reason": "",
         "lines": [
-          118
+          133
+        ]
+      },
+      "if (!reliable) verdict = '样本不足';": {
+        "reason": "",
+        "lines": [
+          134
         ]
       },
       ": '预测与实际基本一致，当前调度参数可信。',": {
         "reason": "",
         "lines": [
-          130
+          149
         ]
       }
     }
@@ -1439,7 +1445,7 @@
       "if (!total) return { peakHour: null, bestWindow: null, total: 0, hasData: false, label: '暂无复习数据' };": {
         "reason": "",
         "lines": [
-          23
+          25
         ]
       }
     }
@@ -1472,34 +1478,34 @@
           15
         ]
       },
-      "return cards.map(c => ({ concept: c.subject || '未分类', cardIds: [c.id], size: 1, score: 1, representative: summarize(c) }));": {
+      "return list.map(c => ({ concept: c?.subject || '未分类', cardIds: [c?.id], size: 1, score: 1, representative: summarize(c) }));": {
         "reason": "",
         "lines": [
-          73
+          76
         ]
       },
       "const key = c?.subject || '未分类';": {
         "reason": "",
         "lines": [
-          81
+          84
         ]
       },
       "const concept = top ? top[0] : (items[0].card.subject || '未分类');": {
         "reason": "",
         "lines": [
-          150
+          155
         ]
       },
       "const STOP = new Set(['的', '了', '是', '在', '我', '你', '他', '这', '那', '和', '与', '及', '或', '等', '中', '为', '对', '不', '有', '个', '一', '也', '都', '要', '会', '能', '可', '把', '被', '从', '到']);": {
         "reason": "",
         "lines": [
-          168
+          173
         ]
       },
       "return f || card.subject || '错题';": {
         "reason": "",
         "lines": [
-          172
+          177
         ]
       }
     }
