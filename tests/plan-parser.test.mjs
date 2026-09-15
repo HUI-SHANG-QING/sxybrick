@@ -11,6 +11,9 @@ const {
 test('splitTasks：按换行/分号/句号/顿号切分', () => {
   assert.deepEqual(splitTasks('复习30张卡片；番茄25分钟\n看线代讲义'), ['复习30张卡片', '番茄25分钟', '看线代讲义']);
   assert.deepEqual(splitTasks('a、b、c'), ['a', 'b', 'c']);
+assert.deepEqual(splitTasks('review chapter 1. review chapter 2. read paper 3.'), ['review chapter 1', 'review chapter 2', 'read paper 3']); // 英文句号（后跟空白）切分
+assert.deepEqual(splitTasks('复习 1.5 小时'), ['复习 1.5 小时']); // 小数不切
+assert.deepEqual(splitTasks('Do A. Do B.'), ['Do A', 'Do B']); // 行尾句号切分
   assert.deepEqual(splitTasks(''), []);
   assert.deepEqual(splitTasks(null), []);
 });

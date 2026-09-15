@@ -184,12 +184,14 @@ export function inferSubject(text) {
 
 /**
  * 分句：换行 / 分号 / 中文句号 / 英文句号 / 顿号切分（保留非空片段）
- * 逗号不切（同一任务描述）
+ * 逗号不切（同一任务描述）。
+ * 英文句号仅在「后跟空白或行尾」时切——保护小数（"1.5 小时" 的 . 不切，
+ * 否则任务会被切成 "1" 与 "5 小时" 两段）与常见缩写。
  */
 export function splitTasks(text) {
   if (!text) return [];
   return String(text)
-    .split(/[\n\r;；。、]+/)
+    .split(/[\n\r;；。、]+|[.](?!\d)(?=\s|$)/)
     .map(s => s.trim())
     .filter(Boolean);
 }
