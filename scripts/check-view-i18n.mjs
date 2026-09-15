@@ -225,6 +225,8 @@ function scanHardcoded(file) {
 //   · 只报「行内最长连续中文 ≤ 24 字」—— AI prompt 模板普遍是长串（>24 字），排除掉。
 //   · round71：`src/agent/tools/` 下 `toolRegistry.register({...})` 的元数据段整体挖空——
 //     description / parameters 是发给模型的 prompt 契约（中文、永不翻译），不属于 UI 文案。
+//   · round74/76：`*_PARAMS` 共用参数说明表、`*_PROTOCOL/*_PROMPT` 提示词常量同样整段挖空
+//     （提示词里带 JSON 示例时，双引号会把整段模板切成短片段而漏过上面那条启发式）。
 //     这样能命中 graph-resolve 的 '相关' 兜底词、calibration 的 '样本不足' verdict 这类短 UI 文案，
 //     又不误杀动辄数百字的 prompt。
 const JS_TARGETS = ['src/repo.js', 'src/repo-core.js', 'src/agent', 'src/algorithms'];
@@ -273,7 +275,43 @@ function maskRegisterMetadata(src) {
     /(toolRegistry\.register\(\{)([\s\S]*?)(?=(?:async\s+)?execute\s*[:(])/g,
     (m, head, body) => head + blankKeepNewlines(body),
   );
-  return maskSharedParamMaps(out);
+  out = maskSharedParamMaps(out);
+  return maskPromptConstants(out);
+}
+
+/**
+ * 挖空「Agent 提示词常量」——`const PROTOCOL = \`…\`` / `const DECOMPOSE_PROMPT = \`…\`` 这类。
+ *
+ * round76：它们与 register 的 description、`*_PARAMS` 是**同一类文本**（发给模型的 prompt 契约，
+ * 永不翻译），但结构上有个坑：协议里带 JSON 示例（`{"type":"quiz",...}`），
+ * 而「长字符串字面量 = prompt」那条启发式是从引号开始配对的——JSON 里的双引号会把整段模板
+ * 切成许多短 `"type"` 片段，于是**每次扩充协议都要重锚基线**（实测 5 行假红）。
+ * 这里按结构豁免：顶层 `const XXX_PROTOCOL/XXX_PROMPT = \`…\`` 整段挖空（模板字面量按反引号配对，
+ * 跳转义与 `${}` 内的嵌套）。
+ */
+function maskPromptConstants(src) {
+  let out = '', i = 0;
+  while (i < src.length) {
+    const m = /^const\s+(?:[A-Z][A-Z0-9_]*(?:_PROTOCOL|_PROMPT)|PROTOCOL|PROMPT)\s*=\s*`/.exec(src.slice(i, i + 80));
+    if (m) {
+      const open = i + m[0].length - 1; // 反引号位置
+      let k = open + 1, depth = 0;
+      for (; k < src.length; k++) {
+        const ch = src[k];
+        if (ch === '\\') { k++; continue; }
+        if (ch === '$' && src[k + 1] === '{') { depth++; k++; continue; }
+        if (ch === '}' && depth > 0) { depth--; continue; }
+        if (ch === '`' && depth === 0) break;
+      }
+      if (k < src.length) {
+        out += src.slice(i, open + 1) + blankKeepNewlines(src.slice(open + 1, k + 1));
+        i = k + 1;
+        continue;
+      }
+    }
+    out += src[i]; i++;
+  }
+  return out;
 }
 
 /**
@@ -323,8 +361,11 @@ function scanJsHardcoded(abs) {
   ]);
   src = src.replace(/\/\*[\s\S]*?\*\//g, blankKeepNewlines);   // 块注释
   src = maskCallArgs(src, names);                              // 挖空 console.* 参数
-  // 工具注册的元数据（description / parameters）是 prompt 契约而非 UI 文案，见 maskRegisterMetadata
-  if (/agent[\\/]tools[\\/]/.test(abs)) src = maskRegisterMetadata(src);
+  // 三类 **prompt 契约文本**整段挖空（工具元数据 / 共用参数说明表 / 提示词常量）——
+  // 它们的中文只发给模型、永不翻译，不属于 UI 文案。**与文件路径无关**：
+  // round76 实测踩坑——此前只在 `src/agent/tools/` 下调这个 masker，
+  // 于是 `src/agent/agents/base.js` 的 PROTOCOL（含 quiz 协议示例）照旧被当成硬编码文案报红。
+  src = maskRegisterMetadata(src);
   src = src.replace(/(^|[ \t])\/\/[^\n]*/gm, (m, p1) => p1 + ' '.repeat(m.length - p1.length)); // 行注释
 
   const hits = [];

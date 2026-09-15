@@ -29,6 +29,11 @@ const PROTOCOL = `
    · 条目：{"type":"list","data":{"items":[{"title":"…","detail":"…"}]},"note":"…"}
    · 表格：{"type":"table","data":{"columns":["…"],"rows":[["…","…"]]}}
    · 关系/图谱/关键路径：{"type":"graph","data":{"kind":"force|critical-path","nodes":[{"id":"a","name":"停止-等待","category":"数据链路层"}],"links":[{"source":"a","target":"b","label":"服务于"}]},"note":"…"}
+   · **出题/自测**：{"type":"quiz","data":{"questions":[{"q":"题干","options":["A 选项","B 选项","C 选项","D 选项"],"answer":"B","explain":"为什么选 B / 为什么不选 A","cardId":"若该题来自某张卡，填它的 id"}]}}
+     quiz 会在界面上渲染成**可点击作答的题目**（用户点选项即判分并显示解析），所以：
+     · 用户要「出题 / 考我 / 自测」时用它，**不要在正文里写 A/B/C/D 让用户自己对照答案**；
+     · answer 用选项字母（A/B/C/D），options 2~6 个，explain 写清依据；
+     · 题目来自某张卡时带上 cardId（用户答完可一键记入复习）；凭空新出的题不要编造 cardId。
    只有确实适合图形化表达时才用 graph；能用自然语言讲清的就用普通文本。
    切勿把工具返回的原始 JSON 原样抄给用户——那是给程序看的，不是给用户的答案。`;
 
@@ -37,6 +42,7 @@ export const STRUCTURED_REPLY_CONTRACT = {
   list: '{"type":"list","data":{"items":[{"title":"","detail":""}]},"note":""}',
   table: '{"type":"table","data":{"columns":[],"rows":[]}}',
   graph: '{"type":"graph","data":{"kind":"","nodes":[],"links":[]},"note":""}',
+  quiz: '{"type":"quiz","data":{"questions":[{"q":"","options":["",""],"answer":"A","explain":"","cardId":""}]}}',
 };
 
 function buildSystemPrompt(agent, ctx) {

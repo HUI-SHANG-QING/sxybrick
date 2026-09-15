@@ -12,6 +12,7 @@
 //   · 数据变化只 setOption（不重复 init）；组件卸载时 dispose 并摘掉 resize 监听。
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { normalizeGraphData } from '../utils/ai-structured.js';
+import { t } from '../i18n/index.js';
 
 const props = defineProps({
   data: { type: Object, required: true },
@@ -167,10 +168,10 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="ai-graph">
-    <div v-if="failed" class="ai-graph-err">图表渲染失败，以下为原始结构：{{ JSON.stringify(data).slice(0, 500) }}</div>
+    <div v-if="failed" class="ai-graph-err">{{ t('components.aiGraph.renderFailed') }}{{ JSON.stringify(data).slice(0, 500) }}</div>
     <div v-else ref="el" class="ai-graph-canvas"></div>
     <div v-if="note" class="ai-graph-note">{{ note }}</div>
-    <div v-if="truncated" class="ai-graph-note">节点过多，已截断显示前 {{ MAX_NODES }} 个（其余省略）。</div>
+    <div v-if="truncated" class="ai-graph-note">{{ t('components.aiGraph.truncated', undefined, { n: MAX_NODES }) }}</div>
   </div>
 </template>
 

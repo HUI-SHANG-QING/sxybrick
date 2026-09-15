@@ -3,8 +3,10 @@
 // 用户看到一坨 {"type":"list","data":{...}}。要求按类型渲染：list → 列表、graph → 图。
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   parseStructuredReply, structuredToMarkdown, isGraphReply, normalizeGraphData, normalizeStructuredFinal,
+  normalizeQuizData, isQuizReply,
 } from '../src/utils/ai-structured.js';
 
 test('识别：整段 JSON（含 ```json 包裹）才认定为结构化回复', () => {
@@ -143,4 +145,73 @@ test('提示协议与前端支持的类型一致（防止 Agent 提示改了、�
     const p = parseStructuredReply(sample);
     assert.equal(p?.type, k, `协议示例 ${k} 无法被解析`);
   }
+});
+
+// ---------------- round76：quiz 结构化（AI 出的题 → 可点击作答） ----------------
+
+const QUIZ_OK = {
+  questions: [
+    { q: '停止-等待协议的发送窗口大小是多少？', options: ['1', '2', '4', '由序号位数决定'], answer: 'A', explain: '发送窗口 Wt=1，收到确认才发下一帧。', cardId: 'c1' },
+  ],
+};
+
+test('normalizeQuizData：字母答案 / 0 起下标 / 等于选项数（按 1 起最后一项）都能识别', () => {
+  const opts = ['a', 'b', 'c', 'd'];
+  const cases = [
+    [{ q: 'x', options: opts, answer: 'B' }, 1],
+    [{ q: 'x', options: opts, answer: 'b' }, 1],
+    [{ q: 'x', options: opts, answer: 0 }, 0],
+    [{ q: 'x', options: opts, answer: 3 }, 3],
+    [{ q: 'x', options: opts, answer: 4 }, 3],
+  ];
+  for (const [item, expect] of cases) {
+    const out = normalizeQuizData({ questions: [item] });
+    assert.ok(out, '应能解析：' + JSON.stringify(item));
+    assert.equal(out[0].answer, expect, JSON.stringify(item.answer) + ' 应映射到下标 ' + expect);
+  }
+});
+
+test('normalizeQuizData：非法题被剔除（不猜答案，宁可不出题）', () => {
+  const out = normalizeQuizData({
+    questions: [
+      { q: '', options: ['a', 'b'], answer: 'A' },
+      { q: 'x', options: ['a'], answer: 'A' },
+      { q: 'x', options: ['a', 'b', 'c', 'd', 'e', 'f', 'g'], answer: 'A' },
+      { q: 'x', options: ['a', 'b'], answer: 'Z' },
+      { q: 'x', options: ['a', 'b'], answer: '' },
+      { q: 'x', options: ['a', 'b'], answer: 'B' },
+      null, 'x', 42,
+    ],
+  });
+  assert.ok(out, '应保留唯一合法题');
+  assert.equal(out.length, 1, '只有 1 道合法题应保留');
+  assert.equal(out[0].answer, 1);
+});
+
+test('normalizeQuizData：全都不合法 / 空输入 → null（调用方退回原文，不显示半成品题）', () => {
+  assert.equal(normalizeQuizData({ questions: [] }), null);
+  assert.equal(normalizeQuizData({}), null);
+  assert.equal(normalizeQuizData(null), null);
+  assert.equal(normalizeQuizData({ questions: [{ q: 'x', options: ['a'], answer: 'A' }] }), null);
+});
+
+test('isQuizReply：只有「带合法题目的 quiz」才交给交互组件', () => {
+  assert.equal(isQuizReply(parseStructuredReply(JSON.stringify({ type: 'quiz', data: QUIZ_OK }))), true);
+  assert.equal(isQuizReply(parseStructuredReply(JSON.stringify({ type: 'quiz', data: { questions: [] } }))), false);
+  assert.equal(isQuizReply(parseStructuredReply(JSON.stringify({ type: 'list', data: { items: [] } }))), false);
+});
+
+test('quiz：structuredToMarkdown 给可读文本（降级/复制路径要有答案与解析）', () => {
+  const md = structuredToMarkdown({ type: 'quiz', data: QUIZ_OK });
+  assert.ok(md && md.length, 'quiz 也要能渲染成文本，不能返回 null');
+  assert.match(md, /停止-等待/);
+  assert.match(md, /正确答案：A/);
+  assert.match(md, /解析：/);
+});
+
+test('接线源码闸门：quiz 分支必须真的挂到 MarkdownRenderer（含组件导入与模板渲染）', () => {
+  const src = readFileSync(new URL('../src/components/MarkdownRenderer.vue', import.meta.url), 'utf8');
+  assert.match(src, /import AiQuizView from '\.\/AiQuizView\.vue'/, 'MarkdownRenderer 必须导入 AiQuizView');
+  assert.match(src, /isQuizReply\(parsed\)/, 'MarkdownRenderer 必须在 update() 里判断 isQuizReply');
+  assert.match(src, /<AiQuizView/, '模板里必须真的渲染 AiQuizView（只 import 不渲染等于没接）');
 });

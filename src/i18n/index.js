@@ -285,6 +285,24 @@ const zh = {
     },
   },
 
+  // ---------------- 通用组件（src/components/*） ----------------
+  components: {
+    aiQuiz: {
+      progress: '已答 {done}/{total}',
+      score: '答对 {right}/{total}',
+      reset: '重做',
+      correct: '答对了',
+      wrong: '答错了，正确选项是 {answer}',
+      explain: '解析：',
+      record: '记入复习',
+      recorded: '已记入复习',
+    },
+    aiGraph: {
+      renderFailed: '图表渲染失败，以下为原始结构：',
+      truncated: '节点过多，已截断显示前 {n} 个（其余省略）。',
+    },
+  },
+
   // ---------------- 通用工具文案（src/utils/llm-json.js 等） ----------------
   utils: {
     llmJson: {
@@ -532,6 +550,24 @@ const en = {
       untitled: '(untitled)',
       kvSep: ', ',
       retryHint: 'Generated directly from local data (degraded result while AI is unreachable). Retry when the network recovers for a full answer.',
+    },
+  },
+
+  // ---------------- Shared components (src/components/*) ----------------
+  components: {
+    aiQuiz: {
+      progress: 'Answered {done}/{total}',
+      score: 'Correct {right}/{total}',
+      reset: 'Redo',
+      correct: 'Correct',
+      wrong: 'Wrong — the answer is {answer}',
+      explain: 'Why: ',
+      record: 'Log as review',
+      recorded: 'Logged as review',
+    },
+    aiGraph: {
+      renderFailed: 'Chart rendering failed; raw structure below: ',
+      truncated: 'Too many nodes — showing the first {n} only.',
     },
   },
 

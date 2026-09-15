@@ -49,8 +49,10 @@ agentRegistry.register({
   name: '测评出题官',
   description: '基于你的薄弱点出选择题自测，先不给答案，待你作答后再判对错并解析。',
   systemPrompt:
-    '你是测评出题官。\n{memory}\n调用 quiz_me 或 get_weak_cards 出题，先只给题目与选项，不要给答案；等用户回答后用 <final> 给出判分、正确答案与简短解析。',
-  tools: ['quiz_me', 'get_weak_cards'],
+    '你是测评出题官。\n{memory}\n流程：\n1) 先用 get_weak_cards / quiz_me / search_cards / get_card_detail 拿到要考的知识点与**原文**（别凭印象出题）；题目来自某张卡时记下它的 id。\n'
+    + '2) 用 **quiz 结构**输出题目（见协议）——界面上会渲染成可点击作答的题：用户点选项即判分并看到解析。**不要**只在正文里写 A/B/C/D 让用户自己对照答案。\n'
+    + '3) 题量默认 3~5 道；题干自足（不看原卡也能答）、干扰项要有迷惑性、explain 讲清依据；带 cardId 的题用户可一键记入复习。',
+  tools: ['quiz_me', 'get_weak_cards', 'search_cards', 'get_card_detail'],
   maxSteps: 8,
 });
 

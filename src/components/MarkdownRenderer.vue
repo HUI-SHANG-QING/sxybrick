@@ -6,8 +6,9 @@ import { ref, watch, nextTick, onBeforeUnmount } from 'vue';
 import { marked } from 'marked';
 import { imgUrl, ensureImages, extractImageIds } from '../images.js';
 import { sanitizeHtml } from '../utils/sanitize.js';
-import { parseStructuredReply, structuredToMarkdown, isGraphReply } from '../utils/ai-structured.js';
+import { parseStructuredReply, structuredToMarkdown, isGraphReply, isQuizReply } from '../utils/ai-structured.js';
 import AiGraphView from './AiGraphView.vue';
+import AiQuizView from './AiQuizView.vue';
 
 const props = defineProps({ content: { type: String, default: '' } });
 
@@ -119,6 +120,8 @@ const html = ref('');
 const imgIds = ref([]);
 // 结构化 graph 回复（模型按协议返回）→ 交给图表组件而不是 v-html
 const graphReply = ref(null);
+// 结构化 quiz 回复（AI 出的题）→ 交给可点击作答的组件（round76 复习闭环）
+const quizReply = ref(null);
 
 async function update() {
   const src0 = props.content || '';
@@ -129,11 +132,20 @@ async function update() {
   const parsed = parseStructuredReply(src0);
   if (isGraphReply(parsed)) {
     graphReply.value = { data: parsed.data, note: parsed.note };
+    quizReply.value = null;
+    html.value = '';
+    imgIds.value = [];
+    return;
+  }
+  if (isQuizReply(parsed)) {
+    quizReply.value = { data: parsed.data, note: parsed.note };
+    graphReply.value = null;
     html.value = '';
     imgIds.value = [];
     return;
   }
   graphReply.value = null;
+  quizReply.value = null;
   const effective = parsed ? (structuredToMarkdown(parsed) ?? src0) : src0;
 
   const ids = extractImageIds(effective);
@@ -329,6 +341,10 @@ onBeforeUnmount(() => {
   <!-- 结构化 graph 回复 → 内联图表（知识图谱 / 关键路径等） -->
   <div v-if="graphReply" class="md-body md-graph">
     <AiGraphView :data="graphReply.data" :note="graphReply.note" />
+  </div>
+  <!-- 结构化 quiz 回复 → 可点击作答的题目（判分 + 解析 + 可选记入复习） -->
+  <div v-else-if="quizReply" class="md-body md-quiz">
+    <AiQuizView :data="quizReply.data" :note="quizReply.note" />
   </div>
   <div v-else class="md-body" v-html="html" @click="openLightbox"></div>
   <Teleport to="body">

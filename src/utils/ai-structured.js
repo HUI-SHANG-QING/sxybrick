@@ -13,7 +13,7 @@
 //   · 渲染失败/类型不认识 → 返回 null，调用方按原文显示（降级不丢信息）。
 
 /** 支持的形状（与 Agent 提示协议、前端渲染分支保持一致） */
-export const STRUCTURED_TYPES = ['list', 'table', 'graph', 'cards', 'keyvalue'];
+export const STRUCTURED_TYPES = ['list', 'table', 'graph', 'cards', 'keyvalue', 'quiz'];
 
 /**
  * 尝试把一段回复解析为结构化结果。
@@ -121,6 +121,87 @@ function genericToMd(data) {
 }
 
 /**
+ * 从 quiz 结构里规整出**可交互题目**（round76：复习闭环）。
+ *
+ * 协议（与 Agent 提示协议、AiQuizView 组件一致）：
+ *   {"type":"quiz","data":{"questions":[
+ *      {"q":"题干","options":["A 选项","B 选项","C 选项","D 选项"],"answer":"B","explain":"解析","cardId":"可选"}
+ *   ]}}
+ *
+ * 逐题校验，**不合法的题直接剔除**（不猜、不补默认值）：
+ *   · 题干非空、选项 2~6 个；
+ *   · answer 能唯一映射到某个选项（推荐字母 A/B/C/D；也接受 0 起下标）。
+ * 全都不合法 → null，调用方退回原文显示（宁可显示 JSON，也不能给用户一道判错分的题）。
+ * @param {object} data
+ * @returns {Array<{q:string,options:string[],answer:number,explain:string,cardId:string}>|null}
+ */
+export function normalizeQuizData(data) {
+  const raw = Array.isArray(data?.questions) ? data.questions : (Array.isArray(data) ? data : []);
+  const out = [];
+  for (const it of raw) {
+    if (!it || typeof it !== 'object') continue;
+    const q = String(it.q ?? it.question ?? it.title ?? it.front ?? '').trim();
+    const options = (Array.isArray(it.options) ? it.options : (Array.isArray(it.choices) ? it.choices : []))
+      .map((o) => String(o ?? '').trim())
+      .filter(Boolean);
+    if (!q || options.length < 2 || options.length > 6) continue;
+    const answer = answerIndexOf(it.answer ?? it.correct, options.length);
+    if (answer < 0) continue;
+    out.push({
+      q,
+      options,
+      answer,
+      explain: String(it.explain ?? it.explanation ?? it.analysis ?? '').trim(),
+      cardId: it.cardId ? String(it.cardId) : '',
+    });
+  }
+  return out.length ? out : null;
+}
+
+/**
+ * answer 归一成 0 起下标。推荐字母（无歧义）；数字按 0 起下标理解，
+ * 只有当它等于选项数时才按 1 起理解（`4` 对 4 选题 = 最后一项）——避免 0/1 基歧义把对判成错。
+ * @returns {number} 无效返回 -1
+ */
+function answerIndexOf(v, n) {
+  if (typeof v === 'number' && Number.isInteger(v)) {
+    if (v >= 0 && v < n) return v;
+    if (v === n) return n - 1;
+    return -1;
+  }
+  const s = String(v ?? '').trim();
+  if (!s) return -1;
+  if (/^[A-Fa-f]$/.test(s)) {
+    const i = s.toUpperCase().charCodeAt(0) - 65;
+    return i < n ? i : -1;
+  }
+  if (/^\d+$/.test(s)) {
+    const num = Number(s);
+    if (num >= 0 && num < n) return num;
+    if (num === n) return n - 1;
+  }
+  return -1;
+}
+
+/** quiz：[{q, options, answer, explain}] → 可读 Markdown（降级路径 / 复制到别处用） */
+function quizToMd(data) {
+  const qs = normalizeQuizData(data);
+  if (!qs) return null;
+  const letters = 'ABCDEF';
+  return qs.map((x, i) => {
+    const opts = x.options.map((o, j) => `   ${letters[j]}. ${esc(o)}`).join('\n');
+    const tail = [x.explain ? `解析：${esc(x.explain)}` : '', '']
+      .filter(Boolean).join('\n');
+    return `**${i + 1}. ${esc(x.q)}**\n${opts}\n   ✅ 正确答案：${letters[x.answer]}${tail ? `\n${tail}` : ''}`;
+  }).join('\n\n');
+}
+
+/** 该结构化结果是否需要交给交互答题组件渲染 */
+export function isQuizReply(parsed) {
+  return !!parsed && parsed.type === 'quiz' && !!normalizeQuizData(parsed.data);
+}
+
+/**
  * 把结构化结果渲染成 Markdown（便于现有的 MarkdownRenderer 统一展示）。
  * @param {{type:string, data:object, note?:string}} parsed
  * @returns {string|null} null = 该类型应交由专用组件渲染（如 graph）或无法渲染
@@ -134,6 +215,7 @@ export function structuredToMarkdown(parsed) {
   else if (type === 'cards') body = cardsToMd(data);
   else if (type === 'keyvalue') body = genericToMd(data);
   else if (type === 'graph') return null; // 交给图表组件渲染
+  else if (type === 'quiz') body = quizToMd(data); // 交互组件渲染；此处的 Markdown 供降级/复制
   else body = genericToMd(data);
   if (!body) return null;
   return note ? `${note}\n\n${body}` : body;
