@@ -30,6 +30,10 @@ import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearning
 import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';
 import { hybridSearch, retrieveContext, ensureIndex, rebuildIndex, getIndexStatus } from '../retrieval.js';
 import { listDocFiles, getDocText } from '../../docs-lib.js';
+// round67：图片感知截断 + 引用检测。
+// 卡片正文里的图片是 `![image](sxy-img://<36位uuid>)`（56 字符），朴素 slice 会把它切坏
+// → 富集时查不到图 → AI 误以为「图没传过来」。这里统一走 clipText 保护引用完整性。
+import { clipText, hasImageRef } from '../../utils/clip.js';
 import { docKindOf, docContentProfile } from '../../services/doc-vision.js';
 import { agentRegistry } from '../registry.js';
 
@@ -60,7 +64,8 @@ toolRegistry.register({
 
 toolRegistry.register({
   name: 'get_weak_cards',
-  description: '获取当前最薄弱/最易错的卡片列表（按遗忘次数排序），用于定位复习重点。',
+  description: '获取当前最薄弱/最易错的卡片列表（按遗忘次数排序），用于定位复习重点。'
+    + '返回项含 id 与 hasImage：hasImage 为 true 表示该卡带图，如需看图请再用 get_card_detail 取完整内容。',
   parameters: {
     limit: 'number: 返回数量，默认 10',
     minFail: 'number: 最小遗忘次数阈值，默认 2',
@@ -75,6 +80,10 @@ toolRegistry.register({
       data: cards.map((c) => ({
         subject: c.subject,
         front: String(c.front).slice(0, 60),
+        // 摘要只给前 60 字，但必须让模型知道「这张卡有图」——
+        // 否则图在背面 / 标记被截断时，模型完全不知道有图可看。
+        // 不在此保留完整图片引用：列表可能命中几十张卡，保留会把送图额度瞬间吃光。
+        hasImage: hasImageRef(c.front) || hasImageRef(c.back),
         failCount: c.failCount,
         marked: !!c.marked,
         wrongReason: c.wrongReason || '',
@@ -108,7 +117,8 @@ toolRegistry.register({
 
 toolRegistry.register({
   name: 'search_cards',
-  description: '按关键词/科目/标签搜索卡片，支持 AND/OR/NOT 组合，返回命中卡片的概要。',
+  description: '按关键词/科目/标签搜索卡片，支持 AND/OR/NOT 组合，返回命中卡片的概要。'
+    + '概要不含图片内容，但每项带 hasImage：为 true 时若要看图请用 get_card_detail 取完整正文。',
   parameters: {
     q: 'string: 模糊搜索正/背面关键词',
     subject: 'string: 限定科目（可选）',
@@ -135,6 +145,8 @@ toolRegistry.register({
           id: c.id,
           subject: c.subject,
           front: String(c.front).slice(0, 80),
+          // 同 get_weak_cards：摘要不保留图片引用，但要让模型知道「这张卡有图可看」
+          hasImage: hasImageRef(c.front) || hasImageRef(c.back),
           tags: c.tags,
           level: c.level,
         })),
@@ -296,7 +308,9 @@ toolRegistry.register({
 
 toolRegistry.register({
   name: 'get_card_detail',
-  description: '按卡片 id 获取一张卡片的完整内容（正/背面、科目、标签、掌握等级、口诀、错因）。',
+  description: '按卡片 id 获取一张卡片的完整内容（正/背面、科目、标签、掌握等级、口诀、错因）。'
+    + '卡片带图时会返回完整正文与图片引用，图片将作为附图发送给你。'
+    + '当列表类结果里 hasImage 为 true、或用户提到「图 / 截图 / 思维导图」时，必须调本工具才能看到图。',
   parameters: { id: 'string: 卡片 id' },
   readsData: true,
   async execute(args) {
@@ -498,7 +512,10 @@ toolRegistry.register({
     const concept = String(args?.concept || '').trim();
     if (!concept) return { ok: false, error: '概念为空' };
     const r = await listCards({ q: concept });
-    const related = r.items.slice(0, 8).map((c) => `[${c.subject}] ${String(c.front).slice(0, 60)}`).join('\n');
+    // 「 [img]」为 ASCII 标记（不经 i18n 闸），提示模型该卡带图、可调 get_card_detail 看完整内容
+    const related = r.items.slice(0, 8)
+      .map((c) => `[${c.subject}] ${String(c.front).slice(0, 60)}${hasImageRef(c.front) || hasImageRef(c.back) ? ' [img]' : ''}`)
+      .join('\n');
     const sys = `你是学习答疑导师。讲解「${concept}」时，如用户已有相关卡片请结合说明（已有卡片：\n${related || '无'}），其余用通俗中文+举例+公式（$...$）讲透。`;
     const out = await ctx.chat([{ role: 'system', content: sys }, { role: 'user', content: `请讲解：${concept}` }]);
     return { ok: true, data: { explanation: out, relatedCount: r.total } };
@@ -600,7 +617,7 @@ toolRegistry.register({
       ok: true,
       data: {
         recentMistakes: insight.recentMistakes.slice(0, limit),
-        weakCards: weak.slice(0, limit).map(c => ({ id: c.id, subject: c.subject, front: String(c.front).slice(0, 50), failCount: c.failCount })),
+        weakCards: weak.slice(0, limit).map(c => ({ id: c.id, subject: c.subject, front: String(c.front).slice(0, 50), hasImage: hasImageRef(c.front) || hasImageRef(c.back), failCount: c.failCount })),
         dueCount: insight.dueToday,
         activePlans: insight.plans.active,
         suggestion: `建议优先复习最近答错的 ${insight.recentMistakeCount} 题与 ${weak.length} 张薄弱卡，兼顾 ${insight.dueToday} 张到期卡。`,
@@ -649,8 +666,8 @@ toolRegistry.register({
     return {
       ok: true,
       data: {
-        path: plan.path.slice(0, 50).map(c => ({ id: c.id, subject: c.subject, front: String(c.front).slice(0, 60), graphReason: c.graphReason, level: c.level, dueAt: c.dueAt })),
-        prereqsAdded: plan.prereqsAdded.slice(0, 15).map(c => ({ id: c.id, front: String(c.front).slice(0, 60), subject: c.subject })),
+        path: plan.path.slice(0, 50).map(c => ({ id: c.id, subject: c.subject, front: String(c.front).slice(0, 60), hasImage: hasImageRef(c.front) || hasImageRef(c.back), graphReason: c.graphReason, level: c.level, dueAt: c.dueAt })),
+        prereqsAdded: plan.prereqsAdded.slice(0, 15).map(c => ({ id: c.id, front: String(c.front).slice(0, 60), subject: c.subject, hasImage: hasImageRef(c.front) || hasImageRef(c.back) })),
         contrastPairs: plan.contrastPairs.slice(0, 15),
         unmapped: plan.unmapped,
         edgesUsed: plan.edgesUsed,
@@ -731,7 +748,7 @@ toolRegistry.register({
             sourceType: r.row.sourceType,
             sourceId: r.row.sourceId,
             subject: r.row.subject,
-            text: String(r.row.text).slice(0, 120),
+            text: clipText(r.row.text, 120),
             fusedScore: Math.round(r.fused * 100),
             semScore: Math.round((r.semScore || 0) * 100),
             kwScore: Math.round((r.kwScore || 0) * 100),
@@ -1045,7 +1062,7 @@ toolRegistry.register({
       return {
         ok: true,
         data: {
-          ...base, source: 'text', excerpt: text.slice(0, 3000),
+          ...base, source: 'text', excerpt: clipText(text, 3000),
           note: '以下是该资料的可提取文字内容，请基于它回答；如需查看原版式/图表，可指定 pages 让我按页看图。',
         },
       };
@@ -1060,7 +1077,7 @@ toolRegistry.register({
         ...base,
         source: 'vision',
         visionRef,
-        excerpt: text ? text.slice(0, 800) : '',
+        excerpt: clipText(text, 800),
         note: '该资料没有可提取的文字层（扫描件/图表型），页面图会作为附图一并发送给多模态模型。'
           + '请直接依据图片内容回答，不要凭文件名或标题猜测。'
           + '若你收到的内容里没有图片，说明当前图片分析策略为「先 OCR」或模型不支持视觉——'
