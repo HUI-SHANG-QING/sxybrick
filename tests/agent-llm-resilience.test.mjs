@@ -446,7 +446,10 @@ test('get_weak_cards：同样补上 id 与背面摘要（否则模型无法引�
   await review(card.id, 0);
   const tool = toolRegistry.get('get_weak_cards');
   const r = await tool.execute({ limit: 10, minFail: 1 });
-  const row = r.data.find((x) => x.id === card.id) || r.data[0];
+  // round74：列表类工具统一为 { items, total, offset, hasMore }（分页要能翻页 + 能判断是否截断）
+  assert.ok(Array.isArray(r.data.items), '列表类工具应返回 { items, total, hasMore }');
+  assert.equal('offset' in tool.parameters, true, '必须支持 offset 翻页');
+  const row = r.data.items.find((x) => x.id === card.id) || r.data.items[0];
   assert.ok(row?.id, '必须返回 id（否则无法跟进 get_card_detail）');
   assert.equal(row.back, '弱卡背面');
   await db.cards.clear();

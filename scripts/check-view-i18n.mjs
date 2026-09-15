@@ -269,10 +269,51 @@ function lstatSyncSafe(abs) {
  * 注：若某个 description 文本里恰好出现 "execute:" 字样，挖空会提前结束（fail-open：宁可多报，不漏报）。
  */
 function maskRegisterMetadata(src) {
-  return src.replace(
+  let out = src.replace(
     /(toolRegistry\.register\(\{)([\s\S]*?)(?=(?:async\s+)?execute\s*[:(])/g,
     (m, head, body) => head + blankKeepNewlines(body),
   );
+  return maskSharedParamMaps(out);
+}
+
+/**
+ * 挖空「供多个工具共用的参数说明表」——`const PAGING_PARAMS = {...}` 这类 `*_PARAMS` 常量。
+ *
+ * round74：它与 register 内的 `parameters` 是**同一类文本**（发给模型的参数契约、永不翻译），
+ * 只是声明位置在 register 窗口之外。不豁免就会出现「同一段参数说明，写在 register 里放行、
+ * 抽成常量复用就报错」的荒谬局面，反而逼人把说明复制 6 份——正是这条规则想避免的。
+ * 括号配对必须**引号感知**：模板字面量里的 `${…}` 花括号会让朴素正则提前截断，
+ * 结果把对象的后半截暴露出来（实测把 `offset` 那行漏了出来）。
+ */
+function maskSharedParamMaps(src) {
+  let out = '', i = 0;
+  while (i < src.length) {
+    const m = /^const\s+[A-Z][A-Z0-9_]*_PARAMS\s*=/.exec(src.slice(i, i + 60));
+    if (m) {
+      const braceAt = src.indexOf('{', i + m[0].length);
+      if (braceAt >= 0) {
+        let depth = 0, k = braceAt, quote = null;
+        for (; k < src.length; k++) {
+          const ch = src[k];
+          if (quote) {
+            if (ch === '\\') { k++; continue; }
+            if (ch === quote) quote = null;
+            continue;
+          }
+          if (ch === "'" || ch === '"' || ch === '`') { quote = ch; continue; }
+          if (ch === '{') depth++;
+          else if (ch === '}') { depth--; if (depth === 0) break; }
+        }
+        if (depth === 0) {
+          out += src.slice(i, braceAt) + blankKeepNewlines(src.slice(braceAt, k + 1));
+          i = k + 1;
+          continue;
+        }
+      }
+    }
+    out += src[i]; i++;
+  }
+  return out;
 }
 
 function scanJsHardcoded(abs) {

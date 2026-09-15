@@ -24,7 +24,12 @@ import {
   createGraphEdge,
   listGraphEdges,
   listDocs,
+  getDoc,
   createDoc,
+  listNotes,
+  getNote,
+  listDailyPlan,
+  listDailyPlanSummary,
 } from '../../repo.js';
 import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards, getGraphDrivenReviewPlan, generateAutoPlan, getCalibration } from '../analytics.js';
 import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';
@@ -36,6 +41,53 @@ import { listDocFiles, getDocText } from '../../docs-lib.js';
 import { clipText, hasImageRef } from '../../utils/clip.js';
 import { docKindOf, docContentProfile } from '../../services/doc-vision.js';
 import { agentRegistry } from '../registry.js';
+import { t } from '../../i18n/index.js';
+
+// ---------- 列表类工具的统一分页（round74） ----------
+// 用户反复反馈「AI 看不到我的内容」。卡片域上一轮已修（search_cards 补 back + 翻页），
+// 本轮把同一套「**摘要 + id + 分页 + 详情引导**」四件套补齐到：笔记 / AI 文档 / 资料库 / 计划 / 每日任务 / 备忘。
+//
+// 为什么必须统一实现：这些列表工具此前各自 `slice(0, 30/50)` 且**没有翻页参数**——
+// 模型想取全也取不了，只能如实回答「我只看到 N 条」（用户视角 = AI 瞎了）。
+// 抽成一处后，「分页」只有一份实现；将来新增列表工具漏了分页，会在闸门里当场暴露。
+//
+// 命名族（读全文用 read_*，取结构化数据用 get_*）：
+//   read_doc（AI 文档）/ read_note（笔记）/ read_lib_doc（资料库文件）/ read_plan（学习计划）
+const LIST_DEFAULT_LIMIT = 20;
+const LIST_MAX_LIMIT = 100;
+
+/**
+ * 统一分页。返回必须同时给 `total` 与 `hasMore`：
+ * 只给 items 时模型无法判断「这是全部还是被截断」，就会据此断言"只有这些"。
+ */
+function pageOf(rows, args, { defaultLimit = LIST_DEFAULT_LIMIT, maxLimit = LIST_MAX_LIMIT } = {}) {
+  const arr = Array.isArray(rows) ? rows : [];
+  const limit = Math.min(Math.max(Math.trunc(Number(args?.limit)) || defaultLimit, 1), maxLimit);
+  const offset = Math.max(Math.trunc(Number(args?.offset)) || 0, 0);
+  const items = arr.slice(offset, offset + limit);
+  return { items, total: arr.length, offset, limit, hasMore: offset + items.length < arr.length };
+}
+
+/** 分页参数的统一说明（列表类工具共用；参数名与 pageOf 强绑定，改名要一起改） */
+const PAGING_PARAMS = {
+  limit: `number: 本次返回条数，默认 ${LIST_DEFAULT_LIMIT}，最大 ${LIST_MAX_LIMIT}`,
+  offset: 'number: 跳过前 N 条（翻页用），默认 0',
+};
+
+/** 按 id 或标题片段在列表里定位一条记录（读全文类工具共用，省掉每个工具各写一份模糊匹配） */
+function pickByIdOrTitle(rows, args, { idKey = 'id', titleKey = 'title' } = {}) {
+  const id = args?.id != null ? String(args.id) : '';
+  if (id) {
+    const hit = rows.find((r) => String(r?.[idKey]) === id);
+    if (hit) return hit;
+  }
+  const title = String(args?.title ?? args?.name ?? '').trim().toLowerCase();
+  if (title) {
+    return rows.find((r) => String(r?.[titleKey] || '').toLowerCase() === title)
+      || rows.find((r) => String(r?.[titleKey] || '').toLowerCase().includes(title));
+  }
+  return null;
+}
 
 // ---------- 1. 数据感知类（只读） ----------
 
@@ -66,33 +118,46 @@ toolRegistry.register({
   name: 'get_weak_cards',
   description: '获取当前最薄弱/最易错的卡片列表（按遗忘次数排序），用于定位复习重点。'
     + '返回项含 id、正面 60 字、背面 60 字、遗忘次数与 hasImage；'
-    + '要看完整正/背面或看图，需再用 get_card_detail 传该项 id。',
+    + '要看完整正/背面或看图，需再用 get_card_detail 传该项 id。'
+    + '结果可能被截断，用 offset 翻页继续取，不要断言"只有这些"。',
   parameters: {
-    limit: 'number: 返回数量，默认 10',
+    limit: 'number: 返回数量，默认 10，最大 50',
+    offset: 'number: 跳过前 N 条（翻页用），默认 0',
     minFail: 'number: 最小遗忘次数阈值，默认 2',
   },
   readsData: true,
   async execute(args) {
-    const limit = Number(args?.limit) || 10;
+    const limit = Math.min(Math.max(Math.trunc(Number(args?.limit)) || 10, 1), 50);
+    const offset = Math.max(Math.trunc(Number(args?.offset)) || 0, 0);
     const minFail = Number(args?.minFail) || 1;
-    const cards = await weakCards(limit, minFail);
+    // 分页：weakCards 只支持「取前 N 条」（无 count-all 接口），故取 offset+limit 条后本页切片。
+    // total 是**已知下界**（已取到的条数）；取满则视为"后面可能还有"——
+    // 宁可让模型多翻一页拿到空列表，也不谎报"只有这些"（后者会让它给出以偏概全的结论）。
+    const want = Math.min(offset + limit, 500);
+    const rows = await weakCards(want, minFail);
+    const cards = rows.slice(offset, offset + limit);
     return {
       ok: true,
-      data: cards.map((c) => ({
-        id: c.id,
-        subject: c.subject,
-        front: String(c.front).slice(0, 60),
-        // round71：补背面摘要（同 search_cards）——旧版只有正面，模型无法引用答案侧内容
-        back: String(c.back || '').slice(0, 60),
-        // 摘要只给前 60 字，但必须让模型知道「这张卡有图」——
-        // 否则图在背面 / 标记被截断时，模型完全不知道有图可看。
-        // 不在此保留完整图片引用：列表可能命中几十张卡，保留会把送图额度瞬间吃光。
-        hasImage: hasImageRef(c.front) || hasImageRef(c.back),
-        failCount: c.failCount,
-        marked: !!c.marked,
-        wrongReason: c.wrongReason || '',
-        level: c.level,
-      })),
+      data: {
+        total: rows.length,
+        offset,
+        hasMore: rows.length >= want && want < 500,
+        items: cards.map((c) => ({
+          id: c.id,
+          subject: c.subject,
+          front: String(c.front).slice(0, 60),
+          // round71：补背面摘要（同 search_cards）——旧版只有正面，模型无法引用答案侧内容
+          back: String(c.back || '').slice(0, 60),
+          // 摘要只给前 60 字，但必须让模型知道「这张卡有图」——
+          // 否则图在背面 / 标记被截断时，模型完全不知道有图可看。
+          // 不在此保留完整图片引用：列表可能命中几十张卡，保留会把送图额度瞬间吃光。
+          hasImage: hasImageRef(c.front) || hasImageRef(c.back),
+          failCount: c.failCount,
+          marked: !!c.marked,
+          wrongReason: c.wrongReason || '',
+          level: c.level,
+        })),
+      },
     };
   },
 });
@@ -409,12 +474,25 @@ toolRegistry.register({
 
 toolRegistry.register({
   name: 'list_memos',
-  description: '列出用户全部备忘录。',
-  parameters: {},
+  description: '列出用户全部四象限备忘录（内容 + 是否重要/紧急 + 记录时间）。'
+    + '备忘是短句，列表里直接给全文，不需要再取详情。'
+    + '结果可能被截断（total 大于返回条数），此时用 offset 翻页继续取，不要断言"只有这些"。',
+  parameters: { ...PAGING_PARAMS },
   readsData: true,
-  async execute() {
+  async execute(args) {
     const memos = await listMemos();
-    return { ok: true, data: { count: memos.length, items: memos.slice(0, 50) } };
+    const page = pageOf(memos, args);
+    return {
+      ok: true,
+      data: {
+        total: page.total, offset: page.offset, hasMore: page.hasMore,
+        items: page.items.map((m) => ({
+          id: m.id, text: String(m.text || ''),
+          important: !!m.important, urgent: !!m.urgent,
+          at: m.at || m.createdAt || 0,
+        })),
+      },
+    };
   },
 });
 
@@ -436,12 +514,112 @@ toolRegistry.register({
 
 toolRegistry.register({
   name: 'list_plans',
-  description: '列出全部学习计划（含状态 active/done/archived）。',
-  parameters: {},
+  description: '列出全部学习计划（标题 + 状态 active/done/archived + 正文摘要）。'
+    + '**概要不含完整正文**：要看某份计划的完整内容（阶段划分/每日任务/里程碑），'
+    + '必须再用 read_plan 传 id（或标题片段）获取；只看摘要会漏掉计划的具体安排。'
+    + '结果可能被截断（total 大于返回条数），此时用 offset 翻页继续取。',
+  parameters: { ...PAGING_PARAMS },
   readsData: true,
-  async execute() {
+  async execute(args) {
     const plans = await listPlans();
-    return { ok: true, data: { count: plans.length, items: plans } };
+    const page = pageOf(plans, args);
+    return {
+      ok: true,
+      data: {
+        total: page.total, offset: page.offset, hasMore: page.hasMore,
+        items: page.items.map((p) => ({
+          id: p.id, title: p.title, status: p.status,
+          // 摘要让模型先判断"哪份计划与问题相关"，正文原长一并给出，
+          // 它据此决定是否值得再调 read_plan 取全文（既不"看不到"，也不把上下文塞爆）。
+          preview: clipText(String(p.content || '').replace(/\s+/g, ' '), 120),
+          contentChars: String(p.content || '').length,
+          updatedAt: p.updatedAt,
+        })),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'read_plan',
+  description: '读取一份学习计划的**完整正文**（Markdown：阶段划分 / 每日任务 / 里程碑）。'
+    + '参数二选一：id（来自 list_plans，最可靠）或 title（按标题模糊匹配）。'
+    + '用户问「我的计划具体是怎么安排的」时用它，不要只看摘要就作答。',
+  parameters: {
+    id: 'string: 计划 id（来自 list_plans）',
+    title: 'string: 计划标题或片段（模糊匹配）',
+    maxChars: 'number: 正文最多返回多少字，默认 3000',
+  },
+  readsData: true,
+  async execute(args) {
+    const plans = await listPlans();
+    if (!plans.length) return { ok: false, error: '还没有任何学习计划。可先用 auto_generate_plan 生成、create_plan 持久化。' };
+    const target = pickByIdOrTitle(plans, args);
+    if (!target) {
+      const titles = plans.slice(0, 20).map((p) => p.title).join('、');
+      return { ok: false, error: `未找到匹配的计划。现有计划：${titles}。可先用 list_plans 查看完整列表。` };
+    }
+    const content = String(target.content || '');
+    const maxChars = Math.min(Math.max(Math.trunc(Number(args?.maxChars)) || 3000, 200), 20000);
+    return {
+      ok: true,
+      data: {
+        id: target.id, title: target.title, status: target.status,
+        contentChars: content.length,
+        truncated: content.length > maxChars,
+        content: clipText(content, maxChars),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'list_daily_tasks',
+  description: '查看用户的「每日规划」——这是每天**实际要做的事**，与 list_plans 的长期学习计划不同。'
+    + '传 date（YYYY-MM-DD）看某一天：返回当天口述原文 + 任务明细（标题/类型/四象限/预估时长/开始时刻/状态/完成备注）。'
+    + '不传 date 则返回最近 days 天（默认 7）的每日汇总（总任务数 / 已完成数），用于了解执行趋势。'
+    + '用户问「我今天要做什么」「这周计划完成得怎么样」时必须用它，不要凭空推测。',
+  parameters: {
+    date: 'string: 日期 YYYY-MM-DD（可选；缺省返回最近 N 天的汇总）',
+    days: 'number: 不带 date 时汇总最近多少天，默认 7，最大 60',
+    status: 'string: 只看某状态的任务：pending|done|partial|skipped（可选）',
+    ...PAGING_PARAMS,
+  },
+  readsData: true,
+  async execute(args) {
+    const date = String(args?.date || '').trim();
+    if (!date) {
+      const days = Math.min(Math.max(Math.trunc(Number(args?.days)) || 7, 1), 60);
+      const rows = await listDailyPlanSummary(days);
+      return { ok: true, data: { mode: 'summary', days, total: rows.length, hasMore: false, items: rows } };
+    }
+    // 日期格式必须先校验：脏值会让 where('date').equals() 静默返回空，
+    // 模型会据此误报「那天没有任何计划」——比报错更糟（用户会以为记录丢了）。
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { ok: false, error: t('agent.toolMsg.badDate', undefined, { value: date }) };
+    }
+    const found = await listDailyPlan(date);
+    if (!found) {
+      return { ok: true, data: { mode: 'day', date, total: 0, items: [], note: t('agent.toolMsg.noPlanThatDay') } };
+    }
+    const all = (found.tasks || []).filter((t) => (args?.status ? t.status === args.status : true));
+    const page = pageOf(all, args);
+    return {
+      ok: true,
+      data: {
+        mode: 'day', date,
+        planId: found.plan?.id || '', planStatus: found.plan?.status || '',
+        rawInput: clipText(String(found.plan?.rawInput || ''), 500),
+        total: page.total, offset: page.offset, hasMore: page.hasMore,
+        items: page.items.map((t) => ({
+          id: t.id, title: t.title, type: t.type || '', subject: t.subject || '',
+          important: !!t.important, urgent: !!t.urgent, quadrant: t.quadrant || '',
+          estimatedMinutes: Number(t.estimatedMinutes) || 0,
+          scheduledHour: Number.isFinite(Number(t.scheduledHour)) ? Number(t.scheduledHour) : null,
+          status: t.status, completionNote: String(t.completionNote || ''),
+        })),
+      },
+    };
   },
 });
 
@@ -585,13 +763,135 @@ toolRegistry.register({
 });
 
 toolRegistry.register({
-  name: 'list_docs',
-  description: '列出全部 AI 文档（标题/类型/更新时间）。',
-  parameters: {},
+  name: 'list_notes',
+  description: '列出用户的**笔记**（区别于备忘：笔记是含标题/分类/标签/双向链接的厚笔记，Markdown 正文）。'
+    + '支持按关键词 q、分类 category、标签 tags 过滤。返回标题 + 正文摘要 + 分类标签 + 是否带图。'
+    + '**概要不含完整正文**：要读某一篇的完整内容，必须再用 read_note 传 id 获取。'
+    + '结果可能被截断（total 大于返回条数），此时用 offset 翻页继续取，不要断言"只有这些"。',
+  parameters: {
+    q: 'string: 关键词（搜标题/正文/分类/标签）',
+    category: 'string: 限定分类（可选）',
+    tags: 'string: 逗号分隔标签（可选，命中任一即可）',
+    ...PAGING_PARAMS,
+  },
   readsData: true,
-  async execute() {
+  async execute(args) {
+    const tags = args?.tags ? String(args.tags).split(',').map((x) => x.trim()).filter(Boolean) : [];
+    const notes = await listNotes({ q: args?.q || '', category: args?.category || '', tags });
+    const page = pageOf(notes, args);
+    return {
+      ok: true,
+      data: {
+        total: page.total, offset: page.offset, hasMore: page.hasMore,
+        items: page.items.map((n) => ({
+          id: n.id, title: n.title, category: n.category || '', tags: n.tags || [],
+          preview: clipText(String(n.content || '').replace(/\s+/g, ' '), 100),
+          contentChars: String(n.content || '').length,
+          hasImage: hasImageRef(n.content),
+          linkedCardIds: Array.isArray(n.linkedCardIds) ? n.linkedCardIds.length : 0,
+          updatedAt: n.updatedAt,
+        })),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'read_note',
+  description: '读取一篇笔记的**完整正文**（Markdown，可能含 [[双向链接]] 与图片引用）。'
+    + '参数二选一：id（来自 list_notes，最可靠）或 title（按标题模糊匹配）。'
+    + '用户问「我笔记里是怎么写的」时用它，不要凭标题猜内容。',
+  parameters: {
+    id: 'string: 笔记 id（来自 list_notes）',
+    title: 'string: 笔记标题或片段（模糊匹配）',
+    maxChars: 'number: 正文最多返回多少字，默认 2000',
+  },
+  readsData: true,
+  async execute(args) {
+    const notes = await listNotes();
+    if (!notes.length) return { ok: false, error: t('agent.toolMsg.noNotes') };
+    const target = pickByIdOrTitle(notes, args);
+    if (!target) {
+      const titles = notes.slice(0, 20).map((n) => n.title).join('、');
+      return { ok: false, error: `未找到匹配的笔记。现有笔记：${titles}。可先用 list_notes 查看完整列表。` };
+    }
+    // 同 read_doc：用 getNote 取当前行，保证读到的是最新正文与最新的双向链接
+    const row = (await getNote(target.id).catch(() => null)) || target;
+    const content = String(row.content || '');
+    const maxChars = Math.min(Math.max(Math.trunc(Number(args?.maxChars)) || 2000, 200), 20000);
+    return {
+      ok: true,
+      data: {
+        id: row.id, title: row.title, category: row.category || '', tags: row.tags || [],
+        linkedCardIds: row.linkedCardIds || [],
+        contentChars: content.length,
+        truncated: content.length > maxChars,
+        content: clipText(content, maxChars),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'list_docs',
+  description: '列出全部 AI 文档（AI 生成的总结/笔记/计划稿等：标题 + 类型 + 正文摘要 + 标签 + 更新时间）。'
+    + '**概要不含完整正文**：要读某一篇的完整内容，必须再用 read_doc 传 id（或标题片段）获取。'
+    + '结果可能被截断（total 大于返回条数），此时用 offset 翻页继续取，不要断言"只有这些"。',
+  parameters: { ...PAGING_PARAMS },
+  readsData: true,
+  async execute(args) {
     const docs = await listDocs();
-    return { ok: true, data: { count: docs.length, items: docs.map(d => ({ id: d.id, title: d.title, type: d.type, updatedAt: d.updatedAt })) } };
+    const page = pageOf(docs, args);
+    return {
+      ok: true,
+      data: {
+        total: page.total, offset: page.offset, hasMore: page.hasMore,
+        items: page.items.map((d) => ({
+          id: d.id, title: d.title, type: d.type, tags: d.tags || [],
+          preview: clipText(String(d.content || '').replace(/\s+/g, ' '), 80),
+          contentChars: String(d.content || '').length,
+          hasImage: hasImageRef(d.content),
+          updatedAt: d.updatedAt,
+        })),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'read_doc',
+  description: '读取一篇 AI 文档的**完整正文**（Markdown，正文里可能含图片引用）。'
+    + '参数二选一：id（来自 list_docs，最可靠）或 title（按标题模糊匹配）。'
+    + '用户问「那篇文档写了什么」时用它，不要凭标题猜内容，也不要回答"我看不到"。',
+  parameters: {
+    id: 'string: 文档 id（来自 list_docs）',
+    title: 'string: 文档标题或片段（模糊匹配）',
+    maxChars: 'number: 正文最多返回多少字，默认 2000',
+  },
+  readsData: true,
+  async execute(args) {
+    const docs = await listDocs();
+    if (!docs.length) return { ok: false, error: '还没有任何 AI 文档。可先用 create_doc 新建，或让用户到「AI 助手」页生成。' };
+    const target = pickByIdOrTitle(docs, args);
+    if (!target) {
+      const titles = docs.slice(0, 20).map((d) => d.title).join('、');
+      return { ok: false, error: `未找到匹配的文档。现有文档：${titles}。可先用 list_docs 查看完整列表。` };
+    }
+    // 定位到后用 getDoc 再取一次当前行：列表可能是稍早的快照，
+    // 而「读全文」必须给最新内容（否则用户刚改了文档，AI 还在念旧版）。
+    const row = (await getDoc(target.id).catch(() => null)) || target;
+    const content = String(row.content || '');
+    const maxChars = Math.min(Math.max(Math.trunc(Number(args?.maxChars)) || 2000, 200), 20000);
+    return {
+      ok: true,
+      data: {
+        id: row.id, title: row.title, type: row.type, tags: row.tags || [],
+        contentChars: content.length,
+        truncated: content.length > maxChars,
+        content: clipText(content, maxChars),
+        note: '以上是该文档正文。正文里形如 sxy-img:// 的图片引用会自动作为附图发送给多模态模型；若当前策略为「先 OCR」则已转成文字，未看到图不等于没有图。',
+      },
+    };
   },
 });
 
@@ -1018,27 +1318,35 @@ toolRegistry.register({
   // 命名注意：既有 `list_docs` 是「列 AI 文档」（repo.docs），本工具是「列资料库文件」（docFiles）。
   // 二者曾是同名 → 后注册者覆盖前者，AI 文档列表功能被静默顶掉（2026-09-14 审计发现）。
   // 现统一加 `_lib_` 前缀（library = 资料库），并把 read 也改名成 read_lib_doc 成对，
-  // 顺便把 `read_doc` 这个名字让给未来的「读 AI 文档」工具，避免再次撞名。
+  // 顺便把 `read_doc` 这个名字让给「读 AI 文档」工具——round74 已兑现（见上方 read_doc 注册）。
   name: 'list_lib_docs',
-  description: '列出用户「资料库」里的文件（PDF/图片/文档）：名称、类型、页数、是否含可提取文字层。'
-    + '用户提到「我上传的资料/课件/讲义」时先调它了解有什么，再用 read_doc 读具体内容。',
-  parameters: {},
+  description: '列出用户「资料库」里的文件（PDF/图片/文档）：名称、类型、页数、是否有可提取文字层、文字摘要。'
+    + '用户提到「我上传的资料/课件/讲义」时先调它了解有什么，再用 **read_lib_doc** 读具体内容。'
+    + '注意：读资料库文件用 read_lib_doc，读 AI 文档用 read_doc，别混。'
+    + '结果可能被截断（total 大于返回条数），此时用 offset 翻页继续取，不要断言"只有这些"。',
+  parameters: { ...PAGING_PARAMS },
   readsData: true,
-  async execute() {
+  async execute(args) {
     const files = await listDocFiles();
+    // 先分页、再取文字：保持「每次只读一页的文字」这个并发上界（原实现是 slice(0,50)）。
+    const page = pageOf(files, args);
     // round48：并发取「是否有文字层」——此前 `for + await getDocText` 是串行 N+1，
     // 50 份资料 = 50 次顺序往返。这里只读 docTexts 的 text 字段，并发安全。
-    const items = await Promise.all(files.slice(0, 50).map(async (f) => {
-      const text = await getDocText(f.id).catch(() => '');
+    const items = await Promise.all(page.items.map(async (f) => {
+      const text = String((await getDocText(f.id).catch(() => '')) || '').trim();
       return {
         docId: f.id,
         name: f.name,
         kind: docKindOf(f),
         pageCount: Number(f.pageCount) || 0,
-        hasTextLayer: !!String(text || '').trim(),
+        hasTextLayer: !!text,
+        // 文字摘要：让模型先判断「哪份资料与问题相关」，再决定要不要 read_lib_doc 取全文/看图。
+        // 没有摘要时它只能凭文件名猜，很容易答"我看不到你的资料内容"。
+        textPreview: clipText(text.replace(/\s+/g, ' '), 60),
+        textChars: text.length,
       };
     }));
-    return { ok: true, data: { total: files.length, items } };
+    return { ok: true, data: { total: page.total, offset: page.offset, hasMore: page.hasMore, items } };
   },
 });
 

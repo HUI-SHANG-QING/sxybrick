@@ -241,6 +241,15 @@ const zh = {
       canceled: 'AI 请求已取消',
       timeoutPartial: '> ⏱️ 本次回答因超时中断，以上为**已生成的部分**。可把问题拆小（例如分批列卡片）后重试。',
     },
+    // 工具返回给模型的提示/错误（src/agent/tools/index.js）。
+    // 为什么进字典而不是硬编码：llm 不可达时 buildLocalAnswer 会把工具的错误/提示
+    // 原样渲染给用户看（「工具 X 执行失败」+ 原因），所以它确实会到用户屏幕上，
+    // 属于需要可本地化的文案（i18n 第三道闸按「短中文字符串 = 疑似 UI 文案」判定，一致）。
+    toolMsg: {
+      badDate: 'date 格式应为 YYYY-MM-DD，收到「{value}」。',
+      noPlanThatDay: '这一天没有规划记录。',
+      noNotes: '还没有任何笔记，请让用户在「笔记」页新建后再让我读。',
+    },
     // 有工具数据但 LLM 合成失败时的本地直出（src/agent/local-answer.js）
     localAnswer: {
       notice: '> ⚠️ **AI 合成回答暂不可用**（网络或服务异常）。以下是你本地数据的直接结果，未经模型改写。',
@@ -477,6 +486,12 @@ const en = {
       timeoutError: 'AI request timed out (no new data for >{n}s)',
       canceled: 'AI request was canceled',
       timeoutPartial: '> ⏱️ This answer was cut off by a timeout; the above is the part already generated. Try narrowing the question (e.g. list cards in batches) and retry.',
+    },
+    // Tool-side notices/errors surfaced to the model (src/agent/tools/index.js)
+    toolMsg: {
+      badDate: 'date must be in YYYY-MM-DD format; received "{value}".',
+      noPlanThatDay: 'No plan was recorded for this day.',
+      noNotes: 'No notes yet — ask the user to create one on the Notes page, then I can read it.',
     },
     // Local fallback answer built from tool results when LLM synthesis fails
     localAnswer: {
