@@ -886,8 +886,8 @@ async function rescueAll() {
             <!-- AI 拆分预览 -->
             <div v-if="aiDeck.length" class="ai-deck-preview">
               <div v-for="(c, i) in aiDeck" :key="i" class="ai-deck-card">
-                <div class="ai-deck-front"><span class="ai-deck-tag">{{ c.difficulty }}</span>{{ c.front }}</div>
-                <div class="ai-deck-back">{{ c.back }}</div>
+                <div class="ai-deck-front"><span class="ai-deck-tag">{{ c.difficulty }}</span><MarkdownRenderer :content="c.front" /></div>
+                <div class="ai-deck-back"><MarkdownRenderer :content="c.back" /></div>
               </div>
             </div>
           </template>
@@ -1201,7 +1201,7 @@ async function rescueAll() {
 .ai-deck-preview { margin-top: 12px; max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; background: var(--code-inline); border-radius: 8px; }
 .ai-deck-card { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: var(--panel); }
 .ai-deck-front { font-weight: 600; font-size: 13px; line-height: 1.5; }
-.ai-deck-back { font-size: 12px; color: var(--ink-2); margin-top: 4px; line-height: 1.5; white-space: pre-wrap; }
+.ai-deck-back { font-size: 12px; color: var(--ink-2); margin-top: 4px; line-height: 1.5; }
 .ai-deck-tag { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 3px; background: var(--code-inline); color: var(--ink-2); margin-right: 6px; }
 
 /* D3.3 关联笔记面板（卡片预览底部） */

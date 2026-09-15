@@ -172,8 +172,8 @@ onMounted(applyRouteId);
           <div v-if="genLoading" class="hint" style="text-align:center;padding:24px">{{ t('views.docs.generating') }}</div>
           <div v-else class="gen-list">
             <div v-for="(c, i) in genCards" :key="i" class="gen-item">
-              <div class="gen-q">{{ c.front }}</div>
-              <div class="gen-a">{{ c.back }}</div>
+              <div class="gen-q"><MarkdownRenderer :content="c.front" /></div>
+              <div class="gen-a"><MarkdownRenderer :content="c.back" /></div>
             </div>
           </div>
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">

@@ -443,9 +443,9 @@ onMounted(async () => {
                 <div class="gen-main">
                   <div class="gen-q">
                     <span class="badge" :class="'t-' + c.type">{{ c.type === 'cloze' ? t('views.aiAssistant.typeCloze') : c.type === 'choice' ? t('views.aiAssistant.typeChoice') : t('views.aiAssistant.typeBasic') }}</span>
-                    {{ c.front }}
+                    <MarkdownRenderer class="gen-q-md" :content="c.front" />
                   </div>
-                  <div class="gen-a">{{ c.back }}</div>
+                  <div class="gen-a"><MarkdownRenderer :content="c.back" /></div>
                   <div class="gen-meta">
                     <span :class="['sc', c.score?.overall >= 80 ? 's-hi' : c.score?.overall >= 60 ? 's-mid' : 's-low']">{{ t('views.aiAssistant.deckQuality') }} {{ c.score?.overall ?? '-' }}</span>
                     <span v-if="c.subject">· {{ c.subject }}</span>
@@ -619,7 +619,8 @@ onMounted(async () => {
 .gen-item.low { opacity: 0.7; }
 .gen-item input { margin-top: 4px; flex: none; }
 .gen-main { flex: 1; min-width: 0; }
-.gen-q { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.gen-q { font-weight: 600; display: flex; align-items: flex-start; gap: 6px; }
+.gen-q-md { flex: 1; min-width: 0; }
 .gen-a { color: var(--ink-2); font-size: 13px; margin-top: 2px; word-break: break-word; }
 .gen-meta { font-size: 11px; color: var(--ink-2); margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .badge { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: var(--code-inline); color: var(--ink-2); flex: none; }
