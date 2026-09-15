@@ -6,6 +6,7 @@ import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAssetHealth, getNetWorth, getSourceOverview } from '../agent/analytics.js';
+import { getStats } from '../repo.js';
 import { getReplyStats } from '../agent/reply.js';
 import { deleteCard } from '../repo.js';
 import { db } from '../db.js';
@@ -19,6 +20,10 @@ const aiHealth = ref(null);
 const networth = ref(null);
 const sources = ref(null); // { bySource, variantCount, untraced, totalSources }
 const busy = ref(false);
+// round76：把「可疑复习记录」搬到界面上。computeStats 早就在算 stats.dirtyReviews
+// （reviewedAt 非有限 / rating 越界 → 已被剔除、不参与统计），但只能在代码里看到，
+// 用户无从知道「我的复习数据里有没有坏行」——数据异常必须可见，不能静默。
+const stats = ref(null);
 
 // P2-24 一键修复：统计可安全自动清理的项数（重复/僵尸/孤儿图片），用于按钮可用性
 // AI 回复健康：兜底率 <=10% 绿，>10% 红；无数据灰
@@ -50,8 +55,8 @@ function openOrphans() { jumpCards({ orphan: '1', expandAll: '1' }); }
 async function load() {
   busy.value = true;
   try {
-    const [h, nw, src] = await Promise.all([getAssetHealth(), getNetWorth(), getSourceOverview()]);
-    health.value = h; networth.value = nw; sources.value = src;
+    const [h, nw, src, st] = await Promise.all([getAssetHealth(), getNetWorth(), getSourceOverview(), getStats()]);
+    health.value = h; networth.value = nw; sources.value = src; stats.value = st;
     aiHealth.value = getReplyStats();
     try { T.healthScan(); } catch {}
   }
@@ -140,6 +145,7 @@ onMounted(load);
       <div class="stat clickable" :title="t('views.health.statOrphanTitle')" @click="openOrphans"><div class="num" :style="{ color: health.orphanImageCount ? 'var(--amber)' : 'var(--green)' }">{{ health.orphanImageCount }}</div><div class="hint">{{ t('views.health.statOrphanImages') }}</div></div>
       <div class="stat clickable" :title="t('views.health.statUntaggedTitle')" @click="openUntagged"><div class="num">{{ health.untaggedCount }}</div><div class="hint">{{ t('views.health.statUntagged') }}</div></div>
       <div class="stat" :title="aiHealthTitle"><div class="num" :style="{ color: aiHealthColor }">{{ aiHealth && aiHealth.total ? t('views.health.aiHealthNum', undefined, { rate: aiHealth.fallbackRate }) : '—' }}</div><div class="hint">{{ t('views.health.aiHealthTitle') }}</div></div>
+      <div v-if="stats" class="stat" :title="t('views.health.statDirtyReviewsTitle')"><div class="num" :style="{ color: stats.dirtyReviews ? 'var(--amber)' : 'var(--green)' }">{{ stats.dirtyReviews }}</div><div class="hint">{{ t('views.health.statDirtyReviews') }}</div></div>
     </div>
 
     <!-- 知识净值（资产负债表） -->

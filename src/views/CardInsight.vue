@@ -82,6 +82,7 @@ import { derivePrereqPlan, autoBuildGraph } from '../algorithms/graphAuto.js';
 import { prioritizeForExam } from '../algorithms/scheduling.js';
 import { estimateInitialStability } from '../algorithms/pretest.js';
 import { t } from '../i18n/index.js';
+import { dateKeyToTs } from '../utils/time.js';
 
 const cards = ref([]);
 const subjects = ref([]);
@@ -100,7 +101,9 @@ const ptSaved = ref(false);
 const ptSavedS = ref('');
 const ptDetailOpen = ref(false);
 
-const examTs = computed(() => examDate.value ? new Date(examDate.value).getTime() : 0);
+// round76：考试日期是 'YYYY-MM-DD'，必须按本地零点解析——裸 new Date 会当 UTC 零点，
+// 东八区读成当天 08:00，倒计时少 8 小时（跨天时整整少一天）。
+const examTs = computed(() => dateKeyToTs(examDate.value));
 
 // 考试日期落库（db.meta.examAt）：供复习页/调度器跨页读取（考试窗口压缩 + 紧迫度标注）
 // 审计 P1-1（round36）：补 updatedAt——合并侧（sync.js/hub.js）按「updatedAt 谁新听谁」

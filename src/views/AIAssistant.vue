@@ -119,6 +119,9 @@ async function send() {
   if (currentChat.value.messages.filter(m => m.role === 'user').length === 1) currentChat.value.title = text.slice(0, 18);
   loading.value = true;
   scroll();
+  // round76：占位消息下标要在 try 外声明——**错误分支也要用它**（把报错写进那个占位气泡，
+  // 而不是留下一个空气泡再追加一条错误消息，界面会出现"空的 AI 回复 + 一条报错"两条）。
+  let replyIdx = -1;
   try {
     // ⚠️ 必须用 buildFullContext(query) 而不是 buildContext()：
     // 后者只给「统计面板」（卡片数量/掌握度/标签这类目录级信息），模型看不到任何正文，
@@ -126,20 +129,39 @@ async function send() {
     // buildFullContext = buildStudyContext + buildRAGContext(query)，会把与问题相关的
     // 卡片/文档**原文片段**一并带上（图片引用也完整保留，可被多模态富集）。
     const [ctx, mem] = await Promise.all([buildFullContext(text), buildMemoryText()]);
+    // round76【打字机】：流式已全链路打通（llm.js 支持 onToken），但界面一直等整段写完才显示，
+    // 长回答时用户只看到转圈。这里先插一条空的助手消息作为占位，再让增量逐字写进去。
+    // ⚠️ 请求消息必须用**推入占位之前**的快照，否则空消息会被当成历史发给模型。
+    const history = [...currentChat.value.messages];
+    currentChat.value.messages.push({ role: 'assistant', content: '' });
+    replyIdx = currentChat.value.messages.length - 1;
+    let lastScrolled = 0;
     const reply = await chatAI([
       { role: 'system', content: SYSTEM_PROMPT + '\n\n' + (mem ? mem + '\n\n' : '') + ctx },
-      ...currentChat.value.messages,
-    ]);
+      ...history,
+    ], {
+      stream: true,
+      // 增量写入占位消息；滚动做轻量节流（每 60 字一次，避免逐字 nextTick 抖动）
+      onToken: (_delta, full) => {
+        currentChat.value.messages[replyIdx].content = full;
+        if (full.length - lastScrolled >= 60) { lastScrolled = full.length; scroll(); }
+      },
+    });
     // 空白回复兜底：O4 收口到 stringifyReply（统一口径 + 计入 AI 回复质量监控 getReplyStats）
     const final = stringifyReply(reply, t('views.aiAssistant.noContent'));
     try { T.aiCall('chat', final.length); } catch {}
-    currentChat.value.messages.push({ role: 'assistant', content: final });
+    // 用最终文本覆盖占位（流式可能被超时截断，stringifyReply 会兜底成提示文案）
+    currentChat.value.messages[replyIdx].content = final;
     if (voiceOn.value) speak(final);
     const n = await extractMemories(text, final);
     if (n > 0) toast(t('views.aiAssistant.memSaved', undefined, { n }), 'success');
   } catch (e) {
     toast(e.message, 'error');
-    currentChat.value.messages.push({ role: 'assistant', content: t('views.aiAssistant.chatError', undefined, { msg: e.message }) });
+    const errText = t('views.aiAssistant.chatError', undefined, { msg: e.message });
+    const ph = replyIdx >= 0 ? currentChat.value.messages[replyIdx] : null;
+    // 空气泡就直接写报错（复用气泡），否则再补一条
+    if (ph && !String(ph.content || '').trim()) ph.content = errText;
+    else currentChat.value.messages.push({ role: 'assistant', content: errText });
   } finally {
     loading.value = false;
     await persist();

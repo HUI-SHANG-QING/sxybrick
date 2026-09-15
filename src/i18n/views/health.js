@@ -14,6 +14,8 @@ export const zh = {
   statZombies: '僵尸卡',
   statOrphanImages: '孤儿图片',
   statUntagged: '无标签卡',
+  statDirtyReviews: '可疑复习记录',
+  statDirtyReviewsTitle: '复习时间戳非法或自评越界的记录（已被剔除、不参与统计）。通常来自损坏的导入包或手改数据；正常使用下应为 0。',
 
   statDupTitle: '查看全部重复卡',
   statZombieTitle: '查看僵尸卡',
@@ -113,6 +115,8 @@ export const en = {
   statZombies: 'Zombie cards',
   statOrphanImages: 'Orphan images',
   statUntagged: 'Untagged cards',
+  statDirtyReviews: 'Suspect reviews',
+  statDirtyReviewsTitle: 'Reviews with an invalid timestamp or out-of-range rating (already excluded from stats). Usually caused by a corrupted import or manual edits; should be 0 in normal use.',
 
   statDupTitle: 'View all duplicate cards',
   statZombieTitle: 'View zombie cards',

@@ -8,7 +8,8 @@ import { restoreFromTrash, pruneTrash, TRASH_TTL_DAYS } from '../repo.js';
 import { confirmDialog } from '../utils/confirm.js';
 import { toast } from '../utils/toast.js';
 import { t } from '../i18n/index.js';
-import { fmtLocaleDateTime } from '../utils/locale-date.js';
+import { fmtLocaleDateTime, fmtLocaleDate } from '../utils/locale-date.js';
+import { dateKeyToTs } from '../utils/time.js';
 
 const TRASH_DAYS = TRASH_TTL_DAYS; // TTL 唯一来源：repo.js（避免两处常量漂移）
 function kindLabel(k) {
@@ -52,7 +53,9 @@ function previewOf(t) {
   // 每日计划：显示日期 + 任务数
   if (t.kind === 'dailyPlan') {
     const n = (d._tasks || []).length;
-    const dateStr = d.date ? new Date(d.date).toLocaleDateString() : '';
+    // round76：同 CardInsight —— 日期串按本地零点解析，否则跨天显示会串到前一天
+    const dayTs = dateKeyToTs(d.date);
+    const dateStr = dayTs ? fmtLocaleDate(dayTs) : '';
     return dateStr ? `${dateStr}（${n} 个任务）` : `${n} 个任务`;
   }
   return (JSON.stringify(d) || '').slice(0, 90);

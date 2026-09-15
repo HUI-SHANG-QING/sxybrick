@@ -23,6 +23,27 @@ export function dateKey(ts = Date.now()) {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
+/**
+ * 'YYYY-MM-DD' 日期串 → **本地零点**时间戳（round76）。
+ *
+ * 为什么不能直接 `new Date('2026-12-20')`：按 ISO 规范，**裸日期串被当作 UTC 零点**，
+ * 在东八区读出来是当天 08:00 —— 于是：
+ *   · 考试倒计时少算 8 小时（跨天时会整整少一天）；
+ *   · 按日期分桶 / 排序会把当天算到前一天。
+ * 本函数统一按「本地零点」解析，并对不存在的日期（如 2026-02-30，JS 会顺延到 3 月 2 日）
+ * 做**回环校验**——反查 dateKey 不一致即判非法，返回 0。
+ *
+ * @param {string} key 'YYYY-MM-DD'
+ * @returns {number} 本地零点时间戳；非法输入返回 0（调用方据此走兜底，不抛错）
+ */
+export function dateKeyToTs(key) {
+  const s = String(key ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return 0;
+  const ts = new Date(`${s}T00:00:00`).getTime();
+  if (!Number.isFinite(ts)) return 0;
+  return dateKey(ts) === s ? ts : 0;
+}
+
 /** 把 Date 转为当日分钟数 0..1439 */
 export function toMinutesOfDay(d) {
   if (!d) return NaN;

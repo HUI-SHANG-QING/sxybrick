@@ -5,7 +5,7 @@
 // 于是 21:30 的提醒在早上 9:05 就触发，并占掉当日唯一名额，真正的提醒永不触发。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { toMinutesOfDay, parseHm, hasReached, formatHm } from '../src/utils/time.js';
+import { toMinutesOfDay, parseHm, hasReached, formatHm, dateKeyToTs } from '../src/utils/time.js';
 
 const at = (h, m) => new Date(2026, 7, 29, h, m, 0, 0);
 
@@ -97,4 +97,45 @@ test('formatHm: 往返一致且补零', () => {
   assert.equal(formatHm(parseHm('21:30')), '21:30', 'parse → format 往返一致');
   assert.equal(formatHm(parseHm('9:05')), '09:05', '单位数小时应补零');
   assert.equal(formatHm(NaN), '');
+});
+
+// ---------- dateKeyToTs（round76：日期串口径统一）----------
+//
+// 被修的 bug：`new Date('2026-12-20')` 按 ISO 规范是 **UTC 零点**，东八区读出来是当天 08:00
+// → 考试倒计时少 8 小时（跨天少一天）、按日期分桶会算到前一天。全库统一走 dateKeyToTs（本地零点）。
+
+test('dateKeyToTs: 日期串按**本地零点**解析（不是 UTC 零点）', () => {
+  const ts = dateKeyToTs('2026-12-20');
+  const d = new Date(ts);
+  assert.equal(d.getFullYear(), 2026);
+  assert.equal(d.getMonth(), 11);
+  assert.equal(d.getDate(), 20);
+  assert.equal(d.getHours(), 0, '必须是本地零点');
+  // 非 UTC 时区下，与裸 new Date 的结果必然不同——这正是被修的偏差
+  if (new Date().getTimezoneOffset() !== 0) {
+    assert.notEqual(new Date('2026-12-20').getTime(), ts, '裸解析是 UTC 零点，两者应不同');
+  }
+});
+
+test('dateKeyToTs: 不存在的日期被回环校验拦下（不静默顺延）', () => {
+  // '2026-02-30' 会被 JS 顺延成 3 月 2 日——若放行，用户填错日期会得到「看起来正常」的错误时间
+  assert.equal(dateKeyToTs('2026-02-30'), 0);
+  assert.equal(dateKeyToTs('2026-13-01'), 0);
+  assert.equal(dateKeyToTs('2026-02-29'), 0, '2026 不是闰年');
+  assert.ok(dateKeyToTs('2028-02-29') > 0, '2028 是闰年，应放行');
+});
+
+test('dateKeyToTs: 非法/空输入返回 0，不抛错', () => {
+  for (const bad of ['', '   ', null, undefined, '2026/12/20', '2026-12', 20261220, {}, 'abc']) {
+    assert.equal(dateKeyToTs(bad), 0, `${JSON.stringify(bad)} 应返回 0`);
+  }
+});
+
+test('dateKeyToTs 与 dateKey 往返一致（本地零点 → 同一天）', () => {
+  for (const k of ['2026-01-01', '2026-06-15', '2026-12-31']) {
+    const ts = dateKeyToTs(k);
+    const d = new Date(ts);
+    const back = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    assert.equal(back, k, `${k} 往返应一致`);
+  }
 });
