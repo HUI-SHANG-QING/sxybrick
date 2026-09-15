@@ -183,6 +183,8 @@ export const zh = {
   importEncryptedBackup: '导入加密备份',
   importDone: '导入完成：{stats}{meta}{conflict}{snap}',
   importFailFile: '导入失败，请检查文件格式',
+  // round57（P2）：走主事务的写入撞上存储配额 → 事务整体回滚，一个字节都没写。给可执行引导而非原始 QuotaExceededError。
+  quotaExceeded: '存储空间不足，导入已回滚（未写入任何数据）。请清理空间后重试',
   hubSaved: '已保存同步中枢地址和密码',
   fillHub: '请先填写电脑端地址',
   hubConnNoToken: '✅ 已连接到 Hub（未填密码，未做校验）',
@@ -235,6 +237,7 @@ export const zh = {
   stats: {
     cards: '卡片 +{n}', updated: '更新 {n}', deleted: '删除 {n}', duplicated: '去重跳过 {n}',
     reviews: '复习 +{n}', images: '图片 +{n}', skippedImages: '图片未导入 {n}（可重新导入补齐）',
+    imageWriteFailed: '图片写入失败 {n} 张（多为存储空间不足；主数据已导入，清理空间后重新导入即可补齐）',
     aiChats: 'AI对话 +{n}', aiMemories: '记忆 +{n}', memos: '备忘 +{n}', plans: '计划 +{n}',
     graphEdges: '图谱 +{n}', docs: '文档 +{n}', pomoSessions: '专注 +{n}',
     mindmaps: '导图 +{n}', weeklyReports: '周报 +{n}', achievements: '成就 +{n}', exams: '模考 +{n}',
@@ -447,6 +450,7 @@ export const en = {
   importEncryptedBackup: 'Import encrypted backup',
   importDone: 'Import complete: {stats}{meta}{conflict}{snap}',
   importFailFile: 'Import failed, please check the file format',
+  quotaExceeded: 'Not enough storage; the import was rolled back (nothing was written). Free up space and retry.',
   hubSaved: 'PC address and password saved',
   fillHub: 'Please fill in the PC hub address first',
   hubConnNoToken: '✅ Connected to Hub (no password, not verified)',
@@ -497,6 +501,7 @@ export const en = {
   stats: {
     cards: 'Cards +{n}', updated: 'Updated {n}', deleted: 'Deleted {n}', duplicated: 'Duplicated skip {n}',
     reviews: 'Reviews +{n}', images: 'Images +{n}', skippedImages: 'Images not imported {n} (re-import to fill in)',
+    imageWriteFailed: '{n} images failed to write (usually out of storage; main data was imported — free up space and re-import to fill in)',
     aiChats: 'AI chats +{n}', aiMemories: 'Memory +{n}', memos: 'Memos +{n}', plans: 'Plans +{n}',
     graphEdges: 'Graph edges +{n}', docs: 'Docs +{n}', pomoSessions: 'Focus +{n}',
     mindmaps: 'Mindmaps +{n}', weeklyReports: 'Weekly +{n}', achievements: 'Achievements +{n}', exams: 'Exams +{n}',

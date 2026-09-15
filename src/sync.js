@@ -735,6 +735,22 @@ export async function importBackup(backup, opts = {}) {
   if (typeof backup.version === 'number' && backup.version > BACKUP_VERSION) {
     throw new Error(`数据包版本 v${backup.version} 高于当前应用支持的 v${BACKUP_VERSION}，请先升级应用后再导入`);
   }
+  // round57（P3）：顶层结构校验。此前「字段存在但类型错」（手工编辑 / 传输截断，典型如 cards:{}）
+  // 会一路走到 `(backup.cards || []).filter is not a function`，用户只看到一句 JS 报错，
+  // 完全无法判断"其实是文件坏了"。字段名由 sync-manifest 的 SYNC_TABLES 派生——新增表自动纳入，
+  // 不手工枚举（枚举必漏）；缺失字段仍走 `|| []` 兜底以兼容老版本包，**只拦「存在但类型错」**。
+  const badShape = [];
+  for (const t of SYNC_TABLES) {
+    const v = backup[t.table];
+    if (v !== undefined && v !== null && !Array.isArray(v)) badShape.push(t.table);
+  }
+  for (const k of ['tombstones', 'images']) {
+    const v = backup[k];
+    if (v !== undefined && v !== null && !Array.isArray(v)) badShape.push(k);
+  }
+  if (badShape.length) {
+    throw new Error(`数据包结构损坏：${badShape.slice(0, 6).join('、')}${badShape.length > 6 ? ' 等' : ''} 应为数组。请确认备份文件完整（未被截断或手工编辑）后重试`);
+  }
   // 防御性深拷贝：调用方可能经 Vue ref/reactive 包装（如 Sync.vue 的 pendingBackup）传入 Proxy。
   // 深响应式 Proxy 会随 mergeRows 的零拷贝路径（sanitizeStripRow 无 strip 时原样返回行）进入 bulkPut，
   // structuredClone 遇 Proxy 抛 DataCloneError。JSON 往返能剥掉 Proxy（structuredClone 不行——它遇 Proxy 直接抛错）。
@@ -1081,7 +1097,11 @@ export async function importBackup(backup, opts = {}) {
     const tombs = await db.tombstones.toArray();
     imgTombIds = new Set(tombs.filter(x => kindOf(x) === 'image').map(x => x.id));
   } catch { /* 墓碑读失败不阻断图片导入 */ }
-  if (imgTombIds.size) await db.images.bulkDelete([...imgTombIds]);
+  // round57（P2）：删除失败（极少见）也不抛出——本段已在主事务之外，抛出会让调用方
+  // 把「主数据已成功入库」的导入误判为整包失败（见下方 bulkPut 同款说明）。
+  if (imgTombIds.size) {
+    try { await db.images.bulkDelete([...imgTombIds]); } catch (e) { console.warn('[sync] 图片墓碑清除失败（不阻断）:', e?.name || '', e?.message || e); }
+  }
   const incomingImgs = (backup.images || []).filter(img => img && img.id && img.data && !imgTombIds.has(img.id));
   if (incomingImgs.length) {
     const existing = await db.images.bulkGet(incomingImgs.map(i => i.id));
@@ -1097,8 +1117,19 @@ export async function importBackup(backup, opts = {}) {
         console.warn('[sync] 跳过无法解码的图片', img.id, e?.message || e);
       }
     });
-    if (toAdd.length) await db.images.bulkPut(toAdd);
-    stats.images = toAdd.length;
+    // round57（P2·配额路径）：图片写库刻意在主事务之外（理由见上），因此这里的失败**绝不能抛出**——
+    // 一抛出，调用方 Sync.vue confirmImport 就走 error 分支：只弹原始 QuotaExceededError，
+    // 既不刷新统计也不生成导入报告，用户以为「什么都没导入」，实际卡片/复习已落库、图片全缺。
+    // 改为就地降级：主数据照常，缺图计数写进 stats.imageWriteFailed，由 UI 明确告知可重试。
+    if (toAdd.length) {
+      try {
+        await db.images.bulkPut(toAdd);
+        stats.images = toAdd.length;
+      } catch (e) {
+        stats.imageWriteFailed = toAdd.length;
+        console.warn('[sync] 图片写入失败（主数据已入库，仅图片缺失）:', e?.name || '', e?.message || e);
+      }
+    }
     if (badImgs) stats.skippedImages = badImgs;
   }
   fireProgress(opts, PHASE.IMAGES, 1);

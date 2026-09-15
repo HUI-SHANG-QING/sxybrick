@@ -273,6 +273,10 @@ function fmtStats(stats) {
   // 代价是可能出现「主数据已入库、图片缺失」的半导入。此前 stats.skippedImages 只写不读 →
   // 用户看到"导入成功"却是破图，也不知道原因。这里显式汇报，让用户知道可以重试。
   if (stats.skippedImages) parts.push(S('skippedImages', undefined, stats.skippedImages));
+  // round57（P2）：图片写入撞配额（QuotaExceededError）→ 主数据已入库、图片整批缺失。
+  // 与 skippedImages 语义区分：那个是「单张坏图被跳过」，这个是「整批写不进去（多为空间不足）」，
+  // 文案必须给出可执行动作（清理空间后重新导入即可补齐），否则用户只会看到"导入成功却全是破图"。
+  if (stats.imageWriteFailed) parts.push(S('imageWriteFailed', undefined, stats.imageWriteFailed));
   const extra = [
     ['aiChats', 'aiChats'], ['aiMemories', 'aiMemories'], ['memos', 'memos'], ['plans', 'plans'],
     ['graphEdges', 'graphEdges'], ['docs', 'docs'], ['pomoSessions', 'pomoSessions'],
@@ -346,7 +350,10 @@ async function confirmImport() {
     importPreview.value = null;
     pendingBackup.value = null;
   } catch (err) {
-    toast(err.message || t('views.sync.importFailFile'), 'error');
+    // round57（P2）：配额不足时抛的是原始 QuotaExceededError——对用户零信息量，还掩盖了
+    // 「主事务已整体回滚、一个字节都没写」这个关键事实（否则用户会反复重试却不清理空间）。
+    const quotaErr = err?.name === 'QuotaExceededError' || /quota/i.test(String(err?.message || ''));
+    toast(quotaErr ? t('views.sync.quotaExceeded') : (err.message || t('views.sync.importFailFile')), 'error');
   } finally { importing.value = false; }
 }
 
