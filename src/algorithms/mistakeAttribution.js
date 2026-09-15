@@ -68,11 +68,17 @@ const MAX_CLUSTER_INPUT = 500;
  *   概念名取簇内高频 token；score = 簇内平均两两相似度；representative = 标题式摘要
  */
 export function attributeMistakes(cards, opts = {}) {
-  const threshold = opts.threshold ?? 0.32;
+  // round80 A7：threshold 必须先做域校验——`sim >= NaN` **恒 false**，会让所有卡片
+  // 退化成单卡簇（看起来"没有聚类结果"，静默无簇，比报错更难查）。非法值回退默认 0.32。
+  const rawThreshold = Number(opts.threshold ?? 0.32);
+  const threshold = Number.isFinite(rawThreshold) ? Math.min(1, Math.max(0, rawThreshold)) : 0.32;
   // round80 审计 A4：守卫写错——`!cards` 成立后仍调 `cards.map` → 传 undefined/null 直接
   // TypeError（工具链路 cards 来自查询结果，异常路径可能给到空值）。先归一成数组再判断。
   const list = Array.isArray(cards) ? cards : [];
   if (list.length < 2) {
+    // 单卡簇的 score 约定为 1（**无对可测**时的占位值，与合并路径 `Math.max(prev, c)` 一致）。
+    // 注：这与「≥2 卡但两两相似度全为 0」的簇（score=0）刻意不同——后者是"测了，确实不像"，
+    // 前者是"没法测"。改这个数字会直接移动错题集排序，而它没有唯一正确答案，故保持并写明。
     return list.map(c => ({ concept: c?.subject || '未分类', cardIds: [c?.id], size: 1, score: 1, representative: summarize(c) }));
   }
   if (cards.length > MAX_CLUSTER_INPUT) {
@@ -115,7 +121,10 @@ export function attributeMistakes(cards, opts = {}) {
         ? Number(((prevScore * w1 + c.score * w2) / wsum).toFixed(3))
         : Math.max(prevScore, c.score); // 两簇都只有单卡（无对可测）时退回 max
     }
-    return [...byConcept.values()].sort((a, b) => b.size - a.size);
+    // round80 A6：排序键必须与下面的主路径完全一致（size 降序 → score 降序）。
+    // 此前只按 size 排，于是同一批卡片「走分块路径（≥500 张）还是主路径」会给出**不同顺序**，
+    // 而下游（错题集）会截断取前 N 个 → 展示的簇集合都可能不同。
+    return [...byConcept.values()].sort((a, b) => b.size - a.size || b.score - a.score);
   }
   const texts = cards.map(c => `${c.front || ''} ${c.back || ''} ${(c.tags || []).join(' ')} ${(c.wrongReason || '')}`);
   const vecs = buildVectors(texts);

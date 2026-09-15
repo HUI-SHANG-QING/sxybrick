@@ -69,7 +69,10 @@ export function estimateInitialStability({ familiarity = 2, difficulty = 'basic'
  * @param {object} pretestMap { [subject]: number } 来自 meta['pretestStability']
  */
 export function initialStabilityForCard(card, pretestMap) {
-  if (card?.fsrs && card.fsrs.reps > 0) return null; // 已有复习历史，不走冷启动
+  // round80 A13：判「已有复习历史」不能只看 reps —— 旧序列化的 fsrs 可能没有 reps 字段
+  // （`undefined > 0` 恒 false）→ 卡片明明有 S/D 状态却被当冷启动，用前测稳定度覆盖。
+  // 有稳定度或有复习次数，都算有历史。
+  if (card?.fsrs && (Number(card.fsrs.reps) > 0 || Number(card.fsrs.s) > 0)) return null;
   const subj = card?.subject || 'default';
   const base = pretestMap && pretestMap[subj];
   if (typeof base !== 'number') return null;

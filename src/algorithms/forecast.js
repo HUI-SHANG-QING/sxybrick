@@ -124,8 +124,12 @@ export function forecastDue(cards, days = 30, opts = {}) {
 
   const byDayOut = byDay.map((count, i) => ({ date: isoDate(start + i * DAY), count }));
 
-  let peak = { date: '', count: 0 };
-  for (const b of byDayOut) if (b.count > peak.count) peak = { date: b.date, count: b.count };
+  // round80 A10：全零预测不再返回 `{ date: '', count: 0 }` —— 消费者（Stats 页）会把它
+  // 渲染成「峰值 （0 张）」这种空日期文案。改为 null，由视图层走兜底（显示「无到期」）。
+  let peak = null;
+  for (const b of byDayOut) {
+    if (b.count > 0 && (!peak || b.count > peak.count)) peak = { date: b.date, count: b.count };
+  }
 
   return {
     days: n,

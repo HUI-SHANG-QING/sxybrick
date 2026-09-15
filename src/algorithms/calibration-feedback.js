@@ -21,7 +21,11 @@ export const DEFAULT_GAIN = 0.5;       // 反馈增益：bias 每 1 个百分点
  * @param {object} opts { gain, min, max }
  */
 export function calibratedRetention(baseRetention, bias, opts = {}) {
-  const base = Number(baseRetention) || 0.9;
+  // round80 A9：`Number(x) || 0.9` 会把**显式传入的 0** 吞成 0.9（与调用方意图相反）。
+  // 本仓库已有定论（fsrs.js H-1）：目标保持率 0 是合法取值 → 用 `??` 语义 + 有限性校验。
+  // 于是 base=0 会走 clamp 到 FEEDBACK_MIN(0.80)，而不是被悄悄抬成 0.9。
+  const rawBase = Number(baseRetention ?? 0.9);
+  const base = Number.isFinite(rawBase) ? rawBase : 0.9;
   if (bias == null || !Number.isFinite(Number(bias))) return base;
   const k = opts.gain ?? DEFAULT_GAIN;
   const min = opts.min ?? FEEDBACK_MIN;

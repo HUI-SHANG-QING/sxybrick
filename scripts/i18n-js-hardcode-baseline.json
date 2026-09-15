@@ -1481,31 +1481,31 @@
       "return list.map(c => ({ concept: c?.subject || '未分类', cardIds: [c?.id], size: 1, score: 1, representative: summarize(c) }));": {
         "reason": "",
         "lines": [
-          76
+          82
         ]
       },
       "const key = c?.subject || '未分类';": {
         "reason": "",
         "lines": [
-          84
+          90
         ]
       },
       "const concept = top ? top[0] : (items[0].card.subject || '未分类');": {
         "reason": "",
         "lines": [
-          155
+          164
         ]
       },
       "const STOP = new Set(['的', '了', '是', '在', '我', '你', '他', '这', '那', '和', '与', '及', '或', '等', '中', '为', '对', '不', '有', '个', '一', '也', '都', '要', '会', '能', '可', '把', '被', '从', '到']);": {
         "reason": "",
         "lines": [
-          173
+          182
         ]
       },
       "return f || card.subject || '错题';": {
         "reason": "",
         "lines": [
-          177
+          186
         ]
       }
     }
@@ -1517,7 +1517,7 @@
       "const subj = card.subject || '未分类';": {
         "reason": "",
         "lines": [
-          118
+          123
         ]
       }
     }
@@ -1640,10 +1640,10 @@
           27
         ]
       },
-      "const source = normalizeSource(card?.source) || '（无来源）';": {
+      "const source = normalizeSource(target.source) || '（无来源）';": {
         "reason": "",
         "lines": [
-          59
+          62
         ]
       }
     }

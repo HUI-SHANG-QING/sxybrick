@@ -26,7 +26,9 @@ test('空表：全零且不抛错', () => {
   assert.equal(r.backlog, 0);
   assert.equal(r.byDay.length, 7);
   assert.ok(r.byDay.every(b => b.count === 0));
-  assert.equal(r.peak.count, 0);
+  // round80 A10：全零时 peak 为 null（旧行为是 {date:'', count:0}，视图会渲染成
+  // 「峰值 （0 张）」这种空日期文案）。有到期卡时才给 {date,count}。
+  assert.equal(r.peak, null);
   assert.equal(r.avgPerDay, 0);
 });
 

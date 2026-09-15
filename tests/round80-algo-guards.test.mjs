@@ -13,6 +13,12 @@ import { calibrationStats, MIN_STATS_SAMPLES } from '../src/algorithms/calibrati
 import { calibrateFromStats } from '../src/algorithms/calibration-feedback.js';
 import { goldenHours, MIN_HOURS_SAMPLES } from '../src/algorithms/golden-hours.js';
 import { attributeMistakes } from '../src/algorithms/mistakeAttribution.js';
+import { traceCardLineage } from '../src/algorithms/source-trace.js';
+import { calibratedRetention, FEEDBACK_MIN } from '../src/algorithms/calibration-feedback.js';
+import { forecastDue } from '../src/algorithms/forecast.js';
+import { retentionOf } from '../src/algorithms/networth.js';
+import { initialStabilityForCard } from '../src/algorithms/pretest.js';
+import { readFileSync } from 'node:fs';
 
 // ---------------- A1：小样本不给结论 ----------------
 
@@ -110,3 +116,83 @@ test('A5：卡片缺 front 时不得产出 "undefined" 概念名', () => {
     assert.ok(!String(c.concept).includes('undefined'), `概念名不得含 undefined（实际 ${c.concept}）`);
   }
 });
+
+// ---------------- A6~A13：P3 批（清单式收口） ----------------
+//
+// 这批的共同点：都不是"会算错数"，而是**极端输入下的口径不一致 / 空值直渲染**。
+// 逐个复现后修的修、记录的记录——其中 A12 经核实**是误报**（见文件末）。
+
+test('A6：分块路径与主路径的簇排序键必须一致（同一批卡不能因走哪条路而顺序不同）', () => {
+  const src = readFileSync(new URL('../src/algorithms/mistakeAttribution.js', import.meta.url), 'utf8');
+  const key = /sort\(\(a, b\) => b\.size - a\.size \|\| b\.score - a\.score\)/g;
+  const hits = src.match(key) || [];
+  assert.equal(hits.length, 2, '两条返回路径都必须用「size 降序 → score 降序」同一把排序键，实际只有 ' + hits.length + ' 处');
+});
+
+test('A7：threshold 非法（NaN/超范围）不得让聚类静默失效', () => {
+  const similar = [
+    { id: 'c1', front: '停止等待协议的发送窗口', back: '', subject: '计网' },
+    { id: 'c2', front: '停止等待协议接收窗口', back: '', subject: '计网' },
+    { id: 'c3', front: '停止等待协议超时重传', back: '', subject: '计网' },
+  ];
+  const ok = attributeMistakes(similar, { threshold: 0.1 });
+  assert.ok(ok.some(c => c.size >= 2), '前置：低阈值下应聚成一簇');
+  const nan = attributeMistakes(similar, { threshold: NaN });
+  assert.ok(nan.some(c => c.size >= 2), 'NaN 阈值必须回退默认值，不得让所有卡退化成单卡簇');
+});
+
+test('A8：traceCardLineage 传非对象 card 不得崩溃（守卫要一致）', () => {
+  for (const bad of [undefined, null, 'x', 42]) {
+    assert.doesNotThrow(() => traceCardLineage(bad, []), `traceCardLineage(${String(bad)}, []) 不得抛错`);
+    const r = traceCardLineage(bad, [{ id: 'a', source: '王道' }]);
+    assert.equal(r.variantOf, null);
+    assert.deepEqual(r.variants, []);
+  }
+});
+
+test('A9：目标保持率显式传 0 不得被 || 吞成 0.9（对齐 fsrs.js H-1 口径）', () => {
+  assert.equal(calibratedRetention(0, 0.2), FEEDBACK_MIN, '显式 0 走 clamp 到下限，而不是被抬成 0.9');
+  assert.equal(calibratedRetention(undefined, 0), 0.9, '未传 → 默认 0.9');
+  assert.equal(calibratedRetention(NaN, 0), 0.9, '非法 → 默认 0.9');
+  assert.equal(calibratedRetention(0.9, 0.2), 0.95, '正常路径不受影响（0.9+0.1 撞上限）');
+});
+
+test('A10：全零预测不得返回空日期峰值（视图会渲染成「峰值 （0 张）」）', () => {
+  const empty = forecastDue([], 30);
+  assert.equal(empty.peak, null, '没有到期卡时峰值应为 null，由视图兜底');
+  assert.equal(empty.totalDue, 0);
+
+  const now = Date.now();
+  const one = forecastDue([{ id: 'c1', dueAt: now, createdAt: now - 1000, intervalDays: 5, level: 2, subject: 's' }], 30);
+  assert.ok(one.peak && one.peak.date, '有到期卡时峰值要有真实日期');
+  assert.ok(one.peak.count > 0);
+});
+
+test('A11：三个时间戳全缺时不得当成「刚复习过」（R 恒 1 → 净值只涨不折旧）', () => {
+  // 有 FSRS 状态但没有任何时间戳（导入/旧版本数据）
+  const ghost = { id: 'c', fsrs: { s: 10, d: 5, reps: 3 }, level: 2, intervalDays: 10 };
+  assert.equal(retentionOf(ghost, Date.now()), 0, '无时间证据 → 按无保持估（与"未复习 = 0"约定一致）');
+  // 正常卡不受影响
+  const fresh = { id: 'c2', reviewedAt: Date.now(), fsrs: { s: 10, d: 5, reps: 3 }, level: 2, intervalDays: 10 };
+  assert.ok(retentionOf(fresh, Date.now()) > 0.9, '刚复习过的卡 R 应接近 1');
+  // createdAt 兜底：只有创建时间时也能算出「有衰减」的 R
+  const old = { id: 'c3', createdAt: Date.now() - 30 * 86400000, fsrs: { s: 10, d: 5, reps: 3 }, level: 2, intervalDays: 10 };
+  const r = retentionOf(old, Date.now());
+  assert.ok(r > 0 && r < 1, `用 createdAt 兜底应得到衰减中的 R，实际 ${r}`);
+});
+
+test('A13：旧序列化缺 reps 的卡不得被误判冷启动（否则前测稳定度会覆盖已有状态）', () => {
+  const legacy = { subject: '计网', fsrs: { s: 12, d: 5 } }; // 没有 reps 字段
+  assert.equal(initialStabilityForCard(legacy, { 计网: 20 }), null, '有 S/D 状态 = 有历史，不走冷启动');
+  const brandNew = { subject: '计网' };
+  assert.equal(initialStabilityForCard(brandNew, { 计网: 20 }), 20, '真·新卡仍应吃前测稳定度');
+  const zeroed = { subject: '计网', fsrs: { s: 0, d: 0, reps: 0 } };
+  assert.equal(initialStabilityForCard(zeroed, { 计网: 20 }), 20, 's=0/reps=0 视为无历史');
+});
+
+// ---------------- 报告里经核实**不成立**的一条（记录以免后人重开） ----------------
+//
+// A12「masteredCount 不要求 isReviewed」：不成立。
+// networth.js 里 `if (isMastered(card)) masteredCount++;` **就写在 `if (isReviewed(card)) { … }` 之内**；
+// 而 `isReviewed` 要求真实复习证据（fsrs.s>0 且 reps>=1，或 reviewedAt>0 且 level/intervalDays>0），
+// 导入数据只带 level 是进不来的。故无需修改（写在这里是为了避免下一轮审计重复开这条）。

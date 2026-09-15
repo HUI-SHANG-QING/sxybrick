@@ -49,7 +49,12 @@ export function retentionOf(card, nowTs = Date.now(), w = DEFAULT_WEIGHTS, opts 
   // 复习刚结束时 R≈1 → 净值/保持率系统性高估）。SM-2 一律用 0.9^(elapsed/interval) 代理。
   const scheduler = opts?.scheduler;
   const f = card?.fsrs;
-  const elapsedDays = Math.max(0, (nowTs - (card?.reviewedAt ?? card?.fsrs?.last ?? nowTs)) / DAY);
+  // round80 A11：三个时间戳全缺（导入/旧版本数据）时**不得回退成 nowTs** ——
+  // 那会让 elapsed=0 → R 恒等于 1 → 净值虚高且永不折旧。
+  // 与调用方既有约定对齐（`let R = 0; // 未复习 = 0（不是 1）`）：没有时间证据就按"无保持"估。
+  const lastTs = card?.reviewedAt ?? card?.fsrs?.last ?? card?.createdAt;
+  if (!Number.isFinite(Number(lastTs))) return 0;
+  const elapsedDays = Math.max(0, (nowTs - Number(lastTs)) / DAY);
   if (scheduler !== 'sm2' && f && Number.isFinite(f.s) && f.s > 0) {
     return retrievability(f.s, elapsedDays, w);
   }

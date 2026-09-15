@@ -337,7 +337,7 @@ function buildCharts() {
         data: fc.byDay.map((b, i) => ({
           value: b.count,
           itemStyle: {
-            color: i === todayIdx ? theme.blue : (b.count === fc.peak.count && b.count > 0 ? theme.red : theme.bar),
+            color: i === todayIdx ? theme.blue : (fc.peak && b.count === fc.peak.count && b.count > 0 ? theme.red : theme.bar),
             borderRadius: [4, 4, 0, 0],
           },
         })),
@@ -465,7 +465,7 @@ onBeforeUnmount(() => { charts.forEach(c => c.dispose()); window.removeEventList
         <div v-if="forecast" class="hint" style="font-size:12px">
           {{ t('views.stats.forecastStats', '逾期待补 {backlog} · 30 天累计 {total} · 日均 {avg} · 峰值 {peakDate}（{peakCount} 张）', {
             backlog: forecast.backlog, total: forecast.totalDue, avg: forecast.avgPerDay,
-            peakDate: forecast.peak.date.slice(5), peakCount: forecast.peak.count,
+            peakDate: forecast.peak ? forecast.peak.date.slice(5) : '—', peakCount: forecast.peak ? forecast.peak.count : 0,
           }) }}
         </div>
       </div>

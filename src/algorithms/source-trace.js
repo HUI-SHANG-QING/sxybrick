@@ -56,20 +56,25 @@ export function aggregateBySource(cards, nowTs = Date.now()) {
  */
 export function traceCardLineage(card, cards) {
   const list = cards || [];
-  const source = normalizeSource(card?.source) || '（无来源）';
+  // round80 A8：入参守卫不一致——上面用 `card?.source` 可选链、下面却直接取 `card.id`，
+  // 传 undefined 时第一处安全、第二处 TypeError。统一归一成一个对象再往下走。
+  const target = (card && typeof card === 'object') ? card : {};
+  const source = normalizeSource(target.source) || '（无来源）';
   // 变式链：直接父子（我引用别人 / 别人引用我）+ 同 parent 的兄弟姐妹（变式卡共享 origin）
-  const variants = list.filter(c => {
-    if (!c || c.id === card.id) return false;
-    if (c.sourceCardId === card.id || c.id === card.sourceCardId) return true;
-    if (card?.sourceCardId && c.sourceCardId === card.sourceCardId) return true;
+  // 没有 id 就没有血缘可言：否则「c.sourceCardId === target.id」在两边都是 undefined 时会判真，
+  // 把所有不带 sourceCardId 的卡都算成它的变式（实测踩到，测试 A8 已钉住）。
+  const variants = target.id ? list.filter(c => {
+    if (!c || c.id === target.id) return false;
+    if (c.sourceCardId === target.id || c.id === target.sourceCardId) return true;
+    if (target.sourceCardId && c.sourceCardId === target.sourceCardId) return true;
     return false;
-  });
-  const sameSource = list.filter(c =>
-    c && c.id !== card.id && normalizeSource(c.source) === source && !c.sourceCardId,
-  );
+  }) : [];
+  const sameSource = target.id ? list.filter(c =>
+    c && c.id !== target.id && normalizeSource(c.source) === source && !c.sourceCardId,
+  ) : [];
   return {
     source,
-    variantOf: card?.sourceCardId || null,
+    variantOf: target.sourceCardId || null,
     variants: variants.map(c => ({ id: c.id, front: stripImageRefs(c.front).slice(0, 40), sourceCardId: c.sourceCardId || '' })),
     sameSourceIds: sameSource.slice(0, 20).map(c => c.id),
     sameSourceCount: sameSource.length,
