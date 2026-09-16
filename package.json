@@ -10,7 +10,7 @@
     "preview": "vite preview --host",
     "hub": "node sync-hub/hub.js",
     "pretest": "node scripts/check-view-i18n.mjs --strict && node scripts/check-view-i18n.mjs --js && node scripts/dep-check.mjs && node scripts/sync-coverage-audit.mjs",
-    "test": "node scripts/check-view-i18n.mjs --strict && node scripts/check-view-i18n.mjs --js && node scripts/dep-check.mjs && node scripts/sync-coverage-audit.mjs && node --test --test-concurrency=1 \"tests/*.test.mjs\"",
+    "test": "eslint . && node scripts/check-view-i18n.mjs --strict && node scripts/check-view-i18n.mjs --js && node scripts/dep-check.mjs && node scripts/sync-coverage-audit.mjs && node --test --test-concurrency=1 \"tests/*.test.mjs\"",
     "check:i18n": "node scripts/check-view-i18n.mjs --strict && node scripts/check-view-i18n.mjs --js",
     "dep:check": "node scripts/dep-check.mjs",
     "check:build": "node scripts/check-build-shards.mjs",

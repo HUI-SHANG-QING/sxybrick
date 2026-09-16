@@ -3,7 +3,11 @@
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
-import { chatAI, buildContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
+// round82：`buildFullContext` 必须在这里 —— 9d2d764 把调用从 buildContext() 改成
+// buildFullContext(text) 却没补 import，于是聊天页每次发送都在 Promise.all 处抛
+// ReferenceError（被 catch 吞成一句报错），**AI 助手从此一条回答都给不出来**。
+// 教训：这类「改了调用忘了导入」的错误 npm test 抓不到，已把 eslint 纳入门禁（见 package.json）。
+import { chatAI, buildContext, buildFullContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
 import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLATES } from '../utils/genDeck.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';

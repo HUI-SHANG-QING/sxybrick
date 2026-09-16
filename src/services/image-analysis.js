@@ -19,6 +19,7 @@
 //   ocrFirst     = 只 OCR，永不主动调视觉（省钱/离线）
 //   visionFirst  = 含图内容直接发图给多模态（复用 AI 设置的接口/模型），OCR 仅视觉不可用时兜底
 
+import { timeoutSignal, anySignal } from '../utils/abort.js';
 import { getDb } from '../db.js';
 import { getWordSettings } from '../word-repo.js';
 import { extractImageIds } from '../images.js';
@@ -148,8 +149,9 @@ export async function textifyContent(content, opts = {}) {
       if (opts.ocrFn) {
         text = (await opts.ocrFn(id, row.blob)) || '';
       } else {
-        const t = AbortSignal.timeout?.(30000);
-        const s = signal && t && AbortSignal.any ? AbortSignal.any([signal, t]) : (t || signal);
+        // round82：统一到 utils/abort.js —— 原写法在新浏览器有效、旧浏览器静默退成"无超时"，
+        // 语义随浏览器漂移。改用兼容版后两端一致（超时真的会生效）。
+        const s = anySignal([signal, timeoutSignal(30000)]);
         text = await ocrImageText(row.blob, { signal: s });
       }
     } catch {
@@ -490,11 +492,9 @@ export async function enrichForLlm(messages, opts = {}) {
           if (opts.ocrFn) {
             text = (await opts.ocrFn(id, row.blob)) || '';
           } else {
-            const t = AbortSignal.timeout?.(30000);
-            // 每张 30s 上限 与 外部取消 任一触发即中断（旧环境无 AbortSignal.any 时退化为单个信号）
-            const ocrAbort = ocrSignal && t && AbortSignal.any
-              ? AbortSignal.any([ocrSignal, t])
-              : (ocrSignal || t);
+            // round82：统一到 utils/abort.js（原写法依赖可选调用 + 手写 any 判断，
+            // 新旧浏览器语义不一致；兼容版让「每张 30s 上限」在旧 Safari 上也真的生效）
+            const ocrAbort = anySignal([ocrSignal, timeoutSignal(30000)]);
             text = (await ocrImageText(row.blob, { signal: ocrAbort })) || '';
           }
         } catch {

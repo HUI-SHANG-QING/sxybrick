@@ -4,6 +4,7 @@
 // 约定：新数据先落 db 再进 sync；docFiles 已登记 sync-manifest（只同步元数据），
 //       docTexts 为本地表（全文不同步），原文件存 OPFS（不跨设备）。
 
+import { timeoutSignal, anySignal } from './utils/abort.js';
 import { db, uid } from './db.js';
 import {
   buildDocMeta, normalizeOpfsPath, saveFileToOpfs, readFileFromOpfs,
@@ -337,9 +338,8 @@ async function defaultRecognize(image, { lang, onProgress, signal } = {}) {
     const req = buildCloudOcrRequest(image, cloud);
     // 审计 P2-7（round32）：透传 signal + 30s 超时兜底——此前云端 fetch 既不接用户取消
     // 也没有超时，端点不可达时整条 ocrDoc 流水线无限挂起。
-    const sig = (typeof AbortSignal !== 'undefined' && AbortSignal.any)
-      ? AbortSignal.any([signal, AbortSignal.timeout(30000)].filter(Boolean))
-      : (signal || AbortSignal.timeout(30000));
+    // round82：兼容版（旧 Safari 无 AbortSignal.timeout/any，裸调会抛 TypeError）。
+    const sig = anySignal([signal, timeoutSignal(30000)]);
     const res = await fetch(req.url, {
       method: 'POST', headers: req.headers, body: JSON.stringify(req.body), signal: sig,
     });

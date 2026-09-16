@@ -18,6 +18,7 @@
 import { isInSyllabus, getSyllabusMeta } from './word-syllabus.js';
 import { enrichWordMaterials, ensureWord } from './word-enrich.js';
 import { recordUsage, estimateTokens } from '../utils/ai-usage.js';
+import { timeoutSignal, anySignal } from '../utils/abort.js';
 
 // ---------- Provider 配置 ----------
 export const LLM_PROVIDERS = [
@@ -204,11 +205,10 @@ async function callChatCompletion({ base, apiKey, model, prompt, system, source 
       // round23 P2-3：provider 直连必须有超时（30s），否则批量出题/补释义可永久挂死；
       // 外层批量任务可传 AbortSignal 做真中断（P2-4）。
       // 审计 P2-4（round32）：此前 `signal || timeout` 在传外部 signal 时把超时兜底丢弃了
-      // ——外部信号与超时是 AND 关系（两者任一触发都该中断），不是 OR。改用 AbortSignal.any
-      // 让两者同时生效；旧环境无 AbortSignal.any 时退回原 || 行为（至少不比之前差）。
-      signal: (typeof AbortSignal !== 'undefined' && AbortSignal.any)
-        ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)].filter(Boolean))
-        : (signal || AbortSignal.timeout(timeoutMs)),
+      // ——外部信号与超时是 AND 关系（两者任一触发都该中断），不是 OR。
+      // round82：改用兼容版 anySignal/timeoutSignal——旧写法只守卫了 AbortSignal.any，
+      // 兜底分支里的 AbortSignal.timeout 在旧 Safari 上照样抛 TypeError（round78 P2-1）。
+      signal: anySignal([signal, timeoutSignal(timeoutMs)]),
     });
     if (!resp.ok) {
       const txt = await resp.text().catch(() => '');
@@ -342,7 +342,7 @@ export async function testLlmConnection(settings) {
         max_tokens: 4,
       }),
       // round23 P2-3：连通性探针 10s 超时，避免不可达 provider 卡住「测试连接」按钮
-      signal: AbortSignal.timeout(10000),
+      signal: timeoutSignal(10000),
     });
     if (!resp.ok) {
       const t = await resp.text().catch(() => '');

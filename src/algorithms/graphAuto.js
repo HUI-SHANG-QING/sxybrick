@@ -23,7 +23,6 @@ import { db } from '../db.js';
 import { tokenize } from './mistakeAttribution.js';
 import { resolvePrereqPlan } from './prereq.js';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** 卡片正面 → 节点显示名（与 recommendGraphEdges / doc-graph 的 30 字口径一致） */
 export function nodeLabelOf(card, maxLen = 30) {

@@ -9,6 +9,7 @@
 import { recordUsage, estimateTokens } from '../utils/ai-usage.js';
 import { tryParseLLMJson } from '../utils/llm-json.js';
 import { t } from '../i18n/index.js'; // 错误/降级文案走字典（check-view-i18n --js 闸门）
+import { anySignal } from '../utils/abort.js';
 // 图片富集：把消息里的 sxy-img:// 占位符转成 AI 可分析内容（OCR 先行 / 视觉兜底）。
 // 本 chat() 是所有 AI 链路（对话/Agent/卡片联动/子任务）的唯一出口，在此覆盖全部。
 import { enrichForLlm } from '../services/image-analysis.js';
@@ -208,9 +209,9 @@ export async function chat(messages, cfg, opts = {}) {
     timeoutId = setTimeout(() => { timedOut = true; ctrl.abort(); }, ms);
   };
   const timeoutSignal = (ctrl = new AbortController(), arm(timeoutMs), ctrl.signal);
-  const signal = (external && typeof AbortSignal !== 'undefined' && AbortSignal.any)
-    ? AbortSignal.any([external, timeoutSignal])
-    : (external || timeoutSignal);
+  // round82：统一走 utils/abort.js 的兼容版（旧写法已带守卫，属正确实现；
+  // 收口成一处便于用闸门禁止裸调 AbortSignal.timeout/any）。
+  const signal = external ? (anySignal([external, timeoutSignal]) || timeoutSignal) : timeoutSignal;
   // 流式已收到的内容（catch 里抢救用）：超时不该把用户已经等到的几百字全丢掉
   let received = '';
 

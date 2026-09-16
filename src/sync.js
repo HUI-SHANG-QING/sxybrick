@@ -6,6 +6,7 @@
 //   · 自动快照：importBackup 前自动 saveSnapshot，支持历史回滚
 //   · 冲突可视化：importBackup 返回 stats.conflicts，列出哪些卡片字段被覆盖
 //   · 增量同步：buildIncrementalBackup(lastSyncAt) 只导出 updatedAt > lastSyncAt 的行
+import { timeoutSignal } from './utils/abort.js';
 import { db, uid, currentDbMode } from './db.js';
 import { base64ToBlob, blobToBase64, extractImageIds, IMAGE_REF_TABLES } from './images.js';
 import { triggerHook } from './plugins/registry.js';
@@ -632,7 +633,9 @@ async function _syncWithHubInner(hubUrl, token, opts = {}) {
     body,
     // 中枢不可达时若不加超时，fetch 可挂起数分钟 → Sync.vue 的 syncingAll/syncingModule
     // 一直为 true，所有同步按钮被禁用（鼠标变禁止符号）。20s 超时给出明确报错并复位。
-    signal: AbortSignal.timeout(20000),
+    // round82：走兼容版（旧 Safari 无 AbortSignal.timeout，裸调会抛 TypeError 并被下面的 catch
+    // 误报成"连不上中枢/防火墙没放行"——用户按提示排查半天，实际只是浏览器太老）。
+    signal: timeoutSignal(20000),
   }).catch((e) => {
     if (e?.name === 'TimeoutError' || e?.name === 'AbortError') {
       throw new Error(at('连接电脑端中枢超时（20s）。请确认：① 中枢已启动 ② 地址是电脑【当前】内网 IP（重启/换 WiFi 后会变） ③ 手机与电脑在同一网络'));
