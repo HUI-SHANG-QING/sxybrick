@@ -6,6 +6,7 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
+import { sheetCellGuard } from '../utils/exporters.js';
 import { listWordCards, listWordGroups } from '../word-repo.js';
 import { currentDbMode, db } from '../db.js';
 import { buildWordSheet, printWordSheet, downloadWordSheetHtml, PAGE_SIZE } from '../services/word-print.js';
@@ -204,7 +205,9 @@ function genCsv(list) {
     cols = ['word', 'phonetic', 'meaning', 'example', 'exampleTrans', 'note', 'source', 'subject', 'kind', 'tags'];
     header = t('views.wordExport.csvHeaderBoth');
   }
-  const escq = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  // round94 S1：手写 CSV 拼装此前只有引号转义、没有公式注入防护——单词/释义文本以
+  // `=`/`+`/`-`/`@` 开头时 Excel/WPS 会当公式执行。接入 sheetCellGuard（与 exporters 同口径）。
+  const escq = (v) => `"${sheetCellGuard(String(v ?? '').replace(/"/g, '""'))}"`;
   let out = `${metaComment('# ')}\n`;
   out += `${header.map(escq).join(',')}\n`;
   for (const c of list) {

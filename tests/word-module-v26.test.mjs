@@ -19,6 +19,7 @@ import {
 } from '../src/word-repo.js';
 import { buildWordSheet, rowOf, shuffleCards, PAGE_SIZE } from '../src/services/word-print.js';
 import { isInSyllabus, syllabusSize, listSyllabus, exportSyllabus, getSyllabusMeta } from '../src/services/word-syllabus.js';
+import { sheetCellGuard } from '../src/utils/exporters.js';
 import {
   generateWordMaterials, testLlmConnection, callLlmJson, normalizeWordMaterials,
 } from '../src/services/word-llm.js';
@@ -246,6 +247,23 @@ test('大纲元信息与导出：官方出版物口径 + 三种导出格式', ()
   assert.match(md, /共 \d+ 词/);
   assert.match(exportSyllabus('csv'), /^index,word\n/);
   assert.match(exportSyllabus('txt'), /共 \d+ 词/);
+});
+
+// round94 S1 回归：CSV 导出必须过 sheetCellGuard（公式注入中和）——
+// 手写拼装此前连双引号都没转义。词表本身是大纲词（无 = 开头），
+// 这里直接验证分隔行为与防护函数的集成口径。
+test('exportSyllabus(csv)：每行值都被双引号包裹且无裸引号错列', () => {
+  const csv = exportSyllabus('csv');
+  const lines = csv.split('\n').filter(Boolean);
+  assert.ok(lines.length > 10);
+  for (const line of lines.slice(1)) {
+    // 每行形如 `123,"word"`——值段必须以 " 开头结尾（引号包裹），不会出现裸值
+    assert.match(line, /^\d+,"[^"]*"$/, `行不符合安全格式: ${line}`);
+  }
+  // sheetCellGuard 集成口径：= + - @ 开头的值前置单引号中和（exporters 同一实现）
+  assert.equal(sheetCellGuard('=cmd|\'/c calc\'!A1'), "'=cmd|'/c calc'!A1");
+  assert.equal(sheetCellGuard('@SUM(1)'), "'@SUM(1)");
+  assert.equal(sheetCellGuard('正常词'), '正常词');
 });
 
 // ---------------- D. word-llm ----------------

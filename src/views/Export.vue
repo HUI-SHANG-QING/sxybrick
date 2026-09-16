@@ -5,6 +5,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { toast } from '../utils/toast.js';
+import { sheetCellGuard } from '../utils/exporters.js';
 import {
   getSubjects, getTags, listCards, createCard,
   queryUserOps, listPrivacyRecords,
@@ -134,7 +135,10 @@ async function doExportPrivacy() {
         return String(v);
       }));
     }
-    const esc = s => String(s ?? '').replace(/"/g, '""');
+    // round94 S1：手写 CSV 拼装此前只有引号转义、没有公式注入防护（与 exporters.toCSV 不一致）
+    // ——隐私记录含备注/自定义 KV 等用户文本，`=`/`+`/`-`/`@` 开头时 Excel/WPS 会当公式执行。
+    // 统一接入 sheetCellGuard（前置单引号中和），与 sync.js TSV/Anki 同口径。
+    const esc = s => sheetCellGuard(String(s ?? '').replace(/"/g, '""'));
     const csv = rows.map(r => r.map(c => `"${esc(c)}"`).join(',')).join('\n');
     const csvBlob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
     const d = new Date(); const p = n => String(n).padStart(2, '0');

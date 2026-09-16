@@ -13,6 +13,7 @@
 // 抛 ERR_IMPORT_ATTRIBUTE_MISSING），加上后本模块才能被 node --test 直接覆盖。
 import vocabData from '../data/kaoyan-vocab-2027.json' with { type: 'json' };
 import { dateKey } from '../utils/time.js';
+import { sheetCellGuard } from '../utils/exporters.js';
 // 内置中文释义种子（离线兜底）：仅覆盖最高频的一批大纲词，
 // 其余由「AI 智能模块」批量生成后写入本地库（优先级高于种子，见 services/word-meaning.js）。
 import seedData from '../data/kaoyan-vocab-meanings-seed.json' with { type: 'json' };
@@ -130,7 +131,10 @@ export function exportSyllabus(format = 'md') {
       list.map((w, i) => `${i + 1}. ${w}`).join('\n');
   }
   if (format === 'csv') {
-    return 'index,word\n' + list.map((w, i) => `${i + 1},"${w}"`).join('\n');
+    // round94 S1：此前连双引号都没转义（值含 `"` 时 CSV 错列），且无公式注入防护。
+    // 接入 sheetCellGuard + 引号转义，与 exporters.csvEscape 同口径。
+    const esc = (w) => `"${sheetCellGuard(String(w ?? '').replace(/"/g, '""'))}"`;
+    return 'index,word\n' + list.map((w, i) => `${i + 1},${esc(w)}`).join('\n');
   }
   // txt
   return `${meta.title}\n${meta.disclaimer}\n共 ${list.length} 词 · 导出 ${stamp}\n\n` +
