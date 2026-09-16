@@ -112,12 +112,23 @@ function explainLlmFailure(e) {
   return t('agent.localAnswer.reasonNetwork');
 }
 
-async function executeTool(name, args, ctx, onTrace) {
+export async function executeTool(name, args, ctx, onTrace) {
   const tool = toolRegistry.get(name);
   if (!tool) {
     const err = `未知工具：${name}`;
     onTrace?.({ kind: TraceKind.ERROR, text: err });
     return { ok: false, error: err };
+  }
+  // round103：写入前确认保险——普通问答（assistant）开启 confirmWrites 后，
+  // 写工具（writesData:true）必须先经用户确认（前端弹确认框，批准后带 approvedWrite 重跑）才能执行。
+  // 工作台 Agent 不开启 confirmWrites，行为不变；读工具不受影响。
+  if (tool.writesData === true && ctx?.confirmWrites === true) {
+    const approved = ctx?.approvedWrite;
+    if (!approved || approved.name !== name) {
+      onTrace?.({ kind: TraceKind.ERROR, text: `写入需用户确认后才执行（${name}）：已请求前端弹出确认框，批准后将带着批准标记重跑这次写入。` });
+      return { ok: false, needsConfirm: true, name, args, error: 'write requires user confirmation' };
+    }
+    delete ctx.approvedWrite; // 一次性放行：同一次 runTask 内再次写需重新确认
   }
   onTrace?.({
     kind: TraceKind.TOOL_CALL,
@@ -211,7 +222,7 @@ export function compactConvo(convo) {
  * @param {function} onTrace  轨迹回调
  * @returns {Promise<string>} 最终回答
  */
-export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
+export async function runReActAgent({ agent, userMessages, ctx, onTrace, onPendingWrite = null }) {
   const systemPrompt = buildSystemPrompt(agent, ctx);
   const convo = [{ role: 'system', content: systemPrompt }, ...userMessages];
 
@@ -289,6 +300,13 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
         continue;
       }
       const res = await executeTool(toolCall.name, toolCall.args, ctx, onTrace);
+      // round103：写入需用户确认 → 中断循环，把待确认写入交给调用方（前端弹确认框），不再继续推理
+      if (res && res.needsConfirm) {
+        onPendingWrite?.({ name: toolCall.name, args: toolCall.args });
+        const msg = `有写入操作待你确认（${toolCall.name}）：请在前端弹出的确认框里批准，批准后我会带着结果继续作答。`;
+        onTrace?.({ kind: TraceKind.FINAL, text: msg });
+        return msg;
+      }
       convo.push({ role: 'assistant', content: raw });
       // 工具结果必须**限量**再进上下文：卡片全文/OCR 长文本会让单请求轻易超限，
       // 表现为「AI 合成回答暂不可用」反复失败。压缩保留 JSON 结构（数组留前 N 项、

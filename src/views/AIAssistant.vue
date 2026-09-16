@@ -152,9 +152,25 @@ async function send() {
     const history = [...currentChat.value.messages];
     currentChat.value.messages.push({ role: 'assistant', content: '' });
     replyIdx = currentChat.value.messages.length - 1;
-    const res = await runAgentTurn({ userInput: text, history, agentId: 'assistant' });
+    let res = await runAgentTurn({ userInput: text, history, agentId: 'assistant', confirmWrites: true });
     // 空白回复兜底：O4 收口到 stringifyReply（统一口径 + 计入 AI 回复质量监控 getReplyStats）
-    const final = stringifyReply(res?.reply, t('views.aiAssistant.noContent'));
+    let final = stringifyReply(res?.reply, t('views.aiAssistant.noContent'));
+    for (let guard = 0; guard < 3 && res?.pendingWrite; guard++) {
+      const ok = await confirmDialog({
+        title: t('views.aiAssistant.writeConfirmTitle'),
+        message: describeWriteRequest(res.pendingWrite),
+        confirmText: t('views.aiAssistant.writeConfirmOk'),
+        cancelText: t('views.aiAssistant.writeConfirmCancel'),
+      });
+      if (ok) {
+        // 清掉占位，用同一轮历史重跑：模型将执行已被批准的那次写入并给出结果
+        currentChat.value.messages[replyIdx].content = '';
+        res = await runAgentTurn({ userInput: text, history, agentId: 'assistant', confirmWrites: true, approvedWrite: res.pendingWrite });
+        final = stringifyReply(res?.reply, t('views.aiAssistant.noContent'));
+      } else {
+        final = t('views.aiAssistant.writeCancelled'); break;
+      }
+    }
     try { T.aiCall('chat', final.length); } catch {}
     // Agent 内部虽全程流式（防超时），但只在收尾返回整段 → 客户端渐进显示，保留打字机手感
     await revealBubble(replyIdx, final);
@@ -173,6 +189,17 @@ async function send() {
     await persist();
     scroll();
   }
+}
+
+function describeWriteRequest(pw) {
+  const name = pw?.name || '';
+  const labels = t('views.aiAssistant.writeToolLabels') || {};
+  const label = labels[name] || name;
+  const args = pw?.args || {};
+  const brief = ['text', 'title', 'name', 'plan', 'content', 'task', 'note', 'summary', 'front', 'back']
+    .filter((k) => args[k] != null && String(args[k]).trim() !== '')
+    .map((k) => `${k}: ${String(args[k]).slice(0, 80)}`).join('；');
+  return `${label}${brief ? '（' + brief + '）' : ''}${t('views.aiAssistant.writeAskSuffix')}`;
 }
 
 function scroll() { nextTick(() => { box.value?.scrollTo({ top: box.value.scrollHeight }); }); }

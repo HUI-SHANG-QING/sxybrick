@@ -117,6 +117,10 @@ export async function runTask(opt) {
     cfg,
     studyContext,
     memoryText,
+    // round103：写入前确认保险——仅 assistant（普通问答）路径开启 confirmWrites；
+    // 工作台 Agent 不传即默认关闭，行为不变。approvedWrite 由前端在用户批准后重跑时带入。
+    confirmWrites: opt.confirmWrites === true,
+    approvedWrite: opt.approvedWrite || null,
     // round71：Agent 链路默认走**流式**。非流式下 60s 的含义是「整段回答必须在 60s 内写完」，
     // 而 Agent 常被要求做长输出（「把 17 张卡逐张列出来」「完整知识图谱」）→ 必然撞超时 →
     // 降级成本地直出（用户看到的「AI 合成回答暂不可用」）。流式把判定改成「空闲超时」
@@ -130,10 +134,20 @@ export async function runTask(opt) {
   const userMessages = [...recent, { role: 'user', content: userInput }];
 
   // 4) 执行 Agent 的 ReAct 循环
-  const reply = await runReActAgent({ agent, userMessages, ctx, onTrace: push });
+  let pendingWrite = null;
+  const reply = await runReActAgent({
+    agent, userMessages, ctx, onTrace: push,
+    onPendingWrite: (pw) => { pendingWrite = pw; }, // round103：写工具被拦截时交回前端确认
+  });
 
   // Bug fix: 统一 reply 为 string（经验 934245：content 为 null/undefined/对象时 MarkdownRenderer 空白）
-  return { reply: stringifyReply(reply), agentId: agent.id, agentName: agent.name, trace };
+  return {
+    reply: stringifyReply(reply),
+    agentId: agent.id,
+    agentName: agent.name,
+    trace,
+    ...(pendingWrite ? { pendingWrite } : {}),
+  };
 }
 
 export function listAgents() {
