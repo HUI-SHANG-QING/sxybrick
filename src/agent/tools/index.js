@@ -61,6 +61,14 @@ import {
 // → 富集时查不到图 → AI 误以为「图没传过来」。这里统一走 clipText 保护引用完整性。
 import { clipText, hasImageRef } from '../../utils/clip.js';
 import { docKindOf, docContentProfile } from '../../services/doc-vision.js';
+// round90：图片资产体检（悬空引用诊断现成于 statImageAssets，此前未注册成 AI 工具）
+import { statImageAssets } from '../../services/image-analysis.js';
+
+// round90：工具返回里的「明细引导 / 图片体检提示」是**发给模型的 prompt 契约**（永不翻译、不进 UI），
+// 按项目约定用 *_PROMPT 顶层模板字面量承载（check-view-i18n.mjs 对 *_PROMPT 常量整段豁免）。
+const STATS_DETAIL_HINT_PROMPT = `本统计只是汇总。各模块**明细**请调对应工具：单词 list_words/get_word_detail；知识图谱 list_graph_edges；计划 read_plan/list_daily_tasks；图片资产 get_image_assets；卡片全文 search_cards/get_card_detail。用户问「某模块具体内容」时务必调用对应工具拿真实数据，不要只凭本统计就说「只能看数量」。`;
+const IMAGE_ASSETS_HINT_OK_PROMPT = `图片资产健康：所有正文引用在本地图库均可读。`;
+const IMAGE_ASSETS_HINT_DANGLING_PROMPT = `有悬空图片引用（数据缺失）：跨设备未同步 / 原图被删 / 导入备份未带图。请告诉用户在其他设备同步一次或重新上传；若前端仍显示图片，那是会话内缓存的旧图，刷新后即消失。`;
 import { agentRegistry } from '../registry.js';
 import { t } from '../../i18n/index.js';
 
@@ -130,6 +138,7 @@ toolRegistry.register({
         ability: s.ability,
         ratingDist: s.ratingDist,
         subjectCards: s.subjectCards,
+        hint: STATS_DETAIL_HINT_PROMPT,
       },
     };
   },
@@ -1752,6 +1761,33 @@ toolRegistry.register({
   },
 });
 
+
+toolRegistry.register({
+  name: 'get_image_assets',
+  description: '图片资产体检：正文（卡片/笔记/备忘/文档）里共引用了多少张图、其中多少在本地图库**可读**、'
+    + '多少**悬空**（引用在但图片数据缺失——跨设备未同步 / 原图被删 / 导入备份未带图），并列出悬空样例。'
+    + '用户问「图片能不能看到 / 为什么某张图读不出来」时先用它拿真实数字再作答，不要凭印象断言「图不存在」；'
+    + '若悬空为 0，则图中本地可读，读不到是识别/策略问题，应说明图片**存在**。',
+  parameters: { limit: 'number: 悬空清单最多列多少条，默认 10，最大 50' },
+  readsData: true,
+  async execute(args) {
+    const s = await statImageAssets();
+    const limit = Math.min(Math.max(Math.trunc(Number(args?.limit)) || 10, 1), 50);
+    const dangling = (s.danglingIds || []).slice(0, limit);
+    return {
+      ok: true,
+      data: {
+        imgRefs: s.imgRefs,
+        imgLive: s.imgUnique,
+        imgDangling: s.imgDangling,
+        bySource: s.bySource,
+        danglingSample: dangling,
+        truncated: s.imgDangling > dangling.length,
+        hint: s.imgDangling > 0 ? IMAGE_ASSETS_HINT_DANGLING_PROMPT : IMAGE_ASSETS_HINT_OK_PROMPT,
+      },
+    };
+  },
+});
 toolRegistry.register({
   name: 'get_word_stats',
   description: '英语单词模块的**统计概览**（不含具体单词内容）：总词数、参与复习的数量、'
