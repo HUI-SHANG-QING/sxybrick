@@ -9,6 +9,10 @@
 // 环境无 localStorage（Node 测试 / 隐私模式）时退化为内存 Map，**绝不抛错**——
 // 它只是防重优化，不能因为存储不可用就让「记入复习」失败。
 const KEY_PREFIX = 'sxy_quiz_rec:';
+// round86 P3-1：防重键**无上限**会让 localStorage 写满 → setItem 抛 QuotaExceededError
+// 被吞 → 防重静默退化（刷新即失效）。超阈值时一次性清空防重记录（低频操作；
+// 代价是同日已记过的题可能再记一次，属可接受的防重降级——防重只是优化，不是正确性）。
+const MAX_RECORDS = 3000;
 const mem = new Set();
 
 /** 稳定的存储后端（拿不到 localStorage 就用内存） */
@@ -23,6 +27,25 @@ function store() {
   } catch {
     return null;
   }
+}
+
+/** 超限清理：遍历前缀键计数，超阈值清空（localStorage 无按时间删除，整体重置最稳妥） */
+function pruneIfOverflow(ls) {
+  let n = 0;
+  try {
+    for (let k = 0; k < ls.length; k++) {
+      if (ls.key(k)?.startsWith(KEY_PREFIX)) n++;
+    }
+  } catch { return; }
+  if (n < MAX_RECORDS) return;
+  try {
+    const drop = [];
+    for (let k = 0; k < ls.length; k++) {
+      const key = ls.key(k);
+      if (key?.startsWith(KEY_PREFIX)) drop.push(key);
+    }
+    drop.forEach((key) => ls.removeItem(key));
+  } catch { /* 清理失败不致命：下次写入时再试 */ }
 }
 
 /** 题目身份：同一张卡的同一道题视为一条记录 */
@@ -43,5 +66,5 @@ export function markQuizRecorded(cardId, question) {
   mem.add(k);
   const ls = store();
   if (!ls) return;
-  try { ls.setItem(k, '1'); } catch { /* 配额/隐私模式：内存里已记，够用 */ }
+  try { pruneIfOverflow(ls); ls.setItem(k, '1'); } catch { /* 配额/隐私模式：内存里已记，够用 */ }
 }

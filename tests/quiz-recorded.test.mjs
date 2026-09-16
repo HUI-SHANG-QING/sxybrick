@@ -40,3 +40,37 @@ test('无 localStorage 环境（Node/隐私模式）退化为内存，不抛错'
     if (had) globalThis.localStorage = original;
   }
 });
+
+test('round86 P3-1：防重键超阈值后清空重置，不写满 localStorage', () => {
+  // mock localStorage：真实容量语义（length/key 枚举 + setItem 计数）
+  const mk = () => {
+    const m = new Map();
+    return {
+      get length() { return m.size; },
+      key(i) { return [...m.keys()][i] ?? null; },
+      getItem(k) { return m.has(k) ? m.get(k) : null; },
+      setItem(k, v) { m.set(k, String(v)); },
+      removeItem(k) { m.delete(k); },
+      _map: m,
+    };
+  };
+  const had = 'localStorage' in globalThis;
+  const original = globalThis.localStorage;
+  try {
+    const ls = mk();
+    globalThis.localStorage = ls;
+    // 塞到阈值以上（3000 上限 + 已存在的无关前缀键也要计入）
+    for (let i = 0; i < 3000; i++) ls.setItem('sxy_quiz_rec:seed|' + i, '1');
+    // 新写一条：应触发清空 → 前缀键被清光，再落库本轮这条
+    markQuizRecorded('card-cap', '超限后仍能记入');
+    let prefixCount = 0;
+    for (let i = 0; i < ls.length; i++) {
+      if (ls.key(i)?.startsWith('sxy_quiz_rec:')) prefixCount++;
+    }
+    assert.equal(prefixCount, 1, '超限清空后只剩本轮写入的 1 条防重键');
+    assert.equal(isQuizRecorded('card-cap', '超限后仍能记入'), true, '清空重置不破坏本轮防重');
+  } finally {
+    if (had) globalThis.localStorage = original;
+    else delete globalThis.localStorage;
+  }
+});

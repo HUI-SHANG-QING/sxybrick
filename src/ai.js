@@ -60,9 +60,36 @@ export function hasAIKey() {
   return !!getAIConfig().apiKey;
 }
 
+// round86【普通对话路径的历史滑动窗口】：
+// 对齐 Agent 路径（orchestrator.js 的 history.slice(-12)），普通对话（AIAssistant.vue 走 chatAI）
+// 此前把**全量**会话历史塞进请求——长对话时请求体逐轮膨胀：变慢、变贵，最终 400「上下文超限」
+// 或模型静默丢弃早期内容（"失忆"）。规则：
+//   · 头部连续的 system 消息（人设/上下文）永远保留；
+//   · 其余按「轮」截断：以 user 消息为锚点，保留最近 maxTurns 轮（每轮 user+assistant），
+//     保证**本轮输入永远在**，且不把轮对切成半截（user 在、assistant 被切走）。
+// 调用方可传 opts.historyTurns 覆盖默认值。
+export function trimChatHistory(messages, maxTurns = 16) {
+  if (!Array.isArray(messages) || messages.length === 0) return messages;
+  let i = 0;
+  while (i < messages.length && messages[i]?.role === 'system') i++;
+  const system = messages.slice(0, i);
+  const rest = messages.slice(i);
+  if (rest.length === 0) return messages;
+  const userIdx = [];
+  for (let j = 0; j < rest.length; j++) {
+    if (rest[j]?.role === 'user') userIdx.push(j);
+  }
+  // 防御 maxTurns=0/负数/NaN：至少保留 1 轮（本轮输入永远在），NaN/非数回落默认 16
+  const turns = Number.isFinite(maxTurns) ? Math.max(1, Math.trunc(maxTurns)) : 16;
+  if (userIdx.length <= turns) return messages;
+  const start = userIdx[userIdx.length - turns];
+  return [...system, ...rest.slice(start)];
+}
+
 // 调 OpenAI 兼容的 chat/completions 接口（供简单直连场景复用）
 // 离线兜底：无 key 或网络失败时返回诚实引导，避免功能直接崩溃
 export async function chatAI(messages, opts = {}) {
+  messages = trimChatHistory(messages, opts.historyTurns);
   if (shouldFallback()) return offlineChat(messages);
   try {
     // round73：默认走**流式**。非流式下 llm.js 的 60s 是「整段回答必须在 60s 内写完」的硬上限
