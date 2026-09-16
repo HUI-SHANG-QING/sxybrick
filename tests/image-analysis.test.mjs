@@ -55,7 +55,9 @@ test('enrichForLlm ocrFirst：占位符替换为 OCR 文字，失败图标注，
   const c = r.messages[0].content;
   assert.equal(r.vision, 0, 'ocrFirst 不得产生视觉调用');
   assert.ok(c.includes('图里的文字ABC'), '成功图应替换为 OCR 文字');
-  assert.ok(c.includes('未能识别'), '失败图应标注');
+  // round88 文案变更：跑通但无文字的图标注为「OCR 没有识别出文字」，
+  // 与「识别失败（异常）」「取消」「缺图」四分支分开——不再笼统说「未能识别」
+  assert.ok(c.includes('没有识别出文字'), '跑通但无文字的图应标注');
   assert.ok(!c.includes('sxy-img://'), '占位符应全部清除');
 });
 
