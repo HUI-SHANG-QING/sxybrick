@@ -118,7 +118,9 @@ export async function indexDoc(doc) {
 /** 找出需要重新索引的卡片（新增/修改后未索引/模型签名不匹配） */
 export async function getStaleCards(limit = 200) {
   const modelSig = getModelSig();
-  const cards = await db.cards.limit(limit * 2).toArray();
+  // round93 P2：改为按 updatedAt 降序扫描——Dexie 无 orderBy 时按主键（uid()=randomUUID，纯随机）
+  // 取前 N，会永远只扫「uuid 最靠前的固定 2×limit 张」，其余卡片编辑后永远进不了增量重建集合。
+  const cards = await db.cards.orderBy('updatedAt').reverse().limit(limit * 2).toArray();
   // 一次批量查询拿到所有相关 embedding，避免在循环里逐卡 N 次查询（N2 性能回归）
   const ids = cards.map((c) => c.id);
   const embById = new Map(
@@ -136,8 +138,9 @@ export async function getStaleCards(limit = 200) {
 export async function getStaleDocs(limit = 50) {
   const modelSig = getModelSig();
   const [docRows, fileRows] = await Promise.all([
-    db.docs.limit(limit * 2).toArray(),
-    db.docFiles.limit(limit * 2).toArray(),
+    // round93 P2：两表同样按 updatedAt 降序，确保最近编辑的文档优先进增量重建。
+    db.docs.orderBy('updatedAt').reverse().limit(limit * 2).toArray(),
+    db.docFiles.orderBy('updatedAt').reverse().limit(limit * 2).toArray(),
   ]);
   // round26 M-3：原实现 docRows 优先于 fileRows 串行入列，docs 满额时 docFiles 被挤压
   // → 重建索引时知识库资料可能排队饿死。改交错取样（两表配额对称），公平轮转。
