@@ -3,11 +3,10 @@
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { toast } from '../utils/toast.js';
-// round82：`buildFullContext` 必须在这里 —— 9d2d764 把调用从 buildContext() 改成
-// buildFullContext(text) 却没补 import，于是聊天页每次发送都在 Promise.all 处抛
-// ReferenceError（被 catch 吞成一句报错），**AI 助手从此一条回答都给不出来**。
-// 教训：这类「改了调用忘了导入」的错误 npm test 抓不到，已把 eslint 纳入门禁（见 package.json）。
-import { chatAI, buildContext, buildFullContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory, buildQuestionCardContext, buildModuleNodesContext } from '../ai.js';
+// round100：AI 学习助手已改为「自己查数据」——走 Agent 框架（runAgentTurn + 'assistant' Agent + 工具循环），
+// 不再本地预注入上下文（buildFullContext / buildModuleNodesContext 已从本视图退场）。
+// 历史教训（round82）：这类「改了调用忘了导入」的错误 npm test 抓不到，已把 eslint 纳入门禁（见 package.json）。
+import { chatAI, runAgentTurn, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
 import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLATES } from '../utils/genDeck.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';
@@ -76,7 +75,8 @@ const coldOpen = ref(false);
 const coldLoading = ref(false);
 const coldTemplates = ref(COLD_START_TEMPLATES.map(tpl => ({ id: tpl.id, name: tpl.name, subject: tpl.subject, description: tpl.description })));
 
-const SYSTEM_PROMPT = '你是「SxyBrick 记忆卡片」的智能学习助手。你会拿到用户的真实学习数据（卡片、复习记录、错题、标签、掌握度）。请用中文、简洁、友好地回答。当用户问学习情况、薄弱点、错因、复习建议时，务必结合下面提供的数据给出针对性建议，不要泛泛而谈。';
+// round100：人设与「先取数据再回答」的指令已上移到 agent 框架的 'assistant' Agent
+// （src/agent/agents/index.js），这里不再本地拼 system —— 改由 runAgentTurn 注入上下文 + 工具循环。
 
 const userNodes = computed(() => {
   const nodes = [];
@@ -114,6 +114,23 @@ async function persist() {
   catch (e) { toast(t('views.aiAssistant.chatSaveFail', undefined, { msg: e.message }), 'error'); }
 }
 
+// Agent 只在收尾返回整段回答（内部流式仅用于防读超时）→ 这里客户端渐进显示，保留「打字机」手感。
+// 全程有界（约 50 帧）、并在会话被切换 / 消息被覆盖时立即停止。
+async function revealBubble(idx, text) {
+  const total = String(text ?? '').length;
+  if (!total) return;
+  const step = Math.max(8, Math.ceil(total / 50));
+  for (let n = step; n < total; n += step) {
+    const m = currentChat.value.messages[idx];
+    if (!m || m.content === text) return; // 已切换会话 / 已被替换 → 停
+    m.content = text.slice(0, n);
+    scroll();
+    await new Promise((r) => setTimeout(r, 16));
+  }
+  const m = currentChat.value.messages[idx];
+  if (m) m.content = text;
+}
+
 async function send() {
   const text = input.value.trim();
   if (!text || loading.value) return;
@@ -127,35 +144,20 @@ async function send() {
   // 而不是留下一个空气泡再追加一条错误消息，界面会出现"空的 AI 回复 + 一条报错"两条）。
   let replyIdx = -1;
   try {
-    // ⚠️ 必须用 buildFullContext(query) 而不是 buildContext()：
-    // 后者只给「统计面板」（卡片数量/掌握度/标签这类目录级信息），模型看不到任何正文，
-    // 于是用户问「这张卡背面写了什么」它只能答「我看不到内容」。
-    // buildFullContext = buildStudyContext + buildRAGContext(query)，会把与问题相关的
-    // 卡片/文档**原文片段**一并带上（图片引用也完整保留，可被多模态富集）。
-    const [ctx, mem, qcards, modules] = await Promise.all([buildFullContext(text), buildMemoryText(), buildQuestionCardContext(text), buildModuleNodesContext(text)]);
-    // round76【打字机】：流式已全链路打通（llm.js 支持 onToken），但界面一直等整段写完才显示，
-    // 长回答时用户只看到转圈。这里先插一条空的助手消息作为占位，再让增量逐字写进去。
+    // round100：AI 学习助手改为**自己查数据**——走 Agent 框架（'assistant' Agent + ReAct 工具循环）。
+    // AI 按需调 get_card_detail / read_note / read_doc / read_chat / get_pomodoro_sessions … 取真实数据，
+    // 卡片 / 笔记 / 文档里的图片由 enrichForLlm 作为附图送出。彻底取代「预注入 + 关键词猜模块」：
+    // 问什么取什么（不再「猜不准就漏」），也不会无条件全量外发（不再费 token / 外发隐私）。
     // ⚠️ 请求消息必须用**推入占位之前**的快照，否则空消息会被当成历史发给模型。
     const history = [...currentChat.value.messages];
     currentChat.value.messages.push({ role: 'assistant', content: '' });
     replyIdx = currentChat.value.messages.length - 1;
-    let lastScrolled = 0;
-    const reply = await chatAI([
-      { role: 'system', content: SYSTEM_PROMPT + '\n\n' + (mem ? mem + '\n\n' : '') + ctx + (qcards ? '\n\n' + qcards : '') + (modules ? '\n\n' + modules : '') },
-      ...history,
-    ], {
-      stream: true,
-      // 增量写入占位消息；滚动做轻量节流（每 60 字一次，避免逐字 nextTick 抖动）
-      onToken: (_delta, full) => {
-        currentChat.value.messages[replyIdx].content = full;
-        if (full.length - lastScrolled >= 60) { lastScrolled = full.length; scroll(); }
-      },
-    });
+    const res = await runAgentTurn({ userInput: text, history, agentId: 'assistant' });
     // 空白回复兜底：O4 收口到 stringifyReply（统一口径 + 计入 AI 回复质量监控 getReplyStats）
-    const final = stringifyReply(reply, t('views.aiAssistant.noContent'));
+    const final = stringifyReply(res?.reply, t('views.aiAssistant.noContent'));
     try { T.aiCall('chat', final.length); } catch {}
-    // 用最终文本覆盖占位（流式可能被超时截断，stringifyReply 会兜底成提示文案）
-    currentChat.value.messages[replyIdx].content = final;
+    // Agent 内部虽全程流式（防超时），但只在收尾返回整段 → 客户端渐进显示，保留打字机手感
+    await revealBubble(replyIdx, final);
     if (voiceOn.value) speak(final);
     const n = await extractMemories(text, final);
     if (n > 0) toast(t('views.aiAssistant.memSaved', undefined, { n }), 'success');

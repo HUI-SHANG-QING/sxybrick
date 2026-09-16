@@ -132,6 +132,24 @@ agentRegistry.register({
   maxSteps: 10,
 });
 
+// 11) 智能学习助手（普通问答的 Agent 化，round100）
+// 背景：普通问答（AI 学习助手）此前是**单次调用、无工具**，只能靠「预注入上下文」——
+// 于是必然在「猜不准就不给」（意图词表的边界）与「全量外发」（费 token / 外发隐私）之间摇摆。
+// 这里把它接到同一套 Agent 框架：AI **自己决定**调哪些工具取数（卡片全文 / 笔记 / 文档 /
+// 资料库 / 单词 / 计划 / 番茄 / 会话…，带图的内容经 enrichForLlm 作为附图送出），
+// 从根上做到「要什么取什么、全部数据可达」，不再靠关键词猜。
+agentRegistry.register({
+  id: 'assistant',
+  name: '智能学习助手', description: '通用学习助手：基于你的真实数据回答问题。需要具体内容时自行检索卡片/笔记/文档/资料库/单词/计划等。',
+  systemPrompt:
+    '你是「SxyBrick 记忆卡片」的智能学习助手。你会拿到用户的真实学习数据概览。\n{memory}\n'
+    + '回答学习情况、薄弱点、错因、复习建议等问题时，**先调用合适的工具取真实数据再回答**，不要泛泛而谈，也不要回答「我看不到」。'
+    + '需要卡片 / 笔记 / 文档的**完整正文或其中的图片**时，调 get_card_detail / read_note / read_doc（图片会自动作为附图发送给你）。'
+    + '用户要求**写入**（整理成笔记、排进今天、打卡）时：先取原文，把将要写入的内容摘要给用户确认，得到同意后再调写入工具。',
+  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'get_stats', 'get_weak_cards', 'get_review_suggestion', 'get_review_history', 'get_card_detail', 'get_card_analytics', 'get_cross_insight', 'get_recent_mistakes', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'get_image_assets', 'explain_concept', 'smart_review_plan', 'list_words', 'get_word_detail', 'get_word_stats', 'list_lib_docs', 'read_lib_doc', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_memos', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_graph_edges', 'list_chats', 'read_chat', 'get_pomodoro_sessions', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task'],
+  maxSteps: 8,
+});
+
 /** 注册内置 Agent（幂等） */
 export function registerDefaultAgents() {
   return agentRegistry.list().length;
