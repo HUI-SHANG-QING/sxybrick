@@ -60,3 +60,19 @@
 1. **「AI 学习助手看不到全库卡片正文」是设计使然**（只返回检索命中的片段，防撑爆上下文），非 bug；要看某张卡需贴正文或调工具——属产品预期，不在本轮范围。
 2. **「AI 文档 0 篇 / 备忘 0 条 / 知识图谱 58 边看不到节点」**：这些模块确实无 AI 工具（docs/notes/mindmaps/graph 缺详情工具），与 round88 单词模块同类——属「分表模块未挂工具」的存量问题，可单列一轮补齐（候选 `get_doc_detail` / `get_memo_detail` / `list_graph_edges` 详情化）。
 3. 跨设备图不同步的**真缺失**仍按原文案提示去同步——那是数据侧问题，不是本 bug。
+
+## 6. 追加验证：AI 学习助手（普通问答）同样已修复
+
+用户纠正「AI 学习助手是真的不看到图片」。实证两链路共用同一 `chat()`（`llm.js:169`→`enrichForLlm`）：
+`AIAssistant.vue:135` 调 `buildFullContext(text)` 注入 system 消息 → `chatAI` → `enrichForLlm`。
+`buildFullContext = buildStudyContext(薄弱卡, 本轮 stripImageRefs) + buildRAGContext(retrieveContext, 早已 clipText)`。
+_round91 修的正是这两条上下文里的 id 切坏_，故假缺失对普通问答同样消除。
+
+新增复验 `tests/ai-assistant-image-visibility.test.mjs`：
+- 种一张「正文前带图」的卡 + 完整 image 行 + 2 条 rating=0 复习记录（使其同时是薄弱卡、能被 RAG 命中）；
+- 调 `buildFullContext('停止等待协议超时重传')` 取上下文，喂 `enrichForLlm` → **vision=1**，且不对库里存在的图假报缺失；
+- 上下文里所有 `sxy-img://` 引用必须是**完整 36 位 uuid**（不得半截）。
+
+**仍存的真实边界（非 bug，本轮未扩）**：普通问答靠 RAG 被动检索，若用户问题文本与该卡正文语义不匹配，
+RAG 取不到 → 图不进上下文 → 看不到。Agent 因能调 `get_card_detail` 主动取全文，故「总能看到」。
+要使普通问答与 Agent 对齐，需给普通问答加「按问题搜卡并注入全文」的能力（候选后续轮）。
