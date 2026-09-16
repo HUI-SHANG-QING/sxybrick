@@ -7,6 +7,7 @@ import { db } from '../db.js';
 import { getStats, weakCards, getReviewSuggestion, getTags } from '../repo.js';
 import { getModuleSummary } from './analytics.js';
 import { retrieveContext, ensureIndex } from './retrieval.js';
+import { stripImageRefs } from '../utils/clip.js';
 
 function tagCountsStr(tags) {
   if (!tags || !tags.length) return '';
@@ -49,7 +50,7 @@ export async function buildStudyContext() {
       .slice(0, 20)
       .map(
         (c, i) =>
-          `${i + 1}.[${c.subject || '未分类'}${c.marked ? '·错题' : ''}${c.wrongReason ? '·' + c.wrongReason : ''}] ${String(c.front).replace(/\s+/g, ' ').slice(0, 30)}（遗忘${c.failCount}次）`,
+          `${i + 1}.[${c.subject || '未分类'}${c.marked ? '·错题' : ''}${c.wrongReason ? '·' + c.wrongReason : ''}] ${stripImageRefs(c.front).replace(/\s+/g, ' ').slice(0, 30)}（遗忘${c.failCount}次）`,
       )
       .join('；');
     L.push(`- 薄弱/错题卡片（按遗忘次数排序）：${top}`);

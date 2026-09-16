@@ -1,3 +1,5 @@
+import { clipText } from '../../utils/clip.js';
+
 // src/agent/tools/compact.js
 // 工具结果的「结构化压缩」：把要喂给大模型的 JSON 控制在预算内。
 //
@@ -8,6 +10,11 @@
 //
 // 设计取舍：不做「粗暴截断字符串」（会把 JSON 截半、模型无法解析、且丢失哪条被截的信息），
 // 而是**按结构压缩**：数组留前 N 项、长字符串截断并标注原长度、对象递归但限深。
+//
+// round91：clipString 改用 clipText（图片感知截断）。旧写法 `s.slice(0, maxLen)` 会把
+// `sxy-img://<36位uuid>`（52 字符）拦腰截断 → 半截 id 进上下文 → enrichForLlm 拿半截 id
+// 查库查不到 → 对库里明明存在的图报「本机没有这张图」。clipText 把图片引用完整保留并
+// 追加在末尾（正文按 maxLen 截断），代价仅多几十字符，换来 id 永不残缺。
 // 同时在结尾附一句明确的截断说明 —— 模型据此可以如实告知用户「只看到前 N 条」，
 // 而不是以为这就是全部（防止幻觉式总结）。
 
@@ -24,10 +31,11 @@ const DEFAULTS = {
   maxDepth: 3,       // 递归深度上限
 };
 
-/** 截断单个字符串（附原长度，便于模型判断"这里还有更多"） */
+/** 截断单个字符串（附原长度，便于模型判断"这里还有更多"）。
+ *  round91：走 clipText 保护图片引用完整性——裸 slice 会切坏 sxy-img://<uuid>。 */
 function clipString(s, maxLen) {
   if (s.length <= maxLen) return s;
-  return `${s.slice(0, maxLen)}…（本字段共 ${s.length} 字，已截断）`;
+  return `${clipText(s, maxLen)}…（本字段共 ${s.length} 字，已截断）`;
 }
 
 /** 递归压缩：数组限量、长串截断、对象限深 */

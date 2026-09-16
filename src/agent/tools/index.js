@@ -59,7 +59,7 @@ import {
 // round67：图片感知截断 + 引用检测。
 // 卡片正文里的图片是 `![image](sxy-img://<36位uuid>)`（56 字符），朴素 slice 会把它切坏
 // → 富集时查不到图 → AI 误以为「图没传过来」。这里统一走 clipText 保护引用完整性。
-import { clipText, hasImageRef } from '../../utils/clip.js';
+import { clipText, hasImageRef, stripImageRefs } from '../../utils/clip.js';
 import { docKindOf, docContentProfile } from '../../services/doc-vision.js';
 // round90：图片资产体检（悬空引用诊断现成于 statImageAssets，此前未注册成 AI 工具）
 import { statImageAssets } from '../../services/image-analysis.js';
@@ -175,9 +175,14 @@ toolRegistry.register({
         items: cards.map((c) => ({
           id: c.id,
           subject: c.subject,
-          front: String(c.front).slice(0, 60),
+          // round91：摘要先 stripImageRefs 去掉全部图片引用再切片。
+          // 旧写法 String(c.front).slice(0,60) 会把 sxy-img://<36位uuid>（52 字符）
+          // 拦腰截断，产出半截 id 进上下文 → enrichForLlm 拿半截 id 查库查不到 →
+          // 对库里明明存在的图报「本机没有这张图」（用户原话「明明在的图片它却说缺失了」）。
+          // 摘要意图本就不含图（hasImage 已标，引导模型调 get_card_detail 取全文），去引用才对。
+          front: stripImageRefs(c.front).slice(0, 60),
           // round71：补背面摘要（同 search_cards）——旧版只有正面，模型无法引用答案侧内容
-          back: String(c.back || '').slice(0, 60),
+          back: stripImageRefs(c.back || '').slice(0, 60),
           // 摘要只给前 60 字，但必须让模型知道「这张卡有图」——
           // 否则图在背面 / 标记被截断时，模型完全不知道有图可看。
           // 不在此保留完整图片引用：列表可能命中几十张卡，保留会把送图额度瞬间吃光。
@@ -253,12 +258,12 @@ toolRegistry.register({
         items: page.map((c) => ({
           id: c.id,
           subject: c.subject,
-          front: String(c.front).slice(0, 80),
+          front: stripImageRefs(c.front).slice(0, 80),
           // round71【本次核心修复之一】此前**只返回 front**，back 一个字都没有，
           // 于是用户问「这张卡背面写了什么」时模型手上根本没有背面数据，
           // 只能回答「我看不到背面内容」——用户视角就是「AI 连卡片内容都看不到」。
           // 这里补上背面摘要（完整背面仍走 get_card_detail，避免几十张卡的全文撑爆上下文）。
-          back: String(c.back || '').slice(0, 80),
+          back: stripImageRefs(c.back || '').slice(0, 80),
           // 同 get_weak_cards：摘要不保留图片引用，但要让模型知道「这张卡有图可看」
           hasImage: hasImageRef(c.front) || hasImageRef(c.back),
           tags: c.tags,
@@ -950,7 +955,7 @@ toolRegistry.register({
     const r = await listCards({ q: concept });
     // 「 [img]」为 ASCII 标记（不经 i18n 闸），提示模型该卡带图、可调 get_card_detail 看完整内容
     const related = r.items.slice(0, 8)
-      .map((c) => `[${c.subject}] ${String(c.front).slice(0, 60)}${hasImageRef(c.front) || hasImageRef(c.back) ? ' [img]' : ''}`)
+      .map((c) => `[${c.subject}] ${stripImageRefs(c.front).slice(0, 60)}${hasImageRef(c.front) || hasImageRef(c.back) ? ' [img]' : ''}`)
       .join('\n');
     const sys = `你是学习答疑导师。讲解「${concept}」时，如用户已有相关卡片请结合说明（已有卡片：\n${related || '无'}），其余用通俗中文+举例+公式（$...$）讲透。`;
     const out = await ctx.chat([{ role: 'system', content: sys }, { role: 'user', content: `请讲解：${concept}` }]);
@@ -1175,7 +1180,7 @@ toolRegistry.register({
       ok: true,
       data: {
         recentMistakes: insight.recentMistakes.slice(0, limit),
-        weakCards: weak.slice(0, limit).map(c => ({ id: c.id, subject: c.subject, front: String(c.front).slice(0, 50), hasImage: hasImageRef(c.front) || hasImageRef(c.back), failCount: c.failCount })),
+        weakCards: weak.slice(0, limit).map(c => ({ id: c.id, subject: c.subject, front: stripImageRefs(c.front).slice(0, 50), hasImage: hasImageRef(c.front) || hasImageRef(c.back), failCount: c.failCount })),
         dueCount: insight.dueToday,
         activePlans: insight.plans.active,
         suggestion: `建议优先复习最近答错的 ${insight.recentMistakeCount} 题与 ${weak.length} 张薄弱卡，兼顾 ${insight.dueToday} 张到期卡。`,
@@ -1224,8 +1229,8 @@ toolRegistry.register({
     return {
       ok: true,
       data: {
-        path: plan.path.slice(0, 50).map(c => ({ id: c.id, subject: c.subject, front: String(c.front).slice(0, 60), hasImage: hasImageRef(c.front) || hasImageRef(c.back), graphReason: c.graphReason, level: c.level, dueAt: c.dueAt })),
-        prereqsAdded: plan.prereqsAdded.slice(0, 15).map(c => ({ id: c.id, front: String(c.front).slice(0, 60), subject: c.subject, hasImage: hasImageRef(c.front) || hasImageRef(c.back) })),
+        path: plan.path.slice(0, 50).map(c => ({ id: c.id, subject: c.subject, front: stripImageRefs(c.front).slice(0, 60), hasImage: hasImageRef(c.front) || hasImageRef(c.back), graphReason: c.graphReason, level: c.level, dueAt: c.dueAt })),
+        prereqsAdded: plan.prereqsAdded.slice(0, 15).map(c => ({ id: c.id, front: stripImageRefs(c.front).slice(0, 60), subject: c.subject, hasImage: hasImageRef(c.front) || hasImageRef(c.back) })),
         contrastPairs: plan.contrastPairs.slice(0, 15),
         unmapped: plan.unmapped,
         edgesUsed: plan.edgesUsed,

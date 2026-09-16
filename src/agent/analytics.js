@@ -744,7 +744,7 @@ export async function getAssetHealth() {
   const reviewedIds = new Set(reviews.map(r => r.cardId));
   const zombies = cards
     .filter(c => !reviewedIds.has(c.id) && nowTs - (c.createdAt || nowTs) > 90 * DAY && (c.dueAt || 0) <= nowTs)
-    .map(c => ({ id: c.id, front: String(c.front).slice(0, 50), subject: c.subject || '', createdAt: c.createdAt, dueAt: c.dueAt }));
+    .map(c => ({ id: c.id, front: stripImageRefs(c.front).slice(0, 50), subject: c.subject || '', createdAt: c.createdAt, dueAt: c.dueAt }));
 
   // 孤儿图片：不被任何卡片引用
   const used = new Set();
