@@ -44,6 +44,38 @@ export function parseLLMJsonArray(raw) {
 }
 
 /**
+ * 截断修复（本轮新增）：LLM 的结构化输出被 max_tokens / 空闲超时截断后，末尾会缺引号与括号
+ * → JSON.parse 必失败 → 上层只能降级成「裸文本」（用户看到一大坨 JSON）。
+ * 做法：从首个 { / [ 起按「字符串内 / 外」扫描，补齐未闭合的引号与括号后再尝试解析。
+ * 局限（刻意）：只修「尾巴」，不重建中间缺失内容；最后一条可能是半条 —— 调用方按 id 过滤即可。
+ * @param {string} s
+ * @returns {string|null}
+ */
+function repairTruncated(s) {
+  const start = String(s).search(/[{[]/);
+  if (start < 0) return null;
+  let inStr = false, esc = false;
+  const stack = [];
+  for (let i = start; i < s.length; i += 1) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === '\\') esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === '{' || c === '[') stack.push(c === '{' ? '}' : ']');
+    else if (c === '}' || c === ']') stack.pop();
+  }
+  let out = String(s).slice(start);
+  if (esc) out = out.slice(0, -1);        // 悬空的反斜杠去掉
+  if (inStr) out += '"';                  // 未闭合字符串补引号
+  while (stack.length) out += stack.pop(); // 补括号（后进先出）
+  return out;
+}
+
+/**
  * 非抛出变体：从 LLM 原始输出中尽量解析出 JSON（数组或对象）。
  * 与 parseLLMJsonArray 共享相同的 3 级容错逻辑，但失败返回 null 而非抛错。
  * 适用场景：extractJSON（llm.js）等需要静默降级的调用方。
@@ -63,6 +95,10 @@ export function tryParseLLMJson(raw) {
   if (arr) { v = tryParse(arr[0]); if (v != null) return v; }
   const obj = s.match(/\{[\s\S]*\}/);
   if (obj) { v = tryParse(obj[0]); if (v != null) return v; }
+
+  // 3) 截断修复：被 max_tokens / 超时砍掉尾巴的结构化输出，尽量救回已生成的条目
+  const repaired = repairTruncated(s);
+  if (repaired) { v = tryParse(repaired); if (v != null) return v; }
 
   return null;
 }

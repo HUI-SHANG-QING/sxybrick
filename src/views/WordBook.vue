@@ -427,6 +427,34 @@ async function remove(c) {
   await load();
 }
 
+// ---- 批量删除（round103）：用户反馈「一个一个删单词太麻烦」→ 多选后一次删除 ----
+const batchMode = ref(false);
+const selIds = ref(new Set());
+function toggleBatch() {
+  batchMode.value = !batchMode.value;
+  if (!batchMode.value) selIds.value = new Set();
+}
+function toggleSel(id) {
+  const s = new Set(selIds.value);
+  if (s.has(id)) s.delete(id); else s.add(id);
+  selIds.value = s;
+}
+function selectAllVisible() { selIds.value = new Set(cards.value.map((c) => c.id)); }
+function clearSel() { selIds.value = new Set(); }
+async function removeSelected() {
+  const ids = [...selIds.value];
+  if (!ids.length) { toast(t('views.wordBook.batchNone'), 'error'); return; }
+  if (!(await confirmDialog(t('views.wordBook.confirmBatchDelete', undefined, { n: ids.length })))) return;
+  let done = 0;
+  for (const id of ids) {
+    try { await deleteWordCard(id); done += 1; } catch { /* 单个失败不中断整批 */ }
+  }
+  selIds.value = new Set();
+  batchMode.value = false;
+  toast(t('views.wordBook.batchDeleted', undefined, { n: done }), 'success');
+  await load();
+}
+
 async function toggleFamiliar(c) {
   await markFamiliar(c.id, c.familiar ? 0 : 1);
   await load();
@@ -815,13 +843,23 @@ async function addOcrWords() {
         </select>
         <button class="wb-add wb-ocr" @click="openOcrPicker">📷 {{ t('views.wordBook.ocrAdd') }}</button>
         <button class="wb-add" @click="openAdd">＋ {{ t('views.wordBook.addBtn') }}</button>
+        <button class="wb-add" :class="{ on: batchMode }" @click="toggleBatch">☑ {{ batchMode ? t('views.wordBook.batchExit') : t('views.wordBook.batchManage') }}</button>
         <input ref="ocrFileInput" type="file" accept="image/*" class="ocr-input" @change="onOcrFile" />
       </div>
     </div>
 
+    <!-- 批量操作条（round103：一个一个删太麻烦 → 多选后一次删除） -->
+    <div class="wb-batchbar" v-if="batchMode">
+      <span class="wb-batch-count">{{ t('views.wordBook.batchSelected', undefined, { n: selIds.size }) }}</span>
+      <button class="wb-add" @click="selectAllVisible">{{ t('views.wordBook.batchSelectAll') }}</button>
+      <button class="wb-add" @click="clearSel">{{ t('views.wordBook.batchClear') }}</button>
+      <button class="wb-add" :disabled="!selIds.size" @click="removeSelected">🗑 {{ t('views.wordBook.batchDelete') }}</button>
+    </div>
+
     <!-- 列表（不背风卡片：单词 / 音标 / 类型 + 释义 + 例句(高亮) + 翻译 + 批注来源标签 + 四操作） -->
     <div class="wb-list" v-if="cards.length">
-      <div v-for="c in cards" :key="c.id" class="wb-card" @click="openDetail(c)">
+      <div v-for="c in cards" :key="c.id" class="wb-card" :class="{ picked: batchMode && selIds.has(c.id) }" @click="batchMode ? toggleSel(c.id) : openDetail(c)">
+        <input v-if="batchMode" type="checkbox" class="wb-pick" :checked="selIds.has(c.id)" @click.stop="toggleSel(c.id)" />
         <div class="wb-card-top">
           <div class="wb-word">
             <span class="wb-wtext">{{ c.word }}</span>
@@ -1370,4 +1408,13 @@ async function addOcrWords() {
 .linked-pick-item { padding: 7px 10px; cursor: pointer; border-radius: 6px; font-size: 13px; }
 .linked-pick-item:hover { background: var(--code-inline); }
 .linked-pick-item small { color: var(--ink-2); }
+
+/* 批量删除（round103）：多选模式下的操作条与勾选框 */
+.wb-batchbar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; margin-bottom: 8px; flex-wrap: wrap; }
+.wb-batch-count { color: var(--ink-2); font-size: 13px; margin-right: 4px; }
+.wb-batchbar .wb-add { padding: 6px 12px; }
+.wb-batchbar .wb-add:disabled { opacity: .5; cursor: not-allowed; }
+.wb-card { position: relative; }
+.wb-pick { position: absolute; top: 12px; left: 12px; width: 16px; height: 16px; z-index: 2; cursor: pointer; }
+.wb-card.picked { outline: 2px solid var(--accent); outline-offset: -2px; }
 </style>

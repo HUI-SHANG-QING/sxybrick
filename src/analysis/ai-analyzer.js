@@ -70,9 +70,16 @@ export async function analyzeWithAI(cards, question, cfg, opts = {}) {
   });
   const json = extractJSON(raw);
   if (!json || typeof json !== 'object' || !json.type || json.data == null) {
-    // LLM 未按协议输出 → 降级为文本结果（保住内容，不丢用户可见信息）
     const text = String(raw || '').trim();
     if (!text) throw new Error('AI 返回为空');
+    // 本轮修复：若原始输出**看起来就是一个结构化 JSON 信封**（以代码块 / { / [ 开头且含 type/data）
+    // 却解析不出来（典型：结构化输出过长被截断），**绝不能把它当正文甩给用户**——
+    // 用户看到的会是一大坨裸 JSON（本轮实测即此：预设「拓扑排序」返回的 timeline 被截断）。
+    // 抛错 → 上层 link-engine 捕获后降级本地模式，给出**可渲染**的真实结果。
+    const looksStructured = /^\s*(```|\{|\[)/.test(text);
+    const hasEnvelope = /"type"\s*:/.test(text) || /"data"\s*:/.test(text);
+    if (looksStructured && hasEnvelope) throw new Error('AI 结构化输出不完整或无法解析（可能被截断）');
+    // 真正的自由文本回答：保留内容（降级为文本结果，不丢用户可见信息）
     return { type: 'text', data: { text }, engine: 'ai' };
   }
   const type = ['text', 'list', 'timeline', 'graph'].includes(json.type) ? json.type : 'text';

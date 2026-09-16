@@ -91,6 +91,16 @@ export const zh = {
 
   confirmDelete: '确定删除「{word}」？该操作会进入回收站，并跨设备同步删除。',
   deleted: '已删除',
+  // 批量删除（round103）
+  batchManage: '批量管理',
+  batchExit: '退出批量',
+  batchSelectAll: '全选',
+  batchClear: '取消选择',
+  batchSelected: '已选 {n} 个',
+  batchDelete: '删除选中',
+  confirmBatchDelete: '确定删除选中的 {n} 个单词吗？删除后进入回收站，可恢复。',
+  batchDeleted: '已删除 {n} 个单词',
+  batchNone: '请先勾选要删除的单词',
   created: '已添加',
   updated: '已保存',
   saveFailed: '保存失败',
@@ -270,6 +280,16 @@ export const en = {
 
   confirmDelete: 'Delete “{word}”? It goes to Trash and syncs across devices.',
   deleted: 'Deleted',
+  // Batch delete (round103)
+  batchManage: 'Batch',
+  batchExit: 'Exit batch',
+  batchSelectAll: 'Select all',
+  batchClear: 'Clear',
+  batchSelected: '{n} selected',
+  batchDelete: 'Delete selected',
+  confirmBatchDelete: 'Delete {n} selected words? They go to Trash and can be restored.',
+  batchDeleted: 'Deleted {n} words',
+  batchNone: 'Select the words to delete first',
   created: 'Added',
   updated: 'Saved',
   saveFailed: 'Save failed',

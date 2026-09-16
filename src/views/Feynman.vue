@@ -9,6 +9,10 @@ import { db, uid } from '../db.js';
 import { getSubjects, getTags, getStats, weakCards, applyCardFeedback } from '../repo.js';
 import { chatAI, hasAIKey, saveChat, listChats, deleteChat, getChat } from '../ai.js';
 import { getCardAnalytics } from '../agent/analytics.js';
+// round103：费曼上下文此前用 `.slice(0,100/140)` 砍卡片正文——看不到详细内容、还会切坏图片引用
+// （图片引用是 56 字符的 ![](sxy-img://uuid)）。改走 clipText：正文按长度截断但**引用完整保留**，
+// 交 enrichForLlm 作为附图送出。
+import { clipText } from '../utils/clip.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import FullscreenButton from '../components/FullscreenButton.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
@@ -87,7 +91,9 @@ function enrichedToText(items) {
     const statStr = s
       ? `（复习${s.total}次·错${s.wrong}次·正确率${s.correctRate ?? '—'}%${flags ? '·' + flags : ''}·标签[${(c.tags || []).join(',') || '无'}]）`
       : '';
-    return `${i + 1}. [${c.subject || '未分类'}] 问题：${String(c.front).replace(/\s+/g, ' ').slice(0, 100)} → 答案：${String(c.back).replace(/\s+/g, ' ').slice(0, 140)}${c.mnemonic ? '（助记：' + c.mnemonic + '）' : ''}${statStr}`;
+    // round103：给出**详细正文**（此前 front 只留 100 / back 只留 140 字 → 费曼看不到具体内容）。
+    // clipText 保图片引用完整（正文超长才截断），引用随 system 消息被 enrichForLlm 扫到 → 作为附图送出。
+    return `${i + 1}. [${c.subject || '未分类'}] 问题：${clipText(String(c.front).replace(/\s+/g, ' '), 400)} → 答案：${clipText(String(c.back).replace(/\s+/g, ' '), 600)}${c.mnemonic ? '（助记：' + c.mnemonic + '）' : ''}${statStr}`;
   }).join('\n');
 }
 
@@ -100,11 +106,11 @@ async function buildFeynmanContext(cards) {
   L.push(`【用户复习数据】卡片 ${stats.totalCards} 张，总复习 ${stats.totalReviews} 次，平均掌握度 ${stats.avgMastery}%；自评分布：没记住 ${stats.ratingDist[0]} 次 / 还模糊 ${stats.ratingDist[1]} 次 / 记住了 ${stats.ratingDist[2]} 次。`);
   if (weakInRange.length) {
     const enriched = await enrichCards(weakInRange, 15);
-    L.push(`【本范围内薄弱/错题卡片（务必优先针对这些提问；每张卡已附复习次数/错次数/正确率/频率/标签）】`);
+    L.push(`【本范围内薄弱/错题卡片（共 ${weakInRange.length} 张，此处列出前 ${enriched.length} 张；务必优先针对这些提问；每张卡附复习次数/错次数/正确率/频率/标签，正文为**完整内容**、含图片引用）】`);
     L.push(enrichedToText(enriched));
   } else {
     const enriched = await enrichCards(cards, 10);
-    L.push(`【本范围内卡片（含复习统计）】`);
+    L.push(`【本范围内卡片（共 ${cards.length} 张，此处列出前 ${enriched.length} 张，含复习统计与**完整正文**、含图片引用）】`);
     L.push(enrichedToText(enriched));
   }
   return L.join('\n');

@@ -13,7 +13,7 @@
 //   · 渲染失败/类型不认识 → 返回 null，调用方按原文显示（降级不丢信息）。
 
 /** 支持的形状（与 Agent 提示协议、前端渲染分支保持一致） */
-export const STRUCTURED_TYPES = ['list', 'table', 'graph', 'cards', 'keyvalue', 'quiz'];
+export const STRUCTURED_TYPES = ['list', 'table', 'graph', 'cards', 'keyvalue', 'quiz', 'timeline'];
 
 /**
  * 尝试把一段回复解析为结构化结果。
@@ -63,6 +63,22 @@ function listToMd(data) {
     const meta = esc(it.meta || it.subject || '');
     const tail = [detail, meta].filter(Boolean).join(' · ');
     return `${i + 1}. **${title}**${tail ? ` — ${tail}` : ''}`;
+  });
+  return lines.join('\n');
+}
+
+/** timeline：{ steps: [{step, title, detail, cardId}] } → 有序步骤列表（学习顺序 / 依赖链） */
+function timelineToMd(data) {
+  const steps = Array.isArray(data?.steps) ? data.steps
+    : (Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : null));
+  if (!steps || !steps.length) return null;
+  const lines = steps.map((s, i) => {
+    if (s == null) return `${i + 1}. —`;
+    if (typeof s === 'string') return `${i + 1}. ${esc(s)}`;
+    const n = s.step || i + 1;
+    const title = esc(s.title || s.front || s.name || `第 ${n} 步`);
+    const detail = esc(s.detail || s.desc || s.note || '');
+    return `${n}. **${title}**${detail ? ` — ${detail}` : ''}`;
   });
   return lines.join('\n');
 }
@@ -216,6 +232,7 @@ export function structuredToMarkdown(parsed) {
   else if (type === 'keyvalue') body = genericToMd(data);
   else if (type === 'graph') return null; // 交给图表组件渲染
   else if (type === 'quiz') body = quizToMd(data); // 交互组件渲染；此处的 Markdown 供降级/复制
+  else if (type === 'timeline') body = timelineToMd(data); // 学习顺序/依赖链（此前落到 genericToMd → 接近裸 JSON）
   else body = genericToMd(data);
   if (!body) return null;
   return note ? `${note}\n\n${body}` : body;
