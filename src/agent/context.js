@@ -4,7 +4,7 @@
 // 这是“数据感知型 Agent”的核心：所有分析/建议类 Agent 都依赖它。
 
 import { db } from '../db.js';
-import { getStats, weakCards, getReviewSuggestion, getTags, listCards, getCard, listMemos, listDocs, listGraphEdges } from '../repo.js';
+import { getStats, weakCards, getReviewSuggestion, getTags, listCards, getCard, listMemos, listDocs, listNotes, listPlans, listDailyPlanSummary, listPomoSessions, listGraphEdges } from '../repo.js';
 import { getModuleSummary } from './analytics.js';
 import { retrieveContext, ensureIndex, hybridSearch } from './retrieval.js';
 import { stripImageRefs, clipText } from '../utils/clip.js';
@@ -174,33 +174,69 @@ export async function buildQuestionCardContext(query) {
 }
 
 /**
- * 模块节点级目录：把「模块计数」升级为「节点可见」——
- * 此前普通问答只能看到 getModuleSummary 的「AI 文档 0 篇 / 备忘 0 条 / 知识图谱 58 边」，
- * 模型据此说「看不到节点」。这里列出：备忘全文、文档标题、图谱边端点（端点对极短）。
- * 范围受控：图谱边过多（>120）只报计数，避免撑爆上下文。
+ * 全模块明细快照：把「模块计数」升级为「模块内容可见」——
+ * 普通问答（AI 学习助手）无工具，只能看到注入上下文；此前它只从 getModuleSummary 拿到
+ * 「AI 文档 N 篇 / 备忘 N 条 / 知识图谱 N 边 / 番茄 N 次」这类**计数**，于是答「我看不到具体内容」。
+ * 本函数把每个模块的**明细**（含正文）注入 system 消息：备忘全文、文档/笔记正文摘要、
+ * 长期计划、每日执行、番茄逐次、单词、资料库文件、图谱边端点。
+ * **关键**：文档/笔记正文用 `clipText`（保图片引用完整）→ 交 `enrichForLlm` 作为附图送出，
+ * 这样普通问答也「看得到图」。范围受控：各列表均有条数/字数上限。
  * @returns {Promise<string>}
  */
 export async function buildModuleNodesContext() {
   try {
-    const [memos, docs, edges] = await Promise.all([
+    const [memos, docs, notes, plans, dsum, pomo, words, files, edges] = await Promise.all([
       listMemos().catch(() => []),
       listDocs().catch(() => []),
+      listNotes().catch(() => []),
+      listPlans().catch(() => []),
+      listDailyPlanSummary(7).catch(() => []),
+      listPomoSessions(15).catch(() => []),
+      db.wordCards.orderBy('updatedAt').reverse().limit(15).toArray().catch(() => []),
+      db.docFiles.toArray().catch(() => []),
       listGraphEdges().catch(() => []),
     ]);
-    const L = ['【分表模块·节点目录（让 AI 看到具体节点内容，而非只看到计数；备忘全文 / 文档标题 / 图谱边端点均列出）】'];
+    const L = ['【全模块明细快照：让普通问答也能看到每个模块的具体内容（不只是计数）。含图片引用的正文已原样保留，会作为附图随本次请求发送给你。】'];
     if (memos.length) {
-      L.push(`- 备忘清单（共 ${memos.length} 条，备忘均为短句，此处直接列出全文）：${memos.map((m) => String(m.text || '')).slice(0, 30).join(' | ')}`);
+      L.push(`- 备忘（共 ${memos.length} 条，备忘均为短句，此处直接列出全文供你引用）：${memos.map((m) => String(m.text || '')).slice(0, 30).join(' | ')}`);
     }
     if (docs.length) {
-      L.push(`- AI 文档列表（共 ${docs.length} 篇，列出每篇标题供你定位与引用）：${docs.map((d) => d.title || '无标题').slice(0, 30).join('、')}`);
+      const items = docs.slice(0, 10).map((d) => `《${d.title || '无标题文档'}》类型为${d.type || '未分类'}，正文摘要如下：${clipText(String(d.content || ''), 500)}`);
+      L.push(`- AI 文档（共 ${docs.length} 篇，下面列出每篇的标题与正文摘要，正文里的图片引用已完整保留）：\n  ${items.join('\n  ')}`);
+    }
+    if (notes.length) {
+      const items = notes.slice(0, 10).map((n) => `《${n.title || '无标题笔记'}》分类为${n.category || '未分类'}，正文摘要如下：${clipText(String(n.content || ''), 500)}`);
+      L.push(`- 笔记（共 ${notes.length} 篇，下面列出每篇的标题与正文摘要，正文里的图片引用已完整保留）：\n  ${items.join('\n  ')}`);
+    }
+    if (plans.length) {
+      const items = plans.slice(0, 6).map((p) => `《${p.title || '未命名计划'}》当前状态为${p.status || '未知'}，内容摘要如下：${clipText(String(p.content || ''), 300)}`);
+      L.push(`- 长期学习计划（共 ${plans.length} 份，下面列出每份的标题、状态与内容摘要）：\n  ${items.join('\n  ')}`);
+    }
+    if (dsum.length) {
+      const items = dsum.slice(0, 7).map((d) => `日期${d.date}，当日任务完成${d.done}项，总计${d.total}项任务`);
+      L.push(`- 每日规划执行情况（最近若干天，格式为日期与当日任务完成数）：${items.join('，')}`);
+    }
+    if (pomo.length) {
+      const pad = (x) => String(x).padStart(2, '0');
+      const loc = (ts) => { const dd = new Date(Number(ts) || 0); return Number.isFinite(dd.getTime()) ? `${dd.getMonth() + 1}/${dd.getDate()} ${pad(dd.getHours())}:${pad(dd.getMinutes())}` : ''; };
+      const items = pomo.map((p) => `开始于${loc(p.startedAt)}，专注时长${p.duration || 0}分钟${p.tag ? '，标签' + p.tag : ''}${p.partial ? '，未完成' : ''}`);
+      L.push(`- 番茄钟专注明细（共 ${pomo.length} 次，列出每次的本地开始时刻、时长分钟与标签）：${items.join('；')}`);
+    }
+    if (words.length) {
+      const items = words.map((w) => `${w.word || ''}${w.meaning ? '（' + String(w.meaning).slice(0, 40) + '）' : ''}`);
+      L.push(`- 单词模块（列出最近接触的 ${words.length} 个词条及其释义摘要）：${items.join('；')}`);
     }
     if (edges.length) {
       if (edges.length <= 120) {
         const edgeStrs = edges.map((e) => `${e.from}（起点）→${e.to}（终点），关联关系为：${e.label || '相关'}`);
         L.push(`- 知识图谱关联边（当前共 ${edges.length} 条，下面列出每一条的端点与关系）：${edgeStrs.slice(0, 120).join('；')}`);
       } else {
-        L.push(`- 知识图谱关联边：${edges.length} 条（较多已自动折叠；如需查看完整结构，可让 Agent 调 list_graph_edges，或到「知识图谱」页浏览）`);
+        L.push(`- 知识图谱关联边：${edges.length} 条（较多已自动折叠；如需查看完整结构，可到「知识图谱」页浏览）`);
       }
+    }
+    if (files.length) {
+      const items = files.slice(0, 20).map((f) => `${f.name || f.id}${f.subject ? '[' + f.subject + ']' : ''}`);
+      L.push(`- 资料库文件（共 ${files.length} 份，列出名称与科目；PDF/图片型文件内容以图像存在，需到「资料库」页打开该文件提问才能看到画面）：${items.join('、')}`);
     }
     if (L.length === 1) return '';
     return L.join('\n');
