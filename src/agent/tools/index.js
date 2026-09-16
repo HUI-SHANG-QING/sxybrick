@@ -39,6 +39,15 @@ import {
   // 原先 4 处 `Number.isFinite(Number(v)) ? Number(v) : null` 会把 null 说成 0 点。
   clampScheduledHour,
   listPomoSessions,
+  // round101：补齐「所有模块的详情都能被 AI 调用」——考试 / 思维导图 / 周报 / 卡组 / 成就
+  listExams,
+  getExam,
+  listMindmaps,
+  getMindmap,
+  listWeeklyReports,
+  getWeeklyReport,
+  listCardGroups,
+  listAchievements,
 } from '../../repo.js';
 // round95：番茄钟逐次明细 / 历史 AI 对话内容——可直接读 db（基础模块，无环）
 import { db } from '../../db.js';
@@ -548,6 +557,122 @@ toolRegistry.register({
         messages: all.slice(-limit).map((m) => ({ role: m.role, content: clipText(String(m.content ?? ''), 2000) })),
       },
     };
+  },
+});
+
+// round101：补齐「此前 AI 完全看不到」的模块——考试 / 思维导图 / 周报 / 卡组 / 单词组 / 成就。
+// 用户诉求：「所有模块的数据都要能被 AI 充分调用，而且要具体到里面的内容，不只是模块概要」。
+const _ymd = (ts) => { const d = new Date(Number(ts) || 0); return Number.isFinite(d.getTime()) ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : ''; };
+const _countTree = (n) => (!n ? 0 : 1 + (Array.isArray(n.children) ? n.children.reduce((s, c) => s + _countTree(c), 0) : 0));
+
+toolRegistry.register({
+  name: 'list_exams',
+  description: '查看考试 / 测验成绩记录（标题、科目、得分、总分、时间）。传 id 可看某一场的**题目明细与得分**。'
+    + '用户问「我上次考了多少 / 我的测验成绩 / 哪科最弱」时用它，不要凭空推测。',
+  parameters: { id: 'string: 成绩 id（可选；给了则返回该场题目明细）', limit: 'number: 最多几条，默认 20，最大 50', offset: 'number: 跳过前几条，默认 0' },
+  readsData: true,
+  async execute(args) {
+    const id = String(args?.id || '');
+    if (id) {
+      const e = await getExam(id);
+      if (!e) return { ok: false, error: 'exam not found' };
+      return { ok: true, data: { id: e.id, title: e.title, subject: e.subject, score: e.score, total: e.total, createdAt: e.createdAt, questions: clipText(JSON.stringify(e.questions || []), 4000) } };
+    }
+    const page = pageOf(await listExams(), args);
+    return { ok: true, data: { total: page.total, offset: page.offset, hasMore: page.hasMore, items: page.items.map((e) => ({ id: e.id, title: e.title, subject: e.subject, score: e.score, total: e.total, createdAt: e.createdAt })) } };
+  },
+});
+
+toolRegistry.register({
+  name: 'list_mindmaps',
+  description: '查看思维导图（标题、节点数、更新时间）。传 id 可读某张导图的**完整结构树**。'
+    + '用户问「我画过哪些思维导图 / 那张导图里有什么」时用它。',
+  parameters: { id: 'string: 导图 id（可选；给了则返回完整结构树）', limit: 'number: 最多几条，默认 20，最大 50', offset: 'number: 跳过前几条，默认 0' },
+  readsData: true,
+  async execute(args) {
+    const id = String(args?.id || '');
+    if (id) {
+      const m = await getMindmap(id);
+      if (!m) return { ok: false, error: 'mindmap not found' };
+      return { ok: true, data: { id: m.id, title: m.title, tree: clipText(JSON.stringify(m.root || {}), 8000) } };
+    }
+    const page = pageOf(await listMindmaps(), args);
+    return { ok: true, data: { total: page.total, offset: page.offset, hasMore: page.hasMore, items: page.items.map((m) => ({ id: m.id, title: m.title, nodeCount: _countTree(m.root), updatedAt: m.updatedAt })) } };
+  },
+});
+
+toolRegistry.register({
+  name: 'list_weekly_reports',
+  description: '查看学习周报（周次、标题、摘要）。传 id 可读该周报的**完整正文与结构化数据**。'
+    + '用户问「上周学得怎么样 / 我的周报」时用它。',
+  parameters: { id: 'string: 周报 id（可选；给了则返回完整正文）', limit: 'number: 最多几条，默认 20', offset: 'number: 跳过前几条，默认 0' },
+  readsData: true,
+  async execute(args) {
+    const id = String(args?.id || '');
+    if (id) {
+      const r = await getWeeklyReport(id);
+      if (!r) return { ok: false, error: 'weekly report not found' };
+      return { ok: true, data: { id: r.id, weekStart: _ymd(r.weekStart), title: r.title || '', summary: clipText(String(r.summary || ''), 3000), data: clipText(JSON.stringify(r.data || {}), 4000) } };
+    }
+    const page = pageOf(await listWeeklyReports(), args);
+    return { ok: true, data: { total: page.total, offset: page.offset, hasMore: page.hasMore, items: page.items.map((r) => ({ id: r.id, weekStart: _ymd(r.weekStart), title: r.title || '', preview: clipText(String(r.summary || ''), 120) })) } };
+  },
+});
+
+toolRegistry.register({
+  name: 'list_card_groups',
+  description: '查看卡片分组（卡组名称、描述、状态、组内卡片数）。传 id 可列出该组的**卡片标题**。'
+    + '用户问「我分了哪些卡组 / 那个卡组里有哪些卡」时用它。',
+  parameters: { id: 'string: 卡组 id（可选；给了则列出组内卡片）', limit: 'number: 最多几条，默认 30', offset: 'number: 跳过前几条，默认 0' },
+  readsData: true,
+  async execute(args) {
+    const id = String(args?.id || '');
+    const links = await db.cardGroupLinks.toArray().catch(() => []);
+    const cnt = new Map();
+    for (const l of links) cnt.set(l.groupId, (cnt.get(l.groupId) || 0) + 1);
+    if (id) {
+      const g = await db.cardGroups.get(id);
+      if (!g) return { ok: false, error: 'card group not found' };
+      const cardIds = links.filter((l) => l.groupId === id).map((l) => l.cardId);
+      const cards = cardIds.length ? (await db.cards.bulkGet(cardIds)).filter(Boolean) : [];
+      return { ok: true, data: { id: g.id, name: g.name, description: g.description || '', status: g.status || 'active', cards: cards.map((c) => ({ id: c.id, title: clipText(String(c.front || ''), 60), subject: c.subject || '' })) } };
+    }
+    const page = pageOf(await listCardGroups(), args);
+    return { ok: true, data: { total: page.total, offset: page.offset, hasMore: page.hasMore, items: page.items.map((g) => ({ id: g.id, name: g.name, description: g.description || '', status: g.status || 'active', cardCount: cnt.get(g.id) || 0 })) } };
+  },
+});
+
+toolRegistry.register({
+  name: 'list_word_groups',
+  description: '查看单词分组（词组名称、状态、词数）。传 id 可列出该组的**单词**。'
+    + '用户问「我分了哪些单词组 / 那组里有哪些词」时用它（单词正文另用 list_words / get_word_detail 取）。',
+  parameters: { id: 'string: 单词组 id（可选；给了则列出组内单词）', limit: 'number: 最多几条，默认 30', offset: 'number: 跳过前几条，默认 0' },
+  readsData: true,
+  async execute(args) {
+    const id = String(args?.id || '');
+    const links = await db.wordGroupLinks.toArray().catch(() => []);
+    const cnt = new Map();
+    for (const l of links) cnt.set(l.groupId, (cnt.get(l.groupId) || 0) + 1);
+    if (id) {
+      const g = await db.wordGroups.get(id);
+      if (!g) return { ok: false, error: 'word group not found' };
+      const ids = links.filter((l) => l.groupId === id).map((l) => l.cardId);
+      const words = ids.length ? (await db.wordCards.bulkGet(ids)).filter(Boolean) : [];
+      return { ok: true, data: { id: g.id, name: g.name, description: g.description || '', status: g.status || 'active', words: words.map((w) => ({ id: w.id, word: w.word || '' })) } };
+    }
+    const page = pageOf(await listWordGroups(), args);
+    return { ok: true, data: { total: page.total, offset: page.offset, hasMore: page.hasMore, items: page.items.map((g) => ({ id: g.id, name: g.name, description: g.description || '', status: g.status || 'active', wordCount: cnt.get(g.id) || 0 })) } };
+  },
+});
+
+toolRegistry.register({
+  name: 'list_achievements',
+  description: '查看已解锁的成就（成就 key 与解锁时间）。用户问「我拿了哪些成就」时用它。',
+  parameters: {},
+  readsData: true,
+  async execute() {
+    const rows = await listAchievements();
+    return { ok: true, data: { total: rows.length, items: rows.map((a) => ({ key: a.key, unlockedAt: a.unlockedAt })) } };
   },
 });
 

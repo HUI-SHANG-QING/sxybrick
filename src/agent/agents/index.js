@@ -17,7 +17,7 @@ agentRegistry.register({
   // 时它只能回答「我看不到」，与卡片域修复前是同一类缺陷（工具不可见 = AI 看不到）。
   // round88：补单词模块工具——英语词库独立在 db.wordCards（与 db.cards 分表），
   // 此前导师手上 0 个单词工具，用户问「我背了哪些单词 / 这个词什么意思」只能答「我看不到」。
-  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'list_lib_docs', 'read_lib_doc', 'explain_concept', 'get_card_detail', 'list_words', 'get_word_detail', 'get_word_stats', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_memos', 'list_graph_edges', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
+  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'list_lib_docs', 'read_lib_doc', 'explain_concept', 'get_card_detail', 'list_words', 'get_word_detail', 'get_word_stats', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_memos', 'list_graph_edges', 'list_chats', 'read_chat', 'get_pomodoro_sessions', 'list_exams', 'list_mindmaps', 'list_weekly_reports', 'list_card_groups', 'list_word_groups', 'list_achievements', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
   maxSteps: 6,
 });
 
@@ -34,7 +34,7 @@ agentRegistry.register({
   // round95：补「全卡正文/图片」（get_card_detail + search_cards/semantic_search，此前只有
   // get_weak_cards 的 60 字摘要 → 用户问「卡片里写了什么/图里是什么」只能答「看不到」）
   // 与「番茄钟逐次明细 / 历史对话内容」（get_pomodoro_sessions / list_chats / read_chat）。
-  tools: ['get_stats', 'get_weak_cards', 'get_review_suggestion', 'list_subjects_and_tags', 'list_plans', 'read_plan', 'list_daily_tasks', 'get_word_stats', 'list_words', 'get_word_detail', 'list_docs', 'read_doc', 'list_notes', 'read_note', 'list_memos', 'list_graph_edges', 'search_cards', 'semantic_search', 'get_card_detail', 'get_pomodoro_sessions', 'list_chats', 'read_chat'],
+  tools: ['get_stats', 'get_weak_cards', 'get_review_suggestion', 'list_subjects_and_tags', 'list_plans', 'read_plan', 'list_daily_tasks', 'get_word_stats', 'list_words', 'get_word_detail', 'list_docs', 'read_doc', 'list_notes', 'read_note', 'list_memos', 'list_graph_edges', 'search_cards', 'semantic_search', 'get_card_detail', 'get_pomodoro_sessions', 'list_chats', 'read_chat', 'list_exams', 'list_mindmaps', 'list_weekly_reports', 'list_card_groups', 'list_word_groups', 'list_achievements'],
   maxSteps: 8,
 });
 
@@ -146,7 +146,7 @@ agentRegistry.register({
     + '回答学习情况、薄弱点、错因、复习建议等问题时，**先调用合适的工具取真实数据再回答**，不要泛泛而谈，也不要回答「我看不到」。'
     + '需要卡片 / 笔记 / 文档的**完整正文或其中的图片**时，调 get_card_detail / read_note / read_doc（图片会自动作为附图发送给你）。'
     + '用户要求**写入**（整理成笔记、排进今天、打卡）时：先取原文，把将要写入的内容摘要给用户确认，得到同意后再调写入工具。',
-  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'get_stats', 'get_weak_cards', 'get_review_suggestion', 'get_review_history', 'get_card_detail', 'get_card_analytics', 'get_cross_insight', 'get_recent_mistakes', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'get_image_assets', 'explain_concept', 'smart_review_plan', 'list_words', 'get_word_detail', 'get_word_stats', 'list_lib_docs', 'read_lib_doc', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_memos', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_graph_edges', 'list_chats', 'read_chat', 'get_pomodoro_sessions', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task'],
+  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'get_stats', 'get_weak_cards', 'get_review_suggestion', 'get_review_history', 'get_card_detail', 'get_card_analytics', 'get_cross_insight', 'get_recent_mistakes', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'get_image_assets', 'explain_concept', 'smart_review_plan', 'list_words', 'get_word_detail', 'get_word_stats', 'list_lib_docs', 'read_lib_doc', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_memos', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_graph_edges', 'list_chats', 'read_chat', 'get_pomodoro_sessions', 'list_exams', 'list_mindmaps', 'list_weekly_reports', 'list_card_groups', 'list_word_groups', 'list_achievements', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task'],
   maxSteps: 8,
 });
 
