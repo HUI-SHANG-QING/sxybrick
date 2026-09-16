@@ -454,6 +454,22 @@ export async function setWordGroups(cardIds, addGroupIds = [], removeGroupIds = 
 
 // ---------- 列表 / 筛选 / 统计 ----------
 /**
+ * 单条读取：按 id 取一张词卡（含本地词库回填，与 listWordCards 同口径）。
+ *
+ * round88：单词模块此前**只有列表 API**，「给个 id 取全文」这条路在数据层就不存在——
+ * 于是 AI 侧没有任何工具能看到单张词卡的完整释义/例句/笔记（用户反馈「单词模块只能看统计、
+ * 看不到明细」的根因之一）。新增 AI 工具 get_word_detail 正需要它，故与 listWordCards 并列
+ * 放在数据层；回填复用 backfillCards，不另写一份，避免两处口径漂移。
+ */
+export async function getWordCard(id) {
+  const key = String(id ?? '').trim();
+  if (!key) return null;
+  const row = await db.wordCards.get(key);
+  if (!row) return null;
+  return backfillCards([row])[0];
+}
+
+/**
  * 列出单词卡（支持筛选）
  * @param {object} filter { kind?, familiar?, groupId?, q?, reviewedOnly?, schedulableOnly? }
  *   - kind：'word'|'phrase'|'sentence'|'template' 单选

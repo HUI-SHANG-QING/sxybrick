@@ -67,6 +67,9 @@ const LIST_TOOLS = {
   get_weak_cards: 'get_card_detail',
   list_memos: null,
   list_daily_tasks: null,
+  // round88：英语单词模块此前**连列表工具都没有**（AI 对 db.wordCards 可见度为 0）。
+  // 新工具直接纳入这张表，四件套（摘要 + id + 分页 + 详情引导）由同一道闸门统一兜住。
+  list_words: 'get_word_detail',
 };
 
 test('列表类工具必须提供分页参数（只给前 N 条又不让翻页 = 模型只能答"我只看到 N 条"）', () => {

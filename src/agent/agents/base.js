@@ -217,8 +217,32 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
   // P1-9：step 上限同时取「agent 声明值」与「硬上限 12」的最小值，
   // 防止插件在 manifest 里自报 9999 导致单轮近万次 LLM 调用（费用爆炸 / 长时间无响应）。
   const MAX_STEPS = 12;
-  const maxSteps = Math.min(Number.isFinite(agent.maxSteps) ? agent.maxSteps : 8, MAX_STEPS);
-  for (let step = 0; step < maxSteps; step++) {
+  const maxSteps = Math.max(1, Math.min(Number.isFinite(agent.maxSteps) ? agent.maxSteps : 8, MAX_STEPS));
+
+  // round88 修（用户实测原话：「（已达到最大推理步数，Agent 提前结束）这是个什么鬼」）：
+  //   旧实现把整份预算全让给工具调用，**一步都不留给收尾**；模型多查两步就撞上循环上界，
+  //   而该出口只回一句占位文案，**把 observations 里已经抓到的真实数据全部扔掉** ——
+  //   它是四条失败出口里唯一不调 buildLocalAnswer 的一条。用户看到的就是
+  //  「Agent 查了一堆数据，最后只回一句提前结束」。
+  //   三处收口：
+  //     ① 在 `maxSteps` **之外**多给一格、且该格**只做收尾**（不再执行工具调用）——
+  //        这样既不削减任何 agent 原有的工具预算，又保证模型总有机会写出 <final>；
+  //        这格额外 LLM 调用只在「模型真把预算用满」时才发生（否则早已 return），
+  //        恰好只覆盖旧实现注定失败的那些轮次；
+  //     ② 剩余工具机会 ≤ BUDGET_HINT_AT 时，在工具观察后附预算提示，促使其主动收敛；
+  //     ③ 真耗尽时先 buildLocalAnswer 抢救已抓数据，绝不空手而归。
+  const totalSteps = maxSteps + 1;    // = 工具预算 + 1 格收尾（硬上限 13 次 LLM 调用）
+  const finalStepIdx = maxSteps;      // 只做收尾的那一步
+  const BUDGET_HINT_AT = 2;           // 剩余工具次数 ≤ 此值起开始提示收敛
+  for (let step = 0; step < totalSteps; step++) {
+    // 本步若调工具，调完之后还能再调几次（收尾步不算工具预算）
+    const toolStepsLeft = finalStepIdx - 1 - step;
+    const isFinalChance = step === finalStepIdx;
+    // 收尾步先明确告知「不许再调工具，直接给结论」——不给这句，模型大概率继续调工具，
+    // 白白浪费这格预留预算（实测：只有加了这句才稳定收敛）。
+    if (isFinalChance && observations.length) {
+      convo.push(toolObservation('budget', t('agent.localAnswer.finalizeInstruction')));
+    }
     let raw;
     try {
       raw = await ctx.chat(compactConvo(convo));
@@ -236,6 +260,14 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
     const toolCall = parseToolCall(raw);
 
     if (toolCall) {
+      if (isFinalChance) {
+        // 收尾步仍在调工具：不执行（执行了也没有下一步来总结），直接落到抢救出口。
+        onTrace?.({
+          kind: TraceKind.ERROR,
+          text: t('agent.localAnswer.toolCallAfterBudget', undefined, { tool: toolCall.name }),
+        });
+        break;
+      }
       if (toolCall.thought) onTrace?.({ kind: TraceKind.THOUGHT, text: toolCall.thought });
       if (toolCall.parseError) {
         // BUG-03：args 解析失败不再静默调工具，回灌错误让模型重试（自我纠正闭环）
@@ -266,6 +298,10 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
         data: res?.ok === false ? null : (res?.data ?? res),
         error: res?.ok === false ? res.error : '',
       });
+      // ② 预算提示：让模型知道还剩几次工具机会，主动把关键数据取全并留一次收尾。
+      if (toolStepsLeft >= 1 && toolStepsLeft <= BUDGET_HINT_AT) {
+        convo.push(toolObservation('budget', t('agent.localAnswer.budgetHint', undefined, { n: toolStepsLeft })));
+      }
       continue;
     }
 
@@ -298,7 +334,15 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
     onTrace?.({ kind: TraceKind.FINAL, text: out });
     return out;
   }
-  const msg = '（已达到最大推理步数，Agent 提前结束）';
+  // ③ 预算耗尽出口（round88）：先把已抓到的工具数据本地直出，真没数据才给可执行的指引。
+  // 注意：这里的 observations 可能非空（模型一路查数据、只是没来得及写出 <final>），
+  // 旧实现把它们整批丢弃、只回一句「（已达到最大推理步数，Agent 提前结束）」。
+  const local = buildLocalAnswer({ observations, reason: t('agent.localAnswer.reasonStepLimit') });
+  if (local) {
+    onTrace?.({ kind: TraceKind.FINAL, text: local });
+    return local;
+  }
+  const msg = t('agent.localAnswer.stepLimitNoData');
   onTrace?.({ kind: TraceKind.FINAL, text: msg });
   return msg;
 }

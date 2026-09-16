@@ -160,7 +160,10 @@ test('文案区分：额度内读不出的图不再被误报为「超出额度�
   );
   const c = r.messages[r.messages.length - 1].content;
   const seg = typeof c === 'string' ? c : c.filter((p) => p.type === 'text').map((p) => p.text).join('');
-  assert.match(seg, /读取失败/, '应如实说明是读取失败');
+  // round88：本用例的图在本机图库里**没有这一行** → 必须说清是「本机没有这张图」（数据侧缺失，
+  // 处置办法是同步/重传），而不是旧实现那句把 missing 与 unreadable 混在一起的
+  // 「读取失败（图片可能已被删除或无法解析）」——后者会让用户反复徒劳重试。
+  assert.match(seg, /本机图库里没有这张图/, '应如实说明是「本机图库缺这一行」');
   assert.ok(!/超出本次送图额度/.test(seg), '不得误报为超出额度（否则用户会白重发一次）');
 });
 
@@ -221,7 +224,10 @@ test('端到端：体积超限的图在正文里标注为「体积上限」而�
   const c = r.messages[r.messages.length - 1].content;
   const seg = typeof c === 'string' ? c : c.filter((p) => p.type === 'text').map((p) => p.text).join('');
   assert.ok(!/超出本次送图额度/.test(seg), '体积超限不得被说成「超出额度」——额度是 10，这里只发了 0 张');
-  assert.match(seg, /读取失败|体积上限/, '应说明真实原因');
+  // round88：旧断言是「读取失败|体积上限」（二选一即可），但本用例的图**确实存在**、只是体积到顶，
+  // 认下「读取失败」等于放过了张冠李戴。收紧为必须命中「体积上限」。
+  assert.match(seg, /体积上限/, '应说明真实原因是「单次请求体积上限」');
+  assert.ok(!/本机图库里没有这张图/.test(seg), '图是存在的，不得说成「本机没有这张图」');
 });
 
 // ── round67b：图片质量档位 ──────────────────────────────────────────────

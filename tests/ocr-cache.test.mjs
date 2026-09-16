@@ -100,5 +100,8 @@ test('enrichForLlm：同图二次调用复用 OCR；图片被替换后重新识�
   await db.images.delete(id);
   const r4 = await enrichForLlm(messages, { settings, ocrFn });
   assert.equal(calls, 2, '图已删 → 不该再调识别');
-  assert.match(r4.messages[0].content, /未能识别/, '应如实标注未纳入分析');
+  // round88：标注从笼统的「未能识别文字」细化为「本机图库里没有这张图」。
+  // 本用例的断言意图（「删除后不得复用缓存」）不变，只是钉住更精确的措辞——
+  // 行缺失是**数据侧**问题，与「图在但 OCR 没认出来」要分开说，否则用户会去折腾 OCR 设置。
+  assert.match(r4.messages[0].content, /本机图库里没有这张图/, '应如实标注图已不在本机（不得复用缓存旧文字）');
 });

@@ -463,8 +463,16 @@ export async function enrichForLlm(messages, opts = {}) {
         // 额度内、但请求体积已到顶 —— 与「图片坏了」是两回事，必须分开说
         note = `【图片${i + 1}：已达单次请求体积上限（约 ${budgetMB}MB），本次未发送；减少图片数量后可重试】`;
       } else {
-        // 额度内、体积也没超，却没送出去 → 图本身读不出来（已删除 / 压缩失败）
-        note = `【图片${i + 1}：读取失败（图片可能已被删除或无法解析），请确认该图仍在卡片中】`;
+        // 额度内、体积也没超，却没送出去 —— 这里再分两种「图读不出来」的原因。
+        // 为什么必须分开（round88 审计，用户反馈「还是看不到图片」）：
+        //   · missing    = **本机图库根本没有这一行**（跨设备未同步 / 从备份导入时漏带图库 / 原图已删）；
+        //   · unreadable = 行在，但本机解码压缩失败（blob 损坏）。
+        // 两者用户要做的事完全不同（去同步一次 vs 重新上传这张图），旧实现合并成一句
+        // 「图片可能已被删除或无法解析」，既漏掉了最常见的原因（未同步），又让用户反复徒劳重试。
+        note = skipReason.get(id) === 'missing'
+          ? `【图片${i + 1}：本机图库里没有这张图（多因尚未同步到本设备，或原图已被删除）；`
+            + '请在其他设备上同步一次，或重新上传该图】'
+          : `【图片${i + 1}：图片存在但无法解析（数据可能已损坏），建议重新上传该图】`;
       }
       textMap.set(`sxy-img://${id}`, note);
     });
@@ -477,9 +485,13 @@ export async function enrichForLlm(messages, opts = {}) {
     // round48：接收外部取消信号——用户点"取消"后不再继续逐张 OCR（此前完全不可中断）
     const ocrSignal = opts.signal;
     const ocrText = {};
+    // 本机图库里**没有这一行**的图（与「图在但 OCR 没认出来」严格区分：前者要做的是同步/重传，
+    // 后者才是识别问题。旧实现两者都写「未能识别文字」，把用户引向 OCR 设置，方向完全错了。
+    const missingOcr = new Set();
     for (const id of ocrIds) {
       if (ocrSignal?.aborted) break;
       const row = await db.images.get(id);
+      if (!row) missingOcr.add(id);
       // 缓存命中要求「图片行存在且未变更」：updatedAt 是图片被替换时必然推进的字段，
       // 拿它当版本签名，图片换了内容后旧识别结果自动作废（不需要在每个删除点挂钩子）。
       // row 缺失（图已删）时不复用缓存——否则会拿着已删图片的旧文字继续回答。
@@ -508,7 +520,11 @@ export async function enrichForLlm(messages, opts = {}) {
       const ocr = ocrText[id];
       textMap.set(`sxy-img://${id}`, ocr && ocr.trim()
         ? `【图片(${id}) 内文字（OCR）】\n${ocr.trim()}`
-        : `【图片(${id})】未能识别文字，未纳入分析`);
+        : (missingOcr.has(id)
+          // 行都不存在 → 与「OCR 没认出来」完全是两回事，分开说
+          ? `【图片(${id})：本机图库里没有这张图（多因尚未同步到本设备，或原图已被删除），`
+            + '无法识别；请在其他设备上同步一次，或重新上传该图】'
+          : `【图片(${id})】未能识别文字，未纳入分析`));
     });
     // round43 N5：被总量上限挡掉的图单独标注（区别于「识别失败」），且不进 auto 视觉兜底——
     // 否则 OCR 护栏形同虚设（超限图全部转嫁到多模态发送）。

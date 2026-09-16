@@ -43,6 +43,19 @@ import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearning
 import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';
 import { hybridSearch, retrieveContext, ensureIndex, rebuildIndex, getIndexStatus } from '../retrieval.js';
 import { listDocFiles, getDocText } from '../../docs-lib.js';
+// round88：英语单词模块的工具接入。单词数据独立在 word-repo.js（与卡片域 db.cards 分表），
+// 此前 tools 里一个单词工具都没有 → AI 对单词模块只能「看不到」。
+import {
+  listWordCards,
+  getWordCard,
+  wordStats,
+  wordGroupStats,
+  listWordGroups,
+  dueWordCards,
+  wordReviewedToday,
+  wordReviewedTotal,
+  WORD_KINDS,
+} from '../../word-repo.js';
 // round67：图片感知截断 + 引用检测。
 // 卡片正文里的图片是 `![image](sxy-img://<36位uuid>)`（56 字符），朴素 slice 会把它切坏
 // → 富集时查不到图 → AI 误以为「图没传过来」。这里统一走 clipText 保护引用完整性。
@@ -1626,6 +1639,153 @@ toolRegistry.register({
           + '请直接依据图片内容回答，不要凭文件名或标题猜测。'
           + '若你收到的内容里没有图片，说明当前图片分析策略为「先 OCR」或模型不支持视觉——'
           + '请如实告知用户去「设置 → 图片分析策略」改为「先多模态」，不要编造资料内容。',
+      },
+    };
+  },
+});
+
+
+// ---------- round88：英语单词模块（list_words / get_word_detail / get_word_stats） ----------
+// 用户反馈「单词模块只能看统计、看不到明细」，根因是**工具层完全没有单词工具**：
+// 61 个内置工具里 0 个能读 db.wordCards。三个工具按「列表四件套」分工：
+//   list_words（摘要 + id + 分页 + 引导）→ get_word_detail（全文）→ get_word_stats（统计概览）。
+
+toolRegistry.register({
+  name: 'list_words',
+  description: '列出或检索我的英语单词卡（考研词库）。'
+    + '支持按关键词（英文单词 / 中文释义 / 音标 / 笔记 / 例句 模糊匹配）、类别、'
+    + '掌握状态（熟词）、词组过滤，并带分页（limit / offset）。'
+    + '每项返回 id、单词、音标、释义摘要、类别与掌握度，**只是摘要**；'
+    + '要看某张词卡的完整释义 / 例句 / 笔记，请再用 get_word_detail 按 id 或单词取全文。'
+    + '用户问「我背了哪些单词」「我的词库里有没有某个词」「还剩多少没背」时先用它拿真实数据，'
+    + '不要凭印象猜用户词库里的内容。若要知道总体进度与各组掌握率，用 get_word_stats。',
+  parameters: {
+    q: '关键词（英文单词 / 中文释义 / 音标 / 笔记 / 例句，模糊匹配）；留空表示不过滤',
+    kind: '类别：word（单词）/ phrase（短语）/ sentence（句子）/ template（模板）；留空为全部',
+    familiar: '掌握状态：1 = 已标熟词，0 = 未标熟词；留空为全部',
+    groupId: '词组 id（来自 get_word_stats 的 groups[].groupId）；留空为全部',
+    ...PAGING_PARAMS,
+  },
+  readsData: true,
+  async execute(args = {}) {
+    const kind = WORD_KINDS.includes(String(args.kind || '')) ? String(args.kind) : '';
+    // 注意不能写成 `Number(args.familiar) || undefined`：显式传 0（只看未标熟词）会被吞成
+    // 「不过滤」，而 0 正是最常用的取值（默认就是查还没背熟的词）。
+    const rawFamiliar = args.familiar;
+    const familiar = rawFamiliar === undefined || rawFamiliar === null || String(rawFamiliar).trim() === ''
+      ? undefined
+      : (Number(rawFamiliar) ? 1 : 0);
+    const rows = await listWordCards({
+      q: args.q,
+      kind,
+      familiar,
+      groupId: args.groupId ? String(args.groupId) : '',
+    });
+    // 词库整体为空且未加任何过滤 → 显式报错并给可执行指引（对齐 read_lib_doc 的口径）。
+    // 只说 total:0 的话，模型容易把「还没导入词库」说成「没有匹配的单词」，用户白排查一场。
+    const filtered = Boolean(args.q) || Boolean(kind) || familiar !== undefined || Boolean(args.groupId);
+    if (!rows.length && !filtered) return { ok: false, error: t('agent.toolMsg.noWords') };
+    const page = pageOf(rows, args);
+    return {
+      ok: true,
+      data: {
+        ...page,
+        items: page.items.map((c) => ({
+          id: c.id,
+          word: c.word || '',
+          phonetic: c.phonetic || '',
+          meaning: clipText(String(c.meaning || ''), 160),
+          kind: c.kind || 'word',
+          familiar: c.familiar ? 1 : 0,
+          level: Number(c.level) || 0,
+          dueAt: Number.isFinite(c.dueAt) ? c.dueAt : null,
+        })),
+        hint: t('agent.toolMsg.wordsHint'),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'get_word_detail',
+  description: '读取单张英语单词卡的**完整**内容：词形、音标、全部释义、例句与翻译、'
+    + '我给它记的笔记、标签、类别、掌握度与到期时间。'
+    + '参数二选一：id（来自 list_words，最可靠）或 word（按词形精确匹配，找不到再退化为包含匹配）。'
+    + '用户问「这个词什么意思 / 怎么用 / 有哪些例句 / 我给它写了什么笔记」时，'
+    + '必须先用它取到原文再作答，不要凭记忆编造用户词库里的内容。',
+  parameters: {
+    id: '单词卡 id（来自 list_words，最可靠）',
+    word: '单词 / 词形（先精确匹配，再退化为包含匹配）',
+  },
+  readsData: true,
+  async execute(args = {}) {
+    const id = String(args.id || '').trim();
+    const term = String(args.word || '').trim();
+    let target = id ? await getWordCard(id) : null;
+    if (!target && term) {
+      // 词形没有独立索引，走既有的 q 过滤（只在命中行上做词库回填，成本可控）
+      const hits = await listWordCards({ q: term });
+      const lower = term.toLowerCase();
+      target = hits.find((r) => String(r.word || '').toLowerCase() === lower) || hits[0] || null;
+    }
+    if (!target) return { ok: false, error: t('agent.toolMsg.wordNotFound') };
+    return {
+      ok: true,
+      data: {
+        id: target.id,
+        word: target.word || '',
+        phonetic: target.phonetic || '',
+        meaning: target.meaning || '',
+        example: target.example || '',
+        exampleTrans: target.exampleTrans || '',
+        note: target.note || '',
+        tags: Array.isArray(target.tags) ? target.tags : [],
+        subject: target.subject || '',
+        kind: target.kind || 'word',
+        familiar: target.familiar ? 1 : 0,
+        level: Number(target.level) || 0,
+        intervalDays: Number(target.intervalDays) || 0,
+        dueAt: Number.isFinite(target.dueAt) ? target.dueAt : null,
+        reviewedAt: Number(target.reviewedAt) || 0,
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'get_word_stats',
+  description: '英语单词模块的**统计概览**（不含具体单词内容）：总词数、参与复习的数量、'
+    + '当前到期（待背）数量、实际复习队列长度、已标熟词数、模板数、今日新增，'
+    + '以及今日已背次数 / 累计复习次数，外加各词组（单词书分组）的掌握率明细。'
+    + '用户问「我背了多少单词」「还剩多少没背」「哪一组掌握得最差」时用它。'
+    + '要看具体单词内容请用 list_words / get_word_detail（这两个才返回单词正文）。',
+  parameters: {},
+  readsData: true,
+  async execute() {
+    const [stats, perGroup, groups, due, reviewedToday, reviewedTotal] = await Promise.all([
+      wordStats(),
+      wordGroupStats(),
+      listWordGroups(),
+      dueWordCards(),
+      wordReviewedToday(),
+      wordReviewedTotal(),
+    ]);
+    const nameOf = new Map(groups.map((g) => [g.id, g.name]));
+    return {
+      ok: true,
+      data: {
+        total: stats.total,
+        schedulable: stats.schedulable,
+        due: stats.due,
+        dueQueue: due.length,
+        mastered: stats.mastered,
+        familiar: stats.familiar,
+        templates: stats.templates,
+        newToday: stats.newToday,
+        reviewedToday,
+        reviewedTotal,
+        groups: perGroup.map((g) => ({ ...g, name: nameOf.get(g.groupId) || '' })),
+        hint: t('agent.toolMsg.wordStatsHint'),
       },
     };
   },

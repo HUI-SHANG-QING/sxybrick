@@ -15,7 +15,9 @@ agentRegistry.register({
   // round74：把「笔记 / AI 文档 / 计划 / 每日任务 / 备忘」的读取工具挂上——
   // 此前导师 Agent 手上**只有卡片与资料库工具**，所以用户问「我笔记里写了什么」「我的计划是什么」
   // 时它只能回答「我看不到」，与卡片域修复前是同一类缺陷（工具不可见 = AI 看不到）。
-  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'list_lib_docs', 'read_lib_doc', 'explain_concept', 'get_card_detail', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_memos', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
+  // round88：补单词模块工具——英语词库独立在 db.wordCards（与 db.cards 分表），
+  // 此前导师手上 0 个单词工具，用户问「我背了哪些单词 / 这个词什么意思」只能答「我看不到」。
+  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'list_lib_docs', 'read_lib_doc', 'explain_concept', 'get_card_detail', 'list_words', 'get_word_detail', 'get_word_stats', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_memos', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
   maxSteps: 6,
 });
 
@@ -27,7 +29,9 @@ agentRegistry.register({
   systemPrompt:
     '你是数据分析师，必须基于数据说话，绝不泛泛而谈。\n{context}\n{memory}\n优先调用统计/薄弱点/复习建议工具拿到真实数据，再给出结论。输出结构清晰（薄弱点→原因→行动建议）。',
   // round74：周报要能引用「计划进度 / 每日任务完成情况」
-  tools: ['get_stats', 'get_weak_cards', 'get_review_suggestion', 'list_subjects_and_tags', 'list_plans', 'read_plan', 'list_daily_tasks'],
+  // round88：周报要能分「卡片 / 单词」两条线说话——此前统计只覆盖 db.cards，
+  // 英语词库的进度（待背量 / 各组掌握率）对用户完全不可见。
+  tools: ['get_stats', 'get_weak_cards', 'get_review_suggestion', 'list_subjects_and_tags', 'list_plans', 'read_plan', 'list_daily_tasks', 'get_word_stats', 'list_words', 'get_word_detail'],
   maxSteps: 8,
 });
 
@@ -52,7 +56,7 @@ agentRegistry.register({
     '你是测评出题官。\n{memory}\n流程：\n1) 先用 get_weak_cards / quiz_me / search_cards / get_card_detail 拿到要考的知识点与**原文**（别凭印象出题）；题目来自某张卡时记下它的 id。\n'
     + '2) 用 **quiz 结构**输出题目（见协议）——界面上会渲染成可点击作答的题：用户点选项即判分并看到解析。**不要**只在正文里写 A/B/C/D 让用户自己对照答案。\n'
     + '3) 题量默认 3~5 道；题干自足（不看原卡也能答）、干扰项要有迷惑性、explain 讲清依据；带 cardId 的题用户可一键记入复习。',
-  tools: ['quiz_me', 'get_weak_cards', 'search_cards', 'get_card_detail'],
+  tools: ['quiz_me', 'get_weak_cards', 'search_cards', 'get_card_detail', 'list_words', 'get_word_detail'],
   maxSteps: 8,
 });
 
@@ -121,7 +125,7 @@ agentRegistry.register({
     '你是智能复习教练，必须基于跨模块真实数据出复习方案。\n{context}\n{memory}\n先用 get_cross_insight / get_recent_mistakes / smart_review_plan / get_learning_profile 拿数据，必要时用 get_confusable_pairs 找易混对、get_gap_cards 找知识缺口，再输出一份「今天优先复习什么、为什么、怎么复习」的清单（分级：P0 昨天答错→P1 高频错→P2 易混对→P3 到期→P4 计划内）。\n若用户想集中攻克高频错题，调用 build_quiz_from_mistakes 生成「错题轰炸」测验序列（零 LLM：错因簇→先补前置→交错出题），然后按序逐卡引导用户作答并即时讲解。',
   // round74：它的职责描述里就写着「综合…计划与费曼反馈」，但此前只有 list_plans（摘要）
   // round76：复习清单给出后要能「排进今天 + 打卡」，否则清单只停在聊天里
-  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'list_plans', 'read_plan', 'list_daily_tasks', 'add_daily_task', 'checkin_daily_task', 'list_notes', 'read_note', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'build_quiz_from_mistakes', 'semantic_search', 'retrieve_context', 'list_lib_docs', 'read_lib_doc', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
+  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'get_word_stats', 'list_words', 'get_word_detail', 'list_plans', 'read_plan', 'list_daily_tasks', 'add_daily_task', 'checkin_daily_task', 'list_notes', 'read_note', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'build_quiz_from_mistakes', 'semantic_search', 'retrieve_context', 'list_lib_docs', 'read_lib_doc', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
   maxSteps: 10,
 });
 

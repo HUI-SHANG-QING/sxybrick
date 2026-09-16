@@ -258,6 +258,13 @@ const zh = {
       badCheckinStatus: '打卡状态只能是 done / partial / skipped。',
       taskNotFound: '未找到匹配的任务。可先用 list_daily_tasks 传日期查看当天任务，再用 taskId 打卡。',
       taskWriteFailed: '任务写入失败（计划创建后未返回任务行），请重试或改用 create_daily_plan。',
+      // round88：英语单词模块（src/agent/tools/index.js 的 list_words / get_word_detail）
+      noWords: '词库里还没有单词卡。请先在「单词」页导入或新建词卡，再让我分析。',
+      wordNotFound: '未找到这张单词卡。可先用 list_words 查看完整列表（支持按关键词 / 类别 / 掌握状态过滤）。',
+      wordsHint: '以上只是摘要（词形 + 释义片段）。完整释义 / 例句 / 笔记请用 get_word_detail（传 id 或 word）取全文；'
+        + '总体进度与各组掌握率用 get_word_stats。',
+      wordStatsHint: '以上是统计口径。要看具体单词内容请用 list_words（可带 q / kind / familiar 过滤），'
+        + '再用 get_word_detail 取单张词卡的全文。',
     },
     // 有工具数据但 LLM 合成失败时的本地直出（src/agent/local-answer.js）
     localAnswer: {
@@ -274,6 +281,14 @@ const zh = {
       reasonHttp: '接口返回 HTTP {status}',
       reasonNetwork: '网络或服务异常',
       reasonOffline: 'AI 未生成可用的回答内容',
+      // round88：Agent 步数预算耗尽。原先这里根本没有 key——base.js 直接硬编码
+      // 「（已达到最大推理步数，Agent 提前结束）」并**丢掉已抓到的全部工具数据**。
+      reasonStepLimit: '已达到工具调用步数上限，已改为本地直出',
+      stepLimitNoData: '（已达到最大推理步数，Agent 提前结束）本轮没有取到可展示的数据。请把问题拆小一些再问，例如先「列出我的科目和标签」，或直接说明想看哪个模块的什么内容。',
+      // 收尾步的硬指令：不给这句，模型大概率在该步继续调工具，白白浪费预留的收尾预算。
+      finalizeInstruction: '（注意：本轮工具调用预算只剩最后一步，且这一步不允许再调用工具。请**立即**根据上面已得到的工具结果输出 <final> 回答；若数据仍不完整，就如实说明还差哪一项，不要重复调用工具。）',
+      budgetHint: '（预算提示：本轮还可调用工具 {n} 次，之后必须输出 <final> 收尾。请把关键数据取全，并预留一次用于收尾。）',
+      toolCallAfterBudget: '工具调用预算已用尽，已跳过本次 {tool} 调用，改用本地直出已抓到的数据',
       listFrom: '工具 {tool} · 共 {n} 条',
       more: '还有 {n} 条未展开',
       dataFrom: '工具 {tool} 返回',
@@ -528,6 +543,10 @@ const en = {
       badCheckinStatus: 'Check-in status must be done / partial / skipped.',
       taskNotFound: 'No matching task found. Use list_daily_tasks with a date to list the tasks of that day, then check in by taskId.',
       taskWriteFailed: 'Task write failed (plan created but no task row returned). Retry, or use create_daily_plan instead.',
+      noWords: 'No word cards in the vocabulary yet. Import or create some on the Words page, then I can analyse them.',
+      wordNotFound: 'That word card was not found. Use list_words to see the full list (it supports keyword / kind / familiarity filters).',
+      wordsHint: 'The above are summaries only (word form + a meaning snippet). Use get_word_detail (by id or word) for the full meaning / examples / notes; use get_word_stats for overall progress and per-group mastery.',
+      wordStatsHint: 'The above are statistics only. Use list_words (with q / kind / familiar filters) to see actual words, then get_word_detail for one card in full.',
     },
     // Local fallback answer built from tool results when LLM synthesis fails
     localAnswer: {
@@ -542,6 +561,11 @@ const en = {
       reasonHttp: 'endpoint returned HTTP {status}',
       reasonNetwork: 'network or service error',
       reasonOffline: 'the AI produced no usable answer',
+      reasonStepLimit: 'the tool-call step limit was reached, so the local result is shown instead',
+      stepLimitNoData: '(Maximum reasoning steps reached — the agent stopped early.) No displayable data was collected this round. Please narrow the question down (e.g. ask "list my subjects and tags" first), or name the module and field you want to see.',
+      finalizeInstruction: '(Notice: this is the last step of the tool budget and no further tool calls are allowed. Output your <final> answer right now based on the tool results above; if the data is still incomplete, say which item is missing instead of calling tools again.)',
+      budgetHint: '(Budget notice: you may call {n} more tool(s) this round, after which you must output <final>. Fetch the key data now and keep one call for wrapping up.)',
+      toolCallAfterBudget: 'Tool budget exhausted — skipped this {tool} call and fell back to the local result built from data already fetched',
       listFrom: 'Tool {tool} · {n} item(s)',
       more: '{n} more not expanded',
       dataFrom: 'Tool {tool} returned',
