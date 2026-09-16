@@ -435,6 +435,9 @@ toolRegistry.register({
     + '当列表类结果里 hasImage 为 true、或用户提到「图 / 截图 / 思维导图」时，必须调本工具才能看到图。',
   parameters: { id: 'string: 卡片 id' },
   readsData: true,
+  // round98 P2-1：放宽结果压缩预算——长卡（万字级错题详解/思维导图卡）必须原样送达，
+  // 默认压缩会把单个字符串字段砍到 300 字，害得「图在、文字答案丢 96%」。
+  compact: { maxChars: 24000, maxStringLen: 20000 },
   async execute(args) {
     const card = await getCard(String(args?.id || ''));
     if (!card) return { ok: false, error: '卡片不存在' };
@@ -1141,6 +1144,7 @@ toolRegistry.register({
     maxChars: 'number: 正文最多返回多少字，默认 2000',
   },
   readsData: true,
+  compact: { maxChars: 24000, maxStringLen: 21000 },
   async execute(args) {
     const notes = await listNotes();
     if (!notes.length) return { ok: false, error: t('agent.toolMsg.noNotes') };
@@ -1203,6 +1207,7 @@ toolRegistry.register({
     maxChars: 'number: 正文最多返回多少字，默认 2000',
   },
   readsData: true,
+  compact: { maxChars: 24000, maxStringLen: 21000 },
   async execute(args) {
     const docs = await listDocs();
     if (!docs.length) return { ok: false, error: '还没有任何 AI 文档。可先用 create_doc 新建，或让用户到「AI 助手」页生成。' };
@@ -1695,6 +1700,7 @@ toolRegistry.register({
     pages: '要看的页码，如 "1,3-5"；仅扫描件/图表型有效，缺省看前 3 页',
   },
   readsData: true,
+  compact: { maxChars: 24000, maxStringLen: 21000 },
   async execute(args = {}) {
     const files = await listDocFiles();
     if (!files.length) {

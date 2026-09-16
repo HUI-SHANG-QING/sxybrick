@@ -4,10 +4,11 @@
 // 这是“数据感知型 Agent”的核心：所有分析/建议类 Agent 都依赖它。
 
 import { db } from '../db.js';
-import { getStats, weakCards, getReviewSuggestion, getTags, listCards, getCard, listMemos, listDocs, listNotes, listPlans, listDailyPlanSummary, listPomoSessions, listGraphEdges } from '../repo.js';
+import { getStats, weakCards, getReviewSuggestion, getTags, listCards, getCard, listDailyPlanSummary, listPomoSessions } from '../repo.js';
 import { getModuleSummary } from './analytics.js';
 import { retrieveContext, ensureIndex, hybridSearch } from './retrieval.js';
 import { stripImageRefs, clipText } from '../utils/clip.js';
+import { wantedModules } from '../utils/query-intent.js';
 
 function tagCountsStr(tags) {
   if (!tags || !tags.length) return '';
@@ -61,20 +62,25 @@ export async function buildStudyContext() {
   // 不明说的话，AI 面对「我上传的资料讲了什么」只能答「资料中未找到相关内容」——
   // 用户会以为资料没上传成功。这里显式告知存在性与正确入口（资料库页对该文件提问即走视觉）。
   try {
-    const files = await db.docFiles.toArray();
+    const allFiles = await db.docFiles.toArray();
+    // round98 N2：只把「解析就绪」的资料算作可用——解析中/失败的文件若也报「你有这份资料」，
+    // AI 会引导用户去提问却读不出内容，造成「说我有却看不到」的二次落差。
+    const files = allFiles.filter((f) => (f.status || 'ready') === 'ready');
     const { docKindOf } = await import('../services/doc-vision.js');
     const visual = files.filter((f) => {
       const k = docKindOf(f);
       return k === 'pdf' || k === 'image';
     });
-    if (visual.length) {
+    if (files.length) {
       L.push(
-        `- 资料库：共 ${files.length} 份资料，其中 ${visual.length} 份为 PDF/图片型文件`
+        `- 资料库：共 ${files.length} 份已解析就绪的资料，其中 ${visual.length} 份为 PDF/图片型文件`
         + `（内容以图像形式存在，文字检索取不到）。若用户询问这些文件的内容，`
         + `请引导他到「资料库」页打开该文件提问——那里会把页面图/原图直接送给多模态模型分析；`
         + `不要凭文件名或标题猜测文件内容。`,
       );
     }
+    const unparsed = allFiles.length - files.length;
+    if (unparsed > 0) L.push(`- 另有 ${unparsed} 份资料尚在解析或解析失败，内容暂不可用，请如实告知用户。`);
   } catch { /* 统计失败不影响上下文主流程 */ }
 
   return L.join('\n');
@@ -174,72 +180,107 @@ export async function buildQuestionCardContext(query) {
 }
 
 /**
- * 全模块明细快照：把「模块计数」升级为「模块内容可见」——
- * 普通问答（AI 学习助手）无工具，只能看到注入上下文；此前它只从 getModuleSummary 拿到
- * 「AI 文档 N 篇 / 备忘 N 条 / 知识图谱 N 边 / 番茄 N 次」这类**计数**，于是答「我看不到具体内容」。
- * 本函数把每个模块的**明细**（含正文）注入 system 消息：备忘全文、文档/笔记正文摘要、
- * 长期计划、每日执行、番茄逐次、单词、资料库文件、图谱边端点。
- * **关键**：文档/笔记正文用 `clipText`（保图片引用完整）→ 交 `enrichForLlm` 作为附图送出，
- * 这样普通问答也「看得到图」。范围受控：各列表均有条数/字数上限。
+ * 全模块明细快照（round98 P2-2：**按问题意图下饭 + 总预算刹车**）
+ *
+ * 背景：普通问答（AI 学习助手）无工具，只能看注入上下文。此前（round96）无论问什么都把
+ * **全库明细**注入 system——问「你好」也发全部笔记/文档/单词/计划，既费 token、外发隐私，
+ * 还可能撑爆小窗口模型。现在两道约束：
+ *   ① **按意图下饭**：只有问题「问到」的模块才查询、才注入（缺省关键词见 utils/query-intent.js）；
+ *   ② **总预算刹车**：所有明细合计不超过 MODULE_TOTAL_BUDGET 字符，超出即截并显式告知模型。
+ * 兼容：**不传 query**（null，测试或显式全量）时保持注入全部模块。
+ * **图片**：文档/笔记正文用 clipText（保 sxy-img 引用完整）→ 交 enrichForLlm 作为附图送出。
+ * @param {string|null} [query] 用户问题；null = 不筛（全量）
  * @returns {Promise<string>}
  */
-export async function buildModuleNodesContext() {
+const MODULE_TOTAL_BUDGET = 16000; // 普通问答单次明细注入的总字符预算
+
+export async function buildModuleNodesContext(query = null) {
+  const q = query == null ? null : String(query || '');
+  const wanted = q == null ? null : wantedModules(q); // null = 全量；Set = 仅这些模块
+  if (wanted && wanted.size === 0) return '';         // 没问到任何模块 → 不注入明细
+  const want = (key) => (wanted === null || wanted.has(key));
   try {
-    const [memos, docs, notes, plans, dsum, pomo, words, files, edges] = await Promise.all([
-      listMemos().catch(() => []),
-      listDocs().catch(() => []),
-      listNotes().catch(() => []),
-      listPlans().catch(() => []),
-      listDailyPlanSummary(7).catch(() => []),
-      listPomoSessions(15).catch(() => []),
-      db.wordCards.orderBy('updatedAt').reverse().limit(15).toArray().catch(() => []),
-      db.docFiles.toArray().catch(() => []),
-      listGraphEdges().catch(() => []),
-    ]);
-    const L = ['【全模块明细快照：让普通问答也能看到每个模块的具体内容（不只是计数）。含图片引用的正文已原样保留，会作为附图随本次请求发送给你。】'];
-    if (memos.length) {
-      L.push(`- 备忘（共 ${memos.length} 条，备忘均为短句，此处直接列出全文供你引用）：${memos.map((m) => String(m.text || '')).slice(0, 30).join(' | ')}`);
+    const L = [];
+    let budget = MODULE_TOTAL_BUDGET;
+    let clipped = false;
+    const add = (s2) => {
+      if (!s2) return;
+      if (budget <= 0) { clipped = true; return; }
+      if (s2.length <= budget) { L.push(s2); budget -= s2.length; }
+      else { L.push(clipText(s2, budget)); budget = 0; clipped = true; }
+    };
+    if (want('memos')) {
+      const memos = await db.memos.orderBy('at').reverse().limit(30).toArray().catch(() => []);
+      if (memos.length) add(`- 备忘（列出最近的 ${memos.length} 条，备忘多为短句，此处直接给出全文供你引用）：${memos.map((m) => clipText(String(m.text || ''), 200)).join(' | ')}`);
     }
-    if (docs.length) {
-      const items = docs.slice(0, 10).map((d) => `《${d.title || '无标题文档'}》类型为${d.type || '未分类'}，正文摘要如下：${clipText(String(d.content || ''), 500)}`);
-      L.push(`- AI 文档（共 ${docs.length} 篇，下面列出每篇的标题与正文摘要，正文里的图片引用已完整保留）：\n  ${items.join('\n  ')}`);
-    }
-    if (notes.length) {
-      const items = notes.slice(0, 10).map((n) => `《${n.title || '无标题笔记'}》分类为${n.category || '未分类'}，正文摘要如下：${clipText(String(n.content || ''), 500)}`);
-      L.push(`- 笔记（共 ${notes.length} 篇，下面列出每篇的标题与正文摘要，正文里的图片引用已完整保留）：\n  ${items.join('\n  ')}`);
-    }
-    if (plans.length) {
-      const items = plans.slice(0, 6).map((p) => `《${p.title || '未命名计划'}》当前状态为${p.status || '未知'}，内容摘要如下：${clipText(String(p.content || ''), 300)}`);
-      L.push(`- 长期学习计划（共 ${plans.length} 份，下面列出每份的标题、状态与内容摘要）：\n  ${items.join('\n  ')}`);
-    }
-    if (dsum.length) {
-      const items = dsum.slice(0, 7).map((d) => `日期${d.date}，当日任务完成${d.done}项，总计${d.total}项任务`);
-      L.push(`- 每日规划执行情况（最近若干天，格式为日期与当日任务完成数）：${items.join('，')}`);
-    }
-    if (pomo.length) {
-      const pad = (x) => String(x).padStart(2, '0');
-      const loc = (ts) => { const dd = new Date(Number(ts) || 0); return Number.isFinite(dd.getTime()) ? `${dd.getMonth() + 1}/${dd.getDate()} ${pad(dd.getHours())}:${pad(dd.getMinutes())}` : ''; };
-      const items = pomo.map((p) => `开始于${loc(p.startedAt)}，专注时长${p.duration || 0}分钟${p.tag ? '，标签' + p.tag : ''}${p.partial ? '，未完成' : ''}`);
-      L.push(`- 番茄钟专注明细（共 ${pomo.length} 次，列出每次的本地开始时刻、时长分钟与标签）：${items.join('；')}`);
-    }
-    if (words.length) {
-      const items = words.map((w) => `${w.word || ''}${w.meaning ? '（' + String(w.meaning).slice(0, 40) + '）' : ''}`);
-      L.push(`- 单词模块（列出最近接触的 ${words.length} 个词条及其释义摘要）：${items.join('；')}`);
-    }
-    if (edges.length) {
-      if (edges.length <= 120) {
-        const edgeStrs = edges.map((e) => `${e.from}（起点）→${e.to}（终点），关联关系为：${e.label || '相关'}`);
-        L.push(`- 知识图谱关联边（当前共 ${edges.length} 条，下面列出每一条的端点与关系）：${edgeStrs.slice(0, 120).join('；')}`);
-      } else {
-        L.push(`- 知识图谱关联边：${edges.length} 条（较多已自动折叠；如需查看完整结构，可到「知识图谱」页浏览）`);
+    if (want('docs')) {
+      const docs = await db.docs.orderBy('updatedAt').reverse().limit(10).toArray().catch(() => []);
+      if (docs.length) {
+        const items = docs.map((d) => `《${d.title || '无标题文档'}》的类型为${d.type === 'note' ? '笔记' : d.type === 'plan' ? '计划' : d.type === 'summary' ? '总结' : (d.type || '未分类')}，正文摘要如下：${clipText(String(d.content || ''), 500)}`);
+        add(`- AI 文档（列出最近 ${docs.length} 篇的标题与正文摘要，正文里的图片引用已完整保留）：\n  ${items.join('\n  ')}`);
       }
     }
-    if (files.length) {
-      const items = files.slice(0, 20).map((f) => `${f.name || f.id}${f.subject ? '[' + f.subject + ']' : ''}`);
-      L.push(`- 资料库文件（共 ${files.length} 份，列出名称与科目；PDF/图片型文件内容以图像存在，需到「资料库」页打开该文件提问才能看到画面）：${items.join('、')}`);
+    if (want('notes')) {
+      const notes = await db.notes.orderBy('updatedAt').reverse().limit(10).toArray().catch(() => []);
+      if (notes.length) {
+        const items = notes.map((n) => `《${n.title || '无标题笔记'}》的分类为${n.category || '未分类'}，正文摘要如下：${clipText(String(n.content || ''), 500)}`);
+        add(`- 笔记（列出最近 ${notes.length} 篇的标题与正文摘要，正文里的图片引用已完整保留）：\n  ${items.join('\n  ')}`);
+      }
     }
-    if (L.length === 1) return '';
-    return L.join('\n');
+    if (want('plans')) {
+      const plans = await db.plans.orderBy('updatedAt').reverse().limit(6).toArray().catch(() => []);
+      if (plans.length) {
+        const items = plans.map((p) => `《${p.title || '未命名计划'}》的当前状态为${p.status === 'active' ? '进行中' : p.status === 'done' ? '已完成' : p.status === 'archived' ? '已归档' : (p.status || '未知')}，内容摘要如下：${clipText(String(p.content || ''), 300)}`);
+        add(`- 长期学习计划（列出最近 ${plans.length} 份的标题、状态与内容摘要）：\n  ${items.join('\n  ')}`);
+      }
+    }
+    if (want('daily')) {
+      const dsum = await listDailyPlanSummary(7).catch(() => []);
+      if (dsum.length) {
+        const items = dsum.slice(0, 7).map((d) => `日期${d.date}，当日任务完成${d.done}项，总计${d.total}项任务`);
+        add(`- 每日规划执行情况（最近若干天，格式为日期与当日任务完成数）：${items.join('，')}`);
+      }
+    }
+    if (want('pomo')) {
+      const pomo = await listPomoSessions(15).catch(() => []);
+      if (pomo.length) {
+        const pad = (x) => String(x).padStart(2, '0');
+        const loc = (ts) => { const dd = new Date(Number(ts) || 0); return Number.isFinite(dd.getTime()) ? `${dd.getMonth() + 1}/${dd.getDate()} ${pad(dd.getHours())}:${pad(dd.getMinutes())}` : ''; };
+        const items = pomo.map((p) => `开始于${loc(p.startedAt)}，专注时长${p.duration || 0}分钟${p.tag ? '，标签' + p.tag : ''}${p.partial ? '，未完成' : ''}`);
+        add(`- 番茄钟专注明细（共 ${pomo.length} 次，列出每次的本地开始时刻、时长分钟与标签）：${items.join('；')}`);
+      }
+    }
+    if (want('words')) {
+      const words = await db.wordCards.orderBy('updatedAt').reverse().limit(15).toArray().catch(() => []);
+      if (words.length) {
+        const items = words.map((w) => `${w.word || ''}${w.meaning ? '（' + String(w.meaning).slice(0, 40) + '）' : ''}`);
+        add(`- 单词模块（列出最近接触的 ${words.length} 个词条及其释义摘要）：${items.join('；')}`);
+      }
+    }
+    if (want('files')) {
+      const files = await db.docFiles.toArray().catch(() => []);
+      const ready = files.filter((f) => (f.status || 'ready') === 'ready');
+      if (ready.length) {
+        const items = ready.slice(0, 20).map((f) => `${f.name || f.id}${f.subject ? '[' + f.subject + ']' : ''}`);
+        add(`- 资料库文件（列出可用（解析就绪）的 ${ready.length} 份，名称与科目；PDF/图片型文件内容以图像存在，需到「资料库」页打开该文件提问才能看到画面）：${items.join('、')}`);
+      }
+      const bad = files.filter((f) => f.status === 'failed' || f.status === 'parsing');
+      if (bad.length) add(`- 另有 ${bad.length} 份资料尚未解析成功（解析中或已失败），其内容当前无法分析，请如实告知用户，不要让用户以为资料丢失。`);
+    }
+    if (want('graph')) {
+      const total = await db.graphEdges.count().catch(() => 0);
+      if (total > 0 && total <= 120) {
+        const edges = await db.graphEdges.toArray().catch(() => []);
+        const edgeStrs = edges.map((e) => `${e.from}（起点）→${e.to}（终点），关联关系为：${e.label || '相关'}`);
+        add(`- 知识图谱关联边（当前共 ${total} 条，下面列出每一条的端点与关系）：${edgeStrs.join('；')}`);
+      } else if (total > 120) {
+        add(`- 知识图谱关联边：共 ${total} 条（较多已自动折叠；如需查看完整结构，可到「知识图谱」页浏览）`);
+      }
+    }
+    if (!L.length) return '';
+    const head = '【模块明细快照（以下只包含与你问题相关的模块内容；正文里的图片引用已原样保留，会作为附图随本次请求发送给你）】';
+    const tail = clipped ? '\n（以上明细已达本次单次注入的字符上限，未列出的部分你可以继续就具体模块追问获取）' : '';
+    return [head, ...L].join('\n') + tail;
   } catch {
     return '';
   }

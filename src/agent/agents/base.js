@@ -290,7 +290,7 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace }) {
       // 长字段截断并标注原长度），并在超限时附说明，模型据此不会误以为"只有这些"。
       const payload = res?.ok === false
         ? `错误：${res.error}`
-        : compactToolPayload(res?.data ?? res);
+        : compactToolPayload(res?.data ?? res, toolRegistry.get(toolCall.name)?.compact || undefined);
       convo.push(toolObservation(toolCall.name, `工具 ${toolCall.name} 返回：\n${payload}`));
       observations.push({
         name: toolCall.name,

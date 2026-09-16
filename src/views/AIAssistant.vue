@@ -132,7 +132,7 @@ async function send() {
     // 于是用户问「这张卡背面写了什么」它只能答「我看不到内容」。
     // buildFullContext = buildStudyContext + buildRAGContext(query)，会把与问题相关的
     // 卡片/文档**原文片段**一并带上（图片引用也完整保留，可被多模态富集）。
-    const [ctx, mem, qcards, modules] = await Promise.all([buildFullContext(text), buildMemoryText(), buildQuestionCardContext(text), buildModuleNodesContext()]);
+    const [ctx, mem, qcards, modules] = await Promise.all([buildFullContext(text), buildMemoryText(), buildQuestionCardContext(text), buildModuleNodesContext(text)]);
     // round76【打字机】：流式已全链路打通（llm.js 支持 onToken），但界面一直等整段写完才显示，
     // 长回答时用户只看到转圈。这里先插一条空的助手消息作为占位，再让增量逐字写进去。
     // ⚠️ 请求消息必须用**推入占位之前**的快照，否则空消息会被当成历史发给模型。

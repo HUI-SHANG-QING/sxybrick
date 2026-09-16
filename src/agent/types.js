@@ -38,6 +38,11 @@ export function defineTool(spec) {
     writesData: !!spec.writesData,
     // 来源标记：内置为 null；插件工具为插件 id（便于卸载时反注册 / UI 区分）
     plugin: spec.plugin || null,
+    // 可选：该工具结果的压缩预算覆盖（round98 P2-1）。
+    // 默认压缩会把「单个字符串字段」砍到 300 字（防检索长文撑爆上下文），但
+    // get_card_detail / read_doc / read_note / read_lib_doc 这类「用户主动要全文」的工具
+    // 必须放宽，否则长卡/长文档的正文会被砍掉 96%。形如 { maxChars, maxStringLen }。
+    compact: spec.compact || null,
   };
 }
 
