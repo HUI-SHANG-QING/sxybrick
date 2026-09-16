@@ -6,7 +6,7 @@
 // 新增：导出 agentSystem（专业 Agent 框架的公共 API）与 runAgentTurn 高层编排入口。
 
 import { db, uid } from './db.js';
-import { buildStudyContext, buildFullContext as ctxFull } from './agent/context.js';
+import { buildStudyContext, buildFullContext as ctxFull, buildQuestionCardContext, buildModuleNodesContext } from './agent/context.js';
 import {
   listMemories as mList,
   addMemory as mAdd,
@@ -125,6 +125,11 @@ export function buildContext() {
 export function buildFullContext(query) {
   return ctxFull(query);
 }
+
+// round92：普通问答「按问题搜卡注入全文」+「模块节点可见」两个上下文构建函数，
+// 对外导出供 AIAssistant.vue 在 system 消息里追加（Agent 路径不改，避免每步放大成本）。
+export { buildQuestionCardContext, buildModuleNodesContext };
+
 
 export function buildMemoryText() {
   return mText();

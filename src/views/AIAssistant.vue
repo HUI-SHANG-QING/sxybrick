@@ -7,7 +7,7 @@ import { toast } from '../utils/toast.js';
 // buildFullContext(text) 却没补 import，于是聊天页每次发送都在 Promise.all 处抛
 // ReferenceError（被 catch 吞成一句报错），**AI 助手从此一条回答都给不出来**。
 // 教训：这类「改了调用忘了导入」的错误 npm test 抓不到，已把 eslint 纳入门禁（见 package.json）。
-import { chatAI, buildContext, buildFullContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
+import { chatAI, buildContext, buildFullContext, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, buildMemoryText, extractMemories, listMemories, addMemory, deleteMemory, buildQuestionCardContext, buildModuleNodesContext } from '../ai.js';
 import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLATES } from '../utils/genDeck.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';
@@ -132,7 +132,7 @@ async function send() {
     // 于是用户问「这张卡背面写了什么」它只能答「我看不到内容」。
     // buildFullContext = buildStudyContext + buildRAGContext(query)，会把与问题相关的
     // 卡片/文档**原文片段**一并带上（图片引用也完整保留，可被多模态富集）。
-    const [ctx, mem] = await Promise.all([buildFullContext(text), buildMemoryText()]);
+    const [ctx, mem, qcards, modules] = await Promise.all([buildFullContext(text), buildMemoryText(), buildQuestionCardContext(text), buildModuleNodesContext()]);
     // round76【打字机】：流式已全链路打通（llm.js 支持 onToken），但界面一直等整段写完才显示，
     // 长回答时用户只看到转圈。这里先插一条空的助手消息作为占位，再让增量逐字写进去。
     // ⚠️ 请求消息必须用**推入占位之前**的快照，否则空消息会被当成历史发给模型。
@@ -141,7 +141,7 @@ async function send() {
     replyIdx = currentChat.value.messages.length - 1;
     let lastScrolled = 0;
     const reply = await chatAI([
-      { role: 'system', content: SYSTEM_PROMPT + '\n\n' + (mem ? mem + '\n\n' : '') + ctx },
+      { role: 'system', content: SYSTEM_PROMPT + '\n\n' + (mem ? mem + '\n\n' : '') + ctx + (qcards ? '\n\n' + qcards : '') + (modules ? '\n\n' + modules : '') },
       ...history,
     ], {
       stream: true,

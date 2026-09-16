@@ -17,7 +17,7 @@ agentRegistry.register({
   // 时它只能回答「我看不到」，与卡片域修复前是同一类缺陷（工具不可见 = AI 看不到）。
   // round88：补单词模块工具——英语词库独立在 db.wordCards（与 db.cards 分表），
   // 此前导师手上 0 个单词工具，用户问「我背了哪些单词 / 这个词什么意思」只能答「我看不到」。
-  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'list_lib_docs', 'read_lib_doc', 'explain_concept', 'get_card_detail', 'list_words', 'get_word_detail', 'get_word_stats', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_memos', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
+  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'list_lib_docs', 'read_lib_doc', 'explain_concept', 'get_card_detail', 'list_words', 'get_word_detail', 'get_word_stats', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_memos', 'list_graph_edges', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
   maxSteps: 6,
 });
 
@@ -31,7 +31,7 @@ agentRegistry.register({
   // round74：周报要能引用「计划进度 / 每日任务完成情况」
   // round88：周报要能分「卡片 / 单词」两条线说话——此前统计只覆盖 db.cards，
   // 英语词库的进度（待背量 / 各组掌握率）对用户完全不可见。
-  tools: ['get_stats', 'get_weak_cards', 'get_review_suggestion', 'list_subjects_and_tags', 'list_plans', 'read_plan', 'list_daily_tasks', 'get_word_stats', 'list_words', 'get_word_detail'],
+  tools: ['get_stats', 'get_weak_cards', 'get_review_suggestion', 'list_subjects_and_tags', 'list_plans', 'read_plan', 'list_daily_tasks', 'get_word_stats', 'list_words', 'get_word_detail', 'list_docs', 'read_doc', 'list_notes', 'read_note', 'list_memos', 'list_graph_edges'],
   maxSteps: 8,
 });
 

@@ -66,7 +66,7 @@ import { statImageAssets } from '../../services/image-analysis.js';
 
 // round90：工具返回里的「明细引导 / 图片体检提示」是**发给模型的 prompt 契约**（永不翻译、不进 UI），
 // 按项目约定用 *_PROMPT 顶层模板字面量承载（check-view-i18n.mjs 对 *_PROMPT 常量整段豁免）。
-const STATS_DETAIL_HINT_PROMPT = `本统计只是汇总。各模块**明细**请调对应工具：单词 list_words/get_word_detail；知识图谱 list_graph_edges；计划 read_plan/list_daily_tasks；图片资产 get_image_assets；卡片全文 search_cards/get_card_detail。用户问「某模块具体内容」时务必调用对应工具拿真实数据，不要只凭本统计就说「只能看数量」。`;
+const STATS_DETAIL_HINT_PROMPT = `本统计只是汇总。各模块**明细**请调对应工具：单词 list_words/get_word_detail；知识图谱 list_graph_edges；计划 read_plan/list_daily_tasks；图片资产 get_image_assets；卡片全文 search_cards/get_card_detail；AI 文档 list_docs/read_doc；笔记 list_notes/read_note；备忘 list_memos。用户问「某模块具体内容」时务必调用对应工具拿真实数据，不要只凭本统计就说「只能看数量」。普通问答看不到这些节点时，请引导用户改用对应 Agent（如学习答疑导师）或到相应页面查看。`;
 const IMAGE_ASSETS_HINT_OK_PROMPT = `图片资产健康：所有正文引用在本地图库均可读。`;
 const IMAGE_ASSETS_HINT_DANGLING_PROMPT = `有悬空图片引用（数据缺失）：跨设备未同步 / 原图被删 / 导入备份未带图。请告诉用户在其他设备同步一次或重新上传；若前端仍显示图片，那是会话内缓存的旧图，刷新后即消失。`;
 import { agentRegistry } from '../registry.js';
