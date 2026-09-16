@@ -11,6 +11,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { timeoutSignal, anySignal } from '../src/utils/abort.js';
+import { deepClone } from '../src/utils/clone.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -65,7 +66,7 @@ test('anySignal：透传中止原因 / 单个信号直返 / 空输入返回 unde
   assert.equal(anySignal([null, undefined]), undefined);
 });
 
-test('闸门：全仓禁止裸调 AbortSignal.timeout / AbortSignal.any（只允许 utils/abort.js 内部）', () => {
+test('闸门：全仓禁止裸调 Safari 16+ 才有的运行时 API（AbortSignal.timeout/any、structuredClone）', () => {
   const SRC = new URL('../src', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
   const files = [];
   (function walk(dir) {
@@ -76,22 +77,51 @@ test('闸门：全仓禁止裸调 AbortSignal.timeout / AbortSignal.any（只允
     }
   }(SRC));
 
+  // 兼容 API 白名单：只允许在实现它们的助手内部出现
+  const HELPER_FILES = [join('utils', 'abort.js'), join('utils', 'clone.js')];
+  const BARE = [
+    { name: 'AbortSignal.timeout / AbortSignal.any', re: /AbortSignal\s*\.\s*(timeout|any)\s*\(/ },
+    { name: 'structuredClone', re: /(^|[^.\w])structuredClone\s*\(/ },
+  ];
+
   const offenders = [];
   for (const f of files) {
-    if (f.endsWith(join('utils', 'abort.js'))) continue;
+    if (HELPER_FILES.some((h) => f.endsWith(h))) continue;
     // 必须剥注释再扫：解释性注释里写 API 名是正常的（本项目已吃过一次误报）
     const code = readFileSync(f, 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .split(/\r?\n/)
       .map((l) => l.replace(/(^|[^:'"`])\/\/[^\n]*/, '$1'))
       .join('\n');
-    if (/AbortSignal\s*\.\s*(timeout|any)\s*\(/.test(code)) {
-      offenders.push(f.replace(SRC, 'src').replace(/\\/g, '/'));
+    for (const { name, re } of BARE) {
+      if (re.test(code)) offenders.push(f.replace(SRC, 'src').replace(/\\/g, '/') + ' → ' + name);
     }
   }
   assert.deepEqual(
     offenders, [],
     '这些文件裸调了 Safari 16+ 才有的 API：' + offenders.join('、')
-      + '。请改用 src/utils/abort.js 的 timeoutSignal()/anySignal()。',
+      + '。请改用 src/utils/abort.js 的 timeoutSignal()/anySignal()，或 src/utils/clone.js 的 deepClone()。',
   );
+});
+
+test('deepClone：删掉原生 structuredClone 也要能深拷贝（旧 Safari 的插件路径不崩）', () => {
+  const src = { a: 1, b: { c: [1, 2, 3] }, d: 'x' };
+  const native = globalThis.structuredClone;
+  try {
+    // 新浏览器路径
+    const c1 = deepClone(src);
+    assert.notEqual(c1, src);
+    assert.notEqual(c1.b, src.b, '必须是深拷贝');
+    assert.deepEqual(c1, src);
+
+    // 模拟 Safari 15.3：没有 structuredClone
+    delete globalThis.structuredClone;
+    const c2 = deepClone(src);
+    assert.deepEqual(c2, src, '兜底路径也要给出等值副本');
+    assert.notEqual(c2.b, src.b);
+    assert.equal(deepClone(undefined), null, 'undefined 不得抛错（JSON.stringify(undefined) 会返回 undefined）');
+    assert.equal(deepClone(null), null);
+  } finally {
+    globalThis.structuredClone = native;
+  }
 });

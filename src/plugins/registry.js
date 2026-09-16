@@ -13,6 +13,7 @@
 //     if (pluginId.startsWith('mcp:')) return await callMcpServer(pluginId.slice(4), toolName, args);
 //   当前实现的本地插件层可作为「MCP 兼容的本地兜底」
 
+import { deepClone } from '../utils/clone.js';
 import { db } from '../db.js';
 import { validateManifest, validateModuleExports } from './manifest.js';
 import { loadPluginModule, unloadPluginModule, previewPluginCode } from './loader.js';
@@ -220,7 +221,7 @@ export async function invokeTool(pluginId, toolName, args = {}) {
   const ctx = await createPluginCtx(pluginId, toolName);
   // 带超时调用：避免插件死循环
   const result = await Promise.race([
-    Promise.resolve().then(() => fn(structuredClone(args), ctx)),
+    Promise.resolve().then(() => fn(deepClone(args), ctx)),
     new Promise((_, reject) => setTimeout(() => reject(new Error(`工具 ${toolName} 执行超时（${TOOL_TIMEOUT_MS}ms）`)), TOOL_TIMEOUT_MS)),
   ]);
   // 清除上次错误
@@ -255,7 +256,7 @@ export async function triggerHook(event, ...args) {
         const fn = inst.mod[fnName];
         if (typeof fn !== 'function') return;
         const ctx = await createPluginCtx(row.id, event);
-        await fn(...structuredClone(args), ctx);
+        await fn(...deepClone(args), ctx);
       } catch (e) {
         await db.plugins.update(row.id, { lastError: `[${event}] ${e?.message || e}` }).catch(() => {});
       }
