@@ -170,12 +170,12 @@ function toolObservation(name, content) {
 const CONVO_CHAR_BUDGET = 48000; // 约 1.2万~2.4万 token 量级，给模型上限留足余量
 // round50 N2 回归需要直测码点截断，故导出（纯函数，无副作用）
 export function compactConvo(convo) {
-  const size = () => convo.reduce((n, m) => n + String(m?.content ?? '').length, 0);
-  const over = size() > CONVO_CHAR_BUDGET;
+  let total = convo.reduce((n, m) => n + String(m?.content ?? '').length, 0);
   const hasInternal = convo.some((m) => m && (m.__toolObs || m.__toolName));
   // 常规路径（未超预算、无内部标记）：原样返回，零拷贝开销
-  if (!over && !hasInternal) return convo;
+  if (total <= CONVO_CHAR_BUDGET && !hasInternal) return convo;
 
+  const KEEP = 1500;
   const out = [];
   for (const m of convo) {
     // 出站净化：`__toolObs` / `__toolName` 是内部标记，绝不能进请求体
@@ -186,12 +186,17 @@ export function compactConvo(convo) {
     // 可压缩对象 = 工具观察（原生 tool 角色 或 带标记的 user 消息）与 assistant 原文；
     // 真正的用户消息与 system 永不改动 —— 那是用户的原话，改了就是篡改提问。
     const compressible = m?.role === 'tool' || m?.__toolObs === true || m?.role === 'assistant';
-    if (over && compressible) {
+    // 本轮修复（第二道坎）：**从最旧到最新**逐个压缩，一旦回到预算内就**停止**——
+    // 让「最近读取的长卡/长文档正文」保持完整。旧实现把所有中间产物一律砍到 1500，
+    // 于是「连看几张长卡时，越是被追问的那张越先被砍残」（图靠 clipText 保住，文字丢约 88%）。
+    // 这与第一道闸（compactToolPayload 的工具级预算）配合：新鲜的全文优先活下来。
+    if (total > CONVO_CHAR_BUDGET && compressible) {
       const s = String(m.content ?? '');
-      // round50 N2：按码点截断（防 emoji / 组合字符被劈成半个，预览尾部出现乱码 �）。
-      // round67：改用 clipText —— 在码点安全之外，还保证 `![image](sxy-img://uuid)` 这类
-      // 视觉引用不被切坏。此处是工具结果进 AI 的上下文压缩出口，切坏引用 = 图静默丢失。
-      if (s.length > 1500) copy.content = clipText(s, 1500) + '…（已截断以控制上下文长度）';
+      if (s.length > KEEP) {
+        const clipped = clipText(s, KEEP) + '…（本条工具结果因为整段对话过长已被截断，以控制上下文长度；如需完整内容请重新精确查询）';
+        // 仅当真的变小才替换（clipText 会追加完整图片引用，极小串可能反而变长）
+        if (clipped.length < s.length) { total -= (s.length - clipped.length); copy.content = clipped; }
+      }
     }
     out.push(copy);
   }

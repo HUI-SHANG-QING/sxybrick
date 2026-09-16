@@ -8,6 +8,12 @@
 //      `src/utils/` 不在扫描范围（只扫 repo*/agent/algorithms），故意图表放这里。
 
 const ALL_RE = /全部|所有|汇总|概览|整体|总体|各项|各个模块/;
+// 泛问「我最近学得怎样 / 学习情况 / 复盘一下」：没有具体模块词，但**确实想看全局** →
+// 视为全量（否则这些高频问法会一块明细都拿不到，只剩统计兜底，体验缺口）。
+const BROAD_RE = /学得怎样|学得怎么样|学习情况|学习进度|学习表现|学习概况|最近怎么样|整体情况|复盘|总结一下我|我的学习|学习数据/;
+// 「帮我复习 / 考考我 / 刷题」类：核心是薄弱卡（已在统计兜底里），另需计划/每日/单词明细才够用。
+const REVIEW_RE = /复习|背诵|刷题|练题|考考|测验|测试|默写/;
+const REVIEW_EXTRA = ['plans', 'daily', 'words'];
 
 // [模块 key, 命中关键词]。key 与 buildModuleNodesContext 的分块一一对应。
 const GROUPS = [
@@ -30,13 +36,15 @@ const GROUPS = [
 export function wantedModules(query) {
   const q = String(query || '').trim();
   if (!q) return new Set();
-  if (ALL_RE.test(q)) return null;
+  if (ALL_RE.test(q) || BROAD_RE.test(q)) return null;
   const out = new Set();
   for (const [k, re] of GROUPS) if (re.test(q)) out.add(k);
+  if (REVIEW_RE.test(q)) for (const k of REVIEW_EXTRA) out.add(k);
   return out;
 }
 
-/** 显式「要全部模块」的问题（供调用方判断是否走了全量分支）。 */
+/** 显式「要全部模块」或泛问全局的问题（供调用方判断是否走了全量分支）。 */
 export function wantsAllModules(query) {
-  return ALL_RE.test(String(query || ''));
+  const q = String(query || '');
+  return ALL_RE.test(q) || BROAD_RE.test(q);
 }

@@ -43,9 +43,10 @@ test('round50 N2：AI 上下文出口截断不劈开 emoji（码点安全）', (
   const convo = [{ role: 'assistant', content: '😀'.repeat(30000) }];
   const out = compactConvo(convo);
   const head = String(out[0].content);
-  // 截断后的正文不含半个 surrogate：去掉尾部"已截断"提示后，
+  // 截断后的正文不含半个 surrogate：按首个省略号切开（提示语文本属实现细节，可能调整），
   // Array.from 逐码点检查——劈开的半代理会变成 U+FFFD 替换符，被 every 抓住
-  const body = head.replace(/…（已截断以控制上下文长度）$/, '');
+  assert.ok(head.includes('…'), '应附加截断提示');
+  const body = head.split('…')[0];
   assert.ok(Array.from(body).length === 1500, '截断后应为 1500 个完整码点');
   assert.ok(Array.from(body).every((ch) => ch === '😀'), '每个字符都是完整 emoji（无劈开的代理对）');
 });

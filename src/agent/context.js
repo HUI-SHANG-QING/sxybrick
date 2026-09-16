@@ -223,7 +223,7 @@ export async function buildModuleNodesContext(query = null) {
     if (want('notes')) {
       const notes = await db.notes.orderBy('updatedAt').reverse().limit(10).toArray().catch(() => []);
       if (notes.length) {
-        const items = notes.map((n) => `《${n.title || '无标题笔记'}》的分类为${n.category || '未分类'}，正文摘要如下：${clipText(String(n.content || ''), 500)}`);
+        const items = notes.map((n) => `《${n.title || '无标题笔记'}》的分类为${({ idea: '想法', todo: '待办', question: '疑问', summary: '总结', reference: '参考', note: '随笔', draft: '草稿' }[String(n.category || '').toLowerCase()] || n.category || '未分类')}，正文摘要如下：${clipText(String(n.content || ''), 500)}`);
         add(`- 笔记（列出最近 ${notes.length} 篇的标题与正文摘要，正文里的图片引用已完整保留）：\n  ${items.join('\n  ')}`);
       }
     }
