@@ -137,6 +137,31 @@ test('每日规划：当天没有计划时 add_daily_task 自动新建（「排�
   for (const t of ['dailyPlans', 'dailyTasks']) await db[t].clear();
 });
 
+// round83 P3-3（经核实成立）：scheduledHour 曾只有 isFinite + floor，没有 0-23 钳制，
+// 而同类参数 estimatedMinutes 有 clamp —— 同一类参数两套规则。模型传 25 会原样入库，
+// 界面渲染出「25:00」、四象限时段排布错乱；且同步入口的域校验只管**导入**，管不到这条本地写路径。
+test('scheduledHour 必须钳制到 0-23（与 estimatedMinutes 同纪律）', async () => {
+  for (const t of ['dailyPlans', 'dailyTasks']) await db[t].clear();
+  const DAY = '2026-11-02';
+  const cases = [
+    [25, 23],
+    [-1, 0],
+    [99.7, 23],
+    [9.5, 9],
+  ];
+  for (const [given, expect] of cases) {
+    // eslint-disable-next-line no-await-in-loop
+    const r = await toolRegistry.get('add_daily_task').execute({
+      date: DAY, title: '时段测试 ' + given, scheduledHour: given,
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.data.scheduledHour, expect, `传入 ${given} 应钳为 ${expect}，实际 ${r.data.scheduledHour}`);
+  }
+  const noHour = await toolRegistry.get('add_daily_task').execute({ date: DAY, title: '不给时段' });
+  assert.equal(noHour.data.scheduledHour, null, '未给/非法应为 null');
+  for (const t of ['dailyPlans', 'dailyTasks']) await db[t].clear();
+});
+
 test('每日规划：非法状态 / 找不到任务 / 坏日期 必须显式报错（不静默写坏数据）', async () => {
   // 先清库：上一个用例若中途失败，残留数据会让「报错路径不得留下数据」的断言假红
   for (const t of ['dailyPlans', 'dailyTasks']) await db[t].clear();
@@ -175,4 +200,45 @@ test('接线：能写笔记/排任务的 Agent 都挂上了对应工具，且工
       assert.ok(names.has(t), `${agentId} 挂了不存在的工具 ${t}`);
     }
   }
+});
+
+// round85：三个工具出口的 scheduledHour 必须口径一致 —— 未排时段上报 **null，不是 0**。
+// 根因（`Number(null) === 0`）：create_daily_plan / add_daily_task / list_daily_tasks 都写过
+//   `Number.isFinite(Number(v)) ? Number(v) : null`，而 Number(null)=0 且 isFinite(0)=true
+//   → 库里明明是 null（「没排时段」），模型却被告知「0 点」，于是回答用户「已安排在 00:00」。
+// 这是「把 null 变成 0」；它的孪生兄弟是 `Number(x) || 默认值`（吞掉显式 0）。两者都靠
+// 「域判断而非真值判断」根治。闸门同时钉住反向：**显式 0 点必须保住 0**。
+test('scheduledHour：未排时段三个出口一律上报 null（不得被 Number(null)→0 说成 0 点）', async () => {
+  for (const t of ['dailyPlans', 'dailyTasks']) await db[t].clear();
+  const DAY = '2026-11-07';
+
+  // ① add_daily_task 出口（当天无计划 → 走「自动建计划」分支，顺带覆盖 createDailyPlan 的入口）
+  const added = await toolRegistry.get('add_daily_task').execute({ date: DAY, title: '没排时段的任务' });
+  assert.equal(added.ok, true);
+  assert.equal(added.data.scheduledHour, null, 'add_daily_task 出口：null 不能被说成 0 点');
+
+  // ② list_daily_tasks 出口
+  const listed = await toolRegistry.get('list_daily_tasks').execute({ date: DAY });
+  const row = (listed.data.items || []).find((x) => x.title === '没排时段的任务');
+  assert.ok(row, '刚加的任务必须能在列表里找到');
+  assert.equal(row.scheduledHour, null, 'list_daily_tasks 出口：null 不能被说成 0 点');
+
+  // ③ create_daily_plan 出口（口述里没有时刻 → 解析结果就是 null）
+  const planned = await toolRegistry.get('create_daily_plan').execute({ rawInput: '背单词', date: DAY });
+  assert.equal(planned.ok, true);
+  for (const x of planned.data.tasks) {
+    assert.equal(x.scheduledHour, null, `create_daily_plan 出口：${x.title} 未给时间应为 null`);
+  }
+
+  // ④ 反向：显式 0 点（凌晨排程）必须保住 0，不得被当成「没排」——falsy 陷阱的另一面
+  const midnight = await toolRegistry.get('add_daily_task').execute({ date: DAY, title: '零点任务', scheduledHour: 0 });
+  assert.equal(midnight.data.scheduledHour, 0, '显式 0 点是合法值，不得被当成缺失');
+
+  // ⑤ 数字串 / 越界值走同一份归一化（模型偶尔把 number 写成 "9"；同步域只认 number）
+  const str = await toolRegistry.get('add_daily_task').execute({ date: DAY, title: '数字串', scheduledHour: '9' });
+  assert.equal(str.data.scheduledHour, 9, "模型给 '9' 也应归一成数字 9");
+  const over = await toolRegistry.get('add_daily_task').execute({ date: DAY, title: '越界', scheduledHour: 25 });
+  assert.equal(over.data.scheduledHour, 23);
+
+  for (const t of ['dailyPlans', 'dailyTasks']) await db[t].clear();
 });

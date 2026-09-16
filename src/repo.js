@@ -61,6 +61,35 @@ function clampEstimatedMinutes(v) {
   return Math.min(MAX_ESTIMATED_MINUTES, Math.round(v));
 }
 
+/**
+ * 排程时刻（0-23）归一化 —— **全仓唯一一份**（数据层 3 条写路径 + AI 工具层 4 处读/写映射共用）。
+ *
+ * round82：首次收口（此前 updateDailyTask 里有一份内联副本，createDailyPlan 与 addDailyTask
+ *          两条写路径**都没有**）——「同一字段两套规则」。
+ * round85：二次收口到工具层。那里另有 4 处 `Number.isFinite(Number(v)) ? Number(v) : null`，
+ *          而 **`Number(null) === 0` 且 `Number.isFinite(0) === true`** → 库里明明是 null
+ *          （「没排时段」），上报给模型却成了 0 → 模型会对用户说「已安排 0 点」，
+ *          list_daily_tasks 同病。这正是铁律里 `Number(x) || 默认值` 的孪生陷阱：
+ *          一个吞掉显式 0，一个把 null 变成 0。
+ *
+ * 语义（与 sync-manifest 的 dailyTasks 域校验对齐：**存进去的必须是 number 或 null**）：
+ *   - 合法 → [0,23] 的整数（允许数字串 '9' → 9，规范化后正好满足同步域）
+ *   - 其余 → null（null / undefined / '' / NaN / Infinity / 'abc' / '9:00' / 布尔 / 对象 / 数组）
+ * 两个必须显式挡住的坑：
+ *   ① `Number('') === 0` —— 空串是「没填」，不是「0 点」，所以先 trim 再判空；
+ *   ② `Number([]) === 0` —— 只接受 number / string，其余类型一律 null（免得对象被强制成 0）。
+ * 为什么非得钳：调用方（AI 工具 / 手动编辑）可能传 25 / -1 / 99.7，不钳会渲染出「25:00」、
+ * 四象限时段排布错乱；而同步入口的域校验只管**导入**，管不到本地这几条写路径。
+ */
+export function clampScheduledHour(v) {
+  if (typeof v !== 'number' && typeof v !== 'string') return null;
+  const raw = typeof v === 'string' ? v.trim() : v;
+  if (raw === '') return null;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(23, Math.floor(n)));
+}
+
 
 // 审计 C1/C4：跨设备时钟与同毫秒覆盖主要通过「确定性决胜 + 严格比较」在 sync-manifest
 // 的纯合并函数里根治（mergeCardPair/mergeTombstones 已改 `>` + 字典序收敛）。
@@ -1311,6 +1340,10 @@ export async function createDailyPlan(payload) {
     // 字段可能是 Proxy）。对象字面量只做浅展开，嵌套子对象仍是 Proxy，落 IndexedDB 时
     // structuredClone 会抛 DataCloneError。JSON 往返剥壳（任务为纯 JSON，无 Blob/Date）。
     ...JSON.parse(JSON.stringify(task || {})),
+    // round82：放在展开**之后**——无论来自解析器还是调用方（如 AI 工具传入的 draft），
+    // 这两个字段都必须守同一套边界（此前只有 addDailyTask/updateDailyTask 部分覆盖）。
+    estimatedMinutes: clampEstimatedMinutes(task?.estimatedMinutes),
+    scheduledHour: clampScheduledHour(task?.scheduledHour),
     status: 'pending',
     completedAt: null,
     completionNote: '',
@@ -1410,9 +1443,7 @@ export async function updateDailyTask(id, patch) {
   // round30 P2-7：更新路径同样 clamp 时长与排程时刻（解析层已 clamp scheduledHour，
   // 但手动编辑走更新路径，需在此兜底，否则超大 estimatedMinutes 会污染联动分析与同步）。
   if (p.estimatedMinutes !== undefined) p.estimatedMinutes = clampEstimatedMinutes(p.estimatedMinutes);
-  if (p.scheduledHour !== undefined && Number.isFinite(p.scheduledHour)) {
-    p.scheduledHour = Math.min(23, Math.max(0, Math.floor(p.scheduledHour)));
-  }
+  if (p.scheduledHour !== undefined) p.scheduledHour = clampScheduledHour(p.scheduledHour);
   let task;
   await db.transaction('rw', db.dailyTasks, async () => {
     const old = await db.dailyTasks.get(id);
@@ -1454,7 +1485,7 @@ export async function addDailyTask(planId, task = {}) {
     targetCount: Number.isFinite(task.targetCount) ? Number(task.targetCount) : null,
     estimatedMinutes: clampEstimatedMinutes(task.estimatedMinutes),
     subject: task.subject || '',
-    scheduledHour: Number.isFinite(task.scheduledHour) ? Math.floor(task.scheduledHour) : null,
+    scheduledHour: clampScheduledHour(task.scheduledHour),
     status: 'pending',
     completedAt: null,
     completionNote: '',

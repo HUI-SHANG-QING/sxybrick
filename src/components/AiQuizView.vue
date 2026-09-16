@@ -45,6 +45,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { normalizeQuizData } from '../utils/ai-structured.js';
+import { isQuizRecorded, markQuizRecorded } from '../utils/quiz-recorded.js';
 import { review } from '../repo.js';
 import { toast } from '../utils/toast.js';
 import { t } from '../i18n/index.js';
@@ -57,7 +58,11 @@ const props = defineProps({
 const LETTERS = 'ABCDEF';
 const questions = computed(() => normalizeQuizData(props.data) || []);
 const picked = ref({});   // { [题号]: 选中的选项下标 }
-const recorded = ref({}); // { [题号]: 是否已记入复习 }
+// 已记入复习：**初始值来自持久化**（round83 P3-2）——只放组件内存的话，切页/刷新后
+// 同一道题还能再点一次，对同一卡重复 review(2) 会把稳定性虚增。
+const recorded = ref(Object.fromEntries(
+  questions.value.map((q, i) => [i, q.cardId ? isQuizRecorded(q.cardId, q.q) : false]),
+));
 
 const answeredCount = computed(() => Object.keys(picked.value).length);
 const rightCount = computed(() => questions.value.reduce(
@@ -91,8 +96,13 @@ function reset() {
 async function record(i) {
   const q = questions.value[i];
   if (!q?.cardId || recorded.value[i]) return;
+  // round83 P3-1 硬化：**未作答不得记账**。模板里按钮本就在「已作答」块内（点了才有），
+  // 但函数级再设一道闸——否则将来有人挪动模板结构，这里就会把"没答"写成 rating 0（记成忘了），
+  // 直接拉低该卡稳定性且完全违背按钮语义。
+  if (picked.value[i] == null) return;
   try {
     await review(q.cardId, picked.value[i] === q.answer ? 2 : 0);
+    markQuizRecorded(q.cardId, q.q);
     recorded.value = { ...recorded.value, [i]: true };
     toast(t('components.aiQuiz.recorded'), 'success');
   } catch (e) {

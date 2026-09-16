@@ -35,6 +35,9 @@ import {
   createDailyPlan,
   addDailyTask,
   checkinDailyTask,
+  // round85：工具层读/写 scheduledHour 一律走数据层这一份归一化——
+  // 原先 4 处 `Number.isFinite(Number(v)) ? Number(v) : null` 会把 null 说成 0 点。
+  clampScheduledHour,
 } from '../../repo.js';
 import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards, getGraphDrivenReviewPlan, generateAutoPlan, getCalibration } from '../analytics.js';
 import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';
@@ -596,7 +599,9 @@ toolRegistry.register({
         tasks: r.tasks.map((x) => ({
           id: x.id, title: x.title, type: x.type,
           estimatedMinutes: x.estimatedMinutes,
-          scheduledHour: Number.isFinite(Number(x.scheduledHour)) ? Number(x.scheduledHour) : null,
+          // round85：**不得**写回 `Number.isFinite(Number(v)) ? Number(v) : null`——
+          // `Number(null) === 0`，会把「没排时段」上报成「0 点」，模型据此回答用户「已安排 0 点」。
+          scheduledHour: clampScheduledHour(x.scheduledHour),
           quadrant: x.quadrant,
         })),
       },
@@ -632,7 +637,8 @@ toolRegistry.register({
       type: args?.type || 'other',
       quadrant: args?.quadrant || 'Q4',
       estimatedMinutes: Number.isFinite(Number(args?.estimatedMinutes)) ? Number(args.estimatedMinutes) : undefined,
-      scheduledHour: Number.isFinite(Number(args?.scheduledHour)) ? Math.floor(Number(args.scheduledHour)) : undefined,
+      // round85：入口同样归一化（模型可能给 '9' / 25 / null；null 曾被 `Number(null)` 变成 0 点）。
+      scheduledHour: clampScheduledHour(args?.scheduledHour),
       subject: args?.subject || '',
     };
     let planId = String(args?.planId || '').trim();
@@ -659,7 +665,7 @@ toolRegistry.register({
       data: {
         taskId: task.id, planId, date: task.date, title: task.title,
         estimatedMinutes: task.estimatedMinutes,
-        scheduledHour: Number.isFinite(Number(task.scheduledHour)) ? Number(task.scheduledHour) : null,
+        scheduledHour: clampScheduledHour(task.scheduledHour),
         status: task.status,
       },
     };
@@ -826,7 +832,7 @@ toolRegistry.register({
           id: task.id, title: task.title, type: task.type || '', subject: task.subject || '',
           important: !!task.important, urgent: !!task.urgent, quadrant: task.quadrant || '',
           estimatedMinutes: Number(task.estimatedMinutes) || 0,
-          scheduledHour: Number.isFinite(Number(task.scheduledHour)) ? Number(task.scheduledHour) : null,
+          scheduledHour: clampScheduledHour(task.scheduledHour),
           status: task.status, completionNote: String(task.completionNote || ''),
         })),
       },
