@@ -38,7 +38,10 @@ import {
   // round85：工具层读/写 scheduledHour 一律走数据层这一份归一化——
   // 原先 4 处 `Number.isFinite(Number(v)) ? Number(v) : null` 会把 null 说成 0 点。
   clampScheduledHour,
+  listPomoSessions,
 } from '../../repo.js';
+// round95：番茄钟逐次明细 / 历史 AI 对话内容——可直接读 db（基础模块，无环）
+import { db } from '../../db.js';
 import { getCardAnalytics, getRecentMistakes, getCrossModuleInsight, getLearningProfile, getConfusablePairs, getGapCards, getGraphDrivenReviewPlan, generateAutoPlan, getCalibration } from '../analytics.js';
 import { generateDeck, generateColdStartDeck, bulkCreateCards, COLD_START_TEMPLATES } from '../../utils/genDeck.js';
 import { hybridSearch, retrieveContext, ensureIndex, rebuildIndex, getIndexStatus } from '../retrieval.js';
@@ -66,7 +69,7 @@ import { statImageAssets } from '../../services/image-analysis.js';
 
 // round90：工具返回里的「明细引导 / 图片体检提示」是**发给模型的 prompt 契约**（永不翻译、不进 UI），
 // 按项目约定用 *_PROMPT 顶层模板字面量承载（check-view-i18n.mjs 对 *_PROMPT 常量整段豁免）。
-const STATS_DETAIL_HINT_PROMPT = `本统计只是汇总。各模块**明细**请调对应工具：单词 list_words/get_word_detail；知识图谱 list_graph_edges；计划 read_plan/list_daily_tasks；图片资产 get_image_assets；卡片全文 search_cards/get_card_detail；AI 文档 list_docs/read_doc；笔记 list_notes/read_note；备忘 list_memos。用户问「某模块具体内容」时务必调用对应工具拿真实数据，不要只凭本统计就说「只能看数量」。普通问答看不到这些节点时，请引导用户改用对应 Agent（如学习答疑导师）或到相应页面查看。`;
+const STATS_DETAIL_HINT_PROMPT = `本统计只是汇总。各模块**明细**请调对应工具：单词 list_words/get_word_detail；知识图谱 list_graph_edges；计划 read_plan/list_daily_tasks；图片资产 get_image_assets；卡片全文 search_cards/get_card_detail；AI 文档 list_docs/read_doc；笔记 list_notes/read_note；备忘 list_memos；番茄钟逐次明细 get_pomodoro_sessions；历史 AI 对话 list_chats/read_chat。用户问「某模块具体内容」时务必调用对应工具拿真实数据，不要只凭本统计就说「只能看数量」。普通问答看不到这些节点时，请引导用户改用对应 Agent（如学习答疑导师）或到相应页面查看。`;
 const IMAGE_ASSETS_HINT_OK_PROMPT = `图片资产健康：所有正文引用在本地图库均可读。`;
 const IMAGE_ASSETS_HINT_DANGLING_PROMPT = `有悬空图片引用（数据缺失）：跨设备未同步 / 原图被删 / 导入备份未带图。请告诉用户在其他设备同步一次或重新上传；若前端仍显示图片，那是会话内缓存的旧图，刷新后即消失。`;
 import { agentRegistry } from '../registry.js';
@@ -455,6 +458,93 @@ toolRegistry.register({
     const limit = Number(args?.limit) || 20;
     const hist = await reviewHistory(limit);
     return { ok: true, data: { count: hist.length, items: hist.slice(0, limit) } };
+  },
+});
+
+// round95：补三类此前对 AI 完全不可见的数据——番茄钟逐次明细 / 历史 AI 对话（列表 + 内容）。
+// 用户诉求：「要看到所有信息，尤其是图片」。卡片正文/图片由 get_card_detail 提供，这三者补齐其余缺口。
+toolRegistry.register({
+  name: 'get_pomodoro_sessions',
+  description: '获取番茄钟专注会话逐次明细：开始时刻（本地时间）、时长（分钟）、标签、是否完整番茄。'
+    + '用户问「我什么时候学的 / 每次专注多久 / 番茄钟细节」时必须调本工具——只报「共 N 次 / 累计 M 分钟」的汇总不够。',
+  parameters: { limit: 'number: 条数，默认 30，最多 200' },
+  readsData: true,
+  async execute(args) {
+    const limit = Math.min(200, Math.max(1, Number(args?.limit) || 30));
+    const rows = await listPomoSessions(limit);
+    const pad = (x) => String(x).padStart(2, '0');
+    const local = (ts) => {
+      const d = new Date(Number(ts) || 0);
+      if (!Number.isFinite(d.getTime())) return '';
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    return {
+      ok: true,
+      data: {
+        count: rows.length,
+        items: rows.map((r) => ({
+          id: r.id,
+          startedAt: r.startedAt,
+          startedLocal: local(r.startedAt),
+          minutes: r.duration || 0,
+          tag: r.tag || '',
+          complete: !r.partial,
+        })),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'list_chats',
+  description: '列出历史 AI 对话（标题、类型、更新时间、消息条数）。'
+    + '普通问答、Agent 工作台会话、费曼练习的记录都存在这里（type 区分：qa/agent/feynman）。'
+    + '用户问「我之前问过什么 / 上次聊了什么 / 费曼练了什么」时先用本工具定位，再用 read_chat 取完整内容。',
+  parameters: { limit: 'number: 条数，默认 20，最多 50' },
+  readsData: true,
+  async execute(args) {
+    const limit = Math.min(50, Math.max(1, Number(args?.limit) || 20));
+    const rows = await db.aiChats.orderBy('updatedAt').reverse().limit(limit).toArray();
+    return {
+      ok: true,
+      data: {
+        count: rows.length,
+        items: rows.map((c) => ({
+          id: c.id,
+          title: c.title || '',
+          type: c.type || 'chat',
+          updatedAt: c.updatedAt,
+          msgCount: (c.messages || []).length,
+        })),
+      },
+    };
+  },
+});
+
+toolRegistry.register({
+  name: 'read_chat',
+  description: '读取某条 AI 对话的完整消息内容（用户与助手的往返文本）。参数 id 由 list_chats 返回；'
+    + '用户追问「那次对话里具体说了什么」时用。',
+  parameters: { id: 'string: 对话 id（来自 list_chats）', limit: 'number: 最多返回末尾几条消息，默认 20，最多 60' },
+  readsData: true,
+  async execute(args) {
+    const id = String(args?.id || '');
+    if (!id) return { ok: false, error: 'id required' };
+    const chat = await db.aiChats.get(id);
+    if (!chat) return { ok: false, error: 'chat not found' };
+    const limit = Math.min(60, Math.max(1, Number(args?.limit) || 20));
+    const all = Array.isArray(chat.messages) ? chat.messages : [];
+    return {
+      ok: true,
+      data: {
+        id: chat.id,
+        title: chat.title || '',
+        type: chat.type || 'chat',
+        updatedAt: chat.updatedAt,
+        totalMessages: all.length,
+        messages: all.slice(-limit).map((m) => ({ role: m.role, content: clipText(String(m.content ?? ''), 2000) })),
+      },
+    };
   },
 });
 

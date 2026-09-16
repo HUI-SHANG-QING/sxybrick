@@ -31,7 +31,10 @@ agentRegistry.register({
   // round74：周报要能引用「计划进度 / 每日任务完成情况」
   // round88：周报要能分「卡片 / 单词」两条线说话——此前统计只覆盖 db.cards，
   // 英语词库的进度（待背量 / 各组掌握率）对用户完全不可见。
-  tools: ['get_stats', 'get_weak_cards', 'get_review_suggestion', 'list_subjects_and_tags', 'list_plans', 'read_plan', 'list_daily_tasks', 'get_word_stats', 'list_words', 'get_word_detail', 'list_docs', 'read_doc', 'list_notes', 'read_note', 'list_memos', 'list_graph_edges'],
+  // round95：补「全卡正文/图片」（get_card_detail + search_cards/semantic_search，此前只有
+  // get_weak_cards 的 60 字摘要 → 用户问「卡片里写了什么/图里是什么」只能答「看不到」）
+  // 与「番茄钟逐次明细 / 历史对话内容」（get_pomodoro_sessions / list_chats / read_chat）。
+  tools: ['get_stats', 'get_weak_cards', 'get_review_suggestion', 'list_subjects_and_tags', 'list_plans', 'read_plan', 'list_daily_tasks', 'get_word_stats', 'list_words', 'get_word_detail', 'list_docs', 'read_doc', 'list_notes', 'read_note', 'list_memos', 'list_graph_edges', 'search_cards', 'semantic_search', 'get_card_detail', 'get_pomodoro_sessions', 'list_chats', 'read_chat'],
   maxSteps: 8,
 });
 
@@ -68,7 +71,7 @@ agentRegistry.register({
   systemPrompt:
     '你是复习计划编排师，擅长把“目标”拆成“可执行的步骤序列”。\n{context}\n{memory}\n流程：\n1) 优先调用 auto_generate_plan（数据驱动、零 LLM 即可生成结构化阶段计划 markdown + meta），把生成的 title/content 直接交给 create_plan 持久化。\n2) 如用户希望更个性化，再叠加 graph_review_plan（图驱动复习路径）作为计划内的复习序列补充。\n3) 若用户认可最终计划，调用 create_plan 落库（会随数据包同步）。\n用 <final> 输出最终计划摘要。',
   // round74：编排计划前要先看得见「已有的计划与每天实际排了什么」，否则会排出与现状脱节的计划
-  tools: ['auto_generate_plan', 'graph_review_plan', 'get_stats', 'get_review_suggestion', 'get_weak_cards', 'create_plan', 'list_plans', 'read_plan', 'list_daily_tasks', 'create_daily_plan', 'add_daily_task', 'list_notes'],
+  tools: ['auto_generate_plan', 'graph_review_plan', 'get_stats', 'get_review_suggestion', 'get_weak_cards', 'create_plan', 'list_plans', 'read_plan', 'list_daily_tasks', 'create_daily_plan', 'add_daily_task', 'list_notes', 'get_card_detail'],
   maxSteps: 10,
 });
 
@@ -112,7 +115,7 @@ agentRegistry.register({
   description: '从卡片中提炼知识点并建立关联（依赖/前置/对比），边可持久化并随数据包同步。',
   systemPrompt:
     '你是知识图谱构建师。\n{memory}\n用 search_cards / list_subjects_and_tags 了解卡片，提取知识点，用 link_cards 建立关联（关系用 依赖/前置/对比/属于 等）；可用 list_graph_edges 查看已有边。边会持久化并同步，请谨慎去重。',
-  tools: ['search_cards', 'list_subjects_and_tags', 'link_cards', 'list_graph_edges'],
+  tools: ['search_cards', 'list_subjects_and_tags', 'link_cards', 'list_graph_edges', 'get_card_detail'],
   maxSteps: 12,
 });
 
@@ -125,7 +128,7 @@ agentRegistry.register({
     '你是智能复习教练，必须基于跨模块真实数据出复习方案。\n{context}\n{memory}\n先用 get_cross_insight / get_recent_mistakes / smart_review_plan / get_learning_profile 拿数据，必要时用 get_confusable_pairs 找易混对、get_gap_cards 找知识缺口，再输出一份「今天优先复习什么、为什么、怎么复习」的清单（分级：P0 昨天答错→P1 高频错→P2 易混对→P3 到期→P4 计划内）。\n若用户想集中攻克高频错题，调用 build_quiz_from_mistakes 生成「错题轰炸」测验序列（零 LLM：错因簇→先补前置→交错出题），然后按序逐卡引导用户作答并即时讲解。',
   // round74：它的职责描述里就写着「综合…计划与费曼反馈」，但此前只有 list_plans（摘要）
   // round76：复习清单给出后要能「排进今天 + 打卡」，否则清单只停在聊天里
-  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'get_word_stats', 'list_words', 'get_word_detail', 'list_plans', 'read_plan', 'list_daily_tasks', 'add_daily_task', 'checkin_daily_task', 'list_notes', 'read_note', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'build_quiz_from_mistakes', 'semantic_search', 'retrieve_context', 'list_lib_docs', 'read_lib_doc', 'delegate_to_agent', 'read_blackboard', 'write_blackboard'],
+  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'get_word_stats', 'list_words', 'get_word_detail', 'list_plans', 'read_plan', 'list_daily_tasks', 'add_daily_task', 'checkin_daily_task', 'list_notes', 'read_note', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'build_quiz_from_mistakes', 'semantic_search', 'retrieve_context', 'list_lib_docs', 'read_lib_doc', 'delegate_to_agent', 'read_blackboard', 'write_blackboard', 'get_card_detail', 'get_pomodoro_sessions'],
   maxSteps: 10,
 });
 
