@@ -75,10 +75,31 @@ async function toCards(d) {
 }
 async function importCards() {
   if (!genCards.value.length) return;
-  for (const c of genCards.value) {
-    await createCard({ front: String(c.front), back: String(c.back), subject: c.subject || (genFrom.value?.tags?.[0] || ''), tags: c.tags || [], type: 'basic' });
+  // round105：旧实现循环里**没有 try/catch** —— 中途某张建卡失败（配额满/校验失败）会中断整批，
+  // 既没有任何提示、弹窗也不关，而前面已建好的卡**已经进库**；用户以为没成功再点一次 → 重复建卡。
+  const total = genCards.value.length;
+  const failedIdx = [];
+  let firstErr = '';
+  for (let i = 0; i < total; i += 1) {
+    const c = genCards.value[i];
+    try {
+      await createCard({ front: String(c.front), back: String(c.back), subject: c.subject || (genFrom.value?.tags?.[0] || ''), tags: c.tags || [], type: 'basic' });
+    } catch (e) {
+      failedIdx.push(i);
+      if (!firstErr) firstErr = String(e?.message || e);
+    }
   }
-  toast(t('views.docs.importedN', '已导入 {n} 张卡片', { n: genCards.value.length }), 'success');
+  if (failedIdx.length) {
+    // 只保留失败的条目：既如实汇报，又让"重试"只补失败的那些（不会重复建已成功的卡）
+    genCards.value = failedIdx.map((i) => genCards.value[i]);
+    toast(t('views.docs.importPartial', '已导入 {ok} 张，{fail} 张失败：{msg}（列表已只保留失败项，可直接重试）', {
+      ok: total - failedIdx.length,
+      fail: failedIdx.length,
+      msg: firstErr.slice(0, 80),
+    }), 'error');
+    return; // 不关弹窗，便于重试
+  }
+  toast(t('views.docs.importedN', '已导入 {n} 张卡片', { n: total }), 'success');
   genOpen.value = false; genCards.value = [];
 }
 

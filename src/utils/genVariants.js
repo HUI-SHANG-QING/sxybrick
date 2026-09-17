@@ -73,7 +73,7 @@ export async function genVariants(card, count = 3, deps = {}) {
 
     try {
       arr = parseLLMJsonArray(r); // 空输出/非 JSON → 可读报错，而非 "Unexpected end of JSON input"
-    } catch (parseErr) {
+    } catch {
       // round105【重试】空响应或被 max_tokens 截断的半截 JSON：换**非流式 + 双倍预算**再试一次。
       // 这不是"重试碰运气"：非流式分支带「截断自动续写」（llm.js MAX_CONTINUATIONS）与更细的
       // 空响应诊断，对「预算不够 / 推理模型吃光预算」这两类失败成功率显著更高；仍失败则把

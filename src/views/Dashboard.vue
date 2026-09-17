@@ -38,7 +38,10 @@ async function load() {
     weak.value = w;
     plans.value = (p || []).filter(x => x.status === 'active').slice(0, 4);
     // 审计 P1-2（round33）：总复习数只计真实复习（快检是自测，不算复习量）
-    const reviewsCount = await db.reviews.filter(r => r.type !== 'quick').count();
+    // round105 实测（3000 卡 / 6 万复习，fake-indexeddb）：这行 `db.reviews.filter(≠quick).count()`
+    // 要 795ms，是首屏最贵的一步，而且**完全冗余**——`s`（getStats）里的 totalReviews 就是同一口径
+    // （computeStats 内部已排除 quick 且过滤非法时间戳，比这里更严）。改为直接复用，省掉一次全表游标扫。
+    const reviewsCount = s.totalReviews;
     assets.value = {
       cards: s.totalCards, reviews: reviewsCount, plans: p?.length || 0,
       mindmaps: mm.length, graphEdges: ge.length, pomoToday: pomo,

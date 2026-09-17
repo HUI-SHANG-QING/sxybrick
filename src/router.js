@@ -106,6 +106,10 @@ router.beforeEach(() => {
 // 而 vue-router 默认**不处理**这类错误 → 该路由直接空白且无任何提示。
 // 这是 PWA「长驻页面 + 频繁发版」的必踩事故，命中时提示一句并整页刷新（刷新后即拿到新分片清单）。
 let _chunkReloading = false;
+// round105：兜底路由——旧书签或手输 hash 命中未知路径时，此前内容区**空白且无任何提示**。
+// 重定向回首页，别让用户以为应用坏了。
+router.addRoute({ path: '/:pathMatch(.*)*', redirect: '/' });
+
 router.onError((err) => {
   const msg = String(err?.message || err || '');
   const isChunkLoad = /ChunkLoadError|Loading chunk|dynamically imported module|Importing a module script failed/i.test(msg);

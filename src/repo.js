@@ -1229,8 +1229,16 @@ export function invalidateDashboardCache() { _dashSnap = null; _dashLoading = nu
 // 列表每次搜索都全表扫描 reviews 太贵（万级流水约百毫秒），故用「行数 + 最新 reviewedAt」
 // 组成轻量 key 做缓存：复习/清理必然改变其一，命中时零扫描。
 let _failCountCache = { key: '', map: new Map() };
+// round106：区分「自然 miss」与「显式失效」——
+//   自然 miss（key 变了）说明变更**能被 key 感知**（行数 / 最新 reviewedAt / 该行 id 变了），可安全复用首页快照；
+//   显式失效相反：调用方明确表示「我改了 key 检测不到的东西」（原地改写同一条复习、同 id 替换），
+//   这时**必须真扫一遍**，绝不能复用快照——否则吃陈旧值（tests/failcount-map.test.mjs 钉的正是这条契约）。
+let _failCountForced = false;
 /** 让答错次数缓存失效——任何写了 reviews 表的路径都必须调用（合并/改写/删除）。 */
-export function invalidateFailCountCache() { _failCountCache = { key: '', map: new Map() }; }
+export function invalidateFailCountCache() {
+  _failCountCache = { key: '', map: new Map() };
+  _failCountForced = true;
+}
 export async function failCountMap() {
   let cnt = 0, last = null;
   try {
@@ -1244,7 +1252,26 @@ export async function failCountMap() {
   // 复合键本身不完备（原地改写/同 id 替换一条非最新复习时行数与最新 reviewedAt 都不变），
   // 故写路径必须调 invalidateFailCountCache() 显式失效，见下方各写入点。
   if (_failCountCache.key === key) return _failCountCache.map;
-  const all = realReviews(await db.reviews.toArray());
+  // round105 性能：首屏（/cards）会同时要「统计快照」与「答错次数」，旧实现各自全表扫一次
+  // （实测 3000 卡/6 万复习：快照 192ms + 这里 76ms）。改为**优先复用快照的行**。
+  // 安全性两道闸：
+  //   ① 刚被**显式失效**过 → 直接真扫（调用方说"我改了 key 看不见的东西"，快照此刻可能陈旧）；
+  //   ② 否则用算 key 时已取得的 (cnt, last) 与快照内容对账，对不上就退回全表扫。
+  const forced = _failCountForced;
+  _failCountForced = false;
+  let rows = null;
+  if (!forced) {
+    try {
+      const snap = await dashboardSnapshot();
+      const rs = snap.reviews || [];
+      let maxR = null;
+      for (const r of rs) if (!maxR || (Number(r.reviewedAt) || 0) > (Number(maxR.reviewedAt) || 0)) maxR = r;
+      const same = rs.length === cnt
+        && (maxR ? `${maxR.reviewedAt}|${maxR.id}` : '') === (last ? `${last.reviewedAt}|${last.id}` : '');
+      if (same) rows = rs;
+    } catch { /* 快照不可用 → 走下面的全表扫 */ }
+  }
+  const all = realReviews(rows || await db.reviews.toArray());
   const m = new Map();
   // 审计 P1-2（round33）：quickCheck 行不计入 failCount——统一口径 realReviews。
   // quick 答错直接推高计数会把卡误标红/送进错题本重点区。
