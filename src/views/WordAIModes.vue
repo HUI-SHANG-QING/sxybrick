@@ -16,7 +16,7 @@ import {
   REVIEW_MODES, batchGenerateModeQuestions, batchGenerateMeanings, hasLlmChannel, KIND_LABELS,
 } from '../services/word-ai-modes.js';
 import { syncWithSyllabus } from '../services/word-meaning.js';
-import { getAIConfig, hasAIKey } from '../ai.js';
+import { getAIConfig, hasAIKey, resolveMaxTokens } from '../ai.js';
 import { chat as llmChat } from '../agent/llm.js';
 import WordQuickBar from '../components/WordQuickBar.vue';
 
@@ -34,7 +34,7 @@ function buildAgentCtx() {
         runAgent: async ({ prompt }) => llmChat(
           [{ role: 'user', content: prompt }],
           getAIConfig(),
-          { source: 'english-modes', temperature: 0.6, maxTokens: 1600 },
+          { source: 'english-modes', temperature: 0.6, maxTokens: resolveMaxTokens(1600) },
         ),
       };
     }
