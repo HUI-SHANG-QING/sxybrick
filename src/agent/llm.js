@@ -425,8 +425,8 @@ export async function chat(messages, cfg, opts = {}) {
   // 预算问题还是网络问题，也就无从下手。非流式分支早有细分，这里补齐同一套口径。
   if (!full.trim()) {
     let msg;
-    if (reasoning && finishReason === 'length') msg = t('agent.llm.emptyReasoningBudget');
-    else if (finishReason === 'length') msg = t('agent.llm.emptyTruncatedBody');
+    if (reasoning && finishReason === 'length') msg = t('agent.llm.emptyReasoningBudget', undefined, { n: effectiveMaxTokens });
+    else if (finishReason === 'length') msg = t('agent.llm.emptyTruncatedBody', undefined, { n: effectiveMaxTokens });
     else if (reasoning) msg = t('agent.llm.emptyReasoningOnly');
     else if (!rawTail.trim()) msg = t('agent.llm.emptyNoData', undefined, { status: res.status });
     else msg = t('agent.llm.emptyNoContent', undefined, { status: res.status });

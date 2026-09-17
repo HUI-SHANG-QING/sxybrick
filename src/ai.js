@@ -52,6 +52,29 @@ export function getAIConfig() {
   }
 }
 
+/**
+ * 计算某次调用实际应使用的 max_tokens。
+ *
+ * 背景（用户实测，2026-09-17）：他在设置里把「最大输出长度」调到最大（131072），
+ * 但**变式 / 组卡 / 出题**这些流程各自硬编码了 3000~8000 的上限，而 `llm.js` 里取的是
+ * `opts.maxTokens ?? cfg.maxTokens`（opts 优先）→ **用户设置被静默忽略**，
+ * 于是「我已经调成最大了，还是报预算被截断」。
+ *
+ * 规则：取「调用方的够用下限」与「用户设置」的较大者——
+ *   · 用户设得大（131072）→ 用用户的（这正是他的意图）；
+ *   · 用户设得小（如 500）→ 仍用下限，避免流程必然失败；
+ *   · 配置缺失/非法 → 用下限。
+ * 注意 max_tokens 是**上限**而非目标：调大不会让模型多写，也不会因此多计费。
+ * @param {number} floor 该流程需要的最小输出预算
+ * @returns {number}
+ */
+export function resolveMaxTokens(floor) {
+  const f = Number(floor);
+  const want = Number.isFinite(f) && f > 0 ? f : DEFAULT_AI_MAX_TOKENS;
+  const cap = Number(getAIConfig()?.maxTokens);
+  return Number.isFinite(cap) && cap > 0 ? Math.max(want, cap) : want;
+}
+
 export function setAIConfig(cfg) {
   localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
 }

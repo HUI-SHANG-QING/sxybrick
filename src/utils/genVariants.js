@@ -1,7 +1,7 @@
 // 情境变式生成：为同一知识点生成不同问法/场景的变式卡
 // 认知科学依据：同一知识点在不同情境下回忆，避免"学会背题而非学会知识"
 // 一次生成多张变式，写入卡片库关联原始卡
-import { chatAI } from '../ai.js';
+import { chatAI, resolveMaxTokens } from '../ai.js';
 import { createCard } from '../repo.js';
 import { offlineGenVariants, shouldFallback, isNetworkError, isOfflineReply } from './offlineAI.js';
 import { parseLLMJsonArray } from './llm-json.js';
@@ -64,7 +64,9 @@ export async function genVariants(card, count = 3, deps = {}) {
 
   let arr;
   try {
-    const r = await callAI(messages, { maxTokens: budget });
+    // round105：budget 只是「够用的下限」，不能覆盖用户设置——用户在「AI 设置」里把
+    // 最大输出长度调到 131072，旧写法却把请求写死成 3000，于是他怎么调都没用。
+    const r = await callAI(messages, { maxTokens: resolveMaxTokens(budget) });
     // chatAI 在**网络失败/未配置密钥**时并不抛错，而是返回一段【离线模式】文案。
     // 旧实现把它直接送去 JSON 解析 → 报「格式不合法」，用户看到的原因与真实原因（网络/密钥）完全不符。
     if (isOfflineReply(r)) return offline(t('utils.genVariants.offlineFailed'));
@@ -76,7 +78,7 @@ export async function genVariants(card, count = 3, deps = {}) {
       // 这不是"重试碰运气"：非流式分支带「截断自动续写」（llm.js MAX_CONTINUATIONS）与更细的
       // 空响应诊断，对「预算不够 / 推理模型吃光预算」这两类失败成功率显著更高；仍失败则把
       // llm.js 给出的**精确原因**原样抛出（不再回落到笼统的"返回内容为空"）。
-      const r2 = await callAI(messages, { stream: false, maxTokens: Math.min(12000, budget * 2) });
+      const r2 = await callAI(messages, { stream: false, maxTokens: resolveMaxTokens(budget * 2) });
       if (isOfflineReply(r2)) return offline(t('utils.genVariants.offlineFailed'));
       arr = parseLLMJsonArray(r2);
     }

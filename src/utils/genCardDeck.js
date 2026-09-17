@@ -4,7 +4,7 @@
 //   - genCardDeck：用户粘贴纯笔记，AI 自动识别知识点并提问化生成 front/back（智能拆分）
 // 认知科学：优质提问=优质检索线索，AI 把陈述句转成问句，复习时检索强度更高
 // 模式：LLM 优先（chatAI + 严格 JSON）→ 无 key/网络失败降级按段落简单拆分
-import { chatAI } from '../ai.js';
+import { chatAI, resolveMaxTokens } from '../ai.js';
 import { shouldFallback, isNetworkError } from './offlineAI.js';
 import { parseLLMJsonArray } from './llm-json.js';
 
@@ -88,7 +88,8 @@ export async function genCardDeck(text, opts = {}) {
     const r = await chatAI([
       { role: 'system', content: sys },
       { role: 'user', content: `科目：${subject}\n笔记内容：\n${plain(text_).slice(0, 4000)}` },
-    ], { maxTokens: Math.min(8000, Math.max(4000, count * 400)) }); // 防 max_tokens 截断 JSON
+    // 防 max_tokens 截断 JSON：下限 4000，但**不得低于用户设置**（见 resolveMaxTokens 注释）
+    ], { maxTokens: resolveMaxTokens(Math.min(8000, Math.max(4000, count * 400))) });
     arr = parseLLMJsonArray(r); // 空输出/非 JSON → 可读报错，而非 "Unexpected end of JSON input"
   } catch (e) {
     if (isNetworkError(e)) {

@@ -127,3 +127,19 @@ test('非 SSE 网关回归：忽略 stream 直接回整段 JSON 时仍能取到�
     assert.equal(await chat([{ role: 'user', content: 'hi' }], CFG, { stream: true }), '整段正文');
   } finally { restore(); }
 });
+
+test('诊断文案必须写明**本次真实** max_tokens（让「设置没生效」一眼可见）', async () => {
+  const restore = mockFetch(sseRaw([
+    reasoningChunk('想'),
+    delta({ choices: [{ delta: {}, finish_reason: 'length' }] }),
+  ]));
+  try {
+    await assert.rejects(
+      () => chat([{ role: 'user', content: 'hi' }], CFG, { stream: true, maxTokens: 3000 }),
+      (e) => {
+        assert.match(e.message, /3000/, '要报出实际用的 max_tokens，否则用户无从判断设置有没有生效');
+        return true;
+      },
+    );
+  } finally { restore(); }
+});

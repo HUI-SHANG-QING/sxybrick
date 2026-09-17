@@ -5,7 +5,7 @@
 //   - Exam.vue：从卡片原样抽 front/back 做简答题（再认级检索）
 //   - genQuiz：用 LLM 重组出全新题目（选择/填空/简答），避免"背题而非学知识"
 // 模式：LLM 优先（chatAI + 严格 JSON）→ 无 key/网络失败降级本地模板拼装
-import { chatAI } from '../ai.js';
+import { chatAI, resolveMaxTokens } from '../ai.js';
 import { shouldFallback, isNetworkError } from './offlineAI.js';
 import { parseLLMJsonArray } from './llm-json.js';
 
@@ -157,7 +157,8 @@ export async function genQuiz(cards, opts = {}) {
     const r = await chatAI([
       { role: 'system', content: sys },
       { role: 'user', content: `知识点：\n${JSON.stringify(knowledge, null, 2)}` },
-    ], { maxTokens: Math.min(8000, Math.max(4000, count * 500)) }); // 出题含解析较长，防 max_tokens 截断 JSON
+    // 出题含解析较长，防 max_tokens 截断 JSON：下限 4000，同样尊重用户设置
+    ], { maxTokens: resolveMaxTokens(Math.min(8000, Math.max(4000, count * 500))) });
     arr = parseLLMJsonArray(r); // 空输出/非 JSON → 可读报错，而非 "Unexpected end of JSON input"
   } catch (e) {
     if (isNetworkError(e)) {

@@ -23,7 +23,7 @@ const okJson = JSON.stringify([
 beforeEach(async () => {
   await db.cards.clear();
   // shouldFallback() 会在「未配置密钥」时直接走离线路径——测试要打真实分支，先给个假配置
-  localStorage.setItem('sxy_ai_config', JSON.stringify({ apiKey: 'test-key', baseUrl: 'http://mock.local', model: 'm' }));
+  localStorage.setItem('sxy_ai_config', JSON.stringify({ apiKey: 'test-key', baseUrl: 'http://mock.local', model: 'm', maxTokens: 131072 }));
 });
 
 test('正常生成：AI 返回合法 JSON → 落 3 张变式卡（关联原卡 / 标签 / 难度梯度）', async () => {
@@ -54,7 +54,10 @@ test('空响应：自动改用「非流式 + 双倍预算」重试一次并成�
   assert.equal(calls.length, 2, '必须重试一次');
   assert.equal(calls[0].stream, undefined, '首次沿用默认（流式）路径');
   assert.equal(calls[1].stream, false, '重试要走非流式——那条分支有截断自动续写与更细诊断');
-  assert.ok(calls[1].maxTokens > calls[0].maxTokens, '重试预算必须加大');
+  // 注意：重试**不保证**预算变大——用户设置是硬上限（不越权），
+  // 当用户上限（131072）已经大于首次预算时两次相同；此时重试的价值在于
+  // 换到非流式路径（带截断自动续写与更细诊断）。这里只要求"不缩水"。
+  assert.ok(calls[1].maxTokens >= calls[0].maxTokens, '重试预算不得缩水');
 });
 
 test('被截断的半截 JSON：同样走重试并救回（而不是报「格式不合法」让用户自己猜）', async () => {
@@ -110,4 +113,18 @@ test('全部为空且非网络错误时，错误信息里必须含可行动作�
       return true;
     },
   );
+});
+
+test('用户设置的上限必须进请求（这是用户「我调成最大了还是报截断」的直接原因）', async () => {
+  const calls = [];
+  await genVariants(CARD, 3, { chat: async (_m, opts) => { calls.push(opts); return okJson; } });
+  assert.equal(calls[0].maxTokens, 131072, '用户在设置里调到 131072，请求体里就必须是 131072——旧实现写死 3000 把它静默丢掉了');
+});
+
+test('重试的预算不得低于首次（用户上限更大时，重试也不会缩水）', async () => {
+  const calls = [];
+  await genVariants(CARD, 3, {
+    chat: async (_m, opts) => { calls.push(opts); return calls.length === 1 ? '' : okJson; },
+  });
+  assert.ok(calls[1].maxTokens >= calls[0].maxTokens, '重试预算不得变小');
 });

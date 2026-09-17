@@ -245,8 +245,8 @@ const zh = {
       // round105：流式空响应诊断（与非流式分支同口径）。
       // 之所以要分开四种，是因为"返回为空"的可行动作完全不同：
       // 换模型 / 调大预算 / 重试网络，用户按错的提示排查就是白费功夫。
-      emptyReasoningBudget: '模型把输出预算全花在推理过程上（finish_reason=length，正文为空）——请在 AI 设置里调大 max_tokens，或改用普通对话模型。',
-      emptyTruncatedBody: 'AI 输出被 max_tokens 上限截断，且没来得及产出正文——请调大 max_tokens 后重试。',
+      emptyReasoningBudget: '模型把输出预算全花在推理过程上（本次 max_tokens={n}，finish_reason=length，正文为空）——请到「AI 设置」把「最大输出长度」调大，或改用普通对话模型。',
+      emptyTruncatedBody: 'AI 输出被 max_tokens 上限截断（本次 max_tokens={n}），且没来得及产出正文——请把「最大输出长度」调大后重试。',
       emptyReasoningOnly: '当前模型只返回了推理过程（reasoning_content）、正文为空——请在 AI 设置里改用普通对话模型。',
       emptyNoData: 'AI 服务返回了空响应且未收到任何数据（HTTP {status}）——通常是网络中断或网关异常，请重试。',
       emptyNoContent: 'AI 服务返回了响应但正文为空（HTTP {status}）——可能被内容过滤或网关改写，请重试或换个模型。',
@@ -545,11 +545,11 @@ const en = {
       retried: ', auto-retried {n} time(s)',
       requestFailed: 'AI request failed ({info}): {detail}',
       // round105: streaming empty-response diagnosis (same wording policy as the non-streaming path)
-emptyReasoningBudget: 'The model spent its whole output budget on reasoning (finish_reason=length, empty body) — raise max_tokens or switch to a regular chat model.',
-emptyTruncatedBody: 'Output hit the max_tokens limit before any body text was produced — raise max_tokens and retry.',
-emptyReasoningOnly: 'The model returned only its reasoning (reasoning_content) with an empty body — switch to a regular chat model in AI settings.',
-emptyNoData: 'The AI service returned an empty response with no data (HTTP {status}) — usually a network drop or gateway issue; please retry.',
-emptyNoContent: 'The AI service responded but the body is empty (HTTP {status}) — possibly content filtering or a gateway rewrite; retry or switch models.',
+      emptyReasoningBudget: 'The model spent its whole output budget on reasoning (max_tokens={n} this call, finish_reason=length, empty body) — raise the "max output length" in AI settings, or switch to a regular chat model.',
+      emptyTruncatedBody: 'Output hit the max_tokens limit (max_tokens={n} this call) before any body text was produced — raise the "max output length" and retry.',
+      emptyReasoningOnly: 'The model returned only its reasoning (reasoning_content) with an empty body — switch to a regular chat model in AI settings.',
+      emptyNoData: 'The AI service returned an empty response with no data (HTTP {status}) — usually a network drop or gateway issue; please retry.',
+      emptyNoContent: 'The AI service responded but the body is empty (HTTP {status}) — possibly content filtering or a gateway rewrite; retry or switch models.',
     },
     // Tool-side notices/errors surfaced to the model (src/agent/tools/index.js)
     toolMsg: {
