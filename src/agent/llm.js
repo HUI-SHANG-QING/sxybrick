@@ -352,6 +352,11 @@ export async function chat(messages, cfg, opts = {}) {
   // 原始文本尾巴：个别自建网关**忽略 stream 参数**直接回整段 JSON（没有 data: 行），
   // 旧实现会把这种响应解析成空串 → 上层报「AI 返回了空内容」。留一份原文用于兜底解析。
   let rawTail = '';
+  // round105：流式分支此前**只读 delta.content**——推理模型的增量在 delta.reasoning_content
+  // （部分网关叫 reasoning / thinking），finish_reason 也只在最后一片给出。两者都不读，就
+  // 无法区分「模型没答」和「模型把预算花在思考上」，只能静默返回空串。
+  let reasoning = '';
+  let finishReason = null;
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -386,7 +391,12 @@ export async function chat(messages, cfg, opts = {}) {
           throw new Error(`AI 返回异常：${em}`);
         }
         if (s.startsWith('data:')) {
-          const delta = json?.choices?.[0]?.delta?.content || '';
+          const ch = json?.choices?.[0];
+          const delta = ch?.delta?.content || '';
+          const rdelta = ch?.delta?.reasoning_content || ch?.delta?.reasoning || ch?.delta?.thinking || '';
+          if (rdelta) reasoning += rdelta;
+          // finish_reason 常出现在**没有内容**的收尾片里，必须独立记录，别绑在 delta 上
+          if (ch?.finish_reason) finishReason = ch.finish_reason;
           if (delta) {
             full += delta;
             received = full;
@@ -398,12 +408,30 @@ export async function chat(messages, cfg, opts = {}) {
     // 兜底：服务端没走 SSE（直接回整段 JSON）时，从原始文本里取出正文
     if (!full.trim() && rawTail.trim()) {
       const j = tryParseLLMJson(rawTail);
-      const c = j?.choices?.[0]?.message?.content;
+      const c0 = j?.choices?.[0];
+      const c = c0?.message?.content;
       if (typeof c === 'string' && c.trim()) full = c;
+      const rr = c0?.message?.reasoning_content || c0?.message?.reasoning;
+      if (rr) reasoning += rr;
+      if (c0?.finish_reason) finishReason = c0.finish_reason;
     }
   } finally {
     // 审计 P2-5（round32）：abort/异常退出时释放 SSE 连接体——否则底层 socket 挂到服务端超时
     try { await reader.cancel(); } catch { /* 已关闭/不支持时忽略 */ }
+  }
+  // round105【空响应诊断 —— 「变式生成」报错的直接原因】
+  // 流式分支此前对空结果**静默返回空串**：上层（genVariants → parseLLMJsonArray）只能抛出
+  // 「AI 返回内容为空（可能被截断或模型异常），请重试」这种笼统提示，用户既不知道是模型问题、
+  // 预算问题还是网络问题，也就无从下手。非流式分支早有细分，这里补齐同一套口径。
+  if (!full.trim()) {
+    let msg;
+    if (reasoning && finishReason === 'length') msg = t('agent.llm.emptyReasoningBudget');
+    else if (finishReason === 'length') msg = t('agent.llm.emptyTruncatedBody');
+    else if (reasoning) msg = t('agent.llm.emptyReasoningOnly');
+    else if (!rawTail.trim()) msg = t('agent.llm.emptyNoData', undefined, { status: res.status });
+    else msg = t('agent.llm.emptyNoContent', undefined, { status: res.status });
+    reportUsage(null, '', false);
+    throw new Error(msg);
   }
   reportUsage(null, full, true);
   return full;
