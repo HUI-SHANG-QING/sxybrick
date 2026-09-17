@@ -1,6 +1,6 @@
 <script setup>
 // 学习数字孪生 Dashboard：聚合卡片/复习/计划/导图/图谱/番茄/成就为一幅总览，最大化数字资产价值
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import * as echarts from 'echarts';
 import { getStats, weakCards, listPlans, listMindmaps, listGraphEdges, countPomoToday, listAchievements, listDocs, listExams } from '../repo.js';
@@ -48,13 +48,19 @@ async function load() {
       achievements: ach.length, docs: docs.length, exams: exams.length,
     };
     loadErr.value = '';
-    renderTrend();
   } catch (e) {
     // 根路由首屏兜底：数据查询失败（IndexedDB 不可用等）时给出明确错误与重试，
     // 不让整页白屏 / 静默空列表（R3 横幅之外的第二道提示）
     loadErr.value = e?.message || String(e);
     console.warn('[dashboard] load failed:', e);
   } finally { loading.value = false; }
+  // round108【真机实测发现的 bug】：整块内容在 `v-if="loading"` 的骨架屏之后，
+  // 而原来 renderTrend() 是在 loading 仍为 true 时调用的 —— 那一刻 #trendEl 还不存在
+  // （trendEl.value === null）→ 函数静默 return，且此后没有任何地方再调用它
+  // → **总览页「近 14 天复习趋势」这张图从来没画出来过**（实测 canvas=0，而同页其它
+  // 纯 CSS 图表正常，所以肉眼不易发现）。修法：等 loading 关掉、DOM 真正渲染出容器后再 init。
+  await nextTick();
+  renderTrend();
 }
 
 function retryLoad() { loading.value = true; load(); }

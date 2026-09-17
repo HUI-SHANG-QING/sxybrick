@@ -28,10 +28,26 @@ export const useAppModeStore = defineStore('appMode', {
       this.mode = wanted;
       if (wanted === 'test') {
         try {
-          if (await testDbEmpty()) await seedTestDatabase();
-          // round33 S-3：演示库非空（非首播）时做「时间滚动」——过夜/隔周后 demo 卡
-          // 的 dueAt 已集体过期，全部显示逾期会让演示失真，重新铺到今天起 0~5 天。
-          else await refreshDemoSchedule();
+          // round108【真机实测发现的竞态】：main.js 这里是 fire-and-forget（没 await），
+          // 播种 60 卡 + 96 复习要好几秒，而 `app.mount()` 早就跑了 → 总览页读到**播种前的空库**
+          // 并把 0 缓存进共享快照，此后不会自己刷新（实测：首进全 0、手动重进才显示 60 卡/51 待复习）。
+          // 修法沿用「切演示模式」已有的模式：**播种完就 reload 一次**，让所有视图在数据就绪后重新挂载。
+          // 一次性守卫防死循环（万一播种未落库，键存在则不再 reload）。
+          const empty = await testDbEmpty();
+          if (empty) {
+            await seedTestDatabase();
+            const GUARD = 'sxy_demo_seeded_reload';
+            const done = (() => { try { return sessionStorage.getItem(GUARD) === '1'; } catch { return true; } })();
+            if (!done) {
+              try { sessionStorage.setItem(GUARD, '1'); } catch { /* 隐私模式：跳过守卫，直接 reload 一次 */ }
+              location.reload();
+              return;
+            }
+          } else {
+            // round33 S-3：演示库非空（非首播）时做「时间滚动」——过夜/隔周后 demo 卡
+            // 的 dueAt 已集体过期，全部显示逾期会让演示失真，重新铺到今天起 0~5 天。
+            await refreshDemoSchedule();
+          }
         } catch { /* 播种/滚动失败不阻塞启动：用户可手动重试（进入演示模式入口） */ }
       }
     },
