@@ -19,6 +19,7 @@ import ExportButton from '../components/ExportButton.vue';
 import { exportLibraryToJSON, exportLibraryToMarkdown } from '../utils/exporters.js';
 import { sanitizeHtml } from '../utils/sanitize.js';
 import { t } from '../i18n/index.js';
+import { runAction } from '../utils/action.js';
 
 const ACCEPT = '.pdf,.xlsx,.xls,.csv,.docx,.doc,.txt,.md,.tex,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg';
 
@@ -203,8 +204,7 @@ async function onDelete(f) {
 
 async function retry(id) {
   toast(t('views.libraryFiles.retryStart'), 'info');
-  await retryParse(id);
-  await load();
+  await runAction(() => retryParse(id), { then: () => load() });
 }
 
 // ---------- 预览 ----------

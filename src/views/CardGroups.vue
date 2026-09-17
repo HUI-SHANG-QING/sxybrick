@@ -5,6 +5,7 @@ import { ref, computed, onMounted } from 'vue';
 import { t } from '../i18n/index.js';
 import { toast } from '../utils/toast.js';
 import { confirmDialog } from '../utils/confirm.js';
+import { runAction } from '../utils/action.js';
 import CardModal from '../components/CardModal.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import {
@@ -38,9 +39,10 @@ async function openAdd(g) {
 async function saveAdd() {
   if (!addingFor.value) return;
   const ids = Object.entries(addChecks.value).filter(([, v]) => v).map(([id]) => id);
-  if (ids.length) await setCardGroups(ids, [addingFor.value.id]);
-  addOpen.value = false;
-  await reload();
+  if (!ids.length) { addOpen.value = false; await reload(); return; } // 空选择：与旧行为一致（不报错，直接关闭）
+  await runAction(() => setCardGroups(ids, [addingFor.value.id]), {
+    then: async () => { addOpen.value = false; await reload(); },
+  });
 }
 
 // 新建/编辑表单
@@ -92,9 +94,12 @@ async function saveForm() {
 
 async function toggleStatus(g) {
   const next = g.status === 'active' ? 'archived' : 'active';
-  await updateCardGroup(g.id, { status: next });
-  toast(next === 'archived' ? t('views.cardGroups.toArchivedToast', undefined, { name: g.name }) : t('views.cardGroups.restoreToast', undefined, { name: g.name }), 'success');
-  await reload();
+  await runAction(() => updateCardGroup(g.id, { status: next }), {
+    then: async () => {
+      toast(next === 'archived' ? t('views.cardGroups.toArchivedToast', undefined, { name: g.name }) : t('views.cardGroups.restoreToast', undefined, { name: g.name }), 'success');
+      await reload();
+    },
+  });
 }
 
 async function remove(g) {

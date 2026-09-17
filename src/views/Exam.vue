@@ -73,7 +73,11 @@ async function submit() {
     if (!(await confirmDialog(t('views.exam.confirmSubmit')))) return;
   }
   const g = graded.value;
-  const saved = await saveExam({
+  // round107：交卷写库失败此前**没有任何提示**（异常只进全局日志），phase 仍停在 'doing'，
+  // 用户以为已经交卷 → 离开后成绩丢失。这里显式告知并**留在答题界面**（答案不丢，可直接重试）。
+  let saved;
+  try {
+    saved = await saveExam({
     title: examTitle.value,
     subject: selSubjects.value.join('+'),
     questions: questions.value.map((q, i) => ({
@@ -82,10 +86,14 @@ async function submit() {
     })),
     score: score.value,
     total: g.length,
-  });
+    });
+  } catch (e) {
+    toast(t('views.exam.saveFail', '交卷失败（成绩未保存）：{msg}——答案还在这一页，可直接重试', { msg: String(e?.message || e) }), 'error');
+    return;
+  }
   savedExam.value = saved;
   phase.value = 'result';
-  await loadHistory();
+  try { await loadHistory(); } catch { /* 历史刷新失败不影响"已交卷"这个事实 */ }
   try { T.examEnd(score.value, g.length); } catch {}
   toast(t('views.exam.submitted', undefined, { score: score.value, total: g.length }), score.value === g.length ? 'success' : 'info');
 }

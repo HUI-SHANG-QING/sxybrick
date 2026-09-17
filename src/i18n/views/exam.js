@@ -16,6 +16,7 @@ export const zh = {
   qNum: '第 {n} 题',
   qHint: '（关键词覆盖 ≥60% 判对）',
   answerPlaceholder: '用你自己的话作答…',
+  saveFail: '交卷失败（成绩未保存）：{msg}——答案还在这一页，可直接重试',
   submit: '交卷',
 
   // ——— 成绩 ———
@@ -88,6 +89,7 @@ export const en = {
   qNum: 'Q{n}',
   qHint: '(answer counts if ≥60% keyword coverage)',
   answerPlaceholder: 'Answer in your own words…',
+  saveFail: 'Submit failed (score not saved): {msg} — your answers are still on this page, you can retry',
   submit: 'Submit',
 
   // ——— result ———

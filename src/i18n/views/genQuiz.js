@@ -22,6 +22,7 @@ export const zh = {
   historyLabel: '历史成绩',
 
   // ——— 阶段 2：作答 ———
+  saveFail: '交卷失败（成绩未保存）：{msg}——答案还在这一页，可直接重试',
   submitBtn: '交卷',
   typeChoice: '选择',
   typeCloze: '填空',
@@ -79,6 +80,7 @@ export const en = {
   historyLabel: 'History scores',
 
   // ——— Stage 2: answering ———
+  saveFail: 'Submit failed (score not saved): {msg} — your answers are still on this page, you can retry',
   submitBtn: 'Submit',
   typeChoice: 'Choice',
   typeCloze: 'Cloze',

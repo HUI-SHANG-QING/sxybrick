@@ -10,6 +10,7 @@ import { realReviews } from '../repo-core.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import EmptyState from '../components/EmptyState.vue';
+import { runAction } from '../utils/action.js';
 
 const DAY = 86400000;
 const reports = ref([]);
@@ -107,17 +108,23 @@ async function aiSummarize() {
 
 async function saveReport() {
   if (!data.value) return;
-  await saveWeeklyReport({ weekStart: weekStart.value, title: `${weekLabel.value} ${t('views.weeklyReport.reportTitleSuffix')}`, data: data.value, summary: summary.value });
-  await loadHistory();
-  existing.value = await getWeeklyReportByWeek(weekStart.value);
-  toast(t('views.weeklyReport.savedToast'), 'success');
+  await runAction(() => saveWeeklyReport({ weekStart: weekStart.value, title: `${weekLabel.value} ${t('views.weeklyReport.reportTitleSuffix')}`, data: data.value, summary: summary.value }), {
+    then: async () => {
+      await loadHistory();
+      existing.value = await getWeeklyReportByWeek(weekStart.value);
+      toast(t('views.weeklyReport.savedToast'), 'success');
+    },
+  });
 }
 
 async function removeReport(r) {
   if (!(await confirmDialog(t('views.weeklyReport.confirmDelete', '删除「{title}」？', { title: r.title })))) return;
-  await deleteWeeklyReport(r.id);
-  if (r.weekStart === existing.value?.weekStart) { existing.value = null; summary.value = ''; }
-  await loadHistory();
+  await runAction(() => deleteWeeklyReport(r.id), {
+    then: async () => {
+      if (r.weekStart === existing.value?.weekStart) { existing.value = null; summary.value = ''; }
+      await loadHistory();
+    },
+  });
 }
 
 function openReport(r) {

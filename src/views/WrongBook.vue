@@ -11,6 +11,7 @@ import { smartRemediation } from '../intelligence.js';
 import { t } from '../i18n/index.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
+import { runAction } from '../utils/action.js';
 
 const expandedId = ref(localStorage.getItem('sxy_wb_expanded') || '');
 // 错题详情：默认全展开（与「背诵 → 已背记录」一致），collapsedIds 存储被用户手动收起的卡 id
@@ -126,9 +127,9 @@ const filteredItems = computed(() => {
 });
 
 async function unmark(card) {
-  await setMarked(card.id, false);
-  toast(t('views.wrongBook.unmarkDone'), 'success');
-  await load();
+  await runAction(() => setMarked(card.id, false), {
+    then: async () => { toast(t('views.wrongBook.unmarkDone'), 'success'); await load(); },
+  });
 }
 async function dueNow(card) {
   // 用 db.cards.update 局部更新（而非 put 整对象）：避免 Vue reactive Proxy 写入 IDB 失败 + 不覆盖其他字段
@@ -136,8 +137,9 @@ async function dueNow(card) {
   //   内容字段按 updatedAt 合并决胜，此处只是调度调整（dueAt 属 SRS 侧），
   //   若推高 updatedAt 会让本机这份「旧内容」成为 winner，把其他设备对卡面的
   //   文字编辑整段覆盖掉。与 Cards.vue 的 rescueCard 保持一致。
-  await db.cards.update(card.id, { dueAt: Date.now(), reviewedAt: Date.now() });
-  toast(t('views.wrongBook.addedToReview'), 'success');
+  await runAction(() => db.cards.update(card.id, { dueAt: Date.now(), reviewedAt: Date.now() }), {
+    then: () => { toast(t('views.wrongBook.addedToReview'), 'success'); },
+  });
 }
 function reason(c) {
   if (c.wrongReason) return c.wrongReason;

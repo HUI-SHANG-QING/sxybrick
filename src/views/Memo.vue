@@ -3,6 +3,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { toast } from '../utils/toast.js';
+import { runAction } from '../utils/action.js';
 import { listMemos, addMemo, deleteMemo } from '../repo.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import ExportButton from '../components/ExportButton.vue';
@@ -22,12 +23,15 @@ async function load() { memos.value = await listMemos(); }
 async function add() {
   const txt = input.value.trim();
   if (!txt) return;
-  await addMemo({ text: txt, important: important.value, urgent: urgent.value });
-  input.value = ''; important.value = false; urgent.value = false;
-  toast(t('views.memo.recorded'), 'success');
-  await load();
+  await runAction(() => addMemo({ text: txt, important: important.value, urgent: urgent.value }), {
+    then: async () => {
+      input.value = ''; important.value = false; urgent.value = false;
+      toast(t('views.memo.recorded'), 'success');
+      await load();
+    },
+  });
 }
-async function remove(id) { await deleteMemo(id); await load(); }
+async function remove(id) { await runAction(() => deleteMemo(id), { then: () => load() }); }
 
 const memoExportFormats = [
   { key: 'md', label: 'Markdown', hint: t('views.memo.exportHintMd'), mime: 'text/markdown', ext: 'md', build: exportMemosToMarkdown },

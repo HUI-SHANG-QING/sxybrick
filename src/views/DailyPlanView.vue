@@ -7,6 +7,7 @@ import { ref, computed, onMounted, nextTick, onBeforeUnmount, watch } from 'vue'
 import * as echarts from 'echarts';
 import { toast } from '../utils/toast.js';
 import { t } from '../i18n/index.js';
+import { runAction } from '../utils/action.js';
 import {
   createDailyPlan, listDailyPlan, listDailyPlanSummary, updateDailyTask, deleteDailyTask,
   checkinDailyTask, deleteDailyPlan, addDailyTask, appendDailyTasksByText,
@@ -322,29 +323,33 @@ async function toggleQuadrant(task) {
   const order = ['Q1', 'Q2', 'Q3', 'Q4'];
   const idx = order.indexOf(task.quadrant);
   const next = order[(idx + 1) % 4];
-  await updateDailyTask(task.id, { quadrant: next, important: next === 'Q1' || next === 'Q2', urgent: next === 'Q1' || next === 'Q3' });
-  task.quadrant = next;
-  await refreshAll();
+  // round107：写库失败此前**静默**（异常只进全局日志）→ 用户看到"点了没反应"。
+  // 用 runAction 包住：失败必定提示，且**只有成功才**改本地状态/刷新（否则界面与数据分叉）。
+  await runAction(() => updateDailyTask(task.id, { quadrant: next, important: next === 'Q1' || next === 'Q2', urgent: next === 'Q1' || next === 'Q3' }), {
+    then: async () => { task.quadrant = next; await refreshAll(); },
+  });
 }
 
 async function removeTask(task) {
   if (!canEdit.value) { toast(t('views.dailyPlan.historyReadOnly'), 'warning'); return; }
   if (!(await confirmDialog(t('views.dailyPlan.confirmDeleteTask')))) return;
-  await deleteDailyTask(task.id);
-  plan.value.tasks = plan.value.tasks.filter(t => t.id !== task.id);
-  await refreshAll();
-  await refreshSynergy();
-  await loadHistoryList();
+  await runAction(() => deleteDailyTask(task.id), {
+    then: async () => {
+      plan.value.tasks = plan.value.tasks.filter(t => t.id !== task.id);
+      await refreshAll();
+      await refreshSynergy();
+      await loadHistoryList();
+    },
+  });
 }
 
 async function clearToday() {
   if (!canEdit.value) { toast(t('views.dailyPlan.historyReadOnly'), 'warning'); return; }
   if (!plan.value?.plan?.id) return;
   if (!(await confirmDialog(t('views.dailyPlan.confirmDeletePlan')))) return;
-  await deleteDailyPlan(plan.value.plan.id);
-  plan.value = null;
-  synergy.value = null;
-  await loadHistoryList();
+  await runAction(() => deleteDailyPlan(plan.value.plan.id), {
+    then: async () => { plan.value = null; synergy.value = null; await loadHistoryList(); },
+  });
 }
 
 // round18 R18-15：「重新规划」不再一键销毁——先确认，且保留输入框里的原始文本供重填。

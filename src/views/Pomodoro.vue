@@ -10,6 +10,7 @@ import { addPomoSession, countPomoToday } from '../repo.js';
 import { makePomoRoundId, isRoundRecorded, markRoundRecorded } from '../utils/pomoDedup.js';
 import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
+import { runAction } from '../utils/action.js';
 
 const MODES = { focus: 25 * 60, short: 5 * 60, long: 15 * 60 };
 const STATE_KEY = 'sxy_pomo_state';
@@ -148,11 +149,14 @@ async function finish() {
         // round26 M-2：先本地标记再入库——标记与 postMessage 之间被 kill 是常态窗口，
         // 标记丢失比 session 丢失更危险（对端会判 isRoundRecorded=false → 双写）。
         markRoundRecorded(rid);
-        await addPomoSession({
+        // round107：这轮专注没能入库时必须让用户知道——此前静默失败，用户看到的是"番茄钟跑完了但统计没涨"，
+        // 既查不出原因也想不到是写库失败。注意 markRoundRecorded 已在前面调用，那是刻意的
+        // "先标记再入库"（round26 M-2：标记丢失比 session 丢失更危险），故此处**不回滚标记**。
+        await runAction(() => addPomoSession({
           duration: Math.min(25, netMin), startedAt: focusStartedAt, tag: '',
           partial: complete ? 0 : 1,
           roundId: rid, // 数据库层幂等键：即便 localStorage 被清，同 roundId 拒绝二次入账
-        }); // 入库，随数据包同步
+        })); // 入库，随数据包同步
       }
       try { T.pomodoroEnd(Math.min(25, netMin), 'focus'); } catch {}
     }

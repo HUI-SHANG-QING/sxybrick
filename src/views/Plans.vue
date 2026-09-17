@@ -11,6 +11,7 @@ import { linkPlanToPomodoro, linkCardsToPlan, refreshPlanProgress, refreshAllPla
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import { toast } from '../utils/toast.js';
 import EmptyState from '../components/EmptyState.vue';
+import { runAction } from '../utils/action.js';
 
 const route = useRoute();
 const plans = ref([]);
@@ -124,8 +125,15 @@ async function save() {
   showForm.value = false; await load();
   } catch (e) { toast(t('views.plans.saveFail', undefined, { msg: e.message }), 'error'); }
 }
-async function setStatus(p, s) { await updatePlan(p.id, { status: s }); await load(); }
-async function remove(p) { if (!(await confirmDialog(t('views.plans.confirmDelete')))) return; await deletePlan(p.id); if (activeId.value === p.id) activeId.value = ''; await load(); }
+async function setStatus(p, s) {
+  await runAction(() => updatePlan(p.id, { status: s }), { then: () => load() });
+}
+async function remove(p) {
+  if (!(await confirmDialog(t('views.plans.confirmDelete')))) return;
+  await runAction(() => deletePlan(p.id), {
+    then: async () => { if (activeId.value === p.id) activeId.value = ''; await load(); },
+  });
+}
 
 // 一键自动编排：拉取跨模块数据，生成阶段化计划草稿，直接落库
 async function runAutoPlan() {

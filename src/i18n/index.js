@@ -205,6 +205,10 @@ const zh = {
   common: {
     more: '更多', resetTitle: '清空全部数据', resetConfirmHint: '此操作不可恢复，请谨慎。',
     chunkReload: '应用已更新，正在刷新以加载新版本…',
+    // round107：「点一下就写库」的动作失败时的统一提示（真实原因用 {msg} 透传）。
+    // 此前这类失败只进全局日志，用户看到的是"点了没反应"。
+    actionFailed: '操作失败：{msg}',
+    refreshFailed: '操作已完成，但界面刷新失败：{msg}',
     zoom: {
       label: '阅读缩放', in: '放大字号', out: '缩小字号', reset: '恢复默认字号',
       level: '当前缩放 {n}', fit: '适应窗口', fullscreen: '大图模式', exitFullscreen: '退出大图',
@@ -513,6 +517,8 @@ const en = {
   common: {
     more: 'More', resetTitle: 'Erase All Data', resetConfirmHint: 'This cannot be undone. Please be careful.',
     chunkReload: 'The app has been updated. Refreshing to load the new version…',
+    actionFailed: 'Action failed: {msg}',
+    refreshFailed: 'Done, but refreshing the view failed: {msg}',
     zoom: {
       label: 'Text zoom', in: 'Increase text size', out: 'Decrease text size', reset: 'Reset text size',
       level: 'Zoom {n}', fit: 'Fit to window', fullscreen: 'Large view', exitFullscreen: 'Exit large view',

@@ -81,7 +81,10 @@ async function submit() {
   }).length;
   if (unanswered > 0 && !(await confirmDialog(t('views.genQuiz.unansweredConfirm', undefined, { n: unanswered })))) return;
   const g = graded.value;
-  savedQuiz.value = await saveExam({
+  // round107：同 Exam.vue —— 交卷失败必须告知且留在原界面（此前静默，用户以为交了）
+  let saved;
+  try {
+    saved = await saveExam({
     title: quizTitle.value,
     subject: selSubjects.value.join('+'),
     questions: g.map(q => ({
@@ -97,9 +100,14 @@ async function submit() {
     })),
     score: score.value,
     total: g.length,
-  });
+    });
+  } catch (e) {
+    toast(t('views.genQuiz.saveFail', '交卷失败（成绩未保存）：{msg}——答案还在这一页，可直接重试', { msg: String(e?.message || e) }), 'error');
+    return;
+  }
+  savedQuiz.value = saved;
   phase.value = 'result';
-  await loadHistory();
+  try { await loadHistory(); } catch { /* 历史刷新失败不影响"已交卷"这个事实 */ }
   try { T.examEnd(score.value, g.length); } catch {}
   toast(t('views.genQuiz.submitToast', undefined, { score: score.value, total: g.length }), score.value === g.length ? 'success' : 'info');
 }

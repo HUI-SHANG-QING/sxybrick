@@ -65,11 +65,16 @@ build + check:build → 通过（52 词库分片全部就位）
 
 ### P1（建议尽快，均为「用户会以为坏了」）
 
+> **round107 进展**：第 6、7 项**已修**（见下方标注）。修法是抽了一个统一助手
+> `src/utils/action.js` 的 `runAction(fn, { then })`：**失败必定提示、成功才走后续**——
+> 这批按钮此前不仅"静默失败"，失败后**后续语句还会照旧执行**（成功才该有的提示与列表刷新），
+> 界面与数据就此分叉（例如卡没删掉、列表却把它移除了）。
+
 | # | 位置 | 现象 | 建议 |
 | --- | --- | --- | --- |
 | 5 | `sync-hub/hub-token.txt`、`sync-hub/hub-data.json` | **本机目录里躺着同步密码明文 + 真实复习数据**（已被 `.gitignore` 忽略，不会进仓库，但拷目录/打包/截图就会泄露） | 把口令移出工程目录（或改用环境变量），数据文件指向用户目录；**确认后删除现有两份**（本轮未动用户文件） |
-| 6 | `Exam.vue:76`、`GenQuiz.vue:84` | 交卷 `await saveExam()` 无 try/catch → 写库失败被全局兜底吞成日志，页面停在答题态**零反馈**（用户以为交卷了） | 包 try/catch + toast，失败时留在页面可重试 |
-| 7 | 一批「点了没反应」：`DailyPlanView:325/333/344`、`WrongBook:129/139`、`Plans:127/128`、`CardGroups:41/95`、`Memo:30`、`WeeklyReport:110/118`、`Pomodoro:151`、`LibraryFiles:206` | 都是 `await 写库/操作()` 无 catch → 失败被 ErrorBoundary 之外的路径吞掉，界面无任何变化 | 统一加 `try/catch + toast(e.message)`（建议抽一个 `withToast()` 助手，别逐个手写） |
+| 6 | `Exam.vue`、`GenQuiz.vue` | 交卷 `await saveExam()` 无 try/catch → 写库失败被全局兜底吞成日志，页面停在答题态**零反馈**（用户以为交卷了） | ✅ **round107 已修**：失败时提示「交卷失败（成绩未保存）：原因——答案还在这一页可直接重试」，并**留在答题界面** |
+| 7 | 一批「点了没反应」：`DailyPlanView:325/333/344`、`WrongBook:129/139`、`Plans:127/128`、`CardGroups:41/95`、`Memo:30`、`WeeklyReport:110/118`、`Pomodoro:151`、`LibraryFiles:206` | 都是 `await 写库/操作()` 无 catch → 失败被 ErrorBoundary 之外的路径吞掉，界面无任何变化 | ✅ **round107 已修**（15 处，8 个视图）：统一走 `runAction(..., { then })`；失败弹「操作失败：真实原因」，**成功才**执行成功提示与刷新 |
 | 8 | `Review.vue:255/291` | `syncReviewToPlan().catch(()=>{})` 与自我解释落盘静默吞 → 计划进度/反思可能没入库而界面显示成功 | 至少失败时 console + 一次性提示 |
 | 9 | `graphAuto.js` 6 处全表读未进 Worker；`KnowledgeGraph.vue:413` 在 onMounted 全表读后 ECharts 强布局（maxEdges=4000，上千节点会秒级卡死） | 进「知识图谱」页可能长时间无响应 | 图谱页默认非 force 布局 + 限渲染节点；把 graphAuto 委托进 `analytics.worker.js` |
 | 10 | `docs-lib.js:95-114` 解析串行且无进度/大小上限 | 大 PDF/Excel 期间 UI 假死（只有「解析中」） | 加文件大小上限 + 进度回调 |
