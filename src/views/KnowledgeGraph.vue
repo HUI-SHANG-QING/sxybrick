@@ -65,10 +65,20 @@ async function jumpToNodeCard(label, subject) {
   const sub = String(subject || '').trim();
   try {
     const all = await db.cards.toArray();
-    let pool = all;
-    if (sub) pool = pool.filter(c => (c.subject || '') === sub);
-    const exact = pool.filter(c => c.front === q);
-    const loose = exact.length ? exact : pool.filter(c => String(c.front || '').includes(q) || String(c.back || '').includes(q));
+    const pick = (pool) => {
+      const exact = pool.filter(c => c.front === q);
+      return exact.length ? exact : pool.filter(c => String(c.front || '').includes(q) || String(c.back || '').includes(q));
+    };
+    // round116：同科目优先，但**科目对不上 ≠ 卡片不存在**。
+    //   图谱节点的 subject 取自「边自带的 subject」——AI / Agent 生成时写进去的往往是它自己
+    //   归纳的科目名，与卡片真实的 subject 字段经常不一致。原实现用该科目硬过滤，过滤后为空
+    //   就直接告诉用户"搜不到对应的卡片"，而卡片其实好好地在库里（用户报的「假节点」）。
+    //   回退规则：科目内没找到 → 全库再找一遍，只有全库都没有才算真的找不到。
+    const loose = (() => {
+      if (!sub) return pick(all);
+      const inSubject = pick(all.filter(c => (c.subject || '') === sub));
+      return inSubject.length ? inSubject : pick(all);
+    })();
     if (loose.length === 1) {
       router.push(`/cards?id=${encodeURIComponent(loose[0].id)}`);
     } else if (loose.length > 1) {
@@ -173,18 +183,38 @@ const edgeLabelText = (e) => (e?.labelKind ? t('graph.labelKind.' + e.labelKind,
 
 // 构建图数据：按 subject 分组（用于同心圆分层着色）
 function buildGraphData(nds, eds) {
-  const subjects = [...new Set(nds.map(n => n.subject).filter(Boolean))];
+  // round116 P0：节点 id 必须**唯一且非空**。
+  //
+  // 事故：用户「AI 生成图谱 / 载入历史后画布全白」。真因是 AI 返回的节点常常**没有 id**
+  //   → generate() 里 `id: String(n.id)` 得到字符串 "undefined" → 20 个节点 id 全相同；
+  //   存成历史快照后是 `kg-undefined`，反解回来还是 20 个重复 id。
+  //   而 ECharts graph 系列遇到重复节点 id 会**直接抛错**
+  //   （实测：`Cannot set properties of undefined (setting 'dataIndex')`）→ 整个 setOption 中断 → 画布空白。
+  //   （这条已用 headless 浏览器实测复现：重复 id → 空白；id 正常 → 正常绘制。）
+  // 这里作**最后一道防线**：空 id / 重复 id 的节点一律丢弃 —— 少画几个点，好过整张图不显示。
+  const usedIds = new Set();
+  const kept = [];
+  for (const n of nds || []) {
+    const id = String(n?.id ?? '').trim();
+    if (!id || id === 'undefined' || id === 'null' || usedIds.has(id)) continue;
+    usedIds.add(id);
+    kept.push(n);
+  }
+  const subjects = [...new Set(kept.map(n => n.subject).filter(Boolean))];
   const categories = [{ name: t('views.knowledgeGraph.catUncategorized') }, ...subjects.map(s => ({ name: s }))];
   const catOf = (n) => n.subject ? categories.findIndex(c => c.name === n.subject) : 0;
-  const nodeList = nds.map(n => ({
+  const nodeList = kept.map(n => ({
     id: n.id, name: n.label, category: catOf(n),
     symbolSize: 22, itemStyle: { color: palette[catOf(n) % palette.length] },
     label: { show: true, position: 'right', fontSize: 12 },
   }));
-  const linkList = eds.map(e => ({
-    source: e.from, target: e.to,
-    label: e.label ? { show: true, formatter: edgeLabelText(e), fontSize: 10 } : { show: false },
-  }));
+  // 端点已被丢弃的边一并丢掉：ECharts 虽然容忍这种边，但会画出一条连着"空气"的线
+  const linkList = (eds || [])
+    .filter(e => usedIds.has(String(e?.from)) && usedIds.has(String(e?.to)))
+    .map(e => ({
+      source: e.from, target: e.to,
+      label: e.label ? { show: true, formatter: edgeLabelText(e), fontSize: 10 } : { show: false },
+    }));
   return { nodes: nodeList, links: linkList, categories };
 }
 const palette = ['#4a9eff', '#f5a623', '#7ed321', '#bd10e0', '#f8e71c', '#50e3c2', '#b8e986', '#d0021b'];
@@ -405,8 +435,22 @@ async function generate() {
     ]);
     const m = String(r).match(/\{[\s\S]*\}/);
     const obj = JSON.parse(m ? m[0] : r);
-    generatedNodes.value = (obj.nodes || []).map(n => ({ id: String(n.id), label: String(n.label || n.id), subject: n.subject || '' }));
-    generatedEdges.value = (obj.edges || []).map(e => ({ from: String(e.from), to: String(e.to), label: e.label || '' }));
+    // round116 P0：AI 返回的节点**经常没有 id**（或 id 重复）。
+    //   `String(n.id)` 对缺失字段会得到字符串 "undefined" → 所有节点同 id
+    //   → ECharts graph 遇重复 id 直接抛错 → 整张图不显示（用户实际踩到的就是这条）。
+    //   这里在**入口**就规范成唯一 id；顺带丢掉端点不存在的边（AI 也会编出不存在的节点）。
+    const usedIds = new Set();
+    const nodeObjs = (obj.nodes || []).map((n, i) => {
+      const raw = String(n?.id ?? '').trim();
+      let nid = raw;
+      if (!nid || nid === 'undefined' || nid === 'null' || usedIds.has(nid)) nid = `n${i + 1}`;
+      usedIds.add(nid);
+      return { id: nid, label: String(n?.label || n?.id || t('views.knowledgeGraph.nodeFallback', undefined, { n: i + 1 })), subject: n?.subject || '' };
+    });
+    generatedNodes.value = nodeObjs;
+    generatedEdges.value = (obj.edges || [])
+      .map(e => ({ from: String(e?.from ?? '').trim(), to: String(e?.to ?? '').trim(), label: e?.label || '' }))
+      .filter(e => usedIds.has(e.from) && usedIds.has(e.to) && e.from !== e.to);
     activeId.value = ''; mode.value = 'generated';
     nextTick(() => { if (!chart) ensureChart(); render(); });
     if (!generatedNodes.value.length) toast(t('views.knowledgeGraph.noNodes'), 'error');

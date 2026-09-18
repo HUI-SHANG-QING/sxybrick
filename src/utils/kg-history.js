@@ -40,10 +40,16 @@ export function mindmapToGraph(mm) {
   const edges = [];
   const idOf = new Map();      // 导图节点 id → 还原后的节点 id
   const labelToId = new Map(); // 去科目后的 label → 节点 id（用于把边接回目标）
+  const usedIds = new Set();
   for (const k of kids) {
     const raw = String(k?.label ?? '');
     const label = stripSubject(raw) || raw;
-    const id = String(k?.id ?? '').replace(/^kg-/, '') || `h${nodes.length}`;
+    let id = String(k?.id ?? '').replace(/^kg-/, '').trim();
+    // round116 P0：历史快照里的节点 id 可能**重复**——AI 生成时若节点没有 id，
+    //   `String(n.id)` 得到 "undefined"，存成快照就是 `kg-undefined`（20 个节点全同）。
+    //   重复 id 会让 ECharts graph 直接抛错、整张图不显示，所以这里补成唯一 id。
+    if (!id || id === 'undefined' || id === 'null' || usedIds.has(id)) id = `h${nodes.length}`;
+    usedIds.add(id);
     nodes.push({ id, label, subject: extractSubject(raw) });
     idOf.set(k?.id, id);
     if (label && !labelToId.has(label)) labelToId.set(label, id);

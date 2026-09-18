@@ -42,6 +42,7 @@ export const zh = {
   aiGraphTitle: 'AI 知识图谱快照',
   aiGraphRoot: '知识图谱',
   aiGraphMeta: '{n} 个知识点 / {e} 条关联',
+  nodeFallback: '知识点 {n}',
   treeFallback: '树状布局渲染失败（ECharts 树图的已知缺陷），已自动改用「力导向」显示同一份数据。',
 
   // ——— round115：生成历史（在本模块内回看历次 AI 生成结果）———
@@ -151,6 +152,7 @@ export const en = {
   aiGraphTitle: 'AI knowledge graph snapshot',
   aiGraphRoot: 'Knowledge Graph',
   aiGraphMeta: '{n} nodes / {e} links',
+  nodeFallback: 'Node {n}',
   treeFallback: 'Tree layout failed to render (a known issue in the ECharts tree chart); switched to force layout with the same data.',
 
   // ——— round115: generation history (review past AI runs inside this module) ———
