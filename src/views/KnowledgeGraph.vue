@@ -13,12 +13,13 @@ import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
 import { db } from '../db.js';
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
-import { listGraphEdges, createGraphEdge, deleteGraphEdge, createMindmap } from '../repo.js';
+import { listGraphEdges, createGraphEdge, deleteGraphEdge, createMindmap, listMindmaps, deleteMindmap } from '../repo.js';
 import { agentSystem } from '../agent/index.js';
 import { recommendGraphEdges } from '../intelligence.js';
 import { resolveGraph } from '../algorithms/graph-resolve.js';
 import { pruneDeadEdges } from '../algorithms/graphAuto.js';
 import { T } from '../utils/telemetry.js';
+import { mindmapToGraph } from '../utils/kg-history.js';
 import EmptyState from '../components/EmptyState.vue';
 import ExportButton from '../components/ExportButton.vue';
 import {
@@ -283,7 +284,9 @@ function buildOption(nds, eds, style) {
 }
 
 function render() {
-  if (!nodes.value.length) return;
+  // 数据为空时也要把旧图清掉：否则容器里残留上一次的渲染结果，
+  // 用户会对着一份与当前数据不符的残图（或干脆是空白画布）发懵。
+  if (!nodes.value.length) { try { chart?.clear(); } catch { /* ignore */ } return; }
   // 图表必须等 DOM 上的容器 div 真正出现后才能 init。
   // 过去的写法只在 onMounted 里判定「当时已有节点才 init」——
   // 首次进页面时库里还没有关联，容器 div 因 v-if 未渲染，initChart 直接被跳过；
@@ -292,6 +295,18 @@ function render() {
   if (!chart) ensureChart();
   if (!chart) return;
   try {
+    // round115 P1：setOption 前先 clear()，从根上避开 ECharts tree 的增量更新路径。
+    //
+    // 事故：切换/再次生成时频频「图谱渲染失败：Cannot read properties of null (reading '__edge')」，
+    //   整个画布一片空白。根因在 ECharts 内部 TreeView.js 的 removeNodeEdge()：
+    //     var sourceSymbolEl = data.getItemGraphicEl(source.dataIndex);
+    //     var sourceEdge = sourceSymbolEl.__edge;      // ← sourceSymbolEl 可能为 null
+    //   该函数只会在**增量更新**（diff 出「不再需要绘制的旧节点」）时被调用；而节点元素的移除是
+    //   **带动画异步完成**的（removeElement 的 cb 里才 setItemGraphicEl(index, null)），
+    //   于是「父节点已被清空、子节点还在清理」这种交错状态下就会读到 null。
+    //   clear() 会销毁上一帧全部图形元素与视图内部状态，使随后的 setOption 走**全新构建**，
+    //   不再触发 diff → 从根上不进入该分支。
+    chart.clear();
     const opt = buildOption(nodes.value, edges.value, layout.value);
     // round37 E2：注入 series.zoom 渐进缩放档位（graph 系列原生支持，roam 已开启）。
     // 与全屏正交：不全屏也能放大局部复习，矢量清晰。
@@ -309,6 +324,23 @@ function render() {
     chart.resize();
   } catch (e) {
     logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: `render layout=${layout.value}` });
+    // 崩溃后图表内部可能停在半初始化状态，先清干净再决定下一步
+    try { chart.clear(); } catch { /* ignore */ }
+    // 兜底降级：树状渲染失败时自动改用「力导向」+ 同一份数据重画。
+    // 保证「生成成功却一片空白」不再发生——用户至少能看到图，而不是对着空画布。
+    if (layout.value === 'tree') {
+      try {
+        layout.value = 'force';
+        try { localStorage.setItem('sxy_kg_layout', 'force'); } catch { /* 隐私模式忽略 */ }
+        const opt2 = buildOption(nodes.value, edges.value, 'force');
+        chart.setOption(opt2, true);
+        chart.resize();
+        toast(t('views.knowledgeGraph.treeFallback'), 'warn');
+        return;
+      } catch (e2) {
+        logError(e2, { component: 'KnowledgeGraph.vue', route: '/graph', info: 'tree->force fallback failed' });
+      }
+    }
     toast(t('views.knowledgeGraph.renderFail') + e.message, 'error');
   }
 }
@@ -411,7 +443,12 @@ async function saveGeneratedToMindmap(opts = {}) {
     }
     // 历史留存标题带时间戳，多次生成互不覆盖、按名可辨
     const baseTitle = t('views.knowledgeGraph.aiGraphTitle');
-    const title = silent ? `${baseTitle} · ${new Date().toLocaleString()}` : baseTitle;
+    // round115：标题再补「规模」标签（节点数/关联数）。
+    // 此前只有时间戳，列表里长得几乎一样、难以区分是哪一次生成；带上规模后一眼可辨。
+    const meta = t('views.knowledgeGraph.aiGraphMeta', undefined, {
+      n: generatedNodes.value.length, e: generatedEdges.value.length,
+    });
+    const title = silent ? `${baseTitle} · ${new Date().toLocaleString()} · ${meta}` : baseTitle;
     const mm = await createMindmap({
       title,
       root: { id: 'kg-root', label: t('views.knowledgeGraph.aiGraphRoot'), children: kids },
@@ -423,6 +460,51 @@ async function saveGeneratedToMindmap(opts = {}) {
     logError(e, { where: 'KnowledgeGraph.saveGeneratedToMindmap' });
     if (!silent) toast(e.message, 'error');
   } finally { loading.value = false; }
+}
+
+// ——— round115：AI 生成历史（在本模块内直接回看历次生成结果）———
+// 背景：每次「AI 生成图谱」都会自动留存一份快照（写进 mindmaps 表，随数据包同步），
+//   但它们此前**只能在「思维导图」页**看到 —— 用户在本页反复找不到"上次生成的那张图"；
+//   而且快照标题只带一个时间戳，列表里几乎长得一样，分不清哪次是哪次。
+// 现在：本页直接列出这些快照（标题已补时间 + 规模标签），可一键载回画布 / 删除。
+const kgHistory = ref([]);
+const historyOpen = ref(false);
+const historyLoading = ref(false);
+
+async function openHistory() {
+  if (historyOpen.value) { historyOpen.value = false; return; }
+  historyLoading.value = true;
+  try {
+    const all = await listMindmaps();
+    const prefix = t('views.knowledgeGraph.aiGraphTitle');
+    kgHistory.value = all.filter((m) => String(m?.title || '').startsWith(prefix));
+    historyOpen.value = true;
+  } catch (e) { toast(e.message, 'error'); }
+  finally { historyLoading.value = false; }
+}
+
+// 反解逻辑抽到 src/utils/kg-history.js（纯函数，便于单测与复用）
+
+async function restoreHistory(mm) {
+  const g = mindmapToGraph(mm);
+  if (!g.nodes.length) { toast(t('views.knowledgeGraph.historyEmpty'), 'warn'); return; }
+  generatedNodes.value = g.nodes;
+  generatedEdges.value = g.edges;
+  activeId.value = ''; activeLabel.value = ''; activeSubject.value = '';
+  mode.value = 'generated';
+  historyOpen.value = false;
+  await nextTick();
+  if (!chart) ensureChart();
+  render();
+  toast(t('views.knowledgeGraph.historyLoaded', undefined, { n: g.nodes.length, e: g.edges.length }), 'success');
+}
+
+async function removeHistory(mm) {
+  try {
+    await deleteMindmap(mm.id);
+    kgHistory.value = kgHistory.value.filter((x) => x.id !== mm.id);
+    toast(t('views.knowledgeGraph.historyDeleted'), 'success');
+  } catch (e) { toast(e.message, 'error'); }
 }
 
 // Agent 智能构建：走 graph-builder agent 的 ReAct 工具调用循环
@@ -535,6 +617,10 @@ watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
       <h2 style="margin:0">{{ t('views.knowledgeGraph.title') }}</h2>
       <span style="flex:1"></span>
+      <!-- round115：生成历史的入口就在本模块（此前快照只存在思维导图页，用户在本页找不到） -->
+      <button class="chip" :class="{ active: historyOpen }" :disabled="historyLoading" @click="openHistory">
+        {{ t('views.knowledgeGraph.historyBtn') }}
+      </button>
       <button v-if="savedEdges.length" class="chip" @click="mode = mode === 'saved' ? 'generated' : 'saved'">
         {{ mode === 'saved' ? t('views.knowledgeGraph.switchToGenerated') : t('views.knowledgeGraph.viewSaved') }}
       </button>
@@ -575,6 +661,21 @@ watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
       <span style="flex:1"></span>
       <ChartZoomBar :zoom="chartZoom" @zoom-in="applyZoom(1)" @zoom-out="applyZoom(-1)" @fit="fitChart" @toggle-fullscreen="toggleKgFs" />
       <FullscreenButton :active="kgFs" @toggle="toggleKgFs" />
+    </div>
+
+    <!-- round115：AI 生成历史（每次生成自动留存的快照；标题带时间 + 规模标签，可区分是哪一次） -->
+    <div v-if="historyOpen" class="kg-history">
+      <div class="kg-history-head">
+        <span class="kg-history-head-title">{{ t('views.knowledgeGraph.historyTitle', undefined, { n: kgHistory.length }) }}</span>
+        <span style="flex:1"></span>
+        <button class="btn small" @click="historyOpen = false">{{ t('views.knowledgeGraph.historyClose') }}</button>
+      </div>
+      <div v-if="!kgHistory.length" class="hint" style="padding:8px 2px">{{ t('views.knowledgeGraph.historyNone') }}</div>
+      <div v-for="m in kgHistory" :key="m.id" class="kg-history-item">
+        <span class="kg-history-item-title">{{ m.title }}</span>
+        <button class="btn small primary" @click="restoreHistory(m)">{{ t('views.knowledgeGraph.historyLoad') }}</button>
+        <a class="kg-history-del" @click="removeHistory(m)">{{ t('views.knowledgeGraph.historyDelete') }}</a>
+      </div>
     </div>
 
     <EmptyState v-if="!nodes.length && !loading" icon="🕸️" :title="t('views.knowledgeGraph.emptyTitle')" :message="t('views.knowledgeGraph.emptyMsg')" />
@@ -637,6 +738,13 @@ watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
 </template>
 
 <style scoped>
+/* round115：生成历史列表（与 .saved-box 同风格；flex-wrap 保证移动端不横向溢出） */
+.kg-history { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 10px 12px; margin: 10px 0; }
+.kg-history-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.kg-history-head-title { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.kg-history-item { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 0; border-top: 1px dashed var(--line); }
+.kg-history-item-title { flex: 1; min-width: 200px; font-size: 13px; word-break: break-all; }
+.kg-history-del { color: var(--red); cursor: pointer; font-size: 13px; }
 .kg-layout-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .kg-style-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; font-size: 12px; cursor: pointer; transition: .12s; }
 .kg-style-chip:hover { border-color: var(--accent); }

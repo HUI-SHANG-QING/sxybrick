@@ -41,6 +41,19 @@ export const zh = {
   saveToMindmap: '🗂️ 存为思维导图（随数据包同步）',
   aiGraphTitle: 'AI 知识图谱快照',
   aiGraphRoot: '知识图谱',
+  aiGraphMeta: '{n} 个知识点 / {e} 条关联',
+  treeFallback: '树状布局渲染失败（ECharts 树图的已知缺陷），已自动改用「力导向」显示同一份数据。',
+
+  // ——— round115：生成历史（在本模块内回看历次 AI 生成结果）———
+  historyBtn: '🕘 生成历史',
+  historyTitle: 'AI 生成历史（{n} 条）',
+  historyNone: '还没有历史记录。点「AI 生成图谱」后会自动留存一份快照，每条都带生成时间与规模标签，便于区分是哪一次。',
+  historyLoad: '载入到画布',
+  historyDelete: '删除',
+  historyLoaded: '已载入历史快照：{n} 个知识点 / {e} 条关联',
+  historyEmpty: '这条快照里没有可还原的知识点',
+  historyClose: '收起',
+  historyDeleted: '已删除这条历史记录',
   savedToMindmap: '已存入知识库：{title}（在思维导图页可查看）',
 
   // ——— 失效关联提示 ———
@@ -135,6 +148,19 @@ export const en = {
   saveToMindmap: '🗂️ Save as mind map (syncs with data pack)',
   aiGraphTitle: 'AI knowledge graph snapshot',
   aiGraphRoot: 'Knowledge Graph',
+  aiGraphMeta: '{n} nodes / {e} links',
+  treeFallback: 'Tree layout failed to render (a known issue in the ECharts tree chart); switched to force layout with the same data.',
+
+  // ——— round115: generation history (review past AI runs inside this module) ———
+  historyBtn: '🕘 History',
+  historyTitle: 'AI generation history ({n})',
+  historyNone: 'No history yet. Every "AI generate" keeps a snapshot tagged with its time and size, so you can tell which run is which.',
+  historyLoad: 'Load onto canvas',
+  historyDelete: 'Delete',
+  historyLoaded: 'Snapshot loaded: {n} nodes / {e} links',
+  historyEmpty: 'This snapshot has no restorable nodes',
+  historyClose: 'Collapse',
+  historyDeleted: 'History entry deleted',
   savedToMindmap: 'Saved to knowledge base: {title} (view it on the Mind Map page)',
 
   // ——— Dead-edge notice ———
