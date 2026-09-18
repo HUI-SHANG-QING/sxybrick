@@ -117,3 +117,15 @@ test('历史入口：本模块内可查看历史快照（不再只存在于思�
   assert.match(SRC, /historyBtn/, '要有历史入口按钮');
   assert.match(SRC, /restoreHistory/, '要能把历史载回画布');
 });
+
+test('自审补充：删除历史、覆盖式载入都必须二次确认', () => {
+  // 本项目所有删除操作（删会话/清记忆/删分组/删卡片）都走 confirmDialog，
+  // 这里漏了就是交互不一致，且用户误点一下快照就没了；
+  // 载入会覆盖画布上未保存的生成结果，也必须先问一句。
+  assert.match(SRC, /import \{ confirmDialog \} from '\.\.\/utils\/confirm\.js'/, '要引入项目的确认对话框');
+  assert.match(SRC, /historyDeleteConfirm/, '删除历史必须先确认');
+  assert.match(SRC, /historyLoadConfirm/, '覆盖式载入必须先确认');
+  // 载入的确认只应在「画布上已有生成结果」时触发，不能变成每次都打扰用户
+  assert.match(SRC, /if \(generatedNodes\.value\.length\) \{[\s\S]{0,200}?historyLoadConfirm/,
+    '载入确认必须限定在「画布已有生成结果」的前提下');
+});

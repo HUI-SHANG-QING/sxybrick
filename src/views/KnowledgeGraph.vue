@@ -10,6 +10,7 @@ import ChartZoomBar from '../components/ChartZoomBar.vue';
 import { useFullscreen } from '../composables/useFullscreen.js';
 import { stepZoom, ZOOM_MIN, ZOOM_MAX, readZoom } from '../composables/useTextZoom.js';
 import { toast } from '../utils/toast.js';
+import { confirmDialog } from '../utils/confirm.js';
 import { logError } from '../utils/errorLog.js';
 import { db } from '../db.js';
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
@@ -488,6 +489,14 @@ async function openHistory() {
 async function restoreHistory(mm) {
   const g = mindmapToGraph(mm);
   if (!g.nodes.length) { toast(t('views.knowledgeGraph.historyEmpty'), 'warn'); return; }
+  // round115 自审补充：载入会**覆盖**画布上当前的生成结果（且是内存态、未保存就没了）。
+  // 当前有内容时先确认，避免用户一点就丢掉刚生成还没保存的图。
+  if (generatedNodes.value.length) {
+    const ok = await confirmDialog(t('views.knowledgeGraph.historyLoadConfirm', undefined, {
+      n: generatedNodes.value.length,
+    }));
+    if (!ok) return;
+  }
   generatedNodes.value = g.nodes;
   generatedEdges.value = g.edges;
   activeId.value = ''; activeLabel.value = ''; activeSubject.value = '';
@@ -500,6 +509,10 @@ async function restoreHistory(mm) {
 }
 
 async function removeHistory(mm) {
+  // round115 自审补充：删除必须二次确认——本项目**所有**删除操作（删会话/清记忆/删分组/删卡片）
+  // 都走 confirmDialog，这里漏了就是不一致，且用户误点一下快照就没了。
+  const ok = await confirmDialog(t('views.knowledgeGraph.historyDeleteConfirm', undefined, { title: mm?.title || '' }));
+  if (!ok) return;
   try {
     await deleteMindmap(mm.id);
     kgHistory.value = kgHistory.value.filter((x) => x.id !== mm.id);

@@ -54,6 +54,8 @@ export const zh = {
   historyEmpty: '这条快照里没有可还原的知识点',
   historyClose: '收起',
   historyDeleted: '已删除这条历史记录',
+  historyDeleteConfirm: '确定删除这条历史快照？删除后可在回收站找回，但列表里不会再有。\n{title}',
+  historyLoadConfirm: '画布上现在有 {n} 个知识点（还没保存到知识库）。载入历史快照会替换掉它们，继续吗？',
   savedToMindmap: '已存入知识库：{title}（在思维导图页可查看）',
 
   // ——— 失效关联提示 ———
@@ -161,6 +163,8 @@ export const en = {
   historyEmpty: 'This snapshot has no restorable nodes',
   historyClose: 'Collapse',
   historyDeleted: 'History entry deleted',
+  historyDeleteConfirm: 'Delete this history snapshot? It can still be restored from Trash, but it will no longer be listed.\n{title}',
+  historyLoadConfirm: 'The canvas currently holds {n} nodes (not yet saved to the knowledge base). Loading a snapshot will replace them. Continue?',
   savedToMindmap: 'Saved to knowledge base: {title} (view it on the Mind Map page)',
 
   // ——— Dead-edge notice ———
