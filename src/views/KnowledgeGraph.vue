@@ -22,6 +22,7 @@ import { pruneDeadEdges } from '../algorithms/graphAuto.js';
 import { T } from '../utils/telemetry.js';
 import { mindmapToGraph } from '../utils/kg-history.js';
 import EmptyState from '../components/EmptyState.vue';
+import CardPreviewModal from '../components/CardPreviewModal.vue';
 import ExportButton from '../components/ExportButton.vue';
 import {
   exportGraphToJSON, exportGraphToGraphML, exportGraphToMarkdown,
@@ -54,6 +55,13 @@ const docNodeIds = computed(() => {
   return m;
 });
 
+// round117：节点点击 → **只读预览弹窗**。
+//   原先命中唯一卡片会 `router.push('/cards?id=…')` —— 那是卡片管理页的**编辑态**，
+//   用户只想看一眼这张卡写了什么，却被带进编辑器。改为就地弹出只读预览（与「卡片分组」页
+//   展开后的呈现一致）。多命中 / 找不到时**仍跳卡片页**，让用户自己挑或新建。
+const previewOpen = ref(false);
+const previewCard = ref(null);
+
 async function jumpToNodeCard(label, subject) {
   if (!label) return;
   if (docNodeIds.value.has(label)) {
@@ -80,7 +88,9 @@ async function jumpToNodeCard(label, subject) {
       return inSubject.length ? inSubject : pick(all);
     })();
     if (loose.length === 1) {
-      router.push(`/cards?id=${encodeURIComponent(loose[0].id)}`);
+      // round117：唯一命中 → 弹只读预览（不再跳编辑态）
+      previewCard.value = loose[0];
+      previewOpen.value = true;
     } else if (loose.length > 1) {
       const params = new URLSearchParams({ q });
       if (sub) params.set('subject', sub);
@@ -791,6 +801,9 @@ watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
     <div v-else-if="activeId && nodeById(activeId)" class="hint" style="text-align:center;margin-top:10px">
       {{ t('views.knowledgeGraph.selectedPrefix') }}{{ nodeById(activeId).label }}{{ t('views.knowledgeGraph.selectedSuffix') }}
     </div>
+
+    <!-- round117：点击图谱节点 → 只读预览这张卡（不再进卡片编辑页） -->
+    <CardPreviewModal v-model="previewOpen" :card="previewCard" />
   </div>
 </template>
 

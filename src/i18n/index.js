@@ -330,6 +330,12 @@ const zh = {
       renderFailed: '图表渲染失败，以下为原始结构：',
       truncated: '节点过多，已截断显示前 {n} 个（其余省略）。',
     },
+    cardPreview: {
+      title: '卡片预览',
+      front: '正面',
+      back: '背面',
+      close: '关闭',
+    },
   },
 
   // ---------------- 通用工具文案（src/utils/llm-json.js 等） ----------------
@@ -622,6 +628,12 @@ const en = {
     aiGraph: {
       renderFailed: 'Chart rendering failed; raw structure below: ',
       truncated: 'Too many nodes — showing the first {n} only.',
+    },
+    cardPreview: {
+      title: 'Card preview',
+      front: 'Front',
+      back: 'Back',
+      close: 'Close',
     },
   },
 

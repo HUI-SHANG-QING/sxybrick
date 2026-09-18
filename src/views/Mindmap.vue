@@ -19,6 +19,7 @@ import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
 import { agentSystem } from '../agent/index.js';
 import EmptyState from '../components/EmptyState.vue';
+import CardPreviewModal from '../components/CardPreviewModal.vue';
 import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
 
@@ -27,6 +28,10 @@ const router = useRouter();
 
 // 选中节点（显式跳转按钮）
 const selSubject = ref(''); // 导图本身不带科目，跳的时候只按 label 搜索
+// round117：节点点击 → **只读预览弹窗**（原先跳 `/cards?id=…` 是卡片编辑态）。
+//   多命中 / 找不到时仍跳卡片页，让用户自己挑或新建。
+const previewOpen = ref(false);
+const previewCard = ref(null);
 async function jumpToNodeCard(label) {
   const q = String(label || '').trim();
   if (!q) return;
@@ -34,8 +39,11 @@ async function jumpToNodeCard(label) {
     const all = await db.cards.toArray();
     const exact = all.filter(c => String(c.front || '') === q);
     const loose = exact.length ? exact : all.filter(c => String(c.front || '').includes(q) || String(c.back || '').includes(q));
-    if (loose.length === 1) router.push(`/cards?id=${encodeURIComponent(loose[0].id)}`);
-    else if (loose.length > 1) router.push(`/cards?q=${encodeURIComponent(q)}`);
+    if (loose.length === 1) {
+      // round117：唯一命中 → 弹只读预览（不再进卡片编辑页）
+      previewCard.value = loose[0];
+      previewOpen.value = true;
+    } else if (loose.length > 1) router.push(`/cards?q=${encodeURIComponent(q)}`);
     else { toast(t('views.mindmap.jumpNotFound', undefined, { q }), 'warn'); router.push(`/cards?q=${encodeURIComponent(q)}`); }
   } catch (e) {
     logError(e, { component: 'Mindmap.vue:jumpToNodeCard', route: '/mindmap', info: `label=${q.slice(0,80)}` });
@@ -531,6 +539,9 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+
+    <!-- round117：点击导图节点 → 只读预览这张卡（不再进卡片编辑页） -->
+    <CardPreviewModal v-model="previewOpen" :card="previewCard" />
   </div>
 </template>
 
