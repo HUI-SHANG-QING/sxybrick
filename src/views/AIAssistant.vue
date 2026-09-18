@@ -6,7 +6,10 @@ import { toast } from '../utils/toast.js';
 // round100：AI 学习助手已改为「自己查数据」——走 Agent 框架（runAgentTurn + 'assistant' Agent + 工具循环），
 // 不再本地预注入上下文（buildFullContext / buildModuleNodesContext 已从本视图退场）。
 // 历史教训（round82）：这类「改了调用忘了导入」的错误 npm test 抓不到，已把 eslint 纳入门禁（见 package.json）。
-import { chatAI, runAgentTurn, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, extractMemories, listMemories, addMemory, deleteMemory } from '../ai.js';
+import { chatAI, runAgentTurn, getAIConfig, setAIConfig, hasAIKey, listChats, getChat, saveChat, deleteChat, newChat, extractMemories, listMemories, addMemory, deleteMemory, clearMemories } from '../ai.js';
+import { probeEmbedding } from '../agent/embedding.js';
+import { downloadText } from '../utils/exporters.js';
+import { runAction } from '../utils/action.js';
 import { generateDeck, bulkCreateCards, generateColdStartDeck, COLD_START_TEMPLATES } from '../utils/genDeck.js';
 import VoiceInput from '../components/VoiceInput.vue';
 import EmptyState from '../components/EmptyState.vue';
@@ -339,6 +342,78 @@ async function addMem() {
 async function removeMem(id) { await deleteMemory(id); memories.value = await listMemories(); }
 function catName(c) { return c === 'core' ? t('views.aiAssistant.catCore') : c === 'preference' ? t('views.aiAssistant.catPref') : t('views.aiAssistant.catFact'); }
 
+// ---- 记忆库：按类型筛选 / 批量清空 / 导出（round110）----
+// 此前只有「逐条删除」：记忆攒到几十条后想清理只能一条条点，也没法带走或整体备份。
+const memFilter = ref('all'); // all | core | preference | fact
+const memCounts = computed(() => {
+  const c = { all: memories.value.length, core: 0, preference: 0, fact: 0 };
+  for (const m of memories.value) if (c[m.category] !== undefined) c[m.category] += 1;
+  return c;
+});
+const filteredMems = computed(() => (memFilter.value === 'all'
+  ? memories.value
+  : memories.value.filter((m) => m.category === memFilter.value)));
+/** 清空当前筛选（清空会写墓碑，跨设备同步删除；见 memory.clearMemories） */
+async function clearMems() {
+  const n = filteredMems.value.length;
+  if (!n) { toast(t('views.aiAssistant.memEmpty'), 'info'); return; }
+  const label = memFilter.value === 'all' ? t('views.aiAssistant.memAll') : catName(memFilter.value);
+  if (!(await confirmDialog(t('views.aiAssistant.memClearConfirm', undefined, { label, n })))) return;
+  await runAction(
+    () => clearMemories(memFilter.value === 'all' ? undefined : memFilter.value),
+    {
+      then: async (removed) => {
+        memories.value = await listMemories();
+        toast(t('views.aiAssistant.memCleared', undefined, { n: removed ?? n }), 'success');
+      },
+    },
+  );
+}
+/** 导出当前筛选的记忆（JSON 便于备份/迁回，Markdown 便于阅读与归档进笔记） */
+function exportMems(fmt) {
+  const rows = filteredMems.value;
+  if (!rows.length) { toast(t('views.aiAssistant.memEmpty'), 'info'); return; }
+  const stamp = new Date().toISOString().slice(0, 10);
+  const base = t('views.aiAssistant.memFileName', undefined, { date: stamp });
+  const pick = (r) => ({ id: r.id, category: r.category, content: r.content, importance: r.importance ?? 2, createdAt: r.createdAt, updatedAt: r.updatedAt });
+  if (fmt === 'json') {
+    downloadText(JSON.stringify(rows.map(pick), null, 2), `${base}.json`, 'application/json');
+  } else {
+    const md = [
+      `# ${t('views.aiAssistant.memMdTitle')}`,
+      '',
+      t('views.aiAssistant.memMdMeta', undefined, { n: rows.length, time: new Date().toLocaleString() }),
+      '',
+      ...rows.map((r) => t('views.aiAssistant.memMdItem', undefined, {
+        cat: catName(r.category), content: String(r.content || '').trim(), imp: r.importance ?? 2,
+      })),
+      '',
+    ].join('\n');
+    downloadText(md, `${base}.md`, 'text/markdown');
+  }
+  toast(t('views.aiAssistant.memExported', undefined, { n: rows.length }), 'success');
+}
+
+// ---- 向量检索（embeddings）设置与探针（round110）----
+const embTesting = ref(false);
+const embResult = ref('');
+/** 探针：真实发一条向量请求，直接告诉你「现在走远程还是本地降级、多少维」 */
+async function testEmbedding() {
+  setAIConfig(cfg.value); // 先落盘：探针读的就是输入框里的当前值（与「改即保存」的其它设置一致）
+  embTesting.value = true;
+  embResult.value = '';
+  try {
+    const r = await probeEmbedding();
+    embResult.value = (r.remote && !r.degraded)
+      ? t('views.aiAssistant.embOk', undefined, { model: r.model, dim: r.dim })
+      : t('views.aiAssistant.embLocal', undefined, { dim: r.dim });
+    toast(embResult.value, 'success');
+  } catch (e) {
+    embResult.value = t('views.aiAssistant.embFail', undefined, { msg: String(e?.message || e) });
+    toast(embResult.value, 'error');
+  } finally { embTesting.value = false; }
+}
+
 const voiceOn = ref(localStorage.getItem('sxy_voice') !== '0');
 function toggleVoice() {
   voiceOn.value = !voiceOn.value;
@@ -453,6 +528,24 @@ onMounted(async () => {
           <!-- 图片分析策略：影响本页对话 / Agent / 卡片联动 / 资料问答里「图片怎么送到模型」。
                与「英语中心 → 设置」共用同一组件与同一份设置（改即保存）——
                此前只有英语中心有入口，用户在这里找不到（2026-09-14 反馈）。 -->
+          <!-- 向量检索（embeddings）：可单独指定供应商（round110）。
+               为什么必须独立：embedding 与 chat 是两种能力、供应商常不同——
+               用 DeepSeek 聊天（它没有 /embeddings 端点）时，此前向量检索只能永久跑本地降级算法。
+               留空=逐项沿用上面的聊天配置（老行为完全不变）。 -->
+          <details style="margin-top:14px">
+            <summary class="field-label" style="cursor:pointer;margin:0">{{ t('views.aiAssistant.embTitle') }}</summary>
+            <div class="hint" style="margin-top:6px">{{ t('views.aiAssistant.embHint') }}</div>
+            <div class="field-label">{{ t('views.aiAssistant.embBaseLabel') }}</div>
+            <input v-model="cfg.embeddingBaseUrl" class="input" :placeholder="t('views.aiAssistant.embBasePlaceholder')" />
+            <div class="field-label">{{ t('views.aiAssistant.embKeyLabel') }}</div>
+            <input v-model="cfg.embeddingApiKey" class="input" type="password" :placeholder="t('views.aiAssistant.embKeyPlaceholder')" />
+            <div class="field-label">{{ t('views.aiAssistant.embModelLabel') }}</div>
+            <input v-model="cfg.embeddingModel" class="input" placeholder="text-embedding-3-small" />
+            <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+              <button class="btn small" :disabled="embTesting" @click="testEmbedding">{{ embTesting ? t('views.aiAssistant.embTesting') : t('views.aiAssistant.embTest') }}</button>
+              <span class="hint" style="margin:0">{{ embResult }}</span>
+            </div>
+          </details>
           <ImagePolicySetting style="margin-top:14px" />
           <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
             <button class="btn" :disabled="testing" @click="testConnection">{{ testing ? t('views.aiAssistant.testing') : t('views.aiAssistant.testConn') }}</button>
@@ -552,15 +645,26 @@ onMounted(async () => {
             <input v-model="newMemContent" class="input" :placeholder="t('views.aiAssistant.memPlaceholder')" @keydown.enter="addMem" />
             <button class="btn primary" @click="addMem">{{ t('views.aiAssistant.memAdd') }}</button>
           </div>
+          <!-- 筛选：全部 / 核心 / 偏好 / 事实（带条数）——记忆多了才好找、好清 -->
+          <div class="mem-filter">
+            <span class="hint" style="margin:0">{{ t('views.aiAssistant.memFilterLabel') }}</span>
+            <button v-for="f in [{ k: 'all' }, { k: 'core' }, { k: 'preference' }, { k: 'fact' }]" :key="f.k"
+              class="btn small" :class="{ primary: memFilter === f.k }" @click="memFilter = f.k">
+              {{ f.k === 'all' ? t('views.aiAssistant.memAll') : catName(f.k) }} {{ memCounts[f.k] || 0 }}
+            </button>
+          </div>
           <div class="mem-list">
-            <EmptyState v-if="!memories.length" icon="🤖" :title="t('views.aiAssistant.emptyMemTitle')" :message="t('views.aiAssistant.emptyMemMsg')" />
-            <div v-for="m in memories" :key="m.id" class="mem-item">
+            <EmptyState v-if="!filteredMems.length" icon="🤖" :title="t('views.aiAssistant.emptyMemTitle')" :message="t('views.aiAssistant.emptyMemMsg')" />
+            <div v-for="m in filteredMems" :key="m.id" class="mem-item">
               <span class="mem-cat" :class="'cat-' + m.category">{{ catName(m.category) }}</span>
               <span class="mem-content">{{ m.content }}</span>
               <a style="color:var(--red);cursor:pointer" @click="removeMem(m.id)">{{ t('views.aiAssistant.delLink') }}</a>
             </div>
           </div>
-          <div style="display:flex;justify-content:flex-end;margin-top:12px">
+          <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:12px">
+            <button class="btn small" @click="exportMems('json')">{{ t('views.aiAssistant.memExportJson') }}</button>
+            <button class="btn small" @click="exportMems('md')">{{ t('views.aiAssistant.memExportMd') }}</button>
+            <button class="btn small danger" @click="clearMems">{{ t('views.aiAssistant.memClear') }}</button>
             <button class="btn" @click="memOpen = false">{{ t('views.aiAssistant.close') }}</button>
           </div>
         </div>
@@ -698,6 +802,7 @@ onMounted(async () => {
 .cold-name { font-weight: 600; display: flex; align-items: center; gap: 8px; }
 .cold-sub { font-size: 11px; color: var(--accent); background: var(--code-bg); padding: 1px 6px; border-radius: 4px; }
 .cold-desc { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+.mem-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0 4px; }
 .mem-add { display: flex; gap: 8px; margin-bottom: 12px; }
 .mem-add .input[type="text"], .mem-add .input:not(select) { flex: 1; }
 .mem-list { max-height: 320px; overflow-y: auto; }

@@ -12,6 +12,7 @@ import {
   addMemory as mAdd,
   deleteMemory as mDel,
   buildMemoryText as mText,
+  clearMemories as mClear,
   extractMemories as mExtract,
 } from './agent/memory.js';
 import { chat as llmChat } from './agent/llm.js';
@@ -43,6 +44,10 @@ export function getAIConfig() {
     const merged = {
       baseUrl: 'https://api.deepseek.com', apiKey: '', model: 'deepseek-v4-flash',
       maxTokens: DEFAULT_AI_MAX_TOKENS,
+      // round110：向量检索可单独指定供应商（留空则逐项回退到上面的聊天配置）
+      embeddingBaseUrl: '',
+      embeddingApiKey: '',
+      embeddingModel: '',
       ...(c || {}),
     };
     // 旧配置没有 maxTokens（或存了非法值）→ 回落到默认；注意展开会带进 undefined，必须补一次
@@ -174,6 +179,9 @@ export function listMemories() {
 }
 export function addMemory(item) {
   return mAdd(item);
+}
+export function clearMemories(category) {
+  return mClear(category ? { category } : {});
 }
 export function deleteMemory(id) {
   return mDel(id);

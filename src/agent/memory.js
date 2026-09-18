@@ -86,6 +86,27 @@ export async function addMemory(item) {
   return m;
 }
 
+/**
+ * 批量清空记忆（round110：记忆管理界面「清空」入口）。
+ * @param {{category?: 'core'|'preference'|'fact'}} [opt] 不传 category = 全部清空
+ * @returns {Promise<number>} 实际删除条数
+ * 必须逐条写墓碑：merge:'updatedAt' + 同步的语义下，**absence ≠ deletion**，
+ * 不写墓碑的话对端/中枢会在下次同步把清掉的记忆原样推回来（与 deleteMemory 同一不变量）。
+ */
+export async function clearMemories(opt = {}) {
+  const category = ['core', 'preference', 'fact'].includes(opt?.category) ? opt.category : null;
+  const rows = category
+    ? await db.aiMemories.where('category').equals(category).toArray()
+    : await db.aiMemories.toArray();
+  if (!rows.length) return 0;
+  const ts = Date.now();
+  await db.transaction('rw', db.aiMemories, db.tombstones, async () => {
+    await db.aiMemories.bulkDelete(rows.map((r) => r.id));
+    await db.tombstones.bulkPut(rows.map((r) => ({ id: r.id, kind: 'memory', deletedAt: ts })));
+  });
+  return rows.length;
+}
+
 /** 删除一条记忆 */
 export async function deleteMemory(id) {
   // 事务：删行 + 墓碑原子化。分两次 await 时墓碑写失败会留下

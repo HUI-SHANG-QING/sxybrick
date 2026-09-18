@@ -22,24 +22,44 @@ function getCfg() {
   }
 }
 
-/** 模型签名：检测 embedding 模型变更（变更后需重建索引） */
+/**
+ * 本次实际使用的 embeddings 配置（round110）。
+ *
+ * 为什么需要独立配置：embedding 与 chat 是两种能力、多数供应商也不同——
+ * 用户完全可能「用 DeepSeek 聊天（不支持 /embeddings）+ 用另一家做向量」。
+ * 此前 embedding 只能读聊天配置的 baseUrl/apiKey，于是只要聊天用 DeepSeek，
+ * 向量检索就**永久只能跑本地降级算法**（256 维 bigram），语义召回形同虚设。
+ * 新增三个可选字段（embeddingBaseUrl / embeddingApiKey / embeddingModel）：
+ *   · 填了 → 用填的；没填 → 逐项回退到聊天配置（**老用户行为完全不变**）。
+ */
+function effectiveCfg() {
+  const c = getCfg();
+  const pick = (a, b) => (String(a || '').trim() || b);
+  return {
+    baseUrl: pick(c.embeddingBaseUrl, c.baseUrl),
+    apiKey: pick(c.embeddingApiKey, c.apiKey),
+    model: pick(c.embeddingModel, 'text-embedding-3-small'),
+  };
+}
+
+/** 模型签名：检测 embedding 提供方/模型变更（变更后需重建索引） */
 export function getModelSig() {
-  const cfg = getCfg();
+  const cfg = effectiveCfg();
   return cfg.apiKey
-    ? `api:${cfg.baseUrl}:${cfg.embeddingModel || 'text-embedding-3-small'}`
+    ? `api:${cfg.baseUrl}:${cfg.model}`
     : 'local:bigram-256';
 }
 
 function hasKey() {
-  return !!getCfg().apiKey;
+  return !!effectiveCfg().apiKey;
 }
 
 // ---------- 远程 embedding：调用 OpenAI 兼容 /v1/embeddings ----------
 async function remoteEmbed(texts) {
   const t0 = Date.now();
-  const cfg = getCfg();
+  const cfg = effectiveCfg();
   const base = String(cfg.baseUrl || 'https://api.deepseek.com').replace(/\/+$/, '');
-  const model = cfg.embeddingModel || 'text-embedding-3-small';
+  const model = cfg.model;
   const res = await fetch(`${base}/embeddings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.apiKey}` },
@@ -118,6 +138,24 @@ function isEmbeddingsUnsupported(cfg) {
 }
 
 /**
+ * 探针（供设置页「测试」按钮）：报告当前**实际**会走远程还是本地降级，以及向量维度。
+ * 直接跑一次真实的 1 条向量请求——比"只校验格式"更能暴露问题（端点不存在/模型名写错/key 无效）。
+ */
+export async function probeEmbedding() {
+  const eff = effectiveCfg();
+  const remote = hasKey() && !isEmbeddingsUnsupported(eff);
+  // 探针输入用 ASCII：这是发给 embedding 端点的一次性测试词（只看维度/远程与否，不看语义），
+  // 非 UI 文案；写中文会被 i18n 数据层闸门（check-view-i18n --js）判为硬编码中文。
+  const { vectors, degraded } = await embedBatch(['embedding probe test']);
+  return {
+    remote, degraded,
+    dim: vectors?.[0]?.length || 0,
+    baseUrl: eff.baseUrl,
+    model: eff.model,
+  };
+}
+
+/**
  * 批量生成 embedding
  * @param {string[]} texts
  * @returns {Promise<{ vectors: number[][], degraded: boolean }>}
@@ -133,7 +171,7 @@ function isEmbeddingsUnsupported(cfg) {
 export async function embedBatch(texts) {
   if (!texts.length) return { vectors: [], degraded: false };
   // 远程仅在「有 key 且提供方支持 embeddings」时尝试；其余（无 key / DeepSeek 等）直接本地，零报错。
-  const tryRemote = hasKey() && !isEmbeddingsUnsupported(getCfg());
+  const tryRemote = hasKey() && !isEmbeddingsUnsupported(effectiveCfg());
   if (tryRemote) {
     try {
       const vectors = await remoteEmbed(texts);

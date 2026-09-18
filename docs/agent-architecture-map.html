@@ -1,0 +1,192 @@
+<html style="margin:0;padding:0;">
+<div style="background:transparent;font-family:-apple-system,'PingFang SC','Microsoft YaHei',Segoe UI,sans-serif;color:#1f2937;box-sizing:border-box;padding:4px;">
+
+  <!-- 标题与核心结论 -->
+  <div style="border:1px solid #e5e7eb;border-radius:14px;padding:18px 18px 16px;background:linear-gradient(135deg,#f8fafc,#eef4fb);">
+    <div style="font-size:19px;font-weight:700;color:#0f3d5c;">记忆卡片 App · Agent 体系架构图谱</div>
+    <div style="font-size:13px;color:#64748b;margin-top:4px;">基于 src/agent 源码静态审计 · 2026-09-17 · 11 个 Agent / 约 74 个工具 / 单机 PWA · IndexedDB · 零服务器</div>
+    <div style="margin-top:12px;padding:12px 14px;background:#fff7ed;border:1px solid #fdba74;border-left:4px solid #ea580c;border-radius:8px;font-size:14px;line-height:1.6;">
+      <b style="color:#9a3412;">核心结论：</b>分层清晰、护栏密集，自用可靠；但存在一个<b>决定性代差</b>——
+      <b>知识（卡片/文档）已用语义+关键词混合检索，而"关于你的长期记忆"只会按时间倒序摊开最近 44 条</b>，
+      现成的向量检索基建没有被记忆层复用。这是"工具型 Agent"与"真正懂你的企业级记忆 Agent"的分水岭，且修复性价比最高。
+    </div>
+  </div>
+
+  <!-- 一、分层架构 -->
+  <div style="margin-top:18px;font-size:16px;font-weight:700;color:#0f3d5c;">一、Agent 体系五层架构（数据自上而下、能力自下而上）</div>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;">
+
+    <div style="border:1px solid #c7ddf0;border-radius:10px;padding:10px 14px;background:#f0f7fc;">
+      <div style="font-size:13px;font-weight:700;color:#075985;">入口层</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+        <span style="font-size:13px;background:#fff;border:1px solid #c7ddf0;border-radius:6px;padding:5px 10px;">AIAssistant 普通问答 → 显式 assistant 工具循环</span>
+        <span style="font-size:13px;background:#fff;border:1px solid #c7ddf0;border-radius:6px;padding:5px 10px;">AgentWorkbench 工作台 → 关键词路由</span>
+      </div>
+    </div>
+
+    <div style="text-align:center;color:#94a3b8;font-size:16px;line-height:1;">▼</div>
+
+    <div style="border:1px solid #c7ddf0;border-radius:10px;padding:10px 14px;background:#f0f7fc;">
+      <div style="font-size:13px;font-weight:700;color:#075985;">编排层</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+        <span style="font-size:13px;background:#fff;border:1px solid #c7ddf0;border-radius:6px;padding:5px 10px;">orchestrator 意图路由+单Agent调度</span>
+        <span style="font-size:13px;background:#fff;border:1px solid #c7ddf0;border-radius:6px;padding:5px 10px;">pipeline 多Agent流水线（3预设+LLM分解·串行）</span>
+        <span style="font-size:13px;background:#fff;border:1px dashed #f59e0b;border-radius:6px;padding:5px 10px;">blackboard 协作黑板（纯内存·不持久化）</span>
+      </div>
+    </div>
+
+    <div style="text-align:center;color:#94a3b8;font-size:16px;line-height:1;">▼</div>
+
+    <div style="border:1px solid #c7ddf0;border-radius:10px;padding:10px 14px;background:#f0f7fc;">
+      <div style="font-size:13px;font-weight:700;color:#075985;">Agent 层</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+        <span style="font-size:13px;background:#fff;border:1px solid #c7ddf0;border-radius:6px;padding:5px 10px;">registry 注册中心（运行时可加插件）</span>
+        <span style="font-size:13px;background:#fff;border:1px solid #c7ddf0;border-radius:6px;padding:5px 10px;">base.js ReAct 引擎（硬上限12工具步+1收尾）</span>
+        <span style="font-size:13px;background:#fff;border:1px solid #c7ddf0;border-radius:6px;padding:5px 10px;">11 个 Agent 声明式定义</span>
+      </div>
+    </div>
+
+    <div style="text-align:center;color:#94a3b8;font-size:16px;line-height:1;">▼</div>
+
+    <div style="border:1px solid #fecaca;border-radius:10px;padding:10px 14px;background:#fef2f2;">
+      <div style="font-size:13px;font-weight:700;color:#b91c1c;">工具层 <span style="font-weight:400;color:#b91c1c;">⚠ 结构债：tools/index.js 单文件 95.5KB / 约74工具</span></div>
+      <div style="font-size:13px;color:#7f1d1d;margin-top:6px;">卡片·计划·笔记·文档·图谱·分析·RAG·记忆 等工具全部集中一个文件；compact.js 负责回包压缩；写工具 5 个，受"写入前确认门"保护</div>
+    </div>
+
+    <div style="text-align:center;color:#94a3b8;font-size:16px;line-height:1;">▼</div>
+
+    <div style="border:1px solid #c7ddf0;border-radius:10px;padding:10px 14px;background:#f0f7fc;">
+      <div style="font-size:13px;font-weight:700;color:#075985;">记忆与知识层（本次重点）</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;">
+        <span style="font-size:13px;background:#fff;border:1px dashed #f59e0b;border-radius:6px;padding:5px 10px;">memory 长期记忆（时间倒序·无语义召回）</span>
+        <span style="font-size:13px;background:#fff;border:1px solid #c7ddf0;border-radius:6px;padding:5px 10px;">retrieval 混合检索（语义0.65+关键词0.35）</span>
+        <span style="font-size:13px;background:#fff;border:1px solid #c7ddf0;border-radius:6px;padding:5px 10px;">embedding 远程/本地256维降级</span>
+        <span style="font-size:13px;background:#fff;border:1px solid #c7ddf0;border-radius:6px;padding:5px 10px;">context 学习数据+RAG+模块明细</span>
+      </div>
+    </div>
+
+    <div style="text-align:center;color:#94a3b8;font-size:16px;line-height:1;">▼</div>
+
+    <div style="border:1px solid #cbd5e1;border-radius:10px;padding:10px 14px;background:#f8fafc;">
+      <div style="font-size:13px;font-weight:700;color:#334155;">能力层 + 存储</div>
+      <div style="font-size:13px;color:#475569;margin-top:6px;">llm（流式/重试/诊断）· analytics（41.5KB 巨型）· proactive 主动智能 · local-answer 离线兜底　|　<b>IndexedDB/Dexie</b>：cards / aiMemories / embeddings / tombstones…（随同步包跨设备）</div>
+    </div>
+  </div>
+
+  <!-- 二、记忆体系现状与代差 -->
+  <div style="margin-top:22px;font-size:16px;font-weight:700;color:#0f3d5c;">二、记忆体系：实际四层，但检索能力不对称</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+    <div style="flex:1 1 220px;min-width:0;border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#fff;">
+      <div style="font-size:13px;color:#64748b;">L0 工作记忆</div>
+      <div style="font-size:14px;font-weight:600;margin-top:3px;">ReAct 对话窗</div>
+      <div style="font-size:12.5px;color:#64748b;margin-top:4px;line-height:1.5;">单轮；48000字符封顶，只压工具观察，绝不截 system/user</div>
+    </div>
+    <div style="flex:1 1 220px;min-width:0;border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#fff;">
+      <div style="font-size:13px;color:#64748b;">L1 协作记忆</div>
+      <div style="font-size:14px;font-weight:600;margin-top:3px;">Blackboard 黑板</div>
+      <div style="font-size:12.5px;color:#64748b;margin-top:4px;line-height:1.5;">单次流水线会话；findings/artifacts/messages；<b style="color:#b91c1c;">纯内存、不持久化、无写权限隔离</b></div>
+    </div>
+    <div style="flex:1 1 220px;min-width:0;border:2px solid #ea580c;border-radius:10px;padding:12px;background:#fff7ed;">
+      <div style="font-size:13px;color:#9a3412;">L2 长期用户记忆</div>
+      <div style="font-size:14px;font-weight:600;margin-top:3px;color:#9a3412;">aiMemories（core/偏好/事实）</div>
+      <div style="font-size:12.5px;color:#7c2d12;margin-top:4px;line-height:1.5;">300条上限；注入12/12/20条、1800字；<b>只按 updatedAt 时间倒序，与问题无关</b></div>
+    </div>
+    <div style="flex:1 1 220px;min-width:0;border:2px solid #16a34a;border-radius:10px;padding:12px;background:#f0fdf4;">
+      <div style="font-size:13px;color:#15803d;">L3 知识记忆</div>
+      <div style="font-size:14px;font-weight:600;margin-top:3px;color:#15803d;">embeddings（卡片/文档）</div>
+      <div style="font-size:12.5px;color:#14532d;margin-top:4px;line-height:1.5;">chunk 500字+50重叠；<b>语义+关键词混合检索 topK</b>；全表3000行 OOM 护栏</div>
+    </div>
+  </div>
+
+  <div style="margin-top:12px;border:1px dashed #ea580c;border-radius:10px;padding:12px 14px;background:#fffbeb;font-size:13.5px;line-height:1.7;">
+    <b style="color:#9a3412;">代差示意：</b>同样是"找相关内容"——
+    <span style="color:#15803d;font-weight:600;">知识层会按你的问题做向量相似度，精准翻到最相关的卡片；</span>
+    <span style="color:#9a3412;font-weight:600;">记忆层却无视问题，永远只摊开"最近更新的 44 条"。</span>
+    于是 3 个月前那句最关键的"考研数学一"，只要最近聊了 44 条别的就被挤出；无关新记忆反而占位白付 token。
+    <b>而 embeddings 表、hybridSearch、本地降级、模型签名重建全都现成——记忆只是没接进去。</b>
+  </div>
+
+  <!-- 三、记忆六大治理缺口 -->
+  <div style="margin-top:22px;font-size:16px;font-weight:700;color:#0f3d5c;">三、对照顶级企业级记忆架构的六个缺口</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+    <div style="flex:1 1 280px;min-width:0;border-left:4px solid #dc2626;background:#fef2f2;border-radius:8px;padding:10px 12px;">
+      <div style="font-size:13.5px;font-weight:700;color:#b91c1c;">① 记忆无语义召回（决定性）</div>
+      <div style="font-size:12.5px;color:#7f1d1d;margin-top:4px;line-height:1.5;">时间倒序固定注入，相关老记忆被新记忆挤出；现成向量基建未复用</div>
+    </div>
+    <div style="flex:1 1 280px;min-width:0;border-left:4px solid #f59e0b;background:#fffbeb;border-radius:8px;padding:10px 12px;">
+      <div style="font-size:13.5px;font-weight:700;color:#92400e;">② 无遗忘/衰减/巩固</div>
+      <div style="font-size:12.5px;color:#78350f;margin-top:4px;line-height:1.5;">只有300条硬裁剪+静态importance；无时间衰减、无命中强化、无事实过期</div>
+    </div>
+    <div style="flex:1 1 280px;min-width:0;border-left:4px solid #f59e0b;background:#fffbeb;border-radius:8px;padding:10px 12px;">
+      <div style="font-size:13.5px;font-weight:700;color:#92400e;">③ 缺情景记忆/程序记忆</div>
+      <div style="font-size:12.5px;color:#78350f;margin-top:4px;line-height:1.5;">只有"事实记忆"；会话摘要（上周学了啥）、用户工作流套路无处安放</div>
+    </div>
+    <div style="flex:1 1 280px;min-width:0;border-left:4px solid #f59e0b;background:#fffbeb;border-radius:8px;padding:10px 12px;">
+      <div style="font-size:13.5px;font-weight:700;color:#92400e;">④ 多Agent共享=全有或全无</div>
+      <div style="font-size:12.5px;color:#78350f;margin-top:4px;line-height:1.5;">记忆表无 agentId/scope，11个Agent共享一份；黑板可互相覆盖、可伪造消息</div>
+    </div>
+    <div style="flex:1 1 280px;min-width:0;border-left:4px solid #dc2626;background:#fef2f2;border-radius:8px;padding:10px 12px;">
+      <div style="font-size:13.5px;font-weight:700;color:#b91c1c;">⑤ 隐私权限缺失</div>
+      <div style="font-size:12.5px;color:#7f1d1d;margin-top:4px;line-height:1.5;">含身份/目标的记忆随同步包裸发跨设备；无 local-only/敏感分级/记忆治理界面</div>
+    </div>
+    <div style="flex:1 1 280px;min-width:0;border-left:4px solid #64748b;background:#f8fafc;border-radius:8px;padding:10px 12px;">
+      <div style="font-size:13.5px;font-weight:700;color:#334155;">⑥ 一致性=最后写入胜出</div>
+      <div style="font-size:12.5px;color:#475569;margin-top:4px;line-height:1.5;">fieldTs 字段级时间戳"为将来预留"未实现；重复记忆直接覆盖、无版本历史</div>
+    </div>
+  </div>
+
+  <!-- 四、优化优先级 -->
+  <div style="margin-top:22px;font-size:16px;font-weight:700;color:#0f3d5c;">四、优化方案优先级（收益 / 代价）</div>
+  <div style="overflow-x:auto;margin-top:10px;border:1px solid #e5e7eb;border-radius:10px;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:560px;">
+      <thead>
+        <tr style="background:#eef4fb;text-align:left;">
+          <th style="padding:9px 10px;color:#0f3d5c;">优先级</th>
+          <th style="padding:9px 10px;color:#0f3d5c;">事项</th>
+          <th style="padding:9px 10px;color:#0f3d5c;">收益</th>
+          <th style="padding:9px 10px;color:#0f3d5c;">代价</th>
+        </tr>
+      </thead>
+      <tbody style="line-height:1.5;">
+        <tr style="background:#fef2f2;"><td style="padding:8px 10px;font-weight:700;color:#b91c1c;">P0</td><td style="padding:8px 10px;"><b>记忆入向量库 + hybridSearch 语义召回</b>（core固定注入，其余按相关性）</td><td style="padding:8px 10px;color:#15803d;">极高·补核心代差</td><td style="padding:8px 10px;">中·基建现成</td></tr>
+        <tr><td style="padding:8px 10px;font-weight:700;color:#b45309;">P1</td><td style="padding:8px 10px;">记忆 scope/sensitive 隐私分级 + 同步过滤 + 记忆管理UI</td><td style="padding:8px 10px;color:#15803d;">高·堵隐私洞</td><td style="padding:8px 10px;">低-中</td></tr>
+        <tr><td style="padding:8px 10px;font-weight:700;color:#b45309;">P2</td><td style="padding:8px 10px;">重要度×时间衰减×命中频率 排序 + 事实过期</td><td style="padding:8px 10px;color:#15803d;">高·记忆质量</td><td style="padding:8px 10px;">低</td></tr>
+        <tr><td style="padding:8px 10px;font-weight:700;color:#1d4ed8;">P3</td><td style="padding:8px 10px;">记忆 ownerAgentId/sharedTo 隔离 + 黑板来源校验与持久化（断点续跑）</td><td style="padding:8px 10px;">中-高·协作可靠</td><td style="padding:8px 10px;">中</td></tr>
+        <tr><td style="padding:8px 10px;font-weight:700;color:#1d4ed8;">P4</td><td style="padding:8px 10px;">补齐 episodic 会话摘要记忆 + procedural 工作流记忆 + 统一 MemoryManager 门面</td><td style="padding:8px 10px;color:#15803d;">高·记忆金字塔完整</td><td style="padding:8px 10px;">中-高</td></tr>
+        <tr><td style="padding:8px 10px;font-weight:700;color:#64748b;">P5</td><td style="padding:8px 10px;">tools/index.js、analytics.js 按域拆分懒加载；消除重复兜底/双意图词表</td><td style="padding:8px 10px;">中·可维护性/包体</td><td style="padding:8px 10px;">中·面广但有1398测试网</td></tr>
+        <tr><td style="padding:8px 10px;font-weight:700;color:#64748b;">P6</td><td style="padding:8px 10px;">去重改哈希索引（消除全表扫）·流水线无依赖步骤并行·记忆批量提取·上下文单轮缓存</td><td style="padding:8px 10px;">中·降本提速</td><td style="padding:8px 10px;">低-中</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 五、演进路线 -->
+  <div style="margin-top:22px;font-size:16px;font-weight:700;color:#0f3d5c;">五、演进路线（五阶段）</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+    <div style="flex:1 1 150px;min-width:140px;border-top:3px solid #dc2626;border-radius:8px;border:1px solid #fecaca;border-top:3px solid #dc2626;background:#fff;padding:10px;">
+      <div style="font-size:13px;font-weight:700;color:#b91c1c;">阶段一 · 补代差</div>
+      <div style="font-size:12.5px;color:#475569;margin-top:5px;line-height:1.6;">P0 记忆语义召回<br>P2 衰减/命中排序<br>core固定+其余按相关性</div>
+    </div>
+    <div style="flex:1 1 150px;min-width:140px;border:1px solid #fde68a;border-top:3px solid #f59e0b;border-radius:8px;background:#fff;padding:10px;">
+      <div style="font-size:13px;font-weight:700;color:#92400e;">阶段二 · 治理安全</div>
+      <div style="font-size:12.5px;color:#475569;margin-top:5px;line-height:1.6;">P1 隐私分级 scope<br>同步过滤+管理UI<br>记忆提取失败告警</div>
+    </div>
+    <div style="flex:1 1 150px;min-width:140px;border:1px solid #bfdbfe;border-top:3px solid #3b82f6;border-radius:8px;background:#fff;padding:10px;">
+      <div style="font-size:13px;font-weight:700;color:#1d4ed8;">阶段三 · 协作加固</div>
+      <div style="font-size:12.5px;color:#475569;margin-top:5px;line-height:1.6;">P3 Agent记忆隔离<br>黑板来源校验+持久化<br>流水线断点续跑</div>
+    </div>
+    <div style="flex:1 1 150px;min-width:140px;border:1px solid #bbf7d0;border-top:3px solid #22c55e;border-radius:8px;background:#fff;padding:10px;">
+      <div style="font-size:13px;font-weight:700;color:#15803d;">阶段四 · 记忆金字塔</div>
+      <div style="font-size:12.5px;color:#475569;margin-top:5px;line-height:1.6;">P4 情景记忆episodic<br>程序记忆procedural<br>统一 MemoryManager</div>
+    </div>
+    <div style="flex:1 1 150px;min-width:140px;border:1px solid #e5e7eb;border-top:3px solid #64748b;border-radius:8px;background:#fff;padding:10px;">
+      <div style="font-size:13px;font-weight:700;color:#334155;">阶段五 · 结构性能</div>
+      <div style="font-size:12.5px;color:#475569;margin-top:5px;line-height:1.6;">P5 巨型文件拆分<br>P6 并行/哈希去重<br>收敛双路径双词表</div>
+    </div>
+  </div>
+
+  <div style="margin-top:16px;font-size:12.5px;color:#94a3b8;line-height:1.6;border-top:1px solid #eef2f7;padding-top:10px;">
+    说明：本图为基于源码的结构示意，所有常量（步数12、上下文48000字、记忆300条/注入44条/1800字、chunk500、混合权重0.65/0.35、全表3000行护栏等）均取自当前代码。单用户·零服务器阶段不建议照搬云端多租户重型记忆中台，复用 IndexedDB + embeddings 表 + 单一记忆门面即可支撑到万级卡片/千级记忆。
+  </div>
+
+</div>
+</html>
