@@ -24,30 +24,66 @@ const _FALLBACK = Symbol('fallback');
 if (isMainThread) {
   try {
     _analyticsWorker = new Worker(new URL('./analytics.worker.js', import.meta.url), { type: 'module' });
-    _analyticsWorker.onmessage = (ev) => {
-      const { id, result, error } = ev.data || {};
-      const p = _pending.get(id);
-      if (!p) return;
-      _pending.delete(id);
-      if (error) p.reject(new Error(error));
-      else p.resolve(result);
-    };
-    _analyticsWorker.onerror = () => {
-      _analyticsWorker = null; // worker 加载/运行失败：清空，后续调用回退主线程
-      for (const [, p] of _pending) p.reject(new Error('worker unavailable'));
-      _pending.clear();
-    };
+    _wireWorker(_analyticsWorker);
   } catch { _analyticsWorker = null; }
 }
-// 通用 offload：worker 优先，失败/无 worker 返回 _FALLBACK 让调用方走 inline
+// 消息接线（round94 P3-1）：抽出函数——模块初始化与测试钩子 __analyticsTestHooks.setWorker
+// 注入的实例共用同一套 onmessage/onerror 处理（否则注入实例收不到回消息，黑盒测试无法验证正常路径）。
+function _wireWorker(w) {
+  w.onmessage = (ev) => {
+    const { id, result, error } = ev.data || {};
+    const p = _pending.get(id);
+    if (!p) return;
+    _pending.delete(id);
+    if (error) p.reject(new Error(error));
+    else p.resolve(result);
+  };
+  w.onerror = () => {
+    _analyticsWorker = null; // worker 加载/运行失败：清空，后续调用回退主线程
+    for (const [, p] of _pending) p.reject(new Error('worker unavailable'));
+    _pending.clear();
+  };
+}
+// 通用 offload：worker 优先，失败/无 worker 返回 _FALLBACK 让调用方走 inline。
+// round94 P3-1 收口：worker 「挂死」（不崩、不回消息）时 pending 永久悬挂——调用方
+// promise 永不 settle，Agent 工具卡死到 ReAct 步数耗尽。补超时护栏：
+//   · 超时（默认 60s，与全局「总时长上限」语义一致）→ reject 该 pending → 既有
+//     catch(() => _FALLBACK) 语义不变 → 调用方 inline 重算，行为与 worker 崩溃同路径；
+//   · 超时同时 terminate + 置空 worker：真挂死的 worker 不会再被复用（后续 offload
+//     直接 _FALLBACK，不再每条都白等 60s）；onerror 对已清空的 _pending 是幂等 no-op；
+//   · 正常完成/报错路径 clearTimeout，零开销、零行为变化（不引入新问题）。
+let WORKER_OFFLOAD_TIMEOUT_MS = 60000; // let：仅供测试钩子 __analyticsTestHooks.setTimeoutMs 压缩
 function offload(fn, args) {
   if (!_analyticsWorker) return Promise.resolve(_FALLBACK);
+  const worker = _analyticsWorker; // 快照：超时清理只针对本次使用的实例
   const id = ++_seq;
+  let timer = null;
   return new Promise((resolve, reject) => {
-    _pending.set(id, { resolve, reject });
+    _pending.set(id, {
+      resolve: (v) => { clearTimeout(timer); resolve(v); },
+      reject: (e) => { clearTimeout(timer); reject(e); },
+    });
+    // 超时兜底：从 pending 摘除（onmessage/onerror 不到达也不悬挂），并废掉挂死的 worker
+    timer = setTimeout(() => {
+      if (_pending.delete(id)) {
+        if (_analyticsWorker === worker) {
+          _analyticsWorker = null; // 后续 offload 直接走 inline，不再等同一个挂死实例
+          try { worker.terminate(); } catch { /* 已终止 */ }
+        }
+        reject(new Error('analytics worker timeout'));
+      }
+    }, WORKER_OFFLOAD_TIMEOUT_MS);
     _analyticsWorker.postMessage({ id, fn, args });
   }).catch(() => _FALLBACK);
 }
+
+// 仅测试注入用（round94 P3-1 回归）：Node 下无真实 Worker，黑盒验证超时护栏需要
+// 替换 worker 实例与压缩超时。生产路径不触碰这些钩子（worker 始终来自模块顶部创建）。
+export const __analyticsTestHooks = {
+  setWorker(w) { _analyticsWorker = w; if (w) _wireWorker(w); },
+  getWorker() { return _analyticsWorker; },
+  setTimeoutMs(ms) { WORKER_OFFLOAD_TIMEOUT_MS = ms; },
+};
 
 /**
  * 关闭分析 worker（仅供测试收尾调用）。
