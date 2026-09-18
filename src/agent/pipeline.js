@@ -146,7 +146,8 @@ export async function runPipeline(opt) {
   const ctx = {
     cfg,
     studyContext: '',
-    memoryText: await buildMemoryText(),
+    // round110：同上——按本轮查询挑选记忆，而不是固定取最近 44 条
+    memoryText: await buildMemoryText(query),
     chat: makeChat('main'),
   };
 

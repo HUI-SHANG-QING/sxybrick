@@ -128,7 +128,8 @@ agentRegistry.register({
     '你是智能复习教练，必须基于跨模块真实数据出复习方案。\n{context}\n{memory}\n先用 get_cross_insight / get_recent_mistakes / smart_review_plan / get_learning_profile 拿数据，必要时用 get_confusable_pairs 找易混对、get_gap_cards 找知识缺口，再输出一份「今天优先复习什么、为什么、怎么复习」的清单（分级：P0 昨天答错→P1 高频错→P2 易混对→P3 到期→P4 计划内）。\n若用户想集中攻克高频错题，调用 build_quiz_from_mistakes 生成「错题轰炸」测验序列（零 LLM：错因簇→先补前置→交错出题），然后按序逐卡引导用户作答并即时讲解。',
   // round74：它的职责描述里就写着「综合…计划与费曼反馈」，但此前只有 list_plans（摘要）
   // round76：复习清单给出后要能「排进今天 + 打卡」，否则清单只停在聊天里
-  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'get_word_stats', 'list_words', 'get_word_detail', 'list_plans', 'read_plan', 'list_daily_tasks', 'add_daily_task', 'checkin_daily_task', 'list_notes', 'read_note', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'build_quiz_from_mistakes', 'semantic_search', 'retrieve_context', 'list_lib_docs', 'read_lib_doc', 'delegate_to_agent', 'read_blackboard', 'write_blackboard', 'get_card_detail', 'get_pomodoro_sessions'],
+  // round110：复习教练做「体检」时要能看到/维护索引（语义检索的可信度取决于索引新鲜度）
+  tools: ['get_cross_insight', 'get_recent_mistakes', 'smart_review_plan', 'get_card_analytics', 'get_weak_cards', 'get_word_stats', 'list_words', 'get_word_detail', 'list_plans', 'read_plan', 'list_daily_tasks', 'add_daily_task', 'checkin_daily_task', 'list_notes', 'read_note', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'build_quiz_from_mistakes', 'semantic_search', 'retrieve_context', 'list_lib_docs', 'read_lib_doc', 'delegate_to_agent', 'read_blackboard', 'write_blackboard', 'get_card_detail', 'get_pomodoro_sessions', 'get_index_status', 'ensure_index'],
   maxSteps: 10,
 });
 
@@ -146,7 +147,10 @@ agentRegistry.register({
     + '回答学习情况、薄弱点、错因、复习建议等问题时，**先调用合适的工具取真实数据再回答**，不要泛泛而谈，也不要回答「我看不到」。'
     + '需要卡片 / 笔记 / 文档的**完整正文或其中的图片**时，调 get_card_detail / read_note / read_doc（图片会自动作为附图发送给你）。'
     + '用户要求**写入**（整理成笔记、排进今天、打卡）时：先取原文，把将要写入的内容摘要给用户确认，得到同意后再调写入工具。',
-  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'get_stats', 'get_weak_cards', 'get_review_suggestion', 'get_review_history', 'get_card_detail', 'get_card_analytics', 'get_cross_insight', 'get_recent_mistakes', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'get_image_assets', 'explain_concept', 'smart_review_plan', 'list_words', 'get_word_detail', 'get_word_stats', 'list_lib_docs', 'read_lib_doc', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_memos', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_graph_edges', 'list_chats', 'read_chat', 'get_pomodoro_sessions', 'list_exams', 'list_mindmaps', 'list_weekly_reports', 'list_card_groups', 'list_word_groups', 'list_achievements', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task'],
+  // round110：补挂索引维护三件套（此前 10 个工具无人挂载，恰好包含它们）——
+  // 不挂则「语义检索的索引」只能靠每次 RAG 调用补 20 卡+3 文档，用户无法主动补/重建/体检，
+  // 这也是「把记忆接进检索」的前置条件。
+  tools: ['search_cards', 'semantic_search', 'retrieve_context', 'list_subjects_and_tags', 'get_stats', 'get_weak_cards', 'get_review_suggestion', 'get_review_history', 'get_card_detail', 'get_card_analytics', 'get_cross_insight', 'get_recent_mistakes', 'get_learning_profile', 'get_confusable_pairs', 'get_gap_cards', 'get_image_assets', 'explain_concept', 'smart_review_plan', 'list_words', 'get_word_detail', 'get_word_stats', 'list_lib_docs', 'read_lib_doc', 'list_notes', 'read_note', 'list_docs', 'read_doc', 'list_memos', 'list_plans', 'read_plan', 'list_daily_tasks', 'list_graph_edges', 'list_chats', 'read_chat', 'get_pomodoro_sessions', 'list_exams', 'list_mindmaps', 'list_weekly_reports', 'list_card_groups', 'list_word_groups', 'list_achievements', 'create_note', 'update_note', 'create_daily_plan', 'add_daily_task', 'checkin_daily_task', 'get_index_status', 'ensure_index', 'rebuild_index'],
   maxSteps: 8,
 });
 

@@ -166,8 +166,8 @@ export function buildFullContext(query) {
 export { buildQuestionCardContext, buildModuleNodesContext };
 
 
-export function buildMemoryText() {
-  return mText();
+export function buildMemoryText(query) {
+  return mText(query); // round110：可选 query —— 传入后按「相关度 × 重要度 × 新鲜度」挑选记忆
 }
 export function listMemories() {
   return mList();

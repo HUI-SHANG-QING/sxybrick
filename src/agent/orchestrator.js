@@ -85,8 +85,16 @@ export async function runTask(opt) {
   // 0) 多智能体流水线判断：自动路由模式下，复杂多步任务走流水线
   if (!agentId && shouldUsePipeline(userInput)) {
     push({ kind: TraceKind.ROUTE, text: t('agent.orchestrator.pipelineStart'), agentId: 'pipeline' });
-    const result = await runPipeline({ query: userInput, cfg, onTrace: push, signal });
-    if (!result.fallback) {
+    // round110【兜底】runPipeline 此前只对「分解结果解析为 null」做了回退：分解阶段的 LLM 调用
+    // 一旦抛错（401/429/超时/网络），异常会一路冒到 UI —— 用户看到一句报错，而不是任何答案。
+    // 这里整体兜住：任何异常都退化成「单 Agent 路径」（下面的 fallback 分支本来就在）。
+    let result = null;
+    try {
+      result = await runPipeline({ query: userInput, cfg, onTrace: push, signal });
+    } catch (e) {
+      push({ kind: TraceKind.ERROR, text: t('agent.orchestrator.pipelineError', undefined, { msg: String(e?.message || e) }), agentId: 'pipeline' });
+    }
+    if (result && !result.fallback) {
       return {
         // Bug fix: 统一 reply 为 string，避免 MarkdownRenderer 收到 null/对象 → 空白行
         reply: stringifyReply(result.reply),
@@ -104,7 +112,9 @@ export async function runTask(opt) {
   // 只保留记忆文本；实质问题维持原有全量注入，Agent 行为不变。
   const [studyContext, memoryText] = await Promise.all([
     needsFullContext(userInput) ? buildFullContext(userInput) : Promise.resolve(''),
-    buildMemoryText(),
+    // round110：把当前问题交给记忆挑选——此前固定注入「最近更新的 44 条」，
+    // 与问题无关的新记忆会挤掉相关的旧记忆（三个月前说的「考数一/目标院校」就这么丢的）。
+    buildMemoryText(userInput),
   ]);
   // 2) 路由 / 选定 Agent（先于 ctx 解析，便于把 agentId 注入工具上下文，
   //    这样多智能体协作时 write_blackboard 能把发现正确归因到调用它的 Agent，而非 'unknown'）
