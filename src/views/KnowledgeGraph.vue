@@ -361,8 +361,10 @@ function render() {
       }
     }
     chart.setOption(opt, true);
-    // 全屏/容器刚出现的当帧布局可能未定型 → 0x0 画布。幂等 resize 兜底。
+    // 全屏/容器刚出现的当帧布局可能未定型 → 0x0 画布。幂等 resize 兜底；
+    // 若这次 resize 之后尺寸仍是 0（容器刚插入、布局尚未完成），下一帧再补一次。
     chart.resize();
+    if (!chart.getWidth() || !chart.getHeight()) requestAnimationFrame(() => { try { chart?.resize(); } catch { /* ignore */ } });
   } catch (e) {
     logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: `render layout=${layout.value}` });
     // 崩溃后图表内部可能停在半初始化状态，先清干净再决定下一步
@@ -399,9 +401,28 @@ function ensureChart() {
   return chart;
 }
 
+// round118：容器尺寸自愈（修「生成成功却一片空白 / 生成好几次才显示」）。
+//   容器 div 由 `v-if="nodes.length"` 控制 —— 首次生成或载入历史时它**刚被插进 DOM**，
+//   此刻布局往往还没定型（clientWidth/Height 为 0）。ECharts 在 0×0 容器上 init 出来的实例，
+//   setOption 画什么都是空白，而且**不会自己恢复**：用户看到的就是"生成成功却没显示"，
+//   反复点几次、等容器定型后才偶然成功（正是用户报的现象）。
+//   两层兜底：① 当帧尺寸为 0 → 下一帧强制 resize；② ResizeObserver 盯住容器，尺寸一变就 resize。
+let ro = null;
+function ensureSized(el) {
+  const fix = () => { try { chart?.resize(); } catch { /* ignore */ } };
+  if (!el.clientWidth || !el.clientHeight) requestAnimationFrame(fix);
+  if (!ro && typeof ResizeObserver !== 'undefined') {
+    try {
+      ro = new ResizeObserver(() => { if (el.clientWidth && el.clientHeight) fix(); });
+      ro.observe(el);
+    } catch { ro = null; }
+  }
+}
+
 function initChart(el) {
   try {
     chart = echarts.init(el);
+    ensureSized(el);
     chart.off('click');
     chart.on('click', p => {
       // graph 风格：单击直接跳转对应卡片 + 选中高亮
@@ -430,7 +451,13 @@ function initChart(el) {
   }
 }
 function onResize() { chart?.resize(); }
-onBeforeUnmount(() => { window.removeEventListener('resize', onResize); chart?.dispose(); });
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onResize);
+  try { ro?.disconnect(); } catch { /* ignore */ }
+  ro = null;
+  chart?.dispose();
+  chart = null;
+});
 
 async function generate() {
   if (!hasAIKey()) { toast(t('views.knowledgeGraph.noAiKey'), 'error'); return; }
@@ -608,8 +635,34 @@ async function loadSaved() {
   savedNodes.value = nodes;
   savedEdges.value = edges;
   savedStats.value = stats;
-  if (list.length) mode.value = 'saved';
-  nextTick(() => { if (savedNodes.value.length) render(); });
+  // round118：**不再**自动切到「已保存关联」——用户要求默认界面是「AI 生成」。
+  //   页面不至于空的保障，改由 onMounted 里的 autoLoadLatest()（没有 AI 结果就载回最近一次快照）承担。
+  //   右上角「查看已保存图谱」按钮仍可随时手动切过来。
+  nextTick(() => { if (savedNodes.value.length && mode.value === 'saved') render(); });
+}
+
+/**
+ * round118：进页面时把「最近一次 AI 生成」载回画布。
+ *
+ * 背景：用户要求「把 AI 生成的作为知识图谱的默认界面」，但 AI 生成结果只存在内存里，
+ *   刷新即空 —— 所以这里用**最近一条 AI 快照**把它填回来，做到"打开就能看到上次生成的结果"。
+ * 只在内存里还没有内容时才载（不覆盖本次会话已生成的结果）。
+ */
+async function autoLoadLatest() {
+  if (generatedNodes.value.length) return;
+  try {
+    const all = await listMindmaps();               // 已按 updatedAt 倒序，[0] 即最新
+    const prefix = t('views.knowledgeGraph.aiGraphTitle');
+    const latest = all.find((m) => String(m?.title || '').startsWith(prefix));
+    if (!latest) return;
+    const g = mindmapToGraph(latest);
+    if (!g.nodes.length) return;
+    generatedNodes.value = g.nodes;
+    generatedEdges.value = g.edges;
+    mode.value = 'generated';
+  } catch (e) {
+    logError(e, { component: 'KnowledgeGraph.vue', route: '/graph', info: 'autoLoadLatest' });
+  }
 }
 
 // 失效关联（两端卡片已不存在 / 历史脏数据）：可一键清理
@@ -674,7 +727,11 @@ const relatedIds = () => {
 };
 function nodeById(id) { return nodes.value.find(n => n.id === id); }
 
-onMounted(async () => { await loadSaved(); nextTick(() => { if (savedNodes.value.length) render(); }); });
+onMounted(async () => {
+  await loadSaved();
+  await autoLoadLatest();   // round118：默认界面 = AI 生成（载回最近一次快照）
+  nextTick(() => { if (nodes.value.length) render(); });
+});
 // 切换「AI 生成 / 已保存」后容器可能刚出现，需补一次初始化
 watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
 </script>
