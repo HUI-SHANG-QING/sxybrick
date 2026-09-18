@@ -70,7 +70,11 @@ export function isCanonicalEmbeddingRowId(row) {
 /** 某源的确定性 id 集合（文档分块：0..chunkCount-1） */
 export function embeddingRowIdsFor(sourceType, sourceId, chunkCount) {
   const out = new Set();
-  const n = Number.isInteger(chunkCount) && chunkCount > 0 ? chunkCount : 1;
+  // round114 P2：**显式 0 必须返回空集**（源内容被清空 → 没有任何 chunk → 不该保留任何 id）。
+  //   调用方 indexDoc 用它算 keepIds =「本次会被重写、故不写墓碑的 id」；
+  //   若把 0 兜底成 1，keepIds 会含 `embed-<type>-<id>-0`，那块旧向量既不覆盖也不墓碑 → 幽灵行。
+  //   仅对**未传/非法值**（undefined/NaN/负/非整数）保留 1 的向后兼容兜底。
+  const n = Number.isInteger(chunkCount) ? Math.max(0, chunkCount) : 1;
   for (let i = 0; i < n; i++) {
     const id = embeddingRowId(sourceType, sourceId, i);
     if (id) out.add(id);

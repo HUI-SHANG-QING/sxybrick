@@ -181,16 +181,20 @@ export function chunkText(text, maxLen = CHUNK_LEN, overlap = CHUNK_OVERLAP) {
 export async function indexCard(card) {
   if (!card?.id) return;
   const text = cardToText(card);
-  if (!text.trim()) return;
-  const { vectors, degraded } = await embedBatch([text]);
-  const vec = vectors[0];
-  const rowSig = modelSigFor(getModelSig(), degraded);
-  const id = embeddingRowId('card', card.id, 0);
-  const ts = Date.now();
   // 同源历史行（旧版随机 id）就地清理 + 墓碑 → 一张卡全库只留一行。
   // 旧实现是 `existing?.id || uid()`（**沿用**已有随机 id）：那等于把随机 id 世代传承，
   // 两端各自的随机 id 永远合不到一起 —— 重复堆积就是这么产生的。
+  const id = embeddingRowId('card', card.id, 0);
+  const ts = Date.now();
   const prev = await db.embeddings.where('sourceId').equals(card.id).and((e) => e.sourceType === 'card').toArray();
+  // round114 P2：正文为空（用户把正/背面清空，只剩图片或纯空白）时**不能直接 return**——
+  // 那样同源旧向量既不覆盖也不墓碑，会变成「幽灵行」：AI 检索仍命中这张卡**已经不存在的旧正文**。
+  // 正解：清空该卡全部向量并写墓碑（idOnly 下 absence ≠ deletion，必须墓碑），再返回。
+  // indexDoc 曾同款（`chunks.length || 1`），一并修。
+  if (!text.trim()) { await dropEmbeddingRows(prev, new Set(), ts); return; }
+  const { vectors, degraded } = await embedBatch([text]);
+  const vec = vectors[0];
+  const rowSig = modelSigFor(getModelSig(), degraded);
   await dropEmbeddingRows(prev, new Set([id]), ts);
   await db.embeddings.put({
     id,
@@ -224,7 +228,11 @@ export async function indexDoc(doc) {
   //   · 重新分块后不再存在的块（旧文更长 → 现在只有 3 块，旧的第 4/5 块必须消失）
   //     —— 必须写墓碑，否则对端/中枢会把它们推回来（idOnly 下 absence ≠ deletion）。
   // 集合内的 id 由下方 put 原地覆盖，故不墓碑（同 ms 自删风险，见 dropEmbeddingRows）。
-  const keepIds = embeddingRowIdsFor('doc', doc.id, chunks.length || 1);
+  // round114 P2：chunkCount 传**真实值**（含 0）。此前写 `chunks.length || 1` 是错的：
+  //   chunks.length===0（文档内容被清空 / 解析出空文本）时，`|| 1` 让 keepIds 含 `embed-doc-<id>-0`，
+  //   于是旧的第 0 块向量既不被覆盖（下方 `if (!chunks.length) return` 早退）也不被墓碑 →
+  //   残留幽灵行，AI 检索仍会命中**该文档已经不存在的内容**。
+  const keepIds = embeddingRowIdsFor('doc', doc.id, chunks.length);
   const prev = await db.embeddings.where('sourceId').equals(doc.id).and((e) => e.sourceType === 'doc').toArray();
   await dropEmbeddingRows(prev, keepIds, ts);
   if (!chunks.length) return;
