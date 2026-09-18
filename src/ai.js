@@ -15,6 +15,7 @@ import {
   extractMemories as mExtract,
 } from './agent/memory.js';
 import { chat as llmChat } from './agent/llm.js';
+import { t } from './i18n/index.js'; // 入参错误的可读文案（round109）
 import { offlineChat, shouldFallback, isNetworkError } from './utils/offlineAI.js';
 
 // round37 E1：agentSystem 不再静态 re-export。
@@ -112,6 +113,17 @@ export function trimChatHistory(messages, maxTurns = 16) {
 // 调 OpenAI 兼容的 chat/completions 接口（供简单直连场景复用）
 // 离线兜底：无 key 或网络失败时返回诚实引导，避免功能直接崩溃
 export async function chatAI(messages, opts = {}) {
+  // round109【入参防御】任何一层都不该因为"传了字符串"就炸出
+  // `messages.reduce is not a function` 这种看不懂的错（PrivacyData.vue 就踩过：
+  // 「AI 增强报告」按钮必然失败，用户只看到一句莫名其妙的报错）。
+  // 这里做两件事：① 字符串按"单条 user 消息"归一（保持旧调用可用）；
+  // ② 其余非数组入参抛**可读**错误，明确指出该怎么改。
+  if (typeof messages === 'string') {
+    messages = [{ role: 'user', content: messages }];
+  }
+  if (!Array.isArray(messages)) {
+    throw new Error(t('agent.llm.badMessages', undefined, { got: typeof messages }));
+  }
   messages = trimChatHistory(messages, opts.historyTurns);
   if (shouldFallback()) return offlineChat(messages);
   try {

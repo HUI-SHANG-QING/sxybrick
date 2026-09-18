@@ -347,7 +347,9 @@ async function aiEnhanceReport() {
 - 给出 7 条"下一步 24 小时"的具体可执行调节建议（不要真的改系统，只输出文字），
 - 给出 3 条对下周学习 / 作息 / 社交 / 财务的预测性趋势判断（仅作参考，不承诺准确）。
 中文，语气温暖、专业、可执行。`;
-    const resp = await chatAI(prompt);
+    // round109：此前把字符串直接当 messages 传（chatAI 内部会 messages.reduce → TypeError），
+    // 于是「AI 增强报告」**必然失败**且报错是 `messages.reduce is not a function` 这种不可读信息。
+    const resp = await chatAI([{ role: 'user', content: prompt }]);
     persona.value.aiEnhanced = resp || '';
     toast(t('views.privacyData.aiEnhanced', 'AI 增强报告已生成（仅文字输出，未动系统任何设置）'), 'success');
     T.aiCall('privacy_persona_enhance', 0);
