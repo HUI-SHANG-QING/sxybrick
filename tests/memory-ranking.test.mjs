@@ -107,3 +107,44 @@ test('巩固：被注入的记忆记一次使用，6 小时内不重复累加，
   await new Promise((r) => setTimeout(r, 60));
   assert.equal((await db.aiMemories.get('u1')).useCount, 1, '节流窗口内不得重复累加');
 });
+
+// ---------------------------------------------------------------- round112 P3：护栏与巩固计数必须一致
+
+test('字符护栏：被总量上界整层丢掉的记忆**不得**记一次 useCount（P3 回归）', async () => {
+  // 组装顺序固定 core → 偏好 → 事实，护栏从尾部（事实 → 偏好）整层丢弃。
+  // 旧实现把 picked 在「类别配额」阶段就 push 好了，护栏用 lines.pop() 丢层时不动 picked →
+  // 那些**从未进 prompt** 的 fact 照样被 consolidateUsage 记一次 useCount（计数与事实不符）。
+  const rows = [raw('big-core', 'core', 'c'.repeat(600), { importance: 5 })  , raw('big-pref', 'preference', 'p'.repeat(600), { importance: 5 })];
+  for (let i = 0; i < 20; i++) rows.push(raw('f' + i, 'fact', ('f' + i).padEnd(120, 'x'), { importance: 2 }));
+  await db.aiMemories.bulkPut(rows);
+
+  const text = await buildMemoryText('随便问问');
+  await new Promise((r) => setTimeout(r, 80)); // consolidateUsage 是 fire-and-forget
+
+  assert.ok(!text.includes('· 事实：'), '事实层应被总量护栏整层丢弃（否则本用例没测到目标分支）');
+  assert.ok(text.includes('· 核心：') && text.includes('· 偏好：'), '核心与偏好层保留');
+  const after = await db.aiMemories.toArray();
+  assert.equal(after.find((m) => m.id === 'big-core').useCount, 1, '真正进了 prompt 的核心记忆要计数');
+  assert.equal(after.find((m) => m.id === 'big-pref').useCount, 1, '真正进了 prompt 的偏好记忆要计数');
+  assert.equal(after.filter((m) => m.category === 'fact' && m.useCount).length, 0,
+    '被护栏丢掉的 fact 一条都不能计数（旧实现会把它们全记一遍）');
+});
+
+test('字符护栏：连偏好层也丢掉时，计数只落在真正保留的层上', async () => {
+  // 每层配额是 core 12 / 偏好 12 / 事实 20，单条上限 120 字 —— 要让「丢掉事实后仍超上限」，
+  // 必须把 core 与偏好都填满长条目（否则总量根本不触发护栏，用例会测到空分支）。
+  const rows = [];
+  for (let i = 0; i < 12; i++) rows.push(raw('c' + i, 'core', ('c' + i).padEnd(600, 'C'), { importance: 5 }));
+  for (let i = 0; i < 12; i++) rows.push(raw('p' + i, 'preference', ('p' + i).padEnd(600, 'P'), { importance: 5 }));
+  for (let i = 0; i < 20; i++) rows.push(raw('f' + i, 'fact', ('f' + i).padEnd(600, 'F'), { importance: 2 }));
+  await db.aiMemories.bulkPut(rows);
+
+  const text = await buildMemoryText('随便问问');
+  await new Promise((r) => setTimeout(r, 80));
+
+  assert.ok(!text.includes('· 偏好：') && !text.includes('· 事实：'), '偏好与事实两层都被丢弃');
+  assert.ok(text.includes('· 核心：'), '核心层永远最后才丢（有内容就保留）');
+  const after = await db.aiMemories.toArray();
+  assert.equal(after.filter((m) => m.category === 'core' && m.useCount).length, 12, '保留的核心层全部计数');
+  assert.equal(after.filter((m) => m.category !== 'core' && m.useCount).length, 0, '被丢掉的两层一条都不计数');
+});

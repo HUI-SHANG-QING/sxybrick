@@ -18,6 +18,8 @@ import { pad2 } from './utils/format.js';
 // 否则 repo 本地一份 localDateStr 独立实现会在未来格式演进时跨表整日错位。
 import { dateKey as createDateKey, dateKeyToTs } from './utils/time.js';
 import { CARD_CONTENT_FIELDS, kindOf, tombKindTable } from './sync-manifest.js';
+// 向量行 id 的确定性形态与前缀匹配（agent/embedding-key.js 无任何依赖，静态导入不成环）
+import { embeddingIdPrefix } from './agent/embedding-key.js';
 // N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
 import {
   DEFAULT_SUBJECTS,
@@ -535,9 +537,15 @@ export async function restoreFromTrash(t) {
     const embeddingTombStale = (await db.tombstones.toArray())
       .filter(tb => (tb?.kind || 'card') === 'embedding')
       .filter(tb => {
-        if (t.kind === 'docFile') return tb.id === t.id;
-        // card：清掉 sourceId=t.id 的所有 embedding 墓碑（id 格式 embed-${sourceId}-...）
-        return typeof tb.id === 'string' && tb.id.startsWith(`embed-${t.id}-`);
+        // 向量行 id = embed-<sourceType>-<sourceId>-<chunkIdx>（agent/embedding-key.js）。
+        // 历史 bug（round112 顺手修）：旧实现分两支，docFile 支判 `tb.id === t.id`（拿资料 id
+        // 比向量行 id，永不命中），card 支的前缀少了 sourceType 段（`embed-<id>-`）——
+        // 两支都从未命中，等于「恢复后不清向量墓碑」。在随机 id 时代那只是无害死代码，
+        // 但 id 换成确定性键后，重建出来的向量行**与墓碑同 id**：不清墓碑就会在下一次
+        // 同步被 applyTombstones 删掉 → RAG 对该卡/资料永久失明。
+        const srcType = (t.kind === 'card') ? 'card' : 'doc';
+        const prefix = embeddingIdPrefix(srcType, t.id);
+        return !!prefix && typeof tb.id === 'string' && tb.id.startsWith(prefix);
       });
     if (embeddingTombStale.length) await db.tombstones.bulkDelete(embeddingTombStale.map(tb => tb.id));
   });

@@ -58,6 +58,14 @@ export const WORD_EXT_FIELDS = ['pos', 'defs', 'synonyms', 'collocations', 'phra
 //   [1] 本清单：SYNC_TABLES / PRIVACY_SYNC_TABLES / EXCLUDED_FROM_SYNC 三选一登记；
 //       行 id 若是确定性复合键（如 cardWordLinks 的 `${cardId}:${wordCardId}`），
 //       还要在 sync-dedup.remapCardRefs 里登记「字段重映射后重算 id」；
+//   [1b] 行 id 是**派生**的确定性键（如 embeddings 的
+//       `embed-<sourceType>-<sourceId>-<chunkIdx>`，见 agent/embedding-key.js）时，
+//       除 [1] 外还必须同步这四处，漏一处就会出现「同源两行」或「删不干净」：
+//         · sync.js 入站归一（旧格式 id 吸收 + 写墓碑退休该 id）；
+//         · retrieval.migrateLegacyEmbeddingIds（本机历史行改键，保留原向量）；
+//         · retrieval 的 dropEmbeddingRows（删行必须带墓碑，否则对端推回）；
+//         · repo.restoreFromTrash 清墓碑用的 id 前缀；
+//       这正是 round112 修的「多设备向量重复堆积」：随机 id + idOnly 合并 = 行数随设备数倍增。
 //   [2] 引用注册表：新表含「引用卡片 id」字段 → 按类别加入 CARD_REF_FIELDS /
 //       ARRAY_REF_FIELDS / JSON_REF_FIELDS / NESTED_REF_FIELDS（sync-dedup.js）；
 //   [3] 图片 GC：新表含图片 id 字段 → repo.imageIdsOf 的扫描范围必须覆盖

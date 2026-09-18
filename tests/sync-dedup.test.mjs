@@ -253,3 +253,24 @@ test('P2-6 注册表：WORD_CARD_REF_FIELDS 含 wordCardId', () => {
   // 与通用卡引用字段不重叠
   assert.equal(new Set([...CARD_REF_FIELDS, ...WORD_CARD_REF_FIELDS]).size, CARD_REF_FIELDS.length + WORD_CARD_REF_FIELDS.length);
 });
+
+test('round112 P1：去重重定向后 embeddings 的确定性 id 必须同步重算', () => {
+  // 向量行 id 形态 = embed-<sourceType>-<sourceId>-<chunkIdx>（agent/embedding-key.js）。
+  // 导入去重把「异 id 同内容」卡跳过并重定向到保留卡后，如果只改 sourceId 而不重算 id：
+  //   ① 该行 id 仍指向被跳过的旧卡 —— 与保留卡的确定性行构成「同一 chunk 两行」（重复堆积）；
+  //   ② 后续按 id 定位（幂等覆盖、unlink、清理）全部错位。
+  const idRemap = new Map([['C2', 'C1']]);
+  const out = remapCardRefs({
+    embeddings: [
+      { id: 'embed-card-C2-0', sourceType: 'card', sourceId: 'C2', chunkIdx: 0 },
+      { id: 'embed-doc-D1-3', sourceType: 'doc', sourceId: 'D1', chunkIdx: 3 },
+      { id: 'legacy-random-uuid', sourceType: 'card', sourceId: 'C2', chunkIdx: 2 },
+    ],
+  }, idRemap);
+
+  assert.equal(out.embeddings[0].sourceId, 'C1');
+  assert.equal(out.embeddings[0].id, 'embed-card-C1-0', 'id 随 sourceId 重算');
+  assert.equal(out.embeddings[1].id, 'embed-doc-D1-3', '未被重定向的源：id 原样（重算结果与之一致）');
+  assert.equal(out.embeddings[2].id, 'embed-card-C1-2', '历史随机 id 也一并归一到确定性 id（顺带完成迁移）');
+  assert.equal(out.embeddings[2].sourceId, 'C1');
+});

@@ -215,29 +215,39 @@ export async function buildMemoryText(query) {
   if (!mems.length) return '';
   // round110：先按综合分排序，再按类别配额挑选（配额不变 → token 不膨胀）
   const ranked = scoreMemories(query, mems);
+  // 每层同时记「文本」与「来源行」——两者严格一一对应，这样最后一层被总量护栏整层丢弃时，
+  // 才能把它的行也从巩固名单里剔掉（round112 P3：此前 picked 在配额阶段就 push，
+  // 被 1800 字护栏截掉的记忆照样被 consolidateUsage 记了一次 useCount —— 计数与事实不符，
+  // 虽只影响排序微调且有 6h 节流，但「记了却没进 prompt」本身就是错的）。
   const g = { core: [], preference: [], fact: [] };
-  const picked = [];
+  const gRows = { core: [], preference: [], fact: [] };
   for (const { m } of ranked) {
-    const layer = (g[m.category] || g.fact);
-    if (layer.length >= (MEM_LIMITS[m.category] ?? MEM_LIMITS.fact)) continue;
+    const known = !!g[m.category];
+    const key = known ? m.category : 'fact';
+    if (g[key].length >= (MEM_LIMITS[key] ?? MEM_LIMITS.fact)) continue;
     const c = String(m.content || '').trim();
     if (!c) continue;
-    layer.push(c.length > MEM_ITEM_MAX ? c.slice(0, MEM_ITEM_MAX) + '…' : c);
-    picked.push(m);
+    g[key].push(c.length > MEM_ITEM_MAX ? c.slice(0, MEM_ITEM_MAX) + '…' : c);
+    gRows[key].push(m);
   }
   const out = ['【Agent 对用户的长期记忆（跨对话，务必记得并遵循）】'];
   const lines = [];
   if (g.core.length) lines.push('· 核心：' + g.core.join('；'));
   if (g.preference.length) lines.push('· 偏好：' + g.preference.join('；'));
   if (g.fact.length) lines.push('· 事实：' + g.fact.join('；'));
+  // keptRows 与 lines **严格同序同长**（非空层占且仅占一个条目）：
+  // 护栏按「事实 → 偏好」整层 pop 时同步 pop，巩固名单于是精确等于真正进 prompt 的行。
+  const keptRows = [];
+  for (const key of ['core', 'preference', 'fact']) if (g[key].length) keptRows.push(gRows[key]);
   let text = out.concat(lines).join('\n');
   // 总量护栏：按「事实 → 偏好」顺序丢弃（核心最后才丢）
   while (text.length > MEM_TOTAL_MAX && lines.length > 1) {
     lines.pop();
+    keptRows.pop();
     text = out.concat(lines).join('\n');
   }
-  // 巩固：被真正注入的记忆记一次使用（节流 6h、不阻塞、失败静默）
-  consolidateUsage(picked).catch(() => {});
+  // 巩固：只记**真正写进 prompt** 的那些（节流 6h、不阻塞、失败静默）
+  consolidateUsage(keptRows.flat()).catch(() => {});
   return text;
 }
 

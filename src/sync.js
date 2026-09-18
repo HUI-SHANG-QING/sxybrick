@@ -8,6 +8,7 @@
 //   · 增量同步：buildIncrementalBackup(lastSyncAt) 只导出 updatedAt > lastSyncAt 的行
 import { timeoutSignal } from './utils/abort.js';
 import { db, uid, currentDbMode } from './db.js';
+import { embeddingRowId } from './agent/embedding-key.js';
 import { base64ToBlob, blobToBase64, extractImageIds, IMAGE_REF_TABLES } from './images.js';
 import { triggerHook } from './plugins/registry.js';
 import { sheetCellGuard } from './utils/exporters.js';
@@ -22,6 +23,22 @@ import {
 /** 按表读取待导出行（应用清单上的 exportFilter，排除派生/本机专属数据，如 kind='auto' 的图谱边）
  *  额外支持 entry.strip: string[] —— 导出前剔除敏感字段（如 wordSettings 的 LLM Key），
  *  不影响本机存储，仅让同步/备份包不含该字段（对端导入时保留自己的本地值）。 */
+/**
+ * 两条「归一化后 id 相同」的入站向量行谁留下（round112 P1）。
+ * 判据必须两端一致（否则同一份数据在 A/B 各留一条不同的行，又回到重复堆积）：
+ *   ① 本身就是确定性 id 者优先（它是新实现写的，字段最全）；
+ *   ② 活跃时间戳（embeddings 只有 updatedAt）新者优先；
+ *   ③ 仍平 → 序列化字典序大者（确定性收敛，与 mergeRows 的收敛口径同风格）。
+ */
+function pickBetterEmbeddingRow(a, b) {
+  const canonA = a.id === embeddingRowId(a.sourceType, a.sourceId, a.chunkIdx) ? 1 : 0;
+  const canonB = b.id === embeddingRowId(b.sourceType, b.sourceId, b.chunkIdx) ? 1 : 0;
+  if (canonA !== canonB) return canonA > canonB ? a : b;
+  const ta = livenessTs(a), tb = livenessTs(b);
+  if (ta !== tb) return ta > tb ? a : b;
+  return JSON.stringify(a) >= JSON.stringify(b) ? a : b;
+}
+
 async function exportRows(t, since = 0) {
   let rows;
   // 大 idOnly 表（userOps/embeddings 可达十万级）增量导出时用索引范围查询，
@@ -888,9 +905,35 @@ export async function importBackup(backup, opts = {}) {
     // idOnly 语义 = 「已有则保留、新 id 追加」，等价于对 incoming ids 做 bulkGet 存在性判定。
     // （旧实现把整表载入内存只为查 id 存在性，长事务 + 高内存，大表下会卡死。）
     if (t.table === 'userOps' || t.table === 'embeddings') {
+      // round112 P1：入站向量行一律归一到**确定性 id**，并给旧随机 id 写墓碑「退休」。
+      // 为什么必须在这里做（而不是只靠本机迁移）：只要还有一台设备跑旧版本，
+      // 它就会不断把自己的随机 id 行推过来；不吸收就只能看着重复行重新长出来。
+      // 归一后同一 payload 内可能撞出重复 id（两条历史行指向同一 chunk）→ 必须先按 id 去重，
+      // 否则 bulkAdd 抛 ConstraintError 会把整个导入事务打回（用户看到「同步失败」）。
+      let rows = incoming;
+      if (t.table === 'embeddings') {
+        const byId = new Map();
+        const retire = [];
+        for (const r of rows) {
+          if (!r || r.id == null) continue;
+          const cid = embeddingRowId(r.sourceType, r.sourceId, r.chunkIdx);
+          if (!cid) { if (!byId.has(r.id)) byId.set(r.id, r); continue; } // 无 sourceId 的脏行不碰
+          if (r.id !== cid) retire.push(r.id); // 旧随机 id：内容被吸收后即可退休
+          const cand = r.id === cid ? r : { ...r, id: cid };
+          const keep = byId.get(cid);
+          if (!keep || pickBetterEmbeddingRow(cand, keep) === cand) byId.set(cid, cand);
+        }
+        rows = [...byId.values()];
+        if (retire.length) {
+          // 墓碑让对端/中枢也放下这些旧行（idOnly 下 absence ≠ deletion，
+          // 不写墓碑的话下一轮它还会被推回来 —— 这是「跨端不收敛」的根因）
+          const stamp = Date.now();
+          await db.tombstones.bulkPut([...new Set(retire)].map((id) => ({ id, kind: 'embedding', deletedAt: stamp })));
+        }
+      }
       const present = new Set(
-        (await db[t.table].bulkGet(incoming.map((x) => x.id))).filter(Boolean).map((x) => x.id));
-      const toAdd = incoming.filter((x) => !present.has(x.id));
+        (await db[t.table].bulkGet(rows.map((x) => x.id))).filter(Boolean).map((x) => x.id));
+      const toAdd = rows.filter((x) => !present.has(x.id));
       if (toAdd.length) await db[t.table].bulkAdd(toAdd);
       stats[t.table] = toAdd.length;
       continue;

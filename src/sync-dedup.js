@@ -1,5 +1,7 @@
 // src/sync-dedup.js
 // 跨设备导入时的「卡片内容去重」纯函数（无 Dexie/IndexedDB 依赖，可在 node 单测）。
+// round112：embeddings 行 id 是确定性键（embed-<sourceType>-<sourceId>-<chunkIdx>），
+//   引用重定向后必须重算 id —— 见 remapCardRefs 内注释。
 //
 // 历史 bug（P0）：旧逻辑按 front||back||subject 内容键去重，会把「同一张卡（同 id）
 // 在两台设备上因复习导致 SRS 字段不同」的卡误判为重复而丢弃 → 跨设备复习进度永不同步。
@@ -16,6 +18,8 @@
  * 导入去重把「异 id 同内容」卡跳过→保留时，指向被跳过卡的链接会变悬空死链。这里把正文里的
  * [[c-${old}]] 重定向到 [[c-${kept}]]（doc 链接同理）。仅对 card idRemap 命中者替换，避免误伤。
  */
+import { embeddingRowId } from './agent/embedding-key.js';
+
 export function remapWikilinks(text, idRemap) {
   if (typeof text !== 'string' || !idRemap || !idRemap.size) return text;
   let out = text;
@@ -172,6 +176,15 @@ export function remapCardRefs(backup, idRemap) {
       // 仅在 id 符合复合格式（含 ':'）时重算，避免误伤其他表里恰好同名的 id。
       if (key === 'cardWordLinks' && typeof r.id === 'string' && r.id.includes(':')) {
         row = { ...row, id: `${row.cardId}:${row.wordCardId}` };
+      }
+      // round112 P1：embeddings 行的 id 也是确定性键 embed-<sourceType>-<sourceId>-<chunkIdx>
+      // （agent/embedding-key.js）。上面把 sourceId 重定向到保留卡后**必须重算 id**：
+      // 否则该行 id 仍指向被跳过的旧卡，与保留卡的确定性行构成「同一 chunk 两行」
+      // （正是本次要修的重复堆积形态），且后续按 id 定位/去重全部错位。
+      // 仅在入站 id 与目标 id 不同时才改写，避免无谓的对象复制。
+      if (key === 'embeddings' && row.sourceId != null) {
+        const cid = embeddingRowId(row.sourceType, row.sourceId, row.chunkIdx);
+        if (cid && row.id !== cid) row = { ...row, id: cid };
       }
       // v34：cardLinks.id 同为确定性复合键 `${fromCardId}:${toCardId}`（repo.linkCards），
       // 上面按字段重映射 fromCardId/toCardId 后必须同步重算 id，否则去重重定向后

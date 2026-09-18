@@ -8,9 +8,10 @@
 //   3) 混合检索：关键词命中（BM25 思路，词频加权）+ 语义相似（余弦）→ reranking 融合排序
 //   4) 模型签名(modelSig)：embedding 模型变更时自动标记全量重建
 
-import { db, uid } from '../db.js';
+import { db } from '../db.js';
 import { embedBatch, embed, getModelSig, modelSigFor } from './embedding.js';
 import { computeStaleItems } from './stale.js';
+import { embeddingRowId, embeddingRowIdsFor } from './embedding-key.js';
 import { scoreSemantic, scoreKeyword, fuseResults } from './retrieval-core.js';
 // round67：RAG 片段是「图片进 AI 上下文」的主要入口，截断必须保护图片引用完整性
 // （朴素 slice 会把 56 字符的 `![image](sxy-img://uuid)` 切成残缺 id → 图静默丢失）
@@ -19,6 +20,127 @@ import { clipText } from '../utils/clip.js';
 const CHUNK_LEN = 500; // 文档分块长度
 const CHUNK_OVERLAP = 50; // 分块重叠（避免切断语义）
 const BATCH = 16; // embedding 批量大小
+
+// ---------- 向量行的确定性主键 / 历史行归一（round112 P1）----------
+// id 形态、以及「为什么不再用 uid()、为什么 id 里不放 modelSig」的完整推演见
+// agent/embedding-key.js 的头注释（那里是唯一事实来源，本文件只消费它）。
+const REKEY_FLAG = 'sxy_embeddings_rekey_v1'; // 一次性归一完成标记（本机 localStorage，不同步）
+
+/** 行时间戳（非法值归 0，仅用于挑「同 chunk 多条历史行」里的赢家） */
+function rowTs(v) {
+  return (typeof v === 'number' && Number.isFinite(v)) ? v : 0;
+}
+
+/**
+ * 删除一批向量行，**逐条写墓碑**（kind='embedding'）。
+ *
+ * 为什么必须写墓碑：embeddings 是同步表（merge:'idOnly'），absence ≠ deletion ——
+ * 只删行不写墓碑时，对端/中枢持有的旧行会在下次同步被原样推回，
+ * 「重新分块/重建索引后删掉的旧行」永远去不掉（跨端不收敛，即 P1 的另一半）。
+ *
+ * @param {Array} rows 候选行（调用方已按 sourceId 查出）
+ * @param {Set<string>} keepIds 本次**紧接着就会被重写**的 id —— 绝不墓碑：
+ *   同毫秒下 deletedAt 可能等于新行的 updatedAt，而 applyTombstones 判定
+ *   `livenessTs <= deletedAt` 即删 → 会把刚落库的新行自己删掉。
+ * @param {number} ts 删除时刻
+ * @returns {Promise<number>} 实际删除行数
+ */
+async function dropEmbeddingRows(rows, keepIds, ts) {
+  const stale = (rows || []).filter((r) => r && r.id && !keepIds.has(r.id));
+  if (!stale.length) return 0;
+  await db.transaction('rw', db.embeddings, db.tombstones, async () => {
+    await db.embeddings.bulkDelete(stale.map((r) => r.id));
+    await db.tombstones.bulkPut(stale.map((r) => ({ id: r.id, kind: 'embedding', deletedAt: ts })));
+  });
+  return stale.length;
+}
+
+function markRekeyDone() {
+  try { localStorage.setItem(REKEY_FLAG, '1'); } catch { /* 无 localStorage（Node 单测）忽略 */ }
+}
+
+/**
+ * 把历史「随机 id」向量行归一到确定性 id（一次性、幂等、有界）。
+ *
+ * 为什么非做不可：升级前每台设备各自 uid() 建行 → 同一个 chunk 在库里躺着 N 条**异 id** 行，
+ * 且都是「有效行」（没有墓碑语义能让它们消失）。只改写入逻辑修不了**已存在**的重复：
+ * 这些行不会再被任何写入路径触碰。这里逐行原地改键（**保留原向量**，不重算、不花 token），
+ * 并给旧 id 写墓碑令对端/中枢一并丢弃 —— 两端各跑一遍后就收敛到同一个 id。
+ *
+ * 赢家规则（两台设备独立计算也必须一致，故全部是可比较的量）：
+ *   已是确定性 id > updatedAt 新 > id 字典序大者。
+ *
+ * @param {{maxRows?:number, force?:boolean}} [opt] maxRows 限制本次处理的 chunk 组数（分批迁移）；
+ *   force=true 忽略完成标记（供「重置索引」类入口显式重跑）。
+ * @returns {Promise<{scanned:number, rekeyed:number, merged:number, done:boolean}>}
+ */
+export async function migrateLegacyEmbeddingIds(opt = {}) {
+  const maxRows = Number.isInteger(opt.maxRows) && opt.maxRows > 0 ? opt.maxRows : 5000;
+  const doneFlag = (() => { try { return localStorage.getItem(REKEY_FLAG) === '1'; } catch { return false; } })();
+  if (doneFlag && !opt.force) return { scanned: 0, rekeyed: 0, merged: 0, done: true };
+
+  const rows = await db.embeddings.toArray();
+  if (!rows.length) { markRekeyDone(); return { scanned: 0, rekeyed: 0, merged: 0, done: true }; }
+
+  // 按确定性 id 分组：一组 = 同一个 chunk 的全部历史行（正常情况下只有 1 条）
+  const groups = new Map();
+  for (const r of rows) {
+    const cid = embeddingRowId(r.sourceType, r.sourceId, r.chunkIdx);
+    if (!cid) continue; // 无 sourceId 的脏行不碰（保持原样，交由人工/后续清理）
+    const g = groups.get(cid);
+    if (g) g.push(r); else groups.set(cid, [r]);
+  }
+
+  const kill = [];  // 需删除（含墓碑）的行 id
+  const write = []; // 需按确定性 id 重写的行（内容不变，仅改键）
+  let rekeyed = 0, merged = 0;
+  let processed = 0, truncated = false;
+  for (const [cid, g] of groups) {
+    if (processed >= maxRows) { truncated = true; break; }
+    processed++;
+    const rank = (r) => (r.id === cid ? 2 : 0); // 已是确定性 id 者优先
+    const winner = g.slice().sort((a, b) => (rank(b) - rank(a))
+      || (rowTs(b.updatedAt) - rowTs(a.updatedAt))
+      || String(b.id).localeCompare(String(a.id)))[0];
+    for (const r of g) if (r !== winner) kill.push(r.id);
+    if (g.length > 1) merged += g.length - 1;
+    if (winner.id !== cid) {
+      // 旧随机 id：先删（带墓碑）再以确定性 id 写回同一份向量
+      kill.push(winner.id);
+      write.push({ ...winner, id: cid });
+      rekeyed++;
+    }
+  }
+
+  const ts = Date.now();
+  const CHUNK = 500; // 分批：一次 bulkPut 上万行会长时间占住事务，低端机上可能触发超时
+  for (let i = 0; i < kill.length; i += CHUNK) {
+    const ks = kill.slice(i, i + CHUNK);
+    await db.transaction('rw', db.embeddings, db.tombstones, async () => {
+      await db.embeddings.bulkDelete(ks);
+      await db.tombstones.bulkPut(ks.map((id) => ({ id, kind: 'embedding', deletedAt: ts })));
+    });
+  }
+  for (let i = 0; i < write.length; i += CHUNK) {
+    await db.embeddings.bulkPut(write.slice(i, i + CHUNK));
+  }
+
+  // 只有在「整表都过了一遍」时才落完成标记；被 maxRows 截断则下次启动继续
+  if (!truncated) markRekeyDone();
+  return { scanned: rows.length, rekeyed, merged, done: !truncated };
+}
+
+// 同一次会话内只跑一次归一（ensureIndex 在对话链路上，每次都全表扫代价不可接受）
+let rekeyOnce = null;
+function ensureRekeyOnce() {
+  if (!rekeyOnce) {
+    rekeyOnce = migrateLegacyEmbeddingIds().catch((e) => {
+      console.warn('[retrieval] 向量行 id 归一失败（不影响检索，下次启动重试）:', e?.message || e);
+      return null;
+    });
+  }
+  return rekeyOnce;
+}
 
 // ---------- 文本预处理 ----------
 
@@ -62,18 +184,24 @@ export async function indexCard(card) {
   if (!text.trim()) return;
   const { vectors, degraded } = await embedBatch([text]);
   const vec = vectors[0];
-  const modelSig = modelSigFor(getModelSig(), degraded);
-  const existing = await db.embeddings.where('sourceId').equals(card.id).first();
+  const rowSig = modelSigFor(getModelSig(), degraded);
+  const id = embeddingRowId('card', card.id, 0);
+  const ts = Date.now();
+  // 同源历史行（旧版随机 id）就地清理 + 墓碑 → 一张卡全库只留一行。
+  // 旧实现是 `existing?.id || uid()`（**沿用**已有随机 id）：那等于把随机 id 世代传承，
+  // 两端各自的随机 id 永远合不到一起 —— 重复堆积就是这么产生的。
+  const prev = await db.embeddings.where('sourceId').equals(card.id).and((e) => e.sourceType === 'card').toArray();
+  await dropEmbeddingRows(prev, new Set([id]), ts);
   await db.embeddings.put({
-    id: existing?.id || uid(),
+    id,
     sourceType: 'card',
     sourceId: card.id,
     chunkIdx: 0,
     text,
     vector: vec,
     subject: card.subject || '',
-    updatedAt: Date.now(),
-    modelSig,
+    updatedAt: ts,
+    modelSig: rowSig,
   });
 }
 
@@ -89,9 +217,17 @@ export async function indexDoc(doc) {
   if (!doc?.id) return;
   const chunks = chunkText(doc.content || doc.text || '');
   const modelSig = getModelSig();
-  await db.embeddings.where('sourceId').equals(doc.id).delete(); // 删除旧 chunk
-  if (!chunks.length) return;
   const subject = docSubject(doc);
+  const ts = Date.now();
+  // 本次要写的 id 集合（确定性）。删除**不在集合内**的旧行：
+  //   · 历史随机 id 行 —— 不清就等于「同一块文档两份向量」，且旧行为对端常驻；
+  //   · 重新分块后不再存在的块（旧文更长 → 现在只有 3 块，旧的第 4/5 块必须消失）
+  //     —— 必须写墓碑，否则对端/中枢会把它们推回来（idOnly 下 absence ≠ deletion）。
+  // 集合内的 id 由下方 put 原地覆盖，故不墓碑（同 ms 自删风险，见 dropEmbeddingRows）。
+  const keepIds = embeddingRowIdsFor('doc', doc.id, chunks.length || 1);
+  const prev = await db.embeddings.where('sourceId').equals(doc.id).and((e) => e.sourceType === 'doc').toArray();
+  await dropEmbeddingRows(prev, keepIds, ts);
+  if (!chunks.length) return;
   for (let i = 0; i < chunks.length; i += BATCH) {
     const batch = chunks.slice(i, i + BATCH);
     const { vectors: vecs, degraded } = await embedBatch(batch);
@@ -99,7 +235,7 @@ export async function indexDoc(doc) {
     const rowSig = modelSigFor(modelSig, degraded);
     for (let j = 0; j < batch.length; j++) {
       await db.embeddings.put({
-        id: uid(),
+        id: embeddingRowId('doc', doc.id, i + j),
         sourceType: 'doc',
         sourceId: doc.id,
         chunkIdx: i + j,
@@ -163,6 +299,9 @@ export async function getStaleDocs(limit = 50) {
 
 /** 增量索引：处理过期卡片+文档（轻量，可后台跑） */
 export async function ensureIndex(maxCards = 50, maxDocs = 10) {
+  // 会话内首次增量索引时顺带做一次历史随机 id 归一（幂等、有完成标记，之后调用零成本）。
+  // 放在这里而不是 app 启动：① 它是 RAG 链路的前置数据卫生；② 避免拖慢首屏。
+  await ensureRekeyOnce();
   const [staleCards, staleDocs] = await Promise.all([getStaleCards(maxCards), getStaleDocs(maxDocs)]);
   let indexed = 0;
   const modelSig = getModelSig();
@@ -174,9 +313,13 @@ export async function ensureIndex(maxCards = 50, maxDocs = 10) {
     const { vectors: vecs, degraded } = await embedBatch(texts);
     const rowSig = modelSigFor(modelSig, degraded);
     for (let j = 0; j < batch.length; j++) {
-      const existing = await db.embeddings.where('sourceId').equals(batch[j].id).first();
+      const id = embeddingRowId('card', batch[j].id, 0);
+      // 与 indexCard 同款：清掉同源历史行（含旧随机 id）并写墓碑，只留确定性 id 一行
+      const prev = await db.embeddings.where('sourceId').equals(batch[j].id)
+        .and((e) => e.sourceType === 'card').toArray();
+      await dropEmbeddingRows(prev, new Set([id]), now);
       await db.embeddings.put({
-        id: existing?.id || uid(),
+        id,
         sourceType: 'card',
         sourceId: batch[j].id,
         chunkIdx: 0,
@@ -199,6 +342,13 @@ export async function ensureIndex(maxCards = 50, maxDocs = 10) {
 
 /** 全量重建索引（模型变更或手动触发） */
 export async function rebuildIndex() {
+  // 只清本端、**不写墓碑**，理由有三（此前审计把它当成"缺少墓碑"的缺陷，实测这样更对）：
+  //   ① 被清掉的行全部是确定性 id，紧接着就被 ensureIndex 以**同一个 id** 原地重写；
+  //      给它们写墓碑会有同毫秒自删风险（applyTombstones 判 `liveness <= deletedAt`）；
+  //   ② 对端持有的同 id 行确实会被推回，但同 id 在 idOnly 下与本地行幂等合并 ——
+  //      不再产生重复，也不会跨端来回删（随机 id 时代才会"永远清不掉"）；
+  //   ③ 上万条墓碑是一次同步包体积尖峰，而收益为零。
+  // 历史随机 id 行由 migrateLegacyEmbeddingIds 统一墓碑化（见其注释）。
   await db.embeddings.clear();
   return ensureIndex(9999, 999);
 }
