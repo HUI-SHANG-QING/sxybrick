@@ -38,6 +38,10 @@ export const zh = {
 
   // ——— 生成态保存 ———
   saveGenerated: '💾 保存这些关联到知识库',
+  saveToMindmap: '🗂️ 存为思维导图（随数据包同步）',
+  aiGraphTitle: 'AI 知识图谱快照',
+  aiGraphRoot: '知识图谱',
+  savedToMindmap: '已存入知识库：{title}（在思维导图页可查看）',
 
   // ——— 失效关联提示 ———
   deadPrefix: '⚠️ 有 ',
@@ -128,6 +132,10 @@ export const en = {
 
   // ——— Generated save ———
   saveGenerated: '💾 Save these links to knowledge base',
+  saveToMindmap: '🗂️ Save as mind map (syncs with data pack)',
+  aiGraphTitle: 'AI knowledge graph snapshot',
+  aiGraphRoot: 'Knowledge Graph',
+  savedToMindmap: 'Saved to knowledge base: {title} (view it on the Mind Map page)',
 
   // ——— Dead-edge notice ———
   deadPrefix: '⚠️ ',

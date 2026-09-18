@@ -13,7 +13,7 @@ import { toast } from '../utils/toast.js';
 import { logError } from '../utils/errorLog.js';
 import { db } from '../db.js';
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
-import { listGraphEdges, createGraphEdge, deleteGraphEdge } from '../repo.js';
+import { listGraphEdges, createGraphEdge, deleteGraphEdge, createMindmap } from '../repo.js';
 import { agentSystem } from '../agent/index.js';
 import { recommendGraphEdges } from '../intelligence.js';
 import { resolveGraph } from '../algorithms/graph-resolve.js';
@@ -377,8 +377,52 @@ async function generate() {
     activeId.value = ''; mode.value = 'generated';
     nextTick(() => { if (!chart) ensureChart(); render(); });
     if (!generatedNodes.value.length) toast(t('views.knowledgeGraph.noNodes'), 'error');
+    // round104 历史留存：AI 生成成功即自动落一张思维导图（mindmaps 表随数据包同步），
+    // 刷新/换设备后可在思维导图页回看本次生成结果——不再只活在内存里。
+    // 用户手动点「保存关联/存为导图」时不会重复：手动路径存图谱边或用户命名导图。
+    if (generatedNodes.value.length) {
+      try {
+        await saveGeneratedToMindmap({ silent: true });
+      } catch (e) { logError(e, { where: 'KnowledgeGraph.generate.autoHistory' }); }
+    }
   } catch (e) { toast(e.message, 'error'); }
   finally { loading.value = false; }
+}
+
+// round104：AI 生成（generate）的结果此前只写内存 ref，刷新即丢——补「存入知识库」：
+// 落为一张思维导图（db.mindmaps，round101 已确认该表在 SYNC_TABLES，随数据包同步）。
+// 与「Agent 智能构建」的 link_cards 落库路径互为补充：AI 生成 = 整图快照；Agent 构建 = 逐边持久化。
+async function saveGeneratedToMindmap(opts = {}) {
+  const silent = opts?.silent === true; // round104 历史留存：自动留存时静默，不打扰用户
+  if (!generatedNodes.value.length) return;
+  loading.value = true;
+  try {
+    // 组装 root 树：每个知识点一个子节点；有关联的边挂为子节点的 children（保留关系标签）
+    const kids = generatedNodes.value.map((n) => ({
+      id: `kg-${n.id}`,
+      label: n.subject ? `${n.label}（${n.subject}）` : n.label,
+      children: [],
+    }));
+    const byId = new Map(kids.map((k) => [k.id, k]));
+    for (const e of generatedEdges.value) {
+      const parent = byId.get(`kg-${e.from}`);
+      const child = byId.get(`kg-${e.to}`);
+      if (parent && child) parent.children.push({ id: `kg-${e.from}-${e.to}`, label: `${e.label}→ ${child.label}`, children: [] });
+    }
+    // 历史留存标题带时间戳，多次生成互不覆盖、按名可辨
+    const baseTitle = t('views.knowledgeGraph.aiGraphTitle');
+    const title = silent ? `${baseTitle} · ${new Date().toLocaleString()}` : baseTitle;
+    const mm = await createMindmap({
+      title,
+      root: { id: 'kg-root', label: t('views.knowledgeGraph.aiGraphRoot'), children: kids },
+    });
+    if (!silent) toast(t('views.knowledgeGraph.savedToMindmap', undefined, { title: mm.title }), 'success');
+    // 埋点用既有具名方法（T 无通用 track 方法；round111 审计修正：原 T.track 在 try 内被静默吞掉）
+    T.mindmapSave(generatedNodes.value.length);
+  } catch (e) {
+    logError(e, { where: 'KnowledgeGraph.saveGeneratedToMindmap' });
+    if (!silent) toast(e.message, 'error');
+  } finally { loading.value = false; }
 }
 
 // Agent 智能构建：走 graph-builder agent 的 ReAct 工具调用循环
@@ -542,6 +586,9 @@ watch(mode, () => nextTick(() => { if (nodes.value.length) render(); }));
 
     <div v-if="mode === 'generated' && generatedEdges.length" style="text-align:center;margin-top:10px">
       <button class="btn primary small" @click="saveGenerated">{{ t('views.knowledgeGraph.saveGenerated') }}</button>
+      <!-- round104：AI 生成整图快照落库（存为思维导图，随数据包同步）——
+           与上面的 saveGenerated（逐边存图谱库）互补，二者都不点则刷新即丢 -->
+      <button class="btn small" :disabled="loading" @click="saveGeneratedToMindmap">{{ t('views.knowledgeGraph.saveToMindmap') }}</button>
     </div>
 
     <div v-if="deadCount" class="dead-box">
