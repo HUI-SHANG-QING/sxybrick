@@ -1185,9 +1185,6 @@ async function rescueAll() {
   border: none;
   box-shadow: none;
   background: var(--panel);
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  box-shadow: 0 20px 60px rgba(0,0,0,.18);
   display: flex;
   flex-direction: column;
   overflow: hidden;

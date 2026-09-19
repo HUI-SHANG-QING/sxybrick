@@ -50,3 +50,15 @@ test('字号放大只作用于预览层，不得污染全局 Markdown 渲染', (
   assert.ok(!/\.md-body\s*\{[^}]*font-size/.test(styleBlock), '不要在 Cards.vue 里改 .md-body 的字号');
   assert.match(CARDS, /<style scoped>/, '整块样式必须是 scoped，避免外泄到其他页面');
 });
+
+test('全屏样式不得被同一规则里的后续声明静默覆盖', () => {
+  // 踩过一次：新加的 border-radius:0 / border:none / box-shadow:none 后面还跟着
+  // 旧的 border-radius:var(--radius) / border:1px / box-shadow:0 20px 60px，
+  // CSS 同优先级下后者生效 —— 于是"去圆角描边阴影"这层意图实际没生效，还留下死代码。
+  const start = CARDS.indexOf('.preview-wrap {');
+  const block = CARDS.slice(start, CARDS.indexOf('.preview-head', start));
+  const count = (re) => (block.match(re) || []).length;
+  assert.equal(count(/border-radius\s*:/g), 1, `border-radius 应只声明一次，实际 ${count(/border-radius\s*:/g)} 次`);
+  assert.equal(count(/box-shadow\s*:/g), 1, `box-shadow 应只声明一次，实际 ${count(/box-shadow\s*:/g)} 次`);
+  assert.equal(count(/[^-]border\s*:/g), 1, `border 应只声明一次，实际 ${count(/[^-]border\s*:/g)} 次`);
+});
