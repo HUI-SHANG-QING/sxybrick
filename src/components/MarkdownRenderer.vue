@@ -81,21 +81,32 @@ function render(src) {
   text = text.replace(/`([^`\n]+)`/g, (m, code) =>
     put(`<code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code>`));
 
-  // 2.5) 强调扩展：==高亮==（黄底）/ !!标红!!（红字加粗）。
-  //   放在行内代码之后 → 代码里的 == 已被占位符替换，不会被误处理；
-  //   放在 marked 之前 → 由 marked 决定所在块级上下文，只是把标记换成行内 HTML。
-  //   用 put() 走占位符管线，可同时绕过 marked 的转义与后续净化前的一致性处理。
-  text = text.replace(/==([^=\n]+?)==/g, (m, s) => put(`<mark class="md-hl">${escapeText(s)}</mark>`));
-  text = text.replace(/!!([^!\n]+?)!!/g, (m, s) => put(`<span class="md-red">${escapeText(s)}</span>`));
-  // round119：补齐学习笔记常用的其余四色，与红、黄共同构成一套固定 6 色强调体系
-  //   （蓝=定义/概念/公式 · 绿=答案/解法/已掌握 · 橙=高频考点 · 紫=总结/框架/难点）。
-  //   与上面两条同样走 put() 占位符管线：内容一律 escapeText() 转义后再拼进 HTML，
-  //   杜绝用户原文被当标签解析（XSS）。正则均要求「成对 + 内容不含该标记字符 + 不跨行」，
-  //   避免误伤正文里孤立的 ++ / @@ / %% / ^^ 等普通字符。
-  text = text.replace(/\+\+([^+\n]+?)\+\+/g, (m, s) => put(`<span class="md-green">${escapeText(s)}</span>`));
-  text = text.replace(/@@([^@\n]+?)@@/g, (m, s) => put(`<span class="md-blue">${escapeText(s)}</span>`));
-  text = text.replace(/%%([^%\n]+?)%%/g, (m, s) => put(`<span class="md-purple">${escapeText(s)}</span>`));
-  text = text.replace(/\^\^([^^\n]+?)\^\^/g, (m, s) => put(`<span class="md-orange">${escapeText(s)}</span>`));
+  // 2.5) 强调扩展：6 色内联标记 —— 黄底 / 红 / 蓝 / 绿 / 橙 / 紫。
+  //   放在行内代码之后 → 代码里的标记已被占位符替换，不会被误处理；
+  //   放在 marked 之前 → 由 marked 决定所在块级上下文，只是把标记换成行内 HTML；
+  //   走 put() 占位符管线 → 内容一律 escapeText() 转义后再拼进 HTML，杜绝用户原文被当标签解析。
+  //
+  //   ⚠️ 边界守卫（round119 审计补）：光靠「成对 + 不跨行」还不够 ——
+  //     `i++ 与 ++j` 里的两个 ++ 会被误配成一对，把中间的「与」染成绿色；
+  //     而编程 / 算法笔记里 `i++`、`a++` 极其常见，一旦染色就是实打实的内容错乱。
+  //     规则：标记的**外侧紧邻字符**若是字母/数字/下划线，就不认这是标记（原样保留）。
+  //     用 replace 回调取 offset 判断，不用 lookbehind（避免旧 Safari 直接语法报错）。
+  //     只挡"词字符"：中文紧贴（`绿色++G++`）、行首、以及 `**==Y==**` 这类仍照常识别。
+  const WORD = /[0-9A-Za-z_]/;
+  const emph = (re, tag, cls) => {
+    text = text.replace(re, (m, s, offset, whole) => {
+      const before = offset > 0 ? whole[offset - 1] : '';
+      const after = offset + m.length < whole.length ? whole[offset + m.length] : '';
+      if (WORD.test(before) || WORD.test(after)) return m;
+      return put(`<${tag} class="${cls}">${escapeText(s)}</${tag}>`);
+    });
+  };
+  emph(/==([^=\n]+?)==/g, 'mark', 'md-hl');
+  emph(/!!([^!\n]+?)!!/g, 'span', 'md-red');
+  emph(/\+\+([^+\n]+?)\+\+/g, 'span', 'md-green');
+  emph(/@@([^@\n]+?)@@/g, 'span', 'md-blue');
+  emph(/%%([^%\n]+?)%%/g, 'span', 'md-purple');
+  emph(/\^\^([^^\n]+?)\^\^/g, 'span', 'md-orange');
 
   // 3) 本地图片：![alt](sxy-img://id) → <img src="blobURL">
   // alt 来自用户输入，必须转义后再拼进属性，否则 `x" onerror="alert(1)` 可闭合标签注入

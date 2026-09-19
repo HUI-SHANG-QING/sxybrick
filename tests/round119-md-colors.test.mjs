@@ -28,27 +28,34 @@ const I18N = readFileSync(new URL('../src/i18n/index.js', import.meta.url), 'utf
 // ---------------------------------------------------------------- 渲染规则
 
 test('6 色强调语法齐备（黄/红/蓝/绿/橙/紫）', () => {
+  // 用「关键片段包含」而不是精确整行正则：源码里换行/空格一调整就误报，维护成本高
   const rules = [
-    [/==\(\[\^=\\n\]\+\?\)==/, 'md-hl', '黄底高亮'],
-    [/!!\(\[\^!\\n\]\+\?\)!!/, 'md-red', '红色重点'],
-    [/\\\+\\\+\(\[\^\+\\n\]\+\?\)\\\+\\\+/, 'md-green', '绿色答案'],
-    [/@@\(\[\^@\\n\]\+\?\)@@/, 'md-blue', '蓝色定义'],
-    [/%%.*?%%/, 'md-purple', '紫色总结'],
-    [/\\\^\\\^.*?\\\^\\\^/, 'md-orange', '橙色考点'],
+    ['==([^=\\n]+?)==', 'md-hl', '黄底高亮'],
+    ['!!([^!\\n]+?)!!', 'md-red', '红色重点'],
+    ['\\+\\+([^+\\n]+?)\\+\\+', 'md-green', '绿色答案'],
+    ['@@([^@\\n]+?)@@', 'md-blue', '蓝色定义'],
+    ['%%([^%\\n]+?)%%', 'md-purple', '紫色总结'],
+    ['\\^\\^([^^\\n]+?)\\^\\^', 'md-orange', '橙色考点'],
   ];
-  for (const [re, cls, label] of rules) {
-    assert.match(MD, re, `缺 ${label} 的匹配规则（${cls}）`);
-    assert.ok(MD.includes(`"${cls}"`), `规则应产出 class="${cls}"`);
+  for (const [reSrc, cls, label] of rules) {
+    assert.ok(MD.includes(reSrc), `缺 ${label} 的匹配规则（${cls}）`);
+    assert.ok(MD.includes(`'${cls}'`), `规则应产出 class="${cls}"`);
   }
 });
 
 test('强调内容必须转义后再拼进 HTML（防用户原文被当标签解析）', () => {
-  // 每一处 put(<span ...>) 里的插值都必须是 escapeText(...)
-  const puts = MD.match(/put\(`<(?:mark|span)[^`]*`\)/g) || [];
-  assert.ok(puts.length >= 6, `应有至少 6 条强调规则，实际 ${puts.length}`);
-  for (const p of puts) {
-    assert.match(p, /escapeText\(/, `未转义：${p.slice(0, 60)}`);
-  }
+  assert.match(MD, /const emph = \(re, tag, cls\) => \{[\s\S]{0,400}?escapeText\(s\)/,
+    'emph() 里拼接前必须 escapeText 转义');
+});
+
+test('⭐ 边界守卫：i++ / ++j 这类代码不能被误配成绿色标记', () => {
+  // 光"成对 + 不跨行"不够：`i++ 与 ++j` 的两个 ++ 会被误配成一对，
+  // 把中间的「与」染色 —— 算法笔记里 i++ 极常见，必须挡住。
+  assert.match(MD, /const WORD = \/\[0-9A-Za-z_\]\//, '要有词字符边界判定');
+  assert.match(MD, /if \(WORD\.test\(before\) \|\| WORD\.test\(after\)\) return m;/,
+    '标记外侧紧邻字母/数字时，必须原样返回、不做替换');
+  // 且不能用 lookbehind（旧 Safari 会直接语法报错）
+  assert.ok(!/\(\?<[=!]/.test(MD), '不要用 lookbehind（旧 Safari 不支持，会整包语法错误）');
 });
 
 // ---------------------------------------------------------------- 占位符隔离（本轮踩坑点）
