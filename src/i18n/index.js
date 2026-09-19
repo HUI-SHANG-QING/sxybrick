@@ -336,6 +336,9 @@ const zh = {
       back: '背面',
       close: '关闭',
     },
+    cardModal: {
+      mdSyntax: '强调语法：**加粗** · ==黄色高亮== · !!红色重点!! · @@蓝色定义/概念@@ · ++绿色答案/已掌握++ · ^^橙色高频考点^^ · %%紫色总结/框架%%',
+    },
   },
 
   // ---------------- 通用工具文案（src/utils/llm-json.js 等） ----------------
@@ -634,6 +637,9 @@ const en = {
       front: 'Front',
       back: 'Back',
       close: 'Close',
+    },
+    cardModal: {
+      mdSyntax: 'Emphasis: **bold** · ==highlight== · !!key point!! · @@definition / formula@@ · ++answer / mastered++ · ^^hot spot^^ · %%summary / framework%%',
     },
   },
 

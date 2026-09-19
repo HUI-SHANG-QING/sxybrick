@@ -50,7 +50,13 @@ function escapeText(v) {
 
 function render(src) {
   const stash = [];
-  const put = (html) => { stash.push(html); return `@@MDS${stash.length - 1}@@`; };
+  // round119：占位符改用「私用区字符」包裹，不再用 @@。
+  //   事故：@@ 是**用户可输入的可见符号**——新加的 @@蓝色@@ 强调语法会把上一批占位符
+  //   （@@MDS0@@）当成自己的内容二次吞噬，导致 ==高亮== / !!红!! 被渲染成字符串 "MDS0"。
+  //   私用区字符（U+E000 / U+E001）用户打不出来，从根上消除这一类符号冲突。
+  const PH_L = '\uE000';
+  const PH_R = '\uE001';
+  const put = (html) => { stash.push(html); return `${PH_L}MDS${stash.length - 1}${PH_R}`; };
   let text = src || '';
 
   // 1) 代码块优先保护
@@ -81,6 +87,15 @@ function render(src) {
   //   用 put() 走占位符管线，可同时绕过 marked 的转义与后续净化前的一致性处理。
   text = text.replace(/==([^=\n]+?)==/g, (m, s) => put(`<mark class="md-hl">${escapeText(s)}</mark>`));
   text = text.replace(/!!([^!\n]+?)!!/g, (m, s) => put(`<span class="md-red">${escapeText(s)}</span>`));
+  // round119：补齐学习笔记常用的其余四色，与红、黄共同构成一套固定 6 色强调体系
+  //   （蓝=定义/概念/公式 · 绿=答案/解法/已掌握 · 橙=高频考点 · 紫=总结/框架/难点）。
+  //   与上面两条同样走 put() 占位符管线：内容一律 escapeText() 转义后再拼进 HTML，
+  //   杜绝用户原文被当标签解析（XSS）。正则均要求「成对 + 内容不含该标记字符 + 不跨行」，
+  //   避免误伤正文里孤立的 ++ / @@ / %% / ^^ 等普通字符。
+  text = text.replace(/\+\+([^+\n]+?)\+\+/g, (m, s) => put(`<span class="md-green">${escapeText(s)}</span>`));
+  text = text.replace(/@@([^@\n]+?)@@/g, (m, s) => put(`<span class="md-blue">${escapeText(s)}</span>`));
+  text = text.replace(/%%([^%\n]+?)%%/g, (m, s) => put(`<span class="md-purple">${escapeText(s)}</span>`));
+  text = text.replace(/\^\^([^^\n]+?)\^\^/g, (m, s) => put(`<span class="md-orange">${escapeText(s)}</span>`));
 
   // 3) 本地图片：![alt](sxy-img://id) → <img src="blobURL">
   // alt 来自用户输入，必须转义后再拼进属性，否则 `x" onerror="alert(1)` 可闭合标签注入
@@ -107,7 +122,7 @@ function render(src) {
   let html = marked.parse(text);
 
   // 6) 还原占位符
-  html = html.replace(/@@MDS(\d+)@@/g, (m, i) => stash[Number(i)] ?? '');
+  html = html.replace(/\uE000MDS(\d+)\uE001/g, (m, i) => stash[Number(i)] ?? '');
 
   // 7) 净化（P0 安全）：本组件是 v-html 出口，marked@4 已无内置 sanitize，
   //    而卡片内容可来自 apkg 导入 / AI 生成 / 资料解析，必须净化后再交给 v-html。

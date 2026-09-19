@@ -11,6 +11,7 @@ import { getSubjects, getTags, createCard, updateCard, WRONG_REASONS, wrongReaso
   linkCards, unlinkCards, cardsOfCard } from '../repo.js';
 import { listWordCards } from '../word-repo.js';
 import { T } from '../utils/telemetry.js';
+import { t } from '../i18n/index.js';
 import { putImage } from '../images.js';
 import { uid } from '../db.js';
 
@@ -482,9 +483,7 @@ async function close() {
           <input type="checkbox" v-model="preview" id="pv" />
           <label for="pv" style="margin:0">实时预览</label>
         </div>
-        <div class="hint" style="margin:-4px 0 6px">
-          强调语法：<code>**加粗**</code> · <code>==黄色高亮==</code> · <code>!!红色重点!!</code>
-        </div>
+        <div class="hint" style="margin:-4px 0 6px">{{ t('components.cardModal.mdSyntax') }}</div>
         <div v-if="preview" class="preview-grid">
           <div class="preview-pane"><div class="hint">正面预览</div><MarkdownRenderer :content="front" /></div>
           <div class="preview-pane"><div class="hint">背面预览</div><MarkdownRenderer :content="back" /></div>

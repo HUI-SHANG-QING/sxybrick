@@ -9,6 +9,7 @@
   --red: #dc2626;
   --amber: #d97706;
   --green: #16a34a;
+  --purple: #7c3aed;
   --radius: 10px;
   --toast-bg: #16202c;
   --code-bg: #f6f8fa;
@@ -28,6 +29,7 @@
   --red: #f87171;
   --amber: #f59e0b;
   --green: #34d399;
+  --purple: #a78bfa;
   --toast-bg: #30363d;
   --code-bg: #0d1117;
   --code-inline: #252c3a;
@@ -149,6 +151,13 @@ input, select, textarea { font: inherit; color: inherit; }
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
 .md-body .md-red { color: var(--red, #dc2626); font-weight: 800; }
+/* round119：补齐蓝 / 绿 / 紫 / 橙 —— 与红、黄共同构成一套固定的 6 色强调体系：
+   黄底=疑问待查 · 红=重点易错 · 蓝=定义概念公式 · 绿=答案解法已掌握 · 橙=高频考点 · 紫=总结框架难点。
+   全部走主题变量（带兜底值），深色 / 护眼主题下会自动换成对应的亮色，保证可读。 */
+.md-body .md-blue { color: var(--blue, #2563eb); font-weight: 700; }
+.md-body .md-green { color: var(--green, #16a34a); font-weight: 700; }
+.md-body .md-orange { color: var(--amber, #d97706); font-weight: 700; }
+.md-body .md-purple { color: var(--purple, #7c3aed); font-weight: 700; }
 
 /* 页面切换过渡 */
 .page-enter-active, .page-leave-active { transition: opacity .18s ease, transform .18s ease; }
