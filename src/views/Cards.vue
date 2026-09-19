@@ -1177,8 +1177,11 @@ async function rescueAll() {
      原先 min(1180px, 97vw) 在宽屏下仍留大片空白、长卡片要反复滚动；
      现在直接铺满视口（去掉圆角/描边/外阴影与遮罩留白）。
      可读性靠「内容列随屏宽留白 + 正文适度放大」保证，而不是靠压窄窗口。 */
-  width: 100vw;
-  height: 100vh;
+  /* ⚠️ 用 100% 而不是 100vw：100vw **包含竖直滚动条的宽度**，页面一旦出现纵向滚动，
+     预览层就会比可用宽度宽出十几像素 → 凭空多出一条横向滚动条（实测踩到）。
+     父级 .preview-mask 是 fixed + inset:0，其 100% 即视口可用宽高。 */
+  width: 100%;
+  height: 100%;
   max-width: none;
   max-height: none;
   border-radius: 0;

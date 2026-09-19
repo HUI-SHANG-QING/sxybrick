@@ -23,9 +23,13 @@ import { readFileSync } from 'node:fs';
 const CARDS = readFileSync(new URL('../src/views/Cards.vue', import.meta.url), 'utf8');
 
 test('预览层要全屏铺满（用户明确要求「直接做成全屏」）', () => {
-  assert.match(CARDS, /\.preview-wrap \{[\s\S]{0,600}?width: 100vw/, '宽度应铺满视口');
-  assert.match(CARDS, /\.preview-wrap \{[\s\S]{0,600}?height: 100vh/, '高度应铺满视口');
+  // ⚠️ 必须用 100% 而不是 100vw：100vw **包含竖直滚动条的宽度**，页面一旦有纵向滚动，
+  //    容器就比可用宽度宽出十几像素 → 凭空多出一条横向滚动条（实测踩到过）。
+  //    父级 .preview-mask 是 fixed + inset:0，其 100% 即视口可用宽高。
+  assert.match(CARDS, /\.preview-wrap \{[\s\S]{0,900}?width: 100%/, '宽度应铺满父级（视口可用宽）');
+  assert.match(CARDS, /\.preview-wrap \{[\s\S]{0,900}?height: 100%/, '高度应铺满');
   assert.match(CARDS, /\.preview-mask \{[^}]*padding: 0/, '遮罩不应再留边距');
+  assert.ok(!/width:\s*100vw/.test(CARDS), '不要用 100vw（含滚动条宽度，会产生横向滚动）');
   assert.ok(!/width: min\(1180px/.test(CARDS), '不应再保留 1180px 的居中卡片式宽度');
   assert.ok(!/width: min\(720px/.test(CARDS), '也不应回退到 720px');
 });
