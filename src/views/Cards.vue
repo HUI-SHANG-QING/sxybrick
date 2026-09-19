@@ -1170,14 +1170,20 @@ async function rescueAll() {
 .field-label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
 .chip.mini { font-size: 12px; padding: 2px 10px; }
 
-/* 卡片预览层：fixed 全屏半透明遮罩 + 居中容器 */
-.preview-mask { align-items: center; justify-content: center; padding: 12px; }
+/* 卡片预览层：全屏铺满 */
+.preview-mask { align-items: stretch; justify-content: stretch; padding: 0; }
 .preview-wrap {
-  /* round120：放大到接近整页 —— 原先 min(720px, 92vw) 在宽屏下只有窗口一半宽，
-     长卡片（题干 + 公式 + 笔记）要反复滚动，观感也显得"挤、不清晰"。
-     现在吃满可视宽度（上限 1180px 避免超宽屏行长过长难读），高度到 94vh。 */
-  width: min(1180px, 97vw);
-  max-height: 94vh;
+  /* round121：按用户要求做成**全屏**预览。
+     原先 min(1180px, 97vw) 在宽屏下仍留大片空白、长卡片要反复滚动；
+     现在直接铺满视口（去掉圆角/描边/外阴影与遮罩留白）。
+     可读性靠「内容列随屏宽留白 + 正文适度放大」保证，而不是靠压窄窗口。 */
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
   background: var(--panel);
   border-radius: var(--radius);
   border: 1px solid var(--line);
@@ -1194,10 +1200,15 @@ async function rescueAll() {
   flex-shrink: 0;
 }
 .preview-body {
-  padding: 14px 16px;
+  /* round121：全屏预览 —— 左右留白随屏宽增长（clamp），避免超宽屏上正文行长过长反而难读；
+     正文适度放大 + 放松行高，缓解"字小、看着不清爽"的观感。
+     只作用于预览层，不影响卡片列表 / 背诵页等其他处的 Markdown 渲染。 */
+  padding: 18px clamp(16px, 7vw, 140px) 32px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
+  font-size: 15px;
+  line-height: 1.75;
 }
 /* P2-3 AI 智能卡组生成：模式切换行 + 预览卡片 */
 .batch-mode-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
