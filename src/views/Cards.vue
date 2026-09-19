@@ -1171,10 +1171,13 @@ async function rescueAll() {
 .chip.mini { font-size: 12px; padding: 2px 10px; }
 
 /* 卡片预览层：fixed 全屏半透明遮罩 + 居中容器 */
-.preview-mask { align-items: center; justify-content: center; padding: 20px; }
+.preview-mask { align-items: center; justify-content: center; padding: 12px; }
 .preview-wrap {
-  width: min(720px, 92vw);
-  max-height: 90vh;
+  /* round120：放大到接近整页 —— 原先 min(720px, 92vw) 在宽屏下只有窗口一半宽，
+     长卡片（题干 + 公式 + 笔记）要反复滚动，观感也显得"挤、不清晰"。
+     现在吃满可视宽度（上限 1180px 避免超宽屏行长过长难读），高度到 94vh。 */
+  width: min(1180px, 97vw);
+  max-height: 94vh;
   background: var(--panel);
   border-radius: var(--radius);
   border: 1px solid var(--line);
