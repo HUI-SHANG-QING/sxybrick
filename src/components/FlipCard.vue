@@ -496,6 +496,25 @@ defineExpose({ flipped, showBack, doRate });
 .flip-inner.flipped .flip-front { visibility: hidden; }
 .flip-inner:not(.flipped) .flip-back { visibility: hidden; }
 
+/* ⚠️ 挡住主题 `.card-item:hover` 的位移（2026-09-20 round125 定案，国风「悬停左右互逆」真因）
+   两面都带 .card-item class（模板 `flip-face flip-front card-item`），因此会吃到各主题的
+   `.card-item:hover{transform:translateY(-2px) 之类}` —— 而它们**不是列表卡片**：两面用 grid
+   完全重叠、且共享父级 `.flip-inner.flipped{rotateY(180deg)}` 的同一次翻面 transform。
+   在 flat 上下文里父子 transform 相加，两面各自上浮 2px；真正可见的那面是旋转 180° 后的镜像
+   投影，垂直位移在屏幕上就表现成**水平位移** → 观感即「整张卡左右相互逆转 + 微微晃动」。
+   hover 的边框/阴影（颜色类）反馈不受影响，仍然保留。
+
+   ⚠️ 必须放在这里（组件 scoped）而不是 styles.css，理由是**特异性确定性**：
+   主题规则写作 `:root[data-style='x'] .card-item:hover`。`:root` 是伪类、要计入特异性，
+   加上 `[data-style]`、`.card-item`、`:hover` 共 **4 个 class 级** → (0,4,0)。
+   在 styles.css 里无论写 `.flip-face.card-item:hover`(3) 还是 `.flip-scene .flip-face.card-item:hover`(4)
+   都只是打平或不足，一旦打平就按「后来居上」，而主题块在 styles.css 更靠后 → 主题赢。
+   （2026-09-20 真机实测：`.flip-face.card-item:hover{transform:none}` 确实命中、
+   `matches(':hover')` 为真，computed 却仍是 `matrix(1,0,0,1,0,-2)`。）
+   放进 scoped 后，编译器会追加属性选择器 `[data-v-xxxx]`（再 +1 → (0,5,0)），
+   稳定压过任何主题写法；同时组件样式天然晚于全局样式表，顺序上也安全。 */
+.flip-scene .flip-face.card-item:hover { transform: none; }
+
 .options { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .opt {
   text-align: left; border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px;

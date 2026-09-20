@@ -203,3 +203,101 @@ test('FlipCard.vue：静止态必须是非 3D 上下文（文字清晰度的前�
   assert.ok(scene3d.some((b) => /perspective\s*:/.test(b)),
     '.flip-scene.flip-3d 必须提供 perspective，否则翻转没有透视立体感');
 });
+
+// ---------- 2026-09-20 round125：翻转卡悬停「左右互逆」闸门 ----------
+// 症状（用户反馈，仅国风主题）：卡片预览里鼠标悬停时，整张卡像被左右互相扭转。
+//
+// 真因：FlipCard 的两面**都带 .card-item class**（`flip-face flip-front card-item`），
+//   而主题的 `:root[data-style='x'] .card-item:hover{transform:translateY(-2px)}` 会因此
+//   作用到两面之上。两面在 flat 上下文里共享父级 `.flip-inner.flipped{rotateY(180deg)}`，
+//   位移与旋转叠加；真正可见的那一面是「旋转 180° 后的镜像投影」，垂直位移在屏幕上表现为
+//   水平位移 —— 所以观感不是「一起上浮」而是「左右互逆」。
+//
+// 修复判据（两件事都要成立，缺一不可）：
+//   A) 必须存在一条规则把翻转卡两面的 hover transform 归零；
+//   B) 那条规则的**特异性必须严格高于**主题的 `:root[data-style='x'] .card-item:hover`。
+//      ⚠️ 这是本轮最容易翻车的点：`:root` 是**伪类、计入特异性**，所以
+//      `:root[data-style='x'] .card-item:hover` 是 (0,3,0)，而最直觉的写法
+//      `.flip-face.card-item:hover` 同样是 (0,3,0) —— 打平后按「后来居上」，
+//      主题块在 styles.css 更靠后，于是主题赢、位移照旧。
+//      2026-09-20 真机实测：`.flip-face.card-item:hover{transform:none}` 明明命中
+//      （`matches(':hover')` 为真、规则出现在 matchedCSSRules 里），computed 却仍是
+//      `matrix(1, 0, 0, 1, 0, -2)` —— 就是被这条「打平靠后」的规则顶掉了。
+//      所以本条闸门**必须算出特异性并比较**，只检查「规则存在」是不够的（第一版就漏在这）。
+
+test('FlipCard.vue scoped：翻转卡两面必须挡掉主题 .card-item:hover 的位移（防左右互逆）', () => {
+  // ⚠️ 这条规则**必须在 FlipCard 的 scoped 样式里**，不能在 styles.css —— 见下面 B) 段的解释。
+  const scoped = stripComments(styleBlock(FLIP_CARD));
+  const ruleRe = /([^{}]+)\{([^}]*)\}/g;
+  const hits = [];
+  let m;
+  while ((m = ruleRe.exec(scoped))) {
+    const sel = m[1].trim();
+    const body = m[2];
+    if (!/:hover/.test(sel)) continue;
+    if (!/\.flip-face/.test(sel)) continue;
+    if (!/transform\s*:/.test(body)) continue;
+    hits.push({ sel, val: (/transform\s*:\s*([^;]+)/.exec(body) || [])[1]?.trim() });
+  }
+  assert.ok(
+    hits.length > 0,
+    'FlipCard.vue 的 scoped 样式里必须有一条针对翻转卡两面的 hover 规则把 transform 归零 —— '
+    + '否则主题的 `.card-item:hover{translateY(-2px)}` 会让两面各自上浮，'
+    + '与父级 rotateY(180deg) 叠加成「左右互逆」（2026-09-20 国风主题实测）',
+  );
+  for (const { sel, val } of hits) {
+    assert.equal(
+      val, 'none',
+      `翻转卡两面的 hover 必须把 transform 归零（当前 \`${sel} { transform: ${val} }\`）：`
+      + '任何位移都会与父级翻转旋转叠加，重演「悬停左右互逆」',
+    );
+  }
+
+  // ---- B) styles.css 里**不得**出现同类规则 ----
+  // 放进 scoped 才是确定性方案：主题规则 `:root[data-style='x'] .card-item:hover` 里 `:root`
+  // 是伪类、计入特异性 → (0,4,0)；styles.css 里任何写法最多打平，而打平按「后来居上」、
+  // 主题块在文件更靠后 → 主题赢（2026-09-20 真机实测：规则命中但 computed 仍是 translateY(-2px)）。
+  // scoped 编译后会追加 `[data-v-xxxx]` → (0,5,0)，且组件样式晚于全局样式表。
+  const globalCss = stripComments(STYLES);
+  const gRe = /([^{}]+)\{([^}]*)\}/g;
+  const dupes = [];
+  let g;
+  while ((g = gRe.exec(globalCss))) {
+    const sel = g[1].trim();
+    const body = g[2];
+    if (!/:hover/.test(sel)) continue;
+    if (!/\.flip-face/.test(sel)) continue;
+    if (!/transform\s*:\s*none/.test(body)) continue;
+    dupes.push(sel);
+  }
+  assert.deepEqual(
+    dupes, [],
+    'styles.css 里出现了「翻转卡两面 hover 归零」的同类规则，与 FlipCard.vue 的 scoped 规则重复：\n'
+    + dupes.join('\n')
+    + '\n重复定义会重新引入「谁生效看书写顺序」的不确定性（round123/124 的老毛病）。'
+    + '请只保留 scoped 里那一条 —— 它在 styles.css 里赢不了主题的特异性。',
+  );
+});
+
+test('所有主题：不得再给翻转卡所在的 .card-item:hover 加位移（防后人补主题时遗漏）', () => {
+  // 主题自带 .card-item:hover 是合法的（作用于卡片列表），这里只拦「专门给翻转卡加位移」。
+  const css = stripComments(STYLES);
+  const ruleRe = /([^{}]+)\{([^}]*)\}/g;
+  const offenders = [];
+  let m;
+  while ((m = ruleRe.exec(css))) {
+    const sel = m[1].trim();
+    const body = m[2];
+    if (!/:hover/.test(sel)) continue;
+    if (!/\.flip-scene[^{]*\.card-item/.test(sel)) continue;
+    const val = (/transform\s*:\s*([^;]+)/.exec(body) || [])[1];
+    if (val === undefined) continue;
+    if (/^none$/.test(val.trim())) continue;
+    offenders.push(`${sel} { transform: ${val.trim()} }`);
+  }
+  assert.deepEqual(
+    offenders, [],
+    '有规则给「翻转卡内的 .card-item」在悬停时加了位移，会与翻转 transform 打架：\n'
+    + offenders.join('\n'),
+  );
+});

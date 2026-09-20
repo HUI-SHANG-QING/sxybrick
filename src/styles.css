@@ -115,6 +115,16 @@ input, select, textarea { font: inherit; color: inherit; }
   transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
 }
 .card-item:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.07); border-color: #c8d2dc; }
+/* 翻转卡的正面/背面也带 .card-item class（见 FlipCard.vue 模板），但它们**不是列表卡片**：
+   它们靠 .flip-inner.flipped{transform:rotateY(180deg)} 共享同一次翻面 transform，且两面用
+   grid 完全重叠（grid-area:1/1）。若让它们各自吃主题的 .card-item:hover{translateY(-2px)}，
+   那个位移会和父级旋转**叠加**（flat 上下文下父子 transform 相加）→ 国风主题实测表现为
+   「鼠标悬停时整张卡左右相互逆转 + 微微晃动」（2026-09-20 定案；镜像投影把垂直位移呈现成水平位移）。
+   挡掉位移的规则**不在这里** —— 在 FlipCard.vue 的 scoped 样式里。原因：
+   主题规则是 `:root[data-style='x'] .card-item:hover`，`:root` 计入特异性 → 共 (0,4,0)；
+   本文件里任何写法都只能打平（打平即按「后来居上」，而主题块在本文件更靠后 → 主题赢）。
+   放进 scoped 后编译器追加 `[data-v-xxxx]` → (0,5,0) 稳定胜出。**不要在这里再补一条**，
+   否则又变成「重复定义打架」（round123/124 的老毛病）。 */
 .card-item .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 .tag-pill { background: var(--tag-bg); color: var(--tag-ink); font-size: 12px; border-radius: 6px; padding: 2px 8px; }
 .tag-pill.subj { background: var(--code-inline); color: var(--ink-2); }
