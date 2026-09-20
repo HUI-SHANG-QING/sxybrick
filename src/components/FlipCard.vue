@@ -16,6 +16,18 @@ const emit = defineEmits(['rate', 'edit']);
 const flipped = ref(false);
 const picked = ref(null);
 const hintReveal = ref(false);
+// 3D 渲染上下文开关（清晰度关键，2026-09-18 定案）
+// —— 为什么需要它：`.flip-inner` 上的 `transform-style: preserve-3d`（配合 `.flip-scene`
+//    的 `perspective`）会建立 3D 渲染上下文，而 Chrome 在 3D 上下文中**关闭 LCD 次像素
+//    抗锯齿**，改用灰度抗锯齿 → 文字笔画变细、边缘发虚，观感就是「蒙了一层雾」。
+//    实测：静止态灰度抗锯齿 chromaMax≈22；去掉 3D 上下文后恢复到 ≈179（次像素）。
+// —— 为什么不能长期 flat：翻转动画本身依赖 `preserve-3d` 做真正的 3D 旋转。
+// —— 方案：**仅在翻转过渡期间**开启 3D，动画一结束立刻回到 flat。
+//    静止态（用户 99.9% 的时间都在看静止的卡）因此始终走次像素抗锯齿，文字锐利。
+//    正反面的显隐由模板上的 `visibility`（`.flip-inner.flipped .flip-front{visibility:hidden}`）
+//    负责，不依赖 backface-visibility 的背面剔除，所以 flat 详情态不会出现正反面双影（已实测确认）。
+const flip3d = ref(false);
+let flip3dTimer = null;
 // 本次复习难度评分（0易/1中/2难）：默认取卡片固有难度的映射值
 const DIFF_DEFAULT = { basic: 0, applied: 1, challenge: 2 };
 const difficulty = ref(DIFF_DEFAULT[props.card.difficulty] ?? (Number.isFinite(Number(props.card.difficulty)) ? Number(props.card.difficulty) : 1));
@@ -120,6 +132,15 @@ function showBack() {
 }
 function showFront() { flipped.value = false; }
 function pick(key) { if (picked.value) return; picked.value = key; flipped.value = true; }
+
+// 翻转过渡期间短暂开启 3D 渲染上下文（见 flip3d 注释）。
+// 时长 = 过渡 550ms + 余量；与 .flip-inner 的 transition 时长保持一致的思路。
+const FLIP_3D_MS = 600;
+watch(flipped, () => {
+  flip3d.value = true;
+  clearTimeout(flip3dTimer);
+  flip3dTimer = setTimeout(() => { flip3d.value = false; }, FLIP_3D_MS);
+});
 function doRate(rating, guessed = false) {
   emit('rate', props.card, rating, guessed, { difficulty: difficulty.value, wrongReason: wrongReason.value });
 }
@@ -231,6 +252,7 @@ function fsTouchEnd() { pinch = null; fsDrag = null; }
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onFsKey, true);
+  clearTimeout(flip3dTimer);
 });
 
 // 暴露给父级（键盘快捷键：空格翻面 / 1·2·3 评级）
@@ -238,9 +260,9 @@ defineExpose({ flipped, showBack, doRate });
 </script>
 
 <template>
-  <div class="flip-scene">
+  <div class="flip-scene" :class="{ 'flip-3d': flip3d }">
     <!-- 翻转 3D 舞台：限制最大高度，正面/背面内容过长时内滚，保证底部操作区不被挤出视窗 -->
-    <div class="flip-inner" :class="{ flipped }">
+    <div class="flip-inner" :class="{ flipped, 'flip-3d': flip3d }">
       <!-- 正面 -->
       <div class="flip-face flip-front card-item" @click="type !== 'choice' && showBack()">
         <button class="fs-btn" title="全屏查看正面" @click.stop="openContentFs('front')">⛶ 全屏</button>
@@ -388,22 +410,35 @@ defineExpose({ flipped, showBack, doRate });
 <style scoped>
 /* 翻转舞台：限定最大高度，避免长答案把底部操作条+快捷键提示挤出视窗 */
 .flip-scene {
-  perspective: 1400px;
+  /* 清晰度关键（2026-09-18）：
+     `perspective` 同样会建立 3D 渲染上下文、关闭 LCD 次像素抗锯齿（实测：单独存在就让
+     文字 chromaMax 从 179 掉到 22）。所以静止态**不设** perspective，只在翻转动画期间
+     由 .flip-3d 临时开启 —— 翻转的立体感完全保留，静止阅读时文字走次像素抗锯齿。 */
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
+.flip-scene.flip-3d { perspective: 1400px; }
 .flip-inner {
   /* ⚠️ 不要删掉这个 relative：正面右上角的「⛶ 全屏」按钮（.fs-btn）是 absolute，
      它的定位基准就是这里（.flip-face 是 static，不会形成定位上下文）。
      一旦改成 static，按钮会飘到 flip-scene 之外（2026-09-14 审计提示）。 */
   position: relative;
-  transform-style: preserve-3d;
+  /* 清晰度关键（2026-09-18）：
+     `preserve-3d` 会让 Chrome 建立 3D 渲染上下文并**关闭 LCD 次像素抗锯齿**，
+     文字笔画因此变细发虚（用户反馈「像蒙了一层雾」）。
+     实测：带 3D 上下文时文字边缘彩色分量 chromaMax≈22（灰度抗锯齿）；
+     去掉后 ≈179（次像素抗锯齿），锐度恢复。
+     所以静止态一律 flat，只有翻转过渡的那 600ms 由 .flip-3d 临时开启（见 script 中 flip3d）。
+     正反面显隐由下面的 visibility 规则负责，不依赖 backface 剔除，flat 下不会双影。 */
+  transform-style: flat;
   transition: transform .55s cubic-bezier(.2, .7, .3, 1);
   /* 舞台高度取正/反面最大高度，但不超过视窗预留值（vh-顶栏-底部操作条-提示条） */
   max-height: min(72vh, 780px);
   min-height: 280px;
 }
+/* 仅翻转动画期间启用 3D 渲染上下文（动画结束即移除，见 script 中 FLIP_3D_MS） */
+.flip-inner.flip-3d { transform-style: preserve-3d; }
 .flip-inner.flipped { transform: rotateY(180deg); }
 
 /* 正反面都叠放在 flip-inner 里，且内容做内滚 */

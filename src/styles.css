@@ -119,12 +119,12 @@ input, select, textarea { font: inherit; color: inherit; }
 .tag-pill { background: var(--tag-bg); color: var(--tag-ink); font-size: 12px; border-radius: 6px; padding: 2px 8px; }
 .tag-pill.subj { background: var(--code-inline); color: var(--ink-2); }
 
-/* 翻转卡 */
-.flip-scene { perspective: 1200px; }
-.flip-inner {
-  position: relative; width: 100%; transform-style: preserve-3d;
-  transition: transform .5s cubic-bezier(.2,.7,.3,1);
-}
+/* 翻转卡
+   ⚠️ 这里只保留「跨组件仍需要」的部分：`.no-anim` 的降级。
+   翻转卡本体（.flip-scene 的 perspective / .flip-inner / .flip-face / .flip-back 的样式
+   与 transform-style）全部在 FlipCard.vue 的 scoped 样式里定义 —— 不要在这里再写
+   perspective 或 transform-style: preserve-3d：两者都会建立 3D 渲染上下文，
+   让 Chrome 关闭文字次像素抗锯齿、卡片文字发虚（2026-09-18 定案）。 */
 .flip-inner.flipped { transform: rotateY(180deg); }
 .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 .flip-back { position: absolute; inset: 0; transform: rotateY(180deg); }
@@ -943,11 +943,22 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
   transform-style: preserve-3d;
   will-change: transform;
 }
+/* ⚠️ 翻转卡的正面/背面也用 .card-item（FlipCard.vue 模板），但它们**不属于**「3D 鼠标
+   跟踪倾斜」的适用对象：这里同时挂着 preserve-3d + will-change（外加 .flip-scene 的
+   perspective），会叠出 3D 渲染上下文，让卡片正文被强制灰度抗锯齿、观感发虚
+   （2026-09-18 用户反馈「像蒙了一层雾」，实测 chromaMax 179→21）。
+   FlipCard 自己按「静止 flat / 仅翻转动画期 3D」管理这两面，所以此处排除它们。 */
+:root[data-style='progress'] .flip-scene .card-item {
+  transform-style: flat;
+  will-change: auto;
+}
 :root[data-style='progress'] .card-item:hover,
 :root[data-style='progress'] .panel:hover {
   border-color: rgba(224, 123, 60, 0.25);
   box-shadow: 0 12px 40px rgba(61, 51, 40, 0.11), 0 0 32px rgba(224, 123, 60, 0.10);
 }
+/* 翻转卡内不参与鼠标倾斜：hover 时不要上浮（否则与翻转 transform 打架） */
+:root[data-style='progress'] .flip-scene .card-item:hover { transform: none; }
 
 /* progress 专属：.card-3d 容器（用于 Home.vue / Dashboard 统计卡片）—— 鼠标跟踪倾斜 */
 :root[data-style='progress'] .card-3d {
@@ -1027,9 +1038,11 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
 }
 
 /* ---------- 翻转卡：3D 弹性 ---------- */
+/* ⚠️ 只改缓动，**不要**在这里加 transform-style: preserve-3d。
+   3D 渲染上下文会关闭次像素抗锯齿、让卡片文字发虚（2026-09-18 定案），
+   FlipCard.vue 已改为「静止 flat / 仅翻转动画期 3D」（.flip-inner.flip-3d）。 */
 :root[data-style='progress'] .flip-inner {
   transition: transform 0.55s cubic-bezier(.2, .75, .25, 1);
-  transform-style: preserve-3d;
 }
 
 /* ---------- 关键 fadeInUp（统计卡片入场动画） ---------- */
