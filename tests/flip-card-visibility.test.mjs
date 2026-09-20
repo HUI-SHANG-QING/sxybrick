@@ -116,6 +116,33 @@ test('FlipCard.vue：显隐仍由 visibility 负责（不得回退到 backface �
 //      `.flip-inner` 改回常驻 `preserve-3d` / 给 `.flip-scene` 加回常驻 `perspective`，
 //      发虚会复发，但没有任何闸门拦得住。这里把「静止态 flat」也钉住。
 
+test('FlipCard.vue：.flip-face 顶层只能有一块定义（防「重复定义打架」重演）', () => {
+  // 为什么加：2026-09-20 之前 .flip-face 在同一文件里被定义了**两次**，
+  // 第一块写 position:absolute/inset:0，第二块写 position:static/grid-area ——
+  // 后者完全覆盖前者的定位，前者是死代码。这类「同元素重复定义」是历史 bug 的温床：
+  // round123 的反面消失正是「styles.css 全局 .flip-face 与组件内 .flip-face 打架」造成的。
+  // 合并后必须保持单块，避免后人再往旧块加属性（以为生效，实则被覆盖）。
+  //
+  // ⚠️ 注意：**媒体查询内的 .flip-face 是合法的响应式覆盖**（如 @media(max-width:720px)
+  //    调整 min/max-height），必须排除，否则会误报。
+  const css = stripComments(styleBlock(FLIP_CARD));
+  // 先剥掉所有 @media 块（含嵌套花括号）
+  let top = css;
+  for (let i = 0; i < 8; i++) {
+    const next = top.replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+    if (next === top) break;
+    top = next;
+  }
+  const bodies = allRuleBodies(top, String.raw`\.flip-face(?![.\w-])`);
+  assert.equal(
+    bodies.length, 1,
+    `顶层 .flip-face 应当只有 1 块定义（当前 ${bodies.length} 块）。`
+    + '同元素重复定义会让「谁生效」依赖书写顺序，极易写出死代码/互相覆盖 —— '
+    + '历史上 .flip-face 的双重定义正是反面消失的成因之一。请合并为单块'
+    + '（媒体查询内的响应式覆盖不受此限）。',
+  );
+});
+
 test('全仓：不得有任何选择器给翻转卡元素加回 backface 剔除（含主题/后代选择器写法）', () => {
   /** 收集 src 下所有样式来源：FlipCard.vue 的 scoped 块 + styles.css。 */
   const sources = [

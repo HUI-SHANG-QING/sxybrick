@@ -441,10 +441,16 @@ defineExpose({ flipped, showBack, doRate });
 .flip-inner.flip-3d { transform-style: preserve-3d; }
 .flip-inner.flipped { transform: rotateY(180deg); }
 
-/* 正反面都叠放在 flip-inner 里，且内容做内滚 */
+/* 正反面叠放：用 grid 让两面占据**同一个单元格**（grid-area: 1/1），
+   从而 .flip-inner 的高度 = max(正面, 背面) 内容高；超过 max-height 则各自内滚。
+   （2026-09-20 round124 合并：此处原有一条更早的 `.flip-face{position:absolute;inset:0}`
+   定义，其 position/inset 早已被本块的 `position: static` 覆盖 → 是死代码且极易误导
+   （后人往旧块加属性会以为生效）。现已合并为单块。别再拆成两块。） */
 .flip-face {
-  position: absolute;
-  inset: 0;
+  position: static;
+  grid-area: 1 / 1;
+  max-height: min(72vh, 780px);
+  min-height: 280px;
   display: flex;
   flex-direction: column;
   /* ⚠️⚠️ 必须是 visible，不能是 hidden（2026-09-20 定案，反面"翻面一秒后消失"的真因）：
@@ -486,15 +492,7 @@ defineExpose({ flipped, showBack, doRate });
   padding: 0 2px;
 }
 
-/* 让 flip-inner 的高度能随内容自适应：使用 grid 布局代替 absolute，
-   让 flip-inner 的尺寸 = max(正面,背面) 内容；超过 max-height 则各自滚动。 */
 .flip-inner { display: grid; }
-.flip-face {
-  position: static;
-  grid-area: 1 / 1;
-  max-height: min(72vh, 780px);
-  min-height: 280px;
-}
 .flip-inner.flipped .flip-front { visibility: hidden; }
 .flip-inner:not(.flipped) .flip-back { visibility: hidden; }
 
