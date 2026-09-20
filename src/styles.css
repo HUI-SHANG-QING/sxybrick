@@ -971,8 +971,20 @@ body.review-focus .app-main { max-width: 760px; padding-top: 6vh; }
   border-color: rgba(224, 123, 60, 0.25);
   box-shadow: 0 12px 40px rgba(61, 51, 40, 0.11), 0 0 32px rgba(224, 123, 60, 0.10);
 }
-/* 翻转卡内不参与鼠标倾斜：hover 时不要上浮（否则与翻转 transform 打架） */
-:root[data-style='progress'] .flip-scene .card-item:hover { transform: none; }
+/* ⚠️⚠️ 这里**不得**再写「翻转卡 hover 时归零 transform」的规则（2026-09-20 round128 定案删除）。
+   历史遗留（已删除，勿恢复）：
+     :root[data-style='progress'] .flip-scene .card-item:hover { transform: none; }
+   它有两个致命问题：
+   ① **未区分正反面**：翻转卡两面都带 `.card-item`，而 `.flip-back` 靠自身 `rotateY(180deg)`
+      与父级 180° 相抵才显示正常；`transform` 是单值属性，一起写 `none` 会把 rotateY 连根清掉
+      → 净剩父级 180° → **整块内容镜像**（文字反读、按钮倒序）。真机实测复现（probe144）。
+      ⇒ 修法见 FlipCard.vue 的 `.flip-front` / `.flip-back` 两条按面规则（round127）。
+   ② **重复定义打架**：本文件里任何写法最多只有 (0,4,0) 特异性（`:root` 计入），
+      与主题规则打平、按「后来居上」还常输；真正生效的一直是 FlipCard.vue 的 scoped 规则
+      （编译器追加 `[data-v-xxxx]` → (0,5,0)）。progress 此前**没出问题纯属巧合**
+      （scoped 规则恰好排在它后面赢了），是颗定时炸弹（真机 probe144 复现）。
+   翻转卡不吃 `.card-item:hover` 位移这件事，**只在 FlipCard.vue 的 scoped 里处理** —— 见上文
+   `.card-item` 段落的「不要在这里再补一条」。 */
 
 /* progress 专属：.card-3d 容器（用于 Home.vue / Dashboard 统计卡片）—— 鼠标跟踪倾斜 */
 :root[data-style='progress'] .card-3d {

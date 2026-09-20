@@ -329,8 +329,22 @@ test('FlipCard.vue scoped：翻转卡 hover 必须按面区分 —— 正面归�
   );
 });
 
-test('所有主题：不得再给翻转卡所在的 .card-item:hover 加位移（防后人补主题时遗漏）', () => {
-  // 主题自带 .card-item:hover 是合法的（作用于卡片列表），这里只拦「专门给翻转卡加位移」。
+test('所有主题：翻转卡 hover 若改 transform，必须按面区分且背面保住 rotateY(180deg)', () => {
+  // 主题自带 .card-item:hover 是合法的（作用于卡片列表），这里只拦「作用于翻转卡内的 .card-item」。
+  //
+  // ⚠️ round128（2026-09-20）修正：**旧版这条闸门有致命漏洞**。
+  //    旧版逻辑是「位移值只要写成 `none` 就放行」（`if (/^none$/...) continue`），
+  //    理由是"归零位移无害"。但 `transform` 是**单值属性** —— 对 `.flip-back` 写 `none`
+  //    会把它的 `rotateY(180deg)` 一起清掉 → 净剩父级 180° → **整块镜像**（真机实测复现）。
+  //    于是 styles.css:975 那条 `:root[data-style='progress'] .flip-scene .card-item:hover
+  //    { transform: none }` **恰好被这条闸门放行**，一直潜伏到 round128 才被真机抓出。
+  //    ⇒ 教训：闸门断言"某个特定值"，比断言"结构性特征"危险得多（见 RULES-vue-base §14.4c）。
+  //
+  // 新规则（结构性，不认具体值）：
+  //   凡是 hover 规则的**选择器可能命中翻转卡内的 .card-item**，就必须：
+  //     (a) 不得用共用的 `.flip-face`（不区分正反），
+  //     (b) 若是正面规则，transform 允许 `none`（正面本无 transform）；
+  //     (c) 若是背面规则，transform 必须**保留 rotateY(180deg)**（`none` 一律拒绝）。
   const css = stripComments(STYLES);
   const ruleRe = /([^{}]+)\{([^}]*)\}/g;
   const offenders = [];
@@ -339,15 +353,37 @@ test('所有主题：不得再给翻转卡所在的 .card-item:hover 加位移�
     const sel = m[1].trim();
     const body = m[2];
     if (!/:hover/.test(sel)) continue;
+    // 只看「作用于翻转卡内 .card-item」的规则（其它主题卡片规则放行）
     if (!/\.flip-scene[^{]*\.card-item/.test(sel)) continue;
-    const val = (/transform\s*:\s*([^;]+)/.exec(body) || [])[1];
-    if (val === undefined) continue;
-    if (/^none$/.test(val.trim())) continue;
-    offenders.push(`${sel} { transform: ${val.trim()} }`);
+    const valRaw = (/transform\s*:\s*([^;]+)/.exec(body) || [])[1];
+    if (valRaw === undefined) continue;
+    const val = valRaw.trim().replace(/\s+/g, '').replace(/!important$/i, '');
+
+    const hitsFront = /\.flip-front/.test(sel);
+    const hitsBack = /\.flip-back/.test(sel);
+    const generic = !hitsFront && !hitsBack; // 只写 .card-item / .flip-face ⇒ 正反都命中
+
+    if (generic) {
+      offenders.push(`${sel} { transform: ${valRaw.trim()} }  ← 未区分正反，会连背面一起命中`);
+      continue;
+    }
+    if (hitsBack) {
+      // 背面：必须原样保住 rotateY(180deg)（允许叠加其它位移，如 round128 的负向对照场景）
+      if (!/^rotateY\(180deg\)/.test(val)) {
+        offenders.push(`${sel} { transform: ${valRaw.trim()} }  ← 背面丢了 rotateY(180deg)（写 none 会镜像）`);
+      }
+    }
+    if (hitsFront && !hitsBack) {
+      // 正面：允许 none 或纯位移；不得出现 rotateY（正面不该有翻面 transform）
+      if (/rotateY/.test(val)) {
+        offenders.push(`${sel} { transform: ${valRaw.trim()} }  ← 正面的 hover 不该带 rotateY`);
+      }
+    }
   }
   assert.deepEqual(
     offenders, [],
-    '有规则给「翻转卡内的 .card-item」在悬停时加了位移，会与翻转 transform 打架：\n'
-    + offenders.join('\n'),
+    'styles.css 里给「翻转卡内的 .card-item」写的 hover transform 规则不合规：\n'
+    + offenders.join('\n')
+    + '\n必须按面区分（.flip-front / .flip-back 分别写），且 .flip-back 那条必须保留 rotateY(180deg)。',
   );
 });

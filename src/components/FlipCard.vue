@@ -504,8 +504,8 @@ defineExpose({ flipped, showBack, doRate });
    两面靠 grid 完全重叠，并共享父级 `.flip-inner.flipped{rotateY(180deg)}` 的翻面 transform。
    在 flat 上下文里父子 transform 相加 → 多出来的位移会和翻面叠加 → 观感错位。
 
-   ❌ round125 的写法（**错的，已造成更严重的新 bug**）：
-      .flip-scene .flip-face.card-item:hover { transform: none; }
+   ❌ round125 的写法（**错的，已造成更严重的新 bug**，仅作反面教材，切勿照抄/复活）：
+      `.flip-scene .flip-face.card-item:hover` → `transform: none`
    它想「把位移归零」，但 `transform` 是**单值属性** —— 归零的同时把 `.flip-back`
    自己的 `transform: rotateY(180deg)` **也一起清掉了**。
    而背面之所以能正常显示，正是靠「父级 180° + 自身 180° = 净 360°」。
