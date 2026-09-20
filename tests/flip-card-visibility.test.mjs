@@ -105,3 +105,74 @@ test('FlipCard.vue：显隐仍由 visibility 负责（不得回退到 backface �
   assert.match(css, /\.flip-inner:not\(\.flipped\)\s+\.flip-back\s*\{[^}]*visibility\s*:\s*hidden/,
     '未翻面时必须用 visibility:hidden 藏反面（既然关掉了 backface 剔除，这条就是唯一的防双影手段）');
 });
+
+// ---------- 2026-09-20 round124 审计补：堵两个漏检口 ----------
+// 为什么补：
+//   ① 上面三条只检查「.flip-face 自己那几块规则」。若有人用**别的选择器**（典型是
+//      `:root[data-style='x'] .flip-scene .flip-inner > div { backface-visibility: hidden }`）
+//      给同一个元素加回剔除，上面全部漏检 —— 而这正是历史上 bug 的真实形态
+//      （styles.css 里那句全局 `.flip-face{backface-visibility:hidden}` 就属于此类）。
+//   ② round122「文字发虚」修复的前提是**静止态必须是非 3D 上下文**。若有人把
+//      `.flip-inner` 改回常驻 `preserve-3d` / 给 `.flip-scene` 加回常驻 `perspective`，
+//      发虚会复发，但没有任何闸门拦得住。这里把「静止态 flat」也钉住。
+
+test('全仓：不得有任何选择器给翻转卡元素加回 backface 剔除（含主题/后代选择器写法）', () => {
+  /** 收集 src 下所有样式来源：FlipCard.vue 的 scoped 块 + styles.css。 */
+  const sources = [
+    { name: 'FlipCard.vue', css: styleBlock(FLIP_CARD) },
+    { name: 'styles.css', css: STYLES },
+  ];
+  const offenders = [];
+  for (const { name, css } of sources) {
+    const clean = stripComments(css);
+    // 逐条 rule 检查：选择器里出现 flip-face 或 flip-inner 的子孙面元素，且声明了 backface-visibility
+    const ruleRe = /([^{}]+)\{([^}]*)\}/g;
+    let m;
+    while ((m = ruleRe.exec(clean))) {
+      const sel = m[1].trim();
+      const body = m[2];
+      if (!/backface-visibility\s*:/.test(body)) continue;
+      // 命中翻转卡正反面元素的选择器（含 > div 这类后代写法）+ 通用通配
+      const hitsFace = /\.flip-(face|back|front)/.test(sel)
+        || /\.flip-(scene|inner)[^{]*>\s*div/.test(sel)
+        || /\.flip-(scene|inner)\s/.test(sel);
+      if (!hitsFace) continue;
+      const val = (/backface-visibility\s*:\s*([\w-]+)/.exec(body) || [])[1];
+      if (val && val !== 'visible') offenders.push(`${name}: ${sel} { backface-visibility: ${val} }`);
+    }
+  }
+  assert.deepEqual(
+    offenders, [],
+    '有选择器给翻转卡正反面加回了 backface 剔除，会重演「翻面后整面消失」：\n'
+    + offenders.join('\n'),
+  );
+});
+
+test('FlipCard.vue：静止态必须是非 3D 上下文（文字清晰度的前提）', () => {
+  const css = stripComments(styleBlock(FLIP_CARD));
+  // .flip-inner 的基础规则必须是 flat；preserve-3d 只能出现在 .flip-3d 限定下
+  const baseInner = allRuleBodies(css, String.raw`\.flip-inner(?![.\w-])`);
+  assert.ok(baseInner.length > 0, '.flip-inner 基础规则丢失');
+  for (const b of baseInner) {
+    const ts = (/transform-style\s*:\s*([\w-]+)/.exec(b) || [])[1];
+    if (ts !== undefined) {
+      assert.equal(ts, 'flat',
+        '.flip-inner 静止态必须是 transform-style: flat —— 常驻 preserve-3d 会建立 3D 上下文、'
+        + '关闭次像素抗锯齿，重现「文字发虚」（2026-09-18 定案）；且会让 round123 的修复前提失效');
+    }
+  }
+  // 3D 只能在 .flip-3d 限定下临时开启
+  const at3d = allRuleBodies(css, String.raw`\.flip-inner\.flip-3d`);
+  assert.ok(at3d.some((b) => /preserve-3d/.test(b)),
+    '.flip-inner.flip-3d 必须临时开启 preserve-3d（翻转动画依赖真正的 3D 旋转）');
+  // .flip-scene 的 perspective 也必须是 .flip-3d 限定的，不能出现在基础规则里
+  const sceneBase = allRuleBodies(css, String.raw`\.flip-scene(?![.\w-])`);
+  for (const b of sceneBase) {
+    assert.ok(!/perspective\s*:/.test(b),
+      '.flip-scene 静止态不得有 perspective —— 单独存在就会让文字 chromaMax 从 179 掉到 22'
+      + '（2026-09-18 实测），重现「像蒙了一层雾」');
+  }
+  const scene3d = allRuleBodies(css, String.raw`\.flip-scene\.flip-3d`);
+  assert.ok(scene3d.some((b) => /perspective\s*:/.test(b)),
+    '.flip-scene.flip-3d 必须提供 perspective，否则翻转没有透视立体感');
+});
