@@ -225,8 +225,27 @@ test('FlipCard.vue：静止态必须是非 3D 上下文（文字清晰度的前�
 //      `matrix(1, 0, 0, 1, 0, -2)` —— 就是被这条「打平靠后」的规则顶掉了。
 //      所以本条闸门**必须算出特异性并比较**，只检查「规则存在」是不够的（第一版就漏在这）。
 
-test('FlipCard.vue scoped：翻转卡两面必须挡掉主题 .card-item:hover 的位移（防左右互逆）', () => {
-  // ⚠️ 这条规则**必须在 FlipCard 的 scoped 样式里**，不能在 styles.css —— 见下面 B) 段的解释。
+test('FlipCard.vue scoped：翻转卡 hover 必须按面区分 —— 正面归零、背面保住 rotateY(180deg)', () => {
+  // ⭐ 这条闸门在 round125 写错了，round127 重写。原断言是「两面 hover 都必须 transform: none」，
+  //    它把一个**错误的修法写成了规范**，直接导致了「悬停卡片背面 → 内容整块左右镜像」的新 bug。
+  //
+  // 错在哪（真机取证，CSS.getMatchedStylesForNode，hover 态按优先级低→高）：
+  //   [5] .card-item:hover                                   → translateY(-2px)   ← styles.css:117 全局规则
+  //   [7] .flip-back[data-v-…]                               → rotateY(180deg)    ← 背面的命根子
+  //   [8] .flip-scene .flip-face.card-item[data-v-…]:hover   → none               ← round125 加的，赢
+  // computed = none ⇒ 只剩父级 .flip-inner.flipped 的 180° ⇒ **净 180° = 整块镜像**：
+  // 文字左右反读、.back-top 按钮顺序倒过来（「看回问题」x 从 118 跳到 1186）、图片也镜像。
+  //
+  // 根本原因：`transform` 是**单值属性**，「把位移归零」和「保住 rotateY」是一对矛盾，
+  // 写 `none` 必然把 `.flip-back` 自身那 180° 一起清掉。而背面能正常显示，
+  // 全靠「父级 180° + 自身 180° = 净 360°」（静止态 .flip-inner 是 flat，父子 transform 相加）。
+  //
+  // ✅ 正确规范：**按面分别写回各自应有的 transform**
+  //    - 正面本来无 transform → `none`
+  //    - 背面必须保住 → `rotateY(180deg)`
+  //
+  // ⚠️ 本条闸门**必须读源码文本**（无法只靠"存在一条 hover 规则"判断），
+  //    因为正确与错误写法都"有一条 hover 规则"，区别在**值**。
   const scoped = stripComments(styleBlock(FLIP_CARD));
   const ruleRe = /([^{}]+)\{([^}]*)\}/g;
   const hits = [];
@@ -235,29 +254,60 @@ test('FlipCard.vue scoped：翻转卡两面必须挡掉主题 .card-item:hover �
     const sel = m[1].trim();
     const body = m[2];
     if (!/:hover/.test(sel)) continue;
-    if (!/\.flip-face/.test(sel)) continue;
-    if (!/transform\s*:/.test(body)) continue;
-    hits.push({ sel, val: (/transform\s*:\s*([^;]+)/.exec(body) || [])[1]?.trim() });
+    // 目标规则形如 `.flip-scene .flip-front.card-item:hover` / `.flip-back.card-item:hover`
+    // 注意：**不能筛 `.flip-face`** —— 正确写法恰恰是不用 .flip-face 这个共用类
+    // （用了就会同时命中背面，正是 round125 的原始错误）。这里按 front/back 筛。
+    if (!/\.flip-(front|back)/.test(sel)) continue;
+    const val = (/transform\s*:\s*([^;]+)/.exec(body) || [])[1];
+    if (val === undefined) continue;
+    hits.push({ sel, val: val.trim() });
   }
+
   assert.ok(
-    hits.length > 0,
-    'FlipCard.vue 的 scoped 样式里必须有一条针对翻转卡两面的 hover 规则把 transform 归零 —— '
-    + '否则主题的 `.card-item:hover{translateY(-2px)}` 会让两面各自上浮，'
-    + '与父级 rotateY(180deg) 叠加成「左右互逆」（2026-09-20 国风主题实测）',
+    hits.length >= 2,
+    'FlipCard.vue 的 scoped 样式里必须有**两条** hover 规则：一条给 .flip-front、一条给 .flip-back。'
+    + `当前只找到 ${hits.length} 条 —— 少了哪一面，那一面就会被主题的 .card-item:hover 位移带偏。`,
   );
-  for (const { sel, val } of hits) {
+
+  const front = hits.filter((h) => /\.flip-front/.test(h.sel));
+  const back = hits.filter((h) => /\.flip-back/.test(h.sel));
+
+  assert.ok(front.length > 0, '缺少给 .flip-front 的 hover 规则（正面需要把主题位移归零）');
+  assert.ok(back.length > 0, '缺少给 .flip-back 的 hover 规则（背面需要保住 rotateY(180deg)）');
+
+  for (const { sel, val } of front) {
     assert.equal(
       val, 'none',
-      `翻转卡两面的 hover 必须把 transform 归零（当前 \`${sel} { transform: ${val} }\`）：`
-      + '任何位移都会与父级翻转旋转叠加，重演「悬停左右互逆」',
+      `正面 hover 必须把 transform 归零（当前 \`${sel} { transform: ${val} }\`）：`
+      + '主题的 `.card-item:hover{translateY(-2px)}` 会让正面额外上浮，与父级翻面旋转叠加。',
     );
   }
 
-  // ---- B) styles.css 里**不得**出现同类规则 ----
-  // 放进 scoped 才是确定性方案：主题规则 `:root[data-style='x'] .card-item:hover` 里 `:root`
-  // 是伪类、计入特异性 → (0,4,0)；styles.css 里任何写法最多打平，而打平按「后来居上」、
-  // 主题块在文件更靠后 → 主题赢（2026-09-20 真机实测：规则命中但 computed 仍是 translateY(-2px)）。
-  // scoped 编译后会追加 `[data-v-xxxx]` → (0,5,0)，且组件样式晚于全局样式表。
+  // ⭐⭐ 核心断言：背面 hover 必须**原样写回** rotateY(180deg)，绝不能是 none
+  for (const { sel, val } of back) {
+    const norm = val.replace(/\s+/g, '');
+    assert.match(
+      norm, /^rotateY\(180deg\)(!important)?$/i,
+      `背面 hover 的 transform 必须是 \`rotateY(180deg)\`，当前是 \`${val}\`。\n`
+      + '⚠️ 写成 `none` 会把背面自身赖以正常显示的 180° 清掉 —— 只剩父级的 180°，'
+      + '净角度变成 180° ⇒ **整块内容镜像**（文字反读、按钮顺序倒过来、图片镜像）。'
+      + '这是 round125 真实踩过的坑，不是理论风险。\n'
+      + '若确实要压过 `:root[data-style=x]` 主题规则，可加 `!important`（已验证必需）。',
+    );
+  }
+
+  // 反面：绝不允许出现「.flip-face 通用选择器的 hover 归零」——它会同时命中背面
+  // （.flip-back 也带 .flip-face），正是 round125 的原始错误。
+  const generic = hits.filter((h) => /\.flip-face/.test(h.sel) && !/\.flip-(front|back)/.test(h.sel));
+  assert.deepEqual(
+    generic.map((g) => g.sel), [],
+    '出现了「只写 .flip-face（不区分 front/back）」的 hover 规则：\n'
+    + generic.map((g) => `  ${g.sel} { transform: ${g.val} }`).join('\n')
+    + '\n这种写法会同时命中 .flip-back，把它的 rotateY(180deg) 一起覆盖掉 → 背面整块镜像。'
+    + '必须拆成 .flip-front / .flip-back 两条分别写。',
+  );
+
+  // ---- B) styles.css 里不得出现同类规则（沿用 round125 结论，理由仍成立）----
   const globalCss = stripComments(STYLES);
   const gRe = /([^{}]+)\{([^}]*)\}/g;
   const dupes = [];
@@ -267,15 +317,15 @@ test('FlipCard.vue scoped：翻转卡两面必须挡掉主题 .card-item:hover �
     const body = g[2];
     if (!/:hover/.test(sel)) continue;
     if (!/\.flip-face/.test(sel)) continue;
-    if (!/transform\s*:\s*none/.test(body)) continue;
+    if (!/transform\s*:/.test(body)) continue;
     dupes.push(sel);
   }
   assert.deepEqual(
     dupes, [],
-    'styles.css 里出现了「翻转卡两面 hover 归零」的同类规则，与 FlipCard.vue 的 scoped 规则重复：\n'
+    'styles.css 里出现了「翻转卡 hover 改 transform」的同类规则，与 FlipCard.vue 的 scoped 规则重复：\n'
     + dupes.join('\n')
-    + '\n重复定义会重新引入「谁生效看书写顺序」的不确定性（round123/124 的老毛病）。'
-    + '请只保留 scoped 里那一条 —— 它在 styles.css 里赢不了主题的特异性。',
+    + '\n重复定义会重新引入「谁生效看书写顺序」的不确定性（round123/124 的老毛病），'
+    + '且 styles.css 里赢不了主题的 (0,4,0) 特异性。请只保留 scoped 里那两条。',
   );
 });
 

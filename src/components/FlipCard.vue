@@ -496,24 +496,42 @@ defineExpose({ flipped, showBack, doRate });
 .flip-inner.flipped .flip-front { visibility: hidden; }
 .flip-inner:not(.flipped) .flip-back { visibility: hidden; }
 
-/* ⚠️ 挡住主题 `.card-item:hover` 的位移（2026-09-20 round125 定案，国风「悬停左右互逆」真因）
-   两面都带 .card-item class（模板 `flip-face flip-front card-item`），因此会吃到各主题的
-   `.card-item:hover{transform:translateY(-2px) 之类}` —— 而它们**不是列表卡片**：两面用 grid
-   完全重叠、且共享父级 `.flip-inner.flipped{rotateY(180deg)}` 的同一次翻面 transform。
-   在 flat 上下文里父子 transform 相加，两面各自上浮 2px；真正可见的那面是旋转 180° 后的镜像
-   投影，垂直位移在屏幕上就表现成**水平位移** → 观感即「整张卡左右相互逆转 + 微微晃动」。
-   hover 的边框/阴影（颜色类）反馈不受影响，仍然保留。
+/* ⚠️⚠️ 挡住`.card-item:hover` 的位移，必须**按面区分**（2026-09-20 round127 定案，修正 round125 的错）
 
-   ⚠️ 必须放在这里（组件 scoped）而不是 styles.css，理由是**特异性确定性**：
-   主题规则写作 `:root[data-style='x'] .card-item:hover`。`:root` 是伪类、要计入特异性，
-   加上 `[data-style]`、`.card-item`、`:hover` 共 **4 个 class 级** → (0,4,0)。
-   在 styles.css 里无论写 `.flip-face.card-item:hover`(3) 还是 `.flip-scene .flip-face.card-item:hover`(4)
-   都只是打平或不足，一旦打平就按「后来居上」，而主题块在 styles.css 更靠后 → 主题赢。
-   （2026-09-20 真机实测：`.flip-face.card-item:hover{transform:none}` 确实命中、
-   `matches(':hover')` 为真，computed 却仍是 `matrix(1,0,0,1,0,-2)`。）
-   放进 scoped 后，编译器会追加属性选择器 `[data-v-xxxx]`（再 +1 → (0,5,0)），
-   稳定压过任何主题写法；同时组件样式天然晚于全局样式表，顺序上也安全。 */
-.flip-scene .flip-face.card-item:hover { transform: none; }
+   背景：翻转卡的两面都带 `.card-item` class（模板 `flip-face flip-front/back card-item`），
+   于是会吃到「全局 `.card-item:hover{transform:translateY(-2px)}`（styles.css:117）」
+   以及各主题的 `:root[data-style='x'] .card-item:hover{...}`。但它们**不是列表卡片**：
+   两面靠 grid 完全重叠，并共享父级 `.flip-inner.flipped{rotateY(180deg)}` 的翻面 transform。
+   在 flat 上下文里父子 transform 相加 → 多出来的位移会和翻面叠加 → 观感错位。
+
+   ❌ round125 的写法（**错的，已造成更严重的新 bug**）：
+      .flip-scene .flip-face.card-item:hover { transform: none; }
+   它想「把位移归零」，但 `transform` 是**单值属性** —— 归零的同时把 `.flip-back`
+   自己的 `transform: rotateY(180deg)` **也一起清掉了**。
+   而背面之所以能正常显示，正是靠「父级 180° + 自身 180° = 净 360°」。
+   自身那 180° 一没，净剩父级的 180° → **整块内容变成镜像**：
+   文字左右反读、`.back-top` 里的按钮顺序倒过来（「看回问题」跑到最右）、图片也镜像。
+   真机取证（CSS.getMatchedStylesForNode，hover 态，按优先级低→高）：
+     [5] .card-item:hover                            → translateY(-2px)
+     [7] .flip-back[data-v-…]                        → rotateY(180deg)      ← 命根子
+     [8] .flip-scene .flip-face.card-item[data-v-…]:hover → none            ← round125，赢
+   computed=“none”，第一颗按钮 x 从 118 → 1186（横向翻转 1147px）。
+   且因为它对**所有主题**生效（那条 .card-item:hover 是全局基础规则），
+   连原本只有轻微 2px 错位的默认/经典主题也一起变成整块镜像 —— 比修之前更糟。
+
+   ✅ 正确写法：**按面分别写回各自应有的 transform**，既消灭主题位移，又不碰 rotateY。
+      - 正面：本来没有 transform → 写 `none`
+      - 背面：必须保住 `rotateY(180deg)` → **原样写回**
+   加 `!important` 是为了压过 `:root[data-style=x]` 系主题规则（它们 `:root` 计入特异性，
+   详见 styles.css:116 注释）；已验证仅靠特异性在同一次匹配里压不住 round125 那条旧规则。
+
+   ⚠️ 改动此规则前务必先读这段：**「归零 transform」和「保住 rotateY」是一对矛盾**，
+   `transform` 单值属性无法只清一半。任何后续「加个 hover 效果」的想法，
+   都要先确认不会覆盖掉 `.flip-back` 的 rotateY，否则又会镜像。
+   hover 的边框/阴影（颜色类）反馈不受影响，仍然保留。 */
+.flip-scene .flip-front.card-item:hover { transform: none; }
+.flip-scene .flip-back.card-item:hover { transform: rotateY(180deg); }
+
 
 .options { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .opt {
