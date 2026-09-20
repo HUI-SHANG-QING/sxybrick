@@ -123,11 +123,15 @@ input, select, textarea { font: inherit; color: inherit; }
    ⚠️ 这里只保留「跨组件仍需要」的部分：`.no-anim` 的降级。
    翻转卡本体（.flip-scene 的 perspective / .flip-inner / .flip-face / .flip-back 的样式
    与 transform-style）全部在 FlipCard.vue 的 scoped 样式里定义 —— 不要在这里再写
-   perspective 或 transform-style: preserve-3d：两者都会建立 3D 渲染上下文，
-   让 Chrome 关闭文字次像素抗锯齿、卡片文字发虚（2026-09-18 定案）。 */
-.flip-inner.flipped { transform: rotateY(180deg); }
-.flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
-.flip-back { position: absolute; inset: 0; transform: rotateY(180deg); }
+   perspective / transform-style: preserve-3d / backface-visibility：
+   - perspective 与 preserve-3d 都会建立 3D 渲染上下文，让 Chrome 关闭文字次像素抗锯齿、
+     卡片文字发虚（2026-09-18 定案）。
+   - backface-visibility: hidden 会「背面剔除」掉反面（2026-09-20 定案，见下）。
+   历史遗留（已删除，勿恢复）：此处曾有一份全局 `.flip-inner.flipped{transform:rotateY(180deg)}`
+   / `.flip-face{backface-visibility:hidden}` / `.flip-back{position:absolute;inset:0;transform:rotateY(180deg)}`
+   的重复定义，与 FlipCard.vue 的 scoped 规则打架 —— 删掉不影响外观（scoped 规则覆盖了它们），
+   但其中 `.flip-face{backface-visibility:hidden}` 会参与「谁赢」的计算，正是反面消失的元凶之一。
+   现已全部收敛到 FlipCard.vue，此处不再保留任何 flip 几何。 */
 .no-anim .flip-inner { transition: none; }
 
 /* Markdown 内容 */

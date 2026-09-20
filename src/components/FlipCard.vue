@@ -447,8 +447,18 @@ defineExpose({ flipped, showBack, doRate });
   inset: 0;
   display: flex;
   flex-direction: column;
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+  /* ⚠️⚠️ 必须是 visible，不能是 hidden（2026-09-20 定案，反面"翻面一秒后消失"的真因）：
+     本组件用 grid 叠放两面，并靠 `visibility` 显隐（见下面 .flip-inner.flipped 那两条），
+     **不依赖背面剔除** —— 所以 backface-visibility 在这里没有正面作用，只有副作用。
+     副作用怎么产生的：静止态 .flip-inner 是 flat（transform-style: flat，为保文字锐利），
+     此时父级的 rotateY(180deg) 与子级 .flip-back 自身的 rotateY(180deg) 会**在扁平上下文里
+     相加成 360°** → 反面把"背"朝向观察者 → backface-visibility: hidden 把它整面剔除 →
+     反面连同顶部按钮条一起消失，只剩 .flip-inner 自己的底色（用户反馈「只显示一秒钟就不见了」，
+     正好对应 .flip-3d 的 600ms 自动关闭：动画期间是 preserve-3d 所以两面各自独立旋转、可见）。
+     修复：两侧都设为 visible。实测反面可命中（elementFromPoint 落在 .flip-back 内），
+     文字方向正确（保持子级 180°，净 360°，不会镜像）；正面/反面显隐仍由 visibility 控制，无双影。 */
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
   min-width: 0;
   overflow: hidden;
 }
