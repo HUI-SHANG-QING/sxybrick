@@ -196,7 +196,23 @@ const lb = ref({
   rotate: 0,   // 旋转角度（0/90/180/270）——手机竖拍的照片要能转正看
   native: false,
   error: false,
+  // ⭐ round126（2026-09-20）：交互中标记 —— 仅此时给 <img> 开 will-change。
+  // 真因：`.img-lb-img` 常驻 `will-change: transform` 会让 Chrome 把图片提升为
+  // **合成层**，而合成层在 DPR>1 屏上以**较低分辨率**光栅化 —— 大图在灯箱里静止
+  // 观看时明显发糊（真机实测：同一张 4K 图、同一显示尺寸，带 will-change 的截图
+  // PNG 393KB / 无 will-change 537KB，PNG 越小 = 细节越少 = 越糊；线条肉眼可见变灰）。
+  // 为什么不能直接删：拖拽平移 / 滚轮缩放是 transform 动画，常驻 will-change 能减少
+  // 重绘、保流畅。折中与 round122 处理 3D 上下文完全同构 —— **静止关、交互开**：
+  // 用户 99% 的时间在静态看图（要清晰），只有拖拽/缩放那一瞬需要流畅。
+  busy: false,
 });
+// 交互结束后延时复位（与缩放/拖拽的尾帧对齐，避免立刻掉回低质量造成闪变）
+let lbBusyTimer = null;
+function markBusy(ms = 400) {
+  lb.value.busy = true;
+  clearTimeout(lbBusyTimer);
+  lbBusyTimer = setTimeout(() => { lb.value.busy = false; }, ms);
+}
 const stage = ref(null);   // 缩放/平移舞台（transform 目标）
 const lbRoot = ref(null);  // 灯箱根节点（原生全屏时以它为 fullscreen 元素，
                            // 因为灯箱 Teleport 到 body，必须在自身上申请全屏才看得到）
@@ -297,6 +313,7 @@ function onKey(e) {
 }
 
 function setZoom(z, cx, cy) {
+  markBusy();   // 缩放是 transform 动画：这段时间开 will-change 保流畅（见 lb.busy 注释）
   const nz = Math.min(4, Math.max(0.5, z));
   const el = stage.value;
   const S = el?.clientWidth ?? 0;
@@ -329,12 +346,14 @@ function onDbl(e) {
 
 function onDown(e) {
   if (!lb.value.open || lb.value.zoom <= 1) return;
+  markBusy(1200);   // 拖拽可能持续很久，先给足窗口；onMove 里会不断续期
   drag = { sx: e.clientX, sy: e.clientY, ox: lb.value.x, oy: lb.value.y, moved: false };
   try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
 }
 
 function onMove(e) {
   if (!drag) return;
+  markBusy(1200);   // 续期：拖拽期间保持 will-change
   const dx = e.clientX - drag.sx;
   const dy = e.clientY - drag.sy;
   if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true;
@@ -359,6 +378,7 @@ watch(() => props.content, async () => {
 
 onBeforeUnmount(() => {
   if (lb.value.open) closeLightbox();
+  clearTimeout(lbBusyTimer);
   document.removeEventListener('keydown', onKey, true);
 });
 </script>
@@ -387,6 +407,7 @@ onBeforeUnmount(() => {
       >
         <img
           class="img-lb-img"
+          :class="{ 'is-busy': lb.busy }"
           :src="imgUrl(imgIds[lb.idx])"
           alt="图片预览"
           draggable="false"
@@ -452,12 +473,16 @@ onBeforeUnmount(() => {
   max-width: 92%;
   max-height: 92%;
   transform-origin: center center;
-  will-change: transform;
+  /* ⭐ round126：默认**不**声明 will-change（见 lb.busy 注释：常驻会让图片被低分辨率
+     光栅化 → 静止看图发糊）。只在拖拽/缩放期间由 .is-busy 临时开启。 */
+  will-change: auto;
   /* 先以 (x,y) 平移再缩放：translate 用绝对像素，视觉锚点正确 */
   translate: -50% -50%;
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
   background: #1c1f26;
 }
+/* 交互期（拖拽/缩放）才开合成层提升，保 transform 动画流畅 */
+.img-lb-img.is-busy { will-change: transform; }
 .img-lb-err {
   flex: 1;
   display: flex;
