@@ -3,7 +3,7 @@
 // 含"一键自动编排"：基于真实复习数据生成阶段化计划草稿（数据驱动，零 LLM 也能用）
 import { t } from '../i18n/index.js';
 import { confirmDialog } from '../utils/confirm.js';
-import { ref, onMounted, computed, nextTick } from 'vue';
+import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { listPlans, createPlan, updatePlan, deletePlan, getSubjects, listCards } from '../repo.js';
 import { generateAutoPlan } from '../agent/analytics.js';
@@ -160,6 +160,8 @@ async function applyRouteId() {
   if (hit) activeId.value = hit.id;
 }
 onMounted(async () => { loading.value = true; try { await applyRouteId(); } finally { loading.value = false; } });
+// round131：同页 query 变化时组件复用、onMounted 不再执行 → 定位不更新。
+watch(() => route.fullPath, () => { applyRouteId(); });
 </script>
 
 <template>

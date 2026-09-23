@@ -93,3 +93,54 @@ test('回归防重演：Docs.vue 的 applyRouteId 中 load() 必须在 return �
     + '这会让「刷新 / 从其它模块进入」看不到历史文档列表。',
   );
 });
+
+// ---------------------------------------------------------------------------
+// round131：同一路由的 query 变化必须被响应（否则定位/高亮/选中不更新）
+//
+// 真因：`/docs`、`/memo`、`/plans` 都是**静态 path**，`?id=` 只是 query。
+//   从 `#/docs?id=a` 变到 `#/docs?id=b`（浏览器前进/后退、同路由跳转）时，
+//   vue-router **复用同一个组件实例**，`onMounted` 不会再次执行 ⇒ `applyRouteId()`
+//   只跑过一次，`activeId` / `highlightId` 停留在旧值。
+//
+//   真机复现（probe178，headless Chrome + CDP）：冷启动 `?id=docB` 定位正确（BBB），
+//   随后同页把 hash 改成 `?id=docA` —— 组件复用成立（window 哨兵存活），
+//   但选中项**仍是 BBB**；补一条 `watch(() => route.fullPath, ...)` 后变为 AAA。
+//   负向对照：临时移除该 watch → 该断言立刻报红。
+//
+// 为什么断言"存在 watch(route.fullPath)"而不是断言某一行位置：
+//   这是"结构性特征"（RULES-vue-build §14.4c）—— 只要页面响应了 fullPath 变化即可，
+//   不限定 watch 写在 onMounted 之前还是之后。
+// ---------------------------------------------------------------------------
+/** 页面是否响应了路由 fullPath 变化（watch(() => route.fullPath, ...)）。 */
+const RE_WATCH_FULLPATH = /^[ \t]*watch\(\s*\(\)\s*=>\s*route\.fullPath\b/m;
+
+test('round131：用 ?id= 定位的页面必须监听 route.fullPath（否则同页 query 变化不重新定位）', () => {
+  const offenders = [];
+  for (const f of ROUTE_ID_PAGES) {
+    const src = read(`${SRC}/views/${f}`);
+    if (!RE_WATCH_FULLPATH.test(src)) {
+      offenders.push(
+        `${f}: 找不到 \`watch(() => route.fullPath, ...)\` —— `
+        + `从 #${f === 'Docs.vue' ? '/docs' : f === 'Memo.vue' ? '/memo' : '/plans'}?id=a 切到 ?id=b 时`
+        + `组件会复用、onMounted 不再执行，定位/选中态会停留在旧值。`,
+      );
+    }
+  }
+  assert.deepEqual(offenders, [], offenders.join('\n'));
+});
+
+test('round131：watch 必须真的重新走定位逻辑（引用 applyRouteId），不能是空监听', () => {
+  // 防"为了过闸门而写一个什么都不做的 watch"。
+  const offenders = [];
+  for (const f of ROUTE_ID_PAGES) {
+    const src = read(`${SRC}/views/${f}`);
+    const i = src.search(RE_WATCH_FULLPATH);
+    if (i < 0) { offenders.push(`${f}: 没有 watch(fullPath)`); continue; }
+    // 取 watch( 起 200 字符窗口，必须含 applyRouteId（回调里重新定位）
+    const win = src.slice(i, i + 200);
+    if (!/applyRouteId/.test(win)) {
+      offenders.push(`${f}: watch(() => route.fullPath, ...) 的回调里没有调用 applyRouteId —— 空监听无效。`);
+    }
+  }
+  assert.deepEqual(offenders, [], offenders.join('\n'));
+});

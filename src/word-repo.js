@@ -179,9 +179,11 @@ export async function createWordCard(payload = {}) {
   // 直接写 IndexedDB 会因结构化克隆失败抛 DataCloneError（被 save 的 catch 当「保存失败」吞掉）。
   payload = plain(payload);
   const kind = WORD_KINDS.includes(payload.kind) ? payload.kind : 'word';
-  // round50 N1：词卡文本字段软上限（与卡片侧 validateCard 的 MAX_CHARS=8000 同防御思路，
+  // round50 N1：词卡文本字段软上限（与卡片侧 validateCard 的 CARD_MAX_CHARS 同防御思路，
   // 只在写入边界收口）——防误粘贴超长文本膨胀同步包/白烧 AI 账。字段短文本属性决定
   // 上限更小；slice 静默截断而非报错，与既有的 trim 行为风格一致。
+  // ⚠️ round131：此处原写「MAX_CHARS=8000」，round129 已把卡片上限提到 50000
+  //   （src/utils/card-limits.js），词卡侧上限与它无关、无需跟随，仅修正注释避免误导。
   const L = (s, max) => String(s ?? '').trim().slice(0, max);
   const t = now();
   const card = {

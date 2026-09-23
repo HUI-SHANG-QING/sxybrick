@@ -1,7 +1,7 @@
 <script setup>
 // AI 文档：保存 AI 生成的总结/讲义/计划等长文，可增删改，数据落 IndexedDB 并随数据包同步
 import { confirmDialog } from '../utils/confirm.js';
-import { ref, onMounted, nextTick } from 'vue';
+import { ref, onMounted, nextTick, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { listDocs, createDoc, updateDoc, deleteDoc, createCard } from '../repo.js';
 import { chatAI, hasAIKey, resolveMaxTokens } from '../ai.js';
@@ -117,6 +117,9 @@ async function applyRouteId() {
 }
 // 挂载即加载历史（applyRouteId 内部已先 load()，带 ?id= 时再定位到具体文档）
 onMounted(applyRouteId);
+// round131：同页 query 变化（浏览器前进/后退、同路由 ?id= 切换）时组件会复用、
+// onMounted 不再执行 → 定位/选中态不更新。监听 fullPath 变化重新定位。
+watch(() => route.fullPath, () => { applyRouteId(); });
 </script>
 
 <template>

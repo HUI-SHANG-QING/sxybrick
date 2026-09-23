@@ -1,6 +1,6 @@
 <script setup>
 // 备忘录 · 四象限：按「重要/紧急」分类事项，存 IndexedDB 可随数据包同步
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { toast } from '../utils/toast.js';
 import { runAction } from '../utils/action.js';
@@ -60,6 +60,8 @@ async function applyRouteId() {
   if (hit) { highlightId.value = id; setTimeout(() => { highlightId.value = ''; }, 2500); }
 }
 onMounted(applyRouteId);
+// round131：同页 query 变化时组件复用、onMounted 不再执行 → 高亮不更新。
+watch(() => route.fullPath, () => { applyRouteId(); });
 </script>
 
 <template>
