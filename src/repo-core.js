@@ -4,8 +4,11 @@
 // 编排层（repo.js）只做 IO，行为与本模块此前内联实现完全一致。
 
 import { formatDate } from './utils/format.js';
+import { CARD_MAX_CHARS } from './utils/card-limits.js';
 export const DEFAULT_SUBJECTS = ['计算机网络', '操作系统', '数据结构', '计算机组成原理', '高等数学', '线性代数', '概率论'];
-const MAX_CHARS = 8000;
+// round129：卡片正/背面长度上限收敛到单一来源（src/utils/card-limits.js），
+// 不再在本文件硬编码。UI 字数统计与各生成链路的产物截断同源引用该常量。
+const MAX_CHARS = CARD_MAX_CHARS;
 
 const DAY = 86400000;
 

@@ -12,6 +12,7 @@ import { t } from '../i18n/index.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
 import { runAction } from '../utils/action.js';
+import { CARD_MAX_CHARS } from '../utils/card-limits.js';
 
 const expandedId = ref(localStorage.getItem('sxy_wb_expanded') || '');
 // 错题详情：默认全展开（与「背诵 → 已背记录」一致），collapsedIds 存储被用户手动收起的卡 id
@@ -161,8 +162,8 @@ async function genVariant(c) {
     const obj = JSON.parse(m ? m[0] : r);
     if (!obj?.front || !obj?.back) throw new Error(t('views.wrongBook.genFormatError'));
     await createCard({
-      front: String(obj.front).slice(0, 8000),
-      back: String(obj.back).slice(0, 8000),
+      front: String(obj.front).slice(0, CARD_MAX_CHARS),
+      back: String(obj.back).slice(0, CARD_MAX_CHARS),
       subject: c.subject || '',
       tags: ['错题变式', ...(c.tags || []).slice(0, 3)],
       type: 'basic',

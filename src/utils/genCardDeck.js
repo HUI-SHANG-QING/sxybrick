@@ -7,6 +7,7 @@
 import { chatAI, resolveMaxTokens } from '../ai.js';
 import { shouldFallback, isNetworkError } from './offlineAI.js';
 import { parseLLMJsonArray } from './llm-json.js';
+import { CARD_MAX_CHARS } from './card-limits.js';
 
 // 清洗 markdown，给 LLM 喂纯文本
 function plain(md) {
@@ -35,8 +36,8 @@ function offlineGenDeck(text, count, subject) {
     const firstSentence = p.split(/[。！？.!?\n]/)[0]?.trim() || p.slice(0, 40);
     const rest = p.slice(firstSentence.length).trim();
     out.push({
-      front: firstSentence.slice(0, 200),
-      back: (rest || p).slice(0, 2000),
+      front: firstSentence.slice(0, CARD_MAX_CHARS),
+      back: (rest || p).slice(0, CARD_MAX_CHARS),
       subject: subject || '未分类',
       difficulty: 'basic',
     });
@@ -106,8 +107,8 @@ export async function genCardDeck(text, opts = {}) {
     if (!c.front || !c.back) continue;
     const diff = ['basic', 'applied', 'challenge'].includes(c.difficulty) ? c.difficulty : 'basic';
     result.push({
-      front: String(c.front).slice(0, 2000),
-      back: String(c.back).slice(0, 8000),
+      front: String(c.front).slice(0, CARD_MAX_CHARS),
+      back: String(c.back).slice(0, CARD_MAX_CHARS),
       subject,
       tags,
       difficulty: diff,

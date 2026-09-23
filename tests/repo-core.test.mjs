@@ -3,6 +3,7 @@
 // 校验/过滤/排序/统计逻辑已抽至 src/repo-core.js，此处直接覆盖。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { CARD_MAX_CHARS } from '../src/utils/card-limits.js';
 import {
   DEFAULT_SUBJECTS,
   validateCard,
@@ -68,12 +69,13 @@ test('validateCard: 非法 type/difficulty 回退默认值', () => {
   assert.equal(r.value.difficulty, 'basic');
 });
 
-test('validateCard: 超过 8000 字报错（按 Unicode 码点计）', () => {
-  const tooLong = 'a'.repeat(8001);
-  assert.match(validateCard({ front: tooLong, back: 'b' }).error, /不能超过 8000 字/);
-  assert.ok(validateCard({ front: 'a'.repeat(8000), back: 'b' }).value);
+test('validateCard: 超过上限报错（按 Unicode 码点计）', () => {
+  // 边界值从单一来源取，避免上限调整后测试与实现漂移（round129：8000 → 50000）
+  const tooLong = 'a'.repeat(CARD_MAX_CHARS + 1);
+  assert.match(validateCard({ front: tooLong, back: 'b' }).error, new RegExp(`不能超过 ${CARD_MAX_CHARS} 字`));
+  assert.ok(validateCard({ front: 'a'.repeat(CARD_MAX_CHARS), back: 'b' }).value);
   // 中日韩代理对也按码点计（...spread 展开）
-  assert.ok(validateCard({ front: '记'.repeat(8000), back: 'b' }).value);
+  assert.ok(validateCard({ front: '记'.repeat(CARD_MAX_CHARS), back: 'b' }).value);
 });
 
 test('validateCard: tags 非数组安全回退为空', () => {

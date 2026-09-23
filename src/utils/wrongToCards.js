@@ -5,6 +5,7 @@
 //   - GenQuiz.vue 生成式错题：{type, stem, options, answer, explanation, sourceCardId, subject, user, cov, correct}
 // 生成的卡片：front=题干, back=参考答案+解析, 关联 sourceCardId, 标签"错题补卡"
 import { createCard } from '../repo.js';
+import { CARD_MAX_CHARS } from './card-limits.js';
 
 /**
  * 把错题列表统一生成为卡片入复习队列
@@ -45,8 +46,8 @@ export async function wrongQuestionsToCards(wrongList, opts = {}) {
       }
       if (!front) { failed++; continue; }
       await createCard({
-        front: front.slice(0, 8000),
-        back: back.slice(0, 8000),
+        front: front.slice(0, CARD_MAX_CHARS),
+        back: back.slice(0, CARD_MAX_CHARS),
         subject,
         tags: [tag],
         type: 'basic',

@@ -15,6 +15,7 @@ import { listCards, createCard, createDoc } from '../repo.js';
 // offlineAI 只在离线降级路径（shouldFallback/网络错误）用到，动态 import
 // 把它移出初始化图，断成无环。
 import { parseLLMJsonArray } from './llm-json.js';
+import { CARD_MAX_CHARS } from './card-limits.js';
 import { t } from '../i18n/index.js';
 // 评分/题型决策为纯函数，下沉到无依赖的 genScoring.js（避免 offlineAI↔genDeck 双向环 TDZ）
 // ⚠️ 必须本地 import 一份：`export { x } from './y.js'` 只是转发导出，不会把 x 引入本模块
@@ -173,8 +174,8 @@ export function parseCards(text) {
     return arr
       .filter(c => c && c.front && c.back)
       .map(c => ({
-        front: String(c.front).slice(0, 8000),
-        back: String(c.back).slice(0, 8000),
+        front: String(c.front).slice(0, CARD_MAX_CHARS),
+        back: String(c.back).slice(0, CARD_MAX_CHARS),
         subject: String(c.subject || '').slice(0, 30),
         tags: Array.isArray(c.tags) ? c.tags.slice(0, 8) : [],
         type: ['basic', 'cloze', 'choice'].includes(c.type) ? c.type : decideType(c),

@@ -7,6 +7,7 @@
 //  3) 所有兜底函数为纯函数、无副作用、无网络，便于测试与复用。
 
 import { decideType, scoreCard } from './genScoring.js';
+import { CARD_MAX_CHARS } from './card-limits.js';
 
 // ---------- 意图识别：从 messages 推断当前调用属于哪类功能 ----------
 export function detectIntent(messages = []) {
@@ -83,12 +84,12 @@ export function offlineGenDeck(text, opts = {}) {
   for (const s of sentences) {
     const card = questionFromSentence(s);
     if (!card) continue;
-    const front = String(card.front).slice(0, 8000);
+    const front = String(card.front).slice(0, CARD_MAX_CHARS);
     if (seenFront.has(front)) continue;
     seenFront.add(front);
     const c = {
       front,
-      back: String(card.back).slice(0, 8000),
+      back: String(card.back).slice(0, CARD_MAX_CHARS),
       subject,
       tags: subject ? [subject] : [],
       type: card.type,
@@ -161,8 +162,8 @@ export function offlineGenVariants(card, count = 3) {
       const v = t.make(card);
       if (!v || !v.front || !v.back) continue;
       out.push({
-        front: String(v.front).slice(0, 8000),
-        back: String(v.back).slice(0, 8000),
+        front: String(v.front).slice(0, CARD_MAX_CHARS),
+        back: String(v.back).slice(0, CARD_MAX_CHARS),
         subject: card.subject || '',
         tags,
         type: 'basic',

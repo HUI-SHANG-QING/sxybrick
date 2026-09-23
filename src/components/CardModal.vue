@@ -1,6 +1,6 @@
 <script setup>
 // 新建/编辑卡片弹窗：科目(含自定义)、标签自动完成、Markdown 实时预览、
-// 图片插入(本地存储)、字数统计(7500 预警 / 8000 上限)、实时校验
+// 图片插入(本地存储)、字数统计(CARD_WARN_CHARS 预警 / CARD_MAX_CHARS 上限)、实时校验
 import { ref, computed, watch, shallowRef, onMounted, onBeforeUnmount } from 'vue';
 import { confirmDialog } from '../utils/confirm.js';
 import MarkdownRenderer from './MarkdownRenderer.vue';
@@ -14,6 +14,7 @@ import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
 import { putImage } from '../images.js';
 import { uid } from '../db.js';
+import { CARD_MAX_CHARS, CARD_WARN_CHARS } from '../utils/card-limits.js';
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -21,7 +22,7 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:modelValue', 'saved']);
 
-const MAX = 8000, WARN = 7500, MAX_TAGS = 16;
+const MAX = CARD_MAX_CHARS, WARN = CARD_WARN_CHARS, MAX_TAGS = 16;
 
 const subject = ref('');
 const customSubject = ref('');

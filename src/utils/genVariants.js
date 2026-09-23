@@ -5,6 +5,7 @@ import { chatAI, resolveMaxTokens } from '../ai.js';
 import { createCard } from '../repo.js';
 import { offlineGenVariants, shouldFallback, isNetworkError, isOfflineReply } from './offlineAI.js';
 import { parseLLMJsonArray } from './llm-json.js';
+import { CARD_MAX_CHARS } from './card-limits.js';
 import { t } from '../i18n/index.js';
 
 function plain(md) {
@@ -28,8 +29,8 @@ export async function genVariants(card, count = 3, deps = {}) {
   const callAI = typeof deps.chat === 'function' ? deps.chat : chatAI;
   // difficulty 梯度：basic / applied / challenge（P3-E 渐进式复杂度）
   const make = async (v) => createCard({
-    front: String(v.front).slice(0, 8000),
-    back: String(v.back).slice(0, 8000),
+    front: String(v.front).slice(0, CARD_MAX_CHARS),
+    back: String(v.back).slice(0, CARD_MAX_CHARS),
     subject: card.subject || '',
     tags: ['情境变式', ...(card.tags || []).slice(0, 3)],
     type: 'basic',

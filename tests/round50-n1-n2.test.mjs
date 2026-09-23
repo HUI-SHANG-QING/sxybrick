@@ -9,6 +9,7 @@ import { db } from '../src/db.js';
 import { createWordCard } from '../src/word-repo.js';
 import { validateCard } from '../src/repo-core.js';
 import { compactConvo } from '../src/agent/agents/base.js';
+import { CARD_MAX_CHARS } from '../src/utils/card-limits.js';
 
 after(async () => { try { await db.close(); } catch { /* ignore */ } });
 
@@ -29,11 +30,11 @@ test('round50 N1：词卡字段超长静默截断（word/meaning/note 等写入�
 });
 
 test('round50 N1：卡片侧 MAX_CHARS 上限拒绝超长 front/back（既有防线边界断言）', () => {
-  const long = 'y'.repeat(9000);
+  const long = 'y'.repeat(CARD_MAX_CHARS + 1000);
   const r = validateCard({ front: long, back: 'ok', type: 'basic' });
-  assert.ok(r.error && r.error.includes('8000'), '超 8000 字应被拒绝');
+  assert.ok(r.error && r.error.includes(String(CARD_MAX_CHARS)), `超 ${CARD_MAX_CHARS} 字应被拒绝`);
   // 码点安全：emoji 计 1 个"字"，7999 个 ASCII + 1 个 emoji 应放行
-  const ok = validateCard({ front: 'a'.repeat(7999) + '😀', back: 'ok', type: 'basic' });
+  const ok = validateCard({ front: 'a'.repeat(CARD_MAX_CHARS - 1) + '😀', back: 'ok', type: 'basic' });
   assert.equal(ok.error, undefined, 'emoji 按码点计长，不应误伤');
 });
 
