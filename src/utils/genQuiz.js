@@ -8,6 +8,7 @@
 import { chatAI, resolveMaxTokens } from '../ai.js';
 import { shouldFallback, isNetworkError } from './offlineAI.js';
 import { parseLLMJsonArray } from './llm-json.js';
+import { fitKnowledge } from './knowledge-budget.js';
 
 // 清洗 markdown，给 LLM 喂纯文本
 function plain(md) {
@@ -126,13 +127,17 @@ export async function genQuiz(cards, opts = {}) {
     return r;
   }
 
-  // 准备知识点摘要（喂给 LLM，避免超长）
-  const knowledge = cards.slice(0, 30).map((c) => ({
+  // 准备知识点（喂给 LLM）
+  // round132：此前是每卡硬砍「题干 120 / 答案 150」—— 那是卡片上限还只有数千字时的保守
+  //   假设，卡片上限提到 50000 后失效：用户写满的长卡喂进去仍只有开头一小段
+  //   （写 50000 字与写 200 字，AI 看到的一样多）。现按**实际长度**喂，只有在卡组总量
+  //   真的超出请求预算时才水填式收窄，详见 utils/knowledge-budget.js 的模块注释。
+  const knowledge = fitKnowledge(cards.slice(0, 30).map((c) => ({
     id: c.id,
-    q: plain(c.front).slice(0, 120),
-    a: plain(c.back).slice(0, 150),
+    q: plain(c.front),
+    a: plain(c.back),
     subject: c.subject || '未分类',
-  }));
+  })));
 
   const typePrompt = type === 'mixed'
     ? `混合出题：约 1/3 选择题(choice)、1/3 填空题(cloze)、1/3 简答题(shortAnswer)`
