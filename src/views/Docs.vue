@@ -105,13 +105,17 @@ async function importCards() {
 
 // 从 URL ?id=xxx 定位具体文档（搜索结果跳转）
 async function applyRouteId() {
+  // ⚠️ 必须先 load()：挂载时若 URL 没有 ?id=，下面的 `if (!id) return` 会提前返回 ——
+  // 此前 load() 写在 return 之后，导致「刷新 / 从其它模块进入」时历史列表恒为空，
+  // 只有新建保存（save() 内显式 load()）后才短暂可见。与 Memo.vue / Plans.vue 对齐。
+  await load();
   const id = route.query?.id ? String(route.query.id) : '';
   if (!id) return;
-  await load();
   await nextTick();
   const hit = docs.value.find(d => d.id === id);
   if (hit) activeId.value = hit.id;
 }
+// 挂载即加载历史（applyRouteId 内部已先 load()，带 ?id= 时再定位到具体文档）
 onMounted(applyRouteId);
 </script>
 
