@@ -238,15 +238,18 @@ const src = readFileSync(new URL('../src/repo.js', import.meta.url), 'utf8');  /
 
 ## 六、遗留事项
 
-1. `39c7f07`（round120 修复）+ `6f1f5a0`（round121 性能修复）**本地已提交、尚未推送**，等你发话。
-2. 搜索跳转 `goId`：provider 侧有断言（`search-service.test.mjs:135/155`），
+1. **本地已提交、尚未推送**（等你发话）：`39c7f07`（round120）、`6f1f5a0`（round121）、
+   `4b82609`（round122 本轮修复）。
+2. **建议级 D / E / F / G 未修**（`sync.js:1004` 删批注不写墓碑、`db.js:363` 注释自相矛盾、
+   `annot.level` 死字段、墓碑单列主键建模）——本轮只修了两个严重项 + 配套门禁，这 4 条等你决定。
+3. 搜索跳转 `goId`：provider 侧有断言（`search-service.test.mjs:135/155`），
    但**消费方 `Search.vue:68` 的 `item.goId ?? item.id` 仍是零测试保护**（round119 老问题，未修）。
-3. 工作区有 3 个未跟踪文件（并行会话产物）：`docs/AUDIT-2026-10-01-round116/117-full-audit.md`、
-   `tests/quick-check.test.mjs`。
+4. 工作区有 3 个未跟踪文件（并行会话产物，本轮未动）：
+   `docs/AUDIT-2026-10-01-round116/117-full-audit.md`、`tests/quick-check.test.mjs`。
 
 ---
 
-## 五、给「为什么每轮修完还会出问题」的一条观察
+## 七、给「为什么每轮修完还会出问题」的一条观察
 
 本轮两个严重缺陷都不是"改错了代码"，而是：
 
