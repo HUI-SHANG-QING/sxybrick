@@ -49,6 +49,10 @@ const writingChecked = ref(false);
 const writingCorrect = ref(false);
 watch(() => props.card.id, () => {
   flipped.value = false; picked.value = null; hintReveal.value = false;
+  // round116 审计：切卡时一并回收 flip3d 渲染上下文——上一卡翻转过渡（600ms）中切卡，
+  // 旧定时器仍会等到期才关掉 3D 上下文，新卡短暂停留在 preserve-3d 渲染路径上。
+  flip3d.value = false;
+  if (flip3dTimer) { clearTimeout(flip3dTimer); flip3dTimer = null; }
   difficulty.value = DIFF_DEFAULT[props.card.difficulty] ?? (Number.isFinite(Number(props.card.difficulty)) ? Number(props.card.difficulty) : 1);
   wrongReason.value = wrongReasonToCode(props.card.wrongReason);
   customWrong.value = '';

@@ -34,7 +34,10 @@ function buildAgentCtx() {
         runAgent: async ({ prompt }) => llmChat(
           [{ role: 'user', content: prompt }],
           getAIConfig(),
-          { source: 'english-modes', temperature: 0.6, maxTokens: resolveMaxTokens(1600) },
+          // round116 审计：floor 从 1600 降到 512 —— 单词 AI 输出（例句/翻译/解析）本来就短，
+          // 1600 的硬下限会让「用户配置 <1600」时被强行抬高（每请求多买 ~1K token 却不产出更多内容），
+          // 与「尊重用户设置」的口径不符；512 只兜底极端小配置，用户配置更大时仍按用户配置走。
+          { source: 'english-modes', temperature: 0.6, maxTokens: resolveMaxTokens(512) },
         ),
       };
     }

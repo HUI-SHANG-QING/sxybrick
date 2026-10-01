@@ -181,3 +181,20 @@ test('genQuiz.js 结构闸：出题选卡与自适应降载必须走本模块（
     '不得残留旧的「表序取前 30」硬编码（F1：改随机抽样）',
   );
 });
+
+test('round137 结构闸：F1 抽样必须在 F2 重试循环之外（重试不得换卡组）', () => {
+  const src = read(`${SRC}/utils/genQuiz.js`);
+  // 抽样（const picked = pickKnowledgeCards）必须出现在 for(;;) 之前——否则每次
+  // 预算减半重试都会重新随机抽样，减半作用在不同卡组上，F2 语义落空且浪费请求。
+  assert.match(
+    src,
+    /const picked = pickKnowledgeCards\s*\(\s*cards\s*,\s*30\s*\)\s*;[\s\S]{0,400}?for\s*\(\s*;\s*;\s*\)/,
+    'pickKnowledgeCards 必须在重试循环外只执行一次（F1×F2 交互：重试复用同一卡池）',
+  );
+  // 反模式：循环体内不得再出现 pickKnowledgeCards 调用（重抽样）
+  assert.doesNotMatch(
+    src,
+    /for\s*\(\s*;\s*;\s*\)[\s\S]{0,600}?pickKnowledgeCards\s*\(/,
+    '重试循环体内不得再次调用 pickKnowledgeCards（会换掉卡组）',
+  );
+});

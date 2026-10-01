@@ -152,10 +152,16 @@ export async function genQuiz(cards, opts = {}) {
     // 错误后按预算减半重试（nextBudget 到底为止，见 knowledge-budget.KNOWLEDGE_MIN_BUDGET）；
     // 其余错误原样抛出，网络错误交给外层统一走离线降级。
     let budget = KNOWLEDGE_CHAR_BUDGET;
+    // round137 审计：F1 抽样必须**只在循环外执行一次**——若把 pickKnowledgeCards 放
+    // 循环内，每次减半重试都会重新随机抽一批卡：减半预算作用在**不同的卡组**上，
+    // 「同一批卡、更小预算」的 F2 语义落空，且第一批发超长错误的卡组被白打一整轮
+    // 请求（浪费 token）。抽样固定后，重试只影响 fitKnowledge 的收窄（短卡全文保留、
+    // 只压超长卡），行为可预期。
+    const picked = pickKnowledgeCards(cards, 30);
     for (;;) {
       // round132/136：知识点按**实际长度**喂给 AI（不再每卡硬砍 120/150）；卡池上限
       // 30 张且随机抽样（pickKnowledgeCards，F1）——详见 utils/knowledge-budget.js 注释。
-      const knowledge = fitKnowledge(pickKnowledgeCards(cards, 30).map((c) => ({
+      const knowledge = fitKnowledge(picked.map((c) => ({
         id: c.id,
         q: plain(c.front),
         a: plain(c.back),
