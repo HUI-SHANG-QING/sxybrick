@@ -348,6 +348,21 @@ d.version(34).stores({
   cardLinks: 'id, fromCardId, toCardId, addedAt',
 });
 
+// v35：卡片批注（背诵时记录复习心得，与卡片内容**完全隔离**）。
+//   设计要点：
+//   · **独立表**，绝不写入 cards 的正/背面字段——卡片内容有自己的合并策略（内容按 updatedAt、
+//     SRS 按 reviewedAt、错因按 wrongReasonAt 字段级合并），批注混进去会与该策略互相干扰，
+//     也会让「编辑卡片」意外带上批注；
+//   · 一张卡可有多条（同一张卡在不同复习阶段的心得），按 createdAt **倒序**展示；
+//   · reviewCount / level 是**写入当时的复习上下文快照**（该卡累计复习次数、当时的巩固等级），
+//     用于回顾「这条心得是在第几次复习时写的」；取不到时写 null，**不阻塞保存**；
+//   · 删除用**软删除**（deletedAt）而非删行：可撤销、且跨设备同步时删除状态能随行传播，
+//     无需再引入墓碑 kind（对比 cardLinks 的「硬删 + 墓碑」方案更简单且可回滚）；
+//   · 不参与图片引用扫描，不写 tombstones；同步按 updatedAt 合并（见 sync-manifest v35 条目）。
+d.version(35).stores({
+  cardAnnots: 'id, cardId, createdAt, updatedAt',
+});
+
 } // end defineSchema
 
 // 两个实例各自应用全量 schema（惰性 open：首次访问才真正连接 IndexedDB）

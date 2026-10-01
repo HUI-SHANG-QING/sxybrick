@@ -38,6 +38,8 @@ export const MODULE_LABELS = {
   cardWordLinks: '卡-词链接',
   // v34 通用卡↔通用卡关联
   cardLinks: '卡-卡关联',
+  // v35 卡片批注
+  cardAnnots: '卡片批注',
   analysisSessions: '联动分析会话', analysisMessages: '联动分析消息',
   // v25 英语单词模块
   wordCards: '单词卡', wordReviews: '单词复习记录',

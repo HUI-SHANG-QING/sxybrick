@@ -3,6 +3,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import FlipCard from '../components/FlipCard.vue';
+import CardAnnotation from '../components/CardAnnotation.vue';
 import CardModal from '../components/CardModal.vue';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
 import EmptyState from '../components/EmptyState.vue';
@@ -122,6 +123,13 @@ watch(() => current()?.id, async (id) => {
     if (current()?.id === id) sourceDoc.value = r; // 卡片已切走则丢弃
   } catch { sourceDoc.value = null; }
 });
+
+// ---- 卡片批注（默认收起；只有展开时才由组件加载，失败不阻塞复习主流程）----
+// 状态放在页面层而非卡片组件内：FlipCard 是共用组件（Exam / 卡片预览也会用），
+// 批注只在背诵场景需要，状态留在本页可保证其他使用方零感知。
+const annotOpen = ref(false);
+const annotCount = ref(0);
+function toggleAnnot() { annotOpen.value = !annotOpen.value; }
 
 // 卡片导航：上一张/下一张（不重置翻转状态，FlipCard 会 watch card.id 自动重置）
 function prevCard() {
@@ -593,6 +601,9 @@ watch(retrievalStrength, v => localStorage.setItem('sxy_rv_retrieval', v));
 // P3-C：切到新卡时若开启自动朗读，先停旧朗读再读题面
 watch([idx, queue], () => {
   stopRead();
+  // 切换卡片 → 批注面板收起（需求 3）；批注数据由 CardAnnotation 按 cardId 自行清空，
+  // 这里只负责界面状态，避免两侧都改同一份数据引发不一致。
+  annotOpen.value = false;
   if (autoRead.value && tab.value === 'due' && current()) {
     setTimeout(() => readAloud('front'), 120);
   }
@@ -865,8 +876,25 @@ async function recordDuelWrong(idA, idB) {
 
       <template v-else-if="current()">
         <!-- 卡片 + 难度/错因/自评（FlipCard 内部已拆分：舞台内滚 + 操作区在舞台外独立块） -->
-        <div class="review-card-wrap">
-          <FlipCard ref="flipRef" :card="current()" @rate="rate" @edit="openEdit" />
+        <div class="review-card-wrap" :class="{ 'has-annot': annotOpen }">
+          <div class="review-card-main">
+            <FlipCard
+              ref="flipRef"
+              :card="current()"
+              :show-annot="true"
+              :annot-open="annotOpen"
+              :annot-count="annotCount"
+              @rate="rate"
+              @edit="openEdit"
+              @annot="toggleAnnot"
+            />
+          </div>
+          <CardAnnotation
+            :card-id="current()?.id || ''"
+            :open="annotOpen"
+            @close="annotOpen = false"
+            @count="annotCount = $event"
+          />
         </div>
 
         <div v-if="smartHint" class="consolidation-hint" style="color:var(--accent)">{{ smartHint }}</div>
@@ -1071,6 +1099,22 @@ async function recordDuelWrong(idA, idB) {
 
 /* P0·1 防遮挡：背诵容器加底部安全区，为 sticky 快捷键条预留空间 */
 .review-card-wrap { margin-top: 12px; }
+/* 批注展开：卡片与面板并排。卡片 flex:1 保持自身尺寸不变（面板宽度由组件自管）；
+   align-items:stretch 让面板**与卡片等高**，内容溢出走面板内部滚动 —— 绝不把卡片撑高。
+   不动 .flip-scene 内部任何布局，因此不会引起卡片重排或跳动。 */
+.review-card-wrap.has-annot {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+.review-card-wrap.has-annot .review-card-main {
+  flex: 1 1 auto;
+  min-width: 0;          /* 长内容时允许卡片收缩，避免把面板挤没 */
+}
+/* 窄屏不并排（并排会挤压卡片与操作按钮）→ 改为卡片下方整宽展开 */
+@media (max-width: 720px) {
+  .review-card-wrap.has-annot { flex-direction: column; }
+}
 .review-kb-spacer { height: 0; }
 @media (min-width: 721px) { .review-kb-spacer { height: 74px; } }
 .review-kb-bar {

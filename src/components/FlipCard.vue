@@ -9,9 +9,18 @@ import MarkdownRenderer from './MarkdownRenderer.vue';
 import { speak, mdToSpeech } from '../utils/tts.js';
 import { WRONG_REASONS, wrongReasonToCode } from '../repo.js';
 import { T } from '../utils/telemetry.js';
+import { t } from '../i18n/index.js';
 
-const props = defineProps({ card: { type: Object, required: true } });
-const emit = defineEmits(['rate', 'edit']);
+const props = defineProps({
+  card: { type: Object, required: true },
+  // ---- 批注入口 ----
+  // 三个 prop **全部默认关闭/零值**：只有复习页显式开启，其余使用方（Exam / 卡片预览等）
+  // 的渲染与行为**零变化** —— 这是「不破坏现有功能」的硬保障。
+  showAnnot: { type: Boolean, default: false },
+  annotOpen: { type: Boolean, default: false },
+  annotCount: { type: Number, default: 0 },
+});
+const emit = defineEmits(['rate', 'edit', 'annot']);
 
 const flipped = ref(false);
 const picked = ref(null);
@@ -360,6 +369,19 @@ defineExpose({ flipped, showBack, doRate });
               <input v-model="customWrong" class="input" style="width:130px" placeholder="自定义错因（20字内）" maxlength="20" @keydown.enter="applyCustomWrong" />
               <button class="chip mini" @click="applyCustomWrong">确定</button>
             </template>
+          </div>
+          <!-- 批注入口：默认不渲染（showAnnot=false 时零 DOM）；点击只 emit，
+               不触碰翻转/评分/全屏任何逻辑；@click.stop 防冒泡触发卡片翻面 -->
+          <div v-if="showAnnot" class="meta-group">
+            <span class="meta-label">{{ t('views.review.annotLabel') }}</span>
+            <button
+              class="chip mini"
+              :class="{ on: annotOpen }"
+              :aria-expanded="annotOpen ? 'true' : 'false'"
+              aria-controls="card-annot-panel"
+              :title="t('views.review.annotBtnTitle')"
+              @click.stop="emit('annot')"
+            >{{ annotCount > 0 ? t('views.review.annotBtnN', undefined, { n: annotCount }) : t('views.review.annotBtn') }}</button>
           </div>
         </div>
         <div class="rate-row">

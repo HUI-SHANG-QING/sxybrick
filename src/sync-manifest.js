@@ -7,7 +7,8 @@
 // 属同步集合演进，必须 +1。导入侧 sync.js 用 `backup.version > BACKUP_VERSION` 拒绝过高版本
 // （清晰「请升级」而非崩溃），更低版本旧包仍可导入。
 // round39：新增 cardLinks（通用卡↔通用卡关联）→ 9 → 10。
-export const BACKUP_VERSION = 10;
+// v35：新增 cardAnnots（卡片批注，独立内容表）→ 10 → 11。
+export const BACKUP_VERSION = 11;
 
 // merge 策略：
 //   card      卡片专属：内容字段按 updatedAt、SRS 字段按 reviewedAt、错因按 wrongReasonAt 字段级合并
@@ -133,6 +134,11 @@ export const SYNC_TABLES = [
   //   与 cardWordLinks 同语义——「移除」= 本端删行 + kind='cardLink' 墓碑（对端同 id 行被
   //   applyTombstones 清除），两侧 cards 行各自按原策略同步，内容不互串。
   { table: 'cardLinks', kind: 'cardLink', merge: 'idOnly' },
+  // v35（卡片批注）：与卡片内容**完全隔离**的独立表（绝不写进 cards 正/背面字段）。
+  //   一条批注可被编辑（改文字）→ 按 updatedAt 合并，谁新听谁。
+  //   删除走**软删除**（deletedAt 随行同步），因此本表**不写 tombstones**；
+  //   登记 kind 仅为清单结构统一（不会被 applyTombstones 命中）。
+  { table: 'cardAnnots', kind: 'cardAnnot', merge: 'updatedAt' },
   // v23（M2）新增：联动分析会话 + 消息（对话历史跨设备回看）
   //   会话按 updatedAt 合并（标题/卡片集更新）；消息不可变（append-only）→ idOnly 幂等
   { table: 'analysisSessions', kind: 'analysisSession', merge: 'updatedAt' },
