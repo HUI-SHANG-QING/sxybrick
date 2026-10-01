@@ -9,6 +9,7 @@
 //   · 旧卡片无批注时正常（返回空数组，不抛错）
 //   · 批注**不写进卡片正/背面字段**（隔离性，硬性要求）
 //   · 加载失败不阻塞复习（读接口对错误宽容）
+//   · 删除 = 物理删行 + 墓碑，且墓碑经 applyTombstones 能清除对端行（跨设备删除闭环）
 //
 // ⚠️ 无法在 node 环境真实点击的项（点击不触发翻转 / 桌面右侧布局 / 移动端不挤压），
 //    用**源码结构断言**守住关键约束（@click.stop、默认关闭、flex 规则），并在测试名里标明。
@@ -19,14 +20,17 @@ import 'fake-indexeddb/auto';
 import './_env.mjs';
 import { db } from '../src/db.js';
 import {
-  listAnnots, countAnnots, addAnnot, updateAnnot, softDeleteAnnot, restoreAnnot,
+  listAnnots, addAnnot, updateAnnot, deleteAnnot,
   normalizeAnnotContent, formatAnnotTs, ANNOT_MAX_CHARS,
 } from '../src/annot-repo.js';
 
 const SRC = new URL('../src', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const read = (p) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
 
-beforeEach(async () => { await db.cardAnnots.clear(); });
+beforeEach(async () => {
+  await db.cardAnnots.clear();
+  await db.tombstones.clear();
+});
 
 // ---------------------------------------------------------------- 数据层
 
@@ -40,9 +44,8 @@ test('新增批注：自动生成时间戳，且内容独立存放（不写卡�
   assert.equal(row.content, '停止-等待协议要记窗口大小', '首尾空白应被裁掉');
   assert.ok(Number.isFinite(row.createdAt) && row.createdAt > 0, 'createdAt 应自动生成');
   assert.equal(row.createdAt, row.updatedAt, '新建时两个时间戳一致');
-  assert.equal(row.deletedAt, null);
 
-  // 隔离性：卡片正/背面一个字符都不能变
+  // 隔离性：卡片正/背面一个字符都不能变，也不得新增字段
   const after = await db.cards.get('c-1');
   assert.equal(after.front, before.front, '批注不得修改卡片正面');
   assert.equal(after.back, before.back, '批注不得修改卡片背面');
@@ -62,7 +65,7 @@ test('空内容 / 纯空白不允许保存', async () => {
   await assert.rejects(() => addAnnot('c-3', ''), /ANN_EMPTY/);
   await assert.rejects(() => addAnnot('c-3', '   \n\t '), /ANN_EMPTY/);
   await assert.rejects(() => addAnnot('', '有内容但没卡'), /ANN_NO_CARD/);
-  assert.equal(await countAnnots('c-3'), 0, '失败的写入不应落库');
+  assert.equal((await listAnnots('c-3')).length, 0, '失败的写入不应落库');
 });
 
 test(`超长内容被截断到 ${ANNOT_MAX_CHARS} 字（写入边界收口）`, async () => {
@@ -80,18 +83,37 @@ test('编辑只改内容，保留原 createdAt（时间戳不可手动修改）'
   assert.ok(next.updatedAt >= row.updatedAt, 'updatedAt 应推进');
 });
 
-test('删除为软删除：列表不再返回，但行还在且可恢复', async () => {
+test('删除 = 物理删行 + 写墓碑（跨设备删除才有效，不再用行内软删除字段）', async () => {
   const row = await addAnnot('c-6', '待删除');
-  assert.equal(await softDeleteAnnot(row.id), true);
-  assert.equal((await listAnnots('c-6')).length, 0, '软删除后不应出现在列表');
-  assert.equal(await countAnnots('c-6'), 0);
+  assert.equal(await deleteAnnot(row.id), true);
+  assert.equal((await listAnnots('c-6')).length, 0, '删除后不应出现在列表');
+  assert.equal(await db.cardAnnots.get(row.id), undefined, '行应被物理删除');
 
-  const raw = await db.cardAnnots.get(row.id);
-  assert.ok(raw, '软删除不物理删行（可撤销、删除状态可跨设备同步）');
-  assert.ok(raw.deletedAt > 0);
+  const t = (await db.tombstones.toArray()).find((x) => x.id === row.id);
+  assert.ok(t, '必须写墓碑，否则对端同 id 行下次合并会按「新行」回灌');
+  assert.equal(t.kind, 'cardAnnot', 'kind 必须与 sync-manifest 登记一致');
+  assert.ok(t.deletedAt > 0, '墓碑需带删除时间');
 
-  assert.equal(await restoreAnnot(row.id), true);
-  assert.equal((await listAnnots('c-6')).length, 1, '恢复后应重新出现');
+  assert.equal(await deleteAnnot(row.id), false, '重复删除应返回 false（目标已不存在）');
+});
+
+test('墓碑经 applyTombstones 能清除对端同 id 行（跨设备删除闭环）', async () => {
+  const { applyTombstones } = await import('../src/sync-manifest.js');
+  const row = await addAnnot('c-sync', 'A 端删除的批注');
+  await deleteAnnot(row.id);
+  const tombs = (await db.tombstones.toArray()).filter((t) => t.kind === 'cardAnnot');
+  assert.equal(tombs.length, 1);
+
+  // 模拟对端：还留着这行（其 liveness 早于墓碑）
+  const out = applyTombstones([{ ...row }], tombs, 'cardAnnot', Date.now() + 1000);
+  assert.deepEqual(out.removed, [row.id], '对端同 id 行应被墓碑清除');
+  assert.equal(out.rows.length, 0, '清除后对端不应残留该行');
+
+  // 反向：若对端在墓碑之后又编辑过（行更新），墓碑判为 stale（不误删）
+  const newer = [{ ...row, updatedAt: Date.now() + 2000 }];
+  const out2 = applyTombstones(newer, tombs, 'cardAnnot', Date.now() + 1000);
+  assert.equal(out2.removed.length, 0, '比墓碑更新的行不应被删（避免时钟异常误删）');
+  assert.deepEqual(out2.stale, [row.id]);
 });
 
 test('切换卡片：批注按 cardId 隔离，绝不串数据', async () => {
@@ -107,7 +129,6 @@ test('切换卡片：批注按 cardId 隔离，绝不串数据', async () => {
 
 test('旧卡片（无任何批注）正常：返回空数组，不抛错', async () => {
   assert.deepEqual(await listAnnots('never-annotated'), []);
-  assert.equal(await countAnnots('never-annotated'), 0);
   assert.deepEqual(await listAnnots(''), []);
   assert.deepEqual(await listAnnots(null), []);
 });
@@ -131,7 +152,10 @@ test('时间戳格式为 YYYY-MM-DD HH:mm:ss（本地时区）', () => {
   const d = new Date(2026, 8, 24, 9, 5, 7); // 2026-09-24 09:05:07 本地时间
   assert.equal(formatAnnotTs(d.getTime()), '2026-09-24 09:05:07');
   assert.match(formatAnnotTs(Date.now()), /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  // 回归：初版写成 `Number(ms) || 0`，NaN 被兜成 0 → 非法输入会显示 1970-01-01（falsy 陷阱）
   assert.equal(formatAnnotTs('not-a-time'), '');
+  assert.equal(formatAnnotTs(NaN), '');
+  assert.equal(formatAnnotTs(undefined), '');
 });
 
 test('读接口对故障宽容：库异常时返回空值而不抛出（不阻塞背诵主流程）', async () => {
@@ -139,10 +163,25 @@ test('读接口对故障宽容：库异常时返回空值而不抛出（不阻�
   db.cardAnnots.where = () => { throw new Error('boom'); };
   try {
     assert.deepEqual(await listAnnots('c-x'), [], '加载失败必须退化为空列表而非抛错');
-    assert.equal(await countAnnots('c-x'), 0);
   } finally {
     db.cardAnnots.where = orig;
   }
+});
+
+test('删除失败要抛错（事务原子性）：不会出现「行删了但墓碑没写」', async () => {
+  const row = await addAnnot('c-atom', '原子性验证');
+  const origPut = db.tombstones.put;
+  db.tombstones.put = () => { throw new Error('tombstone-write-failed'); };
+  let threw = false;
+  try {
+    await deleteAnnot(row.id);
+  } catch {
+    threw = true;
+  } finally {
+    db.tombstones.put = origPut;
+  }
+  assert.equal(threw, true, '墓碑写失败必须抛出（由事务回滚，而非静默成功）');
+  assert.ok(await db.cardAnnots.get(row.id), '墓碑写失败时行必须保留（事务回滚）');
 });
 
 // ------------------------------------------------- 防回归：结构与集成约束
@@ -159,15 +198,33 @@ test('FlipCard 的批注入口默认关闭，且不冒泡（防触发翻面/评�
   assert.match(src, /v-if="showAnnot"/, '未开启时不应渲染批注入口（零 DOM）');
 });
 
-test('CardAnnotation 面板：多根 Fragment、宽度自管、escoped 隔离、Esc 避让卡片全屏', () => {
+test('CardAnnotation 面板：scoped 隔离、宽度自管、Esc 避让卡片全屏、防竞态', () => {
   const src = read(`${SRC}/components/CardAnnotation.vue`);
   assert.match(src, /<style scoped>/, '样式必须 scoped，禁止污染全局');
   assert.match(src, /flex:\s*0 0 auto;[\s\S]{0,80}width:\s*clamp\(/, '面板宽度由组件自管（多根 Fragment，父级 scoped 选不中）');
   assert.match(src, /@media \(max-width:\s*720px\)[\s\S]{0,120}width:\s*100%/, '窄屏改整宽（不挤压卡片）');
   assert.match(src, /document\.querySelector\('\.content-fs-overlay'\)/, 'Esc 必须先避让卡片内容全屏，不能一键关两层');
+  // 只在**非注释行**里找（注释里会解释"为什么不能用它"，直接全文匹配会误伤注释）
+  const codeOnly = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  assert.doesNotMatch(codeOnly, /\.stopPropagation\(\)/,
+    '审计修正：document 上的 stopPropagation 无效（对同元素其他监听器不生效），不应作为拦截手段');
   assert.match(src, /reqSeq/, '异步加载必须有请求序号防竞态');
   assert.match(src, /addEventListener\('keydown', onDocKey\)/, 'Esc 监听应为面板展开时挂载');
   assert.doesNotMatch(src, /confirm\(/, '不得用原生 confirm（项目统一 confirmDialog）');
+});
+
+test('组件：保存回调只在同一张卡时才清草稿（防切卡后清掉新草稿）', () => {
+  const src = read(`${SRC}/components/CardAnnotation.vue`);
+  const m = src.match(/if \(String\(props\.cardId\) === id\) \{[\s\S]*?\n    \}/);
+  assert.ok(m, '保存回调里应有「仍停在同一张卡」的判断');
+  assert.match(m[0], /draft\.value = ''/,
+    '草稿清空必须在同一张卡判断**之内** —— 否则保存期间切卡会清掉用户在新卡上刚输入的内容');
+});
+
+test('组件：删除走 deleteAnnot（墓碑语义），不得残留行内软删除调用', () => {
+  const src = read(`${SRC}/components/CardAnnotation.vue`);
+  assert.match(src, /deleteAnnot/, '应调用 deleteAnnot');
+  assert.doesNotMatch(src, /softDeleteAnnot|restoreAnnot/, '不应再有行内软删除 API');
 });
 
 test('Review.vue：切换卡片时收起批注面板，并把状态留在页面层', () => {
@@ -194,4 +251,7 @@ test('数据层只碰 cardAnnots：绝不写 cards 表（硬性要求）', () =>
   assert.doesNotMatch(src, /db\.cards\.(put|add|update|delete|bulkPut|bulkAdd)\b/,
     'annot-repo 不得写入 cards（只能 get 读取，用于复习上下文快照）');
   assert.match(src, /db\.cards\.get\(/, '允许读卡片取 level 快照');
+  // 审计修正：不得再用行内软删除字段（与墓碑表的 deletedAt 同名不同义）
+  assert.doesNotMatch(src, /row\.deletedAt|deletedAt:\s*null|!row\.deletedAt/,
+    '不应再有行内软删除字段；删除语义统一走 tombstones');
 });

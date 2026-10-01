@@ -2,15 +2,25 @@
 // 卡片批注的数据访问层。
 //
 // 为什么单独成文件而不塞进 repo.js：主数据层已 2794 行，批注是一块**独立内聚**的
-// 新能力（自己的表、自己的 CRUD、自己的软删除语义），单独成文件的边界更清晰；
+// 新能力（自己的表、自己的 CRUD），单独成文件的边界更清晰；
 // 同时本模块只依赖 db.js（零业务依赖），不会被卷入 repo.js 的同步/级联大环。
 //
-// 硬性约束（逐条对应需求）：
+// ⚠️ 删除语义（2026-10-01 审计修正，重要）：
+//   初版用的是「行内软删除字段 deletedAt」——**该做法在本项目里没有先例，且有两处硬伤**：
+//   ① `deletedAt` 在本项目是**墓碑表 tombstones 的字段名**，用作行内字段会造成
+//      「同名不同义」，后来的维护者必然误读；
+//   ② 同步策略 `updatedAt` 是**整行 LWW**：一端删除（T1）后被另一端编辑（T2 > T1）
+//      覆盖 ⇒ **删除失效、批注复活**。
+//   现改为与项目其余表**同口径**：删除 = 物理删行 + 写墓碑
+//   （`kind: 'cardAnnot'`，已在 sync-manifest 登记，applyTombstones 会据此清除对端同 id 行）。
+//   不写回收站（trash）是因为 `restoreFromTrash` 尚不认识该 kind，写入也恢复不了；
+//   数据层保留 updateAnnot 供将来补编辑入口，删除暂以「二次确认」兜底。
+//
+// 其余硬性约束（逐条对应需求）：
 //   · 批注与卡片内容**完全隔离** —— 只写 cardAnnots 表，绝不碰 cards 的正/背面字段；
 //   · 一张卡可存多条，读取**按 createdAt 倒序**（最新在最上）；
 //   · createdAt 由本层在创建时自动生成，UI 不可修改；编辑只改 content，**保留原 createdAt**；
-//   · 删除为**软删除**（deletedAt），可撤销、可跨设备同步（行不消失，删除状态随行走）；
-//   · 读接口对失败宽容（返回空数组/0），保证批注加载失败**绝不阻塞背诵主流程**；
+//   · 读接口对失败宽容（返回空数组），保证批注加载失败**绝不阻塞背诵主流程**；
 //     写接口对空内容抛错（由 UI 提示），但也只是一个可捕获的普通 Error。
 
 import { db, uid } from './db.js';
@@ -21,11 +31,6 @@ export const ANNOT_MAX_CHARS = 2000;
 /** 内容归一化：去首尾空白 + 截断。返回空串表示「无有效内容」。 */
 export function normalizeAnnotContent(s) {
   return String(s ?? '').trim().slice(0, ANNOT_MAX_CHARS);
-}
-
-/** 行是否有效（存在且未被软删除）。 */
-function isAlive(row) {
-  return !!row && !row.deletedAt;
 }
 
 /**
@@ -46,7 +51,7 @@ export function formatAnnotTs(ms) {
 }
 
 /**
- * 列出某张卡的全部有效批注，按 createdAt **倒序**。
+ * 列出某张卡的全部批注，按 createdAt **倒序**。
  * 查询失败或卡片无批注时一律返回 []（不抛错）。
  * @param {string} cardId
  * @returns {Promise<Array<object>>}
@@ -56,25 +61,9 @@ export async function listAnnots(cardId) {
   if (!id) return [];
   try {
     const rows = await db.cardAnnots.where('cardId').equals(id).toArray();
-    return rows.filter(isAlive).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    return rows.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   } catch {
     return [];
-  }
-}
-
-/**
- * 某张卡的有效批注条数（用于「批注 N」角标）。失败返回 0。
- * @param {string} cardId
- * @returns {Promise<number>}
- */
-export async function countAnnots(cardId) {
-  const id = String(cardId || '');
-  if (!id) return 0;
-  try {
-    const rows = await db.cardAnnots.where('cardId').equals(id).toArray();
-    return rows.filter(isAlive).length;
-  } catch {
-    return 0;
   }
 }
 
@@ -115,7 +104,6 @@ export async function addAnnot(cardId, content) {
     updatedAt: now,
     reviewCount,
     level,
-    deletedAt: null,
   };
   await db.cardAnnots.put(row);
   return row;
@@ -123,38 +111,37 @@ export async function addAnnot(cardId, content) {
 
 /**
  * 编辑批注内容。**保留原 createdAt**，只推进 updatedAt。
- * @returns {Promise<object|null>} 更新后的行；目标不存在或已删除时返回 null
+ * @returns {Promise<object|null>} 更新后的行；目标不存在时返回 null
  * @throws {Error} 内容为空（ANN_EMPTY）
  */
 export async function updateAnnot(annotId, content) {
   const text = normalizeAnnotContent(content);
   if (!text) throw new Error('ANN_EMPTY');
   const row = await db.cardAnnots.get(annotId);
-  if (!isAlive(row)) return null;
+  if (!row) return null;
   const next = { ...row, content: text, updatedAt: Date.now() };
   await db.cardAnnots.put(next);
   return next;
 }
 
 /**
- * 软删除一条批注（可撤销）。行不消失，删除状态随 updatedAt 跨设备同步。
- * @returns {Promise<boolean>} 是否确实执行
+ * 删除一条批注：**物理删行 + 写墓碑**（与 deleteNote / sweepOrphanRows 同口径）。
+ *
+ * 为什么必须带墓碑：本端删行后若没有墓碑，对端同 id 的行（老包 / 未收到删除的设备）
+ * 下次合并会按「新行」回灌，删除在跨设备场景静默失效。
+ * 事务保证「删行 + 墓碑」原子：墓碑写失败则整体回滚，不会出现「行没了但墓碑也没写」。
+ *
+ * @returns {Promise<boolean>} 是否确实删除了（目标不存在返回 false）
  */
-export async function softDeleteAnnot(annotId) {
-  const row = await db.cardAnnots.get(annotId);
-  if (!isAlive(row)) return false;
-  const now = Date.now();
-  await db.cardAnnots.put({ ...row, deletedAt: now, updatedAt: now });
-  return true;
-}
-
-/**
- * 撤销软删除（恢复一条被删的批注）。
- * @returns {Promise<boolean>} 是否确实执行
- */
-export async function restoreAnnot(annotId) {
-  const row = await db.cardAnnots.get(annotId);
-  if (!row || !row.deletedAt) return false;
-  await db.cardAnnots.put({ ...row, deletedAt: null, updatedAt: Date.now() });
+export async function deleteAnnot(annotId) {
+  const id = String(annotId || '');
+  if (!id) return false;
+  const row = await db.cardAnnots.get(id);
+  if (!row) return false;
+  const ts = Date.now();
+  await db.transaction('rw', db.cardAnnots, db.tombstones, async () => {
+    await db.cardAnnots.delete(id);
+    await db.tombstones.put({ id, kind: 'cardAnnot', deletedAt: ts });
+  });
   return true;
 }

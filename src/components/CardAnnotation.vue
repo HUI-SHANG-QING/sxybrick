@@ -14,7 +14,7 @@ import { toast } from '../utils/toast.js';
 import { confirmDialog } from '../utils/confirm.js';
 import MarkdownRenderer from './MarkdownRenderer.vue';
 import {
-  listAnnots, addAnnot, softDeleteAnnot, normalizeAnnotContent, formatAnnotTs, ANNOT_MAX_CHARS,
+  listAnnots, addAnnot, deleteAnnot, normalizeAnnotContent, formatAnnotTs, ANNOT_MAX_CHARS,
 } from '../annot-repo.js';
 
 const props = defineProps({
@@ -77,14 +77,18 @@ async function save() {
   saving.value = true;
   try {
     const row = await addAnnot(id, text);
+    // ⚠️ 只有「仍停在同一张卡」时才动 UI 状态。
+    //   初版把 `draft.value = ''` 写在这个 if **外面** —— 若保存期间用户切了卡并在新卡上
+    //   重新输入，迟到的回调会把**新输入的草稿**一并清掉（静默数据丢失）。
+    //   2026-10-01 审计发现并修正。
     if (String(props.cardId) === id) {
       // 新批注 createdAt 最新 → 直接置顶（与「倒序」语义一致），无需整表重载
       annots.value = [row, ...annots.value];
       emit('count', annots.value.length);
+      draft.value = '';
+      await nextTick();
+      if (listEl.value) listEl.value.scrollTop = 0;
     }
-    draft.value = '';
-    await nextTick();
-    if (listEl.value) listEl.value.scrollTop = 0;
   } catch (e) {
     const msg = e?.message === 'ANN_EMPTY'
       ? t('views.review.annotEmptyWarn')
@@ -95,13 +99,16 @@ async function save() {
   }
 }
 
-/** 删除：软删除 + 二次确认（防误删）；失败不影响复习 */
+/** 删除：物理删行 + 墓碑（跨设备删除才有效）+ 二次确认；失败不影响复习 */
 async function remove(a) {
   if (!a?.id) return;
+  const id = String(props.cardId || '');
   if (!(await confirmDialog(t('views.review.annotDeleteConfirm')))) return;
   try {
-    const ok = await softDeleteAnnot(a.id);
-    if (ok) {
+    const ok = await deleteAnnot(a.id);
+    // 二次确认期间可能已切卡：只有仍停在同一张卡时才动列表/角标/提示，
+    // 否则会在用户已经离开的那张卡之外弹出「已删除」，造成困惑（数据本身已正确删除）。
+    if (ok && String(props.cardId) === id) {
       annots.value = annots.value.filter((x) => x.id !== a.id);
       emit('count', annots.value.length);
       toast(t('views.review.annotDeleted'), 'success');
@@ -118,8 +125,14 @@ async function remove(a) {
 function onDocKey(e) {
   if (e.key !== 'Escape') return;
   if (!props.open) return;
-  if (typeof document !== 'undefined' && document.querySelector('.content-fs-overlay')) return;
-  e.stopPropagation();
+  // 有更高优先级的浮层开着时**让位**，避免"一次 Esc 关掉两层"：
+  //   ① 卡片内容全屏（FlipCard 的捕获监听会先处理，这里再兜一道）
+  //   ② Element Plus 模态框（确认删除对话框自带 closeOnPressEscape）——
+  //      2026-10-01 审计发现：不加这一条时，用户按 Esc 取消删除会连带收起批注面板。
+  if (typeof document !== 'undefined') {
+    if (document.querySelector('.content-fs-overlay')) return;
+    if (document.querySelector('.el-overlay, .el-message-box__wrapper')) return;
+  }
   if (fsOpen.value) { fsOpen.value = false; return; }   // 全屏时先退全屏
   emit('close');
 }

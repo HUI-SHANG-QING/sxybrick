@@ -356,8 +356,10 @@ d.version(34).stores({
 //   · 一张卡可有多条（同一张卡在不同复习阶段的心得），按 createdAt **倒序**展示；
 //   · reviewCount / level 是**写入当时的复习上下文快照**（该卡累计复习次数、当时的巩固等级），
 //     用于回顾「这条心得是在第几次复习时写的」；取不到时写 null，**不阻塞保存**；
-//   · 删除用**软删除**（deletedAt）而非删行：可撤销、且跨设备同步时删除状态能随行传播，
-//     无需再引入墓碑 kind（对比 cardLinks 的「硬删 + 墓碑」方案更简单且可回滚）；
+//   · 删除与项目其余表**同口径**：物理删行 + 写墓碑（kind='cardAnnot'）。
+//     曾短暂用过「行内软删除字段 deletedAt」，已废弃 —— `deletedAt` 在本项目是**墓碑表的
+//     字段名**（同名不同义，必然误导后来者），且 `updatedAt` 策略是整行 LWW：
+//     一端删除会被另一端的编辑覆盖 ⇒ 删除静默失效、批注"复活"（2026-10-01 审计修正）。
 //   · 不参与图片引用扫描，不写 tombstones；同步按 updatedAt 合并（见 sync-manifest v35 条目）。
 d.version(35).stores({
   cardAnnots: 'id, cardId, createdAt, updatedAt',

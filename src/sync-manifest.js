@@ -136,8 +136,9 @@ export const SYNC_TABLES = [
   { table: 'cardLinks', kind: 'cardLink', merge: 'idOnly' },
   // v35（卡片批注）：与卡片内容**完全隔离**的独立表（绝不写进 cards 正/背面字段）。
   //   一条批注可被编辑（改文字）→ 按 updatedAt 合并，谁新听谁。
-  //   删除走**软删除**（deletedAt 随行同步），因此本表**不写 tombstones**；
-  //   登记 kind 仅为清单结构统一（不会被 applyTombstones 命中）。
+  //   删除与项目其余表同口径：**物理删行 + 写 kind='cardAnnot' 墓碑**（见 annot-repo.deleteAnnot）
+  //   ⇒ applyTombstones 会据此清除对端同 id 行；本表**不使用行内软删除字段**
+  //   （`deletedAt` 是墓碑表的字段名，混用会造成同名不同义，2026-10-01 审计修正）。
   { table: 'cardAnnots', kind: 'cardAnnot', merge: 'updatedAt' },
   // v23（M2）新增：联动分析会话 + 消息（对话历史跨设备回看）
   //   会话按 updatedAt 合并（标题/卡片集更新）；消息不可变（append-only）→ idOnly 幂等
