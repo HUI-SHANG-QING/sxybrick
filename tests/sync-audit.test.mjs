@@ -227,6 +227,35 @@ test('墓碑：A 删卡 → 导出 → B 导入 → 卡片与级联复习/图谱
   assert.equal(await d.graphEdges.get('edge1'), undefined, '级联图谱边应删除');
 });
 
+test('v35：A 删卡 → B 导入墓碑 → B 端该卡的批注一并级联删除（两条删卡路径同口径）', async () => {
+  await resetAll();
+  const d = getDb();
+  const T = Date.now();
+  // B 端：卡 + 两条批注（其中一条挂在另一张活着的卡上，用于验证不误伤）
+  await d.cards.put(mkCard('victim2', { updatedAt: T - 500, reviewedAt: T - 500 }));
+  await d.cards.put(mkCard('survivor', { updatedAt: T - 500, reviewedAt: T - 500 }));
+  await d.cardAnnots.put({ id: 'an1', cardId: 'victim2', content: '待删卡上的批注', reviewCount: 1, level: 1, createdAt: T - 500, updatedAt: T - 500 });
+  await d.cardAnnots.put({ id: 'an2', cardId: 'victim2', content: '同卡第二条批注', reviewCount: 1, level: 1, createdAt: T - 400, updatedAt: T - 400 });
+  await d.cardAnnots.put({ id: 'an3', cardId: 'survivor', content: '活着的卡上的批注', reviewCount: 1, level: 1, createdAt: T - 300, updatedAt: T - 300 });
+
+  const backup = {
+    app: 'sxybrick', version: BACKUP_VERSION, scope: 'real', exportedAt: T,
+    tombstones: [{ id: 'victim2', kind: 'card', deletedAt: T }],
+    cards: [], reviews: [], images: [], streakMeta: null,
+  };
+  await importBackup(backup, { skipSnapshot: true });
+
+  assert.equal(await d.cards.get('victim2'), undefined, '卡片应被墓碑删除');
+  // ⚠️ 诚实标注：本测试断言的是「端到端结果」（批注必须被清掉），**无法单独证明级联块的价值** ——
+  //    负向对照实测：注释掉 sync.js 的 cardAnnots 级联后本用例**仍然通过**，
+  //    因为 importBackup 末尾的 sweepOrphanRows 会兜底清掉同一批孤儿批注。
+  //    故级联块是「事务内的第一道闸」（原子、随导入回滚），sweep 是「事务外的兜底」，
+  //    两者是双保险而非单依赖；本用例守住的是「不管走哪条路，结果都必须干净」。
+  assert.equal(await d.cardAnnots.get('an1'), undefined, '被删卡上的批注应级联删除');
+  assert.equal(await d.cardAnnots.get('an2'), undefined, '同卡多条批注都要删');
+  assert.notEqual(await d.cardAnnots.get('an3'), undefined, '活着的卡的批注绝不能误删');
+});
+
 // ───────────────────────── 五、预览 / 数据域 ─────────────────────────
 
 test('previewImport：只读不写库，正确分类新增/覆盖/重复', async () => {

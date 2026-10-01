@@ -120,7 +120,12 @@ export const SEARCH_ADAPTERS = {
   annots: makeAdapter({
     key: 'annots', label: '卡片批注', icon: '💬', cap: 20,
     load: async () => {
-      const [rows, cards] = await Promise.all([db.cardAnnots.toArray(), db.cards.toArray()]);
+      const rows = await db.cardAnnots.toArray();
+      // 只按批注实际引用的 cardId 批量取卡（bulkGet 走主键索引），**不读整张 cards**——
+      // cards 是最大的表，每次搜索固定 toArray 一遍在万卡库上是白白付出的成本，
+      // 而批注涉及的卡通常只是其中一小撮。bulkGet 缺失键返回 undefined，需过滤。
+      const ids = [...new Set(rows.map(a => a.cardId).filter(Boolean))];
+      const cards = ids.length ? (await db.cards.bulkGet(ids)).filter(Boolean) : [];
       const cardMap = new Map(cards.map(c => [c.id, c]));
       return rows.map(a => ({ ...a, _card: cardMap.get(a.cardId) || null }));
     },

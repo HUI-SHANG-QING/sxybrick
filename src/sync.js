@@ -997,6 +997,11 @@ export async function importBackup(backup, opts = {}) {
     }
     await db.cards.bulkDelete(removed);
     await db.reviews.where('cardId').anyOf(removed).delete(); // 一次范围删除替代逐卡 delete
+    // v35：批注（cardAnnots）与 reviews 同口径——本端 deleteCard 已级联删批注，
+    // 但对端经卡片墓碑删卡时走的正是这条路径，此前漏了 cardAnnots ⇒ 批注行指向幽灵卡
+    // 残留在对端（只能靠末尾 sweepOrphanRows 兜底，而它是 fire-and-forget、失败仅 warn）。
+    // 此处补上后两条删卡路径口径一致，sweep 退化为纯兜底。
+    await db.cardAnnots.where('cardId').anyOf(removed).delete();
     // 审计 P1：link 类表 + notes 引用清洗——源端 deleteCard 写了 link 墓碑，
     // 但 link 行在对端按 idOnly/tombstone kind 过滤，增量包若未携带对应墓碑
     // （首次同步/老包/bridge 通道）则 link 行永驻成为指向幽灵卡的悬空行。
