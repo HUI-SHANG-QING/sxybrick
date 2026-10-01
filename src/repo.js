@@ -1111,6 +1111,12 @@ export async function review(cardId, rating, intensity = 1, guessed = false, opt
       dueAt: next.dueAt, consolidation: next.consolidation,
       wrongReason: nextWrongReason, wrongReasonAt, reviewedAt: nowTs,
     };
+    // round118 审计：复习时把快速校验窗口锚点重置回本次复习时刻——
+    // 否则上一周期「跳过」写下的旧锚点（now-59min）会永久压制后续每轮复习的
+    // 快速校验窗口（elapsed 恒大于 1h，新卡再也不会被校验）。随 fieldTs 独立
+    // 记录，跨设备按字段级取新（不 bump 整行 updatedAt，不覆盖内容编辑）。
+    cardUpdate.quickAnchorAt = nowTs;
+    cardUpdate.fieldTs = { ...(card.fieldTs || {}), quickAnchorAt: nowTs };
     if (fsrsNext !== undefined) cardUpdate.fsrs = fsrsNext;
     // 卡片与复习记录同事务双写：任何一步失败整体回滚，不留半残状态
     await db.cards.update(cardId, cardUpdate);

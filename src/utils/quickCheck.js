@@ -5,12 +5,49 @@ import { db, uid } from '../db.js';
 
 const QUICK_MIN = 10 * 60 * 1000;   // 10 分钟前
 const QUICK_MAX = 60 * 60 * 1000;   // 1 小时前
+// round118 审计：跳过（skip）的「推迟到窗口尾部」余量——把窗口锚点推到
+// 「QUICK_MAX - QUICK_HOLD_MS 前」，即距窗口过期只剩 1 分钟：60s 轮询最多
+// 再把它拉出 1 次，之后窗口自然过期（不再打扰）。第 2 次再跳过则直接放弃本轮。
+const QUICK_HOLD_MS = 60 * 1000;
 
 /**
- * 查找需要快速校验的卡：
+ * 快速校验窗口锚点：从「该时刻起算 elapsed ∈ [10min, 1h]」进入窗口。
+ * - 默认 = reviewedAt（最近一次正常复习时刻）；
+ * - 跳过会把锚点推迟到窗口尾部（quickAnchorAt 被写为 now-59min，**变小**）；
+ * - 正常复习（repo.review）会把锚点重置回最新复习时刻（quickAnchorAt=nowTs，**变大**）。
+ * 为什么不能直接改 reviewedAt：它是 SRS 核心字段（FSRS 实际间隔 / 跨设备 SRS 竞争 /
+ * 「距上次复习」统计都依赖它），篡改会污染排期与同步收敛。
+ * @param {object} card
+ * @returns {number} 锚点时间戳（0 = 无有效锚点）
+ */
+export function quickAnchorOf(card) {
+  const a = Number.isFinite(card?.quickAnchorAt) ? card.quickAnchorAt : 0;
+  if (a > 0) return a;
+  return Number.isFinite(card?.reviewedAt) ? card.reviewedAt : 0;
+}
+
+/**
+ * 单卡窗口判定（纯函数，便于测试）：
  * - level <= 1（刚学/学习中阶段）
- * - 最后一次正常复习在 10min~1h 前
- * - 本次复习周期内尚未快速校验过（quickCheckedAt < reviewedAt）
+ * - 距窗口锚点 10min~1h（锚点=最近复习，或被跳过推迟到尾部）
+ * - 本周期内尚未快速校验过（quickCheckedAt <= 锚点）
+ * @param {object} card
+ * @param {number} now
+ * @returns {boolean}
+ */
+export function isQuickDue(card, now) {
+  if ((card?.level ?? 0) > 1) return false;
+  if (!card?.reviewedAt) return false;
+  const anchor = quickAnchorOf(card);
+  if (!anchor) return false;
+  const elapsed = now - anchor;
+  if (elapsed < QUICK_MIN || elapsed > QUICK_MAX) return false;
+  if (card.quickCheckedAt && card.quickCheckedAt > anchor) return false;
+  return true;
+}
+
+/**
+ * 查找需要快速校验的卡（复用 {@link isQuickDue}）
  */
 export async function getQuickCheckDue() {
   const now = Date.now();
@@ -19,17 +56,65 @@ export async function getQuickCheckDue() {
   const near = await db.cards.where('dueAt').belowOrEqual(now + DAY).toArray();
   const due = [];
   for (const c of near) {
-    if ((c.level ?? 0) > 1) continue;
-    if (!c.reviewedAt) continue;
-    const elapsed = now - c.reviewedAt;
-    if (elapsed < QUICK_MIN || elapsed > QUICK_MAX) continue;
-    // 本次复习后是否已校验过
-    if (c.quickCheckedAt && c.quickCheckedAt > c.reviewedAt) continue;
-    due.push(c);
+    if (isQuickDue(c, now)) due.push(c);
   }
-  // 按复习时间先后排（先复习的先校验）
-  due.sort((a, b) => a.reviewedAt - b.reviewedAt);
+  // 按锚点先后排（先复习/先到窗口尾部的先校验）
+  due.sort((a, b) => quickAnchorOf(a) - quickAnchorOf(b));
   return due.slice(0, 8); // 单次最多 8 张，避免疲劳
+}
+
+/**
+ * 跳过一次快速校验的**决策**（纯函数，便于测试）：
+ * - 首次跳过（锚点未被推迟过）：{ type:'defer', anchor } —— 锚点推到窗口尾部；
+ * - 第 2 次跳过（锚点已被推迟过，即 quickAnchorAt ≠ reviewedAt）：{ type:'abandon' }。
+ * @param {object} card
+ * @param {number} now
+ * @returns {{type:'defer', anchor:number}|{type:'abandon'}}
+ */
+export function skipDecision(card, now) {
+  const rev = Number.isFinite(card?.reviewedAt) ? card.reviewedAt : 0;
+  // 复习（repo.review）会把 quickAnchorAt 重置为 == reviewedAt → 视为未推迟；
+  // 跳过会把它写成 now-59min（≠ reviewedAt）→ 视为已推迟（第 2 次跳过）。
+  const deferred = Number.isFinite(card?.quickAnchorAt) && card.quickAnchorAt > 0 && card.quickAnchorAt !== rev;
+  if (deferred) return { type: 'abandon' };
+  return { type: 'defer', anchor: now - (QUICK_MAX - QUICK_HOLD_MS) };
+}
+
+/**
+ * 跳过一次快速校验（round118 方案 B：推迟到窗口尾部，最多再出现 1 次）
+ * - 首次跳过：把窗口锚点推到「距过期 1 分钟」——卡不再 1 分钟后又弹，
+ *   而是到窗口尾部最多再被拉出 1 次，然后自然过期；
+ * - 第 2 次跳过（尾部那次再弹时用户仍不想做）：写 quickCheckedAt 视为本轮
+ *   已尝试（放弃），彻底不再打扰，等 consolidation/SRS 的 dueAt 正常到期。
+ * 为什么必须有第 2 次上限：窗口是 [10min,1h] 的硬区间，任何「推迟」若不跨过
+ * 60min 都会在下一次轮询继续命中；只有落一个终止标记才能切断无限重弹。
+ * @param {string} cardId
+ * @returns {Promise<'deferred'|'abandoned'|null>} 本次跳过的处置结果（null=卡不存在）
+ */
+export async function skipQuickCheck(cardId) {
+  const now = Date.now();
+  return db.transaction('rw', db.cards, async () => {
+    const card = await db.cards.get(cardId);
+    if (!card) return null;
+    const d = skipDecision(card, now);
+    if (d.type === 'abandon') {
+      // 第 2 次跳过：本轮放弃。只写 quickCheckedAt（保持锚点不变），
+      // quickCheckedAt(now) > 锚点 → 窗口判定不再命中。
+      await db.cards.update(cardId, {
+        quickCheckedAt: now,
+        updatedAt: now,
+        fieldTs: { ...(card.fieldTs || {}), quickCheckedAt: now },
+      });
+      return 'abandoned';
+    }
+    // 首次跳过：推迟到窗口尾部（距过期 1 分钟）。不改 reviewedAt / quickCheckedAt。
+    await db.cards.update(cardId, {
+      quickAnchorAt: d.anchor,
+      updatedAt: now,
+      fieldTs: { ...(card.fieldTs || {}), quickAnchorAt: d.anchor },
+    });
+    return 'deferred';
+  });
 }
 
 /**

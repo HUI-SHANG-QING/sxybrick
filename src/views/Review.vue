@@ -19,7 +19,7 @@ import { mdToSpeech, speak } from '../utils/tts.js';
 import { getConfusablePairs, getGraphDrivenReviewPlan, getSubjectRetentionMap } from '../agent/analytics.js';
 import { traceCardSource } from '../docs-lib.js';
 import { retentionFor } from '../algorithms/adaptive-retention.js';
-import { getQuickCheckDue, recordQuickCheck } from '../utils/quickCheck.js';
+import { getQuickCheckDue, recordQuickCheck, skipQuickCheck } from '../utils/quickCheck.js';
 import { recommendTodaySequence, syncReviewToPlan } from '../intelligence.js';
 import { T } from '../utils/telemetry.js';
 import { t } from '../i18n/index.js';
@@ -704,6 +704,14 @@ async function quickRate(remembered) {
   }
 }
 function skipQuick() {
+  // round118 审计：跳过不再是「只关面板」——落到 quickCheck 的「推迟到窗口尾部」：
+  // 首次跳过把该卡窗口锚点推到距过期 1 分钟（60s 轮询最多再弹 1 次，之后自然过期），
+  // 第 2 次跳过视为本轮放弃（写 quickCheckedAt，不再打扰，等正常 SRS 到期）。
+  if (quickCurrent.value) {
+    skipQuickCheck(quickCurrent.value.id).then((res) => {
+      if (res === 'abandoned') toast(t('views.review.quickSkipped'), 'info');
+    }).catch(() => {});
+  }
   quickMode.value = false;
   toast(t('views.review.quickSkipped'), 'info');
 }
