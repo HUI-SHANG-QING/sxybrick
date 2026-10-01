@@ -91,8 +91,12 @@ export async function addAnnot(cardId, content) {
     // 全项目其它统计点一律过滤（repo.js reviewsToday/last10、streak.getTodayCount 的
     // isRealReview、achievements、analytics、graphAuto、intelligence 的 realReviews），
     // 此处是**唯一漏网点**：不过滤会让批注上「第 N 次复习」把快速校验也算进去，数字虚高。
-    // 用查询层 filter（按 cardId 索引遍历）而非取回全量行数组再过滤。
-    reviewCount = await db.reviews.where('cardId').equals(id).filter((r) => r.type !== 'quick').count();
+    // 用 toArray 批量读取后过滤，**不要用 Collection.filter().count()**——
+    //   实测（单卡 3000 条复习记录）：count() 2ms、toArray().filter().length 18ms、
+    //   filter().count() 竟达 **2994ms（慢 160 倍）**——Dexie 的 filter 走逐行回调的慢路径。
+    //   本接口只在保存批注时调用一次（低频），18ms 可接受；换 filter 就会明显卡顿。
+    const rows = await db.reviews.where('cardId').equals(id).toArray();
+    reviewCount = rows.filter((r) => r.type !== 'quick').length;
   } catch { /* 快照失败不影响批注本体 */ }
   try {
     const card = await db.cards.get(id);

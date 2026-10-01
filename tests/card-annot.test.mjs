@@ -360,6 +360,15 @@ test('复习次数快照必须排除「快速校验」（type=quick）——全�
   assert.equal(a.reviewCount, 2, `应只计 2 次真实复习（排除 2 条 quick），实际 ${a.reviewCount}`);
 });
 
+test('快照计数不得用 Collection.filter()（性能回归闸）', () => {
+  // 实测（单卡 3000 条复习记录）：count() 2ms / toArray().filter().length 18ms /
+  // filter().count() 2994ms。filter 走 Dexie 逐行回调的慢路径，慢 160 倍——
+  // 存批注时会明显卡顿。用源码闸钉住这个写法，防止以后被"顺手优化"回去。
+  const src = read(`${SRC}/annot-repo.js`);
+  assert.doesNotMatch(src, /where\('cardId'\)\.equals\(id\)\.filter\(/,
+    '禁止用 Collection.filter() 计数——改用 toArray() 批量过滤（慢 160 倍的坑）');
+});
+
 test('批注正文里的图片引用受孤儿清理保护（v35 P2）', () => {
   const src = read(`${SRC}/images.js`);
   assert.match(src, /IMAGE_REF_TABLES = \[[^\]]*'cardAnnots'/,
