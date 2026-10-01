@@ -29,8 +29,11 @@
  * 取值依据：项目默认模型族（DeepSeek V4 Flash/Pro）上下文窗口约 384K token，
  * 中文保守估 1 token ≈ 1.5 字 ⇒ 约 57 万汉字；再为 system 提示词与模型输出
  * （用户可设到 131072）留出余量，取 20 万字符（≈13 万 token）。
- * 换用小窗口模型（8K/16K）时仍可能超限，此时由 fitKnowledge 保证请求体被压进预算，
- * 而不是像旧的固定 120 字那样一刀切掉每一张卡的内容。
+ * 换用小窗口模型（8K/16K）时 20 万字符仍可能超限——本模块**不感知模型窗口**，
+ * fitKnowledge 只保证请求体压进这里的预算，救不了窗口更小的模型；
+ * 该场景由调用方（genQuiz）的自适应降载兜底：捕获「超长类」错误后按预算减半重试
+ * （looksLikeContextOverflowError + nextBudget），而不是像旧的固定 120 字那样
+ * 一刀切掉每一张卡的内容。
  */
 export const KNOWLEDGE_CHAR_BUDGET = 200000;
 
@@ -78,4 +81,65 @@ export function fitKnowledge(items, budget = KNOWLEDGE_CHAR_BUDGET) {
       a: a.slice(0, Math.max(1, Math.floor(a.length * k))),
     };
   });
+}
+
+/**
+ * 出题选卡：卡池超过 cap 时**随机抽** cap 张（Fisher-Yates），否则原样返回。
+ *
+ * 为什么随机（round136 F1）：旧实现 `cards.slice(0, 30)` 按表序取前 30 张——
+ * 排在第 31 位之后的卡**永远出不了题**，且用户无从知晓。随机抽样让每张卡
+ * 在多次出题里都有机会被覆盖；卡池 ≤ cap 时行为与旧版完全一致（全量参与）。
+ * 为什么仍保留 cap：配合 count≤20 道题，30 张材料已足够；也避免超大题库把
+ * fitKnowledge 的水填收窄压到每卡只剩几百字的"稀汤"。
+ *
+ * @param {Array} cards 卡片数组（本函数不读内容，只做抽样）
+ * @param {number} [cap=30] 最多喂给出题的卡片数
+ * @param {() => number} [rng=Math.random] 随机源（测试可注入固定 rng）
+ * @returns {Array} 长度 ≤ cap 的卡片数组（元素为入参引用，不改写内容）
+ */
+export function pickKnowledgeCards(cards, cap = 30, rng = Math.random) {
+  if (!Array.isArray(cards) || cards.length <= cap) return cards || [];
+  const n = Number(cap);
+  if (!Number.isFinite(n) || n <= 0) return [];
+  const pool = cards.slice();
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, Math.floor(n));
+}
+
+/**
+ * 预算减半重试的**下限**（F2）：12500 字符 ≈ 8K token，再低则知识点残缺到没有
+ * 出题价值——宁可让可读错误冒给用户（换模型 / 缩小卡组），也不无限重试白打请求。
+ */
+export const KNOWLEDGE_MIN_BUDGET = 12500;
+
+/**
+ * 判断错误信息是否属于「上下文 / 输入超长」类——只有这类错误才值得用更小的
+ * 预算重试（F2）。故意排除两类**重试也救不了**的高频误报：
+ *   · max_tokens（输出上限）超限——那是用户设置的输出预算问题，砍输入没用；
+ *   · 鉴权 / 限流类——命中即原样抛出，重试只会白打几次请求。
+ * @param {string} msg 错误信息（llm 层抛出的可读 Error message）
+ * @returns {boolean}
+ */
+export function looksLikeContextOverflowError(msg) {
+  const s = String(msg ?? '');
+  if (!s) return false;
+  if (/max[_\s-]?tokens/i.test(s)) return false;
+  if (/api[ _-]?key|unauthorized|invalid[ _-]?token|密钥|令牌|鉴权|rate[ _-]?limit|限流|429|401|403/i.test(s)) return false;
+  return /context|maximum|too[ _-]?long|too[ _-]?many[ _-]?token|input[ _-]?length|length[ _-]?exceed|超长|过长|上下文|长度超出|长度超过|超出长度|输入过长/i.test(s);
+}
+
+/**
+ * 预算减半（F2）：200000 → 100000 → 50000 → 25000 → 12500，到底后**稳定在
+ * {@link KNOWLEDGE_MIN_BUDGET}**——调用方用 `budget > KNOWLEDGE_MIN_BUDGET`
+ * 判定是否还能重试。
+ * @param {number} budget 当前字符预算
+ * @returns {number} 减半后的预算（不低于 {@link KNOWLEDGE_MIN_BUDGET}）
+ */
+export function nextBudget(budget) {
+  const b = Number(budget);
+  if (!Number.isFinite(b) || b <= 0) return KNOWLEDGE_MIN_BUDGET;
+  return Math.max(KNOWLEDGE_MIN_BUDGET, Math.floor(b / 2));
 }

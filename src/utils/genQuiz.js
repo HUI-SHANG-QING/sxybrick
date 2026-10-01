@@ -8,7 +8,7 @@
 import { chatAI, resolveMaxTokens } from '../ai.js';
 import { shouldFallback, isNetworkError } from './offlineAI.js';
 import { parseLLMJsonArray } from './llm-json.js';
-import { fitKnowledge } from './knowledge-budget.js';
+import { fitKnowledge, pickKnowledgeCards, KNOWLEDGE_CHAR_BUDGET, KNOWLEDGE_MIN_BUDGET, looksLikeContextOverflowError, nextBudget } from './knowledge-budget.js';
 
 // 清洗 markdown，给 LLM 喂纯文本
 function plain(md) {
@@ -127,18 +127,6 @@ export async function genQuiz(cards, opts = {}) {
     return r;
   }
 
-  // 准备知识点（喂给 LLM）
-  // round132：此前是每卡硬砍「题干 120 / 答案 150」—— 那是卡片上限还只有数千字时的保守
-  //   假设，卡片上限提到 50000 后失效：用户写满的长卡喂进去仍只有开头一小段
-  //   （写 50000 字与写 200 字，AI 看到的一样多）。现按**实际长度**喂，只有在卡组总量
-  //   真的超出请求预算时才水填式收窄，详见 utils/knowledge-budget.js 的模块注释。
-  const knowledge = fitKnowledge(cards.slice(0, 30).map((c) => ({
-    id: c.id,
-    q: plain(c.front),
-    a: plain(c.back),
-    subject: c.subject || '未分类',
-  })));
-
   const typePrompt = type === 'mixed'
     ? `混合出题：约 1/3 选择题(choice)、1/3 填空题(cloze)、1/3 简答题(shortAnswer)`
     : `全部为 ${type} 题型`;
@@ -159,12 +147,37 @@ export async function genQuiz(cards, opts = {}) {
 
   let arr;
   try {
-    const r = await chatAI([
-      { role: 'system', content: sys },
-      { role: 'user', content: `知识点：\n${JSON.stringify(knowledge, null, 2)}` },
-    // 出题含解析较长，防 max_tokens 截断 JSON：下限 4000，同样尊重用户设置
-    ], { maxTokens: resolveMaxTokens(Math.min(8000, Math.max(4000, count * 500))) });
-    arr = parseLLMJsonArray(r); // 空输出/非 JSON → 可读报错，而非 "Unexpected end of JSON input"
+    // round136 F2：满编卡组（单卡上限 50000 字）× 小窗口模型会吃「上下文超长」400——
+    // fitKnowledge 只保证压进 KNOWLEDGE_CHAR_BUDGET，**不感知模型窗口**。捕获超长类
+    // 错误后按预算减半重试（nextBudget 到底为止，见 knowledge-budget.KNOWLEDGE_MIN_BUDGET）；
+    // 其余错误原样抛出，网络错误交给外层统一走离线降级。
+    let budget = KNOWLEDGE_CHAR_BUDGET;
+    for (;;) {
+      // round132/136：知识点按**实际长度**喂给 AI（不再每卡硬砍 120/150）；卡池上限
+      // 30 张且随机抽样（pickKnowledgeCards，F1）——详见 utils/knowledge-budget.js 注释。
+      const knowledge = fitKnowledge(pickKnowledgeCards(cards, 30).map((c) => ({
+        id: c.id,
+        q: plain(c.front),
+        a: plain(c.back),
+        subject: c.subject || '未分类',
+      })), budget);
+      try {
+        const r = await chatAI([
+          { role: 'system', content: sys },
+          { role: 'user', content: `知识点：\n${JSON.stringify(knowledge, null, 2)}` },
+        // 出题含解析较长，防 max_tokens 截断 JSON：下限 4000，同样尊重用户设置
+        ], { maxTokens: resolveMaxTokens(Math.min(8000, Math.max(4000, count * 500))) });
+        arr = parseLLMJsonArray(r); // 空输出/非 JSON → 可读报错，而非 "Unexpected end of JSON input"
+        break;
+      } catch (e) {
+        if (isNetworkError(e)) throw e; // 网络错误交给外层统一走离线降级
+        if (budget > KNOWLEDGE_MIN_BUDGET && looksLikeContextOverflowError(e?.message)) {
+          budget = nextBudget(budget); // 200000 → 100000 → 50000 → 25000 → 12500
+          continue;
+        }
+        throw e;
+      }
+    }
   } catch (e) {
     if (isNetworkError(e)) {
       // 网络失败降级本地模板
