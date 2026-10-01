@@ -12,7 +12,7 @@ import ExportButton from '../components/ExportButton.vue';
 import { exportCardsToJSON, exportCardsToCSV, exportCardsToMarkdown } from '../utils/exporters.js';
 import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, attachFailCounts, applyCardFilters, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, attachFailCounts, applyCardFilters, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups, rescheduleCardToNow } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { genVariants } from '../utils/genVariants.js';
@@ -724,11 +724,12 @@ async function removeSmart(f) {
 const riskCards = ref([]);
 async function loadRisk() { riskCards.value = await getForgetRisk(5); }
 async function rescueCard(r) {
-  const card = await db.cards.get(r.id);
-  if (!card) return;
-  // M1 时间戳铁律：对齐 WrongBook「加入今日复习」口径 —— 调度字段因 reviewedAt 走 SRS 侧同步，
-  // 只 put dueAt 的话本端排期变更不进增量包（dueAt 不在 LIVENESS_FIELDS）。不碰 updatedAt（内容侧）。
-  await db.cards.put({ ...card, dueAt: Date.now(), reviewedAt: Date.now() });
+  // round122 审计收口：改走 repo.rescheduleCardToNow（差量写 + 显式失效首页快照）。
+  //   此前这里 get 整行再 put 整对象有两个毛病：① 窗口期内的并发写会被旧快照覆盖
+  //   （与 B11 差量写纪律冲突）；② 只改 dueAt/reviewedAt 而不 bump updatedAt（这个取舍是对的），
+  //   却没失效快照 → key 四项全不变，紧接着的 loadRisk() 读回陈旧快照，刚救的卡仍在预警列表里。
+  const updated = await rescheduleCardToNow(r.id);
+  if (!updated) return;
   toast(t('views.cards.rescued', '已把「{front}…」加入今日复习', { front: r.front.slice(0, 16) }), 'success');
   await loadRisk();
   loadCards();
@@ -736,10 +737,9 @@ async function rescueCard(r) {
 async function rescueAll() {
   let n = 0;
   for (const r of riskCards.value) {
-    const card = await db.cards.get(r.id);
-    if (!card) continue;
-    await db.cards.put({ ...card, dueAt: Date.now(), reviewedAt: Date.now() });
-    n++;
+    // 串行 await：IndexedDB 写是事务性的，并发写同一批行会互相等锁，串行反而更稳。
+    const updated = await rescheduleCardToNow(r.id);
+    if (updated) n++;
   }
   toast(t('views.cards.rescuedAll', '已把 {n} 张高危卡加入今日复习，去「背诵」页巩固', { n }), 'success');
   await loadRisk();

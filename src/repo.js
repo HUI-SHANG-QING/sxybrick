@@ -940,6 +940,27 @@ export async function setMarked(id, marked) {
   });
 }
 
+// ---------- 排期调整：把某张卡拉进「今日复习」 ----------
+// round122 审计（P1）收口：错题本「加入今日复习」与卡片页「提前巩固」此前各自在 .vue 里
+//   直接写 db.cards（WrongBook.vue / Cards.vue），**只改 dueAt + reviewedAt、不 bump updatedAt**。
+//   不 bump 是对的（内容字段按 updatedAt 合并决胜，推高它会让本机这份旧内容成为 winner，
+//   把其他设备对卡面的文字编辑整段覆盖掉），但**漏了 invalidateDashboardCache()**：
+//   快照 key = mode|cards数|reviews数|最大updatedAt|最大reviewedAt，四项全不变 → 命中陈旧快照。
+//   后果两条：① 首页「今日待复习」不涨；② 卡片页遗忘预警（getForgetRisk 走同一份快照）
+//   继续把已救的卡列在列表里，用户会以为没生效而重复点击。
+//   收口到本函数后：写路径回到 repo.js（round57 契约⑥ 的门禁扫得到），失效与语义一并钉住。
+export async function rescheduleCardToNow(cardId) {
+  const t = Date.now();
+  return db.transaction('rw', db.cards, async () => {
+    const card = await db.cards.get(cardId);
+    if (!card) return null;
+    // 差量写：只动 SRS 调度字段，绝不回写整行（窗口期内的并发编辑会被旧快照覆盖）。
+    await db.cards.update(cardId, { dueAt: t, reviewedAt: t });
+    invalidateDashboardCache();
+    return { ...card, dueAt: t, reviewedAt: t };
+  });
+}
+
 // ---------- 错因 ----------
 // WRONG_REASON_MAP / wrongReasonToCode / WRONG_REASONS 已抽至 repo-core.js（上方 re-export 保持 API 不变）
 

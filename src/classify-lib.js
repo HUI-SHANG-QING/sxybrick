@@ -20,6 +20,8 @@
  */
 
 import { db } from './db.js';
+// round122：批量归类改完 subject 后要显式失效首页共享快照（见 classifyAllCards 末尾）。
+import { invalidateDashboardCache } from './repo.js';
 import { trainClassifier, classify, toTrainSample } from './utils/classifier.js';
 
 // round30（P1-2）回归修复：classify 的 write 回调里用 now() 打时间戳，
@@ -123,7 +125,7 @@ async function runClassify(cfg, { dryRun = false, threshold = 0.12 } = {}) {
  * @param {object} opts { dryRun=false, threshold=0.12 }
  */
 export async function classifyAllCards({ dryRun = false, threshold = 0.12 } = {}) {
-  return runClassify({
+  const res = await runClassify({
     seeds: cardSeeds,
     rows: () => db.cards.toArray(),
     textOf: c => `${c.front || ''} ${c.back || ''}`,
@@ -138,6 +140,12 @@ export async function classifyAllCards({ dryRun = false, threshold = 0.12 } = {}
     },
     nothingReason: '没有带科目的卡片可作训练样本——先手动给几张卡设定科目，模型才有依据',
   }, { dryRun, threshold });
+  // round122：批量归类会在极短时间内写掉一大批卡，同一毫秒内的多次写会把
+  // 「最大 updatedAt」撞成相同值 → 共享快照的 key 四项全不变 → 命中陈旧快照
+  // （首页统计 / 知识净值 / 来源血缘都读这份快照）。
+  // 批量结束后统一失效一次即可，不必每条失效（失效只是置空引用，重建成本由下一次读承担）。
+  if (!dryRun) invalidateDashboardCache();
+  return res;
 }
 
 /**

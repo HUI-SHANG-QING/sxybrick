@@ -3,8 +3,8 @@
 // P0 增补：AI 变式补卡（错题→生成同考点变式题，写入卡片库形成闭环）
 // 2026-08-26 速赢区：SRS 阶段自动归类 + "重点区"快捷过滤
 import { ref, computed, onMounted, watch } from 'vue';
-import { db } from '../db.js';
-import { weakCards, setMarked, getSubjects, gradeCard, createCard } from '../repo.js';
+// round122：db 的直接引用已全部收口进 repo（写路径统一由 repo 负责失效首页快照），此处不再需要。
+import { weakCards, setMarked, getSubjects, gradeCard, createCard, rescheduleCardToNow } from '../repo.js';
 import { chatAI, hasAIKey, getAIConfig } from '../ai.js';
 import { toast } from '../utils/toast.js';
 import { smartRemediation } from '../intelligence.js';
@@ -133,12 +133,14 @@ async function unmark(card) {
   });
 }
 async function dueNow(card) {
-  // 用 db.cards.update 局部更新（而非 put 整对象）：避免 Vue reactive Proxy 写入 IDB 失败 + 不覆盖其他字段
-  // ⚠ 只 bump reviewedAt，绝不 bump updatedAt（2026-08-29 修复）：
-  //   内容字段按 updatedAt 合并决胜，此处只是调度调整（dueAt 属 SRS 侧），
-  //   若推高 updatedAt 会让本机这份「旧内容」成为 winner，把其他设备对卡面的
-  //   文字编辑整段覆盖掉。与 Cards.vue 的 rescueCard 保持一致。
-  await runAction(() => db.cards.update(card.id, { dueAt: Date.now(), reviewedAt: Date.now() }), {
+  // round122 审计收口：改走 repo.rescheduleCardToNow —— 此前这里直接 db.cards.update，
+  //   ⚠ 只 bump reviewedAt，绝不 bump updatedAt（2026-08-29 修复）：内容字段按 updatedAt
+  //     合并决胜，此处只是调度调整（dueAt 属 SRS 侧），推高 updatedAt 会让本机这份
+  //     「旧内容」成为 winner，把其他设备对卡面的文字编辑整段覆盖掉。与 Cards.vue 的
+  //     rescueCard 保持一致。
+  //   但「不 bump updatedAt」的代价是共享快照的 key 四项全不变 → **必须在写路径显式失效**，
+  //   否则首页「今日待复习」不涨。这一步此前漏了（现已收口到 repo 内统一处理）。
+  await runAction(() => rescheduleCardToNow(card.id), {
     then: () => { toast(t('views.wrongBook.addedToReview'), 'success'); },
   });
 }

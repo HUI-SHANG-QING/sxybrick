@@ -2,6 +2,8 @@
 // 认知科学依据：工作记忆 → 长期记忆的巩固需要短期重复提取
 // 不计入 SRS 间隔重复（不调 computeNext），只记录一次"快速校验"行为
 import { db, uid } from '../db.js';
+// round122：改用共享快照（dashboardSnapshot）判窗口，并在写路径显式失效快照。
+import { dashboardSnapshot, invalidateDashboardCache } from '../repo.js';
 
 const QUICK_MIN = 10 * 60 * 1000;   // 10 分钟前
 const QUICK_MAX = 60 * 60 * 1000;   // 1 小时前
@@ -51,14 +53,20 @@ export function isQuickDue(card, now) {
  */
 export async function getQuickCheckDue() {
   const now = Date.now();
-  const DAY = 24 * 60 * 60 * 1000;
-  // 新卡通常 1 天内到期，先按 dueAt 索引过滤减小数据量
-  const near = await db.cards.where('dueAt').belowOrEqual(now + DAY).toArray();
-  const due = [];
-  for (const c of near) {
-    if (isQuickDue(c, now)) due.push(c);
-  }
+  // round122 审计（P1）：**去掉 dueAt 预筛**，改走共享快照。
+  //   原写法 `db.cards.where('dueAt').belowOrEqual(now + 1天)` 是拿「排期字段」去筛
+  //   「短期巩固窗口」，隐含假设「level≤1 的卡到期日必在 1 天内」。该假设只在 SM-2 下成立：
+  //   FSRS 的 level 由稳定度 S 派生（fsrs.js:216 `S<3 → level 1`），而间隔
+  //   `nextInterval(S,0.9) = 9*S*(1/0.9-1) ≈ S` 天 → level=1 的卡间隔是 **1.1~3.4 天**，
+  //   必然落在「1 天」之外。实测：S=1 / 1.5 / 2 / 2.9 四种情形 isQuickDue() 全为 true，
+  //   但预筛全为 false ⇒ **该弹的卡永远捞不到，且无报错无日志**（FSRS 用户功能静默失效）。
+  //   改用共享快照后语义不再依赖任何排期假设，且**零额外全表读**——复习页/首页已物化过
+  //   同一份快照，比原来的索引查询更省（与 round57 契约⑤ 同款纪律）。
+  // ⚠️ 只读契约：快照的 cards 是**跨调用共享的数组实例**，只能先用 filter 产新数组再 sort，
+  //   绝不能对快照数组本身做 sort/push/splice（会污染其他消费者）。
+  const { cards } = await dashboardSnapshot();
   // 按锚点先后排（先复习/先到窗口尾部的先校验）
+  const due = cards.filter((c) => isQuickDue(c, now));
   due.sort((a, b) => quickAnchorOf(a) - quickAnchorOf(b));
   return due.slice(0, 8); // 单次最多 8 张，避免疲劳
 }
@@ -93,7 +101,7 @@ export function skipDecision(card, now) {
  */
 export async function skipQuickCheck(cardId) {
   const now = Date.now();
-  return db.transaction('rw', db.cards, async () => {
+  const res = await db.transaction('rw', db.cards, async () => {
     const card = await db.cards.get(cardId);
     if (!card) return null;
     const d = skipDecision(card, now);
@@ -115,6 +123,11 @@ export async function skipQuickCheck(cardId) {
     });
     return 'deferred';
   });
+  // round122：本函数只 bump updatedAt（行数不增不减）。若同一毫秒内连续跳过两张卡，
+  // 第二次写的 updatedAt 与「当前最大值」相同 → 快照 key 四项全不变 → 命中陈旧快照。
+  // 显式失效把这条例外封死（与 updateCard / setMarked / rescheduleCardToNow 同口径）。
+  invalidateDashboardCache();
+  return res;
 }
 
 /**
@@ -150,4 +163,6 @@ export async function recordQuickCheck(cardId, remembered) {
       fieldTs: { ...(card.fieldTs || {}), quickCheckedAt: now },
     });
   });
+  // round122：与 skipQuickCheck 同口径，写路径统一显式失效（不依赖「行数/最大时间戳」推断）。
+  invalidateDashboardCache();
 }

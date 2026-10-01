@@ -12,7 +12,9 @@ import 'fake-indexeddb/auto';
 import './_env.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { db } from '../src/db.js';
 import { dashboardSnapshot, invalidateDashboardCache } from '../src/repo.js';
 import {
@@ -187,43 +189,78 @@ test('round57 性能契约⑤：analytics 的裸全表读只允许出现在 Work
   );
 });
 
-// round75 审计新增（契约⑥）：repo.js 里**所有**写 db.cards / db.reviews 的函数，
+// round75 审计新增（契约⑥）→ **round122 扩面**：
+// 全仓（不只是 repo.js）**所有**写 db.cards / db.reviews 的函数，
 // 必须显式调 invalidateDashboardCache()，或落入「key 天然覆盖」白名单。
 //
-// 白名单 = 改变「卡数」的写路径（新建/删除/回收站还原）：快照 key 含 count，
+// 为什么必须扩面（round122 实证）：本闸门原先 `readFileSync('../src/repo.js')` **只读一个文件**，
+// 于是 `.vue` 组件与 `utils/` 里的写路径**完全在雷达外**——
+// WrongBook.vue / Cards.vue 的「加入今日复习 / 提前巩固」只改 dueAt + reviewedAt，
+// 既不 bump updatedAt（这个取舍是对的，推高会覆盖别的设备对卡面的编辑）也没失效快照，
+// 快照 key（mode|cards数|reviews数|最大updatedAt|最大reviewedAt）四项全不变 → 命中陈旧快照：
+// 首页「今日待复习」不涨，且 getForgetRisk 走同一份快照 → 刚救的卡仍列在遗忘预警里。
+// 门禁当时是绿的，给的却是**虚假的安全感**。故扫描范围改为全仓 .js + .vue。
+//
+// 白名单 = 改变「行数」的写路径（新建/删除/还原/种子数据整表重建）：快照 key 含 count，
 // 行数一变 key 必变 → 天然失效。**其余（改字段类）必须显式失效**，因为
 // 「同一毫秒内第二次编辑」不会改变最大 updatedAt → key 不变 → 命中陈旧快照。
-// 本轮审计实证：updateCard / setMarked 属于此类却未显式失效（已补）。
-test('round57 性能契约⑥：repo 的 cards/reviews 写路径必须显式失效快照（或属 key 已覆盖的增删类）', () => {
-  // key 含 count → 行数变化即天然换 key，无需显式失效
-  const KEY_COVERED = new Set(['createCard', 'deleteCard', 'restoreFromTrash']);
-  const src = readFileSync(new URL('../src/repo.js', import.meta.url), 'utf8');
-  const WRITE = /db\.(cards|reviews)\.(put|bulkPut|delete|add|update|clear)\(/;
+test('round57 性能契约⑥：全仓 cards/reviews 写路径必须显式失效快照（或属 key 已覆盖的增删类）', () => {
+  const KEY_COVERED = new Set([
+    // —— 行数必然变化：快照 key 含 count，行数一变 key 必变 ——
+    'createCard',          // 新增卡：cards 行数 +1
+    'deleteCard',          // 删卡：cards 行数 -1，且级联删 reviews（行数也变）
+    'restoreFromTrash',    // 回收站还原：cards 行数 +1
+    'seedTestDatabase',    // 演示/种子数据：整表重建，行数按种子量变
+    'refreshDemoSchedule', // 演示排期刷新：同上
+  ]);
+  const WRITE = /db\.(cards|reviews)\b[^\n]*\.(put|bulkPut|add|bulkAdd|update|bulkUpdate|delete|bulkDelete|clear)\(/;
+  // 支持两种函数声明形态：`function name(` 与 `const name = async (`。
+  const FN_RE = [
+    /^(?:export\s+)?(?:async\s+)?function\s+(\w+)/,
+    /^(?:export\s+)?const\s+(\w+)\s*=\s*(?:async\s*)?\(/,
+    /^(?:export\s+)?const\s+(\w+)\s*=\s*(?:async\s*)?function/,
+  ];
 
-  // 按「顶格声明的函数」切段：嵌套函数（缩进声明）不得重置归属。
-  // 反例（实测）：deleteNote 内部有嵌套函数，若用「最后见到的函数名」归属，
-  // 函数末尾的失效调用会被算到嵌套函数头上，deleteNote 被误报。
-  const TOP_FN = /^(?:export\s+)?(?:async\s+)?function\s+(\w+)/;
-  const lines = src.split(/\r?\n/);
-  const segs = [];
-  lines.forEach((line, i) => {
-    const m = TOP_FN.exec(line);
-    if (m) segs.push({ name: m[1], start: i, lines: [] });
-    if (segs.length) segs[segs.length - 1].lines.push(line);
-  });
+  // 递归收集 src 下所有 .js / .vue
+  const srcDir = fileURLToPath(new URL('../src/', import.meta.url));
+  const rootDir = fileURLToPath(new URL('../', import.meta.url));
+  const files = [];
+  (function walk(dir) {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.(js|vue)$/.test(e.name)) files.push(p);
+    }
+  })(srcDir);
 
   const offenders = [];
-  for (const seg of segs) {
-    const body = seg.lines.join('\n');
-    if (!WRITE.test(body)) continue;
-    if (KEY_COVERED.has(seg.name)) continue;
-    if (/invalidateDashboardCache\(\)/.test(body)) continue;
-    offenders.push(seg.name);
+  for (const file of files) {
+    const rel = file.replace(rootDir, '').replace(/\\/g, '/');
+    const lines = readFileSync(file, 'utf8').split(/\r?\n/);
+    // 按「顶格声明的函数」切段：写点归属它前面最近的那个函数。
+    const segs = new Map();
+    let fn = '(module)';
+    for (const line of lines) {
+      for (const re of FN_RE) {
+        const m = re.exec(line);
+        if (m) { fn = m[1]; break; }
+      }
+      const seg = segs.get(fn) || { name: fn, lines: [] };
+      if (!segs.has(fn)) segs.set(fn, seg);
+      seg.lines.push(line);
+    }
+    for (const seg of segs.values()) {
+      const body = seg.lines.join('\n');
+      if (!WRITE.test(body)) continue;
+      if (KEY_COVERED.has(seg.name)) continue;
+      if (/invalidateDashboardCache\(\)/.test(body)) continue;
+      offenders.push(`${rel} → ${seg.name}`);
+    }
   }
 
   assert.deepEqual(
     offenders, [],
     '这些函数改了卡片/复习却没显式失效快照：' + offenders.join('、')
-      + '。加 `invalidateDashboardCache();`，或（若会改变行数）登记进 KEY_COVERED 白名单。',
+      + '。加 `invalidateDashboardCache();`，或（若确实会改变行数）登记进 KEY_COVERED 白名单。',
   );
 });
