@@ -314,6 +314,35 @@ test('sweepOrphanRows：清掉卡片已不存在的孤儿批注并写墓碑（�
   assert.equal(t.kind, 'cardAnnot');
 });
 
+test('importBackup：对端经卡片墓碑删卡时，本端该卡批注级联清除（v35 补漏回归）', async () => {
+  const { importBackup } = await import('../src/sync.js');
+  await db.cards.clear();
+  const T = Date.now();
+  await db.cards.bulkPut([
+    { id: 'c-del', front: '将被对端删除的卡', back: 'x', subject: '测试', type: 'basic', tags: [], createdAt: T, updatedAt: T },
+    { id: 'c-keep', front: '对端保留的卡', back: 'y', subject: '测试', type: 'basic', tags: [], createdAt: T, updatedAt: T },
+  ]);
+  const a1 = await addAnnot('c-del', '这条批注应随卡一起消失');
+  const a2 = await addAnnot('c-keep', '这条批注应保留');
+
+  // 模拟对端备份：cards 数组不含 c-del，只带 c-del 的卡片墓碑（对端 deleteCard 的产物）。
+  const backup = {
+    app: 'sxybrick',
+    version: 11,
+    tombstones: [{ id: 'c-del', kind: 'card', deletedAt: T }],
+  };
+  const stats = await importBackup(backup, { skipSnapshot: true });
+
+  assert.equal(await db.cards.get('c-del'), undefined, '被墓碑标记的卡应删除');
+  assert.ok(await db.cards.get('c-keep'), '无墓碑的卡应保留');
+  assert.equal(await db.cardAnnots.get(a1.id), undefined,
+    '指向已删卡的批注必须级联清除（此前漏删 → 幽灵批注残留，只能靠 sweep 兜底）');
+  assert.equal((await listAnnots('c-del')).length, 0);
+  const kept = await db.cardAnnots.get(a2.id);
+  assert.equal(kept?.content, '这条批注应保留', '存活卡的批注不受影响');
+  assert.ok(stats.cards >= 0, 'importBackup 应正常返回统计');
+});
+
 test('批注正文里的图片引用受孤儿清理保护（v35 P2）', () => {
   const src = read(`${SRC}/images.js`);
   assert.match(src, /IMAGE_REF_TABLES = \[[^\]]*'cardAnnots'/,
