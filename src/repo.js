@@ -404,9 +404,12 @@ export async function restoreFromTrash(t) {
   const dailyTasks = t.kind === 'dailyPlan' ? (data._tasks || null) : null;
   // round54 P1：卡片快照含 _images（删卡会级联物理删图），恢复时必须一并写回 db.images
   const cardImages = t.kind === 'card' && Array.isArray(data._images) ? data._images : null;
+  // v35：卡片快照里的批注（deleteCard 会级联物理删批注 + 写墓碑）——不还原则「删→恢复」后
+  // 批注永久丢失，且残留墓碑会把任何重建尝试再删一遍（与 _cardLinks/_images 同机制）。
+  const annots = t.kind === 'card' && Array.isArray(data._annotations) ? data._annotations : null;
   delete data._reviews; delete data._groupLinks; delete data._text; delete data._textLen; delete data._edges;
   delete data._cardWordLinks; delete data._embeddings; delete data._linkedNoteIds; delete data._tasks;
-  delete data._cardLinks; delete data._images;
+  delete data._cardLinks; delete data._images; delete data._annotations;
   const transform = RESTORE_TRANSFORMS[t.kind];
   // round68 S6（P2）：恢复必须重盖 fieldTs——快照里的 fieldTs 是删除前的旧值，
   // 若对端仍持有墓碑（本端只清了本地墓碑），下轮同步字段级合并会因
@@ -434,6 +437,7 @@ export async function restoreFromTrash(t) {
   if (noteLinkedCardIds && noteLinkedCardIds.length) tables.push(db.cards);
   if (dailyTasks && dailyTasks.length) tables.push(db.dailyTasks);
   if (cardImages && cardImages.length) tables.push(db.images);
+  if (annots && annots.length) tables.push(db.cardAnnots);
   await db.transaction('rw', ...tables, async () => {
     await db[table].put(row);
     // 审计 P2：恢复 note 时裁剪幽灵 linkedCardIds——快照中的 linkedCardIds 可能包含
@@ -467,6 +471,13 @@ export async function restoreFromTrash(t) {
       // deletedAt，下轮同步墓碑回灌会把恢复的行再删一遍（快照已消费 → 永久丢失）。
       await db.cardWordLinks.bulkPut(cwLinks.map(l => ({ ...l, updatedAt: Date.now() })));
       await db.tombstones.bulkDelete(cwLinks.map(l => l.id));
+    }
+    if (annots && annots.length) {
+      // v35：还原批注 + 清掉删卡时为它们写的墓碑（同 cwLinks 机制）。
+      // 必须 bump updatedAt：原样写回的旧时间戳 < 对端墓碑 deletedAt，
+      // 下轮同步墓碑回灌会把刚恢复的批注再删一遍。
+      await db.cardAnnots.bulkPut(annots.map(a => ({ ...a, updatedAt: Date.now() })));
+      await db.tombstones.bulkDelete(annots.map(a => a.id));
     }
     if (ccLinks && ccLinks.length) {
       // v34：还原卡↔卡关联 + 清墓碑（同 cwLinks 机制；idOnly 表靠墓碑判生死）
@@ -577,9 +588,12 @@ export async function deleteCard(id) {
   // 事务内一次性完成 回收站快照 + 墓碑 + 删卡 + 删复习 + 删卡组关联 + 切断图谱边，保证原子、无悬空引用
   // 注：cardGroupLinks 此前漏删 —— 删卡后关联行原样留在库里（还进同步包跨设备传播），
   //     卡组详情页会统计到已被删除的「幽灵卡」，且永不清理。
-  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.cardWordLinks, db.cardLinks, db.embeddings, db.notes, db.images, async () => {
+  await db.transaction('rw', db.cards, db.trash, db.tombstones, db.reviews, db.graphEdges, db.cardGroupLinks, db.cardWordLinks, db.cardLinks, db.embeddings, db.notes, db.images, db.cardAnnots, async () => {
     // 1) 回收站快照（含复习记录 + 卡组关联 + 卡↔词关联，便于恢复时一并还原）
     const reviews = await db.reviews.where('cardId').equals(id).toArray();
+    // v35：批注（cardAnnots）——与 reviews 同机制：删卡会级联物理删批注并写墓碑，
+    // 快照不带它的话「删→恢复」后批注永久丢失（且残留墓碑会把重建尝试再删一遍）。
+    const annots = await db.cardAnnots.where('cardId').equals(id).toArray();
     const links = await db.cardGroupLinks.where('cardId').equals(id).toArray();
     const cwLinks = await db.cardWordLinks.where('cardId').equals(id).toArray();
     // v34：卡↔卡关联是双向存储，两个方向都要查（Map 按 id 去重，自环已被 linkCards 拒绝）
@@ -610,7 +624,7 @@ export async function deleteCard(id) {
     // 的图（见「清理孤儿图片」+ db.images.bulkDelete）。此前快照不含图片、restoreFromTrash 也不还原
     // db.images → 删卡再还原，卡回来了但图永久丢失（正文 sxy-img:// 占位符全部悬空，且无法找回）。
     const cardImages = imgIds.length ? (await db.images.bulkGet(imgIds)).filter(Boolean) : [];
-    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks, _cardLinks: ccLinks, _linkedNoteIds: linkedNoteIds, _images: cardImages });
+    await trashItem(id, 'card', { ...old, _reviews: reviews, _groupLinks: links, _cardWordLinks: cwLinks, _cardLinks: ccLinks, _linkedNoteIds: linkedNoteIds, _images: cardImages, _annotations: annots });
     // 2) 墓碑（跨设备删除同步）：卡片本体 + 它的每一条卡组关联
     //    关联行不写墓碑的话，对端会在下次同步把「已删卡 → 卡组」的关联原样推回来，
     //    形成永远删不掉、且指向幽灵卡的悬空行
@@ -636,10 +650,17 @@ export async function deleteCard(id) {
     if (reviews.length) {
       await db.tombstones.bulkPut(reviews.map(r => ({ id: r.id, kind: 'review', deletedAt: now() })));
     }
+    // v35：批注（cardAnnots）同理——物理删行不写墓碑，对端残留的批注行会随增量包反复回传，
+    // 形成「卡没了、批注还挂在幽灵 cardId 上」的垃圾行（正是 sweepOrphanRows 要兜的那个坏状态）。
+    if (annots.length) {
+      await db.tombstones.bulkPut(annots.map(a => ({ id: a.id, kind: 'cardAnnot', deletedAt: now() })));
+    }
     // 3) 删卡
     await db.cards.delete(id);
     // 4) 删复习记录
     await db.reviews.where('cardId').equals(id).delete();
+    // 4.5) v35：删该卡的批注（本端级联；跨设备残留由 sweepOrphanRows 兜底）
+    await db.cardAnnots.where('cardId').equals(id).delete();
     // 5) 删卡组关联（此前漏删 → 指向已删卡的悬空行常驻并进同步包）
     await db.cardGroupLinks.where('cardId').equals(id).delete();
     // 5.5) v31：删通用卡↔英语词卡链接（同 cardGroupLinks 逻辑：不写墓碑 → 对端悬空链接复活）
@@ -742,20 +763,25 @@ export async function findOrphanImages(ids) {
  * @returns {Promise<number>} 清理的孤儿行总数
  */
 export async function sweepOrphanRows() {
-  const [cards, wordCards, reviews, wordReviews] = await Promise.all([
+  const [cards, wordCards, reviews, wordReviews, annots] = await Promise.all([
     db.cards.toArray(), db.wordCards.toArray(), db.reviews.toArray(), db.wordReviews.toArray(),
+    db.cardAnnots.toArray(),
   ]);
   const cardIds = new Set(cards.map(c => c.id));
   const wordCardIds = new Set(wordCards.map(c => c.id));
   const delReviews = reviews.filter(r => !cardIds.has(r.cardId)).map(r => r.id);
   const delWord = wordReviews.filter(r => !wordCardIds.has(r.cardId)).map(r => r.id);
+  // v35：批注孤儿。**跨设备场景是主要来源**——对端删卡只发 kind='card' 墓碑，
+  // 本端卡片被级联删除，但它的批注行没有对应墓碑（本端从未删过这些批注）→ 永久残留。
+  // 顺带清掉 cardId 缺失/为空的脏行（与上方 reviews 同口径）。
+  const delAnnots = annots.filter(a => !a.cardId || !cardIds.has(a.cardId)).map(a => a.id);
   // round43 N3：清孤儿复习同样必须写墓碑——本端物理删行后若无墓碑，
   // 对端同 id 行（老包/bridge 通道/未收到删除的设备）下次合并会按「新行」回灌，
   // 幽灵复习复活计入统计。与 deleteCard（repo.js:555-561 round16 R16-1）和
   // 导入侧 wordCard 级联（sync.js:972-988 round34 P2-5）的墓碑纪律同口径：删谁就给谁写墓碑。
-  if (delReviews.length || delWord.length) {
+  if (delReviews.length || delWord.length || delAnnots.length) {
     const nowTs = now();
-    await db.transaction('rw', db.reviews, db.wordReviews, db.tombstones, async () => {
+    await db.transaction('rw', db.reviews, db.wordReviews, db.cardAnnots, db.tombstones, async () => {
       if (delReviews.length) {
         await db.reviews.bulkDelete(delReviews);
         await db.tombstones.bulkPut(delReviews.map(id => ({ id, kind: 'review', deletedAt: nowTs })));
@@ -766,9 +792,13 @@ export async function sweepOrphanRows() {
         await db.wordReviews.bulkDelete(delWord);
         await db.tombstones.bulkPut(delWord.map(id => ({ id, kind: 'wordReview', deletedAt: nowTs })));
       }
+      if (delAnnots.length) {
+        await db.cardAnnots.bulkDelete(delAnnots);
+        await db.tombstones.bulkPut(delAnnots.map(id => ({ id, kind: 'cardAnnot', deletedAt: nowTs })));
+      }
     });
   }
-  return delReviews.length + delWord.length;
+  return delReviews.length + delWord.length + delAnnots.length;
 }
 
 /**

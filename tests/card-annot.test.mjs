@@ -255,3 +255,67 @@ test('数据层只碰 cardAnnots：绝不写 cards 表（硬性要求）', () =>
   assert.doesNotMatch(src, /row\.deletedAt|deletedAt:\s*null|!row\.deletedAt/,
     '不应再有行内软删除字段；删除语义统一走 tombstones');
 });
+
+// ---------------------------------------------------------------- v35：删卡级联 + 跨设备残留兜底
+
+test('删卡片：级联物理删除它的批注并逐条写墓碑（v35 P1）', async () => {
+  const { deleteCard } = await import('../src/repo.js');
+  await db.cards.put({ id: 'c-del', front: '待删卡', back: '答案', subject: '计组', createdAt: 1, updatedAt: 1 });
+  const a1 = await addAnnot('c-del', '批注一');
+  const a2 = await addAnnot('c-del', '批注二');
+
+  await deleteCard('c-del');
+
+  assert.equal(await db.cards.get('c-del'), undefined, '卡片本身应被删除');
+  assert.equal((await listAnnots('c-del')).length, 0, '删卡后批注不应残留');
+  assert.equal(await db.cardAnnots.get(a1.id), undefined, '批注行应被物理删除');
+  assert.equal(await db.cardAnnots.get(a2.id), undefined);
+
+  // 不写墓碑的话，对端残留的批注行会随增量包反复回传，永远删不掉
+  const tombs = (await db.tombstones.toArray()).filter((t) => t.kind === 'cardAnnot');
+  assert.equal(tombs.length, 2, '每条批注都要写墓碑');
+  assert.ok(tombs.every((t) => [a1.id, a2.id].includes(t.id)), '墓碑 id 必须是批注 id');
+});
+
+test('删卡后从回收站恢复：批注一并还原，且清掉墓碑（v35）', async () => {
+  const { deleteCard, restoreFromTrash } = await import('../src/repo.js');
+  await db.cards.put({ id: 'c-re', front: '会恢复的卡', back: '答案', subject: '计组', createdAt: 1, updatedAt: 1 });
+  const a = await addAnnot('c-re', '要恢复的批注');
+
+  await deleteCard('c-re');
+  assert.equal((await listAnnots('c-re')).length, 0, '删掉后确实没了');
+
+  const t = await db.trash.get('c-re');
+  assert.ok(t, '删卡应进回收站');
+  await restoreFromTrash(t);
+
+  const back = await listAnnots('c-re');
+  assert.equal(back.length, 1, '恢复后批注应跟着回来');
+  assert.equal(back[0].content, '要恢复的批注');
+  assert.equal(await db.cards.get('c-re') !== undefined, true, '卡片本体也应恢复');
+  // 墓碑不清 → 下轮同步墓碑回灌，把刚恢复的批注再删一遍（「恢复即消失」）
+  assert.equal((await db.tombstones.toArray()).filter((x) => x.id === a.id).length, 0, '恢复必须清墓碑');
+});
+
+test('sweepOrphanRows：清掉卡片已不存在的孤儿批注并写墓碑（跨设备残留兜底）', async () => {
+  const { sweepOrphanRows } = await import('../src/repo.js');
+  await db.cards.put({ id: 'c-live', front: '活着的卡', back: '答案', subject: '计组', createdAt: 1, updatedAt: 1 });
+  const keep = await addAnnot('c-live', '活卡的批注');
+  // 跨设备典型坏状态：对端删卡只发 kind='card' 墓碑，本端卡片被级联删除，
+  // 但批注行没有对应墓碑 → 永久残留。
+  const orphan = await addAnnot('c-ghost', '卡没了但批注还在');
+
+  const n = await sweepOrphanRows();
+  assert.ok(n >= 1, `应清掉孤儿批注，实际清理行数 ${n}`);
+  assert.notEqual(await db.cardAnnots.get(keep.id), undefined, '活着的卡的批注必须保留');
+  assert.equal(await db.cardAnnots.get(orphan.id), undefined, '孤儿批注应被清掉');
+  const t = (await db.tombstones.toArray()).find((x) => x.id === orphan.id);
+  assert.ok(t, '清理也必须写墓碑，否则对端同 id 行会回灌');
+  assert.equal(t.kind, 'cardAnnot');
+});
+
+test('批注正文里的图片引用受孤儿清理保护（v35 P2）', () => {
+  const src = read(`${SRC}/images.js`);
+  assert.match(src, /IMAGE_REF_TABLES = \[[^\]]*'cardAnnots'/,
+    '批注必须登记进图片引用清单，否则批注里的图会被当孤儿物理删掉（永久裂图）');
+});

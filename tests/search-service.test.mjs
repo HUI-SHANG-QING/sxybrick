@@ -61,8 +61,8 @@ function card(id, front, subject, tags) {
 before(async () => {
   setDbInstance('real');
   const d = getDb();
-  await d.transaction('rw', d.cards, d.docs, d.memos, d.mindmaps, d.exams, d.notes, d.plans, d.analysisSessions, d.wordCards, async () => {
-    for (const t of [d.cards, d.docs, d.memos, d.mindmaps, d.exams, d.notes, d.plans, d.analysisSessions, d.wordCards]) await t.clear();
+  await d.transaction('rw', d.cards, d.docs, d.memos, d.mindmaps, d.exams, d.notes, d.plans, d.analysisSessions, d.wordCards, d.cardAnnots, async () => {
+    for (const t of [d.cards, d.docs, d.memos, d.mindmaps, d.exams, d.notes, d.plans, d.analysisSessions, d.wordCards, d.cardAnnots]) await t.clear();
     await d.cards.bulkAdd([
       card('sc-c1', '死锁的四个必要条件', '操作系统', ['同步']),
       card('sc-c2', '特征值与特征向量', '高数', ['线性代数']),
@@ -78,6 +78,14 @@ before(async () => {
     await d.wordCards.bulkPut([
       { id: 'sc-w1', kind: 'word', word: 'deadlock', phonetic: "'dedlɒk", meaning: '死锁；僵局', subject: '考研', familiar: 0, ease: 2.5, level: 1, intervalDays: 1, dueAt: T, reviewedAt: 0, createdAt: T, updatedAt: T },
       { id: 'sc-w2', kind: 'word', word: 'abandon', phonetic: 'əˈbændən', meaning: '放弃；抛弃', subject: '考研', familiar: 0, ease: 2.5, level: 1, intervalDays: 1, dueAt: T, reviewedAt: 0, createdAt: T, updatedAt: T },
+    ]);
+    // v35：批注模块纳入全局搜索。故意在同一张卡放两条（sc-c1），用于验证
+    // 结果行 id 是**批注 id 而非 cardId**——否则搜索页 :key 撞车，多条只渲染出一条。
+    // sc-a3 挂在不存在的卡上，用于验证「所属卡片已删除」的兜底展示。
+    await d.cardAnnots.bulkPut([
+      { id: 'sc-a1', cardId: 'sc-c1', content: '批注：死锁的例题在附录', reviewCount: 3, level: 1, createdAt: T, updatedAt: T },
+      { id: 'sc-a2', cardId: 'sc-c1', content: '批注：进程调度那张图也要看', reviewCount: 3, level: 1, createdAt: T + 1, updatedAt: T + 1 },
+      { id: 'sc-a3', cardId: 'sc-gone', content: '批注：挂在已删卡上的孤儿批注', reviewCount: 0, level: null, createdAt: T, updatedAt: T },
     ]);
   });
 });
@@ -112,19 +120,61 @@ test('search(指定模块)：只在该模块内检索', async () => {
   assert.ok(r3.modules[0].items.some(i => i.id === 'sc-w2'), '单词本模块内命中（word 字段）');
 });
 
-test('search：空关键词/未知 scope 安全返回', async () => {
-  assert.equal((await search('all', '   ')).total, 0);
-  assert.equal((await search('no-such-scope', '死锁')).total, 0, '未知 scope 不炸');
-  assert.equal((await search('all', 'zzz不存在zzz')).total, 0);
+// ---------- v35：卡片批注纳入搜索 ----------
+
+test('search(annots)：只按批注正文命中，不按 level/reviewCount 噪音字段命中', async () => {
+  const r = await search('annots', '例题');
+  assert.equal(r.modules.length, 1);
+  assert.equal(r.modules[0].key, 'annots');
+  const items = r.modules[0].items;
+  assert.ok(items.some(i => i.id === 'sc-a1'), '应按批注正文命中');
+
+  // 关键回归：结果行 id 必须是**批注 id**（同卡多条时不撞 key），
+  // 而跳转目标 goId 才是所属卡片 —— 两者不能混用。
+  const a1 = items.find(i => i.id === 'sc-a1');
+  assert.equal(a1.goId, 'sc-c1', '跳转目标应为所属卡片 id');
+  assert.equal(a1.go, '/cards');
+  assert.ok(a1.sub.includes('死锁的四个必要条件'), '结果行应显示所属卡片正文，便于定位');
+
+  // 噪音字段不得参与匹配：所有批注 level=1 / reviewCount=3，但正文里不含数字
+  // （正文若含 "P120" 之类，搜 "1" 会合法命中正文，就测不出噪音字段了）
+  assert.equal((await search('annots', '1')).total, 0, 'level 不参与匹配');
+  assert.equal((await search('annots', '3')).total, 0, 'reviewCount 不参与匹配');
+  assert.equal((await search('annots', 'sc-c1')).total, 0, 'cardId 不参与匹配');
 });
 
-test('SCOPE 元数据：9 个模块登记完整，标签可用', () => {
-  assert.equal(SCOPE_ORDER.length, 9);
+test('search(annots)：同一张卡的多条批注各自成行（id 唯一，不撞 :key）', async () => {
+  const r = await search('annots', '批注：');
+  const items = r.modules[0].items;
+  assert.equal(new Set(items.map(i => i.id)).size, items.length, `结果行 id 必须互不相同（实际 ${JSON.stringify(items.map(i => i.id))}）`);
+  // 同卡的两条（sc-a1/sc-a2）都要在，且跳向同一张卡。
+  // 注意 sc-a3 挂在已删卡上，也会命中「批注：」，故必须按 id 筛出同卡的两条再比 goId。
+  const sameCard = items.filter(i => i.id === 'sc-a1' || i.id === 'sc-a2');
+  assert.equal(sameCard.length, 2, '同卡两条批注都应命中');
+  assert.equal(new Set(sameCard.map(i => i.goId)).size, 1, '两条批注应跳向同一张卡');
+  assert.equal(sameCard[0].goId, 'sc-c1');
+});
+
+test('search(annots)：所属卡片已删除时降级展示，不抛错', async () => {
+  const r = await search('annots', '孤儿批注');
+  assert.equal(r.total, 1);
+  assert.ok(r.modules[0].items[0].sub.includes('卡片已删除'), '卡片缺失时 sub 应兜底');
+});
+
+test('SCOPE 元数据：10 个模块登记完整，标签可用', () => {
+  assert.equal(SCOPE_ORDER.length, 10);
   for (const k of SCOPE_ORDER) {
     assert.ok(SEARCH_ADAPTERS[k], `适配器 ${k} 缺失`);
     assert.ok(SCOPE_LABELS[k], `标签 ${k} 缺失`);
   }
   assert.ok(SCOPE_ORDER.includes('words'), '单词本 scope 应存在（P2-B）');
+  assert.ok(SCOPE_ORDER.includes('annots'), '批注 scope 应存在（v35）');
+});
+
+test('search：空关键词/未知 scope 安全返回', async () => {
+  assert.equal((await search('all', '   ')).total, 0);
+  assert.equal((await search('no-such-scope', '死锁')).total, 0, '未知 scope 不炸');
+  assert.equal((await search('all', 'zzz不存在zzz')).total, 0);
 });
 
 // ---------- 4) 演示模式联动：search 跟随当前实例 ----------

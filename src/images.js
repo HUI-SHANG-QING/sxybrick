@@ -5,7 +5,10 @@ import { db } from './db.js';
 //   · repo.cleanupOrphanImages / findOrphanImages（本地孤儿 GC：不在此清单里的正文引用会被误判孤儿删图）
 //   · sync.collectPackImageIds（备份打包：引用判定不同源会漏导图片）
 // docFiles（资料解析文本）可能内嵌占位符（statImageAssets 已扫它），必须纳入。
-export const IMAGE_REF_TABLES = ['cards', 'wordCards', 'notes', 'docs', 'memos', 'mindmaps', 'docFiles', 'aiChats'];
+// v35（2026-10-01 审计补）：补 `cardAnnots` —— 批注内容走 Markdown 渲染，正文里可能出现
+// 图片引用（当前 UI 无插图入口，但用户可粘贴 Markdown）。不登记的话，一旦该图在其它表中
+// 不再被引用（例如引用它的卡片被删），批注里的图会被孤儿清理物理删掉、变成永久裂图。
+export const IMAGE_REF_TABLES = ['cards', 'wordCards', 'notes', 'docs', 'memos', 'mindmaps', 'docFiles', 'aiChats', 'cardAnnots'];
 
 // LRU-cap 缓存：长会话 + 大量图片会持续累积 Blob 引用导致内存泄漏，
 // 超过上限时按插入顺序淘汰最旧条目并回收其 objectURL（避免浏览器内存压力 / 不可逆占用）。

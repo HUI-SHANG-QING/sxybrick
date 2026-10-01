@@ -113,6 +113,29 @@ export const SEARCH_ADAPTERS = {
       go: '/cards',
     }),
   }),
+  // v35（2026-10-01 审计补）：卡片批注纳入全局搜索。
+  // 检索对象**只有批注正文**——cardId / level / reviewCount 是定位与快照字段，
+  // 参与匹配只会带来噪音（搜 "1" 就命中所有 level=1 的批注）。
+  // 结果行必须同时显示「挂在哪个卡上」，否则满屏只有正文无法定位。
+  annots: makeAdapter({
+    key: 'annots', label: '卡片批注', icon: '💬', cap: 20,
+    load: async () => {
+      const [rows, cards] = await Promise.all([db.cardAnnots.toArray(), db.cards.toArray()]);
+      const cardMap = new Map(cards.map(c => [c.id, c]));
+      return rows.map(a => ({ ...a, _card: cardMap.get(a.cardId) || null }));
+    },
+    fields: ['content'],
+    map: a => ({
+      // id 用**批注自身 id**：一张卡可有多条批注，若拿 cardId 当 id，
+      // 搜索页结果行的 :key（m.key + r.id）会撞车 → 多条命中只渲染出一条。
+      id: a.id,
+      // 跳转目标却是所属卡片 → Search.vue 的 go() 优先取 goId，见该文件注释。
+      goId: a.cardId,
+      title: plain(a.content).slice(0, 60) || '（空批注）',
+      sub: `[批注] ${a._card ? plain(a._card.front).slice(0, 50) : '（卡片已删除）'}`,
+      go: '/cards',
+    }),
+  }),
   words: makeAdapter({
     key: 'words', label: '单词本', icon: '🔤', cap: 30,
     load: () => db.wordCards.toArray(),
@@ -173,7 +196,7 @@ export const SEARCH_ADAPTERS = {
 };
 
 /** 全量聚合顺序（搜索页分组展示顺序） */
-export const SCOPE_ORDER = ['cards', 'words', 'docs', 'mindmaps', 'memos', 'exams', 'notes', 'plans', 'analysis'];
+export const SCOPE_ORDER = ['cards', 'annots', 'words', 'docs', 'mindmaps', 'memos', 'exams', 'notes', 'plans', 'analysis'];
 
 export const SCOPE_LABELS = Object.fromEntries(SCOPE_ORDER.map(k => [k, SEARCH_ADAPTERS[k].label]));
 

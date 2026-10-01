@@ -63,7 +63,10 @@ function go(item) {
   if (!item || !item.go) return;
   const base = item.go === '/' ? '/cards' : item.go;
   const params = new URLSearchParams();
-  if (item.id) params.set('id', String(item.id));
+  // v35：批注（annots）结果行的 id 是批注自身 id，但跳转目标必须是它**所属的卡片**
+  // ——一张卡可有多条批注，若拿 cardId 当 id，结果行的 :key 会撞车（多条只渲染出一条）。
+  const targetId = item.goId ?? item.id;
+  if (targetId) params.set('id', String(targetId));
   // 卡片附加关键字，便于 Cards 页延续搜索上下文
   if (base === '/cards' && q.value.trim()) params.set('q', q.value.trim());
   router.push(`${base}${params.toString() ? '?' + params.toString() : ''}`);
