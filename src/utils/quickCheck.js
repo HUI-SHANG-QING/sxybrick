@@ -124,22 +124,26 @@ export async function skipQuickCheck(cardId) {
  */
 export async function recordQuickCheck(cardId, remembered) {
   const now = Date.now();
-  // 记录到 reviews 表（type='quick'，便于统计但不计入 SRS 排期计算）
-  await db.reviews.put({
-    id: uid(),
-    cardId,
-    reviewedAt: now,
-    rating: remembered ? 2 : 0,
-    type: 'quick',
-  });
-  // 在卡片上标记本次校验时间（Dexie 动态字段，不需 schema 变更）
-  // 审计 P1-2（round34）：get + 整行 put 是两个独立事务且整行覆盖——窗口期内
-  // repo.review() 提交的 SRS 进度（ease/level/dueAt/fsrs）会被旧快照回滚，
-  // 是 B11 差量写改造的最后一个漏网点。改为单事务内 update 差量写：
-  // 只动 quickCheckedAt/updatedAt/fieldTs，不触碰并发写入的 SRS 字段。
-  await db.transaction('rw', db.cards, async () => {
+  // v35 审计修正：校验记录与卡片标记必须在**同一个事务**——
+  //   此前 reviews.put 在事务外、卡片标记另起一个事务：若后者失败（配额满等），
+  //   校验记录已落库但卡未标 quickCheckedAt → 窗口判定仍命中 → **快速校验重复弹**，
+  //   且统计里多出一条 type='quick'。与同文件 skipQuickCheck（整段单事务）统一口径。
+  // 卡片更新仍走**差量写**（审计 P1-2 / round34）：get + 整行 put 会把窗口期内
+  //   repo.review() 提交的 SRS 进度（ease/level/dueAt/fsrs）用旧快照回滚，
+  //   是 B11 差量写改造的最后一个漏网点；只动 quickCheckedAt/updatedAt/fieldTs。
+  // 先取卡：不存在则**连校验记录也不写**，避免留下指向幽灵卡的孤儿 reviews。
+  await db.transaction('rw', db.cards, db.reviews, async () => {
     const card = await db.cards.get(cardId);
     if (!card) return;
+    // 记录到 reviews 表（type='quick'，便于统计但不计入 SRS 排期计算）
+    await db.reviews.put({
+      id: uid(),
+      cardId,
+      reviewedAt: now,
+      rating: remembered ? 2 : 0,
+      type: 'quick',
+    });
+    // 在卡片上标记本次校验时间（Dexie 动态字段，不需 schema 变更）
     await db.cards.update(cardId, {
       quickCheckedAt: now,
       updatedAt: now,

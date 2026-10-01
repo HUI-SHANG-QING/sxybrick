@@ -343,6 +343,23 @@ test('importBackup：对端经卡片墓碑删卡时，本端该卡批注级联�
   assert.ok(stats.cards >= 0, 'importBackup 应正常返回统计');
 });
 
+test('复习次数快照必须排除「快速校验」（type=quick）——全项目统一口径', async () => {
+  // 快速校验不是真正的复习（不计入 SRS 排期），全项目其它统计点一律过滤 type='quick'
+  // （repo.js reviewsToday/last10、streak.getTodayCount、achievements、analytics、
+  //  graphAuto、intelligence）。此处若漏过滤，批注上「第 N 次复习」会把快速校验也算进去。
+  const cardId = 'c-qc';
+  await db.cards.put({ id: cardId, front: 'f', back: 'b', subject: 's', createdAt: 1, updatedAt: 1 });
+  await db.reviews.clear();
+  await db.reviews.bulkPut([
+    { id: 'rv-real-1', cardId, reviewedAt: 1, rating: 2, type: 'review' },
+    { id: 'rv-real-2', cardId, reviewedAt: 2, rating: 2 }, // 无 type 的老数据也属真复习
+    { id: 'rv-quick-1', cardId, reviewedAt: 3, rating: 2, type: 'quick' },
+    { id: 'rv-quick-2', cardId, reviewedAt: 4, rating: 0, type: 'quick' },
+  ]);
+  const a = await addAnnot(cardId, '快照校验');
+  assert.equal(a.reviewCount, 2, `应只计 2 次真实复习（排除 2 条 quick），实际 ${a.reviewCount}`);
+});
+
 test('批注正文里的图片引用受孤儿清理保护（v35 P2）', () => {
   const src = read(`${SRC}/images.js`);
   assert.match(src, /IMAGE_REF_TABLES = \[[^\]]*'cardAnnots'/,
