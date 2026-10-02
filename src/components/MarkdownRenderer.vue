@@ -63,10 +63,21 @@ function escapeText(v) {
  *   · KaTeX 对文本内容做了转义，输出结构固定（math / mrow / mi / span …）。
  *   ⇒ 它属于「库生成的固定结构」，与「用户可控 HTML」（卡片正文）性质不同。
  * 另加一道**便宜的黑名单**兜底：命中即降级为转义后的 LaTeX 原文（公式变文字，但绝不执行）。
+ *
+ * ⚠️ 黑名单不能凭直觉写 —— 本清单第一版曾把 `svg` 列进去，结果**误杀 4/16 种正常公式**：
+ *    KaTeX 的根号 `\sqrt`、`\underbrace` 下括号、`\overrightarrow` 箭头都是**用 SVG 画**的，
+ *    一旦禁 svg，这些公式整段降级成文字（实测：`\sqrt{x}` 输出 1651 字符含 <svg>）。
+ *    经复核，禁 svg 其实**没有必要**：`<svg onload=…>` 由 on* 属性规则拦、
+ *    `<svg><script>` 由 script 规则拦、`<svg><foreignObject>` 由 foreignobject 规则拦，
+ *    三者已实测均被拦截。故 svg 必须留在允许侧，**只有真正可执行/可嵌入的形态才禁**。
+ *
+ * 另外 URI 规则限定在**赋值位置**（`="javascript:…"`）而非全文匹配：
+ *    公式正文里的 "data:" / "javascript:" 字样是纯文本、不可执行，
+ *    全文匹配会把 `$\text{db: data: ok}$` 这类正常公式误降级。
  */
-const KATEX_BAD_TAG = /<\s*\/?\s*(script|iframe|object|embed|form|input|button|textarea|select|link|style|base|meta|svg|foreignobject)\b/i;
+const KATEX_BAD_TAG = /<\s*\/?\s*(script|iframe|object|embed|form|input|button|textarea|select|link|style|base|meta|foreignobject)\b/i;
 const KATEX_BAD_ATTR = /\son[a-z]+\s*=/i;
-const KATEX_BAD_URI = /(?:javascript|vbscript|data)\s*:/i;
+const KATEX_BAD_URI = /=\s*['"]?\s*(?:javascript|vbscript|data)\s*:/i;
 
 function katexGuard(html, rawTex) {
   if (!html || KATEX_BAD_TAG.test(html) || KATEX_BAD_ATTR.test(html) || KATEX_BAD_URI.test(html)) {
