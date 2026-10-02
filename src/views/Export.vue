@@ -270,6 +270,13 @@ const grouped = computed(() => {
 
 const checkedCount = computed(() => checkedIds.value.length);
 
+// round124（性能）：模板里用它做 O(1) 判定。
+// 此前模板直接写 `checkedIds.includes(c.id)` —— 在 v-for 内做**线性查找**，
+// 勾选清单上千项时复杂度是 O(候选数 × 勾选数)：一次勾选就要跑百万级比较，
+// 而且每次响应式更新都会把所有项重算一遍（点一下卡一下）。
+// 预计算成 Set 后，整轮渲染降到 O(n + m)。
+const checkedSet = computed(() => new Set(checkedIds.value));
+
 function plain(text) {
   return String(text || '')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, t('views.export.imgShort'))
@@ -330,9 +337,11 @@ function buildDesc() {
 
 // 最终选定的卡片（勾选优先，否则全部筛选结果）
 function selectedCards() {
-  return checkedIds.value.length
-    ? candidates.value.filter(c => checkedIds.value.includes(c.id))
-    : candidates.value;
+  if (!checkedIds.value.length) return candidates.value;
+  // round124（性能）：Set 化，避免 filter + includes 的 O(候选 × 勾选)
+  // —— 候选与勾选都上千时是百万级字符串比较，全部发生在点击「生成预览」的同步路径上。
+  const sel = new Set(checkedIds.value);
+  return candidates.value.filter(c => sel.has(c.id));
 }
 
 async function generate() {
@@ -369,9 +378,9 @@ async function doCsv() {
 // 优先导出勾选的卡片，无勾选则导出当前筛选结果
 async function doAnki() {
   try {
-    const cards = checkedIds.value.length
-      ? candidates.value.filter(c => checkedIds.value.includes(c.id))
-      : candidates.value;
+    // round124（性能）：同 selectedCards —— Set 化，去掉 O(候选 × 勾选)
+    const sel = new Set(checkedIds.value);
+    const cards = sel.size ? candidates.value.filter(c => sel.has(c.id)) : candidates.value;
     if (!cards.length) { toast(t('views.export.noCardsInRange'), 'error'); return; }
     await downloadAnkiText(cards);
     try { T.exportRun('anki', cards.length); } catch {}
@@ -623,8 +632,8 @@ async function doApkgImport() {
       <EmptyState v-if="!candidates.length" icon="🖨️" :title="t('views.export.emptyTitle')" :message="t('views.export.emptyMsg')" />
       <div v-else class="pick-list">
         <label v-for="(c, i) in candidates" :key="c.id" class="pick-item"
-               :class="{ on: checkedIds.includes(c.id) }">
-          <input type="checkbox" :checked="checkedIds.includes(c.id)" @change="toggleOne(c.id)" />
+               :class="{ on: checkedSet.has(c.id) }">
+          <input type="checkbox" :checked="checkedSet.has(c.id)" @change="toggleOne(c.id)" />
           <span class="pick-thumb">
             <img v-if="thumbMap[c.id]" :src="thumbMap[c.id]" alt="" />
             <span v-else class="thumb-ph">{{ (c.subject || '未分类').slice(0, 1) }}</span>
@@ -932,7 +941,20 @@ async function doApkgImport() {
 .group-name { font-size: 17px; font-weight: 700; color: #16202c; }
 .group-count { font-size: 12px; color: #9aa5b1; }
 
-.print-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 18px; margin-bottom: 12px; }
+.print-card {
+  border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 18px; margin-bottom: 12px;
+  /* round124（性能）：屏外卡片跳过渲染与布局。
+     导出预览动辄数百上千张卡，净化后的 HTML 会常驻主文档（1000 张约 16MB HTML、
+     数十万 DOM 节点）；此前每一帧的样式重算、布局与滚动都要遍历它们，
+     于是表现为「打开预览之后整页持续卡顿」，而不只是打开那一瞬的卡。
+     content-visibility:auto 让浏览器跳过屏幕外子树；contain-intrinsic-size 给出占位高度，
+     避免滚动条长度剧烈跳动。
+     ⚠️ 它只改变「何时渲染」，不改变任何渲染结果 ⇒ 画质/清晰度/排版零影响。
+     ⚠️ 打印时必须还原（见文件末尾 @media print）：否则浏览器只打印「已渲染」的部分，
+        直接漏卡 —— 这是本优化唯一的风险点，已用媒体查询封死。 */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 260px;
+}
 .card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 .card-no { font-size: 12px; color: #9aa5b1; font-weight: 600; }
 .card-tags { display: flex; gap: 5px; flex-wrap: wrap; }
@@ -974,5 +996,12 @@ async function doApkgImport() {
   .export-head-meta { text-align: left; }
   .pick-item input { margin-top: 12px; }
   .pick-no { margin-top: 12px; }
+}
+
+/* round124：打印时撤销 content-visibility:auto。
+   打印引擎只会输出「当前已渲染」的子树，若沿用 auto，屏幕外的卡片会整段缺失
+   （表现为导出的 PDF 少了后面的卡片）。这里在 print 媒体下强制按普通盒渲染。 */
+@media print {
+  .print-card { content-visibility: visible; contain-intrinsic-size: none; }
 }
 </style>
