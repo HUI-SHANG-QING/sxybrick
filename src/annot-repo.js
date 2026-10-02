@@ -70,8 +70,15 @@ export async function listAnnots(cardId) {
 /**
  * 新增一条批注。createdAt 在此自动生成，调用方无法指定（时间戳不可手动修改）。
  *
- * 另记两个**写入当时的复习上下文快照**：reviewCount（该卡累计复习次数）、level（当时巩固等级）。
- * 取不到时写 null —— 快照只用于回顾，**不允许它阻塞批注保存**。
+ * 另记两个**写入当时的复习上下文快照**：reviewCount（该卡累计复习次数，已排除快速校验行）、
+ * level（当时的巩固等级）。取不到时写 null —— 快照只用于回顾，**不允许它阻塞批注保存**。
+ *
+ * round123 审计备注（**下一轮不要再把 `level` 当"死字段"重复开单**）：
+ *   生产代码里确实没有读取方（UI 只展示 reviewCount），表面像死字段，且为此每次保存批注
+ *   要多跑一次 `db.cards.get(id)`。但它**已被 tests/card-annot.test.mjs 钉成契约**
+ *   （断言 `row.level === 4`、孤儿批注 `level === null`、源码须含 `db.cards.get(`），
+ *   属**有意保留**的字段而非遗漏。删除需同步改 3 处断言并改动既有设计意图，
+ *   而收益仅是省一次主键查询（微秒级）——成本远大于收益，故保留。
  *
  * @param {string} cardId
  * @param {string} content

@@ -8,8 +8,9 @@ import { useRouter } from 'vue-router';
 import { getAssetHealth, getNetWorth, getSourceOverview } from '../agent/analytics.js';
 import { getStats } from '../repo.js';
 import { getReplyStats } from '../agent/reply.js';
-import { deleteCard } from '../repo.js';
-import { db } from '../db.js';
+import { deleteCard, deleteOrphanImages } from '../repo.js';
+// round123：删图已收口到 repo.deleteOrphanImages（那里负责写 kind='image' 墓碑），
+// 本组件不再直接操作 db，故移除该 import。
 import { toast } from '../utils/toast.js';
 import { T } from '../utils/telemetry.js';
 import EmptyState from '../components/EmptyState.vue';
@@ -95,7 +96,9 @@ async function removeZombies() {
 async function cleanOrphanImages() {
   if (!health.value?.orphanImages.length) return;
   if (!(await confirmDialog(t('views.health.cleanOrphanConfirm', undefined, { n: health.value.orphanImages.length })))) return;
-  for (const i of health.value.orphanImages) await db.images.delete(i.id);
+  // round123：改用 repo.deleteOrphanImages —— 删同步表 images 必须同时写墓碑，
+  // 否则本机删掉的图会在下次同步被对端/hub 按 idOnly 幂等灌回来，清理静默失效。
+  await deleteOrphanImages(health.value.orphanImages.map(i => i.id));
   toast(t('views.health.orphanCleaned'), 'success');
   await load();
 }
@@ -118,7 +121,8 @@ async function fixAll() {
       for (const c of sorted.slice(1)) { await deleteCard(c.id); n++; }
     }
     for (const z of h.zombies) await deleteCard(z.id);
-    for (const i of h.orphanImages) await db.images.delete(i.id);
+    // round123：同上（一键修复里的孤儿图清理，同一缺口）。
+    await deleteOrphanImages(h.orphanImages.map(i => i.id));
     toast(t('views.health.fixAllDone', undefined, { n, z: zombN, o: orphanN }), 'success');
     await load();
   } catch (e) { toast(e.message || t('views.health.fixFail'), 'error'); }

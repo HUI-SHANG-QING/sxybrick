@@ -1001,7 +1001,21 @@ export async function importBackup(backup, opts = {}) {
     // 但对端经卡片墓碑删卡时走的正是这条路径，此前漏了 cardAnnots ⇒ 批注行指向幽灵卡
     // 残留在对端（只能靠末尾 sweepOrphanRows 兜底，而它是 fire-and-forget、失败仅 warn）。
     // 此处补上后两条删卡路径口径一致，sweep 退化为纯兜底。
-    await db.cardAnnots.where('cardId').anyOf(removed).delete();
+    //
+    // round123 审计修正：**只删行、不写墓碑** 与 repo.deleteCard 口径仍不一致（那边是
+    // 「先 bulkPut 墓碑 → 再删行」，见 repo.js:655 与 :663）。缺墓碑的后果：
+    //   若这条批注在**第三台设备**上也存在（那台还没收到卡片墓碑），本端删掉它之后没有墓碑
+    //   传出去 ⇒ 下轮三方同步时对方会按「新行」把它灌回来（cardAnnots 是 updatedAt 整行 LWW、
+    //   不参与 idOnly 幂等），形成删除失效；整条收敛链只能指望末尾 sweepOrphanRows 兜底。
+    //   补上墓碑后两条删卡路径完全同口径，sweep 退化为纯兜底。
+    const goneAnnots = await db.cardAnnots.where('cardId').anyOf(removed).toArray();
+    if (goneAnnots.length) {
+      const goneTs = Date.now();
+      await db.tombstones.bulkPut(
+        goneAnnots.map(a => ({ id: a.id, kind: 'cardAnnot', deletedAt: goneTs })),
+      );
+      await db.cardAnnots.bulkDelete(goneAnnots.map(a => a.id));
+    }
     // 审计 P1：link 类表 + notes 引用清洗——源端 deleteCard 写了 link 墓碑，
     // 但 link 行在对端按 idOnly/tombstone kind 过滤，增量包若未携带对应墓碑
     // （首次同步/老包/bridge 通道）则 link 行永驻成为指向幽灵卡的悬空行。

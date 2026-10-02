@@ -254,6 +254,18 @@ test('v35：A 删卡 → B 导入墓碑 → B 端该卡的批注一并级联删�
   assert.equal(await d.cardAnnots.get('an1'), undefined, '被删卡上的批注应级联删除');
   assert.equal(await d.cardAnnots.get('an2'), undefined, '同卡多条批注都要删');
   assert.notEqual(await d.cardAnnots.get('an3'), undefined, '活着的卡的批注绝不能误删');
+
+  // round123：级联还必须**同时写墓碑**（与 repo.deleteCard 口径一致）——此前这里只删行不写墓碑。
+  // 缺墓碑的后果：若这条批注在**第三台设备**上也存在（那台还没收到卡片墓碑），本端删掉它之后
+  // 没有墓碑传出去 ⇒ 对方会在下轮同步按「新行」把它灌回来（cardAnnots 是 updatedAt 整行 LWW、
+  // 不参与 idOnly 幂等），形成删除失效；整条收敛链只能指望末尾的 sweepOrphanRows 兜底。
+  // 负向对照：把 sync.js 里的 tombstones.bulkPut 去掉后，本断言必须变红。
+  const annotTombs = (await d.tombstones.toArray()).filter((t) => t.kind === 'cardAnnot');
+  assert.deepEqual(
+    annotTombs.map((t) => t.id).sort(), ['an1', 'an2'],
+    `级联删批注必须同时写 kind='cardAnnot' 墓碑（实际 ${annotTombs.length} 条：`
+      + `${annotTombs.map((t) => t.id).join('、') || '无'}）`,
+  );
 });
 
 // ───────────────────────── 五、预览 / 数据域 ─────────────────────────

@@ -360,7 +360,12 @@ d.version(34).stores({
 //     曾短暂用过「行内软删除字段 deletedAt」，已废弃 —— `deletedAt` 在本项目是**墓碑表的
 //     字段名**（同名不同义，必然误导后来者），且 `updatedAt` 策略是整行 LWW：
 //     一端删除会被另一端的编辑覆盖 ⇒ 删除静默失效、批注"复活"（2026-10-01 审计修正）。
-//   · 不参与图片引用扫描，不写 tombstones；同步按 updatedAt 合并（见 sync-manifest v35 条目）。
+//   · **参与图片引用扫描**（`images.js` 的 `IMAGE_REF_TABLES` 已含 `'cardAnnots'`）：
+//     批注正文走 Markdown 渲染，可能含 `sxy-img://` 占位符（当前 UI 无插图入口，
+//     但用户可以粘贴 Markdown）。不登记的话，一旦该图在其它表中不再被引用
+//     （例如引用它的卡片被删），批注里的图会被孤儿清理物理删掉、变成永久裂图。
+//   · **写 tombstones**（`kind='cardAnnot'`）——见上文删除语义；
+//     同步按 updatedAt 合并（见 sync-manifest v35 条目）。
 d.version(35).stores({
   cardAnnots: 'id, cardId, createdAt, updatedAt',
 });

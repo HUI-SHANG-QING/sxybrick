@@ -12,7 +12,7 @@ import ExportButton from '../components/ExportButton.vue';
 import { exportCardsToJSON, exportCardsToCSV, exportCardsToMarkdown } from '../utils/exporters.js';
 import { db, uid } from '../db.js';
 import { toast } from '../utils/toast.js';
-import { listCards, getSubjects, getTags, deleteCard, weakCards, attachFailCounts, applyCardFilters, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups, rescheduleCardToNow } from '../repo.js';
+import { listCards, getSubjects, getTags, deleteCard, weakCards, attachFailCounts, applyCardFilters, setMarked, getReviewSuggestion, getCardHistory, gradeCard, createCard, findNotesLinkingTo, listCardGroups, setCardGroups, rescheduleCardToNow, deleteOrphanImages } from '../repo.js';
 import { getGoal, setGoal, getTodayCount, getStreak } from '../utils/streak.js';
 import { chatAI, hasAIKey } from '../ai.js';
 import { genVariants } from '../utils/genVariants.js';
@@ -555,7 +555,10 @@ const orphanImages = ref([]);
 const orphanImagesVisible = ref(false);
 async function removeOrphan(id) {
   try {
-    await db.images.delete(id);
+    // round123：收口到 repo.deleteOrphanImages —— 删同步表必须同时写 kind='image' 墓碑，
+    // 否则本机删掉的图会在下次同步被对端灌回来（images 按 idOnly 幂等），清理静默失效。
+    // 与 repo.deleteCard / deleteNote 的孤儿图清理同口径（先墓碑、后物理删）。
+    await deleteOrphanImages([id]);
     _revokeObjUrl(id);
     orphanImages.value = orphanImages.value.filter(i => i.id !== id);
     toast(t('views.cards.orphanDeleted'), 'success');
@@ -565,7 +568,10 @@ async function removeAllOrphans() {
   if (!orphanImages.value.length) return;
   if (!(await confirmDialog(t('views.cards.confirmCleanOrphans', '一次性清理 {n} 张孤儿图片？', { n: orphanImages.value.length })))) return;
   try {
-    for (const i of orphanImages.value) { await db.images.delete(i.id); _revokeObjUrl(i.id); }
+    // round123：同上——一次事务写完墓碑再删行，不再逐张直接 db.images.delete。
+    const ids = orphanImages.value.map(i => i.id);
+    await deleteOrphanImages(ids);
+    for (const id of ids) _revokeObjUrl(id);
     orphanImages.value = [];
     toast(t('views.cards.orphansCleaned'), 'success');
   } catch (e) { toast(e.message, 'error'); }

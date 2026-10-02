@@ -706,6 +706,30 @@ export async function deleteCard(id) {
 }
 
 /**
+ * 删除孤儿图片（卡片页「孤儿图片」面板的清理入口）。
+ *
+ * round123 审计：此前视图层（Cards.vue）直接 `db.images.delete(id)`，**不写墓碑** ——
+ * 与项目口径不一致：deleteCard 的孤儿图清理（本文件 :698-704）与 deleteNote 的同款清理
+ * 都是「先 bulkPut kind='image' 墓碑 → 再物理删」。缺墓碑的后果：
+ *   `images` 是同步表且按 idOnly 幂等，本机删掉的图会在下一次同步被对端/hub 原样灌回来
+ *   ⇒ 用户点「清理孤儿图」后，换设备或下次同步图又出现，清理静默失效。
+ * 收口到本函数后视图层不再直接碰 db.images，且与其余删图路径同口径。
+ *
+ * @param {string[]} ids 待删图片 id 列表（自动去重、过滤空值）
+ * @returns {Promise<number>} 实际删除的图片数量
+ */
+export async function deleteOrphanImages(ids) {
+  const list = [...new Set((ids || []).filter(Boolean))];
+  if (!list.length) return 0;
+  const ts = now();
+  await db.transaction('rw', db.images, db.tombstones, async () => {
+    await db.tombstones.bulkPut(list.map(id => ({ id, kind: 'image', deletedAt: ts })));
+    await db.images.bulkDelete(list);
+  });
+  return list.length;
+}
+
+/**
  * 删除卡片后，清理不再被任何卡/词卡引用的图片；返回实际被删的图片 id（供写墓碑）。
  * 审计 A1 同源修复：存活集此前只扫通用卡的 front/back——与 hub 侧 GC 同构的误删路径
  * （某图仅被词卡引用时，删任意一张通用卡都会把它当孤儿删掉）。
@@ -728,8 +752,17 @@ export async function cleanupOrphanImages(ids) {
   for (const c of rows.flat()) {
     for (const i of extractImageIds(JSON.stringify(c))) used.add(i);
   }
-  const removed = [];
-  for (const id of idSet) if (!used.has(id)) { await db.images.delete(id); removed.push(id); }
+  const removed = [...idSet].filter(id => !used.has(id));
+  if (removed.length) {
+    // round123 审计：本函数此前是「纯物理删」，契约要求**调用方**先写墓碑（见上方 round26 D3 注释）。
+    // 但它当前**没有任何调用方**（死导出），而该契约极易被漏 —— 一旦有人直接调用就会造成
+    // 「本地删了、同步灌回来」的静默失效。改为**自包含**「先写墓碑、后物理删」，
+    // 调用方无需再操心；与 deleteCard / deleteNote / deleteOrphanImages 完全同口径。
+    await db.transaction('rw', db.images, db.tombstones, async () => {
+      await db.tombstones.bulkPut(removed.map(id => ({ id, kind: 'image', deletedAt: Date.now() })));
+      await db.images.bulkDelete(removed);
+    });
+  }
   return removed;
 }
 
