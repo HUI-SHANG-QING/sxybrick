@@ -67,7 +67,9 @@ export function subscribeDbChanged(cb) {
  * @param {import('dexie').Dexie} dbInstance
  */
 export function armDbNotify(dbInstance) {
-  if (!dbInstance || typeof dbInstance.on !== 'function') return;
+  // 重复装配防护（HMR / 多次调用）：hook 会累积，防成广播风暴
+  if (!dbInstance || !Array.isArray(dbInstance.tables) || dbInstance.__dbNotifyArmed) return;
+  dbInstance.__dbNotifyArmed = true;
   let timer = null;
   const fire = () => { timer = null; notifyDbChanged('local'); };
   // 审计 P2-3（2026-09-14）：trailing 节流——每次写都重置计时器，
@@ -75,10 +77,21 @@ export function armDbNotify(dbInstance) {
   // 旧实现单发不重置：批量导入/同步持续写库时，广播可能落在写完成之前，
   // 其他 tab 收到通知去刷新却读到中间态（数据还没落完）。
   const schedule = () => { if (timer) clearTimeout(timer); timer = setTimeout(fire, 150); };
-  for (const ev of ['creating', 'updating', 'deleting']) {
-    try {
-      dbInstance.on(ev, () => { schedule(); });
-    } catch { /* 通知基建尽力而为：个别环境（测试 mock / 旧 Dexie）不支持 hooks 时静默降级，
-                 绝不能影响 db 状态或主流程 */ }
+  // round125 审计（P0 修复）：**必须装在 Table 级 hook 上**。
+  //   实测（Dexie 4.0.8 + fake-indexeddb）：`db.on('creating'|'updating'|'deleting')`
+  //   **直接抛错** —— `Cannot read properties of undefined (reading 'subscribe')`：
+  //   实例级 `db.on()` 只接受 populate / ready / versionchange，
+  //   而 CRUD 这三个事件是 **Table 级** 的 `table.hook(ev, cb)`。
+  //   原来的 try/catch 把这个错**静默吞掉**：装配时「看似成功」，运行时**一次都不触发**
+  //   ⇒ 整套「跨 tab 数据变更广播」名存实亡：
+  //     · intelligence 的卡片缓存收不到失效通知（退化为 5s TTL 兜底）；
+  //     · WordBook / WordPhrases / WordGroups 在别的 tab 写库后**永不自动刷新**。
+  //   修后实测：写 / 改 / 删各触发 1 次（见 tests/db-events-arm.test.mjs）。
+  //   hook 回调只 setTimeout，不抛错、不改写数据 ⇒ 绝不影响写事务。
+  for (const table of dbInstance.tables) {
+    for (const ev of ['creating', 'updating', 'deleting']) {
+      try { table.hook(ev, () => { schedule(); }); }
+      catch { /* 个别表在特殊环境下不支持 hook：跳过该表，不影响其它表与主流程 */ }
+    }
   }
 }
