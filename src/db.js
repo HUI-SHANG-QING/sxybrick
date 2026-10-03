@@ -440,9 +440,18 @@ for (const inst of Object.values(instances)) {
 import { armDbNotify } from './utils/dbEvents.js';
 // round26 D2：多 tab 共享同一 IndexedDB——任一 tab 写库后广播失效信号，其余 tab 刷新。
 // Dexie hooks 需在 open 完成后装配（open 前 db.on 会因表信息未就绪抛错）。
+// round126 审计：这两行是 round125 那个 P0 的**案发现场**——
+//   当年 armDbNotify 内部用错 Dexie API（db.on 不支持 CRUD 事件）必然抛错，
+//   被这里的空 `catch {}` 吞掉，缺陷因此长期不可见（注释还被写成「环境差异」）。
+//   bug 已修（改用 table.hook），但**掩盖机制不能原样留着**：同类问题再发生必须看得见。
+//   失败只影响「跨 tab 自动刷新」，不影响本页功能，因此只 warn 不抛。
+const armSafely = (inst, which) => {
+  try { armDbNotify(inst); }
+  catch (e) { console.warn(`[db] ${which} 库变更广播装配失败（跨 tab 自动刷新会退化）:`, e?.name || '', e?.message || e); }
+};
 Promise.all(Object.values(instances).map((inst) => inst.open())).then(() => {
-  try { armDbNotify(instances.real); } catch {}
-  try { armDbNotify(instances.test); } catch {}
+  armSafely(instances.real, 'real');
+  armSafely(instances.test, 'test');
 }).catch((err) => {
   setDbStatus(`error:${err?.name || 'open-failed'}`);
 });
