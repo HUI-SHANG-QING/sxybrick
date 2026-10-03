@@ -1,0 +1,102 @@
+{
+  "src/App.vue": {
+    "count": 1,
+    "note": ""
+  },
+  "src/components/CardModal.vue": {
+    "count": 2,
+    "note": ""
+  },
+  "src/db.js": {
+    "count": 1,
+    "note": ""
+  },
+  "src/plugins/loader.js": {
+    "count": 2,
+    "note": ""
+  },
+  "src/sync-status.js": {
+    "count": 2,
+    "note": ""
+  },
+  "src/sync.js": {
+    "count": 1,
+    "note": ""
+  },
+  "src/utils/genVariants.js": {
+    "count": 2,
+    "note": ""
+  },
+  "src/utils/gistBackup.js": {
+    "count": 1,
+    "note": ""
+  },
+  "src/utils/pomoDedup.js": {
+    "count": 2,
+    "note": ""
+  },
+  "src/utils/pwa.js": {
+    "count": 6,
+    "note": ""
+  },
+  "src/utils/telemetry.js": {
+    "count": 1,
+    "note": ""
+  },
+  "src/views/AIAssistant.vue": {
+    "count": 1,
+    "note": ""
+  },
+  "src/views/Cards.vue": {
+    "count": 3,
+    "note": ""
+  },
+  "src/views/Exam.vue": {
+    "count": 1,
+    "note": ""
+  },
+  "src/views/Export.vue": {
+    "count": 3,
+    "note": ""
+  },
+  "src/views/Feynman.vue": {
+    "count": 1,
+    "note": ""
+  },
+  "src/views/GenQuiz.vue": {
+    "count": 1,
+    "note": ""
+  },
+  "src/views/Health.vue": {
+    "count": 1,
+    "note": ""
+  },
+  "src/views/KnowledgeGraph.vue": {
+    "count": 1,
+    "note": ""
+  },
+  "src/views/Mindmap.vue": {
+    "count": 1,
+    "note": ""
+  },
+  "src/views/Plans.vue": {
+    "count": 1,
+    "note": ""
+  },
+  "src/views/Pomodoro.vue": {
+    "count": 4,
+    "note": ""
+  },
+  "src/views/Review.vue": {
+    "count": 1,
+    "note": ""
+  },
+  "src/views/Sync.vue": {
+    "count": 8,
+    "note": ""
+  },
+  "src/workspace/overview.js": {
+    "count": 1,
+    "note": ""
+  }
+}
