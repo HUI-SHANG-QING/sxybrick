@@ -65,7 +65,14 @@ function wrongPenalty(reason) {
 export function computeNext(card, rating, intensity = 1, guessed = false, opts = {}) {
   const now = opts.now ?? Date.now();
   let { level, ease } = card;
-  ease = Number.isFinite(Number(ease)) ? Number(ease) : 2.5;
+  // round127 枚举审计：原先只对 NaN 兜底（→2.5），**不对已存在的越界值归一化**。
+  //   而降 ease 的分支（rating 0/1）都带 Math.max(1.3, …)，唯独 rating=2 的三个加分支
+  //   只写了 Math.min(2.8, …) —— 上界封了、下界没封。
+  //   实测：ease=0.8 的卡每次答对会写回 0.85/0.9…，**在爬回 1.3 之前一直越界**，
+  //   而间隔公式（遗忘间隔 `(ease-1.3)*0.167`、`15*ease^(lvl-4)`）直接吃 ease，
+  //   越界值会让间隔偏离设计区间。脏数据来源：apkg 导入 / 旧版本同步 / 手改库。
+  //   与 level 的归一化（Math.max(0, Math.trunc(…))）同款思路：**入口归一，不依赖调用方**。
+  ease = Number.isFinite(Number(ease)) ? Math.min(2.8, Math.max(1.3, Number(ease))) : 2.5;
   // ⚠️ level 必须归一化（2026-08-30）：undefined/NaN 会在「已毕业卡正常升级」分支
   //   执行 `level += 1` → NaN → days=NaN → dueAt=NaN。
   //   而 `dueAt <= now` 对 NaN 恒为 false —— 这张卡会**永久消失于复习队列**，
@@ -78,8 +85,12 @@ export function computeNext(card, rating, intensity = 1, guessed = false, opts =
   const difficulty = DIFF_MAP[rawDiff] ?? (Number.isFinite(Number(rawDiff)) ? Number(rawDiff) : 1);
   const wrongReason = opts.wrongReason || card.wrongReason || '';
   // 短期巩固状态：null/0=未启用或已毕业，1=当日巩固待完成，2=隔日巩固待完成
+  // round127 枚举审计：原先只把 0 归一为 null，`3`/`99` 这类脏值会**原样穿过并被写回数据库**。
+  //   消费方（intelligence.js:421、Review.vue:146/152）都只判 1/2，所以行为上无碍，
+  //   但脏值会长期留在库里、且让「consolidation 是什么」失去唯一性。
+  //   归一为「非 1/2 即 null」与既有 0→null 语义完全一致（0 也归 null），只是更彻底。
   let consolidation = card.consolidation || null;
-  if (consolidation === 0) consolidation = null;
+  if (consolidation !== 1 && consolidation !== 2) consolidation = null;
   // D2: 巩固阶段超时失效——距上次复习超过 24h 未复习，自动跳过巩固，
   // 直接进入正常 SM-2 梯度。防止用户长期不来后卡在「待巩固」状态。
   if ((consolidation === 1 || consolidation === 2) && card.dueAt) {
