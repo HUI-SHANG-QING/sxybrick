@@ -4,6 +4,8 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { t } from '../i18n/index.js';
 import { wordStats, getWordSettings, wordCheckinStreak, wordCheckinCalendar, wordReviewedToday, wordReviewedTotal, todayStr, wordStudyTimeToday, wordStudyTimeTotal, listWordCards } from '../word-repo.js';
+import { isWordMastered } from '../repo-core.js';
+// round127：词卡「已掌握」口径收敛到单一事实源 isWordMastered（熟词算已掌握）；原为页面内硬编码
 import WordQuickBar from '../components/WordQuickBar.vue';
 
 const router = useRouter();
@@ -40,7 +42,7 @@ async function load() {
     if ((c.reviewedAt || 0) > 0) learned++;
     if (c.familiar) { f++; continue; }
     if ((c.reviewedAt || 0) === 0) { n++; continue; }
-    if ((c.intervalDays || 0) >= 21 || (c.level || 0) >= 4) m++;
+    if (isWordMastered(c)) m++;
     else l++;
   }
   learnedCount.value = learned;

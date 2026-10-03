@@ -612,12 +612,16 @@ export async function wordStats() {
   let due = 0, mastered = 0, newToday = 0, familiar = 0, templates = 0;
   for (const r of rows) {
     if (r.kind === 'template') { templates++; continue; }
-    if (r.familiar) { familiar++; continue; }
+    if (r.familiar) { familiar++; mastered++; continue; }   // round127：产品决策——熟词算已掌握
     if ((r.createdAt || 0) >= dayStart) newToday++;
     // round48：「待背」必须与 dueWordCards 队列同口径——只算「有限且已到期」。
     // 原 `(r.dueAt || 0) <= t` 会把 NaN 当 0 计入（NaN 行却不在索引队列里）。
     if (Number.isFinite(r.dueAt) && r.dueAt <= t) due++;
-    // N-8（审计口径说明）：mastered 用 level>=4 || intervalDays>=21 双条件。
+    // round127（产品决策）：mastered = isWordMastered = **familiar || (level>=4 || intervalDays>=21)**
+    //   —— 手动标「我认识」的熟词计入已掌握（用户信号比系统判定更强）。
+    //   下方 isMastered 分支只处理**非熟词**（熟词已在上方 continue），
+    //   但为口径统一、可读性，这里仍显式写 isMastered 而非硬编码。
+    // N-8（审计口径说明）：非熟词部分用 level>=4 || intervalDays>=21 双条件。
     //   FSRS 路径 level 封顶 4（需 S≥15 天）；SM-2 路径 level 无上限——两套调度器
     //   「已掌握」的实际门槛不同（FSRS 更严）。UI 统计口径可接受，但跨模块对比
     //   （如 P2-B union 视图的成就/周报）需知晓此差异。
@@ -633,8 +637,12 @@ export async function wordStats() {
 }
 
 // round23 拓展：按词组的掌握率统计（报表/进度条用）。
-// 口径与 wordStats 对齐（mastered = familiar || level>=4 || intervalDays>=21；
-// due 只计未熟且到期的可排程卡），一次全表扫描产出全部组的统计，避免 N 组 N 次查询。
+// round127 口径统一（**产品决策：熟词算「已掌握」**）：mastered 收敛到 isWordMastered(r)
+//   = familiar || isMastered(r)（level>=4 || intervalDays>=21）。
+//   此前本函数算 familiar 而 wordStats 不算 ⇒「词书统计」与「词组统计」对同一批词
+//   给出**两个不同的已掌握数**，而上方注释还写着「口径与 wordStats 对齐」，实际并未对齐。
+//   现两侧统一为「算」：熟词进 familiar 列**同时**计入 mastered（familiar 仍单列，便于区分来源）。
+// due 只计未熟且到期的可排程卡；一次全表扫描产出全部组的统计，避免 N 组 N 次查询。
 export async function wordGroupStats() {
   const [groups, links, rows] = await Promise.all([
     db.wordGroups.toArray(),
@@ -654,10 +662,10 @@ export async function wordGroupStats() {
     st.total++;
     if (r.kind === 'template') continue;
     st.schedulable++;
-    if (r.familiar) { st.familiar++; st.mastered++; continue; }
+    if (r.familiar) { st.familiar++; st.mastered++; continue; }   // round127：熟词算已掌握（与 wordStats 同口径）
     if ((r.reviewedAt || 0) > 0) st.reviewed++;
     if ((r.dueAt || 0) <= t) st.due++;
-    if ((Number(r.level) || 0) >= 4 || (Number(r.intervalDays) || 0) >= 21) st.mastered++;
+    if (isMastered(r)) st.mastered++;               // round127：收敛到单一事实源（非熟词分支；熟词已在上方计入）
   }
   return [...per.values()];
 }

@@ -95,6 +95,22 @@ export function isMastered(row) {
   return (row?.level ?? 0) >= 4 || (row?.intervalDays || 0) >= 21;
 }
 
+/**
+ * 词卡侧的「已掌握」判定（round127）——**产品决策：熟词算已掌握**。
+ *
+ * 为什么单独一个函数而不在 isMastered 里并入 familiar：
+ *   · 通用卡（cards）**没有 familiar 这个字段**，把词卡口径塞进 isMastered 会让卡片侧
+ *     的判定平白多一个恒为假的条件，语义变浑；
+ *   · 二者门槛不同：isMastered 是「系统按调度判定」，isWordMastered 再叠加
+ *     「用户手动标记我认识」这一更强信号。
+ * 全仓凡涉及**词卡**掌握度的地方都必须走它（原先 4 处各自硬编码 level>=4||intervalDays>=21，
+ * 且 wordStats / wordGroupStats / 3 个页面在「熟词算不算」上口径互相矛盾，
+ * 会让「词书统计」与「词组统计」对同一批词给出两个不同的已掌握数）。
+ */
+export function isWordMastered(row) {
+  return !!row?.familiar || isMastered(row);
+}
+
 export function gradeCard(card) {
   const level = card.level || 0;
   if (card.marked) return { label: '错题', cls: 'g-weak' };

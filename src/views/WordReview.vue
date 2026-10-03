@@ -21,6 +21,10 @@ import {
   dueWordCards, listWordCards, reviewWord, getWordSettings, listWordGroups,
   wordStats, wordReviewedToday, recordWordStudyTime,
 } from '../word-repo.js';
+import { isMastered } from '../repo-core.js';
+// round127：下方「已掌握」判定收敛到单一事实源（原为页面内硬编码）。
+// 注意这里用 isMastered 而非 isWordMastered：上方的 familiar 是**互斥的提前分支**
+// （显示「熟词」标签），已把熟词单独归类，到这里时必然是非熟词。
 
 const route = useRoute();
 const router = useRouter();
@@ -437,7 +441,7 @@ async function showSummary() {
 // 小结页每词状态文本：已标熟 > 复习完成（间隔≥21天或级别≥4）> N天后复习
 function nextReviewText(log) {
   if (log.familiar) return { text: t('views.wordReview.stFamiliar'), cls: 'st-fam' };
-  if ((log.intervalDays || 0) >= 21 || (log.level || 0) >= 4) {
+  if (isMastered(log)) {
     return { text: t('views.wordReview.stDone'), cls: 'st-done' };
   }
   if (!log.dueAt) return { text: '—', cls: 'st-wait' };
