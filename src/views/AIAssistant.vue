@@ -95,6 +95,8 @@ const userNodes = computed(() => {
 async function loadChatList() { chats.value = await listChats(); }
 
 async function selectChat(id) {
+  // round136：换对话时清空思考展开态 —— 它按下标存，跨对话沿用会张冠李戴。
+  for (const k of Object.keys(thinkOpen)) delete thinkOpen[k];
   currentChat.value = (await getChat(id)) || newChat();
   localStorage.setItem('sxy_last_chat', currentChat.value.id);
   await loadChatList();
@@ -105,6 +107,7 @@ async function selectChat(id) {
 }
 
 async function createNew() {
+  for (const k of Object.keys(thinkOpen)) delete thinkOpen[k];   // round136：同 selectChat
   currentChat.value = newChat();
   localStorage.setItem('sxy_last_chat', currentChat.value.id);
   await loadChatList();
@@ -151,6 +154,10 @@ async function send() {
   // round76：占位消息下标要在 try 外声明——**错误分支也要用它**（把报错写进那个占位气泡，
   // 而不是留下一个空气泡再追加一条错误消息，界面会出现"空的 AI 回复 + 一条报错"两条）。
   let replyIdx = -1;
+  // round136：必须声明在 try **之外** —— 用 const 声明在 try 块里的话，finally 访问不到
+  //   （块级作用域），eslint no-undef 会直接报出来。
+  let targetChat = null;
+  let isStale = () => false;
   try {
     // round100：AI 学习助手改为**自己查数据**——走 Agent 框架（'assistant' Agent + ReAct 工具循环）。
     // AI 按需调 get_card_detail / read_note / read_doc / read_chat / get_pomodoro_sessions … 取真实数据，
@@ -158,14 +165,22 @@ async function send() {
     // 问什么取什么（不再「猜不准就漏」），也不会无条件全量外发（不再费 token / 外发隐私）。
     // ⚠️ 请求消息必须用**推入占位之前**的快照，否则空消息会被当成历史发给模型。
     const history = [...currentChat.value.messages];
-    currentChat.value.messages.push({ role: 'assistant', content: '' });
-    replyIdx = currentChat.value.messages.length - 1;
+    // round136：捕获**本轮对话对象**。侧栏会话列表在等待期间**没有** loading 保护，
+    //   用户点另一条历史对话会把 currentChat 换掉——此时若还按下标写，就会写进别人的对话
+    //   （思考、答案、乃至 persist() 保存的脏数据）。旧代码的「已切换会话 → 停」判据是
+    //   `!currentChat.messages[idx] || content === text`，而新对话的同下标消息通常**存在**，
+    //   于是判据失效、照写不误。正确做法是**认对象不认下标**。
+    targetChat = currentChat.value;
+    isStale = () => currentChat.value !== targetChat;
+    targetChat.messages.push({ role: 'assistant', content: '' });
+    replyIdx = targetChat.messages.length - 1;
     // round135：接上 onTrace 收集思考过程（此前这条路径**完全没有**轨迹出口，
     //   思考要么混在正文里、要么被丢弃）。写入占位消息的 thinking 字段，随消息一起持久化，
     //   重开历史对话仍可展开查看。
     const onTrace = (node) => {
       if (node?.kind !== TraceKind.THOUGHT || !node.text) return;
-      const ph = currentChat.value.messages[replyIdx];
+      if (isStale()) return;                      // round136：用户已切走 → 绝不写入
+      const ph = targetChat.messages[replyIdx];
       if (!ph) return;
       ph.thinking = ph.thinking ? `${ph.thinking}\n\n${node.text}` : node.text;
     };
@@ -181,7 +196,7 @@ async function send() {
       });
       if (ok) {
         // 清掉占位，用同一轮历史重跑：模型将执行已被批准的那次写入并给出结果
-        currentChat.value.messages[replyIdx].content = '';
+        targetChat.messages[replyIdx].content = '';
         res = await runAgentTurn({ userInput: text, history, agentId: 'assistant', confirmWrites: true, approvedWrite: res.pendingWrite, onTrace });
         final = stringifyReply(res?.reply, t('views.aiAssistant.noContent'));
       } else {
@@ -190,7 +205,13 @@ async function send() {
     }
     try { T.aiCall('chat', final.length); } catch {}
     // Agent 内部虽全程流式（防超时），但只在收尾返回整段 → 客户端渐进显示，保留打字机手感
-    await revealBubble(replyIdx, final);
+    if (isStale()) {
+      // 用户已切到别的对话：不再逐帧写（那是给**当前视图**看的），直接把结果落回原对话并保存。
+      targetChat.messages[replyIdx].content = final;
+      await saveChat(targetChat);
+    } else {
+      await revealBubble(replyIdx, final);
+    }
     if (voiceOn.value) speak(final);
     const n = await extractMemories(text, final);
     if (n > 0) toast(t('views.aiAssistant.memSaved', undefined, { n }), 'success');
@@ -203,7 +224,20 @@ async function send() {
     else currentChat.value.messages.push({ role: 'assistant', content: errText });
   } finally {
     loading.value = false;
-    await persist();
+    // round136：用户中途切走过时，persist() 会存**当前**对话（内容没变，但语义错了）。
+    // 这种情况应存回本轮真正产生内容的那条对话。
+    if (targetChat && isStale()) {
+      // ⚠️ round136 自纠：光判断「切走过」还不够 —— 用户可能在这期间把本轮对话**删掉了**。
+      //   此时若无脑 saveChat(targetChat)，等于把用户刚删的对话又写回来（静默撤销删除）。
+      //   故保存前先确认它还活着；getChat 抛错（已删除/读失败）一律按「不在了」处理。
+      const alive = await getChat(targetChat.id).catch(() => null);
+      if (alive) {
+        try { await saveChat(targetChat); }
+        catch { /* 与 persist 同款兜底：存不上不打断主流程 */ }
+      }
+    } else {
+      await persist();
+    }
     scroll();
   }
 }
