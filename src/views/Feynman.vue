@@ -126,12 +126,24 @@ async function start(initialUserMsg) {
   loading.value = true;
   try {
     const ctx = await getContext(cards); // 上下文构建一次并缓存，后续每轮对话复用（弱设备不卡顿）
+    // round137：与 send() 同款——先推空气泡、随 onToken 追加、最后用最终结果收口。
+    const bubble0 = { role: 'assistant', content: '' };
+    messages.value.push(bubble0);
+    let buf0 = '';
+    let raf0 = 0;
     const reply = await chatAI([
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
       { role: 'user', content: initialUserMsg || '开始吧，先看看我最薄弱的点，出第一道题。' },
-    ]);
+    ], {
+      onToken: (d) => {
+        if (!d) return;
+        buf0 += d;
+        if (!raf0) raf0 = requestAnimationFrame(() => { raf0 = 0; bubble0.content = buf0; scroll(); });
+      },
+    });
+    if (raf0) { cancelAnimationFrame(raf0); raf0 = 0; }
     const final = stringifyReply(reply, t('views.feynman.noContent')); // O4 收口：统一口径 + 计入 AI 回复质量监控
-    messages.value.push({ role: 'assistant', content: final }); if (voiceOn.value) speak(final);
+    bubble0.content = final; if (voiceOn.value) speak(final);
     // 行为回写 SRS：完成一次费曼练习，给范围内最薄弱的 5 张卡小幅 ease 加成（每次会话一次）
     if (!fedBoosted) {
       fedBoosted = true;
@@ -167,15 +179,32 @@ async function send() {
   messages.value.push({ role: 'user', content: text });
   loading.value = true;
   scroll();
+  // round137：**立刻落盘用户这句提问**。此前只在 finally（回复结束/出错后）才 persistSession()，
+  //   等待期间库里没有任何记录 → 用户切到别的界面再回来，会话被重新加载、自己刚问的那句**消失**。
+  await persistSession();
   try {
     const cards = filterCards(await db.cards.toArray());
     const ctx = await getContext(cards);
+    // round137 真流式：chatAI 会把 opts 透传给 llm.js 的 onToken 钩子（此前无人使用），
+    //   所以这里**先推一个空气泡**并随增量追加，最后再用最终结果收口（含结构化修正）。
+    //   用 rAF 节流：每个 delta 都重排会拖慢滚动。
+    const bubble = { role: 'assistant', content: '' };
+    messages.value.push(bubble);
+    let buf = '';
+    let raf = 0;
     const reply = await chatAI([
       { role: 'system', content: FEYN_PROMPT + '\n\n' + ctx },
-      ...messages.value,
-    ]);
+      ...messages.value.slice(0, -1),
+    ], {
+      onToken: (d) => {
+        if (!d) return;
+        buf += d;
+        if (!raf) raf = requestAnimationFrame(() => { raf = 0; bubble.content = buf; scroll(); });
+      },
+    });
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
     const final = stringifyReply(reply, t('views.feynman.noContent')); // O4 收口：统一口径 + 计入 AI 回复质量监控
-    messages.value.push({ role: 'assistant', content: final }); if (voiceOn.value) speak(final);
+    bubble.content = final; if (voiceOn.value) speak(final);
     try { T.feynmanRound(currentId.value); } catch {}
   } catch (e) {
     toast(e.message, 'error');

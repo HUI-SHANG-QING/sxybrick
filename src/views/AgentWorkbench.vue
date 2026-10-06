@@ -64,8 +64,12 @@ async function send() {
   if (!currentId.value) currentId.value = uid();
   input.value = '';
   messages.value.push({ role: 'user', content: text });
+  // round137：**立刻落盘用户这句提问**。此前只在回复结束后 persist()，
+  //   等待期间库里没有记录 → 切到别的界面再回来，这一轮对话连同提问**整段消失**。
+  persist();
   const bubble = { role: 'assistant', content: '', loading: true };
   messages.value.push(bubble);
+  let sBuf = ''; let sRaf = 0;   // round137：流式缓冲 + rAF 节流（本视图无客户端打字机，故不需要 gotStream）
   traceNodes.value = [];
   loading.value = true;
   scroll();
@@ -74,7 +78,17 @@ async function send() {
       userInput: text,
       history: messages.value.slice(0, -1),
       agentId: selectedAgent.value || null,
-      onTrace: (node) => { traceNodes.value.push(node); },
+      onTrace: (node) => {
+        // round137 真流式：与 AI 助手同款状态机。
+        //   BEGIN 清空气泡 → DELTA 追加（rAF 节流）→ CLEAR 作废本步（该步是工具调用，不是答案）。
+        if (node?.kind === TraceKind.STREAM_BEGIN) { sBuf = ''; bubble.content = ''; }
+        else if (node?.kind === TraceKind.STREAM_CLEAR) { sBuf = ''; bubble.content = ''; }
+        else if (node?.kind === TraceKind.STREAM_DELTA && node.text) {
+          sBuf += node.text;
+          if (!sRaf) sRaf = requestAnimationFrame(() => { sRaf = 0; bubble.content = sBuf; scroll(); });
+        }
+        traceNodes.value.push(node);
+      },
     });
     // Bug fix: 最后一道防线——确保 content 是非空 string，与 MarkdownRenderer 输入口径对齐
     const s = typeof reply === 'string' ? reply : (reply && typeof (reply.text || reply.content) === 'string') ? (reply.text || reply.content) : '';

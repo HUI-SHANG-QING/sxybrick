@@ -174,14 +174,36 @@ async function send() {
     isStale = () => currentChat.value !== targetChat;
     targetChat.messages.push({ role: 'assistant', content: '' });
     replyIdx = targetChat.messages.length - 1;
+    // round137：**立刻落盘**用户的问题与占位气泡。此前 persist() 只在 finally（回复**结束**后）
+    //   调，等待期间一条消息都没写进库 → 用户提问后切到别的界面，组件卸载，回来时
+    //   只能从库里恢复**旧对话**，自己刚提的问题**凭空消失**（三个入口都有这个问题）。
+    //   先存一次占位，切界面回来至少能看到自己的问题与「思考中」气泡。
+    await persist();
     // round135：接上 onTrace 收集思考过程（此前这条路径**完全没有**轨迹出口，
     //   思考要么混在正文里、要么被丢弃）。写入占位消息的 thinking 字段，随消息一起持久化，
     //   重开历史对话仍可展开查看。
+    let streamBuf = '';
+    let gotStream = false;
+    let streamRaf = 0;
     const onTrace = (node) => {
-      if (node?.kind !== TraceKind.THOUGHT || !node.text) return;
       if (isStale()) return;                      // round136：用户已切走 → 绝不写入
       const ph = targetChat.messages[replyIdx];
       if (!ph) return;
+      // round137 真流式：ReAct 每一步的模型输出实时到达。
+      //   BEGIN 先清空气泡（否则上一步的内容会被追加）、DELTA 追加、CLEAR 作废本步
+      //   （该步判定为工具调用时，它流出来的字不是答案）。
+      //   用 rAF 节流：每个 delta 都重排会拖慢滚动。
+      if (node?.kind === TraceKind.STREAM_BEGIN) { streamBuf = ''; ph.content = ''; return; }
+      if (node?.kind === TraceKind.STREAM_CLEAR) { streamBuf = ''; ph.content = ''; return; }
+      if (node?.kind === TraceKind.STREAM_DELTA && node.text) {
+        gotStream = true;
+        streamBuf += node.text;
+        if (!streamRaf) {
+          streamRaf = requestAnimationFrame(() => { streamRaf = 0; ph.content = streamBuf; scroll(); });
+        }
+        return;
+      }
+      if (node?.kind !== TraceKind.THOUGHT || !node.text) return;
       ph.thinking = ph.thinking ? `${ph.thinking}\n\n${node.text}` : node.text;
     };
     let res = await runAgentTurn({ userInput: text, history, agentId: 'assistant', confirmWrites: true, onTrace });
@@ -209,9 +231,16 @@ async function send() {
       // 用户已切到别的对话：不再逐帧写（那是给**当前视图**看的），直接把结果落回原对话并保存。
       targetChat.messages[replyIdx].content = final;
       await saveChat(targetChat);
-    } else {
+    } else if (!gotStream) {
+      // round137：**只有没收到流式增量时**才退回客户端打字机。
+      //   此前打字机是唯一手段（整段返回后逐帧播放），现在真流式已在服务端逐字到达，
+      //   再播一遍会覆盖并造成「回跳」。流式不可用时（离线降级/非流式端点）仍靠它兜底。
       await revealBubble(replyIdx, final);
+    } else {
+      targetChat.messages[replyIdx].content = final;   // 用最终结果收口（含结构化修正）
+      scroll();
     }
+    if (streamRaf) { cancelAnimationFrame(streamRaf); streamRaf = 0; }
     if (voiceOn.value) speak(final);
     const n = await extractMemories(text, final);
     if (n > 0) toast(t('views.aiAssistant.memSaved', undefined, { n }), 'success');

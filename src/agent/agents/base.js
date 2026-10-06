@@ -419,8 +419,16 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace, onPendi
       convo.push(toolObservation('budget', t('agent.localAnswer.finalizeInstruction')));
     }
     let raw;
+    // round137 真流式：llm.js 早就有 `opts.onToken(delta, full)` 钩子（此前**无人使用**），
+    //   这里把它接上 onTrace，前端即可实时追加渲染，而不必等整段返回再做「客户端打字机」。
+    //   STREAM_BEGIN 在**请求发出前**发：前端要先清空气泡，否则上一轮内容会被追加。
+    onTrace?.({ kind: TraceKind.STREAM_BEGIN, text: '' });
     try {
-      raw = await ctx.chat(compactConvo(convo));
+      raw = await ctx.chat(compactConvo(convo), {
+        onToken: (delta) => {
+          if (delta) onTrace?.({ kind: TraceKind.STREAM_DELTA, text: delta });
+        },
+      });
     } catch (e) {
       // 链路彻底断了（非网络错误也会走到这里）。已有工具数据 → 本地直出，保底给用户真内容。
       // round71：把**真实原因**一并带出去，别再一律写「网络或服务异常」。
@@ -435,6 +443,9 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace, onPendi
     const toolCall = parseToolCall(raw);
 
     if (toolCall) {
+      // 本步判定为「工具调用」——它刚才流出来的那些字是模型的工具调用草稿，**不是给用户的答案**，
+      //   让前端把这段清掉（STREAM_CLEAR），否则用户会看到半截 XML/思考被当正文显示。
+      onTrace?.({ kind: TraceKind.STREAM_CLEAR, text: '' });
       if (isFinalChance) {
         // 收尾步仍在调工具：不执行（执行了也没有下一步来总结），直接落到抢救出口。
         onTrace?.({

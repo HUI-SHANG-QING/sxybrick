@@ -18,6 +18,13 @@ export const TraceKind = {
   PLAN: 'plan', // 多步任务拆解
   FINAL: 'final', // 最终答案
   ERROR: 'error', // 出错
+  // round137 真流式：ReAct 每一步的模型输出实时转发。
+  // ⚠️ ReAct 的中间步可能是「工具调用」而不是答案，它的流式内容**不该显示给用户**，
+  //   所以给出 STREAM_BEGIN（清空重开）/ STREAM_DELTA（追加）/ STREAM_CLEAR（作废本步）三态，
+  //   由前端按状态机呈现，而不是「只留最后一步」那种事后补救。
+  STREAM_BEGIN: 'stream_begin', // 本步开始流式输出（前端应清空当前气泡准备接收）
+  STREAM_DELTA: 'stream_delta', // 本步的正文增量
+  STREAM_CLEAR: 'stream_clear', // 本步作废（如判定为工具调用），前端应清掉刚显示的内容
 };
 
 /** 工具定义：声明式契约，任何扩展工具都遵循此结构 */
