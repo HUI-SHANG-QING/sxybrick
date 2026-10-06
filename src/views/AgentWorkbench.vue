@@ -3,7 +3,7 @@
 // 模块化 Agent（可切换/自动路由）、可扩展工具接口（实时列出）、任务编排轨迹（思考→工具→观察）、以及可注册的扩展能力。
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, computed, onMounted, nextTick } from 'vue';
-import { runAgentTurn, hasAIKey, saveChat, listChats, deleteChat } from '../ai.js';
+import { runAgentTurn, hasAIKey, saveChat, listChats, deleteChat, getChat } from '../ai.js';
 import { agentSystem } from '../agent/index.js'; // round37 E1：直接从 agent 框架取用（ai.js 不再 re-export，断 agent↔tools↔genDeck↔ai 环）
 import { aggregateUsage, clearUsage } from '../utils/ai-usage.js';
 import MarkdownRenderer from '../components/MarkdownRenderer.vue';
@@ -67,7 +67,7 @@ async function send() {
   messages.value.push({ role: 'user', content: text });
   // round137：**立刻落盘用户这句提问**。此前只在回复结束后 persist()，
   //   等待期间库里没有记录 → 切到别的界面再回来，这一轮对话连同提问**整段消失**。
-  persist();
+  await persist();
   const bubble = { role: 'assistant', content: '', loading: true };
   messages.value.push(bubble);
   let sBuf = ''; let sRaf = 0;
@@ -130,11 +130,20 @@ function selectSession(id) {
 }
 async function persist() {
   if (!currentId.value) return;
-  const clean = messages.value.filter(m => m.role && !m.loading).map(m => ({ role: m.role, content: m.content }));
-  const firstUser = messages.value.find(m => m.role === 'user');
-  const title = firstUser?.content?.slice(0, 18) || t('views.agentWorkbench.defaultSessionTitle');
-  await saveChat({ id: currentId.value, type: 'agent', title, messages: clean, createdAt: Date.now() });
-  await loadSessions();
+  // ⚠️ round139：① 补 try/catch —— 此前 persist() 裸 await saveChat，失败会冒泡成
+  //   unhandled rejection；② createdAt 必须**沿用原值**（Feynman 一直是
+  //   `old?.createdAt || Date.now()`），此前每次 persist 都用 Date.now() 覆盖它，
+  //   使「创建时间」退化成「最后修改时间」，且该字段会随同步包跨设备传播。
+  try {
+    const clean = messages.value.filter(m => m.role && !m.loading).map(m => ({ role: m.role, content: m.content }));
+    const firstUser = messages.value.find(m => m.role === 'user');
+    const title = firstUser?.content?.slice(0, 18) || t('views.agentWorkbench.defaultSessionTitle');
+    const old = await getChat(currentId.value);
+    await saveChat({ id: currentId.value, type: 'agent', title, messages: clean, createdAt: old?.createdAt || Date.now() });
+    await loadSessions();
+  } catch (e) {
+    toast(t('views.agentWorkbench.saveFail', '会话保存失败：{msg}', { msg: e.message }), 'error');
+  }
 }
 async function removeSession(id) {
   if (!(await confirmDialog(t('views.agentWorkbench.confirmDeleteSession')))) return;
