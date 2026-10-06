@@ -7,11 +7,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   encrypt, decrypt,
-  encryptObject, decryptObject,
   encryptBackup, decryptBackup,
   generateRecoveryCode,
   verifyPassword,
 } from '../src/utils/crypto.js';
+// round69 N1：encryptObject/decryptObject 已从 crypto.js 删除（全库零调用死代码），
+//   对应用例一并移除；encrypt/decrypt 已覆盖同一 AES-GCM 路径，无覆盖缺口。
 
 const TOL = 1e-9;
 
@@ -39,18 +40,6 @@ test('encrypt 每次密文不同（随机 salt/iv）', async () => {
   assert.notEqual(a, b); // 随机 salt/iv → 密文不同
 });
 
-test('encryptObject/decryptObject 往返一致', async () => {
-  const data = {
-    id: 'p1', content: '隐私内容', tags: ['a', 'b'], n: 42,
-    nested: { x: 1, arr: [1, 2, 3] }, flag: true,
-  };
-  const pwd = 'object-pwd';
-  const enc = await encryptObject(data, pwd);
-  assert.equal(typeof enc, 'string');
-  const dec = await decryptObject(enc, pwd);
-  assert.deepEqual(dec, data);
-});
-
 test('encryptBackup/decryptBackup 往返一致', async () => {
   // 模拟一个 .sxybrick 加密备份包（覆盖 sync-manifest 的三类字段）
   const backup = {
@@ -73,12 +62,9 @@ test('encryptBackup/decryptBackup 往返一致', async () => {
   assert.deepEqual(dec, backup);
 });
 
-test('错误口令解密失败抛异常（decrypt / decryptBackup / decryptObject）', async () => {
+test('错误口令解密失败抛异常（decrypt / decryptBackup）', async () => {
   const enc = await encrypt('secret', 'right-pwd');
   await assert.rejects(decrypt(enc, 'wrong-pwd'));
-
-  const encObj = await encryptObject({ a: 1 }, 'right');
-  await assert.rejects(decryptObject(encObj, 'wrong'));
 
   const b64 = await encryptBackup({ a: 1 }, 'right');
   await assert.rejects(decryptBackup(b64, 'wrong'));

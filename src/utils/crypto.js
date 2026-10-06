@@ -4,8 +4,12 @@
 //   2) password-only: 纯口令（口令忘=数据永久丢失）
 //   3) device-key: 设备生成的密钥（不要求口令，但密钥绑定本设备）
 //
-// 用途：privacyRecords 本地加密存储 + 离设备加密备份(.sxybrick)
-// PIPL 合规：敏感个人信息不明文流转
+// 用途：**离设备加密备份**（.sxybrick）——仅导出界面显式选择「加密备份」时对整个
+//   数据包加密（唯一调用方：sync.js 的 encryptBackup 路径）。
+// round69 N1 更正（注释与实现不符）：本模块**不参与** privacyRecords 的本地存储——
+//   privacyRecords 与其余业务表一样明文存 IndexedDB（单机本地库，攻击面等同），
+//   且默认不出本机（sync-manifest 仅 includePrivacySync() 显式开启才入同步包）。
+//   旧注释「privacyRecords 本地加密存储 / PIPL 不明文流转」与实现不符，已按实情更正。
 
 const ENC_VERSION = 1;
 const PBKDF2_ITER = 100000; // OWASP 推荐 ≥ 100k
@@ -99,17 +103,9 @@ export async function decrypt(encryptedJson, password) {
   return new TextDecoder().decode(pt);
 }
 
-// ---- 加密对象（JSON 序列化后加密） ----
-export async function encryptObject(obj, password) {
-  return encrypt(JSON.stringify(obj), password);
-}
-
-// ---- 解密对象（解密后 JSON.parse） ----
-export async function decryptObject(encryptedJson, password) {
-  const pt = await decrypt(encryptedJson, password);
-  return JSON.parse(pt);
-}
-
+// round69 N1：encryptObject/decryptObject 已删除——全库零调用（src/tests/scripts 均无生产引用，
+//   仅自身单测引用、已同步移除），属「看起来能用」的死代码；未来若需加密对象，
+//   encrypt(JSON.stringify(obj)) 一行即可，无需常驻 API。
 // ---- 加密整个数据包（用于 .sxybrick 加密备份文件） ----
 // 返回 base64 字符串，可直接写入文件
 export async function encryptBackup(dataObj, password) {
