@@ -124,6 +124,50 @@ export function containsDsmlCall(raw) {
   return DSML_ANY_RE.test(String(raw));
 }
 
+// ── round134：协议泄漏的**通用**防护 ──
+// round133 只补了 DSML 一种形态；探针（tests/agent-protocol-probe.test.mjs）实测发现
+// 同一类缺陷还有 5 个变种，全部会把标签原样甩到用户屏幕上：
+//   XML 风格 `<function_calls><invoke …></function_calls>` ／
+//   OpenAI 风格 `<零宽字符 tool_call>{…}</零宽字符 tool_call>` ／
+//   Qwen 风格 `<|tool_calls_section_begin|>…` ／
+//   ReAct 老格式（`Action:` 行 / `Action Input:` 行）／
+//   思考标签 `<thinking>…` / `<think>…`（内部思考被当正文显示）。
+//
+// 两条设计原则：
+//   ① **规范化后再判**——模型输出里混了零宽字符（实测 `<零宽字符 tool_call>`），
+//      直接用原串做正则会漏；统一先剥 U+200B/200C/200D/FEFF（不动可见内容）。
+//   ② **分类处理**——「工具调用」返回 null（它不是回答）；「思考标签」是**剥掉思考、保留正文**
+//      （比整段丢弃对用户更有用）；剥完为空才返回 null。
+const ZERO_WIDTH_RE = /[\u200B-\u200D\uFEFF]/g;
+const norm = (s) => String(s).replace(ZERO_WIDTH_RE, '');
+
+/** 是否「看起来是工具调用」——任一已知厂商协议形态命中即算（宁可少答也不泄漏） */
+const TOOLCALL_LIKE_RE = [
+  /<\s*\|{0,2}\s*DSML/i,                                  // DSML（round133）
+  /<\/?\s*(?:function_calls?|tool_calls?)\b/i,             // XML / OpenAI / Qwen 风格
+  /<\|\s*tool_calls?\s*(?:_section)?_?(?:begin|end)?\s*\|?>/i, // Qwen 的 <|tool_call|> / <|tool_calls_section_begin|>
+  /<\s*\|+\s*(?:tool_call|tool_calls)\b/i,
+  /^\s*Action\s*:\s*\S/mi,                                 // ReAct 老格式
+  /^\s*Action\s+Input\s*:/mi,
+];
+
+export function looksLikeToolCall(raw) {
+  // ⚠️ 局部变量**不得**叫 `t`——本文件 import 了 i18n 的 t()，同名会遮蔽它
+  //   （src/agent 下的既有铁律；闸门 tests/vue-template-guard.test.mjs 会拦）。
+  const normed = norm(raw);
+  if (DSML_ANY_RE.test(normed)) return true;
+  return TOOLCALL_LIKE_RE.some((re) => re.test(normed));
+}
+
+/** 剥掉模型的内部思考标签，**保留其后正文**（未闭合的也处理——流式抢救很常见） */
+export function stripThinking(s) {
+  return norm(s)
+    .replace(/<think(?:ing)?\b[^>]*>[\s\S]*?<\/think(?:ing)?>/gi, '')
+    .replace(/<think(?:ing)?\b[^>]*>[\s\S]*$/i, '')   // 只有开始标签（被截断）
+    .replace(/^[\s\S]*?<\/think(?:ing)?>/i, '')      // 只有结束标签
+    .trim();
+}
+
 export function parseToolCall(raw) {
   const text = String(raw);
   const m = text.match(/<tool>([^<]+)<\/tool>\s*<args>([\s\S]*?)<\/args>/);
@@ -158,15 +202,24 @@ export function parseToolCall(raw) {
 // round71：导出供回归测试直接校验「截断抢救」后的标签剥离行为
 export function parseFinal(raw) {
   const m = String(raw).match(/<final>([\s\S]*?)<\/final>/);
-  if (m) return stripToolMarkup(m[1]);
-  // round133：含 DSML 的文本是**工具调用**、不是给用户的回答 —— 必须返回 null，
-  // 让上层走「无 final」出口。旧实现把它当正文返回 → 用户屏幕上出现一堆乱码标签。
-  if (containsDsmlCall(raw)) return null;
+  if (m) return finalizeText(m[1]);
+  // round133/134：文本「看起来是工具调用」（DSML / function_calls / tool_call /
+  //   Qwen 特殊分隔符 / ReAct Action 行）时，一律返回 null —— 它不是给用户的回答。
+  //   旧实现把它当正文返回 → 用户屏幕上出现一堆标签乱码，且模型下一轮照抄、连续空转。
+  if (looksLikeToolCall(raw)) return null;
   // 没有 <final> 标签时，若也没有 <tool> 标签，则整段视为最终回答。
   // round71：流式超时抢救回来的内容可能是「被砍在中间」的 <final>（只有开始标签没有结束标签），
   // 此时要把标签本身剥掉，否则用户会看到正文开头挂着一串 `<final>`。
-  if (!/<tool>/.test(raw)) return stripToolMarkup(raw);
+  if (!/<tool>/.test(raw)) return finalizeText(raw);
   return null;
+}
+
+/**
+ * 出口最后一道：剥协议标签与内部思考，再判是否还有正文（round134）。
+ * 返回空串表示「本来就没有可给用户看的内容」→ 上层按 null 处理。
+ */
+function finalizeText(s) {
+  return stripThinking(stripToolMarkup(s));
 }
 
 /**
