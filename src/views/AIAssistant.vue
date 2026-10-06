@@ -1,7 +1,8 @@
 <script setup>
 // AI 智能助手：对话历史（存 IndexedDB 并可同步）+ 快捷指令 + 智能组卡 + 数轴定位
 import { confirmDialog } from '../utils/confirm.js';
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, nextTick } from 'vue';
+import { TraceKind } from '../agent/types.js';
 import { toast } from '../utils/toast.js';
 // round100：AI 学习助手已改为「自己查数据」——走 Agent 框架（runAgentTurn + 'assistant' Agent + 工具循环），
 // 不再本地预注入上下文（buildFullContext / buildModuleNodesContext 已从本视图退场）。
@@ -81,6 +82,10 @@ const coldTemplates = ref(COLD_START_TEMPLATES.map(tpl => ({ id: tpl.id, name: t
 // round100：人设与「先取数据再回答」的指令已上移到 agent 框架的 'assistant' Agent
 // （src/agent/agents/index.js），这里不再本地拼 system —— 改由 runAgentTurn 注入上下文 + 工具循环。
 
+// round135：AI 助手的思考过程**默认折叠、点开可看**（与网页版 AI 一致）。
+// 用 reactive 对象按下标存展开态；**不用 Set**——Vue3 对 Set 的深层响应式要额外处理。
+const thinkOpen = reactive({});
+
 const userNodes = computed(() => {
   const nodes = [];
   (currentChat.value.messages || []).forEach((m, i) => { if (m.role === 'user') nodes.push({ index: i, text: m.content }); });
@@ -155,7 +160,16 @@ async function send() {
     const history = [...currentChat.value.messages];
     currentChat.value.messages.push({ role: 'assistant', content: '' });
     replyIdx = currentChat.value.messages.length - 1;
-    let res = await runAgentTurn({ userInput: text, history, agentId: 'assistant', confirmWrites: true });
+    // round135：接上 onTrace 收集思考过程（此前这条路径**完全没有**轨迹出口，
+    //   思考要么混在正文里、要么被丢弃）。写入占位消息的 thinking 字段，随消息一起持久化，
+    //   重开历史对话仍可展开查看。
+    const onTrace = (node) => {
+      if (node?.kind !== TraceKind.THOUGHT || !node.text) return;
+      const ph = currentChat.value.messages[replyIdx];
+      if (!ph) return;
+      ph.thinking = ph.thinking ? `${ph.thinking}\n\n${node.text}` : node.text;
+    };
+    let res = await runAgentTurn({ userInput: text, history, agentId: 'assistant', confirmWrites: true, onTrace });
     // 空白回复兜底：O4 收口到 stringifyReply（统一口径 + 计入 AI 回复质量监控 getReplyStats）
     let final = stringifyReply(res?.reply, t('views.aiAssistant.noContent'));
     for (let guard = 0; guard < 3 && res?.pendingWrite; guard++) {
@@ -168,7 +182,7 @@ async function send() {
       if (ok) {
         // 清掉占位，用同一轮历史重跑：模型将执行已被批准的那次写入并给出结果
         currentChat.value.messages[replyIdx].content = '';
-        res = await runAgentTurn({ userInput: text, history, agentId: 'assistant', confirmWrites: true, approvedWrite: res.pendingWrite });
+        res = await runAgentTurn({ userInput: text, history, agentId: 'assistant', confirmWrites: true, approvedWrite: res.pendingWrite, onTrace });
         final = stringifyReply(res?.reply, t('views.aiAssistant.noContent'));
       } else {
         final = t('views.aiAssistant.writeCancelled'); break;
@@ -477,6 +491,15 @@ onMounted(async () => {
         </div>
         <div v-for="(m, i) in currentChat.messages" :key="i" :id="'msg-' + i" class="msg" :class="m.role">
           <div class="bubble" :class="{ 'md-bubble': m.role === 'assistant' && mdRender }">
+            <div v-if="m.role === 'assistant' && m.thinking" class="think-box">
+              <button class="think-head" type="button" @click="thinkOpen[i] = !thinkOpen[i]">
+                <span class="think-caret">{{ thinkOpen[i] ? '▼' : '▶' }}</span>
+                {{ thinkOpen[i] ? t('views.aiAssistant.thinkingHide') : t('views.aiAssistant.thinkingShow') }}
+              </button>
+              <div v-if="thinkOpen[i]" class="think-body">
+                <MarkdownRenderer :content="m.thinking" />
+              </div>
+            </div>
             <MarkdownRenderer v-if="m.role === 'assistant' && mdRender" :content="m.content" />
             <template v-else>{{ m.content }}</template>
           </div>
@@ -857,4 +880,10 @@ onMounted(async () => {
   .input-row .input { flex: 1 1 100%; }
   .bubble { max-width: 95%; font-size: .92em; padding: 10px 14px; }
 }
+/* round135：AI 思考过程折叠区 */
+.think-box { margin-bottom: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--code-inline); overflow: hidden; }
+.think-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 10px; background: none; border: 0; cursor: pointer; font-size: 12px; color: var(--ink-2); text-align: left; }
+.think-head:hover { color: var(--accent); }
+.think-caret { font-size: 10px; }
+.think-body { padding: 4px 12px 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-2); }
 </style>

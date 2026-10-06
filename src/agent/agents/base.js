@@ -160,12 +160,30 @@ export function looksLikeToolCall(raw) {
 }
 
 /** 剥掉模型的内部思考标签，**保留其后正文**（未闭合的也处理——流式抢救很常见） */
+export function splitThinking(raw) {
+  const text = norm(raw);
+  let think = '';
+  let body = '';
+  const re = /<think(?:ing)?\b[^>]*>[\s\S]*?<\/think(?:ing)?>/gi;
+  let last = 0;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    body += text.slice(last, m.index);
+    think += m[0].replace(/<\/?think(?:ing)?\b[^>]*>/gi, '');
+    last = m.index + m[0].length;
+  }
+  const rest = text.slice(last);
+  const unclosed = rest.match(/<think(?:ing)?\b[^>]*>([\s\S]*)$/i);
+  if (unclosed) { think += unclosed[1]; body += rest.slice(0, unclosed.index); }
+  else body += rest;
+  // 开头是孤立的结束标签（流式拼接偶发）
+  const orphan = body.match(/^[\s\S]*?<\/think(?:ing)?>/i);
+  if (orphan) { think += orphan[0].replace(/<\/?think(?:ing)?\b[^>]*>/gi, ''); body = body.slice(orphan[0].length); }
+  return { thinking: think.trim(), body: body.trim() };
+}
+
 export function stripThinking(s) {
-  return norm(s)
-    .replace(/<think(?:ing)?\b[^>]*>[\s\S]*?<\/think(?:ing)?>/gi, '')
-    .replace(/<think(?:ing)?\b[^>]*>[\s\S]*$/i, '')   // 只有开始标签（被截断）
-    .replace(/^[\s\S]*?<\/think(?:ing)?>/i, '')      // 只有结束标签
-    .trim();
+  return splitThinking(s).body;
 }
 
 export function parseToolCall(raw) {
@@ -471,6 +489,11 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace, onPendi
 
     const final = parseFinal(raw);
     if (final != null) {
+      // round135：思考过程**不再丢弃** —— 作为 THOUGHT 轨迹交给上层，
+      //   由前端决定折叠展示（AI 学习助手默认折叠、点开可看；Agent 工作台本来就有这条通道）。
+      //   剥标签仍由 parseFinal 负责（用户不该看到 <thinking> 这种技术噪音）。
+      const thinkingText = splitThinking(raw).thinking;
+      if (thinkingText) onTrace?.({ kind: TraceKind.THOUGHT, text: thinkingText });
       // 关键修复：raw 是离线兜底占位（模型没答出来，chatWithFallback 顶了段提示），
       // 而本轮已经拿到工具数据 → 用本地直出替换，绝不让占位覆盖真实结果。
       if (isOfflineReply(final) && observations.length) {

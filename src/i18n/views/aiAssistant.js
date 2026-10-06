@@ -67,6 +67,9 @@ export const zh = {
   // ——— 中间：消息流 ———
   chatEmpty: '你好，我是你的学习助手。问问我吧，例如「我最近哪些科目薄弱？」',
   aiThinking: '思考中…',
+  // round135：AI 助手的思考过程默认折叠、点开可看（与网页版 AI 一致）
+  thinkingShow: '查看 AI 的思考过程',
+  thinkingHide: '收起思考过程',
 
   // ——— 输入行 ———
   inputPlaceholder: '问我任何关于你学习的问题…',
@@ -239,6 +242,8 @@ export const en = {
   // ——— Center: message stream ———
   chatEmpty: "Hi, I'm your study assistant. Ask me anything, e.g. \"Which subjects am I weak in lately?\"",
   aiThinking: 'Thinking…',
+  thinkingShow: "Show the AI's reasoning",
+  thinkingHide: 'Hide reasoning',
 
   // ——— Input row ———
   inputPlaceholder: 'Ask me anything about your studies…',
