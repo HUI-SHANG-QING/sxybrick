@@ -68,6 +68,10 @@ async function send() {
   // round137：**立刻落盘用户这句提问**。此前只在回复结束后 persist()，
   //   等待期间库里没有记录 → 切到别的界面再回来，这一轮对话连同提问**整段消失**。
   await persist();
+  // round140（审计）：流式期间用户切换会话时，旧任务的 onTrace 仍会执行
+  //   `traceNodes.value.push(node)` —— 把旧任务的思考轨迹写进**新会话**的轨迹面板。
+  //   捕获目标会话 id，切走即停（与 AI 助手 round136 的 isStale 同款防护，此视图此前缺失）。
+  const targetId = currentId.value;
   const bubble = { role: 'assistant', content: '', loading: true };
   messages.value.push(bubble);
   let sBuf = ''; let sRaf = 0;
@@ -85,6 +89,8 @@ async function send() {
       history: messages.value.slice(0, -1),
       agentId: selectedAgent.value || null,
       onTrace: (node) => {
+        // round140（审计）：用户已切走 → 旧任务的轨迹/气泡一律不写，防止污染新会话轨迹面板。
+        if (currentId.value !== targetId) return;
         // round137 真流式：与 AI 助手同款状态机。
         //   BEGIN 清空气泡 → DELTA 追加（rAF 节流）→ CLEAR 作废本步（该步是工具调用，不是答案）。
         if (node?.kind === TraceKind.STREAM_BEGIN) { sBuf = ''; bubble.content = ''; }
