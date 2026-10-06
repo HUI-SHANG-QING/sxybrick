@@ -3,6 +3,7 @@
 import { confirmDialog } from '../utils/confirm.js';
 import { ref, reactive, computed, onMounted, nextTick } from 'vue';
 import { TraceKind } from '../agent/types.js';
+import { splitThinking, stripToolMarkup } from '../agent/agents/base.js';
 import { toast } from '../utils/toast.js';
 // round100：AI 学习助手已改为「自己查数据」——走 Agent 框架（runAgentTurn + 'assistant' Agent + 工具循环），
 // 不再本地预注入上下文（buildFullContext / buildModuleNodesContext 已从本视图退场）。
@@ -85,6 +86,10 @@ const coldTemplates = ref(COLD_START_TEMPLATES.map(tpl => ({ id: tpl.id, name: t
 // round135：AI 助手的思考过程**默认折叠、点开可看**（与网页版 AI 一致）。
 // 用 reactive 对象按下标存展开态；**不用 Set**——Vue3 对 Set 的深层响应式要额外处理。
 const thinkOpen = reactive({});
+// round138：渲染前清洗一次。流式增量是**原始片段**（含 `<final>` / `<think>` 等协议标签），
+//   而整段返回时的清洗（parseFinal / splitThinking）发生在**之后**，救不了流式期间显示的内容。
+//   前端持有完整累计文本，在渲染前清洗即可 —— 没有增量游标，也就没有错位问题。
+const cleanStreamText = (s) => stripToolMarkup(splitThinking(s).body);
 
 const userNodes = computed(() => {
   const nodes = [];
@@ -199,7 +204,7 @@ async function send() {
         gotStream = true;
         streamBuf += node.text;
         if (!streamRaf) {
-          streamRaf = requestAnimationFrame(() => { streamRaf = 0; ph.content = streamBuf; scroll(); });
+          streamRaf = requestAnimationFrame(() => { streamRaf = 0; ph.content = cleanStreamText(streamBuf); scroll(); });
         }
         return;
       }

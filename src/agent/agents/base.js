@@ -244,7 +244,7 @@ function finalizeText(s) {
  * 剥掉正文里残留的工具调用标记（round133）。
  * 只剥**协议标签本身**，不动用户/模型写的正文内容。
  */
-function stripToolMarkup(s) {
+export function stripToolMarkup(s) {
   return String(s)
     .replace(/<\s*[｜|]{2}\s*DSML[\s\S]*$/i, '')     // 截断的 DSML 尾巴
     .replace(/<\/?(?:tool|args|final)>/gi, '')
@@ -422,6 +422,17 @@ export async function runReActAgent({ agent, userMessages, ctx, onTrace, onPendi
     // round137 真流式：llm.js 早就有 `opts.onToken(delta, full)` 钩子（此前**无人使用**），
     //   这里把它接上 onTrace，前端即可实时追加渲染，而不必等整段返回再做「客户端打字机」。
     //   STREAM_BEGIN 在**请求发出前**发：前端要先清空气泡，否则上一轮内容会被追加。
+    // round138 审计修复：流式增量是**未经处理的原始片段**，直接转发会让协议标签漏到屏幕上
+    //   （实测：`你好<final>答案</final>` 与 `<think>思考</think>答案` 都会原样显示 ——
+    //   这正是 round133/134 修掉的泄漏在流式路径上复活）。
+    //   `parseFinal` / `splitThinking` 的清洗都发生在**整段返回之后**，救不了流式。
+    //   做法：**只安全发送**——对累计原文做清洗后，仅把「新增且确定不是标签」的部分发出去；
+    //   末尾可能只到半个标签的片段（形如 `<fina`）会被压住不发，等下一个 delta 补全。
+    // round138 审计修正：增量**原样转发**，清洗交给前端。
+    //   曾在后端做「增量安全发送」（维护游标 + 只发确定不是标签的部分），实测三次迭代后
+    //   仍有残留（清洗后长度会变 ⇒ 任何基于长度的游标都会错位），且要正确处理
+    //   「<fi / <f 这种只到半个标签的中间态」极易误伤数学不等式 `a < b`。
+    //   前端本来就持有**完整累计文本**，在渲染时清洗一次即可 —— 无游标、无错位、面更干净。
     onTrace?.({ kind: TraceKind.STREAM_BEGIN, text: '' });
     try {
       raw = await ctx.chat(compactConvo(convo), {

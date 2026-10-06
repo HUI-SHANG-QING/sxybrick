@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import '../src/agent/tools/index.js';
 import { runReActAgent } from '../src/agent/agents/base.js';
 import { TraceKind } from '../src/agent/types.js';
+import { splitThinking, stripToolMarkup } from '../src/agent/agents/base.js';
 
 const AGENT = { id: 't', systemPrompt: '你是助手', tools: [] };
 
@@ -85,4 +86,21 @@ test('回归：不传 onTrace 的调用方不受影响（onTrace 可选）', asy
     // 故意不传 onTrace
   });
   assert.equal(reply, '答案');
+});
+
+test('🔒 round138 回归：流式期间**不得**把协议标签显示给用户（清洗在渲染前完成）', async () => {
+  // 用户可见文本 = 前端拿 STREAM_DELTA 累加后、在渲染前用
+  //   stripToolMarkup(splitThinking(buf).body) 清洗的结果。
+  // 这里锁定「清洗函数能挡住哪些形态」，避免以后有人改清洗逻辑时把标签漏出去。
+  const cases = [
+    ['<final>答案</final>', '答案'],
+    ['<think>先想</think>答案', '答案'],
+    ['a<b 数学不等式', 'a<b 数学不等式'],           // 不得误伤尖括号
+    ['<div>html</div>正文', '<div>html</div>正文'], // 非协议标签原样保留
+    ['普通回答', '普通回答'],
+  ];
+  for (const [raw, expect] of cases) {
+    const out = stripToolMarkup(splitThinking(raw).body);
+    assert.equal(out, expect, `输入 ${JSON.stringify(raw)} 清洗结果不对`);
+  }
 });

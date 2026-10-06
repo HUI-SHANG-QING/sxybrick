@@ -12,6 +12,7 @@ import { useFullscreen } from '../composables/useFullscreen.js';
 import { toast } from '../utils/toast.js';
 import { t } from '../i18n/index.js';
 import { TraceKind } from '../agent/types.js';
+import { splitThinking, stripToolMarkup } from '../agent/agents/base.js';
 import { uid } from '../db.js';
 
 const agents = ref(agentSystem.listAgents());
@@ -69,7 +70,12 @@ async function send() {
   persist();
   const bubble = { role: 'assistant', content: '', loading: true };
   messages.value.push(bubble);
-  let sBuf = ''; let sRaf = 0;   // round137：流式缓冲 + rAF 节流（本视图无客户端打字机，故不需要 gotStream）
+  let sBuf = ''; let sRaf = 0;
+  // round138：渲染前清洗一次。流式增量是**原始片段**（含 `<final>` / `<think>` 等协议标签），
+  //   整段返回时的清洗发生在**之后**，救不了流式期间显示的内容。
+  //   前端持有完整累计文本，渲染前清洗一次即可 —— 没有增量游标，也就没有错位问题。
+  // round137：流式缓冲 + rAF 节流（本视图无客户端打字机，故不需要 gotStream）
+  const cleanStream = (s) => stripToolMarkup(splitThinking(s).body);
   traceNodes.value = [];
   loading.value = true;
   scroll();
@@ -85,7 +91,7 @@ async function send() {
         else if (node?.kind === TraceKind.STREAM_CLEAR) { sBuf = ''; bubble.content = ''; }
         else if (node?.kind === TraceKind.STREAM_DELTA && node.text) {
           sBuf += node.text;
-          if (!sRaf) sRaf = requestAnimationFrame(() => { sRaf = 0; bubble.content = sBuf; scroll(); });
+          if (!sRaf) sRaf = requestAnimationFrame(() => { sRaf = 0; bubble.content = cleanStream(sBuf); scroll(); });
         }
         traceNodes.value.push(node);
       },
