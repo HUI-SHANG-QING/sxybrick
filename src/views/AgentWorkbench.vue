@@ -64,6 +64,10 @@ async function send() {
   if (!hasAIKey()) { toast(t('views.agentWorkbench.toastNeedKey'), 'error'); return; }
   if (!currentId.value) currentId.value = uid();
   input.value = '';
+  // round141（审计）：loading 必须**在首个 await 之前**置位 —— 原实现放在
+  //   `await persist()` 之后，双击发送会趁锁未上挤进第二个并发任务（双流式/轨迹混杂/偶发丢消息）。
+  //   放在 hasAIKey 检查之后，密钥缺失提前 return 不会残留锁死按钮。
+  loading.value = true;
   messages.value.push({ role: 'user', content: text });
   // round137：**立刻落盘用户这句提问**。此前只在回复结束后 persist()，
   //   等待期间库里没有记录 → 切到别的界面再回来，这一轮对话连同提问**整段消失**。
@@ -81,7 +85,6 @@ async function send() {
   // round137：流式缓冲 + rAF 节流（本视图无客户端打字机，故不需要 gotStream）
   const cleanStream = (s) => stripToolMarkup(splitThinking(s).body);
   traceNodes.value = [];
-  loading.value = true;
   scroll();
   try {
     const { reply, agentName, trace } = await runAgentTurn({
