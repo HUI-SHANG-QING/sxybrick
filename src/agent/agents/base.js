@@ -23,6 +23,8 @@ const PROTOCOL = `
 3) 当你已能完整回答用户时，必须输出：
 <final>这里写给用户的最终回答</final>
 注意：不要同时混用两种标签；<final> 之外不要输出多余说明。
+（round133：绝对不要改用 <｜｜DSML｜｜ calls> / <function_calls> / <tool_call> 等其它厂商的
+ 工具调用格式——本项目只解析上面那一种；用错格式会导致工具不被执行、并把标签原样显示给用户。）
 
 4) 当答案本质是「一组条目 / 一张表 / 一张关系图」时，<final> 里**只输出**下面这种结构化 JSON
    （不要加任何解释文字，前端会按类型渲染成列表、表格或图，直接输出 JSON 文本反而不可读）：
@@ -55,10 +57,82 @@ function buildSystemPrompt(agent, ctx) {
   return p;
 }
 
+/**
+ * DSML 兜底解析（round133）。
+ *
+ * 背景：部分模型服务商把工具调用训练成了 **DSML 文本格式**而不是本项目的
+ * `<tool>/<args>` 协议（项目内 grep DSML 零匹配 ⇒ 它不是本项目定义的）。
+ * 症状链（用户实测）：模型输出 DSML → `parseToolCall` 不匹配 → 工具**没有被执行** →
+ * `parseFinal` 的「整段当回答」分支把**原文原样返回** → 用户屏幕上出现一堆
+ * `<｜｜DSML｜｜ …>` 乱码；且对话历史里存的就是这些标签，模型下一轮继续照抄 →
+ * 连续空转到步数耗尽。
+ *
+ * 精确形态（用用户提供的真实样本逐字确认过）：
+ *   分隔符 = U+FF5C（`｜` 全角竖线）× 2；关键字 = calls / invoke / parameter。
+ *   · invoke  : `<｜｜DSML｜｜ invoke name="工具名"> … </｜｜DSML｜｜ invoke>`（正常开闭）
+ *   · parameter: **自闭合**（无斜杠）`<｜｜DSML｜｜ parameter name="k" [string="true"]>值<｜｜DSML｜｜ parameter>`
+ *   · calls   : `<｜｜DSML｜｜ calls> … </｜｜DSML｜｜ calls>`
+ *
+ * 这里对分隔符同时接受**全角 `｜｜` 与半角 `||`**（不同服务商版本可能不同），
+ * 但关键字只认上面三个白名单 —— 避免把别的尖括号内容误当成工具调用。
+ */
+const DSML_SEP = '[｜|]{2}';
+const DSML_INVOKE_RE = new RegExp(
+  `<${DSML_SEP}\\s*DSML\\s*${DSML_SEP}\\s*invoke\\s+name\\s*=\\s*"([^"]+)"[^>]*>([\\s\\S]*?)<\\/\\s*${DSML_SEP}\\s*DSML\\s*${DSML_SEP}\\s*invoke\\s*>`,
+  'i',
+);
+const DSML_PARAM_RE = new RegExp(
+  `<${DSML_SEP}\\s*DSML\\s*${DSML_SEP}\\s*parameter\\s+name\\s*=\\s*"([^"]+)"([^>]*)>([\\s\\S]*?)<\\s*${DSML_SEP}\\s*DSML\\s*${DSML_SEP}\\s*parameter\\s*>`,
+  'gi',
+);
+const DSML_ANY_RE = new RegExp(`<${DSML_SEP}\\s*DSML\\s*${DSML_SEP}`, 'i');
+
+/**
+ * 解析 DSML 格式的工具调用。**只取第一个 invoke**（本项目一轮只执行一个工具，
+ * 与 `<tool>` 协议同款；多余的 invoke 若有 next 参数请用本项目协议的 `<args>` 传）。
+ * @returns {{name:string,args:object,argsRaw:string,parseError:null,thought:string}|null}
+ */
+export function parseDsmlToolCall(raw) {
+  const text = String(raw);
+  const inv = DSML_INVOKE_RE.exec(text);
+  if (!inv) return null;
+  const name = inv[1].trim();
+  const body = inv[2] || '';
+  const args = {};
+  DSML_PARAM_RE.lastIndex = 0;
+  let pm;
+  while ((pm = DSML_PARAM_RE.exec(body)) !== null) {
+    const key = pm[1].trim();
+    if (!key) continue;
+    let val = pm[3] == null ? '' : String(pm[3]);
+    // string="false"/"0" 表示这是非字符串值：按 布尔 → 数字 → 原样 的顺序还原。
+    // ⚠️ 不用 Number(val) || val —— 那会把显式 0 吞成 val（项目通则：禁止用强制转换做存在性判断）。
+    if (/\bstring\s*=\s*"(?:false|0)"/i.test(pm[2] || '')) {
+      const s = val.trim();
+      if (s === 'true') val = true;
+      else if (s === 'false') val = false;
+      else if (s !== '' && Number.isFinite(Number(s))) val = Number(s);
+    }
+    args[key] = val;
+  }
+  const thought = text.slice(0, inv.index).replace(DSML_ANY_RE, '').trim();
+  return { name, args, argsRaw: JSON.stringify(args), parseError: null, thought };
+}
+
+/** 文本里是否含 DSML 工具调用（出口过滤用；宁枉勿纵——宁可少答也不泄漏标签） */
+export function containsDsmlCall(raw) {
+  return DSML_ANY_RE.test(String(raw));
+}
+
 export function parseToolCall(raw) {
   const text = String(raw);
   const m = text.match(/<tool>([^<]+)<\/tool>\s*<args>([\s\S]*?)<\/args>/);
-  if (!m) return null;
+  if (!m) {
+    // round133：主协议没命中时再试 DSML（服务商训练格式），
+    // 命中就正常执行工具 —— 模型下一轮会看到工具观察，通常就会切回主协议；
+    // 即使它一直用 DSML，本分支也会持续兜住，**功能不再退化成"只显示乱码"**。
+    return parseDsmlToolCall(text);
+  }
   const name = m[1].trim();
   const argsRaw = m[2].trim() || '{}';
   let args = {};
@@ -84,12 +158,26 @@ export function parseToolCall(raw) {
 // round71：导出供回归测试直接校验「截断抢救」后的标签剥离行为
 export function parseFinal(raw) {
   const m = String(raw).match(/<final>([\s\S]*?)<\/final>/);
-  if (m) return m[1].trim();
+  if (m) return stripToolMarkup(m[1]);
+  // round133：含 DSML 的文本是**工具调用**、不是给用户的回答 —— 必须返回 null，
+  // 让上层走「无 final」出口。旧实现把它当正文返回 → 用户屏幕上出现一堆乱码标签。
+  if (containsDsmlCall(raw)) return null;
   // 没有 <final> 标签时，若也没有 <tool> 标签，则整段视为最终回答。
   // round71：流式超时抢救回来的内容可能是「被砍在中间」的 <final>（只有开始标签没有结束标签），
   // 此时要把标签本身剥掉，否则用户会看到正文开头挂着一串 `<final>`。
-  if (!/<tool>/.test(raw)) return String(raw).replace(/<\/?final>/g, '').trim();
+  if (!/<tool>/.test(raw)) return stripToolMarkup(raw);
   return null;
+}
+
+/**
+ * 剥掉正文里残留的工具调用标记（round133）。
+ * 只剥**协议标签本身**，不动用户/模型写的正文内容。
+ */
+function stripToolMarkup(s) {
+  return String(s)
+    .replace(/<\s*[｜|]{2}\s*DSML[\s\S]*$/i, '')     // 截断的 DSML 尾巴
+    .replace(/<\/?(?:tool|args|final)>/gi, '')
+    .trim();
 }
 
 /**
