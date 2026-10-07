@@ -15,26 +15,13 @@ export { RETRIEVAL_STRENGTH_OPTIONS };
 // P1-18 统一格式化（日期补零 / 字节）收口到 format.js，消除全局重复实现
 // 审计 D7：日期 key 统一走 time.dateKey（补零 yyyy-MM-dd），与 word/streak 同源，
 // 否则 repo 本地一份 localDateStr 独立实现会在未来格式演进时跨表整日错位。
-import { dateKey as createDateKey } from '../utils/time.js';
 // 向量行 id 的确定性形态与前缀匹配（agent/embedding-key.js 无任何依赖，静态导入不成环）
 // N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
 import { DEFAULT_SUBJECTS, validateCard as _validateCard, gradeCard as _gradeCard, WRONG_REASON_MAP as _WRONG_REASON_MAP, WRONG_REASONS as _WRONG_REASONS, wrongReasonToCode as _wrongReasonToCode, formatDue as _formatDue, dayWindowOf } from '../repo-core.js';
 export { DEFAULT_SUBJECTS };
-import { triggerHook } from '../plugins/registry.js';
 import { trashItem } from './cards.js';
+import { MAX_ESTIMATED_MINUTES, now, plain, localDateStr, fireHook } from './shared.js';
 
-// fireHook 原是 repo.js 的**模块私有**函数（原文件无 export），拆到 cards.js 后
-// plans.js 无法 import —— 它是 3 行纯分发、无状态（fire-and-forget + 吞错），
-// 按原样内联一份（逐字一致，不改行为）。
-function fireHook(event, ...args) {
-  triggerHook(event, ...args).catch(() => {});
-}
-
-// 以下定义原为 repo.js 顶层，被本模块引用 —— 搬移时复制一份（纯常量/纯函数，无状态）：
-const MAX_ESTIMATED_MINUTES = 1440;
-const now = () => Date.now();
-const plain = (x) => JSON.parse(JSON.stringify(x));
-const localDateStr = (d) => createDateKey(d ? new Date(d).getTime() : undefined);
 function clampEstimatedMinutes(v) {
   if (!Number.isFinite(v) || v < 0) return null;
   if (v === 0) return 0;

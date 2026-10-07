@@ -17,16 +17,12 @@ import { pad2 } from '../utils/format.js';
 // 审计 D7：日期 key 统一走 time.dateKey（补零 yyyy-MM-dd），与 word/streak 同源，
 // 否则 repo 本地一份 localDateStr 独立实现会在未来格式演进时跨表整日错位。
 import { dateKeyToTs } from '../utils/time.js';
-import { kindOf, tombKindTable } from '../sync-manifest.js';
+import { kindOf } from '../sync-manifest.js';
 // 向量行 id 的确定性形态与前缀匹配（agent/embedding-key.js 无任何依赖，静态导入不成环）
 // N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
 import { DEFAULT_SUBJECTS, validateCard as _validateCard, gradeCard as _gradeCard, WRONG_REASON_MAP as _WRONG_REASON_MAP, WRONG_REASONS as _WRONG_REASONS, wrongReasonToCode as _wrongReasonToCode, formatDue as _formatDue, selectZombieIds, groupUserOps, realReviews } from '../repo-core.js';
 export { DEFAULT_SUBJECTS };
 
-// 以下定义原为 repo.js 顶层，被本模块引用 —— 搬移时复制一份（纯常量/纯函数，无状态）：
-const now = () => Date.now();
-const plain = (x) => JSON.parse(JSON.stringify(x));
-const TOMB_KIND_TABLE = tombKindTable();
 export async function repairBrokenDueAt({ force = false } = {}) {
   const FLAG = 'sxy_heal_broken_dueat_v1';
   if (!force) {
@@ -242,6 +238,7 @@ export async function zombieCardIds() {
 
 // 2) 埋点写入（同步到 telemetry A 级），返回立即 flush 的 Promise
 import { trackAction, flushTelemetry } from '../utils/telemetry.js';
+import { now, plain, TOMB_KIND_TABLE } from './shared.js';
 export async function recordUserOp(type, payload = null, extra = {}) {
   trackAction(type, payload, extra);
   return flushTelemetry();

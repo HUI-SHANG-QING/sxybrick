@@ -9,7 +9,6 @@ import { db, uid, currentDbMode } from '../db.js';
 import { applyFeedback, scheduleReview, seedFsrsFromSm2, RETRIEVAL_STRENGTH_OPTIONS } from '../srs.js';
 // P3-4 插件事件钩子：业务动作后向已启用插件分发（fire-and-forget，不阻塞也不抛错）
 // 静态导入无循环依赖：plugins/registry 只依赖 db.js 与 agent/registry.js，不依赖 repo.js
-import { triggerHook } from '../plugins/registry.js';
 // P1-3 检索强度分级选项：供 Review.vue 等 UI 直接渲染选择器
 export { RETRIEVAL_STRENGTH_OPTIONS };
 import { mergeUserWeights, retrievability } from '../fsrs.js';
@@ -21,12 +20,12 @@ import { normalizeNotePayload, validateNote, recognizeWikiLinks } from '../utils
 // P1-18 统一格式化（日期补零 / 字节）收口到 format.js，消除全局重复实现
 // 审计 D7：日期 key 统一走 time.dateKey（补零 yyyy-MM-dd），与 word/streak 同源，
 // 否则 repo 本地一份 localDateStr 独立实现会在未来格式演进时跨表整日错位。
-import { dateKey as createDateKey } from '../utils/time.js';
-import { CARD_CONTENT_FIELDS, tombKindTable } from '../sync-manifest.js';
+import { CARD_CONTENT_FIELDS } from '../sync-manifest.js';
 // 向量行 id 的确定性形态与前缀匹配（agent/embedding-key.js 无任何依赖，静态导入不成环）
 import { embeddingIdPrefix } from '../agent/embedding-key.js';
 // N9 纯函数层：校验/过滤/排序/统计逻辑抽至 repo-core.js（Node 可单测），repo.js 只做 IO 编排
 import { DEFAULT_SUBJECTS, validateCard as _validateCard, tagFilter, applyCardFilters, gradeCard as _gradeCard, WRONG_REASON_MAP as _WRONG_REASON_MAP, WRONG_REASONS as _WRONG_REASONS, wrongReasonToCode as _wrongReasonToCode, formatDue as _formatDue, filterReviewCandidates, dueOf, rankWeakCards, buildReviewSuggestion, computeStats, isRealReview, realReviews } from '../repo-core.js';
+import { now, plain, fireHook } from './shared.js';
 export { DEFAULT_SUBJECTS };
 export const validateCard = _validateCard;
 export const gradeCard = _gradeCard;
@@ -37,24 +36,6 @@ export const formatDue = (ts) => _formatDue(ts);
 // round29：re-export 供列表侧复用——错题集等自定义数据源要按与 listCards 完全一致的
 // AND/OR/NOT 语义过滤标签，此前 Cards.vue 拿不到它（只在 listCards 内部用）。
 export { tagFilter, applyCardFilters };
-
-// round30 P2-7：单日任务时长绝对上界（分钟）。单任务不可能超过一天，
-// 防止 LLM/手动输入超大值污染时间轴渲染、联动分析（规划/实际完成率）与跨设备同步。
-// round30 P2-7：单日任务时长绝对上界（分钟）。单任务不可能超过一天，
-// 防止 LLM/手动输入超大值污染时间轴渲染、联动分析（规划/实际完成率）与跨设备同步。
-const MAX_ESTIMATED_MINUTES = 1440;
-// 审计 C1/C4：跨设备时钟与同毫秒覆盖主要通过「确定性决胜 + 严格比较」在 sync-manifest
-// 的纯合并函数里根治（mergeCardPair/mergeTombstones 已改 `>` + 字典序收敛）。
-// 此处 now() 保持墙钟即可——在整进程内混用「单调时钟」与多处裸 Date.now() 会破坏
-// deleteCard/restoreFromTrash 等既有「updatedAt 必须晚于墓碑」的不变量，得不偿失。
-// 完整跨设备时钟偏置免疫需 per-epoch（ts,uuid）元组，属更大改造，未在此次混入。
-const now = () => Date.now();
-
-// P3-4 插件钩子触发：fire-and-forget（插件抛错/慢执行绝不影响主流程）
-// P3-4 插件钩子触发：fire-and-forget（插件抛错/慢执行绝不影响主流程）
-function fireHook(event, ...args) {
-  triggerHook(event, ...args).catch(() => {});
-}
 
 // P1-1 FSRS 调度配置缓存：避免每次复习都查 db.meta（scheduler/fsrsWeights）
 // P1-1 FSRS 调度配置缓存：避免每次复习都查 db.meta（scheduler/fsrsWeights）
@@ -113,9 +94,6 @@ export async function setScheduler(next) {
   }
   return { migrated };
 }
-// 剥离 Vue 响应式代理：Dexie put 前转纯对象，避免 reactive proxy 触发 IndexedDB 结构化克隆失败（思维导图等含嵌套对象的表曾因此保存失败）
-// 剥离 Vue 响应式代理：Dexie put 前转纯对象，避免 reactive proxy 触发 IndexedDB 结构化克隆失败（思维导图等含嵌套对象的表曾因此保存失败）
-const plain = (x) => JSON.parse(JSON.stringify(x));
 
 // validateCard 已抽至 repo-core.js（上方 re-export 保持 API 不变）
 
@@ -818,13 +796,6 @@ export async function sweepOrphanRows() {
  * @param {{force?:boolean}} opts force=true 时跳过「已执行」标记（导入后调，处理刚导入的坏行）
  * @returns {Promise<number>} 修复行数
  */
-// round34 M3：墓碑表（tombstones）永不清理——每次增量备份全量随包发送，
-// 删除越多包越大、同步/导入越慢。补一个 TTL/GC：删除时间超过最大离线窗口的墓碑，
-// 且本地对应行确实已不存在（避免误删仍在等待传播的删除），定期清除。
-// 保留 30 天窗口给所有设备完成同步；超期且本地无残留行即可安全 GC。
-// round38 ④：墓碑 kind → 表名映射改为从同步清单自动派生（tombKindTable），
-// 杜绝手写清单漂移导致某些 kind（如 groupLink/pomo/memory/privacy）的墓碑永不 GC。
-const TOMB_KIND_TABLE = tombKindTable();
 // 手动标记 / 取消标记错题
 export async function setMarked(id, marked) {
   // 审计 B11 同款：差量写——marked/updatedAt 只 merge 这两个字段，
@@ -1373,7 +1344,6 @@ export async function deleteMemo(id) {
  * @param {object} payload { rawInput, date?, tasks? }
  * @returns {{ plan, tasks }}
  */
-const localDateStr = (d) => createDateKey(d ? new Date(d).getTime() : undefined);
 
 /** 列出某天的计划（默认今天），含任务明细；当天多份时取 updatedAt 最新的一份 */
 export async function listNotes({ q = '', category = '', tags = [] } = {}) {
