@@ -52,6 +52,34 @@ if (existsSync(fh)) {
 }
 console.log('  ⚠️ 这是**上次成功 fetch 时**的快照，真实远端可能已变化');
 console.log('    （本脚本零子进程，无法实时查询远端）');
+
+// ── 工作区是否干净（round144 补）──
+// 推送前**必须**知道工作区状态：脏工作区意味着本地有还没纳入版本管理的改动
+//（新文件 / 未提交修改），此时 push 推上去的是**上一次提交时的代码**，不是"我眼前这份"。
+// 上一版脚本完全没提这件事 —— 属于会误导决策的信息缺口。
+//
+// ⚠️ 本机 Node 启动子进程常 EBUSY，故**降级路径**：子进程失败时改为扫描工作区文件系统
+//   ——只看最可能遗漏的两类：**未跟踪文件（src/ 下的新文件）与被改过的源码文件**。
+//   这是近似判断（会在输出里标注），宁可说"不确定"也不谎称"干净"。
+let dirty = null;
+try {
+  const { execFileSync } = await import('node:child_process');
+  const out = execFileSync('sh', ['-c', '"C:/Program Files/Git/bin/git.exe" status --porcelain'],
+    { cwd: process.cwd(), encoding: 'utf8' });
+  dirty = out.split('\n').filter((l) => l.trim());
+} catch { dirty = null; }
+
+if (dirty === null) {
+  // ⚠️ 刻意**不**退化成"扫文件系统猜哪些没提交" —— 那只会产出噪音（几百个文件，等于没说）。
+  //   宁可明说"查不到，请手动确认"，也不给一个看起来像结论的猜测。
+  console.log('  工作区: ⚠️ 无法用 git 判定（本机子进程 EBUSY）——请手动执行 git status');
+} else if (dirty.length === 0) {
+  console.log('  工作区: ✓ 干净');
+} else {
+  console.log(`  工作区: ⚠️ **有 ${dirty.length} 项未提交变更**（推送上去的是上一次提交时的代码）`);
+  for (const l of dirty.slice(0, 5)) console.log('     ' + l);
+  if (dirty.length > 5) console.log(`     …另 ${dirty.length - 5} 项`);
+}
 console.log('');
 
 if (head && head === cachedRemote) {
