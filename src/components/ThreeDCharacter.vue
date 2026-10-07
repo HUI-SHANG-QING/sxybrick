@@ -250,14 +250,17 @@ function onClick() {
   setTimeout(() => playBlip(440, 0.1, 'square', 0.2), 80);
   emit('action');
 }
+let boundEl = null;   // round145：记录绑定了事件的 canvas，卸载时统一解绑
+function onPointerLeave() { pointerInside = false; }
 function bindInteraction() {
   const el = canvasEl.value;
   if (!el) return;
+  boundEl = el;
   el.addEventListener('pointerdown', onPointerDown);
   el.addEventListener('pointermove', onPointerMove);
   el.addEventListener('pointerup', onPointerUp);
   el.addEventListener('pointercancel', onPointerUp);
-  el.addEventListener('pointerleave', () => { pointerInside = false; });
+  el.addEventListener('pointerleave', onPointerLeave);
   el.addEventListener('click', onClick);
 }
 
@@ -343,6 +346,19 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize);
+  // round145：canvas 上挂了 6 个事件监听，此前**一个都没解绑**，
+  //   其中 pointerleave 还是匿名函数（结构上就不可能移除）。
+  //   元素随 v-if 重建时虽会被回收，但每次组件重新挂载都会新增一份闭包并持有旧引用，
+  //   长期反复进出（导航栏常驻）会累积。解绑是零风险的正向修复。
+  if (boundEl) {
+    boundEl.removeEventListener('pointerdown', onPointerDown);
+    boundEl.removeEventListener('pointermove', onPointerMove);
+    boundEl.removeEventListener('pointerup', onPointerUp);
+    boundEl.removeEventListener('pointercancel', onPointerUp);
+    boundEl.removeEventListener('pointerleave', onPointerLeave);
+    boundEl.removeEventListener('click', onClick);
+    boundEl = null;
+  }
   disposeFn();
 });
 </script>
