@@ -61,6 +61,12 @@ if (head && head === cachedRemote) {
 
 console.log('✗ 本地 HEAD 与缓存的 origin/main 不同 ⇒ **存在未推送的提交**');
 console.log('');
-console.log('查看清单： git log --oneline ' + cachedRemote.slice(0, 7) + '..HEAD');
-console.log('推送：     git push origin main');
+// ⚠️ 零子进程 ⇒ **算不出「领先几个提交」**（需 git rev-list 遍历提交图）。
+//   这是本脚本已知的取舍：宁可少报一项，也不能给一个编造的数字。
+//   要精确数量请用下面两条命令（网络恢复时可用）。
+console.log('⚠️ 本脚本零子进程，无法计算「领先几个提交」——这是刻意取舍，不编造数字。');
+console.log('');
+console.log('  精确清单与数量： git log --oneline ' + cachedRemote.slice(0, 7) + '..HEAD');
+console.log('                  git rev-list --count ' + cachedRemote.slice(0, 7) + '..HEAD');
+console.log('  推送：           git push origin main');
 process.exit(1);
