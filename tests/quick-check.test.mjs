@@ -73,7 +73,9 @@ test('round118 结构闸：跳过必须走 skipQuickCheck，复习必须重置�
   const review = read(`${SRC}/views/Review.vue`);
   assert.match(review, /function skipQuick\(\) \{[\s\S]{0,500}?skipQuickCheck\(/, 'Review.vue 的 skipQuick 必须调用 skipQuickCheck（不再「只关面板」）');
 
-  const repo = read(`${SRC}/repo.js`);
+  // round142：repo.review 已随物理拆分搬到 src/repo/cards.js（repo.js 现在只是门面），
+  //   结构闸必须读**函数实际所在文件**，否则读门面永远读不到。
+  const repo = read(`${SRC}/repo/cards.js`);
   assert.match(repo, /cardUpdate\.quickAnchorAt = nowTs;/, 'repo.review 必须把窗口锚点重置回本次复习时刻');
   assert.match(repo, /cardUpdate\.fieldTs = \{ \.\.\.\(card\.fieldTs \|\| \{\}\), quickAnchorAt: nowTs \};/, '锚点重置必须随 fieldTs 独立记录（跨设备字段级同步）');
 });
